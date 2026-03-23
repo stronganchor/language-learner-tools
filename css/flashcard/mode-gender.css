@@ -33,8 +33,7 @@
 
 .ll-gender-option {
     --ll-gender-option-scale: 1;
-    --ll-gender-option-label-size: calc(0.88em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
-    --ll-gender-option-text-size: calc(var(--ll-gender-option-label-size) * 0.8);
+    --ll-gender-option-content-size: calc(0.88em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
     border: 2px solid var(--ll-gender-border) !important;
     background: var(--ll-gender-bg) !important;
     color: var(--ll-gender-accent) !important;
@@ -51,7 +50,7 @@
     align-items: center;
     justify-content: center;
     text-align: center !important;
-    font-size: var(--ll-gender-option-text-size);
+    font-size: var(--ll-gender-option-content-size);
     font-weight: 700;
     line-height: 1.06;
     letter-spacing: 0.01em;
@@ -66,28 +65,27 @@
     max-width: 100%;
     width: max-content;
     margin: 0 auto;
-    font-size: var(--ll-gender-option-label-size);
-    line-height: 1.06;
+    font-size: inherit;
+    line-height: inherit;
     white-space: nowrap;
     flex-wrap: nowrap;
 }
 
 .ll-gender-option--unknown .quiz-text {
-    font-size: var(--ll-gender-option-text-size);
-    line-height: 1.08;
-    text-wrap: balance;
+    font-size: var(--ll-gender-option-content-size);
+    line-height: inherit;
+    white-space: nowrap;
+    text-wrap: nowrap;
+    word-break: keep-all;
+    overflow-wrap: normal;
 }
 
 .ll-gender-option .ll-gender-option-label {
     color: inherit;
-    font-size: 0.8em;
+    font-size: 1em;
     font-weight: 700;
     line-height: 1;
     flex: 0 0 auto;
-}
-
-.ll-gender-option .ll-gender-option-label--compact {
-    font-size: 1em;
 }
 
 #ll-tools-flashcard.ll-gender-options-layout {
@@ -179,8 +177,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.2em;
-    min-height: 1.2em;
+    width: 1em;
+    min-width: 1em;
+    height: 1em;
+    min-height: 1em;
     font-size: 1em;
     line-height: 1;
     flex: 0 0 auto;
@@ -214,8 +214,9 @@
 
 .ll-gender-option .ll-gender-symbol--svg svg {
     display: block;
-    width: 1em;
-    height: 1em;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
 }
 
 .ll-gender-intro-badge .ll-gender-symbol--svg svg {

@@ -11,6 +11,14 @@ const selectionScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'),
   'utf8'
 );
+const baseCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/flashcard/base.css'),
+  'utf8'
+);
+const genderCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/flashcard/mode-gender.css'),
+  'utf8'
+);
 
 test('gender mode reveals answer options on a mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -28,14 +36,17 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   `);
 
   await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: `${baseCssSource}\n${genderCssSource}` });
 
   await page.evaluate(() => {
+    const masculineSvg = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="30" y="18" width="16" height="64" rx="6" fill="currentColor"/><circle cx="38" cy="12" r="8" fill="currentColor"/></svg>';
+    const feminineSvg = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="50" cy="28" r="16" fill="currentColor"/><rect x="44" y="44" width="12" height="34" rx="5" fill="currentColor"/><rect x="28" y="78" width="44" height="10" rx="4" fill="currentColor"/></svg>';
     const targetWord = {
       id: 101,
-      title: 'der Tisch',
-      label: 'der Tisch',
+      title: 'kase',
+      label: 'kase',
       image: 'table.jpg',
-      grammatical_gender: 'masculine',
+      grammatical_gender: 'eril',
       part_of_speech: ['noun'],
       all_categories: ['Cat A']
     };
@@ -45,8 +56,29 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
     window.llToolsFlashcardsData = {
       imageSize: 'small',
       genderEnabled: true,
-      genderOptions: ['masculine', 'feminine'],
-      genderVisualConfig: { options: [] },
+      genderOptions: ['eril', 'dişil'],
+      genderVisualConfig: {
+        options: [
+          {
+            value: 'eril',
+            normalized: 'eril',
+            label: 'Eril',
+            role: 'masculine',
+            color: '#1D4D99',
+            style: '--ll-gender-accent:#1D4D99;--ll-gender-bg:rgba(29,77,153,0.14);--ll-gender-border:rgba(29,77,153,0.38);',
+            symbol: { type: 'svg', value: masculineSvg }
+          },
+          {
+            value: 'dişil',
+            normalized: 'dişil',
+            label: 'Dişil',
+            role: 'feminine',
+            color: '#EC4899',
+            style: '--ll-gender-accent:#EC4899;--ll-gender-bg:rgba(236,72,153,0.14);--ll-gender-border:rgba(236,72,153,0.38);',
+            symbol: { type: 'svg', value: feminineSvg }
+          }
+        ]
+      },
       categories: [
         {
           name: 'Cat A',
@@ -129,11 +161,19 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
     return Array.from(document.querySelectorAll('#ll-tools-flashcard .ll-gender-option')).map((card) => {
       const style = window.getComputedStyle(card);
       const rect = card.getBoundingClientRect();
+      const textEl = card.querySelector('.quiz-text');
+      const symbolEl = card.querySelector('.ll-gender-symbol');
+      const textStyle = textEl ? window.getComputedStyle(textEl) : null;
+      const symbolRect = symbolEl ? symbolEl.getBoundingClientRect() : null;
       return {
+        role: card.getAttribute('data-ll-gender-role') || '',
         display: style.display,
         visibility: style.visibility,
         width: rect.width,
-        height: rect.height
+        height: rect.height,
+        fontSize: textStyle ? parseFloat(textStyle.fontSize || '0') : 0,
+        symbolWidth: symbolRect ? symbolRect.width : 0,
+        symbolHeight: symbolRect ? symbolRect.height : 0
       };
     });
   });
@@ -144,5 +184,13 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
     expect(card.visibility).toBe('visible');
     expect(card.width).toBeGreaterThan(0);
     expect(card.height).toBeGreaterThan(0);
+    expect(card.fontSize).toBeGreaterThan(0);
   });
+
+  const genderCards = cards.filter((card) => card.role === 'masculine' || card.role === 'feminine');
+  expect(genderCards).toHaveLength(2);
+  expect(Math.abs(cards[0].fontSize - cards[1].fontSize)).toBeLessThan(0.5);
+  expect(Math.abs(cards[0].fontSize - cards[2].fontSize)).toBeLessThan(0.5);
+  expect(Math.abs(genderCards[0].symbolWidth - genderCards[1].symbolWidth)).toBeLessThan(0.75);
+  expect(Math.abs(genderCards[0].symbolHeight - genderCards[1].symbolHeight)).toBeLessThan(0.75);
 });
