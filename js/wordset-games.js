@@ -696,6 +696,15 @@
         return resource ? resource.promise : Promise.resolve(false);
     }
 
+    function getLoadedAudioDurationMs(ctx, url) {
+        const resource = getAudioPreloadResource(ctx, url);
+        const durationSeconds = Number(resource && resource.audio && resource.audio.duration);
+        if (!durationSeconds || !isFinite(durationSeconds) || durationSeconds <= 0) {
+            return 0;
+        }
+        return durationSeconds * 1000;
+    }
+
     function renderBackground(ctx, run) {
         const context = ctx.canvasContext;
         context.clearRect(0, 0, run.width, run.height);
@@ -1474,12 +1483,36 @@
             return false;
         }
 
+        const targetCard = candidate.cards.find(function (card) {
+            return !!card && card.isTarget;
+        });
+        const promptDurationMs = getLoadedAudioDurationMs(ctx, candidate.audioUrl);
+        const safeLineRatio = clamp(Number(ctx.spaceShooter.audioSafeLineRatio) || 0.5, 0.35, 0.7);
+        const safeLineBufferMs = Math.max(0, toInt(ctx.spaceShooter.audioSafeLineBufferMs) || 180);
+        const safeLineY = run.height * safeLineRatio;
+        let promptCardSpeed = run.cardSpeed;
+
+        if (targetCard && promptDurationMs > 0) {
+            const distanceToSafeLine = Math.max(48, safeLineY - Number(targetCard.y || 0));
+            const minTravelSeconds = Math.max(0.1, (promptDurationMs + safeLineBufferMs) / 1000);
+            const maxSafeSpeed = distanceToSafeLine / minTravelSeconds;
+            if (isFinite(maxSafeSpeed) && maxSafeSpeed > 0) {
+                promptCardSpeed = Math.min(run.cardSpeed, maxSafeSpeed);
+            }
+        }
+
+        candidate.cards.forEach(function (card) {
+            card.speed = promptCardSpeed;
+        });
+
         run.promptIdCounter = candidate.promptId;
         run.prompt = {
             target: candidate.target,
             promptId: candidate.promptId,
             audioUrl: candidate.audioUrl,
             recordingType: candidate.recordingType,
+            cardSpeed: promptCardSpeed,
+            audioDurationMs: promptDurationMs,
             hadWrongBefore: false,
             wrongCount: 0,
             exposureTracked: false,
@@ -1667,8 +1700,9 @@
         if (!run || !run.prompt || run.prompt.resolved) {
             return;
         }
+        const untouchedTimeout = !run.prompt.hadWrongBefore;
 
-        if (!run.prompt.hadWrongBefore) {
+        if (untouchedTimeout) {
             queueExposureOnce(ctx, run.prompt);
             queueOutcome(ctx, run.prompt, false, false, {
                 event_source: 'space_shooter',
@@ -1677,7 +1711,9 @@
         }
 
         run.coins = Math.max(0, run.coins - ctx.spaceShooter.timeoutCoinPenalty);
-        run.lives = Math.max(0, run.lives - Math.max(0, ctx.spaceShooter.timeoutLifePenalty));
+        if (!untouchedTimeout) {
+            run.lives = Math.max(0, run.lives - Math.max(0, ctx.spaceShooter.timeoutLifePenalty));
+        }
         updateHud(ctx);
         markPromptResolved(run);
         run.cards = run.cards.filter(function (card) {
@@ -2261,6 +2297,8 @@
                 cardCount: Math.max(2, toInt(spaceShooter.cardCount) || 4),
                 maxLoadedWords: Math.max(5, toInt(spaceShooter.maxLoadedWords) || 60),
                 fireIntervalMs: Math.max(80, toInt(spaceShooter.fireIntervalMs) || 165),
+                audioSafeLineRatio: clamp(Number(spaceShooter.audioSafeLineRatio) || 0.5, 0.35, 0.7),
+                audioSafeLineBufferMs: Math.max(0, toInt(spaceShooter.audioSafeLineBufferMs) || 180),
                 correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 2),
                 wrongHitCoinPenalty: Math.max(0, toInt(spaceShooter.wrongHitCoinPenalty)),
                 timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
@@ -2329,6 +2367,8 @@
                 promptsResolved: run.promptsResolved,
                 paused: !!run.paused,
                 awaitingPrompt: !!run.awaitingPrompt,
+                cardSpeed: Math.round(Number(run.prompt && run.prompt.cardSpeed ? run.prompt.cardSpeed : run.cardSpeed) || 0),
+                promptAudioDurationMs: Math.round(Number(run.prompt && run.prompt.audioDurationMs) || 0),
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),
