@@ -555,38 +555,6 @@ $escape_asset_url = static function ($asset): string {
             <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
               <span class="mode-icon" aria-hidden="true">⇄</span>
             </button>
-            <div id="ll-tools-settings-control" class="ll-tools-settings-control">
-              <button id="ll-tools-settings-button" class="ll-tools-settings-button" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>">
-                <span class="mode-icon" aria-hidden="true" data-emoji="⚙"></span>
-              </button>
-              <div id="ll-tools-settings-panel" class="ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>" aria-hidden="true">
-                <section class="ll-tools-settings-section" aria-label="<?php echo esc_attr__('Word priority', 'll-tools-text-domain'); ?>">
-                  <h3 class="ll-tools-settings-heading"><?php esc_html_e('Words', 'll-tools-text-domain'); ?></h3>
-                  <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Word priority', 'll-tools-text-domain'); ?>">
-                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-star-mode="normal" aria-pressed="false">
-                      <?php esc_html_e('All', 'll-tools-text-domain'); ?>
-                    </button>
-                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-star-mode="weighted" aria-pressed="false">
-                      <?php esc_html_e('Starred First', 'll-tools-text-domain'); ?>
-                    </button>
-                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-star-mode="only" aria-pressed="false">
-                      <?php esc_html_e('Starred Only', 'll-tools-text-domain'); ?>
-                    </button>
-                  </div>
-                </section>
-                <section class="ll-tools-settings-section" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
-                  <h3 class="ll-tools-settings-heading"><?php esc_html_e('Speed', 'll-tools-text-domain'); ?></h3>
-                  <div class="ll-tools-settings-options" role="group" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
-                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-speed="slow" aria-pressed="false">
-                      <?php esc_html_e('Standard', 'll-tools-text-domain'); ?>
-                    </button>
-                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-speed="fast" aria-pressed="false">
-                      <?php esc_html_e('Faster', 'll-tools-text-domain'); ?>
-                    </button>
-                  </div>
-                </section>
-              </div>
-            </div>
           </div>
 
           <div id="quiz-results" style="display:none;">

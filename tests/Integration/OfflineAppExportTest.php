@@ -278,8 +278,8 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('id="restart-self-check-mode"', $index_html);
                 $this->assertStringContainsString('id="restart-listening-mode"', $index_html);
                 $this->assertStringContainsString('id="restart-gender-mode"', $index_html);
-                $this->assertStringContainsString('id="ll-tools-settings-button"', $index_html);
-                $this->assertStringContainsString('id="ll-tools-settings-panel"', $index_html);
+                $this->assertStringNotContainsString('id="ll-tools-settings-button"', $index_html);
+                $this->assertStringNotContainsString('id="ll-tools-settings-panel"', $index_html);
                 $this->assertStringContainsString('data-mode="listening"', $index_html);
                 $this->assertStringContainsString('data-mode="self-check"', $index_html);
                 $this->assertStringContainsString('data-mode="gender"', $index_html);
