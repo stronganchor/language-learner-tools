@@ -21,16 +21,35 @@ function Invoke-Git {
         [string[]]$Arguments
     )
 
-    $output = & git -C $repoRoot @Arguments 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        if ($output) {
-            throw ($output -join [Environment]::NewLine)
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # git reports normal push/fetch progress on stderr, so capture it without
+        # letting PowerShell treat those lines as terminating errors.
+        $ErrorActionPreference = 'Continue'
+        $output = & git -C $repoRoot @Arguments 2>&1
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $outputLines = @($output | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) {
+            $_.ToString()
+        } else {
+            [string]$_
+        }
+    })
+
+    if ($exitCode -ne 0) {
+        if ($outputLines) {
+            throw ($outputLines -join [Environment]::NewLine)
         }
 
         throw "git $($Arguments -join ' ') failed."
     }
 
-    return $output
+    return $outputLines
 }
 
 function Get-CurrentBranch {
