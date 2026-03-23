@@ -153,6 +153,79 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_space_shooter_incorrect_outcomes_track_incorrect_without_stage_drop(): void
+    {
+        global $wpdb;
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        [$word_id, $category_id, $wordset_id] = $this->createScopedWordWithRecordingTypes([
+            'question' => 'Question text',
+            'isolation' => 'Isolation text',
+            'introduction' => 'Introduction text',
+        ]);
+
+        $tables = ll_tools_user_progress_table_names();
+        $table = $tables['words'];
+        $now = gmdate('Y-m-d H:i:s');
+
+        $inserted = $wpdb->replace($table, [
+            'user_id' => $user_id,
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'first_seen_at' => $now,
+            'last_seen_at' => $now,
+            'last_mode' => 'practice',
+            'total_coverage' => 4,
+            'coverage_learning' => 0,
+            'coverage_practice' => 4,
+            'coverage_listening' => 0,
+            'coverage_gender' => 0,
+            'coverage_self_check' => 0,
+            'correct_clean' => 2,
+            'correct_after_retry' => 0,
+            'incorrect' => 1,
+            'lapse_count' => 1,
+            'stage' => 3,
+            'due_at' => $now,
+            'practice_required_recording_types' => ll_tools_encode_practice_recording_types(['question', 'isolation', 'introduction']),
+            'practice_correct_recording_types' => ll_tools_encode_practice_recording_types(['question']),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $this->assertNotFalse($inserted);
+
+        $event = [
+            'event_uuid' => wp_generate_uuid4(),
+            'event_type' => 'word_outcome',
+            'mode' => 'practice',
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'is_correct' => false,
+            'had_wrong_before' => false,
+            'payload' => [
+                'recording_type' => 'question',
+                'available_recording_types' => ['question', 'isolation', 'introduction'],
+                'event_source' => 'space_shooter',
+                'wrong_hit' => true,
+            ],
+        ];
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [$event]);
+        $this->assertSame(1, (int) ($stats['processed'] ?? 0));
+
+        $rows = ll_tools_get_user_word_progress_rows($user_id, [$word_id]);
+        $this->assertArrayHasKey($word_id, $rows);
+        $row = $rows[$word_id];
+
+        $this->assertSame(2, (int) ($row['incorrect'] ?? 0));
+        $this->assertSame(1, (int) ($row['lapse_count'] ?? 0));
+        $this->assertSame(3, (int) ($row['stage'] ?? 0));
+        $this->assertSame(['question', 'isolation', 'introduction'], $row['practice_required_recording_types_resolved'] ?? []);
+        $this->assertSame(['question'], $row['practice_correct_recording_types'] ?? []);
+    }
+
     public function test_attach_user_practice_progress_to_words_includes_exposure_count(): void
     {
         global $wpdb;

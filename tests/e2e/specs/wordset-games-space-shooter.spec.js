@@ -102,8 +102,8 @@ function buildSpaceShooterWords() {
       translation: 'Sun',
       image: 'https://example.test/images/101.png',
       audio: '',
-      audio_files: [{ url: 'https://example.test/audio/101-isolation.mp3', recording_type: 'isolation' }],
-      practice_recording_types: ['isolation'],
+      audio_files: [{ url: 'https://example.test/audio/101-question.mp3', recording_type: 'question' }],
+      practice_recording_types: ['question'],
       preferred_speaker_user_id: 0,
       option_blocked_ids: [102],
       category_id: 11,
@@ -138,8 +138,8 @@ function buildSpaceShooterWords() {
       translation: 'River',
       image: 'https://example.test/images/shared-a.png',
       audio: '',
-      audio_files: [{ url: 'https://example.test/audio/103-isolation.mp3', recording_type: 'isolation' }],
-      practice_recording_types: ['isolation'],
+      audio_files: [{ url: 'https://example.test/audio/103-introduction.mp3', recording_type: 'introduction' }],
+      practice_recording_types: ['introduction'],
       preferred_speaker_user_id: 0,
       option_blocked_ids: [],
       category_id: 11,
@@ -156,8 +156,11 @@ function buildSpaceShooterWords() {
       translation: 'Lake',
       image: 'https://example.test/images/shared-a.png',
       audio: '',
-      audio_files: [{ url: 'https://example.test/audio/104-isolation.mp3', recording_type: 'isolation' }],
-      practice_recording_types: ['isolation'],
+      audio_files: [
+        { url: 'https://example.test/audio/104-question.mp3', recording_type: 'question' },
+        { url: 'https://example.test/audio/104-isolation.mp3', recording_type: 'isolation' }
+      ],
+      practice_recording_types: ['question', 'isolation'],
       preferred_speaker_user_id: 0,
       option_blocked_ids: [],
       category_id: 11,
@@ -174,8 +177,11 @@ function buildSpaceShooterWords() {
       translation: 'Sword',
       image: 'https://example.test/images/105.png',
       audio: '',
-      audio_files: [{ url: 'https://example.test/audio/105-isolation.mp3', recording_type: 'isolation' }],
-      practice_recording_types: ['isolation'],
+      audio_files: [
+        { url: 'https://example.test/audio/105-isolation.mp3', recording_type: 'isolation' },
+        { url: 'https://example.test/audio/105-introduction.mp3', recording_type: 'introduction' }
+      ],
+      practice_recording_types: ['isolation', 'introduction'],
       preferred_speaker_user_id: 0,
       option_blocked_ids: [],
       category_id: 22,
@@ -192,8 +198,11 @@ function buildSpaceShooterWords() {
       translation: 'Shield',
       image: 'https://example.test/images/106.png',
       audio: '',
-      audio_files: [{ url: 'https://example.test/audio/106-isolation.mp3', recording_type: 'isolation' }],
-      practice_recording_types: ['isolation'],
+      audio_files: [
+        { url: 'https://example.test/audio/106-question.mp3', recording_type: 'question' },
+        { url: 'https://example.test/audio/106-introduction.mp3', recording_type: 'introduction' }
+      ],
+      practice_recording_types: ['question', 'introduction'],
       preferred_speaker_user_id: 0,
       option_blocked_ids: [],
       category_id: 22,
@@ -210,8 +219,12 @@ function buildSpaceShooterWords() {
       translation: 'Tree',
       image: 'https://example.test/images/107.png',
       audio: '',
-      audio_files: [{ url: 'https://example.test/audio/107-isolation.mp3', recording_type: 'isolation' }],
-      practice_recording_types: ['isolation'],
+      audio_files: [
+        { url: 'https://example.test/audio/107-question.mp3', recording_type: 'question' },
+        { url: 'https://example.test/audio/107-isolation.mp3', recording_type: 'isolation' },
+        { url: 'https://example.test/audio/107-introduction.mp3', recording_type: 'introduction' }
+      ],
+      practice_recording_types: ['question', 'isolation', 'introduction'],
       preferred_speaker_user_id: 0,
       option_blocked_ids: [],
       category_id: 22,
@@ -474,10 +487,17 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
       window.__flushCount = 0;
 
       window.FlashcardAudio = {
-        selectBestAudio(word) {
+        selectBestAudio(word, preferredTypes) {
           const files = Array.isArray(word && word.audio_files) ? word.audio_files : [];
-          const isolation = files.find((file) => file && file.recording_type === 'isolation' && file.url);
-          return isolation ? isolation.url : String(word && word.audio || '');
+          const preferred = Array.isArray(preferredTypes) && preferredTypes.length ? preferredTypes : ['question', 'isolation', 'introduction'];
+          for (const rawType of preferred) {
+            const type = String(rawType || '').trim().toLowerCase();
+            const match = files.find((file) => file && String(file.recording_type || '').trim().toLowerCase() === type && file.url);
+            if (match) {
+              return match.url;
+            }
+          }
+          return String(word && word.audio || '');
         }
       };
 
@@ -595,6 +615,7 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.cardWordIds).toHaveLength(4);
+  expect(['question', 'isolation', 'introduction']).toContain(initialRun.promptRecordingType);
 
   const disallowedPairs = [
     [101, 102],
@@ -608,7 +629,15 @@ test('space shooter launches with safe option mixes and records progress flows',
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.resolvePrompt('wrong');
   });
-  await page.waitForTimeout(240);
+  await page.waitForFunction((targetWordId) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    if (!run || run.targetWordId !== targetWordId) {
+      return false;
+    }
+    return Array.isArray(run.cardSnapshot)
+      && run.cardSnapshot.length === 4
+      && run.cardSnapshot.every((card) => !card.exploding);
+  }, initialRun.targetWordId);
 
   let progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
   expect(progressEvents).toHaveLength(2);
@@ -616,18 +645,32 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(progressEvents[1].type).toBe('word_outcome');
   expect(progressEvents[1].entry.isCorrect).toBe(false);
   expect(progressEvents[1].entry.hadWrongBefore).toBe(false);
-  await expect(page.locator('[data-ll-wordset-game-lives]')).toHaveText('2');
+  expect(progressEvents[1].entry.payload.recording_type).toBe(initialRun.promptRecordingType);
+  await expect(page.locator('[data-ll-wordset-game-lives]')).toHaveText('3');
 
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.resolvePrompt('correct');
   });
-  await page.waitForTimeout(340);
+  await page.waitForTimeout(110);
+
+  let resolvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(resolvedState.cardSnapshot.some((card) => card.resolvedFalling && !card.exploding)).toBe(true);
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.promptsResolved === 1
+      && Array.isArray(run.cardSnapshot)
+      && run.cardSnapshot.length === 4
+      && run.cardSnapshot.every((card) => !card.exploding && !card.resolvedFalling));
+  });
 
   progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
   expect(progressEvents).toHaveLength(3);
   expect(progressEvents[2].entry.isCorrect).toBe(true);
   expect(progressEvents[2].entry.hadWrongBefore).toBe(true);
-  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('1');
+  expect(progressEvents[2].entry.payload.recording_type).toBe(initialRun.promptRecordingType);
+  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('2');
 
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.resolvePrompt('timeout');
@@ -639,20 +682,22 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(progressEvents[3].type).toBe('word_exposure');
   expect(progressEvents[4].entry.isCorrect).toBe(false);
   expect(progressEvents[4].entry.payload.timeout).toBe(true);
-  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('0');
+  expect(['question', 'isolation', 'introduction']).toContain(progressEvents[4].entry.payload.recording_type);
+  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('1');
+  await expect(page.locator('[data-ll-wordset-game-lives]')).toHaveText('2');
 
   await page.evaluate(() => {
-    window.LLWordsetGames.__debug.resolvePrompt('wrong');
+    window.LLWordsetGames.__debug.resolvePrompt('timeout');
   });
-  await page.waitForTimeout(220);
+  await page.waitForTimeout(260);
   await page.evaluate(() => {
-    window.LLWordsetGames.__debug.resolvePrompt('wrong');
+    window.LLWordsetGames.__debug.resolvePrompt('timeout');
   });
   await page.waitForTimeout(320);
 
   progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
-  expect(progressEvents).toHaveLength(8);
-  expect(progressEvents.filter((entry) => entry.type === 'word_exposure')).toHaveLength(3);
+  expect(progressEvents).toHaveLength(9);
+  expect(progressEvents.filter((entry) => entry.type === 'word_exposure')).toHaveLength(4);
   expect(progressEvents.filter((entry) => entry.type === 'word_outcome')).toHaveLength(5);
 
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();

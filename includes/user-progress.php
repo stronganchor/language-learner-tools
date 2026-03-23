@@ -747,6 +747,20 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     ];
 }
 
+function ll_tools_is_soft_space_shooter_incorrect_event(array $event): bool {
+    if (($event['is_correct'] ?? null) !== false) {
+        return false;
+    }
+
+    $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
+    if ($mode !== 'practice') {
+        return false;
+    }
+
+    $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+    return strtolower(trim((string) ($payload['event_source'] ?? ''))) === 'space_shooter';
+}
+
 function ll_tools_apply_word_progress_event(int $user_id, array $event, string $now_mysql): bool {
     global $wpdb;
     $tables = ll_tools_user_progress_table_names();
@@ -875,9 +889,11 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
                 $data['due_at'] = ll_tools_progress_due_at_for_stage((int) $data['stage'], $base_ts);
             } elseif ($is_correct === false) {
                 $data['incorrect'] = max(0, (int) $data['incorrect']) + 1;
-                $data['lapse_count'] = max(0, (int) $data['lapse_count']) + 1;
-                $data['stage'] = max(0, min(6, (int) $data['stage'] - 1));
-                $data['due_at'] = gmdate('Y-m-d H:i:s', $base_ts + (12 * HOUR_IN_SECONDS));
+                if (!ll_tools_is_soft_space_shooter_incorrect_event($event)) {
+                    $data['lapse_count'] = max(0, (int) $data['lapse_count']) + 1;
+                    $data['stage'] = max(0, min(6, (int) $data['stage'] - 1));
+                    $data['due_at'] = gmdate('Y-m-d H:i:s', $base_ts + (12 * HOUR_IN_SECONDS));
+                }
             }
         }
     }

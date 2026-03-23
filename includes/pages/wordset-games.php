@@ -102,6 +102,49 @@ function ll_tools_wordset_games_word_has_recording_type(array $word, string $rec
     return false;
 }
 
+function ll_tools_wordset_games_prompt_recording_types(): array {
+    $types = function_exists('ll_tools_get_main_recording_types')
+        ? ll_tools_get_main_recording_types()
+        : ['isolation', 'question', 'introduction'];
+
+    return function_exists('ll_tools_sort_practice_recording_types')
+        ? ll_tools_sort_practice_recording_types($types)
+        : array_values(array_unique(array_filter(array_map('sanitize_key', (array) $types))));
+}
+
+function ll_tools_wordset_games_get_word_prompt_recording_types(array $word): array {
+    $allowed = array_flip(ll_tools_wordset_games_prompt_recording_types());
+    if (empty($allowed)) {
+        return [];
+    }
+
+    $available = [];
+    $practice_types = ll_tools_decode_practice_recording_types($word['practice_recording_types'] ?? []);
+    foreach ($practice_types as $type) {
+        if (isset($allowed[$type]) && ll_tools_wordset_games_word_has_recording_type($word, $type)) {
+            $available[$type] = $type;
+        }
+    }
+
+    $audio_files = isset($word['audio_files']) && is_array($word['audio_files']) ? $word['audio_files'] : [];
+    foreach ($audio_files as $audio_file) {
+        if (!is_array($audio_file)) {
+            continue;
+        }
+        $url = trim((string) ($audio_file['url'] ?? ''));
+        $type = ll_tools_normalize_practice_recording_type_slug($audio_file['recording_type'] ?? '');
+        if ($url === '' || $type === '' || !isset($allowed[$type])) {
+            continue;
+        }
+        $available[$type] = $type;
+    }
+
+    $out = array_values($available);
+    return function_exists('ll_tools_sort_practice_recording_types')
+        ? ll_tools_sort_practice_recording_types($out)
+        : $out;
+}
+
 function ll_tools_wordset_games_collect_visible_words(int $wordset_id, int $user_id = 0): array {
     $wordset_id = max(0, $wordset_id);
     $uid = (int) ($user_id ?: get_current_user_id());
@@ -223,11 +266,12 @@ function ll_tools_wordset_games_build_space_shooter_pool(int $wordset_id, int $u
         if (empty($word['image'])) {
             continue;
         }
-        if (!ll_tools_wordset_games_word_has_recording_type($word, 'isolation')) {
+        $prompt_recording_types = ll_tools_wordset_games_get_word_prompt_recording_types($word);
+        if (empty($prompt_recording_types)) {
             continue;
         }
 
-        $word['game_prompt_recording_type'] = 'isolation';
+        $word['game_prompt_recording_types'] = $prompt_recording_types;
         $word['progress_status'] = 'studied';
         $pool[] = $word;
     }

@@ -61,7 +61,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
     }
 
-    public function test_space_shooter_pool_only_includes_studied_words_with_images_and_isolation_in_scope(): void
+    public function test_space_shooter_pool_only_includes_studied_words_with_images_and_core_prompt_recordings_in_scope(): void
     {
         $fixture = $this->createGamesFixture(5);
         wp_set_current_user((int) $fixture['user_id']);
@@ -79,7 +79,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($pool['launchable'] ?? false));
         $this->assertSame($expectedIds, $returnedIds);
         $this->assertNotContains((int) $fixture['missing_image_word_id'], $returnedIds);
-        $this->assertNotContains((int) $fixture['no_isolation_word_id'], $returnedIds);
+        $this->assertNotContains((int) $fixture['sentence_only_word_id'], $returnedIds);
         $this->assertNotContains((int) $fixture['mastered_word_id'], $returnedIds);
         $this->assertNotContains((int) $fixture['new_word_id'], $returnedIds);
         $this->assertNotContains((int) $fixture['out_of_scope_word_id'], $returnedIds);
@@ -88,7 +88,12 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertArrayHasKey('option_blocked_ids', $firstWord);
         $this->assertArrayHasKey('similar_word_id', $firstWord);
         $this->assertArrayHasKey('practice_recording_types', $firstWord);
-        $this->assertContains('isolation', (array) ($firstWord['practice_recording_types'] ?? []));
+        $this->assertArrayHasKey('game_prompt_recording_types', $firstWord);
+        $this->assertNotEmpty($firstWord['game_prompt_recording_types'] ?? []);
+        $this->assertNotEmpty(array_intersect(
+            ['question', 'isolation', 'introduction'],
+            (array) ($firstWord['game_prompt_recording_types'] ?? [])
+        ));
     }
 
     public function test_space_shooter_pool_is_unavailable_below_minimum_count(): void
@@ -181,7 +186,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
      *   wordset_id:int,
      *   eligible_word_ids:int[],
      *   missing_image_word_id:int,
-     *   no_isolation_word_id:int,
+     *   sentence_only_word_id:int,
      *   mastered_word_id:int,
      *   new_word_id:int,
      *   out_of_scope_word_id:int
@@ -211,13 +216,20 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         $eligibleWordIds = [];
         for ($index = 1; $index <= $eligibleCount; $index++) {
+            $recordingMap = match ((($index - 1) % 5) + 1) {
+                1 => ['question' => 'Eligible question ' . $index],
+                2 => ['isolation' => 'Eligible isolation ' . $index],
+                3 => ['introduction' => 'Eligible introduction ' . $index],
+                4 => ['question' => 'Eligible question ' . $index, 'isolation' => 'Eligible isolation ' . $index],
+                default => ['isolation' => 'Eligible isolation ' . $index, 'introduction' => 'Eligible introduction ' . $index],
+            };
             $wordId = $this->createWordWithGameMedia(
                 'Eligible Game Word ' . $index,
                 'Eligible Translation ' . $index,
                 $categoryId,
                 $wordsetId,
                 true,
-                ['isolation' => 'Eligible ' . $index]
+                $recordingMap
             );
             $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
                 'total_coverage' => 3,
@@ -246,15 +258,15 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'stage' => 1,
         ]);
 
-        $noIsolationWordId = $this->createWordWithGameMedia(
-            'No Isolation Word',
-            'No Isolation Translation',
+        $sentenceOnlyWordId = $this->createWordWithGameMedia(
+            'Sentence Only Word',
+            'Sentence Only Translation',
             $categoryId,
             $wordsetId,
             true,
-            ['question' => 'Question only']
+            ['sentence' => 'Sentence only']
         );
-        $this->seedWordProgressRow($userId, $noIsolationWordId, $categoryId, $wordsetId, [
+        $this->seedWordProgressRow($userId, $sentenceOnlyWordId, $categoryId, $wordsetId, [
             'total_coverage' => 2,
             'coverage_practice' => 2,
             'correct_clean' => 1,
@@ -309,7 +321,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'wordset_id' => $wordsetId,
             'eligible_word_ids' => $eligibleWordIds,
             'missing_image_word_id' => $missingImageWordId,
-            'no_isolation_word_id' => $noIsolationWordId,
+            'sentence_only_word_id' => $sentenceOnlyWordId,
             'mastered_word_id' => $masteredWordId,
             'new_word_id' => $newWordId,
             'out_of_scope_word_id' => $outOfScopeWordId,

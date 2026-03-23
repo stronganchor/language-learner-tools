@@ -4,6 +4,7 @@
     const api = root.LLWordsetGames = root.LLWordsetGames || {};
     const DEFAULT_GAME_SLUG = 'space-shooter';
     const MODULE_NS = '.llWordsetGames';
+    const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -19,6 +20,29 @@
         const seen = {};
         return (Array.isArray(values) ? values : [])
             .map(toInt)
+            .filter(function (value) {
+                if (!value || seen[value]) {
+                    return false;
+                }
+                seen[value] = true;
+                return true;
+            });
+    }
+
+    function normalizeRecordingType(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function uniqueStringList(values) {
+        const seen = {};
+        return (Array.isArray(values) ? values : [])
+            .map(function (value) {
+                return normalizeRecordingType(value);
+            })
             .filter(function (value) {
                 if (!value || seen[value]) {
                     return false;
@@ -90,7 +114,7 @@
             .map(function (file) {
                 return {
                     url: String(file.url || ''),
-                    recording_type: String(file.recording_type || ''),
+                    recording_type: normalizeRecordingType(file.recording_type || ''),
                     speaker_user_id: toInt(file.speaker_user_id),
                     recording_text: String(file.recording_text || '')
                 };
@@ -111,7 +135,7 @@
             audio: String(word.audio || ''),
             audio_files: normalizeAudioFiles(word),
             practice_recording_types: Array.isArray(word.practice_recording_types)
-                ? word.practice_recording_types.map(function (entry) { return String(entry || ''); }).filter(Boolean)
+                ? uniqueStringList(word.practice_recording_types)
                 : [],
             preferred_speaker_user_id: toInt(word.preferred_speaker_user_id),
             option_blocked_ids: uniqueIntList(word.option_blocked_ids || []),
@@ -123,29 +147,73 @@
                 : [],
             similar_word_id: String(word.similar_word_id || ''),
             practice_correct_recording_types: Array.isArray(word.practice_correct_recording_types)
-                ? word.practice_correct_recording_types.map(function (entry) { return String(entry || ''); }).filter(Boolean)
+                ? uniqueStringList(word.practice_correct_recording_types)
                 : [],
-            practice_exposure_count: toInt(word.practice_exposure_count)
+            practice_exposure_count: toInt(word.practice_exposure_count),
+            game_prompt_recording_types: Array.isArray(word.game_prompt_recording_types)
+                ? uniqueStringList(word.game_prompt_recording_types)
+                : []
         };
     }
 
-    function findIsolationAudioUrl(word) {
+    function getGamePromptRecordingTypes(word) {
+        const explicit = uniqueStringList(word && word.game_prompt_recording_types);
+        const availableAudioTypes = uniqueStringList((Array.isArray(word && word.audio_files) ? word.audio_files : []).map(function (file) {
+            return file && file.recording_type;
+        }));
+        const practiceTypes = uniqueStringList(word && word.practice_recording_types);
+        const source = explicit.length ? explicit : practiceTypes.concat(availableAudioTypes);
+
+        return GAME_PROMPT_RECORDING_TYPES.filter(function (type) {
+            return source.indexOf(type) !== -1 && availableAudioTypes.indexOf(type) !== -1;
+        });
+    }
+
+    function selectPromptAudio(word, preferredTypes) {
+        const preferred = uniqueStringList(preferredTypes);
+        const availableTypes = getGamePromptRecordingTypes(word);
+        const orderedTypes = preferred.concat(availableTypes, GAME_PROMPT_RECORDING_TYPES).filter(function (type, index, list) {
+            return type && list.indexOf(type) === index;
+        });
+
+        if (!availableTypes.length) {
+            return {
+                url: '',
+                recordingType: ''
+            };
+        }
+
         if (root.FlashcardAudio && typeof root.FlashcardAudio.selectBestAudio === 'function') {
-            const selected = root.FlashcardAudio.selectBestAudio(word, ['isolation']);
-            if (selected) {
-                return String(selected);
+            for (let index = 0; index < orderedTypes.length; index += 1) {
+                const type = orderedTypes[index];
+                const selected = root.FlashcardAudio.selectBestAudio(word, [type]);
+                if (selected) {
+                    return {
+                        url: String(selected),
+                        recordingType: type
+                    };
+                }
             }
         }
 
         const files = Array.isArray(word && word.audio_files) ? word.audio_files : [];
-        for (let index = 0; index < files.length; index += 1) {
-            const entry = files[index] || {};
-            if (String(entry.recording_type || '') === 'isolation' && entry.url) {
-                return String(entry.url);
+        for (let index = 0; index < orderedTypes.length; index += 1) {
+            const type = orderedTypes[index];
+            for (let fileIndex = 0; fileIndex < files.length; fileIndex += 1) {
+                const entry = files[fileIndex] || {};
+                if (normalizeRecordingType(entry.recording_type || '') === type && entry.url) {
+                    return {
+                        url: String(entry.url),
+                        recordingType: type
+                    };
+                }
             }
         }
 
-        return String(word && word.audio || '');
+            return {
+                url: String(word && word.audio || ''),
+                recordingType: orderedTypes[0] || ''
+            };
     }
 
     function buildStageMetrics(run) {
@@ -259,9 +327,10 @@
         return tracker;
     }
 
-    function buildProgressPayload(word, extra) {
+    function buildProgressPayload(prompt, extra) {
+        const word = prompt && prompt.target ? prompt.target : null;
         return $.extend({}, extra || {}, {
-            recording_type: 'isolation',
+            recording_type: normalizeRecordingType(prompt && prompt.recordingType || ''),
             available_recording_types: Array.isArray(word && word.practice_recording_types)
                 ? word.practice_recording_types.slice()
                 : [],
@@ -282,7 +351,7 @@
             wordsetId: ctx.wordsetId,
             categoryId: prompt.target.category_id,
             categoryName: prompt.target.category_name,
-            payload: buildProgressPayload(prompt.target, extraPayload || {})
+            payload: buildProgressPayload(prompt, extraPayload || {})
         });
     }
 
@@ -300,7 +369,7 @@
             categoryName: prompt.target.category_name,
             isCorrect: !!isCorrect,
             hadWrongBefore: !!hadWrongBefore,
-            payload: buildProgressPayload(prompt.target, extraPayload || {})
+            payload: buildProgressPayload(prompt, extraPayload || {})
         });
     }
 
@@ -436,11 +505,24 @@
             const left = card.x - (card.width / 2);
             const top = card.y - (card.height / 2);
             const exploding = !!card.exploding && now < card.removeAt;
-            const progress = exploding ? clamp(1 - ((card.removeAt - now) / 220), 0, 1) : 0;
+            const explosionDuration = Math.max(180, toInt(card.explosionDuration) || (card.explosionStyle === 'dramatic' ? 320 : 220));
+            const progress = exploding ? clamp(1 - ((card.removeAt - now) / explosionDuration), 0, 1) : 0;
+            const dramatic = card.explosionStyle === 'dramatic';
 
             context.save();
             if (exploding) {
                 context.globalAlpha = clamp(1 - progress, 0, 1);
+            }
+            if (dramatic) {
+                const wobble = Math.sin(progress * 30) * (1 - progress) * 7;
+                context.translate(card.x, card.y);
+                context.rotate((Math.sin(progress * 26) * 0.05) + (progress * 0.18));
+                context.scale(1 + (progress * 0.26), 1 + (progress * 0.22));
+                context.translate(-card.x + wobble, -card.y);
+            } else if (card.resolvedFalling) {
+                context.translate(card.x, card.y);
+                context.rotate((card.laneIndex % 2 === 0 ? -1 : 1) * 0.045);
+                context.translate(-card.x, -card.y);
             }
             context.shadowColor = 'rgba(15, 23, 42, 0.22)';
             context.shadowBlur = 16;
@@ -487,13 +569,24 @@
                 context.textBaseline = 'middle';
                 context.fillText('✦', card.x, card.y);
             }
+
+            if (dramatic) {
+                const flash = context.createRadialGradient(card.x, card.y, card.width * 0.08, card.x, card.y, card.width * 0.7);
+                flash.addColorStop(0, 'rgba(255,255,255,0.92)');
+                flash.addColorStop(0.38, 'rgba(251, 191, 36, 0.78)');
+                flash.addColorStop(1, 'rgba(248, 113, 113, 0)');
+                context.globalCompositeOperation = 'screen';
+                context.fillStyle = flash;
+                context.fillRect(left, top, card.width, card.height);
+                context.globalCompositeOperation = 'source-over';
+            }
             context.restore();
 
             if (exploding) {
                 context.strokeStyle = card.isTarget ? 'rgba(16, 185, 129, 0.9)' : 'rgba(248, 113, 113, 0.92)';
-                context.lineWidth = 3;
+                context.lineWidth = dramatic ? 4 : 3;
                 context.beginPath();
-                context.arc(card.x, card.y, (card.width * 0.2) + (progress * card.width * 0.55), 0, Math.PI * 2);
+                context.arc(card.x, card.y, (card.width * 0.2) + (progress * card.width * (dramatic ? 0.82 : 0.55)), 0, Math.PI * 2);
                 context.stroke();
             }
             context.restore();
@@ -506,11 +599,40 @@
             const progress = clamp((now - explosion.startedAt) / explosion.duration, 0, 1);
             const radius = explosion.radius * (0.28 + (progress * 0.9));
             context.save();
+            context.translate(explosion.x, explosion.y);
+            context.rotate(progress * (Number(explosion.spin) || 0) * Math.PI * 6);
             context.globalAlpha = 1 - progress;
-            context.strokeStyle = explosion.color;
-            context.lineWidth = 2 + ((1 - progress) * 4);
+
+            if (explosion.style === 'burst') {
+                const rayCount = Math.max(6, toInt(explosion.rayCount) || 10);
+                context.strokeStyle = String(explosion.primaryColor || 'rgba(248, 113, 113, 0.96)');
+                context.lineWidth = 2.4 + ((1 - progress) * 3.8);
+                for (let index = 0; index < rayCount; index += 1) {
+                    const angle = (Math.PI * 2 * index) / rayCount;
+                    const innerRadius = radius * 0.18;
+                    const outerRadius = radius * (1.02 + ((index % 2) * 0.18));
+                    context.beginPath();
+                    context.moveTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
+                    context.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius);
+                    context.stroke();
+                }
+
+                context.fillStyle = String(explosion.secondaryColor || 'rgba(251, 191, 36, 0.88)');
+                context.beginPath();
+                context.arc(0, 0, radius * 0.24, 0, Math.PI * 2);
+                context.fill();
+
+                context.strokeStyle = String(explosion.secondaryColor || 'rgba(255,255,255,0.85)');
+                context.lineWidth = 2 + ((1 - progress) * 2.4);
+                context.beginPath();
+                context.arc(0, 0, radius * 0.62, 0, Math.PI * 2);
+                context.stroke();
+            }
+
+            context.strokeStyle = String(explosion.primaryColor || explosion.color || 'rgba(255,255,255,0.9)');
+            context.lineWidth = 2 + ((1 - progress) * (explosion.style === 'burst' ? 3.4 : 4));
             context.beginPath();
-            context.arc(explosion.x, explosion.y, radius, 0, Math.PI * 2);
+            context.arc(0, 0, radius, 0, Math.PI * 2);
             context.stroke();
             context.restore();
         });
@@ -528,28 +650,44 @@
         renderShip(ctx, run);
     }
 
-    function spawnExplosion(run, x, y, color, radius) {
+    function spawnExplosion(run, options, y, color, radius) {
+        const config = (options && typeof options === 'object')
+            ? options
+            : {
+                x: options,
+                y: y,
+                primaryColor: color,
+                radius: radius
+            };
         run.explosions.push({
-            x: x,
-            y: y,
-            color: color,
-            radius: radius,
-            startedAt: (root.performance && typeof root.performance.now === 'function') ? root.performance.now() : Date.now(),
-            duration: 280
+            x: Number(config.x) || 0,
+            y: Number(config.y) || 0,
+            color: String(config.primaryColor || config.color || 'rgba(255,255,255,0.9)'),
+            primaryColor: String(config.primaryColor || config.color || 'rgba(255,255,255,0.9)'),
+            secondaryColor: String(config.secondaryColor || ''),
+            radius: Math.max(8, Number(config.radius) || 24),
+            startedAt: currentTimestamp(),
+            duration: Math.max(160, toInt(config.duration) || 280),
+            style: String(config.style || 'ring'),
+            rayCount: Math.max(0, toInt(config.rayCount) || 0),
+            spin: Number(config.spin) || 0
         });
     }
 
-    function createCard(run, word, laneIndex, isTarget) {
+    function createCard(run, word, laneIndex, isTarget, offsetFactor) {
+        const baseOffset = Math.max(0, Number(offsetFactor) || 0);
         return {
             word: word,
             laneIndex: laneIndex,
             x: laneCenterX(run, laneIndex),
-            y: -run.metrics.cardHeight * (0.58 + (Math.random() * 0.2)),
+            y: -run.metrics.cardHeight * (0.58 + baseOffset + (Math.random() * 0.14)),
             width: run.metrics.cardWidth,
             height: run.metrics.cardHeight,
             speed: run.cardSpeed,
             isTarget: !!isTarget,
+            resolvedFalling: false,
             exploding: false,
+            explosionStyle: '',
             removeAt: 0
         };
     }
@@ -589,8 +727,9 @@
 
         const shuffledWords = shuffle(selected);
         const laneOrder = shuffle([0, 1, 2, 3]);
+        const stagger = shuffle([0.1, 0.38, 0.72, 1.02]);
         return shuffledWords.map(function (word, index) {
-            return createCard(run, word, laneOrder[index], toInt(word.id) === toInt(targetWord.id));
+            return createCard(run, word, laneOrder[index], toInt(word.id) === toInt(targetWord.id), stagger[index] || (index * 0.28));
         });
     }
 
@@ -605,7 +744,8 @@
         const words = (Array.isArray(entry.words) ? entry.words : [])
             .map(normalizeWord)
             .filter(function (word) {
-                return word.id > 0 && word.image !== '' && findIsolationAudioUrl(word) !== '';
+                const audio = selectPromptAudio(word);
+                return word.id > 0 && word.image !== '' && audio.url !== '';
             });
         const playableTargets = findPlayableTargets(words, ctx.spaceShooter.cardCount);
         const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
@@ -670,7 +810,7 @@
             return;
         }
 
-        const source = findIsolationAudioUrl(run.prompt.target);
+        const source = String(run.prompt.audioUrl || '');
         if (!source) {
             return;
         }
@@ -769,6 +909,10 @@
             if (!targetWord) {
                 break;
             }
+            const promptAudio = selectPromptAudio(targetWord, shuffle(getGamePromptRecordingTypes(targetWord)));
+            if (!promptAudio.url) {
+                continue;
+            }
             const cards = buildPromptCards(run, targetWord, run.words);
             if (!cards) {
                 continue;
@@ -776,6 +920,8 @@
 
             run.prompt = {
                 target: targetWord,
+                audioUrl: promptAudio.url,
+                recordingType: promptAudio.recordingType,
                 hadWrongBefore: false,
                 wrongCount: 0,
                 exposureTracked: false,
@@ -795,6 +941,9 @@
 
     function removeResolvedObjects(run, now) {
         run.cards = run.cards.filter(function (card) {
+            if (card.resolvedFalling && (card.y - (card.height / 2)) > (run.height + card.height)) {
+                return false;
+            }
             return !(card.exploding && now >= card.removeAt);
         });
         run.explosions = run.explosions.filter(function (explosion) {
@@ -860,7 +1009,7 @@
                 return;
             }
 
-            run.cards.push(createCard(run, refill, spawn.laneIndex, false));
+            run.cards.push(createCard(run, refill, spawn.laneIndex, false, 0.18));
         });
         run.pendingSpawns = remaining;
     }
@@ -884,6 +1033,21 @@
         return true;
     }
 
+    function getResolvedPromptDelay(run, targetCard) {
+        let longestMs = 260;
+        run.cards.forEach(function (entry) {
+            if (!entry || entry === targetCard || entry.exploding) {
+                return;
+            }
+            entry.resolvedFalling = true;
+            entry.speed = Math.max(entry.speed * 3.3, run.cardSpeed * 3.6);
+            const distance = Math.max(0, (run.height + entry.height) - entry.y);
+            const travelMs = (distance / Math.max(1, entry.speed)) * 1000;
+            longestMs = Math.max(longestMs, travelMs + 70);
+        });
+        return clamp(Math.round(longestMs), 280, 980);
+    }
+
     function handleCorrectHit(ctx, card) {
         const run = ctx.run;
         if (!run || !run.prompt || run.prompt.resolved) {
@@ -893,21 +1057,25 @@
         queueExposureOnce(ctx, run.prompt);
         queueOutcome(ctx, run.prompt, true, !!run.prompt.hadWrongBefore, { event_source: 'space_shooter' });
 
-        run.coins += 1;
+        run.coins += Math.max(1, ctx.spaceShooter.correctCoinReward);
         updateHud(ctx);
         card.exploding = true;
+        card.explosionStyle = 'correct';
+        card.explosionDuration = 220;
         card.removeAt = currentTimestamp() + 220;
-        spawnExplosion(run, card.x, card.y, 'rgba(16, 185, 129, 0.96)', card.width * 0.72);
+        spawnExplosion(run, {
+            x: card.x,
+            y: card.y,
+            radius: card.width * 0.72,
+            primaryColor: 'rgba(16, 185, 129, 0.96)',
+            secondaryColor: 'rgba(103, 232, 249, 0.78)',
+            duration: 300,
+            style: 'ring'
+        });
 
         markPromptResolved(run);
         run.pendingSpawns = [];
-        run.cards.forEach(function (entry) {
-            if (entry !== card && !entry.exploding) {
-                entry.exploding = true;
-                entry.removeAt = currentTimestamp() + 180;
-            }
-        });
-        schedulePrompt(ctx, 260);
+        schedulePrompt(ctx, getResolvedPromptDelay(run, card));
     }
 
     function handleWrongHit(ctx, card) {
@@ -921,21 +1089,44 @@
         run.prompt.hadWrongBefore = true;
         run.prompt.wrongCount += 1;
 
-        run.lives = Math.max(0, run.lives - 1);
+        run.coins = Math.max(0, run.coins - Math.max(0, ctx.spaceShooter.wrongHitCoinPenalty));
         updateHud(ctx);
 
         card.exploding = true;
-        card.removeAt = currentTimestamp() + 220;
-        spawnExplosion(run, card.x, card.y, 'rgba(248, 113, 113, 0.96)', card.width * 0.74);
-
-        if (run.lives <= 0) {
-            markPromptResolved(run);
-            run.ended = true;
-            root.setTimeout(function () {
-                endRun(ctx);
-            }, 240);
-            return;
-        }
+        card.explosionStyle = 'dramatic';
+        card.explosionDuration = 320;
+        card.removeAt = currentTimestamp() + 320;
+        spawnExplosion(run, {
+            x: card.x,
+            y: card.y,
+            radius: card.width * 0.94,
+            primaryColor: 'rgba(248, 113, 113, 0.98)',
+            secondaryColor: 'rgba(251, 191, 36, 0.92)',
+            duration: 420,
+            style: 'burst',
+            rayCount: 12,
+            spin: 0.18
+        });
+        spawnExplosion(run, {
+            x: card.x + ((Math.random() * 18) - 9),
+            y: card.y + ((Math.random() * 18) - 9),
+            radius: card.width * 0.62,
+            primaryColor: 'rgba(255, 255, 255, 0.94)',
+            secondaryColor: 'rgba(249, 115, 22, 0.9)',
+            duration: 300,
+            style: 'burst',
+            rayCount: 8,
+            spin: -0.22
+        });
+        spawnExplosion(run, {
+            x: card.x,
+            y: card.y,
+            radius: card.width * 1.14,
+            primaryColor: 'rgba(255, 214, 10, 0.7)',
+            secondaryColor: 'rgba(248, 113, 113, 0.55)',
+            duration: 360,
+            style: 'ring'
+        });
 
         queueRefill(run, card.laneIndex, card.word && card.word.id);
     }
@@ -955,10 +1146,18 @@
         }
 
         run.coins = Math.max(0, run.coins - ctx.spaceShooter.timeoutCoinPenalty);
+        run.lives = Math.max(0, run.lives - Math.max(0, ctx.spaceShooter.timeoutLifePenalty));
         updateHud(ctx);
         markPromptResolved(run);
         run.cards = [];
         run.pendingSpawns = [];
+        if (run.lives <= 0) {
+            run.ended = true;
+            root.setTimeout(function () {
+                endRun(ctx);
+            }, 220);
+            return;
+        }
         schedulePrompt(ctx, 220);
     }
 
@@ -1005,29 +1204,31 @@
             }
         });
 
-        outerLoop:
-        for (let bulletIndex = run.bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
-            const bullet = run.bullets[bulletIndex];
-            for (let cardIndex = 0; cardIndex < run.cards.length; cardIndex += 1) {
-                const card = run.cards[cardIndex];
-                if (!card || card.exploding) {
-                    continue;
-                }
-                const hit = bullet.x >= (card.x - (card.width / 2))
-                    && bullet.x <= (card.x + (card.width / 2))
-                    && bullet.y >= (card.y - (card.height / 2))
-                    && bullet.y <= (card.y + (card.height / 2));
-                if (!hit) {
-                    continue;
-                }
+        if (!run.prompt.resolved) {
+            outerLoop:
+            for (let bulletIndex = run.bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
+                const bullet = run.bullets[bulletIndex];
+                for (let cardIndex = 0; cardIndex < run.cards.length; cardIndex += 1) {
+                    const card = run.cards[cardIndex];
+                    if (!card || card.exploding) {
+                        continue;
+                    }
+                    const hit = bullet.x >= (card.x - (card.width / 2))
+                        && bullet.x <= (card.x + (card.width / 2))
+                        && bullet.y >= (card.y - (card.height / 2))
+                        && bullet.y <= (card.y + (card.height / 2));
+                    if (!hit) {
+                        continue;
+                    }
 
-                run.bullets.splice(bulletIndex, 1);
-                if (card.isTarget) {
-                    handleCorrectHit(ctx, card);
-                } else {
-                    handleWrongHit(ctx, card);
+                    run.bullets.splice(bulletIndex, 1);
+                    if (card.isTarget) {
+                        handleCorrectHit(ctx, card);
+                    } else {
+                        handleWrongHit(ctx, card);
+                    }
+                    continue outerLoop;
                 }
-                continue outerLoop;
             }
         }
 
@@ -1406,7 +1607,10 @@
                 lives: Math.max(1, toInt(spaceShooter.lives) || 3),
                 cardCount: Math.max(2, toInt(spaceShooter.cardCount) || 4),
                 fireIntervalMs: Math.max(80, toInt(spaceShooter.fireIntervalMs) || 165),
-                timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1)
+                correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 2),
+                wrongHitCoinPenalty: Math.max(0, toInt(spaceShooter.wrongHitCoinPenalty)),
+                timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
+                timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1)
             }
         };
     }
@@ -1467,7 +1671,17 @@
                 lives: run.lives,
                 promptsResolved: run.promptsResolved,
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
-                targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0
+                targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
+                promptRecordingType: run.prompt ? String(run.prompt.recordingType || '') : '',
+                cardSnapshot: run.cards.map(function (card) {
+                    return {
+                        wordId: toInt(card.word && card.word.id),
+                        y: Math.round(Number(card.y) || 0),
+                        exploding: !!card.exploding,
+                        resolvedFalling: !!card.resolvedFalling,
+                        isTarget: !!card.isTarget
+                    };
+                })
             };
         },
         launch: function () {
