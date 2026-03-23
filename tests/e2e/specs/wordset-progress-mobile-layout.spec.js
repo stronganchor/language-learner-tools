@@ -384,6 +384,9 @@ async function mountMobileProgressPage(page) {
 
 test('mobile progress words table keeps the layout stable and renders audio controls', async ({ page }) => {
   await mountMobileProgressPage(page);
+  await page.evaluate(() => {
+    document.body.classList.add('admin-bar');
+  });
 
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).not.toContainText('Starred');
@@ -422,6 +425,9 @@ test('mobile progress words table keeps the layout stable and renders audio cont
     const starCell = row.children[0];
     const wordCell = row.children[1];
     const button = row.querySelector('[data-ll-wordset-progress-word-star]');
+    const audioButton = row.querySelector('[data-ll-wordset-progress-word-audio]');
+    const wordBody = row.querySelector('.ll-wordset-progress-word-body');
+    const wordMain = row.querySelector('.ll-wordset-progress-word-main');
     if (!starCell || !wordCell || !button) {
       return null;
     }
@@ -431,6 +437,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
     const starCellRect = starCell.getBoundingClientRect();
     const wordCellRect = wordCell.getBoundingClientRect();
     const buttonRect = button.getBoundingClientRect();
+    const audioButtonRect = audioButton ? audioButton.getBoundingClientRect() : null;
+    const wordMainRect = wordMain ? wordMain.getBoundingClientRect() : null;
     const headerCell = document.querySelector('th[data-ll-wordset-progress-sort-th="word"]');
     const wordsWrap = document.querySelector('[data-ll-wordset-progress-panel="words"] .ll-wordset-progress-table-wrap');
     const wordsTable = wordsWrap ? wordsWrap.querySelector('.ll-wordset-progress-table--words') : null;
@@ -439,6 +447,7 @@ test('mobile progress words table keeps the layout stable and renders audio cont
       difficultyControlsDirection: window.getComputedStyle(difficultyControls).flexDirection,
       seenControlsDirection: window.getComputedStyle(seenControls).flexDirection,
       wrongControlsDirection: window.getComputedStyle(wrongControls).flexDirection,
+      wordBodyDirection: wordBody ? window.getComputedStyle(wordBody).flexDirection : '',
       headerPosition: headerCell ? window.getComputedStyle(headerCell).position : '',
       headerTop: headerCell ? window.getComputedStyle(headerCell).top : '',
       legendTitleBottom: legendTitleRect.bottom,
@@ -449,7 +458,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
       starCellRight: starCellRect.right,
       wordCellLeft: wordCellRect.left,
       buttonLeft: buttonRect.left,
-      buttonRight: buttonRect.right
+      buttonRight: buttonRect.right,
+      audioGap: audioButtonRect && wordMainRect ? audioButtonRect.top - wordMainRect.bottom : null
     };
   });
 
@@ -457,13 +467,16 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   expect(metrics.difficultyControlsDirection).toBe('column');
   expect(metrics.seenControlsDirection).toBe('column');
   expect(metrics.wrongControlsDirection).toBe('column');
+  expect(metrics.wordBodyDirection).toBe('column');
   expect(metrics.headerPosition).toBe('sticky');
-  expect(metrics.headerTop).toBe('0px');
+  expect(metrics.headerTop).toBe('46px');
   expect(metrics.legendItemsTop).toBeGreaterThanOrEqual(metrics.legendTitleBottom + 6);
   expect(Math.abs(metrics.tableWidth - metrics.wrapWidth)).toBeLessThanOrEqual(2);
   expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.starCellRight + 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.wordCellLeft + 0.5);
+  expect(metrics.audioGap).not.toBeNull();
+  expect(metrics.audioGap).toBeLessThanOrEqual(4);
 
   await page.setViewportSize({ width: 430, height: 844 });
   const resizedMetrics = await page.evaluate(() => {
