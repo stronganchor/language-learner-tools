@@ -10,20 +10,39 @@ Stable plugin updates are delivered through a packaged GitHub release asset zip,
 - Do not rely on GitHub's default `Source code (zip)` or `Source code (tar.gz)` assets for stable releases.
 - `Main` is the production channel. `Dev` still pulls the GitHub `dev` branch directly and should stay testing-only.
 
+## Fast Path
+
+For the local release-prep steps, you can double-click [release-plugin.bat](release-plugin.bat) on Windows or run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\release-plugin.ps1
+```
+
+The script:
+
+- Bumps the plugin `Version:` header.
+- Stages all current repo changes.
+- Builds `dist/language-learner-tools-x.y.z.zip` from the staged tree.
+- Commits with `x.y.z - Release`.
+- Pushes the current branch.
+
+The script prompts before it stages and commits. By default it asks whether to bump `patch`, `minor`, `major`, or a custom version.
+
 ## Release Steps
 
-1. Finish the release changes and update the plugin `Version:` header.
-2. Commit the release changes.
-3. Create and push a tag that matches the version, for example `v5.8.0`.
-4. Build the release asset from that tag:
+1. Finish the release changes.
+2. Run `release-plugin.bat` or `scripts/release-plugin.ps1`.
+3. Create and push a tag that matches the new version, for example `v5.8.1`.
+4. Use the generated zip in `dist/` as the GitHub release asset.
+5. Create a GitHub release for the same tag.
+6. Upload the generated zip from `dist/`, for example `dist/language-learner-tools-5.8.1.zip`.
+7. Publish the release.
+
+If you need to rebuild a release zip manually from a specific git ref or tag, use:
 
    ```bash
-   ./scripts/build-release-package.sh v5.8.0
+   ./scripts/build-release-package.sh v5.8.1
    ```
-
-5. Create a GitHub release for the same tag.
-6. Upload the generated zip from `dist/`, for example `dist/language-learner-tools-5.8.0.zip`.
-7. Publish the release.
 
 ## What The Script Does
 

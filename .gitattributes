@@ -5,6 +5,7 @@
 /CODEBASE_ARCHITECTURE.md export-ignore
 /MAINTENANCE_BACKLOG.md export-ignore
 /RELEASING.md export-ignore
+/release-plugin.bat export-ignore
 /offline-app-builder export-ignore
 /scripts export-ignore
 /test-results export-ignore
