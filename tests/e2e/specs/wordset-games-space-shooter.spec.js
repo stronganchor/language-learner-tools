@@ -11,6 +11,10 @@ const wordsetGamesSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/wordset-games.js'),
   'utf8'
 );
+const wordsetGamesStyles = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/wordset-games.css'),
+  'utf8'
+);
 const wordsetPagesSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/wordset-pages.js'),
   'utf8'
@@ -508,6 +512,7 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
     },
     { config: buildGamesConfig(isLoggedIn), gameWords: words }
   );
+  await page.addStyleTag({ content: wordsetGamesStyles });
   await page.addScriptTag({ content: optionConflictsSource });
   await page.addScriptTag({ content: wordsetGamesSource });
   await page.addScriptTag({ content: wordsetPagesSource });
@@ -533,6 +538,7 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
 
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.targetWordId && run.cardWordIds.length === 4);

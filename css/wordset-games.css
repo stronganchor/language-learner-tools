@@ -8,6 +8,10 @@
     --ll-games-canvas-bg: radial-gradient(circle at top, rgba(103, 232, 249, 0.18), transparent 34%), linear-gradient(180deg, #0f172a 0%, #12233d 46%, #171c2e 100%);
 }
 
+.ll-wordset-games-page [hidden] {
+    display: none !important;
+}
+
 .ll-wordset-games-catalog {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
