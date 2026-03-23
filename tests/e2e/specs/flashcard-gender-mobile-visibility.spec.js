@@ -41,8 +41,8 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   });
 
   await page.evaluate(() => {
-    const masculineSvg = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="30" y="18" width="16" height="64" rx="6" fill="currentColor"/><circle cx="38" cy="12" r="8" fill="currentColor"/></svg>';
-    const feminineSvg = '<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="50" cy="28" r="16" fill="currentColor"/><rect x="44" y="44" width="12" height="34" rx="5" fill="currentColor"/><rect x="28" y="78" width="44" height="10" rx="4" fill="currentColor"/></svg>';
+    const masculineSvg = '<svg viewBox="70 10 50 90" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="95" cy="20" r="8" fill="currentColor"/><rect x="88" y="30" width="14" height="40" rx="5" fill="currentColor"/><rect x="79" y="34" width="32" height="10" rx="4" fill="currentColor" opacity="0"/><rect x="80" y="70" width="10" height="26" rx="4" fill="currentColor"/><rect x="100" y="70" width="10" height="26" rx="4" fill="currentColor"/></svg>';
+    const feminineSvg = '<svg viewBox="12 16 48 88" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="36" cy="27" r="10" fill="currentColor"/><path d="M36 38C42 38 47 42 49 48L54 66C55 70 50 72 49 68L45 54H42L48 82H39V99C39 102 34 102 34 99V82H28V99C28 102 23 102 23 99V82H14L20 54H17L13 68C12 72 7 70 8 66L13 48C15 42 20 38 26 38Z" fill="currentColor"/></svg>';
     const targetWord = {
       id: 101,
       title: 'kase',
@@ -166,10 +166,14 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
       const textEl = card.querySelector('.quiz-text');
       const innerEl = card.querySelector('.ll-gender-option-inner');
       const symbolEl = card.querySelector('.ll-gender-symbol');
+      const symbolSvgEl = card.querySelector('.ll-gender-symbol--svg svg');
+      const symbolContentEl = symbolSvgEl ? symbolSvgEl.querySelector('[data-ll-gender-normalize-root="1"]') : null;
       const labelEl = card.querySelector('.ll-gender-option-label');
       const textStyle = textEl ? window.getComputedStyle(textEl) : null;
       const innerRect = innerEl ? innerEl.getBoundingClientRect() : null;
       const symbolRect = symbolEl ? symbolEl.getBoundingClientRect() : null;
+      const symbolSvgRect = symbolSvgEl ? symbolSvgEl.getBoundingClientRect() : null;
+      const symbolContentRect = symbolContentEl ? symbolContentEl.getBoundingClientRect() : null;
       const labelRect = labelEl ? labelEl.getBoundingClientRect() : null;
       return {
         role: card.getAttribute('data-ll-gender-role') || '',
@@ -182,7 +186,13 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
         symbolWidth: symbolRect ? symbolRect.width : 0,
         symbolHeight: symbolRect ? symbolRect.height : 0,
         symbolCenterY: symbolRect ? (symbolRect.top + (symbolRect.height / 2)) : 0,
-        labelCenterY: labelRect ? (labelRect.top + (labelRect.height / 2)) : 0
+        labelCenterY: labelRect ? (labelRect.top + (labelRect.height / 2)) : 0,
+        symbolSvgLeft: symbolSvgRect ? symbolSvgRect.left : 0,
+        symbolSvgRight: symbolSvgRect ? symbolSvgRect.right : 0,
+        symbolContentLeft: symbolContentRect ? symbolContentRect.left : 0,
+        symbolContentRight: symbolContentRect ? symbolContentRect.right : 0,
+        symbolContentCenterY: symbolContentRect ? (symbolContentRect.top + (symbolContentRect.height / 2)) : 0,
+        gapToLabel: symbolContentRect && labelRect ? (labelRect.left - symbolContentRect.right) : 0
       };
     });
   });
@@ -204,6 +214,11 @@ test('gender mode reveals answer options on a mobile viewport', async ({ page })
   expect(Math.abs(genderCards[0].symbolWidth - genderCards[1].symbolWidth)).toBeLessThan(0.75);
   expect(Math.abs(genderCards[0].symbolHeight - genderCards[1].symbolHeight)).toBeLessThan(0.75);
   genderCards.forEach((card) => {
+    expect(card.symbolContentLeft).toBeGreaterThanOrEqual(card.symbolSvgLeft - 0.75);
+    expect(card.symbolContentRight).toBeLessThanOrEqual(card.symbolSvgRight + 0.75);
+    expect(card.gapToLabel).toBeGreaterThan(0);
+    expect(card.gapToLabel).toBeLessThan(20);
+    expect(Math.abs(card.symbolContentCenterY - card.labelCenterY)).toBeLessThan(1.5);
     expect(Math.abs(card.symbolCenterY - card.labelCenterY)).toBeLessThan(2);
   });
 });

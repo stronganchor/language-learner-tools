@@ -424,8 +424,10 @@
             return;
         }
 
-        const translateX = inset + ((targetWidth - (bounds.width * scale)) / 2) - (bounds.x * scale);
-        const translateY = inset + ((targetHeight - (bounds.height * scale)) / 2) - (bounds.y * scale);
+        const targetX = viewport.x + inset;
+        const targetY = viewport.y + inset;
+        const translateX = targetX + ((targetWidth - (bounds.width * scale)) / 2) - (bounds.x * scale);
+        const translateY = targetY + ((targetHeight - (bounds.height * scale)) / 2) - (bounds.y * scale);
 
         try {
             wrapper.setAttribute('transform', 'translate(' + translateX + ' ' + translateY + ') scale(' + scale + ')');
