@@ -540,12 +540,12 @@
             if (image && image.complete && image.naturalWidth > 0) {
                 const availableWidth = card.width;
                 const availableHeight = card.height;
-                const imageScale = Math.min(
+                const coverScale = Math.max(
                     availableWidth / Math.max(1, image.naturalWidth),
                     availableHeight / Math.max(1, image.naturalHeight)
                 );
-                const drawWidth = image.naturalWidth * imageScale;
-                const drawHeight = image.naturalHeight * imageScale;
+                const drawWidth = image.naturalWidth * coverScale;
+                const drawHeight = image.naturalHeight * coverScale;
                 const drawX = left + ((availableWidth - drawWidth) / 2);
                 const drawY = top + ((availableHeight - drawHeight) / 2);
 
