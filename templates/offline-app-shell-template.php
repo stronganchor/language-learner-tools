@@ -7,6 +7,23 @@ $styles = isset($styles) && is_array($styles) ? $styles : [];
 $scripts = isset($scripts) && is_array($scripts) ? $scripts : [];
 $warnings = isset($warnings) && is_array($warnings) ? array_values(array_filter(array_map('strval', $warnings))) : [];
 $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
+$escape_asset_url = static function ($asset): string {
+  $asset = trim((string) $asset);
+  if ($asset === '') {
+    return '';
+  }
+
+  if (preg_match('#^(?:\./|\../|/)#', $asset)) {
+    return esc_attr($asset);
+  }
+
+  $scheme = wp_parse_url($asset, PHP_URL_SCHEME);
+  if (is_string($scheme) && $scheme !== '') {
+    return esc_url($asset);
+  }
+
+  return esc_attr($asset);
+};
 ?>
 <!doctype html>
 <html lang="en">
@@ -15,7 +32,7 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?php echo esc_html($app_title); ?></title>
   <?php foreach ($styles as $href) : ?>
-    <link rel="stylesheet" href="<?php echo esc_url($href); ?>">
+    <link rel="stylesheet" href="<?php echo $escape_asset_url($href); ?>">
   <?php endforeach; ?>
   <style>
     :root {
@@ -465,7 +482,7 @@ $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
   </main>
 
   <?php foreach ($scripts as $src) : ?>
-    <script src="<?php echo esc_url($src); ?>"></script>
+    <script src="<?php echo $escape_asset_url($src); ?>"></script>
   <?php endforeach; ?>
 </body>
 </html>

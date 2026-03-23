@@ -11,6 +11,22 @@ const BUNDLE_DIR = path.join(WORKSPACE_DIR, 'bundle');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const CAPACITOR_CONFIG_PATH = path.join(ROOT_DIR, 'capacitor.config.json');
 
+function repairOfflineShellIndexHtml(webRoot) {
+  const indexPath = path.join(webRoot, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    return;
+  }
+
+  const original = fs.readFileSync(indexPath, 'utf8');
+  const repaired = original
+    .replace(/(src=|href=)"https?:\/\/\.\//g, '$1"./')
+    .replace(/(src=|href=)'https?:\/\/\.\//g, "$1'./");
+
+  if (repaired !== original) {
+    fs.writeFileSync(indexPath, repaired, 'utf8');
+  }
+}
+
 function normalizeInputPath(inputPath) {
   const raw = String(inputPath || '');
   if (process.platform !== 'win32') {
@@ -119,6 +135,7 @@ export function prepareBundle(inputPath) {
     throw new Error(`Prepared bundle does not contain www/index.html: ${webRoot}`);
   }
 
+  repairOfflineShellIndexHtml(webRoot);
   writeCapacitorConfig(manifest);
   const state = {
     preparedAt: new Date().toISOString(),

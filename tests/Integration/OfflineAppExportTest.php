@@ -240,6 +240,9 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('id="ll-offline-category-grid"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-launch-selected', $index_html);
+                $this->assertStringContainsString('src="./app/offline-app.js"', $index_html);
+                $this->assertStringContainsString('href="./plugin/css/language-learner-tools.css"', $index_html);
+                $this->assertStringNotContainsString('http://./', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);
                 $this->assertStringNotContainsString('restart-self-check-mode', $index_html);
