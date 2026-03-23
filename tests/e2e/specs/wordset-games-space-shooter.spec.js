@@ -612,7 +612,7 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
               return;
             }
             this.readyState = 4;
-            this.duration = 8.4;
+            this.duration = 4.2;
             this.dispatchEvent(new Event('loadeddata'));
             this.dispatchEvent(new Event('canplay'));
             this.dispatchEvent(new Event('canplaythrough'));
@@ -747,7 +747,7 @@ test('space shooter launches with safe option mixes and records progress flows',
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);
   expect(['question', 'isolation', 'introduction']).toContain(initialRun.promptRecordingType);
-  expect(initialRun.promptAudioDurationMs).toBeGreaterThanOrEqual(8000);
+  expect(initialRun.promptAudioDurationMs).toBeGreaterThanOrEqual(4000);
   expect(initialRun.cardSpeed).toBeLessThan(86);
   expect(new Set(initialRun.cardWordIds).size).toBeLessThanOrEqual(6);
 
@@ -797,6 +797,7 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   let resolvedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(resolvedState.cardSnapshot.some((card) => card.promptId === initialRun.promptId && card.resolvedFalling && !card.exploding)).toBe(true);
+  expect(resolvedState.cardSpeed).toBeGreaterThan(initialRun.cardSpeed);
 
   progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
   expect(progressEvents).toHaveLength(3);

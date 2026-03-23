@@ -1593,13 +1593,38 @@
         });
     }
 
+    function getSteadyStateCardSpeed(run, promptsResolved) {
+        const resolvedCount = Math.max(0, toInt(promptsResolved));
+        const rampTurns = Math.max(1, toInt(run && run.speedRampTurns) || 10);
+        const resolvedBeyondRamp = Math.max(0, resolvedCount - rampTurns);
+        return clamp(
+            86 + (Math.floor(resolvedBeyondRamp / 3) * 10),
+            86,
+            run.width < 480 ? 148 : 178
+        );
+    }
+
+    function getRunCardSpeed(run) {
+        const steadyStateSpeed = getSteadyStateCardSpeed(run, run && run.promptsResolved);
+        const rampTurns = Math.max(1, toInt(run && run.speedRampTurns) || 10);
+        const rampProgress = clamp((run && run.promptsResolved) / rampTurns, 0, 1);
+        const introFactor = clamp(Number(run && run.speedRampStartFactor) || 0.5, 0.25, 0.95);
+        const introSpeed = steadyStateSpeed * introFactor;
+
+        if (rampProgress >= 1) {
+            return steadyStateSpeed;
+        }
+
+        return introSpeed + ((steadyStateSpeed - introSpeed) * rampProgress);
+    }
+
     function markPromptResolved(run) {
         if (!run.prompt || run.prompt.resolved) {
             return false;
         }
         run.prompt.resolved = true;
         run.promptsResolved += 1;
-        run.cardSpeed = clamp(86 + (Math.floor(run.promptsResolved / 3) * 10), 86, run.width < 480 ? 148 : 178);
+        run.cardSpeed = getRunCardSpeed(run);
         return true;
     }
 
@@ -2022,6 +2047,8 @@
             promptTimer: 0,
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
+            speedRampTurns: ctx.spaceShooter.introRampTurns,
+            speedRampStartFactor: ctx.spaceShooter.introRampStartFactor,
             awaitingPrompt: false,
             nextPreparedPrompt: null,
             nextPromptPromise: null,
@@ -2031,6 +2058,7 @@
         };
 
         syncCanvasSize(ctx);
+        ctx.run.cardSpeed = getRunCardSpeed(ctx.run);
         ctx.run.shipX = ctx.run.width / 2;
         ctx.run.shipY = ctx.run.metrics.shipY;
         ctx.run.stars = createStageStars(ctx.run);
@@ -2297,6 +2325,8 @@
                 cardCount: Math.max(2, toInt(spaceShooter.cardCount) || 4),
                 maxLoadedWords: Math.max(5, toInt(spaceShooter.maxLoadedWords) || 60),
                 fireIntervalMs: Math.max(80, toInt(spaceShooter.fireIntervalMs) || 165),
+                introRampTurns: Math.max(1, toInt(spaceShooter.introRampTurns) || 10),
+                introRampStartFactor: clamp(Number(spaceShooter.introRampStartFactor) || 0.5, 0.25, 0.95),
                 audioSafeLineRatio: clamp(Number(spaceShooter.audioSafeLineRatio) || 0.5, 0.35, 0.7),
                 audioSafeLineBufferMs: Math.max(0, toInt(spaceShooter.audioSafeLineBufferMs) || 180),
                 correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 2),
