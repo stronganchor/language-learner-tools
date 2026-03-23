@@ -532,39 +532,42 @@
             context.fill();
             context.shadowBlur = 0;
             context.shadowOffsetY = 0;
-            context.strokeStyle = 'rgba(15, 23, 42, 0.08)';
-            context.lineWidth = 1.5;
-            context.stroke();
 
             const image = loadWordImage(ctx, card.word);
             context.save();
-            drawRoundedRect(context, left + 8, top + 8, card.width - 16, card.height - 16, 14);
+            drawRoundedRect(context, left, top, card.width, card.height, 18);
             context.clip();
             if (image && image.complete && image.naturalWidth > 0) {
-                const availableWidth = card.width - 16;
-                const availableHeight = card.height - 16;
+                const availableWidth = card.width;
+                const availableHeight = card.height;
                 const imageScale = Math.min(
                     availableWidth / Math.max(1, image.naturalWidth),
                     availableHeight / Math.max(1, image.naturalHeight)
                 );
                 const drawWidth = image.naturalWidth * imageScale;
                 const drawHeight = image.naturalHeight * imageScale;
-                const drawX = left + 8 + ((availableWidth - drawWidth) / 2);
-                const drawY = top + 8 + ((availableHeight - drawHeight) / 2);
+                const drawX = left + ((availableWidth - drawWidth) / 2);
+                const drawY = top + ((availableHeight - drawHeight) / 2);
 
                 context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
             } else {
-                const placeholder = context.createLinearGradient(left + 8, top + 8, left + card.width - 8, top + card.height - 8);
+                const placeholder = context.createLinearGradient(left, top, left + card.width, top + card.height);
                 placeholder.addColorStop(0, '#DFF7FF');
                 placeholder.addColorStop(1, '#C7F0EB');
                 context.fillStyle = placeholder;
-                context.fillRect(left + 8, top + 8, card.width - 16, card.height - 16);
+                context.fillRect(left, top, card.width, card.height);
                 context.fillStyle = 'rgba(15, 23, 42, 0.42)';
                 context.font = '700 28px Georgia, serif';
                 context.textAlign = 'center';
                 context.textBaseline = 'middle';
                 context.fillText('✦', card.x, card.y);
             }
+            context.restore();
+
+            context.strokeStyle = 'rgba(15, 23, 42, 0.08)';
+            context.lineWidth = 1.5;
+            drawRoundedRect(context, left, top, card.width, card.height, 18);
+            context.stroke();
 
             if (dramatic) {
                 const flash = context.createRadialGradient(card.x, card.y, card.width * 0.08, card.x, card.y, card.width * 0.7);
@@ -576,7 +579,6 @@
                 context.fillRect(left, top, card.width, card.height);
                 context.globalCompositeOperation = 'source-over';
             }
-            context.restore();
 
             if (exploding) {
                 context.strokeStyle = card.isTarget ? 'rgba(16, 185, 129, 0.9)' : 'rgba(248, 113, 113, 0.92)';
