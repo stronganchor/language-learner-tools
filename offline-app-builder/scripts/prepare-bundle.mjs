@@ -29,18 +29,29 @@ function repairOfflineShellIndexHtml(webRoot) {
 
 function normalizeInputPath(inputPath) {
   const raw = String(inputPath || '');
-  if (process.platform !== 'win32') {
+  if (!raw) {
     return raw;
   }
 
-  const wslMatch = raw.match(/^\/mnt\/([a-z])\/(.*)$/i);
-  if (!wslMatch) {
+  if (process.platform === 'win32') {
+    const wslMatch = raw.match(/^\/mnt\/([a-z])\/(.*)$/i);
+    if (!wslMatch) {
+      return raw;
+    }
+
+    const driveLetter = wslMatch[1].toUpperCase();
+    const relativePath = wslMatch[2].replace(/\//g, '\\');
+    return `${driveLetter}:\\${relativePath}`;
+  }
+
+  const windowsMatch = raw.match(/^([a-z]):[\\/](.*)$/i);
+  if (!windowsMatch) {
     return raw;
   }
 
-  const driveLetter = wslMatch[1].toUpperCase();
-  const relativePath = wslMatch[2].replace(/\//g, '\\');
-  return `${driveLetter}:\\${relativePath}`;
+  const driveLetter = windowsMatch[1].toLowerCase();
+  const relativePath = windowsMatch[2].replace(/\\/g, '/');
+  return `/mnt/${driveLetter}/${relativePath}`;
 }
 
 function sanitizeSegment(value, fallback = 'app') {

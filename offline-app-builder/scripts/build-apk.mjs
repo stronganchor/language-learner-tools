@@ -10,6 +10,9 @@ const ROOT_DIR = path.resolve(path.dirname(SCRIPT_PATH), '..');
 const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const ANDROID_DIR = path.join(ROOT_DIR, 'android');
+const LINUX_TOOLCHAIN_DIR = path.join(WORKSPACE_DIR, 'linux-toolchain');
+const LINUX_JDK_DIR = path.join(LINUX_TOOLCHAIN_DIR, 'jdk');
+const LINUX_ANDROID_SDK_DIR = path.join(LINUX_TOOLCHAIN_DIR, 'android-sdk');
 
 function commandName(base) {
   return process.platform === 'win32' ? `${base}.cmd` : base;
@@ -19,9 +22,56 @@ function existingDir(candidatePath) {
   return candidatePath && fs.existsSync(candidatePath) ? candidatePath : '';
 }
 
+function getBundledLinuxJavaHome() {
+  if (process.platform === 'win32' || !existingDir(LINUX_JDK_DIR)) {
+    return '';
+  }
+
+  const entries = fs.readdirSync(LINUX_JDK_DIR)
+    .map((entry) => path.join(LINUX_JDK_DIR, entry))
+    .filter((candidate) => fs.statSync(candidate).isDirectory());
+
+  for (const candidate of entries) {
+    if (fs.existsSync(path.join(candidate, 'bin', 'java'))) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+function getCapacitorInvocation() {
+  const localCapCli = path.join(ROOT_DIR, 'node_modules', '@capacitor', 'cli', 'bin', 'capacitor');
+  if (fs.existsSync(localCapCli)) {
+    return {
+      cmd: process.execPath,
+      prefixArgs: [localCapCli]
+    };
+  }
+
+  return {
+    cmd: commandName('npx'),
+    prefixArgs: ['cap']
+  };
+}
+
+function runCapacitor(args) {
+  const { cmd, prefixArgs } = getCapacitorInvocation();
+  run(cmd, [...prefixArgs, ...args]);
+}
+
 function detectJavaHome() {
   if (process.env.JAVA_HOME && existingDir(process.env.JAVA_HOME)) {
     return process.env.JAVA_HOME;
+  }
+
+  const bundledJavaHome = getBundledLinuxJavaHome();
+  if (bundledJavaHome) {
+    return bundledJavaHome;
+  }
+
+  if (process.platform !== 'win32') {
+    return '';
   }
 
   const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
@@ -45,6 +95,14 @@ function detectAndroidSdkRoot() {
     return existingAndroidHome;
   }
 
+  if (process.platform !== 'win32' && existingDir(LINUX_ANDROID_SDK_DIR)) {
+    return LINUX_ANDROID_SDK_DIR;
+  }
+
+  if (process.platform !== 'win32') {
+    return '';
+  }
+
   const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || '', 'AppData', 'Local');
   const candidate = path.join(localAppData, 'Android', 'Sdk');
   if (existingDir(candidate)) {
@@ -60,22 +118,22 @@ function buildCommandEnv(extraEnv = {}) {
     ...extraEnv
   };
 
+  const javaHome = detectJavaHome();
+  if (javaHome && !env.JAVA_HOME) {
+    env.JAVA_HOME = javaHome;
+  }
+
+  const androidSdkRoot = detectAndroidSdkRoot();
+  if (androidSdkRoot) {
+    if (!env.ANDROID_HOME) {
+      env.ANDROID_HOME = androidSdkRoot;
+    }
+    if (!env.ANDROID_SDK_ROOT) {
+      env.ANDROID_SDK_ROOT = androidSdkRoot;
+    }
+  }
+
   if (process.platform === 'win32') {
-    const javaHome = detectJavaHome();
-    if (javaHome && !env.JAVA_HOME) {
-      env.JAVA_HOME = javaHome;
-    }
-
-    const androidSdkRoot = detectAndroidSdkRoot();
-    if (androidSdkRoot) {
-      if (!env.ANDROID_HOME) {
-        env.ANDROID_HOME = androidSdkRoot;
-      }
-      if (!env.ANDROID_SDK_ROOT) {
-        env.ANDROID_SDK_ROOT = androidSdkRoot;
-      }
-    }
-
     const pathEntries = [];
     if (env.JAVA_HOME) {
       pathEntries.push(path.join(env.JAVA_HOME, 'bin'));
@@ -115,7 +173,7 @@ function ensureAndroidPlatform() {
   if (fs.existsSync(ANDROID_DIR)) {
     return;
   }
-  run(commandName('npx'), ['cap', 'add', 'android']);
+  runCapacitor(['add', 'android']);
 }
 
 function ensureBundlePrepared(explicitInput) {
@@ -142,7 +200,7 @@ function printOutputHints(mode) {
 }
 
 function buildDebug() {
-  run(commandName('npx'), ['cap', 'sync', 'android']);
+  runCapacitor(['sync', 'android']);
   const gradle = process.platform === 'win32'
     ? 'gradlew.bat'
     : './gradlew';
@@ -157,7 +215,7 @@ function buildRelease() {
     );
   }
 
-  run(commandName('npx'), ['cap', 'build', 'android', '--androidreleasetype', 'APK']);
+  runCapacitor(['build', 'android', '--androidreleasetype', 'APK']);
   printOutputHints('release');
 }
 
