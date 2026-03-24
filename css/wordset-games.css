@@ -1,7 +1,14 @@
 .ll-wordset-games-page {
     --ll-games-ink: #0f172a;
-    --ll-games-accent: #0f766e;
-    --ll-games-accent-strong: #0b5563;
+    --ll-games-accent: #12233d;
+    --ll-games-accent-hover: #0f172a;
+    --ll-games-accent-strong: #171c2e;
+    --ll-games-accent-soft: #f2f6fc;
+    --ll-games-accent-soft-strong: #dde8f7;
+    --ll-games-accent-border: rgba(18, 35, 61, 0.34);
+    --ll-games-accent-border-strong: rgba(15, 23, 42, 0.42);
+    --ll-games-accent-shadow: rgba(18, 35, 61, 0.24);
+    --ll-games-accent-shadow-soft: rgba(18, 35, 61, 0.22);
     --ll-games-panel: #ffffff;
     --ll-games-line: rgba(15, 23, 42, 0.12);
     --ll-games-shadow: 0 24px 54px rgba(15, 23, 42, 0.12);
@@ -47,9 +54,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%);
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%);
     color: #fff;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 14px 24px rgba(15, 118, 110, 0.28);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 14px 24px rgba(18, 35, 61, 0.28);
 }
 
 .ll-wordset-game-card[data-game-slug="bubble-pop"] .ll-wordset-game-card__icon {
@@ -124,14 +131,14 @@
     min-width: 120px;
     min-height: 46px;
     padding: 0 18px;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%);
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%);
     color: #fff !important;
-    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.24);
+    box-shadow: 0 12px 20px var(--ll-games-accent-shadow);
 }
 
 .ll-wordset-game-card__launch:hover,
 .ll-wordset-game-card__launch:focus-visible {
-    background: linear-gradient(180deg, #0c6a63 0%, #0d4f4b 100%);
+    background: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%);
     outline: none;
 }
 
@@ -256,7 +263,7 @@
 
 .ll-wordset-game-stage__nav--pause.is-paused {
     color: var(--ll-games-accent-strong) !important;
-    border-color: rgba(15, 118, 110, 0.28);
+    border-color: var(--ll-games-accent-border);
 }
 
 .ll-wordset-games-page .ll-prompt-audio-button .ll-repeat-audio-ui {
@@ -484,24 +491,24 @@
 .ll-wordset-game-stage__control:hover,
 .ll-wordset-game-stage__control:focus-visible,
 .ll-wordset-game-stage__control.is-active {
-    background: linear-gradient(180deg, #f3fffe 0%, #dff8f5 100%);
-    border-color: rgba(15, 118, 110, 0.34);
-    color: var(--ll-games-accent-strong) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent-soft) 0%, var(--ll-games-accent-soft-strong) 100%);
+    border-color: var(--ll-games-accent-border);
+    color: var(--ll-games-accent) !important;
     outline: none;
 }
 
 .ll-wordset-game-stage__control--fire {
     min-height: 62px;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%);
-    border-color: rgba(15, 118, 110, 0.3);
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%);
+    border-color: var(--ll-games-accent-border);
     color: #fff !important;
 }
 
 .ll-wordset-game-stage__control--fire:hover,
 .ll-wordset-game-stage__control--fire:focus-visible,
 .ll-wordset-game-stage__control--fire.is-active {
-    background: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%);
-    border-color: rgba(13, 79, 75, 0.4);
+    background: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%);
+    border-color: var(--ll-games-accent-border-strong);
     color: #fff !important;
 }
 
@@ -551,14 +558,14 @@
 .ll-wordset-game-stage__overlay-button {
     min-height: 46px;
     padding: 0 18px;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%);
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%);
     color: #fff !important;
-    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.22);
+    box-shadow: 0 12px 20px var(--ll-games-accent-shadow-soft);
 }
 
 .ll-wordset-game-stage__overlay-button:hover,
 .ll-wordset-game-stage__overlay-button:focus-visible {
-    background: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%);
+    background: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%);
     outline: none;
 }
 
@@ -608,18 +615,18 @@
     border-width: 1px !important;
     border-radius: 14px !important;
     border-color: transparent !important;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
-    background-image: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%) !important;
     color: #fff !important;
-    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.24) !important;
+    box-shadow: 0 12px 20px var(--ll-games-accent-shadow) !important;
 }
 
 .ll-wordset-games-page button.ll-wordset-game-card__launch:hover,
 .ll-wordset-games-page button.ll-wordset-game-card__launch:focus,
 .ll-wordset-games-page button.ll-wordset-game-card__launch:focus-visible,
 .ll-wordset-games-page button.ll-wordset-game-card__launch:active {
-    background: linear-gradient(180deg, #0c6a63 0%, #0d4f4b 100%) !important;
-    background-image: linear-gradient(180deg, #0c6a63 0%, #0d4f4b 100%) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%) !important;
     color: #fff !important;
     outline: none !important;
 }
@@ -689,7 +696,7 @@
 
 .ll-wordset-games-page button.ll-wordset-game-stage__nav--pause.is-paused {
     color: var(--ll-games-accent-strong) !important;
-    border-color: rgba(15, 118, 110, 0.28) !important;
+    border-color: var(--ll-games-accent-border) !important;
 }
 
 .ll-wordset-games-page button.ll-wordset-game-stage__control {
@@ -713,18 +720,18 @@
 .ll-wordset-games-page button.ll-wordset-game-stage__control:focus-visible,
 .ll-wordset-games-page button.ll-wordset-game-stage__control:active,
 .ll-wordset-games-page button.ll-wordset-game-stage__control.is-active {
-    background: linear-gradient(180deg, #f3fffe 0%, #dff8f5 100%) !important;
-    background-image: linear-gradient(180deg, #f3fffe 0%, #dff8f5 100%) !important;
-    border-color: rgba(15, 118, 110, 0.34) !important;
-    color: var(--ll-games-accent-strong) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent-soft) 0%, var(--ll-games-accent-soft-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent-soft) 0%, var(--ll-games-accent-soft-strong) 100%) !important;
+    border-color: var(--ll-games-accent-border) !important;
+    color: var(--ll-games-accent) !important;
     outline: none !important;
 }
 
 .ll-wordset-games-page button.ll-wordset-game-stage__control--fire {
     min-height: 62px !important;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
-    background-image: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
-    border-color: rgba(15, 118, 110, 0.3) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%) !important;
+    border-color: var(--ll-games-accent-border) !important;
     color: #fff !important;
 }
 
@@ -733,9 +740,9 @@
 .ll-wordset-games-page button.ll-wordset-game-stage__control--fire:focus-visible,
 .ll-wordset-games-page button.ll-wordset-game-stage__control--fire:active,
 .ll-wordset-games-page button.ll-wordset-game-stage__control--fire.is-active {
-    background: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
-    background-image: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
-    border-color: rgba(13, 79, 75, 0.4) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%) !important;
+    border-color: var(--ll-games-accent-border-strong) !important;
     color: #fff !important;
 }
 
@@ -745,18 +752,18 @@
     border-width: 1px !important;
     border-radius: 14px !important;
     border-color: transparent !important;
-    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
-    background-image: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent) 0%, var(--ll-games-accent-strong) 100%) !important;
     color: #fff !important;
-    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.22) !important;
+    box-shadow: 0 12px 20px var(--ll-games-accent-shadow-soft) !important;
 }
 
 .ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:hover,
 .ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:focus,
 .ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:focus-visible,
 .ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:active {
-    background: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
-    background-image: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
+    background: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%) !important;
+    background-image: linear-gradient(180deg, var(--ll-games-accent-hover) 0%, var(--ll-games-accent-strong) 100%) !important;
     color: #fff !important;
     outline: none !important;
 }

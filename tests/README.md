@@ -199,7 +199,7 @@ Representative current E2E specs (`tests/e2e/specs/`, 33 files at the time of wr
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
-  - Verifies the wordset games page bootstraps availability correctly and that the Arcane Space Shooter runtime preserves option conflicts while queuing practice-style progress events.
+  - Verifies the wordset games page bootstraps availability correctly and that the Space Shooter runtime preserves option conflicts while queuing practice-style progress events.
 - Additional specs in the same folder cover audio-recorder new-word flows, quiz audio gating, mobile/layout regressions, text fitting, wordset progress/loading shells, and more. Treat this section as a representative summary rather than a full inventory.
 
 Optional env vars (set directly or in `tests/.env`):

@@ -366,7 +366,7 @@
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelBubblePop || 'Bubble Pop game board');
         }
         if (requestedSlug === DEFAULT_GAME_SLUG) {
-            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpaceShooter || 'Arcane Space Shooter game board');
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpaceShooter || 'Space Shooter game board');
         }
         return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board');
     }

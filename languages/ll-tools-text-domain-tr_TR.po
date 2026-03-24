@@ -6098,8 +6098,8 @@ msgstr "%s kaydını oynat"
 msgid "Play audio"
 msgstr "Sesi çal"
 
-msgid "Arcane Space Shooter"
-msgstr "Gizemli Uzay Nişancısı"
+msgid "Space Shooter"
+msgstr "Uzay Nişancısı"
 
 msgid "Hear the word. Blast the matching picture."
 msgstr "Kelimeyi dinle. Eşleşen görseli vur."
@@ -6179,8 +6179,8 @@ msgstr "Oyun oynamak için oturum aç"
 msgid "Games use your in-progress words and save results to your practice history."
 msgstr "Oyunlar, çalıştığın kelimeleri kullanır ve sonuçları pratik geçmişine kaydeder."
 
-msgid "Arcane Space Shooter game board"
-msgstr "Gizemli Uzay Nişancısı oyun alanı"
+msgid "Space Shooter game board"
+msgstr "Uzay Nişancısı oyun alanı"
 
 msgid "Fire or press space bar"
 msgstr "Ateş et veya boşluk tuşuna bas"

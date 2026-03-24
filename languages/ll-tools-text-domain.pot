@@ -7654,7 +7654,7 @@ msgstr ""
 msgid "Play audio"
 msgstr ""
 
-msgid "Arcane Space Shooter"
+msgid "Space Shooter"
 msgstr ""
 
 msgid "Hear the word. Blast the matching picture."
@@ -7735,7 +7735,7 @@ msgstr ""
 msgid "Games use your in-progress words and save results to your practice history."
 msgstr ""
 
-msgid "Arcane Space Shooter game board"
+msgid "Space Shooter game board"
 msgstr ""
 
 msgid "Fire or press space bar"

@@ -48,7 +48,7 @@ function buildGamesMarkup() {
       </header>
       <section class="ll-wordset-games-page" data-ll-wordset-games-root>
         <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
-          ${buildGameCardMarkup('space-shooter', 'Arcane Space Shooter', 'Hear the word. Blast the matching picture.')}
+          ${buildGameCardMarkup('space-shooter', 'Space Shooter', 'Hear the word. Blast the matching picture.')}
           ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
         </div>
 
@@ -397,7 +397,7 @@ function buildGamesConfig(isLoggedIn) {
       catalog: {
         'space-shooter': {
           slug: 'space-shooter',
-          title: 'Arcane Space Shooter',
+          title: 'Space Shooter',
           description: 'Hear the word. Blast the matching picture.'
         },
         'bubble-pop': {
@@ -576,7 +576,7 @@ function buildGamesConfig(isLoggedIn) {
       gamesReplayRun: 'Replay',
       gamesBackToCatalog: 'Back to games',
       gamesBoardLabelDefault: 'Wordset game board',
-      gamesBoardLabelSpaceShooter: 'Arcane Space Shooter game board',
+      gamesBoardLabelSpaceShooter: 'Space Shooter game board',
       gamesBoardLabelBubblePop: 'Bubble Pop game board'
     }
   };
@@ -816,7 +816,7 @@ async function mountGamesPage(page, {
               games: {
                 'space-shooter': {
                   slug: 'space-shooter',
-                  title: 'Arcane Space Shooter',
+                  title: 'Space Shooter',
                   description: 'Hear the word. Blast the matching picture.',
                   minimum_word_count: 5,
                   available_word_count: window.__gameBootstrapWords.length,
@@ -879,7 +879,7 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
   await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
 });
 
-test('games catalog keeps cards compact on wide screens and uses the bubble theme for bubble pop launch', async ({ page }) => {
+test('games catalog keeps cards compact on wide screens and uses distinct launch themes for each game', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1080 });
   await mountGamesPage(page, { isLoggedIn: true });
 
@@ -890,13 +890,17 @@ test('games catalog keeps cards compact on wide screens and uses the bubble them
     const root = document.querySelector('[data-ll-wordset-games-root]');
     const spaceCard = document.querySelector('[data-game-slug="space-shooter"]');
     const bubbleCard = document.querySelector('[data-game-slug="bubble-pop"]');
+    const spaceButton = spaceCard ? spaceCard.querySelector('[data-ll-wordset-game-launch]') : null;
     const bubbleButton = bubbleCard ? bubbleCard.querySelector('[data-ll-wordset-game-launch]') : null;
+    const spaceButtonStyles = spaceButton ? window.getComputedStyle(spaceButton) : null;
     const buttonStyles = bubbleButton ? window.getComputedStyle(bubbleButton) : null;
 
     return {
       rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
       spaceCardWidth: spaceCard ? Math.round(spaceCard.getBoundingClientRect().width) : 0,
       bubbleCardWidth: bubbleCard ? Math.round(bubbleCard.getBoundingClientRect().width) : 0,
+      spaceButtonBackgroundImage: spaceButtonStyles ? String(spaceButtonStyles.backgroundImage || '') : '',
+      spaceButtonBackgroundColor: spaceButtonStyles ? String(spaceButtonStyles.backgroundColor || '') : '',
       bubbleButtonBackgroundImage: buttonStyles ? String(buttonStyles.backgroundImage || '') : '',
       bubbleButtonBackgroundColor: buttonStyles ? String(buttonStyles.backgroundColor || '') : ''
     };
@@ -905,6 +909,12 @@ test('games catalog keeps cards compact on wide screens and uses the bubble them
   expect(catalogStyles.rootWidth).toBeGreaterThan(900);
   expect(catalogStyles.spaceCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
   expect(catalogStyles.bubbleCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
+  expect(
+    catalogStyles.spaceButtonBackgroundImage.includes('18, 35, 61')
+      || catalogStyles.spaceButtonBackgroundImage.includes('15, 23, 42')
+      || catalogStyles.spaceButtonBackgroundImage.includes('23, 28, 46')
+      || catalogStyles.spaceButtonBackgroundColor.includes('18, 35, 61')
+  ).toBe(true);
   expect(
     catalogStyles.bubbleButtonBackgroundImage.includes('154, 221, 255')
       || catalogStyles.bubbleButtonBackgroundImage.includes('120, 203, 245')
@@ -1428,7 +1438,7 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Games');
-  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Arcane Space Shooter');
+  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Space Shooter');
 
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);

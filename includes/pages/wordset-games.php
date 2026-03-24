@@ -67,7 +67,7 @@ function ll_tools_wordset_games_default_catalog(): array {
     return [
         'space-shooter' => [
             'slug' => 'space-shooter',
-            'title' => __('Arcane Space Shooter', 'll-tools-text-domain'),
+            'title' => __('Space Shooter', 'll-tools-text-domain'),
             'description' => __('Hear the word. Blast the matching picture.', 'll-tools-text-domain'),
         ],
         'bubble-pop' => [
