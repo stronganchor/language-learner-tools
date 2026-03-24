@@ -37,93 +37,104 @@ function buildGameCardMarkup(slug, title, description) {
   `;
 }
 
-function buildGamesMarkup() {
+function buildGamesMarkup({ view = 'games', modalOpen = view === 'games' } = {}) {
+  const normalizedView = String(view || 'games') === 'main' ? 'main' : 'games';
   return `
-    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="games" data-ll-wordset-id="77">
-      <header class="ll-wordset-subpage-head">
-        <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="/wordsets/test-wordset/">
-          <span class="ll-wordset-back__label" data-ll-wordset-games-back-label>Test Wordset</span>
+    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="${normalizedView}" data-ll-wordset-id="77">
+      ${normalizedView === 'main' ? `
+        <a class="ll-wordset-link-chip ll-wordset-link-chip--games" data-ll-wordset-games-open href="/wordsets/test-wordset/games/">
+          <span class="ll-wordset-link-chip__label">Games</span>
         </a>
-        <h1 class="ll-wordset-title" data-ll-wordset-games-page-title>Games</h1>
-      </header>
-      <section class="ll-wordset-games-page" data-ll-wordset-games-root>
-        <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
-          ${buildGameCardMarkup('space-shooter', 'Space Shooter', 'Hear the word. Blast the matching picture.')}
-          ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
-        </div>
-
-        <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
-          <div class="ll-wordset-game-stage__hud">
-            <div class="ll-wordset-game-stage__stats">
-              <span data-ll-wordset-game-coins>0</span>
-              <span data-ll-wordset-game-lives>3</span>
+      ` : ''}
+      <div class="ll-wordset-games-modal" data-ll-wordset-games-modal ${modalOpen ? '' : 'hidden'}>
+        <div class="ll-wordset-games-modal__backdrop" data-ll-wordset-games-modal-dismiss aria-hidden="true"></div>
+        <section class="ll-wordset-games-modal__dialog" data-ll-wordset-games-modal-dialog role="dialog" aria-modal="true" aria-labelledby="test-games-title">
+          <header class="ll-wordset-subpage-head">
+            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="/wordsets/test-wordset/">
+              <span class="ll-wordset-back__label" data-ll-wordset-games-back-label>Test Wordset</span>
+            </a>
+            <h1 class="ll-wordset-title" id="test-games-title" data-ll-wordset-games-page-title>Games</h1>
+          </header>
+          <section class="ll-wordset-games-page" data-ll-wordset-games-root>
+            <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
+              ${buildGameCardMarkup('space-shooter', 'Space Shooter', 'Hear the word. Blast the matching picture.')}
+              ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
             </div>
-            <div class="ll-wordset-game-stage__hud-actions">
-              <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay ll-prompt-audio-button" data-ll-wordset-game-replay-audio>
-                <span class="ll-repeat-audio-ui">
-                  <span class="ll-repeat-icon-wrap" aria-hidden="true">
-                    <span class="ll-audio-play-icon" aria-hidden="true">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
-                        <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"></path>
-                      </svg>
+
+            <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
+              <div class="ll-wordset-game-stage__hud">
+                <div class="ll-wordset-game-stage__stats">
+                  <span data-ll-wordset-game-coins>0</span>
+                  <span data-ll-wordset-game-lives>3</span>
+                </div>
+                <div class="ll-wordset-game-stage__hud-actions">
+                  <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay ll-prompt-audio-button" data-ll-wordset-game-replay-audio>
+                    <span class="ll-repeat-audio-ui">
+                      <span class="ll-repeat-icon-wrap" aria-hidden="true">
+                        <span class="ll-audio-play-icon" aria-hidden="true">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
+                            <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"></path>
+                          </svg>
+                        </span>
+                      </span>
+                      <span class="ll-audio-mini-visualizer" aria-hidden="true">
+                        <span class="bar" data-bar="1"></span>
+                        <span class="bar" data-bar="2"></span>
+                        <span class="bar" data-bar="3"></span>
+                        <span class="bar" data-bar="4"></span>
+                        <span class="bar" data-bar="5"></span>
+                        <span class="bar" data-bar="6"></span>
+                      </span>
+                    </span>
+                  </button>
+                  <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause" data-ll-wordset-game-pause-toggle aria-label="Pause run">
+                    <span data-ll-wordset-game-pause-icon>||</span>
+                  </button>
+                </div>
+              </div>
+              <div class="ll-wordset-game-stage__canvas-wrap">
+                <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
+              </div>
+              <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
+                <button type="button" data-ll-wordset-game-control="left" aria-label="Move left">
+                  <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                    <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path d="M14.5 5.5L8 12l6.5 6.5"></path>
+                      <path d="M8.5 12H19.5"></path>
+                    </svg>
+                  </span>
+                </button>
+                <button type="button" data-ll-wordset-game-control="fire" aria-label="Fire or press space bar">
+                  <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
+                    <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z"></path>
+                    </svg>
+                    <span class="ll-wordset-game-stage__control-keycap ll-wordset-game-stage__control-keycap--space" data-ll-wordset-game-fire-keycap>
+                      <span class="ll-wordset-game-stage__control-keycap-bar"></span>
                     </span>
                   </span>
-                  <span class="ll-audio-mini-visualizer" aria-hidden="true">
-                    <span class="bar" data-bar="1"></span>
-                    <span class="bar" data-bar="2"></span>
-                    <span class="bar" data-bar="3"></span>
-                    <span class="bar" data-bar="4"></span>
-                    <span class="bar" data-bar="5"></span>
-                    <span class="bar" data-bar="6"></span>
+                </button>
+                <button type="button" data-ll-wordset-game-control="right" aria-label="Move right">
+                  <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                    <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                      <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
+                      <path d="M15.5 12H4.5"></path>
+                    </svg>
                   </span>
-                </span>
-              </button>
-              <button type="button" class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause" data-ll-wordset-game-pause-toggle aria-label="Pause run">
-                <span data-ll-wordset-game-pause-icon>||</span>
-              </button>
-            </div>
-          </div>
-          <div class="ll-wordset-game-stage__canvas-wrap">
-            <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
-          </div>
-          <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
-            <button type="button" data-ll-wordset-game-control="left" aria-label="Move left">
-              <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
-                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                  <path d="M14.5 5.5L8 12l6.5 6.5"></path>
-                  <path d="M8.5 12H19.5"></path>
-                </svg>
-              </span>
-            </button>
-            <button type="button" data-ll-wordset-game-control="fire" aria-label="Fire or press space bar">
-              <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
-                <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                  <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z"></path>
-                </svg>
-                <span class="ll-wordset-game-stage__control-keycap ll-wordset-game-stage__control-keycap--space" data-ll-wordset-game-fire-keycap>
-                  <span class="ll-wordset-game-stage__control-keycap-bar"></span>
-                </span>
-              </span>
-            </button>
-            <button type="button" data-ll-wordset-game-control="right" aria-label="Move right">
-              <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
-                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                  <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
-                  <path d="M15.5 12H4.5"></path>
-                </svg>
-              </span>
-            </button>
-          </div>
-          <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
-            <div class="ll-wordset-game-stage__overlay-card">
-              <h2 data-ll-wordset-game-overlay-title></h2>
-              <p data-ll-wordset-game-overlay-summary></p>
-              <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay>Replay</button>
-              <button type="button" class="ll-wordset-game-stage__overlay-button ll-wordset-game-stage__overlay-button--ghost" data-ll-wordset-game-return>Back</button>
-            </div>
-          </div>
+                </button>
+              </div>
+              <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
+                <div class="ll-wordset-game-stage__overlay-card">
+                  <h2 data-ll-wordset-game-overlay-title></h2>
+                  <p data-ll-wordset-game-overlay-summary></p>
+                  <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay>Replay</button>
+                  <button type="button" class="ll-wordset-game-stage__overlay-button ll-wordset-game-stage__overlay-button--ghost" data-ll-wordset-game-return>Back</button>
+                </div>
+              </div>
+            </section>
+          </section>
         </section>
-      </section>
+      </div>
     </div>
   `;
 }
@@ -299,13 +310,13 @@ function buildSpaceShooterWords() {
   ];
 }
 
-function buildGamesConfig(isLoggedIn) {
+function buildGamesConfig(isLoggedIn, view = 'games') {
   return {
     ajaxUrl: '/fake-admin-ajax.php',
     nonce: isLoggedIn ? 'nonce-77' : '',
     isLoggedIn: !!isLoggedIn,
     sortLocale: 'en_US',
-    view: 'games',
+    view: String(view || 'games') === 'main' ? 'main' : 'games',
     wordsetId: 77,
     wordsetSlug: 'test-wordset',
     wordsetName: 'Test Wordset',
@@ -589,9 +600,11 @@ async function mountGamesPage(page, {
   promptAudioDurationSeconds = 4.2,
   promptAutoReplayGapMs = null,
   spaceShooterOverrides = null,
-  bubblePopOverrides = null
+  bubblePopOverrides = null,
+  view = 'games',
+  modalOpen = view === 'games'
 } = {}) {
-  await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.setContent(buildGamesMarkup({ view, modalOpen }), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
     ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides }) => {
@@ -627,6 +640,7 @@ async function mountGamesPage(page, {
       window.__queuedProgressEvents = [];
       window.__flushCount = 0;
       window.__scrollCalls = [];
+      window.__dialogScrollCalls = [];
       window.__audioLoadDelay = Number(audioLoadDelay || 0);
       window.__promptAudioDurationSeconds = Number(promptAudioDuration || 4.2);
       window.__audioEventLog = [];
@@ -646,6 +660,39 @@ async function mountGamesPage(page, {
           top: Number(top || 0),
           behavior: ''
         });
+      };
+
+      const originalElementScrollTo = Element.prototype.scrollTo;
+      Element.prototype.scrollTo = function (leftOrOptions, top) {
+        if (this && this.matches && this.matches('[data-ll-wordset-games-modal-dialog]')) {
+          if (typeof leftOrOptions === 'object' && leftOrOptions !== null) {
+            window.__dialogScrollCalls.push({
+              top: Number(leftOrOptions.top || 0),
+              left: Number(leftOrOptions.left || 0),
+              behavior: String(leftOrOptions.behavior || '')
+            });
+          } else {
+            window.__dialogScrollCalls.push({
+              left: Number(leftOrOptions || 0),
+              top: Number(top || 0),
+              behavior: ''
+            });
+          }
+        }
+
+        if (typeof originalElementScrollTo === 'function') {
+          return originalElementScrollTo.apply(this, arguments);
+        }
+
+        if (typeof leftOrOptions === 'object' && leftOrOptions !== null) {
+          this.scrollLeft = Number(leftOrOptions.left || 0);
+          this.scrollTop = Number(leftOrOptions.top || 0);
+          return undefined;
+        }
+
+        this.scrollLeft = Number(leftOrOptions || 0);
+        this.scrollTop = Number(top || 0);
+        return undefined;
       };
 
       window.FlashcardAudio = {
@@ -854,7 +901,7 @@ async function mountGamesPage(page, {
       };
     },
     {
-      config: buildGamesConfig(isLoggedIn),
+      config: buildGamesConfig(isLoggedIn, view),
       gameWords: words,
       audioLoadDelay: audioLoadDelayMs,
       promptAudioDuration: promptAudioDurationSeconds,
@@ -888,6 +935,7 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
 
   const catalogStyles = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
+    const dialog = document.querySelector('[data-ll-wordset-games-modal-dialog]');
     const spaceCard = document.querySelector('[data-game-slug="space-shooter"]');
     const bubbleCard = document.querySelector('[data-game-slug="bubble-pop"]');
     const spaceButton = spaceCard ? spaceCard.querySelector('[data-ll-wordset-game-launch]') : null;
@@ -896,6 +944,8 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
     const buttonStyles = bubbleButton ? window.getComputedStyle(bubbleButton) : null;
 
     return {
+      viewportWidth: window.innerWidth || 0,
+      dialogWidth: dialog ? Math.round(dialog.getBoundingClientRect().width) : 0,
       rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
       spaceCardWidth: spaceCard ? Math.round(spaceCard.getBoundingClientRect().width) : 0,
       bubbleCardWidth: bubbleCard ? Math.round(bubbleCard.getBoundingClientRect().width) : 0,
@@ -906,6 +956,8 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
     };
   });
 
+  expect(catalogStyles.dialogWidth).toBeGreaterThan(1000);
+  expect(catalogStyles.dialogWidth).toBeLessThan(catalogStyles.viewportWidth - 80);
   expect(catalogStyles.rootWidth).toBeGreaterThan(900);
   expect(catalogStyles.spaceCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
   expect(catalogStyles.bubbleCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
@@ -920,6 +972,40 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
       || catalogStyles.bubbleButtonBackgroundImage.includes('120, 203, 245')
       || catalogStyles.bubbleButtonBackgroundColor.includes('154, 221, 255')
   ).toBe(true);
+});
+
+test('main wordset view opens games in a modal that fills small screens', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    view: 'main',
+    modalOpen: false
+  });
+
+  await expect(page.locator('[data-ll-wordset-games-modal]')).toBeHidden();
+  await page.click('[data-ll-wordset-games-open]');
+  await expect(page.locator('[data-ll-wordset-games-modal]')).toBeVisible();
+
+  const modalState = await page.evaluate(() => {
+    const dialog = document.querySelector('[data-ll-wordset-games-modal-dialog]');
+    const rect = dialog ? dialog.getBoundingClientRect() : null;
+    return {
+      width: rect ? Math.round(rect.width) : 0,
+      height: rect ? Math.round(rect.height) : 0,
+      viewportWidth: window.innerWidth || 0,
+      viewportHeight: window.innerHeight || 0,
+      htmlLocked: document.documentElement.classList.contains('ll-wordset-games-modal-open'),
+      bodyLocked: document.body.classList.contains('ll-wordset-games-modal-open')
+    };
+  });
+
+  expect(modalState.htmlLocked).toBe(true);
+  expect(modalState.bodyLocked).toBe(true);
+  expect(modalState.width).toBeGreaterThanOrEqual(modalState.viewportWidth - 4);
+  expect(modalState.height).toBeGreaterThanOrEqual(modalState.viewportHeight - 4);
+
+  await page.click('[data-ll-wordset-games-back]');
+  await expect(page.locator('[data-ll-wordset-games-modal]')).toBeHidden();
 });
 
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
@@ -1103,6 +1189,26 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   expect(settledTarget).toBeTruthy();
   expect(Math.abs(settledTarget.x - handoffTarget.x)).toBeLessThan(12);
 
+  await page.waitForTimeout(180);
+  const stableMotionState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const maxCardDisplacement = settledState.cardSnapshot
+    .filter((card) => card.promptId === settledState.promptId && !card.exploding)
+    .reduce((maxDistance, previousCard) => {
+      const nextCard = stableMotionState.cardSnapshot.find((candidate) =>
+        candidate.wordId === previousCard.wordId
+        && candidate.promptId === stableMotionState.promptId
+        && !candidate.exploding
+      );
+      if (!nextCard) {
+        return maxDistance;
+      }
+      return Math.max(
+        maxDistance,
+        Math.hypot(nextCard.x - previousCard.x, nextCard.y - previousCard.y)
+      );
+    }, 0);
+  expect(maxCardDisplacement).toBeLessThan(20);
+
   const blastCandidate = movedState.cardSnapshot
     .filter((card) => !card.isTarget && card.promptId === movedState.promptId)
     .map((card) => ({
@@ -1246,18 +1352,20 @@ test('bubble pop decorative bubbles pop without affecting score or progress', as
       return null;
     }
 
-    const bubble = (run.decorativeBubbleSnapshot || []).find((entry) => {
-      if (!entry || entry.exploding) {
-        return false;
-      }
+    const bubble = (run.decorativeBubbleSnapshot || [])
+      .filter((entry) => {
+        if (!entry || entry.exploding) {
+          return false;
+        }
 
-      return (run.cardSnapshot || []).every((card) => {
-        const cardRadius = Math.max(card.width, card.height) * 0.56;
-        const dx = entry.x - card.x;
-        const dy = entry.y - card.y;
-        return ((dx * dx) + (dy * dy)) > Math.pow(entry.radius + cardRadius + 18, 2);
-      });
-    });
+        return (run.cardSnapshot || []).every((card) => {
+          const cardRadius = Math.max(card.width, card.height) * 0.56;
+          const dx = entry.x - card.x;
+          const dy = entry.y - card.y;
+          return ((dx * dx) + (dy * dy)) > Math.pow(entry.radius + cardRadius + 18, 2);
+        });
+      })
+      .sort((left, right) => right.radius - left.radius)[0];
 
     if (!bubble) {
       return null;
@@ -1278,7 +1386,25 @@ test('bubble pop decorative bubbles pop without affecting score or progress', as
     lives: String(document.querySelector('[data-ll-wordset-game-lives]')?.textContent || '')
   }));
 
-  await page.mouse.click(decorativeTarget.x, decorativeTarget.y);
+  const decorativeClickPoint = await page.evaluate((bubbleId) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const canvas = document.querySelector('[data-ll-wordset-game-canvas]');
+    const bubble = run && Array.isArray(run.decorativeBubbleSnapshot)
+      ? run.decorativeBubbleSnapshot.find((entry) => entry && entry.id === bubbleId && !entry.exploding)
+      : null;
+    if (!run || !canvas || !bubble) {
+      return null;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.left + ((bubble.x / Math.max(1, canvas.clientWidth || run.width)) * rect.width),
+      y: rect.top + ((bubble.y / Math.max(1, canvas.clientHeight || run.height)) * rect.height)
+    };
+  }, decorativeTarget.id);
+  expect(decorativeClickPoint).toBeTruthy();
+
+  await page.mouse.click(decorativeClickPoint.x, decorativeClickPoint.y);
 
   await page.waitForFunction((bubbleId) => {
     const run = window.LLWordsetGames.__debug.getRunState();
@@ -1417,7 +1543,11 @@ test('space shooter launches with safe option mixes and records progress flows',
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Preparing game...');
   await expect(page.locator('[data-ll-wordset-game-fire-keycap]')).toBeVisible();
-  await page.waitForFunction(() => Array.isArray(window.__scrollCalls) && window.__scrollCalls.length > 0);
+  await page.waitForFunction(() => (
+    Array.isArray(window.__scrollCalls)
+    && Array.isArray(window.__dialogScrollCalls)
+    && ((window.__scrollCalls.length + window.__dialogScrollCalls.length) > 0)
+  ));
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.awaitingPrompt && !run.targetWordId);
@@ -1696,7 +1826,10 @@ test('space shooter launches with safe option mixes and records progress flows',
   await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
   await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Games');
 
-  const scrollCallCount = await page.evaluate(() => window.__scrollCalls.length);
+  const scrollCallCount = await page.evaluate(() => (
+    (Array.isArray(window.__scrollCalls) ? window.__scrollCalls.length : 0)
+    + (Array.isArray(window.__dialogScrollCalls) ? window.__dialogScrollCalls.length : 0)
+  ));
   expect(scrollCallCount).toBeGreaterThanOrEqual(2);
 
   const finalFlushCount = await page.evaluate(() => window.__flushCount);

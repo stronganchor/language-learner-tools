@@ -53,10 +53,13 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_view', '');
         $mainHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
         $this->assertStringContainsString('ll-wordset-link-chip--games', $mainHtml);
+        $this->assertStringContainsString('data-ll-wordset-games-open', $mainHtml);
+        $this->assertStringContainsString('data-ll-wordset-games-modal', $mainHtml);
         $this->assertStringContainsString('ll_wordset_view=games', $mainHtml);
 
         set_query_var('ll_wordset_view', 'games');
         $gamesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $this->assertStringContainsString('data-ll-wordset-games-modal-dialog', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-root', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-back', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-back-label', $gamesHtml);

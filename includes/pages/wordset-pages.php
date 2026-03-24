@@ -2336,7 +2336,7 @@ function ll_tools_wordset_page_enqueue_scripts(): void {
     $view = ll_tools_get_wordset_page_view();
     $deps = ['jquery'];
 
-    if ($view === 'games') {
+    if ($view === '' || $view === 'games') {
         ll_enqueue_asset_by_timestamp('/js/flashcard-widget/option-conflicts.js', 'll-tools-option-conflicts', [], true);
         ll_enqueue_asset_by_timestamp('/js/flashcard-widget/audio.js', 'll-wordset-games-audio', ['jquery'], true);
         ll_enqueue_asset_by_timestamp('/js/flashcard-widget/progress-tracker.js', 'll-wordset-games-progress-tracker', ['jquery'], true);
@@ -3937,174 +3937,16 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             <?php endif; ?>
         <?php elseif ($view === 'games') : ?>
-            <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
-                    <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
-                        <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
-                            <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </span>
-                    <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_term->name); ?></span>
-                </a>
-                <h1 class="ll-wordset-title" data-ll-wordset-games-page-title><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></h1>
-            </header>
-
-            <section class="ll-wordset-games-page" data-ll-wordset-games-root>
-                <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
-                    <?php foreach ($games_catalog as $game_slug => $game_row) : ?>
-                        <?php if (!is_array($game_row)) { continue; } ?>
-                        <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="<?php echo esc_attr((string) $game_slug); ?>">
-                            <div class="ll-wordset-game-card__icon" aria-hidden="true">
-                                <?php
-                                echo function_exists('ll_tools_wordset_games_render_game_icon')
-                                    ? ll_tools_wordset_games_render_game_icon((string) $game_slug, 'll-wordset-game-card__icon-svg')
-                                    : (function_exists('ll_tools_wordset_games_render_icon') ? ll_tools_wordset_games_render_icon('ll-wordset-game-card__icon-svg') : ''); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                                ?>
-                            </div>
-                            <div class="ll-wordset-game-card__body">
-                                <h2 class="ll-wordset-game-card__title"><?php echo esc_html((string) ($game_row['title'] ?? '')); ?></h2>
-                                <p class="ll-wordset-game-card__description"><?php echo esc_html((string) ($game_row['description'] ?? '')); ?></p>
-                                <p class="ll-wordset-game-card__status" data-ll-wordset-game-status>
-                                    <?php
-                                    echo esc_html(
-                                        $is_study_user
-                                            ? __('Checking game availability...', 'll-tools-text-domain')
-                                            : __('Sign in to play with your in-progress words.', 'll-tools-text-domain')
-                                    );
-                                    ?>
-                                </p>
-                            </div>
-                            <div class="ll-wordset-game-card__actions">
-                                <span class="ll-wordset-game-card__count" data-ll-wordset-game-count aria-label="<?php echo esc_attr__('Eligible words', 'll-tools-text-domain'); ?>">&#8212;</span>
-                                <button
-                                    type="button"
-                                    class="ll-wordset-game-card__launch"
-                                    data-ll-wordset-game-launch
-                                    disabled>
-                                    <?php echo esc_html($is_study_user ? _x('Play', 'launch game action', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
-                                </button>
-                            </div>
-                        </article>
-                    <?php endforeach; ?>
-                </div>
-
-                <?php if (!$is_study_user) : ?>
-                    <?php
-                    echo ll_tools_render_login_window([
-                        'container_class' => 'll-wordset-empty ll-wordset-login-window ll-wordset-games-login-window',
-                        'title' => __('Sign in to play games', 'll-tools-text-domain'),
-                        'message' => __('Games use your in-progress words and save results to your practice history.', 'll-tools-text-domain'),
-                        'submit_label' => __('Continue', 'll-tools-text-domain'),
-                        'redirect_to' => ll_tools_get_current_request_url(),
-                        'show_registration' => true,
-                        'registration_title' => __('Create learner account', 'll-tools-text-domain'),
-                        'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
-                    ]);
-                    ?>
-                <?php endif; ?>
-
-                <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
-                    <div class="ll-wordset-game-stage__hud">
-                        <div class="ll-wordset-game-stage__stats">
-                            <span class="ll-wordset-game-stage__stat">
-                                <span class="screen-reader-text"><?php echo esc_html__('Coins', 'll-tools-text-domain'); ?></span>
-                                <span class="ll-wordset-game-stage__stat-icon" aria-hidden="true">◎</span>
-                                <span data-ll-wordset-game-coins>0</span>
-                            </span>
-                            <span class="ll-wordset-game-stage__stat">
-                                <span class="screen-reader-text"><?php echo esc_html__('Lives', 'll-tools-text-domain'); ?></span>
-                                <span class="ll-wordset-game-stage__stat-icon" aria-hidden="true">✦</span>
-                                <span data-ll-wordset-game-lives>3</span>
-                            </span>
-                        </div>
-                        <div class="ll-wordset-game-stage__hud-actions">
-                            <button
-                                type="button"
-                                class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay ll-prompt-audio-button"
-                                data-ll-wordset-game-replay-audio
-                                aria-label="<?php echo esc_attr__('Replay prompt', 'll-tools-text-domain'); ?>">
-                                <span class="ll-repeat-audio-ui">
-                                    <span class="ll-repeat-icon-wrap" aria-hidden="true">
-                                        <span class="ll-audio-play-icon" aria-hidden="true">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
-                                                <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/>
-                                            </svg>
-                                        </span>
-                                    </span>
-                                    <span class="ll-audio-mini-visualizer" aria-hidden="true">
-                                        <span class="bar" data-bar="1"></span>
-                                        <span class="bar" data-bar="2"></span>
-                                        <span class="bar" data-bar="3"></span>
-                                        <span class="bar" data-bar="4"></span>
-                                        <span class="bar" data-bar="5"></span>
-                                        <span class="bar" data-bar="6"></span>
-                                    </span>
-                                </span>
-                            </button>
-                            <button
-                                type="button"
-                                class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause"
-                                data-ll-wordset-game-pause-toggle
-                                aria-label="<?php echo esc_attr__('Pause run', 'll-tools-text-domain'); ?>">
-                                <span aria-hidden="true" data-ll-wordset-game-pause-icon">&#10074;&#10074;</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="ll-wordset-game-stage__canvas-wrap">
-                        <canvas
-                            class="ll-wordset-game-stage__canvas"
-                            data-ll-wordset-game-canvas
-                            width="720"
-                            height="960"
-                            aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
-                    </div>
-
-                    <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
-                        <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="left" aria-label="<?php echo esc_attr__('Move left', 'll-tools-text-domain'); ?>">
-                            <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
-                                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                    <path d="M14.5 5.5L8 12l6.5 6.5" />
-                                    <path d="M8.5 12H19.5" />
-                                </svg>
-                            </span>
-                        </button>
-                        <button type="button" class="ll-wordset-game-stage__control ll-wordset-game-stage__control--fire" data-ll-wordset-game-control="fire" aria-label="<?php echo esc_attr__('Fire or press space bar', 'll-tools-text-domain'); ?>">
-                            <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
-                                <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                    <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z" />
-                                </svg>
-                                <span class="ll-wordset-game-stage__control-keycap ll-wordset-game-stage__control-keycap--space" data-ll-wordset-game-fire-keycap>
-                                    <span class="ll-wordset-game-stage__control-keycap-bar"></span>
-                                </span>
-                            </span>
-                        </button>
-                        <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="right" aria-label="<?php echo esc_attr__('Move right', 'll-tools-text-domain'); ?>">
-                            <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
-                                <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                    <path d="M9.5 5.5L16 12l-6.5 6.5" />
-                                    <path d="M15.5 12H4.5" />
-                                </svg>
-                            </span>
-                        </button>
-                    </div>
-
-                    <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
-                        <div class="ll-wordset-game-stage__overlay-card">
-                            <h2 class="ll-wordset-game-stage__overlay-title" data-ll-wordset-game-overlay-title><?php echo esc_html__('Run Complete', 'll-tools-text-domain'); ?></h2>
-                            <p class="ll-wordset-game-stage__overlay-summary" data-ll-wordset-game-overlay-summary></p>
-                            <div class="ll-wordset-game-stage__overlay-actions">
-                                <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay>
-                                    <?php echo esc_html__('Replay', 'll-tools-text-domain'); ?>
-                                </button>
-                                <button type="button" class="ll-wordset-game-stage__overlay-button ll-wordset-game-stage__overlay-button--ghost" data-ll-wordset-game-return>
-                                    <?php echo esc_html__('Back to games', 'll-tools-text-domain'); ?>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            </section>
+            <?php
+            echo ll_tools_render_wordset_games_shell([
+                'wordset_term' => $wordset_term,
+                'games_catalog' => $games_catalog,
+                'is_study_user' => $is_study_user,
+                'back_url' => $back_url,
+                'as_modal' => true,
+                'is_open' => true,
+            ]);
+            ?>
         <?php elseif ($view === 'hidden-categories') : ?>
             <header class="ll-wordset-subpage-head">
                 <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
@@ -4685,6 +4527,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </a>
                         <a
                             class="ll-wordset-link-chip ll-wordset-link-chip--games"
+                            data-ll-wordset-games-open
                             href="<?php echo esc_url($games_url); ?>"
                             aria-label="<?php echo esc_attr__('Open games', 'll-tools-text-domain'); ?>">
                             <span class="ll-wordset-link-chip__icon" aria-hidden="true">
@@ -4759,6 +4602,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     </div>
                 </header>
             <?php endif; ?>
+
+            <?php
+            echo ll_tools_render_wordset_games_shell([
+                'wordset_term' => $wordset_term,
+                'games_catalog' => $games_catalog,
+                'is_study_user' => $is_study_user,
+                'back_url' => $back_url,
+                'as_modal' => true,
+                'is_open' => false,
+            ]);
+            ?>
 
             <?php if (is_array($lesson_enable_notice) && !empty($lesson_enable_notice['message'])) : ?>
                 <div
@@ -5167,7 +5021,199 @@ add_action('wp_enqueue_scripts', 'll_tools_wordset_page_enqueue_assets');
 
 function ll_tools_wordset_page_enqueue_styles(): void {
     ll_enqueue_asset_by_timestamp('/css/wordset-pages.css', 'll-wordset-pages-css');
-    if (ll_tools_get_wordset_page_view() === 'games') {
+    $view = ll_tools_get_wordset_page_view();
+    if ($view === '' || $view === 'games') {
         ll_enqueue_asset_by_timestamp('/css/wordset-games.css', 'll-wordset-games-css', ['ll-wordset-pages-css']);
     }
+}
+
+function ll_tools_render_wordset_games_shell(array $args): string {
+    $wordset_term = $args['wordset_term'] ?? null;
+    if (!$wordset_term instanceof WP_Term) {
+        return '';
+    }
+
+    $games_catalog = is_array($args['games_catalog'] ?? null) ? $args['games_catalog'] : [];
+    $is_study_user = !empty($args['is_study_user']);
+    $back_url = isset($args['back_url']) ? (string) $args['back_url'] : '';
+    $as_modal = !empty($args['as_modal']);
+    $is_open = !empty($args['is_open']);
+    $title_id = 'll-wordset-games-title-' . (int) $wordset_term->term_id . ($as_modal ? '-modal' : '-page');
+
+    ob_start();
+    if ($as_modal) :
+    ?>
+        <div class="ll-wordset-games-modal" data-ll-wordset-games-modal <?php if (!$is_open) : ?>hidden<?php endif; ?>>
+            <div class="ll-wordset-games-modal__backdrop" data-ll-wordset-games-modal-dismiss aria-hidden="true"></div>
+            <section class="ll-wordset-games-modal__dialog" data-ll-wordset-games-modal-dialog role="dialog" aria-modal="true" aria-labelledby="<?php echo esc_attr($title_id); ?>">
+    <?php endif; ?>
+        <header class="ll-wordset-subpage-head">
+            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                        <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </span>
+                <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_term->name); ?></span>
+            </a>
+            <h1 class="ll-wordset-title" id="<?php echo esc_attr($title_id); ?>" data-ll-wordset-games-page-title><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></h1>
+        </header>
+
+        <section class="ll-wordset-games-page" data-ll-wordset-games-root>
+            <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
+                <?php foreach ($games_catalog as $game_slug => $game_row) : ?>
+                    <?php if (!is_array($game_row)) { continue; } ?>
+                    <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="<?php echo esc_attr((string) $game_slug); ?>">
+                        <div class="ll-wordset-game-card__icon" aria-hidden="true">
+                            <?php
+                            echo function_exists('ll_tools_wordset_games_render_game_icon')
+                                ? ll_tools_wordset_games_render_game_icon((string) $game_slug, 'll-wordset-game-card__icon-svg')
+                                : (function_exists('ll_tools_wordset_games_render_icon') ? ll_tools_wordset_games_render_icon('ll-wordset-game-card__icon-svg') : ''); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                            ?>
+                        </div>
+                        <div class="ll-wordset-game-card__body">
+                            <h2 class="ll-wordset-game-card__title"><?php echo esc_html((string) ($game_row['title'] ?? '')); ?></h2>
+                            <p class="ll-wordset-game-card__description"><?php echo esc_html((string) ($game_row['description'] ?? '')); ?></p>
+                            <p class="ll-wordset-game-card__status" data-ll-wordset-game-status>
+                                <?php
+                                echo esc_html(
+                                    $is_study_user
+                                        ? __('Checking game availability...', 'll-tools-text-domain')
+                                        : __('Sign in to play with your in-progress words.', 'll-tools-text-domain')
+                                );
+                                ?>
+                            </p>
+                        </div>
+                        <div class="ll-wordset-game-card__actions">
+                            <span class="ll-wordset-game-card__count" data-ll-wordset-game-count aria-label="<?php echo esc_attr__('Eligible words', 'll-tools-text-domain'); ?>">&#8212;</span>
+                            <button
+                                type="button"
+                                class="ll-wordset-game-card__launch"
+                                data-ll-wordset-game-launch
+                                disabled>
+                                <?php echo esc_html($is_study_user ? _x('Play', 'launch game action', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
+                            </button>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
+
+            <?php if (!$is_study_user) : ?>
+                <?php
+                echo ll_tools_render_login_window([
+                    'container_class' => 'll-wordset-empty ll-wordset-login-window ll-wordset-games-login-window',
+                    'title' => __('Sign in to play games', 'll-tools-text-domain'),
+                    'message' => __('Games use your in-progress words and save results to your practice history.', 'll-tools-text-domain'),
+                    'submit_label' => __('Continue', 'll-tools-text-domain'),
+                    'redirect_to' => ll_tools_get_current_request_url(),
+                    'show_registration' => true,
+                    'registration_title' => __('Create learner account', 'll-tools-text-domain'),
+                    'registration_submit_label' => __('Create account', 'll-tools-text-domain'),
+                ]);
+                ?>
+            <?php endif; ?>
+
+            <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
+                <div class="ll-wordset-game-stage__hud">
+                    <div class="ll-wordset-game-stage__stats">
+                        <span class="ll-wordset-game-stage__stat">
+                            <span class="screen-reader-text"><?php echo esc_html__('Coins', 'll-tools-text-domain'); ?></span>
+                            <span class="ll-wordset-game-stage__stat-icon" aria-hidden="true">◎</span>
+                            <span data-ll-wordset-game-coins>0</span>
+                        </span>
+                        <span class="ll-wordset-game-stage__stat">
+                            <span class="screen-reader-text"><?php echo esc_html__('Lives', 'll-tools-text-domain'); ?></span>
+                            <span class="ll-wordset-game-stage__stat-icon" aria-hidden="true">✦</span>
+                            <span data-ll-wordset-game-lives>3</span>
+                        </span>
+                    </div>
+                    <div class="ll-wordset-game-stage__hud-actions">
+                        <button
+                            type="button"
+                            class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--replay ll-prompt-audio-button"
+                            data-ll-wordset-game-replay-audio
+                            aria-label="<?php echo esc_attr__('Replay prompt', 'll-tools-text-domain'); ?>">
+                            <span class="ll-repeat-audio-ui">
+                                <span class="ll-repeat-icon-wrap" aria-hidden="true">
+                                    <span class="ll-audio-play-icon" aria-hidden="true">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
+                                            <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/>
+                                        </svg>
+                                    </span>
+                                </span>
+                                <span class="ll-audio-mini-visualizer" aria-hidden="true">
+                                    <span class="bar" data-bar="1"></span>
+                                    <span class="bar" data-bar="2"></span>
+                                    <span class="bar" data-bar="3"></span>
+                                    <span class="bar" data-bar="4"></span>
+                                    <span class="bar" data-bar="5"></span>
+                                    <span class="bar" data-bar="6"></span>
+                                </span>
+                            </span>
+                        </button>
+                        <button
+                            type="button"
+                            class="ll-wordset-game-stage__nav ll-wordset-game-stage__nav--pause"
+                            data-ll-wordset-game-pause-toggle
+                            aria-label="<?php echo esc_attr__('Pause run', 'll-tools-text-domain'); ?>">
+                            <span aria-hidden="true" data-ll-wordset-game-pause-icon">&#10074;&#10074;</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ll-wordset-game-stage__canvas-wrap">
+                    <canvas
+                        class="ll-wordset-game-stage__canvas"
+                        data-ll-wordset-game-canvas
+                        width="720"
+                        height="960"
+                        aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
+                </div>
+
+                <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
+                    <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="left" aria-label="<?php echo esc_attr__('Move left', 'll-tools-text-domain'); ?>">
+                        <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                            <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                <path d="M14.5 5.5L8 12l6.5 6.5"></path>
+                                <path d="M8.5 12H19.5"></path>
+                            </svg>
+                        </span>
+                    </button>
+                    <button type="button" class="ll-wordset-game-stage__control ll-wordset-game-stage__control--fire" data-ll-wordset-game-control="fire" aria-label="<?php echo esc_attr__('Fire or press space bar', 'll-tools-text-domain'); ?>">
+                        <span class="ll-wordset-game-stage__control-fire-stack" aria-hidden="true">
+                            <svg class="ll-wordset-game-stage__control-burst" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                <path d="M12 2.75L13.98 8.02L19.25 6.04L16.98 11.31L22.25 13.29L16.98 15.27L19.25 20.54L13.98 18.56L12 23.25L10.02 18.56L4.75 20.54L7.02 15.27L1.75 13.29L7.02 11.31L4.75 6.04L10.02 8.02L12 2.75Z"></path>
+                            </svg>
+                            <span class="ll-wordset-game-stage__control-keycap ll-wordset-game-stage__control-keycap--space" data-ll-wordset-game-fire-keycap>
+                                <span class="ll-wordset-game-stage__control-keycap-bar"></span>
+                            </span>
+                        </span>
+                    </button>
+                    <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="right" aria-label="<?php echo esc_attr__('Move right', 'll-tools-text-domain'); ?>">
+                        <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
+                            <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
+                                <path d="M15.5 12H4.5"></path>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+
+                <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
+                    <div class="ll-wordset-game-stage__overlay-card">
+                        <h2 data-ll-wordset-game-overlay-title></h2>
+                        <p data-ll-wordset-game-overlay-summary></p>
+                        <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay><?php echo esc_html__('Replay', 'll-tools-text-domain'); ?></button>
+                        <button type="button" class="ll-wordset-game-stage__overlay-button ll-wordset-game-stage__overlay-button--ghost" data-ll-wordset-game-return><?php echo esc_html__('Back to games', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+            </section>
+        </section>
+    <?php if ($as_modal) : ?>
+            </section>
+        </div>
+    <?php
+    endif;
+
+    return (string) ob_get_clean();
 }

@@ -10974,7 +10974,7 @@
         bindSettingsPageInteractions();
     }
 
-    if (view === 'games' && window.LLWordsetGames && typeof window.LLWordsetGames.init === 'function') {
+    if ((view === 'main' || view === 'games') && window.LLWordsetGames && typeof window.LLWordsetGames.init === 'function') {
         window.LLWordsetGames.init($root[0], cfg);
     }
 

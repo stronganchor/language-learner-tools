@@ -15,6 +15,9 @@
     const INACTIVITY_ROUND_PAUSE_LIMIT = 3;
     const RESUME_ACTION_NEXT_PROMPT = 'next-prompt';
     const PAUSE_REASON_INACTIVITY = 'inactivity';
+    const BUBBLE_ACTIVE_MAX_SPEED = 84;
+    const BUBBLE_RELEASE_MAX_SPEED = 116;
+    const BUBBLE_DECORATIVE_MAX_SPEED = 52;
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -37,6 +40,26 @@
 
     function lerp(start, end, progress) {
         return Number(start || 0) + ((Number(end || 0) - Number(start || 0)) * clamp(progress, 0, 1));
+    }
+
+    function clampVectorMagnitude(x, y, maxMagnitude) {
+        const velocityX = Number(x) || 0;
+        const velocityY = Number(y) || 0;
+        const limit = Math.max(0, Number(maxMagnitude) || 0);
+        const magnitude = Math.sqrt((velocityX * velocityX) + (velocityY * velocityY));
+
+        if (!limit || !isFinite(magnitude) || magnitude <= limit || magnitude < 0.001) {
+            return {
+                x: velocityX,
+                y: velocityY
+            };
+        }
+
+        const scale = limit / magnitude;
+        return {
+            x: velocityX * scale,
+            y: velocityY * scale
+        };
     }
 
     function uniqueIntList(values) {
@@ -435,8 +458,8 @@
         const width = Math.max(280, run.width || 720);
         const height = Math.max(360, run.height || 720);
         const laneCount = run.cardCount || 4;
-        const cardWidth = clamp(width * 0.18, 84, 126);
-        const cardHeight = clamp(cardWidth * 1.28, 112, 172);
+        const cardWidth = clamp(width * 0.185, 84, 132);
+        const cardHeight = clamp(cardWidth * 1.28, 112, 180);
         const laneWidth = width / laneCount;
         const shipWidth = clamp(width * 0.14, 54, 90);
         const shipHeight = shipWidth * 0.58;
@@ -537,7 +560,12 @@
         const previousWidth = run ? Math.max(1, Number(run.width) || 1) : 1;
         const previousHeight = run ? Math.max(1, Number(run.height) || 1) : 1;
         const wrapWidth = Math.max(280, Math.round(ctx.$canvasWrap.innerWidth() || ctx.$stage.innerWidth() || 720));
-        const viewportCap = root.innerHeight ? Math.round(root.innerHeight * 0.68) : 820;
+        const modalDialogHeight = isGamesModalVisible(ctx) && ctx.$modalDialog && ctx.$modalDialog.length
+            ? Math.round(ctx.$modalDialog.innerHeight() || 0)
+            : 0;
+        const viewportCap = modalDialogHeight > 0
+            ? Math.max(430, modalDialogHeight - 170)
+            : (root.innerHeight ? Math.round(root.innerHeight * 0.68) : 820);
         const cssHeight = clamp(Math.round(wrapWidth * 1.18), 430, Math.max(430, viewportCap));
         const dpr = clamp(root.devicePixelRatio || 1, 1, 2);
 
@@ -1142,13 +1170,30 @@
         };
     }
 
+    function persistFloatingBodyBasePosition(body, offsets, xKey, yKey) {
+        if (!body) {
+            return;
+        }
+
+        const nextXKey = String(xKey || '');
+        const nextYKey = String(yKey || '');
+        if (!nextXKey || !nextYKey) {
+            return;
+        }
+
+        const offsetX = Number(offsets && offsets.x) || 0;
+        const offsetY = Number(offsets && offsets.y) || 0;
+        body[nextXKey] = Number(body.x || 0) - offsetX;
+        body[nextYKey] = Number(body.y || 0) - offsetY;
+    }
+
     function addFloatingBodyImpulse(body, impulseX, impulseY) {
         if (!body) {
             return;
         }
 
-        body.bubbleImpulseVelocityX = clamp((Number(body.bubbleImpulseVelocityX) || 0) + (Number(impulseX) || 0), -220, 220);
-        body.bubbleImpulseVelocityY = clamp((Number(body.bubbleImpulseVelocityY) || 0) + (Number(impulseY) || 0), -220, 220);
+        body.bubbleImpulseVelocityX = clamp((Number(body.bubbleImpulseVelocityX) || 0) + (Number(impulseX) || 0), -160, 160);
+        body.bubbleImpulseVelocityY = clamp((Number(body.bubbleImpulseVelocityY) || 0) + (Number(impulseY) || 0), -160, 160);
     }
 
     function applyBubbleBlastImpulse(run, sourceX, sourceY, sourceRadius, excludedBody) {
@@ -1283,22 +1328,22 @@
             card.entryVisibleX = chosen.x;
             card.entryVisibleY = chosen.y;
             card.entryStartX = chosen.x;
-            card.bubbleWanderVelocityX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(8, 20);
-            card.bubbleFloatAmplitudeXPrimary = randomBetween(10, 24);
-            card.bubbleFloatAmplitudeXSecondary = randomBetween(4, 11);
-            card.bubbleFloatAmplitudeYPrimary = randomBetween(7, 16);
-            card.bubbleFloatAmplitudeYSecondary = randomBetween(3, 8);
-            card.bubbleFloatHzXPrimary = randomBetween(0.11, 0.24);
-            card.bubbleFloatHzXSecondary = randomBetween(0.21, 0.41);
-            card.bubbleFloatHzYPrimary = randomBetween(0.14, 0.28);
-            card.bubbleFloatHzYSecondary = randomBetween(0.24, 0.44);
+            card.bubbleWanderVelocityX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(4, 11);
+            card.bubbleFloatAmplitudeXPrimary = randomBetween(8, 18);
+            card.bubbleFloatAmplitudeXSecondary = randomBetween(3, 8);
+            card.bubbleFloatAmplitudeYPrimary = randomBetween(6, 13);
+            card.bubbleFloatAmplitudeYSecondary = randomBetween(2, 6);
+            card.bubbleFloatHzXPrimary = randomBetween(0.08, 0.17);
+            card.bubbleFloatHzXSecondary = randomBetween(0.16, 0.28);
+            card.bubbleFloatHzYPrimary = randomBetween(0.1, 0.2);
+            card.bubbleFloatHzYSecondary = randomBetween(0.18, 0.32);
             card.bubbleFloatPhaseXPrimary = randomBetween(0, Math.PI * 2);
             card.bubbleFloatPhaseXSecondary = randomBetween(0, Math.PI * 2);
             card.bubbleFloatPhaseYPrimary = randomBetween(0, Math.PI * 2);
             card.bubbleFloatPhaseYSecondary = randomBetween(0, Math.PI * 2);
             card.bubbleFloatReferenceX = null;
             card.bubbleFloatReferenceY = null;
-            card.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(16, 42);
+            card.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(12, 28);
             setFloatingBodyPosition(run, card, chosen.x, chosen.y);
 
             placed.push({
@@ -1307,10 +1352,26 @@
                 radius: radius
             });
         });
+
+        resolveFloatingBubbleOverlaps(run, orderedCards, 16);
+        orderedCards.forEach(function (card) {
+            if (!card) {
+                return;
+            }
+
+            card.bubbleVisibleX = Number(card.x || card.bubbleVisibleX || 0);
+            card.bubbleVisibleY = Number(card.y || card.bubbleVisibleY || 0);
+            card.bubbleBaseX = Number(card.x || card.bubbleBaseX || 0);
+            card.bubbleBaseY = Number(card.y || card.bubbleBaseY || 0);
+            card.entryVisibleX = Number(card.x || card.entryVisibleX || 0);
+            card.entryVisibleY = Number(card.y || card.entryVisibleY || 0);
+            card.entryStartX = Number(card.x || card.entryStartX || 0);
+        });
     }
 
     function refreshBubblePromptCardPositions(run, now) {
         const activeCards = [];
+        const positionedCards = [];
         run.cards.forEach(function (card) {
             if (!card || card.exploding || card.entryRevealMs > 0) {
                 return;
@@ -1318,6 +1379,7 @@
 
             const motionStrength = card.resolvedFalling ? 0.32 : 1;
             const offsets = getRelativeBubbleFloatOffsets(card, now, motionStrength);
+            card._bubbleFrameOffsets = offsets;
             setFloatingBodyPosition(
                 run,
                 card,
@@ -1331,9 +1393,14 @@
             if (!card.resolvedFalling) {
                 activeCards.push(card);
             }
+            positionedCards.push(card);
         });
 
         resolveFloatingBubbleOverlaps(run, activeCards, 12);
+        positionedCards.forEach(function (card) {
+            persistFloatingBodyBasePosition(card, card._bubbleFrameOffsets, 'bubbleBaseX', 'bubbleBaseY');
+            delete card._bubbleFrameOffsets;
+        });
     }
 
     function getDecorativeBubbleTargetCount(run) {
@@ -1351,16 +1418,16 @@
             baseY: isFinite(Number(opts.baseY)) ? Number(opts.baseY) : randomBetween(bounds.minY, run.height + radius),
             x: 0,
             y: 0,
-            speed: randomBetween(8, 24),
-            wanderVelocityX: (Math.random() < 0.5 ? -1 : 1) * randomBetween(2, 8),
-            driftXAmplitudePrimary: randomBetween(3, 10),
-            driftXAmplitudeSecondary: randomBetween(1.5, 5.5),
-            driftYAmplitudePrimary: randomBetween(2, 8),
-            driftYAmplitudeSecondary: randomBetween(1, 4),
-            driftHzXPrimary: randomBetween(0.08, 0.2),
-            driftHzXSecondary: randomBetween(0.18, 0.36),
-            driftHzYPrimary: randomBetween(0.1, 0.24),
-            driftHzYSecondary: randomBetween(0.22, 0.4),
+            speed: randomBetween(6, 15),
+            wanderVelocityX: (Math.random() < 0.5 ? -1 : 1) * randomBetween(1.5, 4.5),
+            driftXAmplitudePrimary: randomBetween(2.5, 7),
+            driftXAmplitudeSecondary: randomBetween(1, 4),
+            driftYAmplitudePrimary: randomBetween(1.5, 5.5),
+            driftYAmplitudeSecondary: randomBetween(0.8, 3),
+            driftHzXPrimary: randomBetween(0.06, 0.14),
+            driftHzXSecondary: randomBetween(0.14, 0.24),
+            driftHzYPrimary: randomBetween(0.08, 0.18),
+            driftHzYSecondary: randomBetween(0.16, 0.28),
             driftPhaseXPrimary: randomBetween(0, Math.PI * 2),
             driftPhaseXSecondary: randomBetween(0, Math.PI * 2),
             driftPhaseYPrimary: randomBetween(0, Math.PI * 2),
@@ -1405,8 +1472,13 @@
             const impulseDamping = Math.max(0, 1 - (5.2 * dt));
             bubble.bubbleImpulseVelocityX = (Number(bubble.bubbleImpulseVelocityX) || 0) * impulseDamping;
             bubble.bubbleImpulseVelocityY = (Number(bubble.bubbleImpulseVelocityY) || 0) * impulseDamping;
-            bubble.baseY += ((-bubble.speed + (Number(bubble.bubbleImpulseVelocityY) || 0)) * dt);
-            bubble.baseX += ((bubble.wanderVelocityX + (Number(bubble.bubbleImpulseVelocityX) || 0)) * dt);
+            const velocity = clampVectorMagnitude(
+                Number(bubble.wanderVelocityX) + (Number(bubble.bubbleImpulseVelocityX) || 0),
+                -bubble.speed + (Number(bubble.bubbleImpulseVelocityY) || 0),
+                BUBBLE_DECORATIVE_MAX_SPEED
+            );
+            bubble.baseY += (velocity.y * dt);
+            bubble.baseX += (velocity.x * dt);
             if (bubble.baseX <= bounds.minX || bubble.baseX >= bounds.maxX) {
                 bubble.wanderVelocityX *= -1;
                 bubble.baseX = clamp(bubble.baseX, bounds.minX, bounds.maxX);
@@ -1425,6 +1497,7 @@
                 )
             };
 
+            bubble._driftFrameOffsets = offsets;
             setFloatingBodyPosition(run, bubble, bubble.baseX + offsets.x, bubble.baseY + offsets.y, {
                 clampY: false
             });
@@ -1434,6 +1507,10 @@
             return bubble && !bubble.exploding;
         });
         resolveFloatingBubbleOverlaps(run, floatingBubbles, 6);
+        floatingBubbles.forEach(function (bubble) {
+            persistFloatingBodyBasePosition(bubble, bubble._driftFrameOffsets, 'baseX', 'baseY');
+            delete bubble._driftFrameOffsets;
+        });
 
         run.decorativeBubbles = run.decorativeBubbles.filter(function (bubble) {
             if (!bubble) {
@@ -1560,9 +1637,9 @@
 
             context.save();
             context.beginPath();
-            context.arc(0, 0, radius * 0.8, 0, Math.PI * 2);
+            context.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
             context.clip();
-            if (!drawImageContain(context, image, -radius * 0.8, -radius * 0.8, radius * 1.6, radius * 1.6)) {
+            if (!drawImageContain(context, image, -radius * 0.84, -radius * 0.84, radius * 1.68, radius * 1.68)) {
                 const placeholder = context.createLinearGradient(-radius, -radius, radius, radius);
                 placeholder.addColorStop(0, '#F5FCFF');
                 placeholder.addColorStop(1, '#DDEFFD');
@@ -2644,6 +2721,44 @@
         }
     }
 
+    function isStandaloneGamesPage(ctx) {
+        return String(ctx && ctx.pageView || '') === 'games';
+    }
+
+    function isGamesModalVisible(ctx) {
+        return !!(ctx && ctx.$modal && ctx.$modal.length && !ctx.$modal.prop('hidden'));
+    }
+
+    function toggleGamesModalPageLock(isLocked) {
+        if (!root.document) {
+            return;
+        }
+
+        const html = root.document.documentElement;
+        const body = root.document.body;
+        if (html && html.classList) {
+            html.classList.toggle('ll-wordset-games-modal-open', !!isLocked);
+        }
+        if (body && body.classList) {
+            body.classList.toggle('ll-wordset-games-modal-open', !!isLocked);
+        }
+    }
+
+    function setGamesModalOpen(ctx, isOpen) {
+        if (!ctx || !ctx.$modal || !ctx.$modal.length) {
+            return false;
+        }
+
+        ctx.$modal.prop('hidden', !isOpen);
+        toggleGamesModalPageLock(!!isOpen);
+        if (isOpen) {
+            root.requestAnimationFrame(function () {
+                syncCanvasSize(ctx);
+            });
+        }
+        return true;
+    }
+
     function resetRunControls(run) {
         run.controls.left = false;
         run.controls.right = false;
@@ -2660,7 +2775,29 @@
             return;
         }
 
+        const modalDialog = isGamesModalVisible(ctx) && ctx.$modalDialog && ctx.$modalDialog.length
+            ? ctx.$modalDialog.get(0)
+            : null;
+
         const performScroll = function () {
+            if (modalDialog && typeof modalDialog.scrollTo === 'function') {
+                const dialogScrollTop = Number(modalDialog.scrollTop || 0);
+                const dialogRect = modalDialog.getBoundingClientRect();
+                const stageRect = stage.getBoundingClientRect();
+                const targetTop = Math.max(0, Math.round((stageRect.top - dialogRect.top) + dialogScrollTop - 16));
+
+                try {
+                    modalDialog.scrollTo({
+                        top: targetTop,
+                        behavior: 'smooth'
+                    });
+                    return;
+                } catch (_) { /* no-op */ }
+
+                modalDialog.scrollTop = targetTop;
+                return;
+            }
+
             const currentScroll = Number(root.pageYOffset || root.scrollY || 0);
             const targetTop = Math.max(0, Math.round(stage.getBoundingClientRect().top + currentScroll - 16));
 
@@ -2744,6 +2881,34 @@
         if (ctx && ctx.$pageTitle && ctx.$pageTitle.length) {
             ctx.$pageTitle.text(gameSlug ? gameTitle : String(ctx.catalogPageDefaultTitle || ''));
         }
+    }
+
+    function resetGamesSurface(ctx) {
+        stopRun(ctx, { flush: true });
+        hideOverlay(ctx);
+        ctx.activeGameSlug = '';
+        updateStageGameUi(ctx, '');
+        ctx.$stage.prop('hidden', true);
+        ctx.$catalog.prop('hidden', false);
+    }
+
+    function openGamesModal(ctx) {
+        if (!ctx || !ctx.$modal || !ctx.$modal.length) {
+            return false;
+        }
+
+        setGamesModalOpen(ctx, true);
+        return true;
+    }
+
+    function closeGamesModal(ctx) {
+        if (!ctx || !ctx.$modal || !ctx.$modal.length || isStandaloneGamesPage(ctx)) {
+            return false;
+        }
+
+        resetGamesSurface(ctx);
+        setGamesModalOpen(ctx, false);
+        return true;
     }
 
     function setControlState(ctx, control, isActive) {
@@ -2987,7 +3152,7 @@
         const safeLineY = isBubbleGame
             ? run.height * (1 - safeLineRatio)
             : run.height * safeLineRatio;
-        let promptCardSpeed = run.cardSpeed;
+        let promptCardSpeed = isBubbleGame ? (run.cardSpeed * 0.9) : run.cardSpeed;
         const bubbleEntryRevealMs = isBubbleGame
             ? Math.max(220, toInt(gameConfig && gameConfig.cardEntryRevealMs) || 520)
             : 0;
@@ -3659,14 +3824,24 @@
                 card.bubbleImpulseVelocityX = (Number(card.bubbleImpulseVelocityX) || 0) * impulseDamping;
                 card.bubbleImpulseVelocityY = (Number(card.bubbleImpulseVelocityY) || 0) * impulseDamping;
                 if (card.resolvedFalling) {
-                    card.bubbleBaseY = Number(card.bubbleBaseY || card.y) + ((-card.speed + (Number(card.bubbleImpulseVelocityY) || 0)) * dt);
-                    card.bubbleBaseX = Number(card.bubbleBaseX || card.x) + ((Number(card.releaseDriftX) + (Number(card.bubbleImpulseVelocityX) || 0)) * dt);
+                    const releaseVelocity = clampVectorMagnitude(
+                        Number(card.releaseDriftX) + (Number(card.bubbleImpulseVelocityX) || 0),
+                        -card.speed + (Number(card.bubbleImpulseVelocityY) || 0),
+                        BUBBLE_RELEASE_MAX_SPEED
+                    );
+                    card.bubbleBaseY = Number(card.bubbleBaseY || card.y) + (releaseVelocity.y * dt);
+                    card.bubbleBaseX = Number(card.bubbleBaseX || card.x) + (releaseVelocity.x * dt);
                     return;
                 }
 
                 const bounds = getBubbleMovementBounds(run, getBubbleRadius(card));
-                card.bubbleBaseY = Number(card.bubbleBaseY || card.entryVisibleY || card.y) + ((-card.speed + (Number(card.bubbleImpulseVelocityY) || 0)) * dt);
-                card.bubbleBaseX = Number(card.bubbleBaseX || card.entryVisibleX || card.x) + ((Number(card.bubbleWanderVelocityX) + (Number(card.bubbleImpulseVelocityX) || 0)) * dt);
+                const activeVelocity = clampVectorMagnitude(
+                    Number(card.bubbleWanderVelocityX) + (Number(card.bubbleImpulseVelocityX) || 0),
+                    -card.speed + (Number(card.bubbleImpulseVelocityY) || 0),
+                    BUBBLE_ACTIVE_MAX_SPEED
+                );
+                card.bubbleBaseY = Number(card.bubbleBaseY || card.entryVisibleY || card.y) + (activeVelocity.y * dt);
+                card.bubbleBaseX = Number(card.bubbleBaseX || card.entryVisibleX || card.x) + (activeVelocity.x * dt);
                 if (card.bubbleBaseX <= bounds.minX || card.bubbleBaseX >= bounds.maxX) {
                     card.bubbleWanderVelocityX *= -1;
                     card.bubbleBaseX = clamp(card.bubbleBaseX, bounds.minX, bounds.maxX);
@@ -3973,12 +4148,7 @@
     }
 
     function showCatalog(ctx) {
-        stopRun(ctx, { flush: true });
-        hideOverlay(ctx);
-        ctx.activeGameSlug = '';
-        updateStageGameUi(ctx, '');
-        ctx.$stage.prop('hidden', true);
-        ctx.$catalog.prop('hidden', false);
+        resetGamesSurface(ctx);
         syncCanvasSize(ctx);
     }
 
@@ -3988,11 +4158,12 @@
         if (!gameConfig) {
             return;
         }
+        openGamesModal(ctx);
         showCatalog(ctx);
         ctx.$catalog.prop('hidden', true);
         ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = gameSlug;
-        updateStageGameUi(ctx, gameSlug);
+        updateStageGameUi(ctx, entry);
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
@@ -4196,6 +4367,22 @@
 
     function bindDom(ctx) {
         ctx.$page.off(MODULE_NS);
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-open]', function (event) {
+            if (!ctx.$modal || !ctx.$modal.length) {
+                return;
+            }
+            event.preventDefault();
+            openGamesModal(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-modal-dismiss]', function (event) {
+            if (!ctx.$modal || !ctx.$modal.length || isStandaloneGamesPage(ctx)) {
+                return;
+            }
+            event.preventDefault();
+            closeGamesModal(ctx);
+        });
+
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-launch]', function (event) {
             event.preventDefault();
             const slug = normalizeGameSlug($(this).closest('[data-ll-wordset-game-card]').attr('data-game-slug') || '');
@@ -4208,6 +4395,9 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-back]', function (event) {
             if (ctx.$stage.prop('hidden')) {
+                if (closeGamesModal(ctx)) {
+                    event.preventDefault();
+                }
                 return;
             }
             event.preventDefault();
@@ -4416,7 +4606,10 @@
         return {
             rootEl: rootEl,
             $page: $page,
+            pageView: String(cfg.view || 'main'),
             $gamesRoot: $gamesRoot,
+            $modal: $page.find('[data-ll-wordset-games-modal]').first(),
+            $modalDialog: $page.find('[data-ll-wordset-games-modal-dialog]').first(),
             $catalogBackLink: $page.find('[data-ll-wordset-games-back]').first(),
             $catalogBackLabel: $page.find('[data-ll-wordset-games-back-label]').first(),
             $pageTitle: $page.find('[data-ll-wordset-games-page-title]').first(),
@@ -4499,6 +4692,11 @@
         updateProgressGlobals(ctx);
         bindLifecycle(ctx);
         bindDom(ctx);
+        if (ctx.$modal && ctx.$modal.length) {
+            setGamesModalOpen(ctx, !ctx.$modal.prop('hidden'));
+        } else {
+            toggleGamesModalPageLock(false);
+        }
         syncCanvasSize(ctx);
         updateStageGameUi(ctx, '');
         renderAllCatalogCards(ctx, null, !!ctx.isLoggedIn);
