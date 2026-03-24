@@ -56,6 +56,21 @@
             });
     }
 
+    function normalizeUrlList(values) {
+        const seen = {};
+        return (Array.isArray(values) ? values : [values])
+            .map(function (value) {
+                return String(value || '').trim();
+            })
+            .filter(function (value) {
+                if (!value || seen[value]) {
+                    return false;
+                }
+                seen[value] = true;
+                return true;
+            });
+    }
+
     function formatMessage(template, values) {
         const source = String(template || '');
         const args = Array.isArray(values) ? values.slice() : [];
@@ -95,6 +110,15 @@
         const categoryId = toInt(word && word.category_id)
             || toInt(Array.isArray(word && word.category_ids) ? word.category_ids[0] : 0);
         return categoryId > 0 ? String(categoryId) : 'default';
+    }
+
+    function getWordCategoryIds(word) {
+        const categoryIds = uniqueIntList(word && word.category_ids);
+        const primaryCategoryId = toInt(word && word.category_id);
+        if (primaryCategoryId > 0 && categoryIds.indexOf(primaryCategoryId) === -1) {
+            categoryIds.unshift(primaryCategoryId);
+        }
+        return categoryIds;
     }
 
     function limitLaunchWords(words, wordCap) {
@@ -188,6 +212,18 @@
             return false;
         }
         return !wordsShareSimilarLink(leftWord, rightWord);
+    }
+
+    function wordsShareCategory(leftWord, rightWord) {
+        const leftCategories = getWordCategoryIds(leftWord);
+        const rightCategories = getWordCategoryIds(rightWord);
+        if (!leftCategories.length || !rightCategories.length) {
+            return false;
+        }
+
+        return leftCategories.some(function (categoryId) {
+            return rightCategories.indexOf(categoryId) !== -1;
+        });
     }
 
     function normalizeAudioFiles(word) {
@@ -800,10 +836,10 @@
                 context.globalAlpha = clamp(1 - progress, 0, 1);
             }
             if (dramatic) {
-                const wobble = Math.sin(progress * 30) * (1 - progress) * 7;
+                const wobble = Math.sin(progress * 34) * (1 - progress) * 12;
                 context.translate(card.x, card.y);
-                context.rotate((Math.sin(progress * 26) * 0.05) + (progress * 0.18));
-                context.scale(1 + (progress * 0.26), 1 + (progress * 0.22));
+                context.rotate((Math.sin(progress * 28) * 0.08) + (progress * 0.28));
+                context.scale(1 + (progress * 0.42), 1 + (progress * 0.36));
                 context.translate(-card.x + wobble, -card.y);
             } else if (card.resolvedFalling) {
                 context.translate(card.x, card.y);
@@ -864,14 +900,38 @@
                 context.fillStyle = flash;
                 context.fillRect(left, top, card.width, card.height);
                 context.globalCompositeOperation = 'source-over';
+
+                context.fillStyle = 'rgba(127, 29, 29, 0.18)';
+                drawRoundedRect(context, left, top, card.width, card.height, getCardRadius(card));
+                context.fill();
+
+                context.strokeStyle = 'rgba(255, 241, 242, 0.82)';
+                context.lineWidth = 2.4;
+                context.beginPath();
+                context.moveTo(left + (card.width * 0.18), top + (card.height * 0.16));
+                context.lineTo(left + (card.width * 0.72), top + (card.height * 0.38));
+                context.lineTo(left + (card.width * 0.46), top + (card.height * 0.8));
+                context.stroke();
             }
 
             if (exploding) {
                 context.strokeStyle = card.isTarget ? 'rgba(16, 185, 129, 0.9)' : 'rgba(248, 113, 113, 0.92)';
                 context.lineWidth = dramatic ? 4 : 3;
-                context.beginPath();
-                context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.2) + (progress * Math.max(card.width, card.height) * (dramatic ? 0.82 : 0.55)), 0, Math.PI * 2);
-                context.stroke();
+                if (dramatic) {
+                    context.beginPath();
+                    context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.26) + (progress * Math.max(card.width, card.height) * 1.02), 0, Math.PI * 2);
+                    context.stroke();
+
+                    context.strokeStyle = 'rgba(255, 228, 230, 0.7)';
+                    context.lineWidth = 2.2;
+                    context.beginPath();
+                    context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.12) + (progress * Math.max(card.width, card.height) * 0.68), 0, Math.PI * 2);
+                    context.stroke();
+                } else {
+                    context.beginPath();
+                    context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.2) + (progress * Math.max(card.width, card.height) * 0.55), 0, Math.PI * 2);
+                    context.stroke();
+                }
             }
             context.restore();
         });
@@ -979,10 +1039,7 @@
         };
     }
 
-    function selectCompatiblePromptWords(targetWord, words, requiredCount) {
-        const pool = shuffle((Array.isArray(words) ? words : []).filter(function (word) {
-            return toInt(word && word.id) !== toInt(targetWord && targetWord.id);
-        }));
+    function buildCompatiblePromptWordSet(targetWord, pool, requiredCount) {
         const selected = [targetWord];
 
         for (let index = 0; index < pool.length; index += 1) {
@@ -1006,8 +1063,57 @@
         return selected;
     }
 
-    function buildPromptCards(ctx, run, targetWord, words, promptId) {
-        const selected = selectCompatiblePromptWords(targetWord, words, run.cardCount);
+    function selectCompatiblePromptWords(targetWord, words, requiredCount, strategy) {
+        const distractorStrategy = String(strategy || 'mixed');
+        const allDistractors = shuffle((Array.isArray(words) ? words : []).filter(function (word) {
+            return toInt(word && word.id) !== toInt(targetWord && targetWord.id);
+        }));
+        let pool = allDistractors;
+
+        if (distractorStrategy === 'same-category') {
+            const sameCategory = [];
+            const otherCategories = [];
+
+            allDistractors.forEach(function (candidate) {
+                if (wordsShareCategory(targetWord, candidate)) {
+                    sameCategory.push(candidate);
+                    return;
+                }
+                otherCategories.push(candidate);
+            });
+            pool = sameCategory.concat(otherCategories);
+        }
+
+        return buildCompatiblePromptWordSet(targetWord, pool, requiredCount);
+    }
+
+    function hasCompatibleSameCategoryDistractor(targetWord, words) {
+        return (Array.isArray(words) ? words : []).some(function (candidate) {
+            return toInt(candidate && candidate.id) !== toInt(targetWord && targetWord.id)
+                && wordsShareCategory(targetWord, candidate)
+                && wordsCanShareRound(targetWord, candidate);
+        });
+    }
+
+    function selectDistractorStrategy(run, targetWord, words) {
+        const sameCategoryAvailable = hasCompatibleSameCategoryDistractor(targetWord, words);
+        const shouldPreferSameCategory = !!(run && run.useSameCategoryDistractorsNext);
+
+        if (!run) {
+            return sameCategoryAvailable ? 'same-category' : 'mixed';
+        }
+
+        if (!sameCategoryAvailable) {
+            run.useSameCategoryDistractorsNext = true;
+            return 'mixed';
+        }
+
+        run.useSameCategoryDistractorsNext = !shouldPreferSameCategory;
+        return shouldPreferSameCategory ? 'same-category' : 'mixed';
+    }
+
+    function buildPromptCards(ctx, run, targetWord, words, promptId, distractorStrategy) {
+        const selected = selectCompatiblePromptWords(targetWord, words, run.cardCount, distractorStrategy);
         if (!selected) {
             return null;
         }
@@ -1131,7 +1237,15 @@
         return ctx.promptAudio;
     }
 
-    function pausePromptAudio(ctx) {
+    function cancelQueuedPromptPlayback(ctx) {
+        ctx.promptPlaybackRequestId = toInt(ctx.promptPlaybackRequestId) + 1;
+    }
+
+    function pausePromptAudio(ctx, options) {
+        const opts = options || {};
+        if (opts.cancelQueued !== false) {
+            cancelQueuedPromptPlayback(ctx);
+        }
         if (ctx.promptAudio && typeof ctx.promptAudio.pause === 'function') {
             try {
                 ctx.promptAudio.pause();
@@ -1140,43 +1254,237 @@
         updateReplayAudioUi(ctx, false);
     }
 
+    function ensureFeedbackAudio(ctx) {
+        if (ctx.feedbackAudio) {
+            return ctx.feedbackAudio;
+        }
+
+        ctx.feedbackAudio = new Audio();
+        ctx.feedbackAudio.preload = 'auto';
+        return ctx.feedbackAudio;
+    }
+
+    function getFeedbackAudioSources(ctx, type) {
+        return type === 'correct'
+            ? normalizeUrlList(ctx && ctx.spaceShooter && ctx.spaceShooter.correctHitAudioSources)
+            : normalizeUrlList(ctx && ctx.spaceShooter && ctx.spaceShooter.wrongHitAudioSources);
+    }
+
+    function getFeedbackAudioVolume(ctx, type) {
+        const configured = type === 'correct'
+            ? Number(ctx && ctx.spaceShooter && ctx.spaceShooter.correctHitVolume)
+            : Number(ctx && ctx.spaceShooter && ctx.spaceShooter.wrongHitVolume);
+        return clamp(configured, 0.05, 1);
+    }
+
+    function waitForFeedbackQueue(ctx) {
+        return ctx && ctx.feedbackQueue && typeof ctx.feedbackQueue.then === 'function'
+            ? ctx.feedbackQueue.catch(function () {})
+            : Promise.resolve();
+    }
+
+    function stopFeedbackAudio(ctx) {
+        if (!ctx) {
+            return;
+        }
+
+        ctx.feedbackQueueVersion = toInt(ctx.feedbackQueueVersion) + 1;
+        ctx.feedbackPlaying = false;
+        ctx.feedbackQueue = Promise.resolve();
+
+        if (ctx.feedbackAudio && typeof ctx.feedbackAudio.pause === 'function') {
+            try {
+                ctx.feedbackAudio.pause();
+            } catch (_) { /* no-op */ }
+        }
+        if (ctx.feedbackAudio) {
+            try {
+                ctx.feedbackAudio.currentTime = 0;
+            } catch (_) { /* no-op */ }
+        }
+    }
+
+    function resolveReadyAudioSource(ctx, sources, cacheKey) {
+        const sourceList = normalizeUrlList(sources);
+        if (!sourceList.length) {
+            return Promise.resolve('');
+        }
+
+        if (ctx.feedbackAudioSourceCache[cacheKey]) {
+            return Promise.resolve(String(ctx.feedbackAudioSourceCache[cacheKey]));
+        }
+
+        let chain = Promise.resolve('');
+        sourceList.forEach(function (source) {
+            chain = chain.then(function (resolvedSource) {
+                if (resolvedSource) {
+                    return resolvedSource;
+                }
+
+                return ensureAudioLoaded(ctx, source).then(function (loaded) {
+                    if (loaded) {
+                        ctx.feedbackAudioSourceCache[cacheKey] = source;
+                        return source;
+                    }
+                    return '';
+                }).catch(function () {
+                    return '';
+                });
+            });
+        });
+
+        return chain;
+    }
+
+    function waitForFeedbackAudioToFinish(ctx, audio, sequenceVersion, fallbackMs) {
+        return new Promise(function (resolve) {
+            let settled = false;
+            let timeoutId = 0;
+
+            const cleanup = function () {
+                if (timeoutId) {
+                    root.clearTimeout(timeoutId);
+                    timeoutId = 0;
+                }
+                audio.removeEventListener('ended', onDone);
+                audio.removeEventListener('error', onDone);
+                audio.removeEventListener('pause', onPause);
+            };
+
+            const finish = function () {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                cleanup();
+                resolve();
+            };
+
+            const onDone = function () {
+                finish();
+            };
+            const onPause = function () {
+                if ((ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
+                    finish();
+                }
+            };
+
+            if ((ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
+                finish();
+                return;
+            }
+
+            audio.addEventListener('ended', onDone);
+            audio.addEventListener('error', onDone);
+            audio.addEventListener('pause', onPause);
+            timeoutId = root.setTimeout(onDone, Math.max(140, toInt(fallbackMs) || 0) + 80);
+        });
+    }
+
+    function playFeedbackSound(ctx, type) {
+        const soundType = (type === 'correct') ? 'correct' : 'wrong';
+        const sources = getFeedbackAudioSources(ctx, soundType);
+        if (!sources.length) {
+            return waitForFeedbackQueue(ctx);
+        }
+
+        pausePromptAudio(ctx);
+
+        const sequenceVersion = toInt(ctx.feedbackQueueVersion);
+        const queue = waitForFeedbackQueue(ctx);
+        ctx.feedbackQueue = queue.then(function () {
+            if ((ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
+                return;
+            }
+
+            return resolveReadyAudioSource(ctx, sources, soundType).then(function (source) {
+                if (!source || (ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
+                    return;
+                }
+
+                const feedbackAudio = ensureFeedbackAudio(ctx);
+                const feedbackDurationMs = getLoadedAudioDurationMs(ctx, source);
+
+                try {
+                    feedbackAudio.pause();
+                } catch (_) { /* no-op */ }
+                try {
+                    feedbackAudio.currentTime = 0;
+                } catch (_) { /* no-op */ }
+
+                feedbackAudio.volume = getFeedbackAudioVolume(ctx, soundType);
+                if (feedbackAudio.src !== source) {
+                    feedbackAudio.src = source;
+                }
+
+                ctx.feedbackPlaying = true;
+                return Promise.resolve(feedbackAudio.play()).catch(function () {
+                    return false;
+                }).then(function () {
+                    return waitForFeedbackAudioToFinish(ctx, feedbackAudio, sequenceVersion, feedbackDurationMs);
+                }).finally(function () {
+                    if ((ctx.feedbackQueueVersion || 0) === sequenceVersion) {
+                        ctx.feedbackPlaying = false;
+                    }
+                });
+            });
+        }).catch(function () {});
+
+        return ctx.feedbackQueue;
+    }
+
     function playPromptAudio(ctx) {
         const run = ctx.run;
         if (!run || run.paused || !run.prompt || !run.prompt.target) {
-            return;
+            return Promise.resolve(false);
         }
 
         const source = String(run.prompt.audioUrl || '');
         if (!source) {
-            return;
+            return Promise.resolve(false);
         }
 
-        const promptAudio = ensurePromptAudio(ctx);
+        const requestId = toInt(ctx.promptPlaybackRequestId) + 1;
+        ctx.promptPlaybackRequestId = requestId;
 
-        try {
-            promptAudio.pause();
-        } catch (_) { /* no-op */ }
-
-        try {
-            promptAudio.currentTime = 0;
-        } catch (_) { /* no-op */ }
-
-        if (promptAudio.src !== source) {
-            promptAudio.src = source;
-        }
-
-        updateReplayAudioUi(ctx, false);
-        const playAttempt = promptAudio.play();
-        if (playAttempt && typeof playAttempt.catch === 'function') {
-            playAttempt.then(function () {
-                updateReplayAudioUi(ctx, true);
-            }).catch(function () {
-                updateReplayAudioUi(ctx, false);
+        return waitForFeedbackQueue(ctx).then(function () {
+            if ((ctx.promptPlaybackRequestId || 0) !== requestId) {
                 return false;
-            });
-            return;
-        }
-        updateReplayAudioUi(ctx, true);
+            }
+            if (!ctx.run || ctx.run !== run || run.paused || !run.prompt || !run.prompt.target || String(run.prompt.audioUrl || '') !== source) {
+                return false;
+            }
+
+            const promptAudio = ensurePromptAudio(ctx);
+
+            try {
+                promptAudio.pause();
+            } catch (_) { /* no-op */ }
+
+            try {
+                promptAudio.currentTime = 0;
+            } catch (_) { /* no-op */ }
+
+            promptAudio.volume = clamp(Number(ctx.spaceShooter.promptAudioVolume), 0.05, 1);
+            if (promptAudio.src !== source) {
+                promptAudio.src = source;
+            }
+
+            updateReplayAudioUi(ctx, false);
+            const playAttempt = promptAudio.play();
+            if (playAttempt && typeof playAttempt.catch === 'function') {
+                return playAttempt.then(function () {
+                    updateReplayAudioUi(ctx, true);
+                    return true;
+                }).catch(function () {
+                    updateReplayAudioUi(ctx, false);
+                    return false;
+                });
+            }
+
+            updateReplayAudioUi(ctx, true);
+            return true;
+        });
     }
 
     function updateHud(ctx) {
@@ -1365,7 +1673,8 @@
         }
 
         const promptId = run.promptIdCounter + 1;
-        const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId);
+        const distractorMode = selectDistractorStrategy(run, targetWord, run.words);
+        const cards = buildPromptCards(ctx, run, targetWord, run.words, promptId, distractorMode);
         if (!cards) {
             return null;
         }
@@ -1375,7 +1684,8 @@
             promptId: promptId,
             audioUrl: promptAudio.url,
             recordingType: promptAudio.recordingType,
-            cards: cards
+            cards: cards,
+            distractorMode: distractorMode
         };
     }
 
@@ -1511,6 +1821,7 @@
             promptId: candidate.promptId,
             audioUrl: candidate.audioUrl,
             recordingType: candidate.recordingType,
+            distractorMode: String(candidate.distractorMode || 'mixed'),
             cardSpeed: promptCardSpeed,
             audioDurationMs: promptDurationMs,
             hadWrongBefore: false,
@@ -1666,7 +1977,12 @@
 
         markPromptResolved(run);
         releaseResolvedPromptCards(run, card);
-        startNextPrompt(ctx);
+        playFeedbackSound(ctx, 'correct').finally(function () {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            startNextPrompt(ctx);
+        });
     }
 
     function handleWrongHit(ctx, card) {
@@ -1680,44 +1996,57 @@
         run.prompt.hadWrongBefore = true;
         run.prompt.wrongCount += 1;
 
+        run.lives = Math.max(0, run.lives - Math.max(1, ctx.spaceShooter.wrongHitLifePenalty));
         run.coins = Math.max(0, run.coins - Math.max(0, ctx.spaceShooter.wrongHitCoinPenalty));
         updateHud(ctx);
 
         card.exploding = true;
         card.explosionStyle = 'dramatic';
-        card.explosionDuration = 320;
-        card.removeAt = currentTimestamp() + 320;
+        card.explosionDuration = 420;
+        card.removeAt = currentTimestamp() + 420;
         spawnExplosion(run, {
             x: card.x,
             y: card.y,
-            radius: card.width * 0.94,
+            radius: Math.max(card.width, card.height) * 1.12,
             primaryColor: 'rgba(248, 113, 113, 0.98)',
             secondaryColor: 'rgba(251, 191, 36, 0.92)',
-            duration: 420,
+            duration: 520,
             style: 'burst',
-            rayCount: 12,
+            rayCount: 18,
             spin: 0.18
         });
         spawnExplosion(run, {
             x: card.x + ((Math.random() * 18) - 9),
             y: card.y + ((Math.random() * 18) - 9),
-            radius: card.width * 0.62,
+            radius: Math.max(card.width, card.height) * 0.82,
             primaryColor: 'rgba(255, 255, 255, 0.94)',
             secondaryColor: 'rgba(249, 115, 22, 0.9)',
-            duration: 300,
+            duration: 360,
             style: 'burst',
-            rayCount: 8,
+            rayCount: 12,
             spin: -0.22
         });
         spawnExplosion(run, {
             x: card.x,
             y: card.y,
-            radius: card.width * 1.14,
+            radius: Math.max(card.width, card.height) * 1.34,
             primaryColor: 'rgba(255, 214, 10, 0.7)',
             secondaryColor: 'rgba(248, 113, 113, 0.55)',
-            duration: 360,
+            duration: 420,
             style: 'ring'
         });
+
+        const feedbackPlayback = playFeedbackSound(ctx, 'wrong');
+        if (run.lives <= 0) {
+            markPromptResolved(run);
+            resetRunControls(run);
+            clearControlUi(ctx);
+            feedbackPlayback.finally(function () {
+                if (ctx.run === run) {
+                    endRun(ctx);
+                }
+            });
+        }
     }
 
     function handlePromptTimeout(ctx) {
@@ -1826,7 +2155,9 @@
         }
 
         const targetCard = findTargetCard(run);
-        if (targetCard && !run.prompt.resolved && (targetCard.y - (targetCard.height / 2)) > run.height) {
+        if (!run.prompt.resolved && !targetCard) {
+            handlePromptTimeout(ctx);
+        } else if (targetCard && !run.prompt.resolved && (targetCard.y - (targetCard.height / 2)) > run.height) {
             handlePromptTimeout(ctx);
         }
 
@@ -1902,6 +2233,7 @@
         run.paused = true;
         clearPromptTimer(run, true);
         pausePromptAudio(ctx);
+        stopFeedbackAudio(ctx);
         resetRunControls(run);
         clearControlUi(ctx);
         updatePauseUi(ctx);
@@ -1952,6 +2284,7 @@
         resetRunControls(run);
         clearControlUi(ctx);
         pausePromptAudio(ctx);
+        stopFeedbackAudio(ctx);
         updatePauseUi(ctx);
         flushProgress(ctx);
 
@@ -1988,6 +2321,7 @@
         run.nextPromptPromise = null;
         clearPromptTimer(run, false);
         pausePromptAudio(ctx);
+        stopFeedbackAudio(ctx);
         resetRunControls(run);
         clearControlUi(ctx);
         if (opts.flush !== false) {
@@ -2049,6 +2383,7 @@
             promptTimerRemainingMs: 0,
             speedRampTurns: ctx.spaceShooter.introRampTurns,
             speedRampStartFactor: ctx.spaceShooter.introRampStartFactor,
+            useSameCategoryDistractorsNext: false,
             awaitingPrompt: false,
             nextPreparedPrompt: null,
             nextPromptPromise: null,
@@ -2316,6 +2651,12 @@
             imageCache: {},
             audioPreloadCache: {},
             promptAudio: null,
+            feedbackAudio: null,
+            feedbackQueue: Promise.resolve(),
+            feedbackQueueVersion: 0,
+            feedbackPlaying: false,
+            feedbackAudioSourceCache: {},
+            promptPlaybackRequestId: 0,
             bootstrapRequest: null,
             run: null,
             overlayMode: '',
@@ -2329,11 +2670,17 @@
                 introRampStartFactor: clamp(Number(spaceShooter.introRampStartFactor) || 0.5, 0.25, 0.95),
                 audioSafeLineRatio: clamp(Number(spaceShooter.audioSafeLineRatio) || 0.5, 0.35, 0.7),
                 audioSafeLineBufferMs: Math.max(0, toInt(spaceShooter.audioSafeLineBufferMs) || 180),
-                correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 2),
+                correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 1),
                 wrongHitCoinPenalty: Math.max(0, toInt(spaceShooter.wrongHitCoinPenalty)),
+                wrongHitLifePenalty: Math.max(1, toInt(spaceShooter.wrongHitLifePenalty) || 1),
                 timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
                 timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
-                assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS)
+                assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
+                promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
+                correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
+                wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),
+                correctHitAudioSources: normalizeUrlList(spaceShooter.correctHitAudioSources || spaceShooter.correctHitAudioUrl),
+                wrongHitAudioSources: normalizeUrlList(spaceShooter.wrongHitAudioSources || spaceShooter.wrongHitAudioUrl)
             }
         };
     }
@@ -2399,6 +2746,7 @@
                 awaitingPrompt: !!run.awaitingPrompt,
                 cardSpeed: Math.round(Number(run.prompt && run.prompt.cardSpeed ? run.prompt.cardSpeed : run.cardSpeed) || 0),
                 promptAudioDurationMs: Math.round(Number(run.prompt && run.prompt.audioDurationMs) || 0),
+                promptDistractorMode: run.prompt ? String(run.prompt.distractorMode || '') : '',
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),
@@ -2406,10 +2754,19 @@
                 activeCardCount: run.cards.filter(function (card) {
                     return isActivePromptCard(run, card) && !card.exploding;
                 }).length,
+                sameCategoryDistractorCount: run.prompt && run.prompt.target
+                    ? run.cards.filter(function (card) {
+                        return isActivePromptCard(run, card)
+                            && !card.exploding
+                            && !card.isTarget
+                            && wordsShareCategory(card.word, run.prompt.target);
+                    }).length
+                    : 0,
                 cardSnapshot: run.cards.map(function (card) {
                     return {
                         wordId: toInt(card.word && card.word.id),
                         promptId: toInt(card.promptId),
+                        categoryId: toInt(card.word && card.word.category_id),
                         y: Math.round(Number(card.y) || 0),
                         width: Math.round(Number(card.width) || 0),
                         height: Math.round(Number(card.height) || 0),
