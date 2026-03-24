@@ -649,9 +649,11 @@
 
         const dailyDays = (Array.isArray(dailyRaw.days) ? dailyRaw.days : []).map(function (entry) {
             const row = (entry && typeof entry === 'object') ? entry : {};
+            const rounds = Math.max(0, parseInt(row.rounds, 10) || parseInt(row.events, 10) || 0);
             return {
                 date: String(row.date || ''),
-                events: Math.max(0, parseInt(row.events, 10) || 0),
+                rounds: rounds,
+                events: rounds,
                 unique_words: Math.max(0, parseInt(row.unique_words, 10) || 0),
                 outcomes: Math.max(0, parseInt(row.outcomes, 10) || 0)
             };
@@ -784,7 +786,8 @@
             },
             daily_activity: {
                 days: dailyDays,
-                max_events: Math.max(0, parseInt(dailyRaw.max_events, 10) || 0),
+                max_rounds: Math.max(0, parseInt(dailyRaw.max_rounds, 10) || parseInt(dailyRaw.max_events, 10) || 0),
+                max_events: Math.max(0, parseInt(dailyRaw.max_rounds, 10) || parseInt(dailyRaw.max_events, 10) || 0),
                 window_days: Math.max(0, parseInt(dailyRaw.window_days, 10) || dailyDays.length)
             },
             gender_progress: genderProgress,
@@ -3192,20 +3195,20 @@
             return;
         }
 
-        const maxEvents = Math.max(1, parseInt(daily.max_events, 10) || 0);
+        const maxRounds = Math.max(1, parseInt(daily.max_rounds, 10) || parseInt(daily.max_events, 10) || 0);
         const $bars = $('<div>', { class: 'll-wordset-progress-bars' });
         days.forEach(function (entry) {
-            const events = Math.max(0, parseInt(entry.events, 10) || 0);
+            const rounds = Math.max(0, parseInt(entry.rounds, 10) || parseInt(entry.events, 10) || 0);
             const uniqueWords = Math.max(0, parseInt(entry.unique_words, 10) || 0);
-            const ratio = events > 0 ? Math.min(1, events / maxEvents) : 0;
+            const ratio = rounds > 0 ? Math.min(1, rounds / maxRounds) : 0;
             const label = formatAnalyticsDayLabel(entry.date);
-            const title = formatTemplate(i18n.analyticsDayEvents || '%1$d events, %2$d words', [events, uniqueWords]);
+            const title = formatTemplate(i18n.analyticsDayEvents || '%1$d rounds, %2$d words', [rounds, uniqueWords]);
 
             const $day = $('<div>', {
                 class: 'll-wordset-progress-day',
                 title: title
             });
-            $('<span>', { class: 'll-wordset-progress-day-count', text: String(events) }).appendTo($day);
+            $('<span>', { class: 'll-wordset-progress-day-count', text: String(rounds) }).appendTo($day);
             $('<span>', { class: 'll-wordset-progress-day-bar', style: '--ratio:' + ratio.toFixed(3) }).appendTo($day);
             $('<span>', { class: 'll-wordset-progress-day-label', text: label }).appendTo($day);
             $bars.append($day);

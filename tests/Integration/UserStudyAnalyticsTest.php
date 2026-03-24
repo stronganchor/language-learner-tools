@@ -77,6 +77,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertCount(2, (array) ($analytics['categories'] ?? []));
         $this->assertCount(10, (array) ($analytics['words'] ?? []));
         $this->assertCount(14, (array) ($analytics['daily_activity']['days'] ?? []));
+        $this->assertGreaterThanOrEqual(1, (int) ($analytics['daily_activity']['max_rounds'] ?? 0));
         $this->assertGreaterThanOrEqual(1, (int) ($analytics['daily_activity']['max_events'] ?? 0));
 
         $words_by_id = [];
@@ -95,6 +96,115 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('new', (string) ($words_by_id[$word_c]['status'] ?? ''));
         $this->assertNotSame('', (string) ($words_by_id[$word_a]['audio_url'] ?? ''));
         $this->assertSame('isolation', (string) ($words_by_id[$word_a]['audio_recording_type'] ?? ''));
+    }
+
+    public function test_daily_activity_counts_answered_rounds_instead_of_all_logged_events(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$word_a, $word_b] = $fixture['word_ids'];
+        $category_id = (int) $fixture['category_ids'][0];
+        $wordset_id = (int) $fixture['wordset_id'];
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $word_a,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_outcome',
+                'mode' => 'practice',
+                'word_id' => $word_a,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => false,
+                'had_wrong_before' => false,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_outcome',
+                'mode' => 'practice',
+                'word_id' => $word_a,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => true,
+                'had_wrong_before' => true,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $word_b,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_outcome',
+                'mode' => 'practice',
+                'word_id' => $word_b,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => true,
+                'had_wrong_before' => false,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'mode_session_complete',
+                'mode' => 'practice',
+                'wordset_id' => $wordset_id,
+                'payload' => [
+                    'category_ids' => [$category_id],
+                ],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'category_study',
+                'mode' => 'listening',
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [
+                    'units' => 1,
+                ],
+            ],
+        ]);
+        $this->assertSame(7, (int) ($stats['processed'] ?? 0));
+
+        $analytics = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$category_id],
+            14
+        );
+
+        $today = gmdate('Y-m-d');
+        $today_row = null;
+        foreach ((array) ($analytics['daily_activity']['days'] ?? []) as $row) {
+            if (is_array($row) && (($row['date'] ?? '') === $today)) {
+                $today_row = $row;
+                break;
+            }
+        }
+
+        $this->assertIsArray($today_row);
+        $this->assertSame(2, (int) ($today_row['rounds'] ?? 0));
+        $this->assertSame(2, (int) ($today_row['events'] ?? 0));
+        $this->assertSame(2, (int) ($today_row['unique_words'] ?? 0));
+        $this->assertSame(3, (int) ($today_row['outcomes'] ?? 0));
+        $this->assertSame(2, (int) ($analytics['daily_activity']['max_rounds'] ?? 0));
+        $this->assertSame(2, (int) ($analytics['daily_activity']['max_events'] ?? 0));
     }
 
     public function test_analytics_filters_out_non_quizzable_categories(): void

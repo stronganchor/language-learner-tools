@@ -1640,8 +1640,12 @@ function ll_tools_user_progress_category_ids_in_scope(array $categories_payload,
 }
 
 /**
+ * The daily graph counts answered quiz rounds via `word_exposure` events.
+ * `events` / `max_events` are retained as backward-compatible aliases.
+ *
  * @return array{
- *   days:array<int,array{date:string,events:int,unique_words:int,outcomes:int}>,
+ *   days:array<int,array{date:string,rounds:int,events:int,unique_words:int,outcomes:int}>,
+ *   max_rounds:int,
  *   max_events:int,
  *   window_days:int
  * }
@@ -1652,6 +1656,7 @@ function ll_tools_user_study_daily_activity_series(int $user_id, int $wordset_id
     if ($user_id <= 0) {
         return [
             'days' => [],
+            'max_rounds' => 0,
             'max_events' => 0,
             'window_days' => 0,
         ];
@@ -1688,8 +1693,8 @@ function ll_tools_user_study_daily_activity_series(int $user_id, int $wordset_id
     $sql = "
         SELECT
             DATE(created_at) AS activity_date,
-            COUNT(*) AS events_count,
-            COUNT(DISTINCT CASE WHEN word_id > 0 THEN word_id END) AS unique_words_count,
+            SUM(CASE WHEN event_type = 'word_exposure' THEN 1 ELSE 0 END) AS rounds_count,
+            COUNT(DISTINCT CASE WHEN event_type = 'word_exposure' AND word_id > 0 THEN word_id END) AS unique_words_count,
             SUM(CASE WHEN event_type = 'word_outcome' THEN 1 ELSE 0 END) AS outcomes_count
         FROM {$table}
         WHERE {$where_sql}
@@ -1704,24 +1709,27 @@ function ll_tools_user_study_daily_activity_series(int $user_id, int $wordset_id
         if ($date === '') {
             continue;
         }
+        $rounds = max(0, (int) ($row['rounds_count'] ?? 0));
         $by_date[$date] = [
-            'events' => max(0, (int) ($row['events_count'] ?? 0)),
+            'rounds' => $rounds,
+            'events' => $rounds,
             'unique_words' => max(0, (int) ($row['unique_words_count'] ?? 0)),
             'outcomes' => max(0, (int) ($row['outcomes_count'] ?? 0)),
         ];
     }
 
     $series = [];
-    $max_events = 0;
+    $max_rounds = 0;
     for ($offset = 0; $offset < $window_days; $offset++) {
         $day_ts = $start_ts + ($offset * DAY_IN_SECONDS);
         $date = gmdate('Y-m-d', $day_ts);
-        $entry = $by_date[$date] ?? ['events' => 0, 'unique_words' => 0, 'outcomes' => 0];
-        $events = max(0, (int) ($entry['events'] ?? 0));
-        $max_events = max($max_events, $events);
+        $entry = $by_date[$date] ?? ['rounds' => 0, 'events' => 0, 'unique_words' => 0, 'outcomes' => 0];
+        $rounds = max(0, (int) ($entry['rounds'] ?? ($entry['events'] ?? 0)));
+        $max_rounds = max($max_rounds, $rounds);
         $series[] = [
             'date' => $date,
-            'events' => $events,
+            'rounds' => $rounds,
+            'events' => $rounds,
             'unique_words' => max(0, (int) ($entry['unique_words'] ?? 0)),
             'outcomes' => max(0, (int) ($entry['outcomes'] ?? 0)),
         ];
@@ -1729,7 +1737,8 @@ function ll_tools_user_study_daily_activity_series(int $user_id, int $wordset_id
 
     return [
         'days' => $series,
-        'max_events' => $max_events,
+        'max_rounds' => $max_rounds,
+        'max_events' => $max_rounds,
         'window_days' => $window_days,
     ];
 }
@@ -1936,6 +1945,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             ],
             'daily_activity' => [
                 'days' => [],
+                'max_rounds' => 0,
                 'max_events' => 0,
                 'window_days' => 0,
             ],
