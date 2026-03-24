@@ -1064,6 +1064,17 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   await expect(page.locator('[data-ll-wordset-game-controls]')).toBeHidden();
 
   const initialState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const entryHasOverlap = initialState.cardSnapshot
+    .filter((card) => card.promptId === initialState.promptId)
+    .some((left, leftIndex, cards) =>
+      cards.slice(leftIndex + 1).some((right) => {
+        const leftRadius = Math.max(28, Math.min(left.width, left.height) * 0.5);
+        const rightRadius = Math.max(28, Math.min(right.width, right.height) * 0.5);
+        return Math.hypot(left.x - right.x, left.y - right.y) < ((leftRadius + rightRadius) + 8);
+      })
+    );
+  expect(entryHasOverlap).toBe(false);
+
   await page.waitForTimeout(260);
   const movedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   const initialTarget = initialState.cardSnapshot.find((card) => card.isTarget && card.promptId === initialState.promptId);

@@ -1282,7 +1282,7 @@
             card.bubbleBaseY = chosen.y;
             card.entryVisibleX = chosen.x;
             card.entryVisibleY = chosen.y;
-            card.entryStartX = clamp(chosen.x + randomBetween(-34, 34), bounds.minX, bounds.maxX);
+            card.entryStartX = chosen.x;
             card.bubbleWanderVelocityX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(8, 20);
             card.bubbleFloatAmplitudeXPrimary = randomBetween(10, 24);
             card.bubbleFloatAmplitudeXSecondary = randomBetween(4, 11);
@@ -2974,7 +2974,8 @@
         }
 
         const gameConfig = getGameConfig(ctx, run);
-        if (isBubblePopRun(ctx, run)) {
+        const isBubbleGame = isBubblePopRun(ctx, run);
+        if (isBubbleGame) {
             placeBubblePromptCards(run, candidate.cards);
         }
         const targetCard = candidate.cards.find(function (card) {
@@ -2983,15 +2984,28 @@
         const promptDurationMs = getLoadedAudioDurationMs(ctx, candidate.audioUrl);
         const safeLineRatio = clamp(Number(gameConfig && gameConfig.audioSafeLineRatio) || 0.6, 0.35, 0.7);
         const safeLineBufferMs = Math.max(0, toInt(gameConfig && gameConfig.audioSafeLineBufferMs) || 180);
-        const safeLineY = isBubblePopRun(ctx, run)
+        const safeLineY = isBubbleGame
             ? run.height * (1 - safeLineRatio)
             : run.height * safeLineRatio;
         let promptCardSpeed = run.cardSpeed;
-        const targetRevealMs = targetCard ? getCardEntryRevealMs(ctx, targetCard) : 0;
+        const bubbleEntryRevealMs = isBubbleGame
+            ? Math.max(220, toInt(gameConfig && gameConfig.cardEntryRevealMs) || 520)
+            : 0;
+        const targetRevealMs = targetCard
+            ? (isBubbleGame ? bubbleEntryRevealMs : getCardEntryRevealMs(ctx, targetCard))
+            : 0;
         const targetVisibleY = targetCard ? getCardEntryVisibleY(ctx, run, targetCard) : 0;
+        const bubbleEntryHiddenDistance = isBubbleGame
+            ? candidate.cards.reduce(function (maxDistance, card) {
+                return Math.max(
+                    maxDistance,
+                    Math.max(card.height * 0.9, promptCardSpeed * (bubbleEntryRevealMs / 1000))
+                );
+            }, 0)
+            : 0;
 
         if (targetCard && promptDurationMs > 0) {
-            const distanceToSafeLine = isBubblePopRun(ctx, run)
+            const distanceToSafeLine = isBubbleGame
                 ? Math.max(48, targetVisibleY - safeLineY)
                 : Math.max(48, safeLineY - targetVisibleY);
             const minTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - targetRevealMs) / 1000));
@@ -3003,31 +3017,33 @@
 
         const promptStartedAt = currentTimestamp();
         candidate.cards.forEach(function (card) {
-            const entryRevealMs = getCardEntryRevealMs(ctx, card);
+            const entryRevealMs = isBubbleGame ? bubbleEntryRevealMs : getCardEntryRevealMs(ctx, card);
             const entryVisibleY = getCardEntryVisibleY(ctx, run, card);
-            const hiddenDistance = Math.max(card.height * 0.9, promptCardSpeed * (entryRevealMs / 1000));
+            const hiddenDistance = isBubbleGame
+                ? bubbleEntryHiddenDistance
+                : Math.max(card.height * 0.9, promptCardSpeed * (entryRevealMs / 1000));
             const availableTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - entryRevealMs) / 1000));
-            const maxSafeSpeed = isBubblePopRun(ctx, run)
+            const maxSafeSpeed = isBubbleGame
                 ? Math.max(48, entryVisibleY - safeLineY) / availableTravelSeconds
                 : Math.max(48, safeLineY - entryVisibleY) / availableTravelSeconds;
             const variedCardSpeed = promptCardSpeed * Math.max(0.86, Number(card.fallSpeedFactor) || 1);
             card.entryRevealMs = entryRevealMs;
             card.entryStartedAt = promptStartedAt;
-            card.entryVisibleX = isBubblePopRun(ctx, run)
+            card.entryVisibleX = isBubbleGame
                 ? Number(card.bubbleVisibleX || card.entryVisibleX || card.x)
                 : laneCenterX(run, card.laneIndex);
-            card.entryStartX = isBubblePopRun(ctx, run)
+            card.entryStartX = isBubbleGame
                 ? clamp(
-                    Number(card.entryStartX || card.entryVisibleX || card.x),
+                    Number(card.entryVisibleX || card.entryStartX || card.x),
                     getBubbleMovementBounds(run, getBubbleRadius(card)).minX,
                     getBubbleMovementBounds(run, getBubbleRadius(card)).maxX
                 )
                 : card.entryVisibleX;
-            card.entryStartY = isBubblePopRun(ctx, run)
+            card.entryStartY = isBubbleGame
                 ? entryVisibleY + hiddenDistance
                 : entryVisibleY - hiddenDistance;
             card.entryVisibleY = entryVisibleY;
-            if (isBubblePopRun(ctx, run)) {
+            if (isBubbleGame) {
                 card.bubbleBaseX = card.entryVisibleX;
                 card.bubbleBaseY = card.entryVisibleY;
                 card.x = card.entryStartX;
@@ -3061,7 +3077,7 @@
             resolved: false
         };
         run.cards = run.cards.concat(candidate.cards);
-        if (isBubblePopRun(ctx, run)) {
+        if (isBubbleGame) {
             refreshBubblePromptCardPositions(run, promptStartedAt);
         }
         playPromptAudio(ctx, {
