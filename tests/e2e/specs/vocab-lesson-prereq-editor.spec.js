@@ -15,6 +15,26 @@ const vocabLessonCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
   'utf8'
 );
+const hostileBulkThemeCss = `
+  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel button,
+  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel input,
+  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel select {
+    min-width: 96px !important;
+    min-height: 46px !important;
+    padding: 12px 18px !important;
+    margin: 8px !important;
+    border: 3px solid #1570a6 !important;
+    border-radius: 0 !important;
+    background: #eef7ff !important;
+    box-shadow: inset 0 0 0 2px rgba(21, 112, 166, 0.35) !important;
+    color: #113555 !important;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.18em !important;
+    line-height: 1.8 !important;
+    text-transform: uppercase !important;
+  }
+`;
 
 const defaultRows = [
   { id: 12, label: 'Basics', level: 1 },
@@ -307,4 +327,84 @@ test('prerequisites editor reverts looped saves and only shows blocked options w
   const calls = await page.evaluate(() => window.llPrereqPostCalls);
   expect(calls).toHaveLength(1);
   expect((calls[0].prereq_ids || []).map(String)).toEqual(['13', '15']);
+});
+
+test('prerequisites editor keeps compact control chrome under hostile theme form styles', async ({ page }) => {
+  await mountPrereqEditor(page, { width: 1280, height: 900 });
+  await page.addStyleTag({ content: hostileBulkThemeCss });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+
+  const searchInput = page.locator('[data-ll-prereq-input]');
+  await searchInput.fill('ba');
+  await expect(page.locator('[data-ll-prereq-search-clear]')).toBeVisible();
+
+  const styles = await page.evaluate(() => {
+    const input = document.querySelector('[data-ll-prereq-input]');
+    const clear = document.querySelector('[data-ll-prereq-search-clear]');
+    const chipRemove = document.querySelector('[data-ll-prereq-remove]');
+    const option = document.querySelector('[data-ll-prereq-option]');
+
+    const inputStyles = window.getComputedStyle(input);
+    const clearStyles = window.getComputedStyle(clear);
+    const chipRemoveStyles = window.getComputedStyle(chipRemove);
+    const optionStyles = window.getComputedStyle(option);
+    const clearRect = clear.getBoundingClientRect();
+    const chipRemoveRect = chipRemove.getBoundingClientRect();
+
+    return {
+      input: {
+        paddingLeft: inputStyles.paddingLeft,
+        borderRadius: inputStyles.borderRadius,
+        textTransform: inputStyles.textTransform,
+        letterSpacing: inputStyles.letterSpacing,
+        backgroundColor: inputStyles.backgroundColor
+      },
+      clear: {
+        width: clearRect.width,
+        height: clearRect.height,
+        borderRadius: clearStyles.borderRadius,
+        marginTop: clearStyles.marginTop,
+        backgroundColor: clearStyles.backgroundColor
+      },
+      chipRemove: {
+        width: chipRemoveRect.width,
+        height: chipRemoveRect.height,
+        borderRadius: chipRemoveStyles.borderRadius,
+        marginTop: chipRemoveStyles.marginTop,
+        backgroundColor: chipRemoveStyles.backgroundColor
+      },
+      option: {
+        borderRadius: optionStyles.borderRadius,
+        textTransform: optionStyles.textTransform,
+        letterSpacing: optionStyles.letterSpacing,
+        boxShadow: optionStyles.boxShadow,
+        backgroundColor: optionStyles.backgroundColor
+      }
+    };
+  });
+
+  expect(styles.input.paddingLeft).toBe('56px');
+  expect(styles.input.borderRadius).toBe('8px');
+  expect(styles.input.textTransform).toBe('none');
+  expect(styles.input.letterSpacing).not.toBe('3.06px');
+  expect(styles.input.backgroundColor).toBe('rgb(255, 255, 255)');
+
+  expect(styles.clear.width).toBeLessThanOrEqual(26);
+  expect(styles.clear.height).toBeLessThanOrEqual(26);
+  expect(styles.clear.borderRadius).not.toBe('0px');
+  expect(styles.clear.marginTop).toBe('0px');
+  expect(styles.clear.backgroundColor).toBe('rgb(255, 255, 255)');
+
+  expect(styles.chipRemove.width).toBeLessThanOrEqual(22);
+  expect(styles.chipRemove.height).toBeLessThanOrEqual(22);
+  expect(styles.chipRemove.borderRadius).not.toBe('0px');
+  expect(styles.chipRemove.marginTop).toBe('0px');
+  expect(styles.chipRemove.backgroundColor).toBe('rgb(255, 255, 255)');
+
+  expect(styles.option.borderRadius).toBe('10px');
+  expect(styles.option.textTransform).toBe('none');
+  expect(styles.option.letterSpacing).not.toBe('3.06px');
+  expect(styles.option.boxShadow).toBe('none');
+  expect(styles.option.backgroundColor).toBe('rgb(255, 255, 255)');
 });

@@ -15,6 +15,26 @@ const vocabLessonCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
   'utf8'
 );
+const hostileBulkThemeCss = `
+  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel button,
+  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel input,
+  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel select {
+    min-width: 96px !important;
+    min-height: 46px !important;
+    padding: 12px 18px !important;
+    margin: 8px !important;
+    border: 3px solid #1570a6 !important;
+    border-radius: 0 !important;
+    background: #eef7ff !important;
+    box-shadow: inset 0 0 0 2px rgba(21, 112, 166, 0.35) !important;
+    color: #113555 !important;
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.18em !important;
+    line-height: 1.8 !important;
+    text-transform: uppercase !important;
+  }
+`;
 
 function buildMinimalWordGridMarkup(options = {}) {
   const useBlankNounMetaInputs = !!options.useBlankNounMetaInputs;
@@ -329,4 +349,52 @@ test('mobile bulk edit applies a select change and can undo it', async ({ page }
   expect(calls[0].action).toBe('ll_tools_word_grid_bulk_update');
   expect(calls[1].action).toBe('ll_tools_word_grid_bulk_undo');
   expect(calls[1].mode).toBe('pos');
+});
+
+test('mobile bulk edit neutralizes hostile theme select and button styles', async ({ page }) => {
+  await mountMobileBulkEditor(page);
+  await page.addStyleTag({ content: hostileBulkThemeCss });
+
+  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await page.locator('[data-ll-bulk-pos]').selectOption('adjective');
+
+  await page.waitForFunction(() => Array.isArray(window.llBulkPostCalls) && window.llBulkPostCalls.length === 1);
+  await expect(page.locator('[data-ll-bulk-control-undo="pos"]')).toBeVisible();
+
+  const styles = await page.evaluate(() => {
+    const select = document.querySelector('[data-ll-bulk-pos]');
+    const undo = document.querySelector('[data-ll-bulk-control-undo="pos"]');
+    const selectStyles = window.getComputedStyle(select);
+    const undoStyles = window.getComputedStyle(undo);
+    const undoRect = undo.getBoundingClientRect();
+
+    return {
+      select: {
+        borderRadius: selectStyles.borderRadius,
+        textTransform: selectStyles.textTransform,
+        letterSpacing: selectStyles.letterSpacing,
+        boxShadow: selectStyles.boxShadow,
+        backgroundColor: selectStyles.backgroundColor
+      },
+      undo: {
+        width: undoRect.width,
+        height: undoRect.height,
+        borderRadius: undoStyles.borderRadius,
+        backgroundColor: undoStyles.backgroundColor,
+        boxShadow: undoStyles.boxShadow
+      }
+    };
+  });
+
+  expect(styles.select.borderRadius).toBe('8px');
+  expect(styles.select.textTransform).toBe('none');
+  expect(styles.select.letterSpacing).not.toBe('3.06px');
+  expect(styles.select.boxShadow).toBe('none');
+  expect(styles.select.backgroundColor).toBe('rgb(255, 255, 255)');
+
+  expect(styles.undo.width).toBeLessThanOrEqual(26);
+  expect(styles.undo.height).toBeLessThanOrEqual(26);
+  expect(styles.undo.borderRadius).not.toBe('0px');
+  expect(styles.undo.backgroundColor).toBe('rgb(255, 255, 255)');
+  expect(styles.undo.boxShadow).toBe('none');
 });
