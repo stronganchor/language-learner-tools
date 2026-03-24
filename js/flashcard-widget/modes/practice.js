@@ -637,8 +637,16 @@
     }
 
     function selectTargetWord() {
-        FlashcardOptions.calculateNumberOfOptions(State.wrongIndexes, State.isFirstRound, State.currentCategoryName);
         const picked = Selection.selectTargetWordAndCategory();
+        const targetCategoryName = (picked && picked.__categoryName)
+            ? String(picked.__categoryName)
+            : State.currentCategoryName;
+        FlashcardOptions.calculateNumberOfOptions(
+            State.wrongIndexes,
+            State.isFirstRound,
+            targetCategoryName,
+            picked
+        );
         const starMode = getStarMode();
         if (picked && starMode === 'weighted' && isStarred(picked.id)) {
             queueForRepetition(picked);

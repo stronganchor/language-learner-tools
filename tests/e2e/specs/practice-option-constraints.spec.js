@@ -178,10 +178,12 @@ async function mountPracticeModeHarness(page, options = {}) {
       },
       Modes: {}
     };
+    window.FlashcardOptions = bootstrap.flashcardOptions || {};
     window.FlashcardLoader = bootstrap.flashcardLoader || null;
   }, {
     state,
     hasPracticeBridgeWordAvailable: !!options.hasPracticeBridgeWordAvailable,
+    flashcardOptions: options.flashcardOptions || {},
     flashcardsData: options.flashcardsData || {},
     flashcardLoader: options.flashcardLoader || null,
     isUserLoggedIn: !!options.isUserLoggedIn
@@ -666,13 +668,17 @@ test('option count never drops below two after wrong answers', async ({ page }) 
   const nextCount = await page.evaluate(() => {
     window.FlashcardOptions.initializeOptionsCount(2);
     const wrongIndexes = [0];
-    return window.FlashcardOptions.calculateNumberOfOptions(wrongIndexes, false, 'Audio text');
+    return window.FlashcardOptions.calculateNumberOfOptions(wrongIndexes, false, 'Audio text', {
+      id: 1,
+      progress_status: 'new',
+      progress_total_coverage: 0
+    });
   });
 
   expect(nextCount).toBe(2);
 });
 
-test('practice option count carries across category switches after clean rounds', async ({ page }) => {
+test('practice option count grows from overall word progress instead of session streaks', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');
   await page.addScriptTag({ content: jquerySource });
@@ -698,22 +704,38 @@ test('practice option count carries across category switches after clean rounds'
   const counts = await page.evaluate(() => {
     window.FlashcardOptions.initializeOptionsCount(2);
     return {
-      firstAnimals: window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals'),
-      secondAnimals: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals'),
-      thirdAnimals: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals'),
-      firstObjectsAfterSwitch: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Objects')
+      newWord: window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals', {
+        id: 1,
+        progress_status: 'new',
+        progress_total_coverage: 0
+      }),
+      earlyStudiedWord: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 2,
+        progress_status: 'studied',
+        progress_total_coverage: 1
+      }),
+      moreStudiedWord: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 3,
+        progress_status: 'studied',
+        progress_total_coverage: 3
+      }),
+      masteredWord: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Objects', {
+        id: 101,
+        progress_status: 'mastered',
+        progress_total_coverage: 2
+      })
     };
   });
 
   expect(counts).toEqual({
-    firstAnimals: 2,
-    secondAnimals: 3,
-    thirdAnimals: 4,
-    firstObjectsAfterSwitch: 5
+    newWord: 2,
+    earlyStudiedWord: 3,
+    moreStudiedWord: 5,
+    masteredWord: 6
   });
 });
 
-test('practice option count resets on a fresh session', async ({ page }) => {
+test('practice option count can keep growing during the current session from local exposure progress', async ({ page }) => {
   await page.goto('about:blank');
   await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');
   await page.addScriptTag({ content: jquerySource });
@@ -735,21 +757,81 @@ test('practice option count resets on a fresh session', async ({ page }) => {
 
   const counts = await page.evaluate(() => {
     window.FlashcardOptions.initializeOptionsCount(2);
-    window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals');
-    window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals');
-    window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals');
-
-    window.FlashcardOptions.initializeOptionsCount(2);
-
     return {
-      seededCount: window.FlashcardOptions.categoryOptionsCount.Animals,
-      firstRoundAfterReset: window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals')
+      initial: window.FlashcardOptions.calculateNumberOfOptions([], true, 'Animals', {
+        id: 1,
+        progress_status: 'new',
+        progress_total_coverage: 0,
+        practice_exposure_count: 0
+      }),
+      afterOneExposure: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 1,
+        progress_status: 'new',
+        progress_total_coverage: 0,
+        practice_exposure_count: 1
+      }),
+      afterTwoExposures: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 1,
+        progress_status: 'new',
+        progress_total_coverage: 0,
+        practice_exposure_count: 2
+      })
     };
   });
 
   expect(counts).toEqual({
-    seededCount: 2,
-    firstRoundAfterReset: 2
+    initial: 2,
+    afterOneExposure: 3,
+    afterTwoExposures: 4
+  });
+});
+
+test('practice mode calculates option count from the selected target word', async ({ page }) => {
+  await mountPracticeModeHarness(page, {
+    state: {
+      currentCategoryName: 'Animals',
+      wrongIndexes: [1],
+      isFirstRound: false
+    }
+  });
+
+  const outcome = await page.evaluate(() => {
+    const picked = {
+      id: 101,
+      __categoryName: 'Objects',
+      progress_status: 'mastered',
+      progress_total_coverage: 4
+    };
+
+    window.__practiceOptionCountArgs = null;
+    window.FlashcardOptions.calculateNumberOfOptions = function (wrongIndexes, isFirstRound, categoryName, targetWord) {
+      window.__practiceOptionCountArgs = {
+        wrongIndexes: Array.isArray(wrongIndexes) ? wrongIndexes.slice() : [],
+        isFirstRound: !!isFirstRound,
+        categoryName: String(categoryName || ''),
+        targetWordId: Number(targetWord && targetWord.id) || 0
+      };
+      return 6;
+    };
+    window.LLFlashcards.Selection.selectTargetWordAndCategory = function () {
+      return picked;
+    };
+
+    const selected = window.LLFlashcards.Modes.Practice.selectTargetWord();
+    return {
+      selectedWordId: Number(selected && selected.id) || 0,
+      args: window.__practiceOptionCountArgs
+    };
+  });
+
+  expect(outcome).toEqual({
+    selectedWordId: 101,
+    args: {
+      wrongIndexes: [1],
+      isFirstRound: false,
+      categoryName: 'Objects',
+      targetWordId: 101
+    }
   });
 });
 

@@ -628,9 +628,13 @@ function ll_tools_attach_user_practice_progress_to_words(array $words, $user_id 
             'category_name' => $context_category_name,
             'quiz_config' => $context_quiz_config,
         ]);
+        $progress_status = ll_tools_user_progress_word_status($row);
+        $progress_total_coverage = max(0, (int) ($row['total_coverage'] ?? 0));
 
         $words[$idx]['practice_correct_recording_types'] = ll_tools_get_progress_row_practice_correct_recording_types($row);
         $words[$idx]['practice_exposure_count'] = max(0, (int) ($row['coverage_practice'] ?? 0));
+        $words[$idx]['progress_status'] = $progress_status;
+        $words[$idx]['progress_total_coverage'] = $progress_total_coverage;
         $words[$idx]['normalized_grammatical_gender'] = (string) ($support['normalized_gender'] ?? '');
         $words[$idx]['gender_marked'] = !empty($support['gender_marked']);
         $words[$idx]['gender_progress_tracked'] = !empty($support['gender_progress_tracked']);

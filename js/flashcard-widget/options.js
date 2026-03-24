@@ -93,10 +93,9 @@
 
         // Internal state
         let defaultNumberOfOptions = 2; // Default value for number of options
-        let sessionDesiredNumberOfOptions = 2; // Tracks adaptive difficulty across the current practice session
         const categoryOptionsCount = {}; // Tracks the current effective option count for each category
 
-        function clampSessionDesiredCount(count) {
+        function clampOptionsCount(count) {
             const parsed = parseInt(count, 10);
             const fallback = parseInt(defaultNumberOfOptions, 10);
             const normalized = Number.isFinite(parsed)
@@ -109,6 +108,64 @@
             Object.keys(categoryOptionsCount).forEach(function (categoryName) {
                 delete categoryOptionsCount[categoryName];
             });
+        }
+
+        function parseNonNegativeInteger(value) {
+            const parsed = parseInt(value, 10);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        }
+
+        function getSeededCategoryOptionCount(categoryName) {
+            return checkMinMax(defaultNumberOfOptions, categoryName);
+        }
+
+        function getWordProgressCoverage(word) {
+            if (!word || typeof word !== 'object') {
+                return 0;
+            }
+
+            // Prefer the overall persisted coverage snapshot, but keep in-session practice
+            // exposure growth as a live fallback until the next page refresh.
+            return Math.max(
+                parseNonNegativeInteger(word.progress_total_coverage),
+                parseNonNegativeInteger(word.practice_exposure_count)
+            );
+        }
+
+        function getWordProgressStatus(word) {
+            const rawStatus = String(word && word.progress_status || '').trim().toLowerCase();
+            const coverage = getWordProgressCoverage(word);
+
+            if (rawStatus === 'mastered') {
+                return 'mastered';
+            }
+            if (rawStatus === 'studied') {
+                return 'studied';
+            }
+            if (coverage > 0) {
+                return 'studied';
+            }
+            return 'new';
+        }
+
+        function getProgressDrivenOptionCount(categoryName, targetWord) {
+            const seededCount = getSeededCategoryOptionCount(categoryName);
+            if (!targetWord || typeof targetWord !== 'object') {
+                return seededCount;
+            }
+
+            const effectiveMax = checkMinMax(MAXIMUM_NUMBER_OF_OPTIONS, categoryName);
+            const progressStatus = getWordProgressStatus(targetWord);
+            const progressCoverage = getWordProgressCoverage(targetWord);
+
+            if (progressStatus === 'mastered') {
+                return effectiveMax;
+            }
+
+            // Grow newly studied words one option at a time as the learner accumulates
+            // real interactions, then let higher-coverage studied words stay at the cap.
+            const grownCount = MINIMUM_NUMBER_OF_OPTIONS + progressCoverage;
+            return checkMinMax(Math.max(seededCount, grownCount), categoryName);
         }
 
         /**
@@ -194,9 +251,8 @@
         function initializeOptionsCount(numberOfOptions) {
             const parsedCount = parseInt(numberOfOptions, 10);
             if (Number.isFinite(parsedCount) && parsedCount > 0) {
-                defaultNumberOfOptions = clampSessionDesiredCount(parsedCount);
+                defaultNumberOfOptions = clampOptionsCount(parsedCount);
             }
-            sessionDesiredNumberOfOptions = clampSessionDesiredCount(defaultNumberOfOptions);
             resetCategoryOptionsCount();
 
             const categoryNames = Array.isArray(window.categoryNames) ? window.categoryNames : [];
@@ -211,37 +267,27 @@
          * @param {string} categoryName - The name of the category.
          */
         function setInitialOptionsCount(categoryName) {
-            categoryOptionsCount[categoryName] = checkMinMax(sessionDesiredNumberOfOptions, categoryName);
+            categoryOptionsCount[categoryName] = getSeededCategoryOptionCount(categoryName);
         }
 
         /**
-         * Calculates the number of options for the current round based on user performance.
+         * Calculates the number of options for the current round based on overall word progress.
          *
          * @param {Array} wrongIndexes - Array tracking indexes of wrong answers.
          * @param {boolean} isFirstRound - Indicates if it's the first round of the quiz.
          * @param {string} currentCategoryName - The name of the current category.
+         * @param {Object} [targetWord] - The selected target word for the round.
          * @returns {number} The calculated number of options for the round.
          */
-        function calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName) {
+        function calculateNumberOfOptions(wrongIndexes, isFirstRound, currentCategoryName, targetWord) {
             // Learning mode uses its own counter
             if (window.LLFlashcards && window.LLFlashcards.State && window.LLFlashcards.State.isLearningMode) {
                 wrongIndexes.length = 0;
                 return Math.max(MINIMUM_NUMBER_OF_OPTIONS, window.LLFlashcards.State.learningModeOptionsCount || 2);
             }
 
-            sessionDesiredNumberOfOptions = clampSessionDesiredCount(sessionDesiredNumberOfOptions);
-            const effectiveCountBeforeAdjustment = checkMinMax(sessionDesiredNumberOfOptions, currentCategoryName);
-
-            if (wrongIndexes.length > 0) {
-                // Lower the session difficulty after a miss so the next round eases back slightly.
-                sessionDesiredNumberOfOptions = clampSessionDesiredCount(sessionDesiredNumberOfOptions - 1);
-            } else if (!isFirstRound && effectiveCountBeforeAdjustment >= sessionDesiredNumberOfOptions) {
-                // Carry a clean streak across category switches, but do not over-reward capped categories.
-                sessionDesiredNumberOfOptions = clampSessionDesiredCount(sessionDesiredNumberOfOptions + 1);
-            }
-
             wrongIndexes.length = 0; // Reset wrongIndexes for the next round
-            const clampedCount = checkMinMax(sessionDesiredNumberOfOptions, currentCategoryName);
+            const clampedCount = getProgressDrivenOptionCount(currentCategoryName, targetWord);
             categoryOptionsCount[currentCategoryName] = clampedCount;
             return clampedCount;
         }

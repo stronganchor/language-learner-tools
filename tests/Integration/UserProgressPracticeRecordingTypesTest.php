@@ -426,7 +426,7 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($normal_wrong['current_correct_streak'] ?? 0));
     }
 
-    public function test_attach_user_practice_progress_to_words_includes_exposure_count(): void
+    public function test_attach_user_practice_progress_to_words_includes_progress_snapshot(): void
     {
         global $wpdb;
 
@@ -479,6 +479,8 @@ final class UserProgressPracticeRecordingTypesTest extends LL_Tools_TestCase
         $this->assertCount(1, $words);
         $this->assertSame(['question'], $words[0]['practice_correct_recording_types'] ?? []);
         $this->assertSame(3, (int) ($words[0]['practice_exposure_count'] ?? 0));
+        $this->assertSame('studied', (string) ($words[0]['progress_status'] ?? ''));
+        $this->assertSame(3, (int) ($words[0]['progress_total_coverage'] ?? 0));
     }
 
     /**
