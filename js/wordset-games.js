@@ -531,6 +531,28 @@
         return Math.max(10, Math.min(18, Math.min(card.width, card.height) * 0.18));
     }
 
+    function getCardAmbientMotion(card, now) {
+        const motionTime = Math.max(0, Number(now) || 0) / 1000;
+        const revealMs = Math.max(0, toInt(card && card.entryRevealMs));
+        const revealProgress = revealMs > 0
+            ? clamp((Math.max(0, Number(now) - Number(card.entryStartedAt || 0))) / revealMs, 0, 1)
+            : 1;
+        const motionStrength = 0.3 + (0.7 * revealProgress);
+        const bobPrimary = Math.sin((motionTime * Number(card && card.motionBobHzPrimary || 0.18) * Math.PI * 2) + Number(card && card.motionBobPhasePrimary || 0))
+            * Number(card && card.motionBobAmplitudePrimary || 0);
+        const bobSecondary = Math.sin((motionTime * Number(card && card.motionBobHzSecondary || 0.27) * Math.PI * 2) + Number(card && card.motionBobPhaseSecondary || 0))
+            * Number(card && card.motionBobAmplitudeSecondary || 0);
+        const tiltPrimary = Math.sin((motionTime * Number(card && card.motionTiltHzPrimary || 0.12) * Math.PI * 2) + Number(card && card.motionTiltPhasePrimary || 0))
+            * Number(card && card.motionTiltAmplitudePrimary || 0);
+        const tiltSecondary = Math.sin((motionTime * Number(card && card.motionTiltHzSecondary || 0.19) * Math.PI * 2) + Number(card && card.motionTiltPhaseSecondary || 0))
+            * Number(card && card.motionTiltAmplitudeSecondary || 0);
+
+        return {
+            bobY: (bobPrimary + bobSecondary) * motionStrength,
+            tilt: (tiltPrimary + tiltSecondary) * motionStrength
+        };
+    }
+
     function getCardDimensions(run, aspectRatio) {
         const ratio = clampAspectRatio(aspectRatio) || CARD_RATIO_DEFAULT;
         const maxWidth = Math.max(1, Number(run && run.metrics && run.metrics.cardWidth) || 1);
@@ -829,8 +851,13 @@
     function renderCards(ctx, run, now) {
         const context = ctx.canvasContext;
         run.cards.forEach(function (card) {
-            const left = card.x - (card.width / 2);
-            const top = card.y - (card.height / 2);
+            const ambientMotion = (!card.exploding && !card.resolvedFalling)
+                ? getCardAmbientMotion(card, now)
+                : { bobY: 0, tilt: 0 };
+            const renderX = card.x;
+            const renderY = card.y + ambientMotion.bobY;
+            const left = renderX - (card.width / 2);
+            const top = renderY - (card.height / 2);
             const exploding = !!card.exploding && now < card.removeAt;
             const explosionDuration = Math.max(180, toInt(card.explosionDuration) || (card.explosionStyle === 'dramatic' ? 320 : 220));
             const progress = exploding ? clamp(1 - ((card.removeAt - now) / explosionDuration), 0, 1) : 0;
@@ -842,14 +869,18 @@
             }
             if (dramatic) {
                 const wobble = Math.sin(progress * 34) * (1 - progress) * 12;
-                context.translate(card.x, card.y);
+                context.translate(renderX, renderY);
                 context.rotate((Math.sin(progress * 28) * 0.08) + (progress * 0.28));
                 context.scale(1 + (progress * 0.42), 1 + (progress * 0.36));
-                context.translate(-card.x + wobble, -card.y);
+                context.translate(-renderX + wobble, -renderY);
+            } else if (!card.resolvedFalling) {
+                context.translate(renderX, renderY);
+                context.rotate(ambientMotion.tilt);
+                context.translate(-renderX, -renderY);
             } else if (card.resolvedFalling) {
-                context.translate(card.x, card.y);
+                context.translate(renderX, renderY);
                 context.rotate((card.laneIndex % 2 === 0 ? -1 : 1) * 0.045);
-                context.translate(-card.x, -card.y);
+                context.translate(-renderX, -renderY);
             }
             context.shadowColor = 'rgba(15, 23, 42, 0.22)';
             context.shadowBlur = 16;
@@ -887,7 +918,7 @@
                 context.font = '700 28px Georgia, serif';
                 context.textAlign = 'center';
                 context.textBaseline = 'middle';
-                context.fillText('✦', card.x, card.y);
+                context.fillText('✦', renderX, renderY);
             }
             context.restore();
 
@@ -897,7 +928,7 @@
             context.stroke();
 
             if (dramatic) {
-                const flash = context.createRadialGradient(card.x, card.y, card.width * 0.08, card.x, card.y, card.width * 0.7);
+                const flash = context.createRadialGradient(renderX, renderY, card.width * 0.08, renderX, renderY, card.width * 0.7);
                 flash.addColorStop(0, 'rgba(255,255,255,0.92)');
                 flash.addColorStop(0.38, 'rgba(251, 191, 36, 0.78)');
                 flash.addColorStop(1, 'rgba(248, 113, 113, 0)');
@@ -924,17 +955,17 @@
                 context.lineWidth = dramatic ? 4 : 3;
                 if (dramatic) {
                     context.beginPath();
-                    context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.26) + (progress * Math.max(card.width, card.height) * 1.02), 0, Math.PI * 2);
+                    context.arc(renderX, renderY, (Math.max(card.width, card.height) * 0.26) + (progress * Math.max(card.width, card.height) * 1.02), 0, Math.PI * 2);
                     context.stroke();
 
                     context.strokeStyle = 'rgba(255, 228, 230, 0.7)';
                     context.lineWidth = 2.2;
                     context.beginPath();
-                    context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.12) + (progress * Math.max(card.width, card.height) * 0.68), 0, Math.PI * 2);
+                    context.arc(renderX, renderY, (Math.max(card.width, card.height) * 0.12) + (progress * Math.max(card.width, card.height) * 0.68), 0, Math.PI * 2);
                     context.stroke();
                 } else {
                     context.beginPath();
-                    context.arc(card.x, card.y, (Math.max(card.width, card.height) * 0.2) + (progress * Math.max(card.width, card.height) * 0.55), 0, Math.PI * 2);
+                    context.arc(renderX, renderY, (Math.max(card.width, card.height) * 0.2) + (progress * Math.max(card.width, card.height) * 0.55), 0, Math.PI * 2);
                     context.stroke();
                 }
             }
@@ -1036,11 +1067,25 @@
             height: dimensions.height,
             aspectRatio: dimensions.aspectRatio,
             entryOffsetFactor: baseOffset,
+            entryDepthJitter: Math.random() * 0.08,
             entryRevealMs: 0,
             entryStartedAt: 0,
             entryStartY: -dimensions.height,
             entryVisibleY: dimensions.height / 2,
+            fallSpeedFactor: isTarget ? 1 : (0.9 + (Math.random() * 0.2)),
             speed: run.cardSpeed,
+            motionBobAmplitudePrimary: 3.2 + (Math.random() * 2.4),
+            motionBobAmplitudeSecondary: 1.4 + (Math.random() * 1.8),
+            motionBobHzPrimary: 0.11 + (Math.random() * 0.08),
+            motionBobHzSecondary: 0.17 + (Math.random() * 0.11),
+            motionBobPhasePrimary: Math.random() * Math.PI * 2,
+            motionBobPhaseSecondary: Math.random() * Math.PI * 2,
+            motionTiltAmplitudePrimary: 0.01 + (Math.random() * 0.015),
+            motionTiltAmplitudeSecondary: 0.004 + (Math.random() * 0.01),
+            motionTiltHzPrimary: 0.08 + (Math.random() * 0.06),
+            motionTiltHzSecondary: 0.13 + (Math.random() * 0.08),
+            motionTiltPhasePrimary: Math.random() * Math.PI * 2,
+            motionTiltPhaseSecondary: Math.random() * Math.PI * 2,
             isTarget: !!isTarget,
             resolvedFalling: false,
             exploding: false,
@@ -1050,9 +1095,19 @@
     }
 
     function getCardEntryRevealMs(ctx, card) {
-        const maxRevealMs = Math.max(180, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.cardEntryRevealMs) || 420);
+        const maxRevealMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.cardEntryRevealMs) || 560);
         const baseOffset = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
-        return Math.min(maxRevealMs, 280 + Math.round(baseOffset * 120));
+        return Math.min(maxRevealMs, 380 + Math.round(baseOffset * 150));
+    }
+
+    function getCardEntryVisibleY(run, card) {
+        const cardHeight = Math.max(1, Number(card && card.height) || 1);
+        const metricsCardHeight = Math.max(cardHeight, Number(run && run.metrics && run.metrics.cardHeight) || cardHeight);
+        const maxDepth = Math.min(Math.max(40, run.height * 0.24), metricsCardHeight * 0.95);
+        const offsetFactor = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
+        const jitter = Number(card && card.entryDepthJitter || 0);
+        const depthRatio = clamp(0.06 + (offsetFactor * 0.28) + jitter, 0.05, 0.38);
+        return (cardHeight / 2) + (maxDepth * depthRatio);
     }
 
     function buildCompatiblePromptWordSet(targetWord, pool, requiredCount) {
@@ -1818,10 +1873,10 @@
         const safeLineY = run.height * safeLineRatio;
         let promptCardSpeed = run.cardSpeed;
         const targetRevealMs = targetCard ? getCardEntryRevealMs(ctx, targetCard) : 0;
+        const targetVisibleY = targetCard ? getCardEntryVisibleY(run, targetCard) : 0;
 
         if (targetCard && promptDurationMs > 0) {
-            const fullyVisibleY = targetCard.height / 2;
-            const distanceToSafeLine = Math.max(48, safeLineY - fullyVisibleY);
+            const distanceToSafeLine = Math.max(48, safeLineY - targetVisibleY);
             const minTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - targetRevealMs) / 1000));
             const maxSafeSpeed = distanceToSafeLine / minTravelSeconds;
             if (isFinite(maxSafeSpeed) && maxSafeSpeed > 0) {
@@ -1832,13 +1887,17 @@
         const promptStartedAt = currentTimestamp();
         candidate.cards.forEach(function (card) {
             const entryRevealMs = getCardEntryRevealMs(ctx, card);
-            const hiddenDistance = Math.max(card.height * 0.78, promptCardSpeed * (entryRevealMs / 1000));
+            const entryVisibleY = getCardEntryVisibleY(run, card);
+            const hiddenDistance = Math.max(card.height * 0.9, promptCardSpeed * (entryRevealMs / 1000));
+            const availableTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - entryRevealMs) / 1000));
+            const maxSafeSpeed = Math.max(48, safeLineY - entryVisibleY) / availableTravelSeconds;
+            const variedCardSpeed = promptCardSpeed * Math.max(0.86, Number(card.fallSpeedFactor) || 1);
             card.entryRevealMs = entryRevealMs;
             card.entryStartedAt = promptStartedAt;
-            card.entryStartY = (card.height / 2) - hiddenDistance;
-            card.entryVisibleY = card.height / 2;
+            card.entryStartY = entryVisibleY - hiddenDistance;
+            card.entryVisibleY = entryVisibleY;
             card.y = card.entryStartY;
-            card.speed = promptCardSpeed;
+            card.speed = Math.min(variedCardSpeed, maxSafeSpeed);
         });
 
         run.promptIdCounter = candidate.promptId;
@@ -2712,7 +2771,7 @@
                 timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
                 timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
                 assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
-                cardEntryRevealMs: Math.max(180, toInt(spaceShooter.cardEntryRevealMs) || 420),
+                cardEntryRevealMs: Math.max(220, toInt(spaceShooter.cardEntryRevealMs) || 560),
                 promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
                 correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
                 wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),
@@ -2805,6 +2864,7 @@
                         promptId: toInt(card.promptId),
                         categoryId: toInt(card.word && card.word.category_id),
                         y: Math.round(Number(card.y) || 0),
+                        speed: Math.round((Number(card.speed) || 0) * 100) / 100,
                         width: Math.round(Number(card.width) || 0),
                         height: Math.round(Number(card.height) || 0),
                         exploding: !!card.exploding,

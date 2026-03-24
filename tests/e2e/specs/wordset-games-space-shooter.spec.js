@@ -380,7 +380,7 @@ function buildGamesConfig(isLoggedIn) {
         timeoutCoinPenalty: 1,
         timeoutLifePenalty: 1,
         audioSafeLineRatio: 0.6,
-        cardEntryRevealMs: 420,
+        cardEntryRevealMs: 560,
         promptAudioVolume: 1,
         correctHitVolume: 0.28,
         wrongHitVolume: 0.2,
@@ -817,21 +817,33 @@ test('space shooter launches with safe option mixes and records progress flows',
       .some((card) => (card.y - (card.height / 2)) < 0)
   ).toBe(true);
 
-  await page.waitForTimeout(220);
+  await page.waitForTimeout(160);
   const midEntryRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const initialCardYByWordId = Object.fromEntries(
+    initialRun.cardSnapshot
+      .filter((card) => card.promptId === initialRun.promptId)
+      .map((card) => [card.wordId, card.y])
+  );
   expect(
     midEntryRun.cardSnapshot
       .filter((card) => card.promptId === midEntryRun.promptId)
-      .some((card) => (card.y - (card.height / 2)) < 0)
+      .some((card) => card.y > ((initialCardYByWordId[card.wordId] || 0) + 8))
   ).toBe(true);
 
-  await page.waitForTimeout(320);
+  await page.waitForTimeout(460);
   const revealedRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const revealedCards = revealedRun.cardSnapshot.filter((card) => card.promptId === revealedRun.promptId);
+  const revealedCardYByWordId = Object.fromEntries(revealedCards.map((card) => [card.wordId, card.y]));
   expect(
-    revealedRun.cardSnapshot
-      .filter((card) => card.promptId === revealedRun.promptId)
-      .every((card) => (card.y - (card.height / 2)) >= 0)
+    revealedCards.every((card) => (card.y - (card.height / 2)) >= 0)
   ).toBe(true);
+  expect(
+    midEntryRun.cardSnapshot
+      .filter((card) => card.promptId === midEntryRun.promptId)
+      .some((card) => card.y < ((revealedCardYByWordId[card.wordId] || card.y) - 6))
+  ).toBe(true);
+  expect(Math.max(...revealedCards.map((card) => card.y)) - Math.min(...revealedCards.map((card) => card.y))).toBeGreaterThan(18);
+  expect(new Set(revealedCards.map((card) => card.speed)).size).toBeGreaterThan(1);
 
   const disallowedPairs = [
     [101, 102],
