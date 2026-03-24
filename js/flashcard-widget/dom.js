@@ -110,7 +110,7 @@
                 // This loader is the generic round-transition indicator.
                 // Ensure leftover visualizer classes never leak into it.
                 $el.removeClass(
-                    'll-tools-loading-animation--visualizer ll-tools-loading-animation--active ll-tools-loading-animation--js ll-tools-loading-animation--fallback'
+                    'll-tools-loading-animation--visualizer ll-tools-loading-animation--active ll-tools-loading-animation--js ll-tools-loading-animation--fallback ll-tools-loading-animation--paused'
                 );
                 $el.find('.ll-tools-visualizer-bar').remove();
             }

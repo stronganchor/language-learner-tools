@@ -7,6 +7,7 @@
     const CLASS_ACTIVE = 'll-tools-loading-animation--active';
     const CLASS_JS = 'll-tools-loading-animation--js';
     const CLASS_FALLBACK = 'll-tools-loading-animation--fallback';
+    const CLASS_PAUSED = 'll-tools-loading-animation--paused';
     const BAR_COUNT = 12;
 
     let container = null;
@@ -326,7 +327,10 @@
     function handlePlaying() {
         revealVisualizer();
         const el = getContainer();
-        if (el) el.classList.add(CLASS_ACTIVE);
+        if (el) {
+            el.classList.add(CLASS_ACTIVE);
+            el.classList.remove(CLASS_PAUSED);
+        }
 
         if (!audioContext) {
             activateFallback();
@@ -358,6 +362,8 @@
             return;
         }
         cancelLoop();
+        const el = getContainer();
+        if (el) el.classList.add(CLASS_PAUSED);
         activateFallback();
     }
 
@@ -366,7 +372,10 @@
         resetBars();
         detachAudioEvents();
         const el = getContainer();
-        if (el) el.classList.remove(CLASS_ACTIVE);
+        if (el) {
+            el.classList.remove(CLASS_ACTIVE);
+            el.classList.remove(CLASS_PAUSED);
+        }
     }
 
     function handleTimeUpdate() {
@@ -393,6 +402,7 @@
         activateFallback();
         revealVisualizer();
         el.classList.remove(CLASS_ACTIVE);
+        el.classList.remove(CLASS_PAUSED);
         resetBars();
     }
 
@@ -457,6 +467,7 @@
             activateFallback();
         }
         revealVisualizer();
+        el.classList.remove(CLASS_PAUSED);
 
         currentAudio.addEventListener('play', handlePlaying, { passive: true });
         currentAudio.addEventListener('pause', handlePause, { passive: true });
@@ -478,6 +489,7 @@
         const el = getContainer();
         if (!el) return;
         el.classList.remove(CLASS_ACTIVE);
+        el.classList.remove(CLASS_PAUSED);
         activateFallback();
     }
 
@@ -488,6 +500,7 @@
         el.classList.remove(CLASS_JS);
         el.classList.remove(CLASS_BASE);
         el.classList.remove(CLASS_FALLBACK);
+        el.classList.remove(CLASS_PAUSED);
     }
 
     function createMiniVisualizer(options) {

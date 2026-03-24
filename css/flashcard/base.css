@@ -823,6 +823,10 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     animation-duration: 1.5s;
 }
 
+.ll-tools-loading-animation.ll-tools-loading-animation--visualizer.ll-tools-loading-animation--paused .ll-tools-visualizer-bar {
+    transform-origin: center center;
+}
+
 @keyframes ll-tools-visualizer-fallback {
 
     0%,
