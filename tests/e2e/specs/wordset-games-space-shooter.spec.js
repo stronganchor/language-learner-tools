@@ -380,6 +380,7 @@ function buildGamesConfig(isLoggedIn) {
         timeoutCoinPenalty: 1,
         timeoutLifePenalty: 1,
         audioSafeLineRatio: 0.6,
+        cardEntryRevealMs: 300,
         promptAudioVolume: 1,
         correctHitVolume: 0.28,
         wrongHitVolume: 0.2,
@@ -813,6 +814,14 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(
     initialRun.cardSnapshot
       .filter((card) => card.promptId === initialRun.promptId)
+      .some((card) => (card.y - (card.height / 2)) < 0)
+  ).toBe(true);
+
+  await page.waitForTimeout(350);
+  const revealedRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(
+    revealedRun.cardSnapshot
+      .filter((card) => card.promptId === revealedRun.promptId)
       .every((card) => (card.y - (card.height / 2)) >= 0)
   ).toBe(true);
 

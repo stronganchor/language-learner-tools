@@ -1026,10 +1026,12 @@
             promptId: toInt(promptId),
             laneIndex: laneIndex,
             x: laneCenterX(run, laneIndex),
-            y: dimensions.height * (0.62 + (baseOffset * 0.22) + (Math.random() * 0.06)),
+            y: (dimensions.height / 2) - (run.cardSpeed * 0.24),
             width: dimensions.width,
             height: dimensions.height,
             aspectRatio: dimensions.aspectRatio,
+            entryOffsetFactor: baseOffset,
+            entryRevealMs: 0,
             speed: run.cardSpeed,
             isTarget: !!isTarget,
             resolvedFalling: false,
@@ -1037,6 +1039,12 @@
             explosionStyle: '',
             removeAt: 0
         };
+    }
+
+    function getCardEntryRevealMs(ctx, card) {
+        const maxRevealMs = Math.max(140, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.cardEntryRevealMs) || 300);
+        const baseOffset = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
+        return Math.min(maxRevealMs, 160 + Math.round(baseOffset * 120));
     }
 
     function buildCompatiblePromptWordSet(targetWord, pool, requiredCount) {
@@ -1801,10 +1809,12 @@
         const safeLineBufferMs = Math.max(0, toInt(ctx.spaceShooter.audioSafeLineBufferMs) || 180);
         const safeLineY = run.height * safeLineRatio;
         let promptCardSpeed = run.cardSpeed;
+        const targetRevealMs = targetCard ? getCardEntryRevealMs(ctx, targetCard) : 0;
 
         if (targetCard && promptDurationMs > 0) {
-            const distanceToSafeLine = Math.max(48, safeLineY - Number(targetCard.y || 0));
-            const minTravelSeconds = Math.max(0.1, (promptDurationMs + safeLineBufferMs) / 1000);
+            const fullyVisibleY = targetCard.height / 2;
+            const distanceToSafeLine = Math.max(48, safeLineY - fullyVisibleY);
+            const minTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - targetRevealMs) / 1000));
             const maxSafeSpeed = distanceToSafeLine / minTravelSeconds;
             if (isFinite(maxSafeSpeed) && maxSafeSpeed > 0) {
                 promptCardSpeed = Math.min(run.cardSpeed, maxSafeSpeed);
@@ -1812,6 +1822,10 @@
         }
 
         candidate.cards.forEach(function (card) {
+            const entryRevealMs = getCardEntryRevealMs(ctx, card);
+            const hiddenDistance = promptCardSpeed * (entryRevealMs / 1000);
+            card.entryRevealMs = entryRevealMs;
+            card.y = (card.height / 2) - hiddenDistance;
             card.speed = promptCardSpeed;
         });
 
@@ -2676,6 +2690,7 @@
                 timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
                 timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
                 assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
+                cardEntryRevealMs: Math.max(140, toInt(spaceShooter.cardEntryRevealMs) || 300),
                 promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
                 correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
                 wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),
