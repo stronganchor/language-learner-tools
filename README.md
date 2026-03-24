@@ -11,10 +11,11 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 - **Flashcard quiz modes**
   - **Practice Mode**: Traditional quiz with adaptive difficulty based on performance.
   - **Learning Mode**: Guided learning with word introduction, audio repetition, and progress tracking. Words are introduced gradually, and the system ensures mastery before moving forward.
+  - **Listening / Gender / Self-check Modes**: Additional mode variants for audio-first review, gender-aware drilling, and image-grouped confidence checks.
 
 - **Flashcard quiz shortcode**
   - `[flashcard_widget]` renders an interactive quiz. Attributes:
-    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning`), `wordset` (filter by wordset).
+    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning` | `listening` | `gender` | `self-check`), `wordset` (filter by wordset).
 
 - **Auto quiz pages & embed pages**
   - Auto-generated quiz pages under `/quiz/<category>`.
@@ -33,16 +34,16 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
   - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
   - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
+  - `[ll_language_switcher]` – front-end locale switcher for the plugin’s available translations.
   - `[image_copyright_grid posts_per_page="12"]` – paginated grid of `word_images`.
   - Quiz listings: `[quiz_pages_grid]` and `[quiz_pages_dropdown]`, both support wordset filtering and popup mode.
-  - `[audio_recording_interface]` – browser-based audio recording interface.
 
 - **Admin UX**
   - Bulk **audio** and **image** uploaders that can create/update posts and try to match media to posts by name.
   - **Audio Processor**: Batch-process uploaded audio files and attach them to words.
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
   - Wordset manager workflows via the plugin’s custom wordset pages.
-  - Settings page (translations, DeepL API key, image size, font, option caps, etc.).
+  - Settings page (translations, browser-language auto-switch, DeepL API key, image size, font, option caps, etc.).
 
 - **DeepL integration**
   - Optional: store a DeepL API key and enable category term translations in the UI.
@@ -72,14 +73,15 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 ## Quick Start
 
 1. Create terms in **Word Category**, **Word Set**, **Language** and **Part of Speech**.
-2. Add **Words**: set the title, featured image (optional), attach audio (optional), and assign **Word Category** terms.
+2. Add **Words**: set the title, featured image (optional), attach audio as needed, and assign **Word Category** terms.
+   - Audio may be required before publish or quiz use when the assigned category configuration requires approved recordings.
 3. Drop a flashcard quiz anywhere:
    ```text
    [flashcard_widget category="animals" quiz_mode="learning"]
    ```
    - `quiz_mode="practice"` for traditional adaptive quizzing (default)
    - `quiz_mode="learning"` for guided learning with word introduction
-   - To embed a minimal page for a category, link to `/embed/animals` or `/embed/animals?mode=learning`.
+   - To embed a minimal page for a category, link to `/embed/animals` or `/embed/animals?mode=<practice|learning|listening|gender|self-check>`.
 
 4. Make a grid of words:
    ```text
@@ -112,6 +114,11 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
    [editor_hub]
    ```
 
+10. Optional front-end locale switcher:
+   ```text
+   [ll_language_switcher]
+   ```
+
 ---
 
 ## Shortcodes (details)
@@ -142,6 +149,12 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 ### `[wordset_page]` / `[ll_wordset_page]`
 - Front-end wordset hub that renders the current wordset context, including study/progress/settings views.
+
+### `[ll_language_switcher]`
+- **Attributes**:
+  - `show_flags`: `1|0` to show or hide locale flags.
+  - `style`: `native`, `english`, or `code`.
+  - `class`: extra CSS class for wrapper styling.
 
 ### `[quiz_pages_grid]` / `[quiz_pages_dropdown]`
 - **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`practice`, `learning`, or `self-check`).
@@ -218,6 +231,7 @@ The flashcard widget intelligently selects the appropriate recording type based 
 - **Translations**
   - Enable category term translations (optional).
   - If enabled, you can store a **DeepL API** key and have UI strings/terms translated automatically.
+  - Optional browser-language auto-switch uses the visitor locale until they pick a different plugin language.
 
 - **Flashcards**
   - **Image size** used in quizzes.

@@ -1546,12 +1546,16 @@ function ll_show_word_publish_blocked_notice() {
 
     $edit_url = get_edit_post_link($post_id);
     $title = get_the_title($post_id);
-
-    printf(
-        '<div class="notice notice-warning is-dismissible"><p><strong>Publishing Blocked:</strong> "%s" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href="%s">Edit post</a></p></div>',
+    $message = sprintf(
+        /* translators: 1: blocked word title, 2: edit post URL */
+        __('"%1$s" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href="%2$s">Edit post</a>', 'll-tools-text-domain'),
         esc_html($title),
         esc_url($edit_url)
     );
+
+    echo '<div class="notice notice-warning is-dismissible"><p><strong>' .
+        esc_html__('Publishing Blocked:', 'll-tools-text-domain') .
+        '</strong> ' . wp_kses_post($message) . '</p></div>';
 }
 
 /**

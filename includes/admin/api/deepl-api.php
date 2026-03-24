@@ -127,18 +127,23 @@ function get_deepl_language_names($no_parentheses = false, $type = 'target') {
         return null;
     }
 
-    // Remove parentheses and duplicate entries if no_parentheses is true
+    $names = array_map(static function ($lang) {
+        return isset($lang['name']) ? (string) $lang['name'] : '';
+    }, $json);
+    $names = array_values(array_filter($names, static function ($name) {
+        return $name !== '';
+    }));
+
     if ($no_parentheses) {
-        $json = array_map(function($lang) {
-            return preg_replace('/\s*\(.*\)/', '', $lang['name']);
-        }, $json);
-        $json = array_unique($json);
+        $names = array_map(static function ($name) {
+            return trim((string) preg_replace('/\s*\(.*\)/', '', (string) $name));
+        }, $names);
+        $names = array_values(array_unique(array_filter($names, static function ($name) {
+            return $name !== '';
+        })));
     }
 
-    // Map the response to just the names of the languages
-    return array_map(function($lang) {
-        return $lang['name'];
-    }, $json);
+    return $names;
 }
 
 /**
@@ -212,22 +217,27 @@ function test_deepl_api_shortcode() {
     }
 
     $output = '';
-    
-    // Test the get_deepl_language_names function
+
     $languages = get_deepl_language_names();
     if ($languages === null) {
-        $output .= 'Failed to retrieve language names.<br>';
+        $output .= esc_html__('Failed to retrieve language names.', 'll-tools-text-domain') . '<br>';
     } else {
-        $output .= 'Available languages: ' . implode(', ', $languages) . '<br>';
+        $output .= sprintf(
+            esc_html__('Available languages: %s', 'll-tools-text-domain'),
+            esc_html(implode(', ', $languages))
+        ) . '<br>';
     }
 
-    // Test the translate_with_deepl function
     $translated_text = translate_with_deepl('Merhaba Dünya!', 'EN', 'TR');
     if ($translated_text === null) {
-        $output .= 'Translation failed. Please check your API key.<br>';
+        $output .= esc_html__('Translation failed. Please check your API key.', 'll-tools-text-domain') . '<br>';
+    } else {
+        $output .= sprintf(
+            esc_html__('Translated text from Turkish: %s', 'll-tools-text-domain'),
+            esc_html($translated_text)
+        ) . '<br>';
     }
-    $output .= 'Translated text from Turkish: ' . esc_html($translated_text) . '<br>';
+
     return $output;
 }
 add_shortcode('test_deepl_api', 'test_deepl_api_shortcode');
-?>

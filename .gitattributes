@@ -11,3 +11,4 @@
 /test-results export-ignore
 /tests export-ignore
 /xampp-lltools.code-workspace export-ignore
+/languages/*.po~ export-ignore

@@ -114,7 +114,7 @@ function ll_tools_post_content_has_public_assets_shortcodes($post): bool {
         'image_copyright_grid',
         'audio_upload_form',
         'image_upload_form',
-        'language_switcher',
+        'll_language_switcher',
     ]);
     $shortcodes = array_values(array_unique(array_filter(array_map('strval', (array) $shortcodes))));
 

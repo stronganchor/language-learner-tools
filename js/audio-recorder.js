@@ -23,6 +23,12 @@
     let newWordCategoryTypeCache = {};
     let newWordCategoryTypeAbort = null;
     let newWordLastSaved = { target: '', translation: '' };
+    let newWordDraftBeforeRecording = {
+        target: '',
+        translation: '',
+        targetManual: '',
+        translationManual: ''
+    };
     let lastTranslationSource = '';
     let activeRecordingControls = null;
     let savedExistingState = null;
@@ -938,14 +944,14 @@
         }
         if (el.newWordTextTarget) {
             el.newWordTextTarget.addEventListener('input', () => {
-                el.newWordTextTarget.dataset.llManual = '1';
+                setNewWordFieldManualState(el.newWordTextTarget, true);
                 clearNewWordFieldError(el.newWordTextTarget);
             });
             el.newWordTextTarget.addEventListener('blur', handleTargetBlur);
         }
         if (el.newWordTextTranslation) {
             el.newWordTextTranslation.addEventListener('input', () => {
-                el.newWordTextTranslation.dataset.llManual = '1';
+                setNewWordFieldManualState(el.newWordTextTranslation, true);
                 clearNewWordFieldError(el.newWordTextTranslation);
             });
             el.newWordTextTranslation.addEventListener('blur', handleTranslationBlur);
@@ -1434,6 +1440,12 @@
         newWordTranslationInFlight = false;
         newWordAutoCancelled = false;
         newWordLastSaved = { target: '', translation: '' };
+        newWordDraftBeforeRecording = {
+            target: '',
+            translation: '',
+            targetManual: '',
+            translationManual: ''
+        };
         lastTranslationSource = '';
         activeRecordingControls = null;
         showNewWordPanel();
@@ -1450,6 +1462,12 @@
         newWordTranslationInFlight = false;
         newWordAutoCancelled = false;
         newWordLastSaved = { target: '', translation: '' };
+        newWordDraftBeforeRecording = {
+            target: '',
+            translation: '',
+            targetManual: '',
+            translationManual: ''
+        };
         activeRecordingControls = null;
         resetNewWordAutoState();
         clearNewWordStatus();
@@ -1532,16 +1550,22 @@
         processingState = null;
         lastTranslationSource = '';
         newWordLastSaved = { target: '', translation: '' };
+        newWordDraftBeforeRecording = {
+            target: '',
+            translation: '',
+            targetManual: '',
+            translationManual: ''
+        };
         resetNewWordAutoState();
         clearNewWordStatus();
         if (el.newWordTextTarget) {
             el.newWordTextTarget.value = '';
-            delete el.newWordTextTarget.dataset.llManual;
+            clearNewWordFieldManualState(el.newWordTextTarget);
             clearNewWordFieldError(el.newWordTextTarget);
         }
         if (el.newWordTextTranslation) {
             el.newWordTextTranslation.value = '';
-            delete el.newWordTextTranslation.dataset.llManual;
+            clearNewWordFieldManualState(el.newWordTextTranslation);
             clearNewWordFieldError(el.newWordTextTranslation);
         }
         if (el.newWordCategoryName) {
@@ -1635,6 +1659,30 @@
         if (!field) return;
         field.classList.remove('ll-field-error');
         field.removeAttribute('aria-invalid');
+    }
+
+    function setNewWordFieldManualState(field, isManual) {
+        if (!field) return;
+        field.dataset.llManual = isManual ? '1' : '0';
+        field.__llManual = !!isManual;
+    }
+
+    function clearNewWordFieldManualState(field) {
+        if (!field) return;
+        delete field.dataset.llManual;
+        try {
+            delete field.__llManual;
+        } catch (_) {
+            field.__llManual = undefined;
+        }
+    }
+
+    function isNewWordFieldManual(field) {
+        if (!field) return false;
+        if (field.__llManual === true) {
+            return true;
+        }
+        return field.dataset.llManual === '1';
     }
 
     function setNewWordTextFieldsDisabled(disabled) {
@@ -1855,6 +1903,7 @@
         }
 
         newWordStage = 'recording';
+        captureNewWordDraftBeforeRecording();
         await startRecording();
     }
 
@@ -1862,7 +1911,7 @@
         submitAndNext();
     }
 
-    function handleTargetBlur() {
+    function handleTargetBlur(event) {
         const el = window.llRecorder;
         if (!el.newWordTextTarget) return;
         if (newWordTranscriptionInFlight || newWordTranslationInFlight) return;
@@ -1873,8 +1922,10 @@
         if (!text || !hasDeepl) return;
         const translationField = el.newWordTextTranslation;
         if (!translationField) return;
+        const nextFocusTarget = event && event.relatedTarget ? event.relatedTarget : document.activeElement;
+        if (nextFocusTarget === translationField) return;
         if ((translationField.value || '').trim() !== '') return;
-        if (translationField.dataset.llManual === '1') return;
+        if (isNewWordFieldManual(translationField)) return;
         if (text === lastTranslationSource) return;
         maybeTranslateTargetText(text);
     }
@@ -1883,6 +1934,36 @@
         if (newWordTranscriptionInFlight || newWordTranslationInFlight) return;
         if (newWordPrepared) {
             maybeUpdateNewWordText();
+        }
+    }
+
+    function canAutoPopulateNewWordField(field) {
+        if (!field) return false;
+        const value = (field.value || '').trim();
+        return value === '' || field.__llManual === false || field.dataset.llManual === '0';
+    }
+
+    function captureNewWordDraftBeforeRecording() {
+        const el = window.llRecorder;
+        newWordDraftBeforeRecording = {
+            target: el.newWordTextTarget?.value || '',
+            translation: el.newWordTextTranslation?.value || '',
+            targetManual: isNewWordFieldManual(el.newWordTextTarget) ? '1' : (el.newWordTextTarget?.dataset.llManual || ''),
+            translationManual: isNewWordFieldManual(el.newWordTextTranslation) ? '1' : (el.newWordTextTranslation?.dataset.llManual || '')
+        };
+    }
+
+    function restoreNewWordDraftAfterRedo() {
+        const el = window.llRecorder;
+
+        if (el.newWordTextTarget && (newWordDraftBeforeRecording.target || '').trim() !== '') {
+            el.newWordTextTarget.value = newWordDraftBeforeRecording.target || '';
+            setNewWordFieldManualState(el.newWordTextTarget, true);
+        }
+
+        if (el.newWordTextTranslation && (newWordDraftBeforeRecording.translation || '').trim() !== '') {
+            el.newWordTextTranslation.value = newWordDraftBeforeRecording.translation || '';
+            setNewWordFieldManualState(el.newWordTextTranslation, true);
         }
     }
 
@@ -2129,9 +2210,9 @@
 
             const translation = data.data?.translation || '';
             if (translation && el.newWordTextTranslation) {
-                if ((el.newWordTextTranslation.value || '').trim() === '' && el.newWordTextTranslation.dataset.llManual !== '1') {
+                if (canAutoPopulateNewWordField(el.newWordTextTranslation)) {
                     el.newWordTextTranslation.value = translation;
-                    el.newWordTextTranslation.dataset.llManual = '0';
+                    setNewWordFieldManualState(el.newWordTextTranslation, false);
                 }
             }
             lastTranslationSource = text;
@@ -2219,16 +2300,16 @@
             const translation = (resultData.translation || '').trim();
 
             if (transcript && el.newWordTextTarget) {
-                if ((el.newWordTextTarget.value || '').trim() === '' || el.newWordTextTarget.dataset.llManual !== '1') {
+                if (canAutoPopulateNewWordField(el.newWordTextTarget)) {
                     el.newWordTextTarget.value = transcript;
-                    el.newWordTextTarget.dataset.llManual = '0';
+                    setNewWordFieldManualState(el.newWordTextTarget, false);
                 }
             }
 
             if (translation && el.newWordTextTranslation) {
-                if ((el.newWordTextTranslation.value || '').trim() === '' || el.newWordTextTranslation.dataset.llManual !== '1') {
+                if (canAutoPopulateNewWordField(el.newWordTextTranslation)) {
                     el.newWordTextTranslation.value = translation;
-                    el.newWordTextTranslation.dataset.llManual = '0';
+                    setNewWordFieldManualState(el.newWordTextTranslation, false);
                 }
             }
 
@@ -3865,11 +3946,13 @@
             newWordTranscriptionDone = false;
             newWordTranscriptionInFlight = false;
             newWordTranslationInFlight = false;
-            newWordAutoCancelled = false;
+            newWordAutoCancelled = true;
             lastTranslationSource = '';
             resetNewWordAutoState();
         }
         resetRecordingState();
+        restoreNewWordDraftAfterRedo();
+        requestAnimationFrame(restoreNewWordDraftAfterRedo);
     }
 
     async function skipToNext() {

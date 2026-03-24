@@ -54,7 +54,9 @@ async function expectFaceMatchesMode(page, faceSelector, mode) {
     await expect(face.locator('.ll-study-check-text')).toBeVisible();
   }
   if (expectsAudio(mode)) {
-    await expect(face.locator('.ll-study-recording-btn, .ll-study-check-audio-btn')).toBeVisible();
+    const audioControls = face.locator('.ll-study-recording-btn, .ll-study-check-audio-btn');
+    expect(await audioControls.count()).toBeGreaterThan(0);
+    await expect(audioControls.first()).toBeVisible();
   }
 }
 

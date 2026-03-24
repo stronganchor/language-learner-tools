@@ -120,6 +120,20 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_request_needs_public_assets());
     }
 
+    public function test_request_needs_public_assets_true_for_language_switcher_shortcode_page(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Language Switcher Page',
+            'post_content' => '[ll_language_switcher]',
+        ]);
+
+        $this->go_to(get_permalink($page_id));
+
+        $this->assertTrue(ll_tools_request_needs_public_assets());
+    }
+
     public function test_request_needs_public_assets_true_when_marked_manually(): void
     {
         $this->go_to('/');

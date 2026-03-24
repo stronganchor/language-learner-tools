@@ -135,8 +135,8 @@
             const i = $('<img/>', { src: img.thumb || '', alt: img.title, class: 'quiz-image' });
             imageWrapper.append(i);
 
-            const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
-            const s = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
+            const titleEl = $('<div/>', { 'class': 'll-aim-title', text: img.title });
+            const smallEl = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
 
             if (img.used_count && img.used_count > 0) {
                 card.addClass('is-picked');
@@ -145,7 +145,7 @@
                 imageWrapper.append(badge);
             }
 
-            card.append(imageWrapper, t, s);
+            card.append(imageWrapper, titleEl, smallEl);
             card.on('click', () => assign(img.id, card));
             $images.append(card);
         });

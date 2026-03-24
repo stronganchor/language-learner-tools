@@ -148,8 +148,7 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
-- Additional integration tests also cover import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
-- Additional integration tests also cover wordset games availability/pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
+- Additional integration tests also cover wordset games availability and pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -159,7 +158,7 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
-Current primary-flow E2E specs:
+Representative current E2E specs (`tests/e2e/specs/`, 33 files at the time of writing):
 
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
@@ -189,6 +188,8 @@ Current primary-flow E2E specs:
   - Verifies quiz popup open/close behavior and page-state cleanup.
 - `tests/e2e/specs/quiz-results-repeat-restart.spec.js`
   - Verifies the results-page Repeat action starts a fresh practice round instead of leaving the loader stuck.
+- `tests/e2e/specs/self-check-shared-image-grouping.spec.js`
+  - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
   - Verifies vocab lesson bulk editor controls stay within viewport on mobile layouts.
 - `tests/e2e/specs/vocab-lesson-deferred-grid.spec.js`
@@ -199,6 +200,7 @@ Current primary-flow E2E specs:
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
   - Verifies the wordset games page bootstraps availability correctly and that the Arcane Space Shooter runtime preserves option conflicts while queuing practice-style progress events.
+- Additional specs in the same folder cover audio-recorder new-word flows, quiz audio gating, mobile/layout regressions, text fitting, wordset progress/loading shells, and more. Treat this section as a representative summary rather than a full inventory.
 
 Optional env vars (set directly or in `tests/.env`):
 
