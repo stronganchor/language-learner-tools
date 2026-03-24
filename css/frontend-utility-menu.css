@@ -107,6 +107,17 @@
     margin-left: auto;
 }
 
+.ll-wordset-utility-bar--guest {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.ll-wordset-utility-bar--guest .ll-wordset-utility-bar__links {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    margin-left: 0;
+}
+
 .ll-wordset-utility-bar__link {
     display: inline-flex;
     flex: 0 0 auto;
@@ -263,5 +274,14 @@
         width: 100%;
         justify-content: flex-start;
         margin-left: 0;
+    }
+
+    .ll-wordset-utility-bar--shared.ll-wordset-utility-bar--guest {
+        align-items: center;
+        flex-direction: row;
+    }
+
+    .ll-wordset-utility-bar--guest .ll-wordset-utility-bar__links {
+        width: auto;
     }
 }

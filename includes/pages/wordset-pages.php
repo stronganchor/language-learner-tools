@@ -2577,9 +2577,14 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
         $context_class = ' ll-wordset-utility-bar--context-' . sanitize_html_class($current_area);
     }
 
+    $guest_class = '';
+    if (!($user instanceof WP_User)) {
+        $guest_class = ' ll-wordset-utility-bar--guest';
+    }
+
     ob_start();
     ?>
-    <nav class="<?php echo esc_attr('ll-wordset-utility-bar ll-wordset-utility-bar--shared' . $context_class); ?>" aria-label="<?php echo esc_attr__('User menu', 'll-tools-text-domain'); ?>">
+    <nav class="<?php echo esc_attr('ll-wordset-utility-bar ll-wordset-utility-bar--shared' . $context_class . $guest_class); ?>" aria-label="<?php echo esc_attr__('User menu', 'll-tools-text-domain'); ?>">
         <div class="ll-wordset-utility-bar__identity">
             <?php if ($user instanceof WP_User) : ?>
                 <span class="ll-wordset-utility-bar__identity-icon" aria-hidden="true">
