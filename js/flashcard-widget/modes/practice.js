@@ -771,6 +771,7 @@
         if (!target) return true;
         const promptType = State.currentPromptType || 'audio';
         if (promptType !== 'audio') {
+            delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;
             return true;
@@ -782,11 +783,13 @@
         }
 
         if (resolved.selectedType) {
+            target.__promptRecordingType = resolved.selectedType;
             target.__practiceRecordingType = resolved.selectedType;
             target.__practiceRecordingText = resolved.entry && resolved.entry.recordingText
                 ? resolved.entry.recordingText
                 : getRecordingTextForType(target, resolved.selectedType);
         } else {
+            delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;
         }

@@ -3706,6 +3706,7 @@
         };
 
         if (target && typeof target === 'object') {
+            delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;
         }

@@ -3099,6 +3099,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $word_data = [
             'id'              => $word_id,
             'title'           => $title,
+            'translation'     => $translation_label,
             'label'           => $label,
             'prompt_label'    => $prompt_label,
             'specific_wrong_answer_ids' => $specific_wrong_answer_ids,
@@ -3125,6 +3126,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
         if (function_exists('ll_tools_protect_maqqef_for_display')) {
             $word_data['title'] = ll_tools_protect_maqqef_for_display((string) $word_data['title']);
+            $word_data['translation'] = ll_tools_protect_maqqef_for_display((string) $word_data['translation']);
             $word_data['label'] = ll_tools_protect_maqqef_for_display((string) $word_data['label']);
             $word_data['prompt_label'] = ll_tools_protect_maqqef_for_display((string) $word_data['prompt_label']);
 

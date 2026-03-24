@@ -1198,10 +1198,101 @@
         return true;
     }
 
+    function normalizeRecordingType(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function selectPromptAudioEntry(word, preferredTypes) {
+        if (!word || typeof word !== 'object') {
+            return null;
+        }
+
+        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
+        const orderedTypes = [];
+        const seenTypes = {};
+        preferredTypes.forEach(function (type) {
+            const key = normalizeRecordingType(type);
+            if (!key || seenTypes[key]) {
+                return;
+            }
+            seenTypes[key] = true;
+            orderedTypes.push(key);
+        });
+
+        const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
+        const hasUrl = function (entry) {
+            return !!(entry && typeof entry.url === 'string' && entry.url.trim() !== '');
+        };
+
+        for (let i = 0; i < orderedTypes.length; i += 1) {
+            const type = orderedTypes[i];
+
+            if (preferredSpeaker > 0) {
+                const sameSpeaker = files.find(function (entry) {
+                    return hasUrl(entry)
+                        && normalizeRecordingType(entry.recording_type) === type
+                        && (parseInt(entry.speaker_user_id, 10) || 0) === preferredSpeaker;
+                });
+                if (sameSpeaker) {
+                    return {
+                        type: type,
+                        url: String(sameSpeaker.url).trim()
+                    };
+                }
+            }
+
+            const anySpeaker = files.find(function (entry) {
+                return hasUrl(entry) && normalizeRecordingType(entry.recording_type) === type;
+            });
+            if (anySpeaker) {
+                return {
+                    type: type,
+                    url: String(anySpeaker.url).trim()
+                };
+            }
+        }
+
+        const fallback = files.find(hasUrl);
+        if (fallback) {
+            return {
+                type: normalizeRecordingType(fallback.recording_type) || (orderedTypes[0] || ''),
+                url: String(fallback.url).trim()
+            };
+        }
+
+        const directAudio = typeof word.audio === 'string' ? word.audio.trim() : '';
+        if (!directAudio) {
+            return null;
+        }
+
+        return {
+            type: orderedTypes[0] || '',
+            url: directAudio
+        };
+    }
+
     function configureTargetAudio(target) {
         if (State.isIntroducingWord || !target) return;
-        const questionAudio = FlashcardAudio.selectBestAudio(target, ['question', 'isolation', 'introduction']);
-        if (questionAudio) target.audio = questionAudio;
+        const promptType = State.currentPromptType || 'audio';
+        if (promptType !== 'audio') {
+            delete target.__promptRecordingType;
+            return;
+        }
+
+        const questionAudio = selectPromptAudioEntry(target, ['question', 'isolation', 'introduction']);
+        if (questionAudio && questionAudio.url) {
+            target.audio = questionAudio.url;
+        }
+
+        if (questionAudio && questionAudio.type) {
+            target.__promptRecordingType = questionAudio.type;
+        } else {
+            delete target.__promptRecordingType;
+        }
     }
 
     // Public API

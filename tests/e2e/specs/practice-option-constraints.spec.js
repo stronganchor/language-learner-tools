@@ -437,6 +437,112 @@ test('practice options stay within the target category pool', async ({ page }) =
   expect(pickedIds).toEqual([101, 102]);
 });
 
+test('practice options exclude wrong answers with the same translation', async ({ page }) => {
+  const targetCategory = 'Actions';
+  const targetWord = {
+    id: 211,
+    title: 'to walk',
+    translation: 'caminar',
+    image: 'https://img.test/walk.jpg'
+  };
+  const duplicateTranslationWord = {
+    id: 212,
+    title: 'to stroll',
+    translation: 'caminar',
+    image: 'https://img.test/stroll.jpg'
+  };
+  const distinctTranslationWord = {
+    id: 213,
+    title: 'to run',
+    translation: 'correr',
+    image: 'https://img.test/run.jpg'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: targetCategory, prompt_type: 'audio', option_type: 'image' }
+    ],
+    targetCategoryName: targetCategory,
+    desiredCount: 4,
+    wordsByCategory: {
+      [targetCategory]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [targetCategory]: [targetWord, duplicateTranslationWord, distinctTranslationWord]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Actions' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toEqual([211, 213]);
+});
+
+test('practice options exclude duplicate wrong answers with the same active recording-type transcript', async ({ page }) => {
+  const targetCategory = 'Actions';
+  const targetWord = {
+    id: 221,
+    title: 'The dog is jumping',
+    label: 'The dog is jumping',
+    recording_texts_by_type: {
+      isolation: 'jumping'
+    }
+  };
+  const firstDuplicateWrongAnswer = {
+    id: 222,
+    title: 'The cat is walking',
+    label: 'The cat is walking',
+    recording_texts_by_type: {
+      isolation: 'walking'
+    }
+  };
+  const secondDuplicateWrongAnswer = {
+    id: 223,
+    title: 'The fox is walking',
+    label: 'The fox is walking',
+    recording_texts_by_type: {
+      isolation: 'walking'
+    }
+  };
+  const distinctWrongAnswer = {
+    id: 224,
+    title: 'The bird is running',
+    label: 'The bird is running',
+    recording_texts_by_type: {
+      isolation: 'running'
+    }
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [
+      { name: targetCategory, prompt_type: 'audio', option_type: 'text_title' }
+    ],
+    targetCategoryName: targetCategory,
+    desiredCount: 4,
+    wordsByCategory: {
+      [targetCategory]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [targetCategory]: [targetWord, firstDuplicateWrongAnswer, secondDuplicateWrongAnswer, distinctWrongAnswer]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Actions', __promptRecordingType: 'isolation' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toEqual([221, 222, 224]);
+});
+
 test('practice options exclude wrong answers with the same active recording-type transcript', async ({ page }) => {
   const targetCategory = 'Actions';
   const targetWord = {

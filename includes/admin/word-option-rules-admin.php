@@ -334,28 +334,276 @@ function ll_tools_word_option_rules_get_word_ids(int $wordset_id, int $category_
     return array_values(array_map('intval', wp_list_pluck($posts, 'ID')));
 }
 
-function ll_tools_word_option_rules_get_word_label(int $word_id): string {
+function ll_tools_word_option_rules_get_word_texts(int $word_id): array {
     $word_id = (int) $word_id;
     if ($word_id <= 0) {
-        return '';
+        return [
+            'title' => '',
+            'translation' => '',
+        ];
     }
 
     if (function_exists('ll_tools_word_grid_resolve_display_text')) {
         $display = ll_tools_word_grid_resolve_display_text($word_id);
-        $word_text = trim((string) ($display['word_text'] ?? ''));
-        $translation = trim((string) ($display['translation_text'] ?? ''));
-        if ($translation !== '') {
-            return $word_text . ' - ' . $translation;
-        }
-        return $word_text;
+        return [
+            'title' => trim((string) ($display['word_text'] ?? '')),
+            'translation' => trim((string) ($display['translation_text'] ?? '')),
+        ];
     }
 
-    $title = get_the_title($word_id);
+    $title = trim((string) get_the_title($word_id));
     $translation = (string) get_post_meta($word_id, 'word_translation', true);
+    if ($translation === '') {
+        $translation = (string) get_post_meta($word_id, 'word_english_meaning', true);
+    }
+
+    return [
+        'title' => $title,
+        'translation' => trim($translation),
+    ];
+}
+
+function ll_tools_word_option_rules_get_word_label(int $word_id): string {
+    $texts = ll_tools_word_option_rules_get_word_texts($word_id);
+    $title = trim((string) ($texts['title'] ?? ''));
+    $translation = trim((string) ($texts['translation'] ?? ''));
     if ($translation !== '') {
         return $title . ' - ' . $translation;
     }
-    return (string) $title;
+    return $title;
+}
+
+function ll_tools_word_option_rules_normalize_text_for_compare($value): string {
+    $text = html_entity_decode((string) $value, ENT_QUOTES, 'UTF-8');
+    if (class_exists('Normalizer')) {
+        $normalized = Normalizer::normalize($text, Normalizer::FORM_C);
+        if (is_string($normalized) && $normalized !== '') {
+            $text = $normalized;
+        }
+    }
+
+    $collapsed = preg_replace('/\s+/', ' ', wp_strip_all_tags($text));
+    $text = trim(is_string($collapsed) ? $collapsed : $text);
+    if ($text === '') {
+        return '';
+    }
+
+    $text = str_replace(['I', 'İ'], ['ı', 'i'], $text);
+    if (function_exists('mb_strtolower')) {
+        $text = mb_strtolower($text, 'UTF-8');
+    } else {
+        $text = strtolower($text);
+    }
+
+    return str_replace("\u{0307}", '', $text);
+}
+
+function ll_tools_word_option_rules_normalize_recording_type_key($value): string {
+    $value = sanitize_key(str_replace([' ', '_'], '-', (string) $value));
+    return trim($value, '-');
+}
+
+function ll_tools_word_option_rules_get_recording_type_reason_label(string $recording_type): string {
+    $recording_type = ll_tools_word_option_rules_normalize_recording_type_key($recording_type);
+    if ($recording_type === '') {
+        return __('Same recording text', 'll-tools-text-domain');
+    }
+
+    $recording_type_label = function_exists('ll_get_recording_type_name')
+        ? (string) ll_get_recording_type_name($recording_type, '')
+        : '';
+    if ($recording_type_label === '') {
+        $recording_type_label = ucwords(str_replace('-', ' ', $recording_type));
+    }
+
+    /* translators: %s: recording type label */
+    return sprintf(__('Same %s text', 'll-tools-text-domain'), $recording_type_label);
+}
+
+function ll_tools_word_option_rules_build_compare_rows(array $words, array $audio_by_word = []): array {
+    $rows = [];
+
+    foreach ($words as $word) {
+        if (!($word instanceof WP_Post)) {
+            continue;
+        }
+
+        $word_id = (int) $word->ID;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $texts = ll_tools_word_option_rules_get_word_texts($word_id);
+        $audio_entries = isset($audio_by_word[$word_id]) && is_array($audio_by_word[$word_id])
+            ? $audio_by_word[$word_id]
+            : [];
+        $preferred_speaker = function_exists('ll_tools_word_grid_get_preferred_speaker')
+            ? ll_tools_word_grid_get_preferred_speaker($audio_entries, ['isolation', 'question', 'introduction'])
+            : 0;
+
+        $recording_texts_by_type = [];
+        $recording_text_preferred = [];
+        foreach ($audio_entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $recording_type = ll_tools_word_option_rules_normalize_recording_type_key($entry['recording_type'] ?? '');
+            if ($recording_type === '') {
+                continue;
+            }
+
+            $entry_text = trim((string) ($entry['recording_text'] ?? ''));
+            if ($entry_text !== '' && $recording_type === 'isolation' && function_exists('ll_tools_trim_isolation_transcript')) {
+                $entry_text = ll_tools_trim_isolation_transcript($entry_text);
+            }
+
+            $speaker_user_id = isset($entry['speaker_user_id']) ? (int) $entry['speaker_user_id'] : 0;
+            $is_preferred_speaker = ($preferred_speaker > 0 && $speaker_user_id === $preferred_speaker);
+            $existing_text = isset($recording_texts_by_type[$recording_type]) ? (string) $recording_texts_by_type[$recording_type] : '';
+            $existing_is_preferred = !empty($recording_text_preferred[$recording_type]);
+            $should_replace = !array_key_exists($recording_type, $recording_texts_by_type)
+                || ($existing_text === '' && $entry_text !== '')
+                || (!$existing_is_preferred && $is_preferred_speaker && $entry_text !== '');
+            if ($should_replace) {
+                $recording_texts_by_type[$recording_type] = $entry_text;
+                $recording_text_preferred[$recording_type] = $is_preferred_speaker ? 1 : 0;
+            }
+        }
+
+        $rows[] = [
+            'id' => $word_id,
+            'title' => (string) ($texts['title'] ?? ''),
+            'translation' => (string) ($texts['translation'] ?? ''),
+            'recording_texts_by_type' => $recording_texts_by_type,
+        ];
+    }
+
+    return $rows;
+}
+
+function ll_tools_word_option_rules_build_auto_text_pair_maps(array $compare_rows, bool $include_recording_text_pairs = true): array {
+    $title_buckets = [];
+    $translation_buckets = [];
+    $recording_buckets = [];
+
+    foreach ($compare_rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $word_id = isset($row['id']) ? (int) $row['id'] : 0;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $title = trim((string) ($row['title'] ?? ''));
+        $title_key = ll_tools_word_option_rules_normalize_text_for_compare($title);
+        if ($title_key !== '') {
+            if (!isset($title_buckets[$title_key])) {
+                $title_buckets[$title_key] = [
+                    'text' => $title,
+                    'word_ids' => [],
+                ];
+            }
+            $title_buckets[$title_key]['word_ids'][$word_id] = true;
+        }
+
+        $translation = trim((string) ($row['translation'] ?? ''));
+        $translation_key = ll_tools_word_option_rules_normalize_text_for_compare($translation);
+        if ($translation_key !== '') {
+            if (!isset($translation_buckets[$translation_key])) {
+                $translation_buckets[$translation_key] = [
+                    'text' => $translation,
+                    'word_ids' => [],
+                ];
+            }
+            $translation_buckets[$translation_key]['word_ids'][$word_id] = true;
+        }
+
+        if (!$include_recording_text_pairs) {
+            continue;
+        }
+
+        $recording_texts = isset($row['recording_texts_by_type']) && is_array($row['recording_texts_by_type'])
+            ? $row['recording_texts_by_type']
+            : [];
+        foreach ($recording_texts as $recording_type => $text) {
+            $recording_type = ll_tools_word_option_rules_normalize_recording_type_key($recording_type);
+            $normalized_text = ll_tools_word_option_rules_normalize_text_for_compare($text);
+            if ($recording_type === '' || $normalized_text === '') {
+                continue;
+            }
+
+            if (!isset($recording_buckets[$recording_type][$normalized_text])) {
+                $recording_buckets[$recording_type][$normalized_text] = [
+                    'text' => trim((string) $text),
+                    'word_ids' => [],
+                ];
+            }
+            $recording_buckets[$recording_type][$normalized_text]['word_ids'][$word_id] = true;
+        }
+    }
+
+    $build_pair_map = static function (array $buckets): array {
+        $pairs = [];
+
+        foreach ($buckets as $bucket) {
+            if (!is_array($bucket)) {
+                continue;
+            }
+
+            $word_ids = array_values(array_map('intval', array_keys((array) ($bucket['word_ids'] ?? []))));
+            $word_ids = array_values(array_filter($word_ids, static function (int $word_id): bool {
+                return $word_id > 0;
+            }));
+            $count = count($word_ids);
+            if ($count < 2) {
+                continue;
+            }
+
+            for ($i = 0; $i < $count; $i++) {
+                for ($j = $i + 1; $j < $count; $j++) {
+                    $a = $word_ids[$i];
+                    $b = $word_ids[$j];
+                    if ($a > $b) {
+                        $tmp = $a;
+                        $a = $b;
+                        $b = $tmp;
+                    }
+
+                    $pairs[$a . '|' . $b] = [
+                        'a' => $a,
+                        'b' => $b,
+                        'text' => (string) ($bucket['text'] ?? ''),
+                    ];
+                }
+            }
+        }
+
+        return $pairs;
+    };
+
+    $recording_text_pairs = [];
+    foreach ($recording_buckets as $recording_type => $buckets) {
+        foreach ($build_pair_map($buckets) as $key => $pair) {
+            if (!isset($recording_text_pairs[$key])) {
+                $recording_text_pairs[$key] = [
+                    'a' => (int) ($pair['a'] ?? 0),
+                    'b' => (int) ($pair['b'] ?? 0),
+                    'types' => [],
+                ];
+            }
+
+            $recording_text_pairs[$key]['types'][$recording_type] = (string) ($pair['text'] ?? '');
+        }
+    }
+
+    return [
+        'same_title_pairs' => $build_pair_map($title_buckets),
+        'same_translation_pairs' => $build_pair_map($translation_buckets),
+        'recording_text_pairs' => $recording_text_pairs,
+    ];
 }
 
 function ll_tools_word_option_rules_get_audio_entry(array $audio_files): array {
@@ -1003,6 +1251,17 @@ function ll_render_word_option_rules_admin_page() {
         $word_label_map[$word_id] = ll_tools_word_option_rules_get_word_label($word_id);
     }
     $word_ids = array_keys($word_label_map);
+    $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
+        ? ll_tools_word_grid_collect_audio_files($word_ids, true)
+        : [];
+    $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
+        ? ll_tools_get_category_quiz_config($category_term)
+        : ['prompt_type' => 'audio'];
+    $include_recording_text_pairs = ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+    $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
+        ll_tools_word_option_rules_build_compare_rows($words, $audio_by_word),
+        $include_recording_text_pairs
+    );
     $manual_pairs = [];
     if (!empty($pair_list)) {
         foreach ($pair_list as $pair) {
@@ -1032,6 +1291,67 @@ function ll_render_word_option_rules_admin_page() {
             ];
         }
         $blocked_pairs[$key]['reasons']['manual'] = true;
+    }
+    $generic_text_pair_keys = [];
+    foreach (($auto_text_pair_maps['same_title_pairs'] ?? []) as $key => $pair) {
+        $a = (int) ($pair['a'] ?? 0);
+        $b = (int) ($pair['b'] ?? 0);
+        if ($a <= 0 || $b <= 0) {
+            continue;
+        }
+        if (!isset($blocked_pairs[$key])) {
+            $blocked_pairs[$key] = [
+                'a' => $a,
+                'b' => $b,
+                'reasons' => [],
+            ];
+        }
+        $blocked_pairs[$key]['reasons']['same_title'] = true;
+        $generic_text_pair_keys[$key] = true;
+    }
+    foreach (($auto_text_pair_maps['same_translation_pairs'] ?? []) as $key => $pair) {
+        $a = (int) ($pair['a'] ?? 0);
+        $b = (int) ($pair['b'] ?? 0);
+        if ($a <= 0 || $b <= 0) {
+            continue;
+        }
+        if (!isset($blocked_pairs[$key])) {
+            $blocked_pairs[$key] = [
+                'a' => $a,
+                'b' => $b,
+                'reasons' => [],
+            ];
+        }
+        $blocked_pairs[$key]['reasons']['same_translation'] = true;
+        $generic_text_pair_keys[$key] = true;
+    }
+    foreach (($auto_text_pair_maps['recording_text_pairs'] ?? []) as $key => $pair) {
+        if (isset($generic_text_pair_keys[$key])) {
+            continue;
+        }
+
+        $a = (int) ($pair['a'] ?? 0);
+        $b = (int) ($pair['b'] ?? 0);
+        if ($a <= 0 || $b <= 0) {
+            continue;
+        }
+        if (!isset($blocked_pairs[$key])) {
+            $blocked_pairs[$key] = [
+                'a' => $a,
+                'b' => $b,
+                'reasons' => [],
+            ];
+        }
+        if (!isset($blocked_pairs[$key]['reasons']['recording_text']) || !is_array($blocked_pairs[$key]['reasons']['recording_text'])) {
+            $blocked_pairs[$key]['reasons']['recording_text'] = [];
+        }
+        foreach ((array) ($pair['types'] ?? []) as $recording_type => $text) {
+            $normalized_type = ll_tools_word_option_rules_normalize_recording_type_key($recording_type);
+            if ($normalized_type === '') {
+                continue;
+            }
+            $blocked_pairs[$key]['reasons']['recording_text'][$normalized_type] = (string) $text;
+        }
     }
     foreach ($similar_pairs as $key => $pair) {
         $a = (int) ($pair['a'] ?? 0);
@@ -1121,10 +1441,6 @@ function ll_render_word_option_rules_admin_page() {
     echo '</div>';
     echo '<button type="button" class="button button-secondary ll-tools-button ll-tools-word-options-add-group" data-group-add>' . esc_html__('Add group', 'll-tools-text-domain') . '</button>';
     echo '</div>';
-
-    $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
-        ? ll_tools_word_grid_collect_audio_files($word_ids, false)
-        : [];
 
     echo '<table class="widefat striped ll-tools-word-options-table" data-ll-group-table>';
     echo '<thead><tr>';
@@ -1217,7 +1533,11 @@ function ll_render_word_option_rules_admin_page() {
 
     echo '<h2>' . esc_html__('Blocked Pairs', 'll-tools-text-domain') . '</h2>';
     echo '<p class="description">' . esc_html__('Blocked pairs will never appear as wrong answers for each other.', 'll-tools-text-domain') . '</p>';
-    echo '<p class="description">' . esc_html__('Pairs with the same image are locked and cannot be removed.', 'll-tools-text-domain') . '</p>';
+    if ($include_recording_text_pairs) {
+        echo '<p class="description">' . esc_html__('Pairs with the same image, title, translation, or active prompt recording text are locked and cannot be removed.', 'll-tools-text-domain') . '</p>';
+    } else {
+        echo '<p class="description">' . esc_html__('Pairs with the same image, title, or translation are locked and cannot be removed.', 'll-tools-text-domain') . '</p>';
+    }
     echo '<p class="description">' . esc_html__('Similar image pairs can be removed to allow them together manually.', 'll-tools-text-domain') . '</p>';
 
     echo '<div class="ll-tools-word-options-pair-add">';
@@ -1260,8 +1580,10 @@ function ll_render_word_option_rules_admin_page() {
             'similar' => __('Similar word', 'll-tools-text-domain'),
             'similar_image' => __('Similar image', 'll-tools-text-domain'),
             'same_image' => __('Same image', 'll-tools-text-domain'),
+            'same_title' => __('Same title', 'll-tools-text-domain'),
+            'same_translation' => __('Same translation', 'll-tools-text-domain'),
         ];
-        $reason_order = ['manual', 'similar', 'similar_image', 'same_image'];
+        $reason_order = ['manual', 'similar', 'similar_image', 'same_image', 'same_title', 'same_translation', 'recording_text'];
 
         echo '<table class="widefat striped ll-tools-word-options-table ll-tools-word-options-pair-table">';
         echo '<thead><tr>';
@@ -1280,13 +1602,35 @@ function ll_render_word_option_rules_admin_page() {
             $label_b = $word_label_map[$b] ?? ('#' . $b);
             $value = $a . '|' . $b;
             $reasons = is_array($pair['reasons'] ?? null) ? $pair['reasons'] : [];
-            $is_locked = isset($reasons['same_image']);
+            $is_locked = isset($reasons['same_image'])
+                || isset($reasons['same_title'])
+                || isset($reasons['same_translation'])
+                || !empty($reasons['recording_text']);
             $remove_label = sprintf(__('Remove pair: %s', 'll-tools-text-domain'), $label_a . ' / ' . $label_b);
             $reason_bits = [];
             foreach ($reason_order as $reason_key) {
                 if (!isset($reasons[$reason_key])) {
                     continue;
                 }
+                if ($reason_key === 'recording_text') {
+                    $recording_types = array_keys(is_array($reasons[$reason_key]) ? $reasons[$reason_key] : []);
+                    if (!empty($recording_types)) {
+                        usort($recording_types, static function (string $left, string $right): int {
+                            if (function_exists('ll_tools_compare_recording_type_prompt_priority')) {
+                                return (int) ll_tools_compare_recording_type_prompt_priority($left, $right);
+                            }
+
+                            return strnatcasecmp($left, $right);
+                        });
+                    }
+                    foreach ($recording_types as $recording_type) {
+                        $reason_bits[] = '<span class="ll-tools-word-options-reason ll-tools-word-options-reason--recording_text">' . esc_html(
+                            ll_tools_word_option_rules_get_recording_type_reason_label((string) $recording_type)
+                        ) . '</span>';
+                    }
+                    continue;
+                }
+
                 $label = $reason_labels[$reason_key] ?? $reason_key;
                 $reason_bits[] = '<span class="ll-tools-word-options-reason ll-tools-word-options-reason--' . esc_attr($reason_key) . '">' . esc_html($label) . '</span>';
             }
@@ -1563,6 +1907,24 @@ function ll_tools_handle_word_option_rules_save() {
     $image_pairs = ll_tools_word_option_rules_get_image_pair_map($word_ids);
     $locked_pairs = [];
     $auto_similar_image_pairs = [];
+    $category_term = get_term($category_id, 'word-category');
+    $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
+        ? ll_tools_get_category_quiz_config($category_term)
+        : ['prompt_type' => 'audio'];
+    $include_recording_text_pairs = ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+    $word_posts = ll_tools_word_option_rules_get_word_posts($wordset_id, $category_id);
+    $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
+        ? ll_tools_word_grid_collect_audio_files($word_ids, true)
+        : [];
+    $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
+        ll_tools_word_option_rules_build_compare_rows($word_posts, $audio_by_word),
+        $include_recording_text_pairs
+    );
+    foreach (['same_title_pairs', 'same_translation_pairs', 'recording_text_pairs'] as $pair_group_key) {
+        foreach ((array) ($auto_text_pair_maps[$pair_group_key] ?? []) as $key => $pair) {
+            $locked_pairs[$key] = true;
+        }
+    }
     if (!empty($image_pairs)) {
         foreach ($image_pairs as $key => $pair) {
             $match_type = (string) ($pair['match_type'] ?? 'similar_image');
