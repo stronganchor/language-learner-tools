@@ -8,7 +8,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-03-24 00:00+0000\n"
+"PO-Revision-Date: 2026-03-24 12:00+0300\n"
 "Language: tr_TR\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 "X-Generator: Loco https://localise.biz/\n"
@@ -89,7 +89,7 @@ msgstr "%1$s (manuel #%2$d)"
 #: includes/admin/image-webp-optimizer-admin.php:1717
 #, php-format
 msgid "%1$s -> %2$s (%3$s saved)"
-msgstr "%1$s -> %2$s (%3$s tasarruf edildi)"
+msgstr "%1$s -> %2$s (%3$s yer kazanıldı)"
 
 #. translators: 1: Uploaded file name, 2: New post ID.
 #: includes/admin/uploads/audio-upload-form.php:301
@@ -170,22 +170,22 @@ msgstr[1] "%d ses kaydı işlenmeyi bekliyor"
 #, php-format
 msgid "%d clone failed."
 msgid_plural "%d clones failed."
-msgstr[0] "d klonlama başarısız oldu."
-msgstr[1] "d klonlar başarısız oldu."
+msgstr[0] "%d klon başarısız oldu."
+msgstr[1] "%d klon başarısız oldu."
 
 #: includes/admin/duplicate-category-words-admin.php:662
 #, php-format
 msgid "%d dictionary entry was created automatically."
 msgid_plural "%d dictionary entries were created automatically."
-msgstr[0] "d sözlük girişi otomatik olarak oluşturuldu."
-msgstr[1] "d sözlük girdileri otomatik olarak oluşturuldu."
+msgstr[0] "%d sözlük girişi otomatik olarak oluşturuldu."
+msgstr[1] "%d sözlük girişi otomatik olarak oluşturuldu."
 
 #: includes/admin/duplicate-category-words-admin.php:668
 #, php-format
 msgid "%d dictionary link update failed."
 msgid_plural "%d dictionary link updates failed."
-msgstr[0] "d sözlük bağlantısı güncellemesi başarısız oldu."
-msgstr[1] "d sözlük bağlantısı güncellemeleri başarısız oldu."
+msgstr[0] "%d sözlük bağlantısı güncellemesi başarısız oldu."
+msgstr[1] "%d sözlük bağlantısı güncellemesi başarısız oldu."
 
 #: includes/pages/wordset-pages.php:1277
 #, php-format
@@ -203,8 +203,8 @@ msgstr[1] ""
 #, php-format
 msgid "%d duplicate was skipped."
 msgid_plural "%d duplicates were skipped."
-msgstr[0] "d kopya atlandı."
-msgstr[1] "d çiftler atlandı."
+msgstr[0] "%d kopya atlandı."
+msgstr[1] "%d kopya atlandı."
 
 #: includes/admin/bulk-word-import-admin.php:218
 #: includes/pages/wordset-pages.php:1289
@@ -225,16 +225,16 @@ msgstr[1] "%d giriş başarısız oldu."
 #, php-format
 msgid "%d file failed."
 msgid_plural "%d files failed."
-msgstr[0] "d dosyası başarısız oldu."
-msgstr[1] "d dosyaları başarısız oldu."
+msgstr[0] "%d dosya başarısız oldu."
+msgstr[1] "%d dosya başarısız oldu."
 
 #. translators: %d: number of word images
 #: includes/admin/audio-processor-admin.php:1191
 #, php-format
 msgid "%d image needs WebP optimization"
 msgid_plural "%d images need WebP optimization"
-msgstr[0] "d görüntüsünün WebP optimizasyonuna ihtiyacı var"
-msgstr[1] "d görüntülerin WebP optimizasyonuna ihtiyacı var"
+msgstr[0] "%d görüntünün WebP optimizasyonuna ihtiyacı var"
+msgstr[1] "%d görüntünün WebP optimizasyonuna ihtiyacı var"
 
 #: includes/admin/image-webp-optimizer-admin.php:1486
 #, php-format
@@ -260,7 +260,7 @@ msgid ""
 msgid_plural ""
 "%d lines were skipped because they did not include prompt and answer pairs."
 msgstr[0] "bir istem ve yanıt çifti içermediği için %d satırı atlandı."
-msgstr[1] "d satırları soru ve cevap çiftleri içermediği için atlanmıştır."
+msgstr[1] "%d satır, soru ve yanıt çifti içermediği için atlandı."
 
 #. translators: %d: number of new recordings
 #: includes/shortcodes/audio-recording-shortcode.php:4346
@@ -276,8 +276,8 @@ msgstr[1] "kayıt arayüzü aracılığıyla %d yeni ses kaydı yüklendi."
 #, php-format
 msgid "%d recording"
 msgid_plural "%d recordings"
-msgstr[0] "d kayıt"
-msgstr[1] "d kayıtlar"
+msgstr[0] "%d kayıt"
+msgstr[1] "%d kayıt"
 
 #. translators: %d: count of failed recording moves
 #: includes/admin/split-word-admin.php:818
@@ -285,7 +285,7 @@ msgstr[1] "d kayıtlar"
 msgid "%d recording could not be moved."
 msgid_plural "%d recordings could not be moved."
 msgstr[0] "%d kaydı taşınamadı."
-msgstr[1] "d kayıtlar taşınamadı."
+msgstr[1] "%d kayıt taşınamadı."
 
 #. translators: %d: count of moved recordings
 #: includes/admin/split-word-admin.php:811
@@ -293,7 +293,7 @@ msgstr[1] "d kayıtlar taşınamadı."
 msgid "%d recording moved."
 msgid_plural "%d recordings moved."
 msgstr[0] "%d kayıt taşındı."
-msgstr[1] "d kayıtlar taşındı."
+msgstr[1] "%d kayıt taşındı."
 
 #: includes/pages/wordset-pages.php:3185
 #, php-format
@@ -309,57 +309,57 @@ msgstr "%d seçilen kelimeler"
 #, php-format
 msgid "%d word duplicated."
 msgid_plural "%d words duplicated."
-msgstr[0] "d sözcüğü yinelenmiş."
-msgstr[1] "d sözcükleri yinelenmiş."
+msgstr[0] "%d kelime çoğaltıldı."
+msgstr[1] "%d kelime çoğaltıldı."
 
 #: includes/post-types/words-post-type.php:1258
 #, php-format
 msgid "%d word marked for audio reprocessing."
 msgid_plural "%d words marked for audio reprocessing."
-msgstr[0] "ses yeniden işleme için %d sözcüğü işaretlendi."
-msgstr[1] "ses yeniden işleme için işaretlenmiş %d sözcük."
+msgstr[0] "Ses yeniden işleme için %d kelime işaretlendi."
+msgstr[1] "Ses yeniden işleme için %d kelime işaretlendi."
 
 #: includes/admin/word-images-fixer.php:102
 #, php-format
 msgid "%d word needs an image post."
 msgid_plural "%d words need image posts."
-msgstr[0] "%d sözcüğünün bir resim gönderisine ihtiyacı var."
-msgstr[1] "d kelimenin resim gönderilerine ihtiyacı var."
+msgstr[0] "%d kelimenin bir görsel gönderisine ihtiyacı var."
+msgstr[1] "%d kelimenin görsel gönderilerine ihtiyacı var."
 
 #: includes/post-types/words-post-type.php:1269
 #, php-format
 msgid "%d word skipped (no audio file)."
 msgid_plural "%d words skipped (no audio file)."
 msgstr[0] "%d kelime atlandı (ses dosyası yok)."
-msgstr[1] "d sözcük atlandı (ses dosyası yok)."
+msgstr[1] "%d kelime atlandı (ses dosyası yok)."
 
 #: includes/post-types/words-post-type.php:1291
 #, php-format
 msgid "%d word skipped (no audio recordings)."
 msgid_plural "%d words skipped (no audio recordings)."
 msgstr[0] "%d kelime atlandı (ses kaydı yok)."
-msgstr[1] "d sözcük atlandı (ses kaydı yok)."
+msgstr[1] "%d kelime atlandı (ses kaydı yok)."
 
 #: includes/admin/duplicate-category-words-admin.php:656
 #, php-format
 msgid "%d word skipped (permission)."
 msgid_plural "%d words skipped (permission)."
-msgstr[0] "d sözcük atlandı (izin)."
-msgstr[1] "d sözcük atlandı (izin)."
+msgstr[0] "%d kelime atlandı (izin)."
+msgstr[1] "%d kelime atlandı (izin)."
 
 #: includes/admin/bulk-word-import-admin.php:190
 #, php-format
 msgid "%d word was imported as a draft."
 msgid_plural "%d words were imported as drafts."
-msgstr[0] "%d sözcüğü taslak olarak içe aktarıldı."
-msgstr[1] "d sözcükler taslak olarak içe aktarıldı."
+msgstr[0] "%d kelime taslak olarak içe aktarıldı."
+msgstr[1] "%d kelime taslak olarak içe aktarıldı."
 
 #: includes/pages/wordset-pages.php:1264
 #, php-format
 msgid "%d word was imported."
 msgid_plural "%d words were imported."
-msgstr[0] "d kelime içe aktarıldı."
-msgstr[1] "d kelime içe aktarıldı."
+msgstr[0] "%d kelime içe aktarıldı."
+msgstr[1] "%d kelime içe aktarıldı."
 
 #: includes/pages/wordset-pages.php:3187 includes/pages/wordset-pages.php:3208
 #, php-format
@@ -430,8 +430,8 @@ msgstr "(başlık yok)"
 #, php-format
 msgid "- %1$s (%2$d recording)"
 msgid_plural "- %1$s (%2$d recordings)"
-msgstr[0] "- 1$s (%2$d kayıt)"
-msgstr[1] "- 1$s (%2$d kayıtlar)"
+msgstr[0] "- %1$s (%2$d kayıt)"
+msgstr[1] "- %1$s (%2$d kayıt)"
 
 #: includes/user-roles/audio-recorder-role.php:132
 #: includes/user-roles/audio-recorder-role.php:266
@@ -453,7 +453,7 @@ msgstr "-- Kelime setini seç --"
 
 #: includes/pages/wordset-pages.php:3633
 msgid "0 selected words"
-msgstr "0 seçilmiş kelime"
+msgstr "0 seçili kelime"
 
 #: includes/shortcodes/audio-recording-shortcode.php:1736
 msgid ""
@@ -587,12 +587,12 @@ msgid ""
 "Add one or more group names, then use the checkboxes below to assign words "
 "to multiple groups."
 msgstr ""
-"Bir veya daha fazla grup adı ekle, ardından birden fazla gruba sözcük "
+"Bir veya daha fazla grup adı ekle, ardından birden fazla gruba kelime "
 "atamak için aşağıdaki onay kutularını kullan."
 
 #: includes/taxonomies/wordset-taxonomy.php:366
 msgid "Add or remove word sets"
-msgstr "Kelime setleri ekleme veya kaldırma"
+msgstr "Kelime setleri ekle veya kaldır"
 
 #: includes/admin/word-option-rules-admin.php:1245
 msgid "Add pair"
@@ -696,7 +696,7 @@ msgstr "Uyarı eşiği aşıldığında dışa aktarmaya izin ver"
 
 #: includes/admin/settings.php:362
 msgid "Allow Learner Registration:"
-msgstr "Öğrenci Kaydına İzin Verin:"
+msgstr "Öğrenci kaydına izin ver:"
 
 #: includes/admin/settings.php:370
 msgid ""
@@ -711,7 +711,7 @@ msgstr ""
 #: includes/user-roles/audio-recorder-role.php:202
 #: includes/user-roles/audio-recorder-role.php:327
 msgid "Allow New Words"
-msgstr "Yeni Kelimelere İzin Verin"
+msgstr "Yeni kelimelere izin ver"
 
 #: includes/user-roles/audio-recorder-role.php:208
 #: includes/user-roles/audio-recorder-role.php:332
@@ -798,13 +798,13 @@ msgstr "Bu hedef için herhangi bir özel yanlış cevap kelimesi mevcuttur"
 #: includes/admin/image-aspect-normalizer-admin.php:92
 #, php-format
 msgid "Applied %1$d crop(s), updated %2$d post thumbnail(s)."
-msgstr "1$d kırpma(lar) uygulandı, %2$d gönderi küçük resmi(leri) güncellendi."
+msgstr "%1$d kırpma uygulandı, %2$d gönderi küçük resmi güncellendi."
 
 #: includes/admin/image-aspect-normalizer-admin.php:97
 #, php-format
 msgid "Applied white padding to %1$d image(s), updated %2$d post thumbnail(s)."
 msgstr ""
-"1$d resim(ler)e beyaz dolgu uygulandı, %2$d gönderi küçük resmi(leri) "
+"%1$d görsele beyaz dolgu uygulandı, %2$d gönderi küçük resmi "
 "güncellendi."
 
 #: includes/user-roles/audio-recorder-role.php:222
@@ -848,7 +848,7 @@ msgstr "Kelime setine uygula"
 
 #: includes/admin/image-aspect-normalizer-admin.php:93
 msgid "Apply White Padding"
-msgstr "Beyaz Dolgu Uygulayın"
+msgstr "Beyaz dolgu uygula"
 
 #: includes/admin/image-aspect-normalizer-admin.php:94
 #, php-format
@@ -909,7 +909,7 @@ msgstr "AssemblyAI transkripsiyonu başarısız oldu."
 
 #: includes/admin/export-import.php:1471
 msgid "Assign all imported words to one existing word set"
-msgstr "İçe aktarılan tüm sözcükleri mevcut bir kelime setine ata"
+msgstr "İçe aktarılan tüm kelimeleri mevcut bir kelime setine ata"
 
 #: includes/pages/wordset-pages.php:3924
 msgid "Assign Audio Recorder User"
@@ -922,7 +922,7 @@ msgstr "Kaydedici Atama"
 #: includes/post-types/dictionary-entry-post-type.php:625
 msgid "Assign this word to a word set before linking a dictionary entry."
 msgstr ""
-"Bir sözlük girdisini bağlamadan önce bu sözcüğü bir kelime setine ata."
+"Bir sözlük girdisini bağlamadan önce bu kelimeyi bir kelime setine ata."
 
 #: includes/admin/bulk-word-import-admin.php:296
 msgid "Assign to existing category"
@@ -963,7 +963,7 @@ msgstr "İlişkili Kelime"
 #: includes/admin/image-aspect-normalizer-admin.php:940
 #, php-format
 msgid "Attachment %1$d failed: %2$s"
-msgstr "1$d eki başarısız oldu: %2$s"
+msgstr "%1$d eki başarısız oldu: %2$s"
 
 #: includes/admin/export-import.php:233 includes/admin/export-import.php:1420
 #: includes/admin/uploads/image-upload-form.php:333
@@ -1275,7 +1275,7 @@ msgstr "Paket tipi:"
 #: includes/admin/settings.php:249
 #, php-format
 msgid "Cache bumped for %d word categories."
-msgstr "Önbellek %d kelime kategorileri için çarpıldı."
+msgstr "%d kelime kategorisi için önbellek sürümü artırıldı."
 
 #: includes/admin/settings.php:259
 msgid "Cache flush failed security check. Please try again."
@@ -1669,7 +1669,7 @@ msgid ""
 "Clears cached quiz word payload transients and increments cache versions for "
 "all word-category terms."
 msgstr ""
-"Önbelleğe alınmış quiz sözcüğü yükü geçişlerini temizler ve tüm sözcük "
+"Önbelleğe alınmış quiz kelime yükü geçişlerini temizler ve tüm kelime "
 "kategorisi terimleri için önbellek sürümlerini artırır."
 
 #: includes/admin/word-option-rules-admin.php:1302
@@ -1869,7 +1869,7 @@ msgstr "Resim yüklemelere kopyalanamadı."
 #: includes/admin/export-import.php:6112
 #, php-format
 msgid "Could not create %1$s term \"%2$s\": %3$s"
-msgstr "1$s terimi \"%2$s\" oluşturulamadı: %3$s"
+msgstr "%1$s terimi \"%2$s\" oluşturulamadı: %3$s"
 
 #: includes/admin/image-aspect-normalizer-admin.php:690
 msgid "Could not create a padded image canvas."
@@ -2101,7 +2101,7 @@ msgstr "Oluşturuldu"
 #: includes/admin/word-images-fixer.php:90
 #, php-format
 msgid "Created %d word image posts."
-msgstr "Oluşturulan %d kelime resim gönderileri."
+msgstr "%d kelime görseli gönderisi oluşturuldu."
 
 #: includes/admin/bulk-word-import-admin.php:114
 #, php-format
@@ -2110,7 +2110,7 @@ msgstr "Yeni \"%s\" kategorisi oluşturuldu."
 
 #: includes/admin/uploads/audio-upload-form.php:687
 msgid "Created Posts:"
-msgstr "Oluşturulan Mesajlar:"
+msgstr "Oluşturulan Gönderiler:"
 
 #: includes/admin/image-aspect-normalizer-admin.php:107
 #, php-format
@@ -2129,7 +2129,7 @@ msgstr[0] ""
 "CSV ayrıştırma içe aktarmadan önce %d dosyasını atladı. Ayrıntılar için "
 "aşağıdaki uyarıları incele."
 msgstr[1] ""
-"CSV ayrıştırma içe aktarmadan önce %d dosyaları atladı. Ayrıntılar için "
+"CSV ayrıştırma içe aktarmadan önce %d dosyayı atladı. Ayrıntılar için "
 "aşağıdaki uyarıları incele."
 
 #: includes/admin/export-import.php:2178 includes/admin/export-import.php:5130
@@ -2144,7 +2144,7 @@ msgstr[1] "CSV ayrıştırma, içe aktarmadan önce %d satırı atladı."
 msgid ""
 "CSV parsing used %1$d of %2$d non-empty rows before import (%3$d skipped)."
 msgstr ""
-"CSV ayrıştırma, içe aktarmadan önce %2$d boş olmayan satırın %1$d'sini "
+"CSV ayrıştırma, içe aktarmadan önce %2$d boş olmayan satırın %1$d tanesini "
 "kullandı (%3$d atlandı)."
 
 #: includes/post-types/dictionary-entry-post-type.php:772
@@ -2153,12 +2153,12 @@ msgstr "Güncel"
 
 #: includes/admin/audio-image-matcher.php:78
 msgid "Current image (will be replaced if you pick a new one)"
-msgstr "Mevcut resim (yeni bir tane seçerseniz değiştirilecektir)"
+msgstr "Mevcut görsel (yenisini seçersen değiştirilecek)"
 
 #: includes/admin/image-aspect-normalizer-admin.php:104
 #, php-format
 msgid "Current ratio: %s"
-msgstr "Cari oran: %s"
+msgstr "Geçerli oran: %s"
 
 #: includes/admin/bulk-translation-admin.php:192
 msgid "Current translation"
@@ -2369,7 +2369,7 @@ msgid ""
 "Detected %1$d media files (warning threshold: %2$d). Large imports can hit "
 "server time or memory limits."
 msgstr ""
-"1$d medya dosyası algılandı (uyarı eşiği: %2$d). Büyük içe aktarmalar sunucu "
+"%1$d medya dosyası algılandı (uyarı eşiği: %2$d). Büyük içe aktarmalar sunucu "
 "zaman veya bellek sınırlarına ulaşabilir."
 
 #. translators: 1: detected media size, 2: warning threshold size
@@ -2379,7 +2379,7 @@ msgid ""
 "Detected %1$s of media files (warning threshold: %2$s). Large imports can "
 "hit server time or memory limits."
 msgstr ""
-"1$s medya dosyası algılandı (uyarı eşiği: %2$s). Büyük içe aktarmalar sunucu "
+"%1$s medya dosyası algılandı (uyarı eşiği: %2$s). Büyük içe aktarmalar sunucu "
 "zaman veya bellek sınırlarına ulaşabilir."
 
 #: includes/admin/settings.php:441
@@ -2401,7 +2401,7 @@ msgstr "Sözlük Girişleri"
 
 #: includes/post-types/dictionary-entry-post-type.php:613
 msgid "Dictionary entries can only be linked to words."
-msgstr "Sözlük girdileri yalnızca sözcüklere bağlanabilir."
+msgstr "Sözlük girdileri yalnızca kelimelere bağlanabilir."
 
 #: includes/post-types/dictionary-entry-post-type.php:372
 #: includes/post-types/dictionary-entry-post-type.php:737
@@ -2907,7 +2907,7 @@ msgstr "Kategori: %s'den dışa aktarıldı"
 
 #: includes/admin/export-import.php:1173
 msgid "Exports words assigned to the selected word set."
-msgstr "Seçilen kelime setine atanan sözcükleri dışa aktarır."
+msgstr "Seçilen kelime setine atanan kelimeleri dışa aktarır."
 
 #: includes/taxonomies/wordset-taxonomy.php:87
 msgid "Extra-bold (800)"
@@ -2925,7 +2925,7 @@ msgstr "\"%1$s\" oluşturulamadı: %2$s"
 #: includes/admin/export-import.php:5796
 #, php-format
 msgid "Failed to create audio \"%1$s\" for word \"%2$s\": %3$s"
-msgstr "\"%2$s\" sözcüğü için \"%1$s\" sesi oluşturulamadı: %3$s"
+msgstr "\"%2$s\" kelimesi için \"%1$s\" sesi oluşturulamadı: %3$s"
 
 #. translators: %s: category creation error message
 #: includes/shortcodes/audio-recording-shortcode.php:2045
@@ -2939,7 +2939,7 @@ msgstr "Sayfa oluşturulamadı"
 
 #: includes/admin/split-word-admin.php:657
 msgid "Failed to create split word."
-msgstr "Bölünmüş sözcük oluşturulamadı."
+msgstr "Bölünmüş kelime oluşturulamadı."
 
 #: includes/admin/uploads/audio-upload-form.php:671
 msgid "Failed to create the post."
@@ -3022,13 +3022,13 @@ msgstr "Geri alma sırasında word_audio post %d silinemedi."
 #: includes/shortcodes/audio-recording-shortcode.php:4483
 #, php-format
 msgid "Failed to find/create word post: %s"
-msgstr "Sözcük gönderisi bulunamadı/oluşturulamadı: %s"
+msgstr "Kelime gönderisi bulunamadı/oluşturulamadı: %s"
 
 #. translators: %s: word creation error
 #: includes/shortcodes/audio-recording-shortcode.php:2844
 #, php-format
 msgid "Failed to find/create word: %s"
-msgstr "Sözcük bulunamadı/oluşturulamadı: %s"
+msgstr "Kelime bulunamadı/oluşturulamadı: %s"
 
 #: includes/admin/export-import.php:6177
 #, php-format
@@ -3038,7 +3038,7 @@ msgstr "\"%1$s\" için ses içe aktarılamadı: %2$s"
 #: includes/admin/export-import.php:5527
 #, php-format
 msgid "Failed to import image for %1$s \"%2$s\": %3$s"
-msgstr "1$s \"%2$s\" için görüntü içe aktarılamadı: %3$s"
+msgstr "%1$s \"%2$s\" için görsel içe aktarılamadı: %3$s"
 
 #: includes/admin/uploads/audio-upload-form.php:446
 msgid "Failed to move uploaded file."
@@ -3556,7 +3556,7 @@ msgstr "Yukarıda bir ID ayarlanmışsa, ID önceliklidir."
 #: includes/admin/uploads/image-upload-form.php:371
 msgid "If left empty, generated word posts will not be assigned to a word set."
 msgstr ""
-"Boş bırakılırsa, oluşturulan sözcük gönderileri bir kelime setine atanmaz."
+"Boş bırakılırsa, oluşturulan kelime gönderileri bir kelime setine atanmaz."
 
 #: includes/taxonomies/word-category-taxonomy.php:783
 msgid "If none selected, recording is disabled for this category."
@@ -3577,7 +3577,7 @@ msgstr "Bu rol seçilirse, bir kelime seti seçilmelidir."
 #: includes/shortcodes/flashcard-widget.php:381
 msgid "If using wordsets, the wordset contains words for this category"
 msgstr ""
-"Kelime setleri kullanılıyorsa, kelime seti bu kategori için sözcükler "
+"Kelime setleri kullanılıyorsa, kelime seti bu kategori için kelimeler "
 "içerir"
 
 #: includes/admin/bulk-translation-admin.php:211
@@ -3622,8 +3622,8 @@ msgstr "Görüntü yükleme işlemi işlenmiş dosya olmadan tamamlandı."
 #, php-format
 msgid "Image upload: %d file succeeded."
 msgid_plural "Image upload: %d files succeeded."
-msgstr[0] "Resim yükleme: d dosyası başarılı oldu."
-msgstr[1] "Resim yükleme: d dosyaları başarılı oldu."
+msgstr[0] "Görsel yükleme: %d dosya başarıyla işlendi."
+msgstr[1] "Görsel yükleme: %d dosya başarıyla işlendi."
 
 #: includes/admin/uploads/image-upload-form.php:329
 #: includes/taxonomies/word-category-taxonomy.php:554
@@ -3727,7 +3727,7 @@ msgstr ""
 #: includes/admin/export-import.php:3532 includes/admin/export-import.php:5091
 msgid "Import failed: payload missing categories or word images."
 msgstr ""
-"İçe aktarma başarısız: yükte eksik kategoriler veya sözcük resimleri var."
+"İçe aktarma başarısız: yükte eksik kategoriler veya kelime görselleri var."
 
 #: includes/admin/export-import.php:1916
 msgid "Import failed: please choose a zip file to import."
@@ -4036,7 +4036,7 @@ msgstr "Geçersiz kelime"
 
 #: includes/shortcodes/audio-recording-shortcode.php:4493
 msgid "Invalid word ID"
-msgstr "Geçersiz sözcük kimliği"
+msgstr "Geçersiz kelime kimliği"
 
 #: includes/post-types/dictionary-entry-post-type.php:610
 #: includes/shortcodes/audio-recording-shortcode.php:2405
@@ -5480,7 +5480,7 @@ msgstr ""
 #: includes/admin/duplicate-category-words-admin.php:727
 msgid "No source categories with words were found in this word set."
 msgstr ""
-"Bu kelime setinde sözcük içeren hiçbir kaynak kategori bulunmamıştır."
+"Bu kelime setinde kelime içeren hiçbir kaynak kategori bulunamadı."
 
 #: includes/pages/wordset-pages.php:3203
 msgid "No starred hard words are available for this selection."
@@ -5610,7 +5610,7 @@ msgstr "Bu quiz için hiçbir kelime yüklenemedi. Lütfen kontrol et:"
 
 #: includes/admin/export-import.php:1819
 msgid "No words found for the selected word set."
-msgstr "Seçilen kelime seti için sözcük bulunamadı."
+msgstr "Seçilen kelime seti için kelime bulunamadı."
 
 #: includes/admin/word-option-rules-admin.php:962
 msgid "No words found for this word set and category."
@@ -5727,7 +5727,7 @@ msgstr ""
 #, php-format
 msgid "Only %1$d of %2$d words from the import bundle were created or updated."
 msgstr ""
-"İçe aktarma paketindeki %2$d sözcükten yalnızca %1$d'si oluşturuldu veya "
+"İçe aktarma paketindeki %2$d kelimeden yalnızca %1$d tanesi oluşturuldu veya "
 "güncellendi."
 
 #: includes/admin/export-import.php:1117
@@ -5812,8 +5812,8 @@ msgstr "WebP'ye Optimize Et"
 #, php-format
 msgid "Optimized %1$d image(s); %2$d failed; saved %3$s total."
 msgstr ""
-"1$d görüntü(ler) optimize edildi; %2$d başarısız oldu; toplam %3$s "
-"kaydedildi."
+"%1$d görsel optimize edildi; %2$d başarısız oldu; toplam %3$s yer "
+"kazanıldı."
 
 #: includes/admin/image-webp-optimizer-admin.php:1478
 msgid "Optimized image and updated the word image."
@@ -6462,7 +6462,7 @@ msgstr ""
 #: includes/user-roles/audio-recorder-role.php:219
 #: includes/user-roles/audio-recorder-role.php:342
 msgid "Process recordings immediately and publish them after review."
-msgstr "Kayıtları hemen işleyin ve inceledikten sonra yayınlayın."
+msgstr "Kayıtları hemen işle ve inceledikten sonra yayınla."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1118
 msgid "Processing audio..."
@@ -6987,7 +6987,7 @@ msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:4399
 msgid "Review and process recordings:"
-msgstr "Kayıtları gözden geçir ve işleyin:"
+msgstr "Kayıtları gözden geçir ve işle:"
 
 #: includes/admin/admin-dashboard-menu.php:544
 msgid "Review IPA symbols by word set and update phonetic text quickly."
@@ -7011,7 +7011,7 @@ msgstr "İşlenmiş Sesi İncele"
 msgid "Review queued recordings, clean audio, and publish approved files."
 msgstr ""
 "Kuyruğa alınmış kayıtları incele, sesleri temizle ve onaylanmış "
-"dosyaları yayınlayın."
+"dosyaları yayınla."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1119
 msgid "Review the processed audio below."
@@ -7021,7 +7021,7 @@ msgstr "Aşağıdaki işlenmiş sesi incele."
 #, php-format
 msgid "Round setup: %1$d of %2$d required options are available."
 msgstr ""
-"Yuvarlak kurulum: %2$d gerekli seçeneğin %1$d'si kullanılabilir durumda."
+"Tur kurulumu: %2$d gerekli seçeneğin %1$d tanesi kullanılabilir."
 
 #: includes/admin/word-option-rules-admin.php:1253
 msgid "Same image"
@@ -7044,7 +7044,7 @@ msgstr "Kaydet"
 #: includes/admin/audio-processor-admin.php:117
 #, php-format
 msgid "Save %d processed audio file(s)?"
-msgstr "İşlenmiş %d ses dosyası/dosyaları kaydedilsin mi?"
+msgstr "İşlenmiş %d ses dosyası kaydedilsin mi?"
 
 #: includes/shortcodes/editor-hub-shortcode.php:986
 #: includes/shortcodes/editor-hub-shortcode.php:1061
@@ -7156,7 +7156,7 @@ msgstr ""
 
 #: includes/admin/audio-image-matcher.php:81
 msgid "Saving match…"
-msgstr "Maçı kurtarıyorum"
+msgstr "Eşleşme kaydediliyor…"
 
 #: includes/shortcodes/word-grid-shortcode.php:2151
 msgid "Saving prerequisites..."
@@ -7177,7 +7177,7 @@ msgstr "Kaydediliyor..."
 #: includes/admin/audio-processor-admin.php:122
 #, php-format
 msgid "Saving: %1$s (%2$d/%3$d)"
-msgstr "Kaydetme: %1$s (%2$d/%3$d)"
+msgstr "Kaydediliyor: %1$s (%2$d/%3$d)"
 
 #. translators: %s minimum savings threshold
 #: includes/admin/image-webp-optimizer-admin.php:1263
@@ -7185,23 +7185,24 @@ msgstr "Kaydetme: %1$s (%2$d/%3$d)"
 msgid ""
 "Savings were under the minimum threshold (%s), so the existing WebP was kept."
 msgstr ""
-"Tasarruflar minimum eşiğin (%s) altındaydı, bu nedenle mevcut WebP korundu."
+"Sağlanan kazanç minimum eşik olan %s değerinin altında kaldığı için mevcut "
+"WebP korundu."
 
 #: includes/shortcodes/editor-hub-shortcode.php:979
 msgid "Saving…"
-msgstr "Tasarruf"
+msgstr "Kaydediliyor…"
 
 #: includes/admin/bulk-translation-admin.php:306
 msgid "saving…"
-msgstr "tasarruf.."
+msgstr "kaydediliyor…"
 
 #: includes/admin/word-images-fixer.php:100
 msgid ""
 "Scan for words that have a featured image but no corresponding "
 "\"word_images\" post, and create them."
 msgstr ""
-"Öne çıkan bir görseli olan ancak buna karşılık gelen bir \"word_images\" "
-"gönderisi olmayan kelimeleri tarayın ve bunları oluştur."
+"Öne çıkan görseli olan ama buna karşılık gelen bir \"word_images\" "
+"gönderisi olmayan kelimeleri tara ve oluştur."
 
 #: includes/admin/bulk-translation-admin.php:159
 #: includes/admin/image-webp-optimizer-admin.php:1545
@@ -7482,7 +7483,7 @@ msgid ""
 "images assigned to them. Choose “All categories” for a full export."
 msgstr ""
 "Bir kategori seçildiğinde, o kategori ve alt kategorileri ile bunlara "
-"atanmış tüm sözcük resimleri dışa aktarılır. Tam bir dışa aktarma için \"Tüm "
+"atanmış tüm kelime görselleri dışa aktarılır. Tam bir dışa aktarma için \"Tüm "
 "kategoriler \"i seç."
 
 #: includes/pages/wordset-pages.php:3264
@@ -7731,7 +7732,7 @@ msgstr ""
 #: includes/admin/export-import.php:3808
 #, php-format
 msgid "Skipped post %d during undo because it is not a word."
-msgstr "Geri alma sırasında %d gönderisi atlandı çünkü bu bir sözcük değil."
+msgstr "Geri alma sırasında %d gönderisi atlandı çünkü bu bir kelime değil."
 
 #: includes/admin/export-import.php:3842
 #, php-format
@@ -8351,7 +8352,7 @@ msgstr "Seçilen fiil zamanı geçersiz kılma bu kelime seti için geçersizdir
 
 #: includes/admin/split-word-admin.php:270
 msgid "The selected word is invalid or unavailable."
-msgstr "Seçilen sözcük geçersiz veya kullanılamıyor."
+msgstr "Seçilen kelime geçersiz veya kullanılamıyor."
 
 #: includes/admin/export-import.php:1566 includes/admin/export-import.php:4127
 #: includes/admin/export-import.php:4424
@@ -8639,7 +8640,7 @@ msgstr "Çeviri başarısız oldu"
 #: includes/admin/settings.php:569
 #, php-format
 msgid "Translation failed for category ID %1$d (%2$s)."
-msgstr "1$d (%2$s) kategori kimliği için çeviri başarısız oldu."
+msgstr "%1$d (%2$s) kategori kimliği için çeviri başarısız oldu."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2797
 msgid "Translation failed."
@@ -9017,7 +9018,7 @@ msgstr "Güncellenmiş %d kelime."
 
 #: includes/admin/uploads/audio-upload-form.php:685
 msgid "Updated Posts:"
-msgstr "Güncellenmiş Mesajlar:"
+msgstr "Güncellenmiş Gönderiler:"
 
 #: includes/shortcodes/word-grid-shortcode.php:2133
 msgid "Updating..."
@@ -9122,7 +9123,7 @@ msgid ""
 "Use overrides to bulk-change grammatical flags such as tense, mood, and "
 "plurality on the cloned words."
 msgstr ""
-"Klonlanmış sözcüklerde zaman, kip ve çoğulluk gibi dilbilgisi işaretlerini "
+"Klonlanmış kelimelerde zaman, kip ve çoğulluk gibi dilbilgisi işaretlerini "
 "toplu olarak değiştirmek için geçersiz kılmaları kullan."
 
 #: includes/admin/image-aspect-normalizer-admin.php:106
@@ -9866,9 +9867,8 @@ msgid ""
 "You have %d word image(s) with featured images in categories (%s), but all "
 "images in the selected wordset already have recordings."
 msgstr ""
-"Kategorilerde (%2$s) öne çıkan görsellere sahip %1$d kelime görsel(ler)"
-"in var, ancak seçilen kelime setindeki tüm görsellerin zaten kayıtları "
-"var."
+"%d kelime görselin var ve bunlar (%s) kategorilerinde öne çıkan görsellere "
+"sahip, ancak seçilen kelime setindeki tüm görsellerin zaten kayıtları var."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1733
 #, php-format
