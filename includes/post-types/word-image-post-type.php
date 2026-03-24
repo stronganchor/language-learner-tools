@@ -335,6 +335,125 @@ function ll_tools_sync_words_for_word_image_thumbnail_change($word_image_id, $ol
     return $updated;
 }
 
+/**
+ * Resolve the best linked word_images post for a word.
+ */
+function ll_tools_get_linked_word_image_post_id_for_word($word_id) {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return 0;
+    }
+
+    $linked_image_id = (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+    if ($linked_image_id > 0) {
+        $linked_post = get_post($linked_image_id);
+        if ($linked_post && $linked_post->post_type === 'word_images') {
+            return $linked_image_id;
+        }
+    }
+
+    $thumbnail_id = (int) get_post_thumbnail_id($word_id);
+    if ($thumbnail_id <= 0) {
+        return 0;
+    }
+
+    $query_args = [
+        'post_type'         => 'word_images',
+        'post_status'       => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'    => 1,
+        'fields'            => 'ids',
+        'no_found_rows'     => true,
+        'suppress_filters'  => true,
+        'orderby'           => 'date',
+        'order'             => 'ASC',
+        'meta_query'        => [
+            [
+                'key'   => '_thumbnail_id',
+                'value' => $thumbnail_id,
+            ],
+        ],
+    ];
+
+    $category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+    if (!is_wp_error($category_ids) && !empty($category_ids)) {
+        $query_args['tax_query'] = [
+            [
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => array_map('intval', $category_ids),
+            ],
+        ];
+    }
+
+    $matches = get_posts($query_args);
+    $resolved_id = !empty($matches) ? (int) $matches[0] : 0;
+    if ($resolved_id > 0) {
+        update_post_meta($word_id, '_ll_autopicked_image_id', $resolved_id);
+    }
+
+    return $resolved_id;
+}
+
+/**
+ * Ensure a word has a linked word_images post so image replacement can update the shared image record.
+ *
+ * @param int $word_id
+ * @return int|WP_Error
+ */
+function ll_tools_ensure_word_image_post_for_word($word_id) {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return new WP_Error('ll_word_image_invalid_word', __('Invalid word.', 'll-tools-text-domain'));
+    }
+
+    $existing_id = ll_tools_get_linked_word_image_post_id_for_word($word_id);
+    if ($existing_id > 0) {
+        return $existing_id;
+    }
+
+    $word_post = get_post($word_id);
+    if (!$word_post || $word_post->post_type !== 'words') {
+        return new WP_Error('ll_word_image_invalid_word', __('Invalid word.', 'll-tools-text-domain'));
+    }
+
+    $display_title = '';
+    if (function_exists('ll_tools_word_grid_resolve_display_text')) {
+        $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+        $display_title = trim((string) ($display_values['word_text'] ?? ''));
+    }
+    if ($display_title === '') {
+        $display_title = trim((string) get_the_title($word_id));
+    }
+    if ($display_title === '') {
+        $display_title = __('Untitled image', 'll-tools-text-domain');
+    }
+
+    $word_image_id = wp_insert_post([
+        'post_type'   => 'word_images',
+        'post_status' => 'publish',
+        'post_title'  => $display_title,
+    ], true);
+    if (is_wp_error($word_image_id) || !$word_image_id) {
+        return is_wp_error($word_image_id)
+            ? $word_image_id
+            : new WP_Error('ll_word_image_create_failed', __('Could not create the linked word image.', 'll-tools-text-domain'));
+    }
+
+    $category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+    if (!is_wp_error($category_ids) && !empty($category_ids)) {
+        wp_set_post_terms((int) $word_image_id, array_map('intval', $category_ids), 'word-category', false);
+    }
+
+    update_post_meta($word_id, '_ll_autopicked_image_id', (int) $word_image_id);
+
+    $thumbnail_id = (int) get_post_thumbnail_id($word_id);
+    if ($thumbnail_id > 0) {
+        set_post_thumbnail((int) $word_image_id, $thumbnail_id);
+    }
+
+    return (int) $word_image_id;
+}
+
 function ll_tools_word_image_thumbnail_change_on_added($meta_id, $object_id, $meta_key, $meta_value) {
     if ($meta_key !== '_thumbnail_id') {
         return;

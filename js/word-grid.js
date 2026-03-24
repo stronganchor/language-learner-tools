@@ -1368,6 +1368,7 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
+        cacheOriginalImageState($item);
         syncDictionaryEntrySelectionState($item);
     }
 
@@ -1379,8 +1380,86 @@
                 $input.val(original);
             }
         });
+        restoreOriginalImageState($item);
         setMetaFieldState($item);
         syncDictionaryEntrySelectionState($item);
+    }
+
+    function normalizeWordImageData(imageData) {
+        const data = (imageData && typeof imageData === 'object') ? imageData : {};
+        return {
+            id: parseInt(data.id, 10) || 0,
+            url: (data.url || '').toString(),
+            alt: (data.alt || '').toString(),
+            width: parseInt(data.width, 10) || 0,
+            height: parseInt(data.height, 10) || 0,
+            word_image_id: parseInt(data.word_image_id, 10) || 0
+        };
+    }
+
+    function revokePendingImagePreviewUrl($item) {
+        const previewUrl = ($item.data('llWordImagePreviewUrl') || '').toString();
+        if (previewUrl && window.URL && typeof window.URL.revokeObjectURL === 'function') {
+            window.URL.revokeObjectURL(previewUrl);
+        }
+        $item.removeData('llWordImagePreviewUrl');
+    }
+
+    function getCurrentWordImageState($item) {
+        const $preview = $item.find('[data-ll-word-image-preview]').first();
+        if ($preview.length) {
+            return normalizeWordImageData({
+                url: ($preview.attr('src') || '').toString(),
+                alt: ($preview.attr('alt') || '').toString()
+            });
+        }
+        return normalizeWordImageData({});
+    }
+
+    function setWordEditImagePreview($item, imageData) {
+        const data = normalizeWordImageData(imageData);
+        const $frame = $item.find('[data-ll-word-image-frame]').first();
+        if (!$frame.length) { return; }
+
+        let $preview = $frame.find('[data-ll-word-image-preview]').first();
+        let $empty = $frame.find('[data-ll-word-image-empty]').first();
+        const emptyLabel = ($frame.attr('data-ll-empty-label') || '').toString();
+
+        if (data.url) {
+            if (!$preview.length) {
+                $preview = $('<img class="ll-word-edit-image-preview" data-ll-word-image-preview loading="lazy" decoding="async" />');
+                $frame.append($preview);
+            }
+            $preview.attr('src', data.url);
+            $preview.attr('alt', data.alt || '');
+            if ($empty.length) {
+                $empty.remove();
+            }
+        } else {
+            if ($preview.length) {
+                $preview.remove();
+            }
+            if (!$empty.length) {
+                $empty = $('<div class="ll-word-edit-image-empty" data-ll-word-image-empty></div>');
+                $frame.append($empty);
+            }
+            $empty.text(emptyLabel);
+        }
+    }
+
+    function cacheOriginalImageState($item) {
+        $item.data('llWordImageState', getCurrentWordImageState($item));
+    }
+
+    function restoreOriginalImageState($item) {
+        revokePendingImagePreviewUrl($item);
+        const originalState = normalizeWordImageData($item.data('llWordImageState') || {});
+        setWordEditImagePreview($item, originalState);
+        const $fileInput = $item.find('[data-ll-word-image-input]').first();
+        if ($fileInput.length) {
+            $fileInput.val('');
+        }
+        $item.find('[data-ll-word-image-selected]').first().text('');
     }
 
     function setEditStatus($item, message, isError) {
@@ -1601,6 +1680,23 @@
         return fallback;
     }
 
+    function readResponseErrorMessage(response, fallbackMessage) {
+        const fallback = (fallbackMessage || '').toString();
+        if (!response || typeof response !== 'object') {
+            return fallback;
+        }
+        if (typeof response.data === 'string' && response.data) {
+            return response.data;
+        }
+        if (response.data && typeof response.data.message === 'string' && response.data.message) {
+            return response.data.message;
+        }
+        if (typeof response.message === 'string' && response.message) {
+            return response.message;
+        }
+        return fallback;
+    }
+
     function formatPrereqLevelText(level, hasCycle) {
         if (hasCycle) {
             return prereqMessages.levelCycle;
@@ -1761,7 +1857,58 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
+        cacheOriginalImageState($item);
+        const $fileInput = $item.find('[data-ll-word-image-input]').first();
+        if ($fileInput.length) {
+            $fileInput.val('');
+        }
+        revokePendingImagePreviewUrl($item);
+        $item.find('[data-ll-word-image-selected]').first().text('');
         syncDictionaryEntrySelectionState($item);
+    }
+
+    function applyWordImageData($item, imageData) {
+        const data = normalizeWordImageData(imageData);
+        const $grid = $item.closest('[data-ll-word-grid]');
+        const isTextGrid = $grid.hasClass('ll-word-grid--text');
+        const wordText = ($item.find('[data-ll-word-text]').text() || '').toString().trim();
+        const altText = data.alt || wordText;
+
+        setWordEditImagePreview($item, Object.assign({}, data, { alt: altText }));
+
+        if (isTextGrid) {
+            return;
+        }
+
+        let $container = $item.children('.word-image-container').first();
+        if (!data.url) {
+            if ($container.length) {
+                $container.remove();
+            }
+            return;
+        }
+
+        if (!$container.length) {
+            $container = $('<div class="word-image-container"></div>');
+            $item.prepend($container);
+        }
+
+        let $img = $container.find('img.word-image').first();
+        if (!$img.length) {
+            $img = $('<img class="word-image" loading="lazy" decoding="async" fetchpriority="low" />');
+            $container.empty().append($img);
+        }
+
+        $img.attr('src', data.url);
+        $img.attr('alt', altText);
+        $img.removeAttr('srcset');
+        $img.removeAttr('sizes');
+        const imgEl = $img.get(0);
+        if (imgEl && imgEl.dataset) {
+            delete imgEl.dataset.llImgLoadBound;
+        }
+        setWordGridImagePending(imgEl);
+        bindWordGridImageLoadState(imgEl);
     }
 
     initRenderedGridItems = function ($scope) {
@@ -4575,6 +4722,32 @@
             setMetaFieldState($item, posSlug);
         });
 
+        $grids.on('change', '[data-ll-word-image-input]', function () {
+            const $input = $(this);
+            const $item = $input.closest('.word-item');
+            const inputEl = $input.get(0);
+            const file = inputEl && inputEl.files && inputEl.files[0] ? inputEl.files[0] : null;
+
+            revokePendingImagePreviewUrl($item);
+            if (!file) {
+                const originalState = normalizeWordImageData($item.data('llWordImageState') || {});
+                setWordEditImagePreview($item, originalState);
+                $item.find('[data-ll-word-image-selected]').first().text('');
+                return;
+            }
+
+            if (window.URL && typeof window.URL.createObjectURL === 'function') {
+                const previewUrl = window.URL.createObjectURL(file);
+                $item.data('llWordImagePreviewUrl', previewUrl);
+                setWordEditImagePreview($item, {
+                    url: previewUrl,
+                    alt: (file.name || '').toString()
+                });
+            }
+
+            $item.find('[data-ll-word-image-selected]').first().text((file.name || '').toString());
+        });
+
         $grids.on('focus', '[data-ll-word-input="dictionary_entry_lookup"]', function () {
             const $input = $(this);
             initDictionaryEntryAutocomplete($input);
@@ -4770,6 +4943,8 @@
             const $wrongAnswerTextsInput = $item.find('[data-ll-word-input="specific_wrong_answer_texts"]').first();
             const $grid = $item.closest('[data-ll-word-grid]');
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            const imageInputEl = $item.find('[data-ll-word-image-input]').get(0);
+            const imageFile = imageInputEl && imageInputEl.files && imageInputEl.files[0] ? imageInputEl.files[0] : null;
             const recordings = [];
 
             $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
@@ -4824,31 +4999,41 @@
             setWordSaveBusy($item, true);
             setWordSaveStatus($item, editMessages.savingBackground, 'pending');
 
-            const requestData = {
-                action: 'll_tools_word_grid_update_word',
-                nonce: editNonce,
-                word_id: wordId,
-                word_text: wordText,
-                word_translation: wordTranslation,
-                word_note: wordNote,
-                part_of_speech: partOfSpeech,
-                grammatical_gender: gender,
-                grammatical_plurality: plurality,
-                verb_tense: verbTense,
-                verb_mood: verbMood,
-                dictionary_entry_id: dictionaryEntryId,
-                dictionary_entry_title: dictionaryEntryTitle,
-                wordset_id: wordsetId,
-                recordings: recordings
-            };
+            const requestData = new window.FormData();
+            requestData.append('action', 'll_tools_word_grid_update_word');
+            requestData.append('nonce', editNonce);
+            requestData.append('word_id', String(wordId));
+            requestData.append('word_text', wordText);
+            requestData.append('word_translation', wordTranslation);
+            requestData.append('word_note', wordNote);
+            requestData.append('part_of_speech', partOfSpeech);
+            requestData.append('grammatical_gender', gender);
+            requestData.append('grammatical_plurality', plurality);
+            requestData.append('verb_tense', verbTense);
+            requestData.append('verb_mood', verbMood);
+            requestData.append('dictionary_entry_id', String(dictionaryEntryId));
+            requestData.append('dictionary_entry_title', dictionaryEntryTitle);
+            requestData.append('wordset_id', String(wordsetId));
+            requestData.append('recordings', JSON.stringify(recordings));
             if ($wrongAnswerTextsInput.length) {
-                requestData.specific_wrong_answer_texts = ($wrongAnswerTextsInput.val() || '').toString();
+                requestData.append('specific_wrong_answer_texts', ($wrongAnswerTextsInput.val() || '').toString());
+            }
+            if (imageFile) {
+                requestData.append('word_image_file', imageFile, (imageFile.name || 'image').toString());
             }
 
-            $.post(ajaxUrl, requestData).done(function (response) {
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                data: requestData,
+                processData: false,
+                contentType: false,
+                dataType: 'json'
+            }).done(function (response) {
                 if (!response || response.success !== true) {
-                    setWordSaveStatus($item, editMessages.error, 'error');
-                    setEditStatus($item, editMessages.error, true);
+                    const message = readResponseErrorMessage(response, editMessages.error);
+                    setWordSaveStatus($item, message, 'error');
+                    setEditStatus($item, message, true);
                     setEditPanelOpen($item, true);
                     return;
                 }
@@ -4867,6 +5052,9 @@
                 }
                 if (Array.isArray(data.specific_wrong_answer_texts) && $wrongAnswerTextsInput.length) {
                     $wrongAnswerTextsInput.val(data.specific_wrong_answer_texts.join('\n'));
+                }
+                if (data.image && typeof data.image === 'object') {
+                    applyWordImageData($item, data.image);
                 }
                 if (data.dictionary_entry) {
                     applyDictionaryEntryData($item, data.dictionary_entry);
@@ -4904,9 +5092,10 @@
                 setEditPanelOpen($item, false);
                 setWordSaveStatus($item, editMessages.saved, 'success');
                 scheduleWordSaveStatusClear($item, 1800);
-            }).fail(function () {
-                setWordSaveStatus($item, editMessages.error, 'error');
-                setEditStatus($item, editMessages.error, true);
+            }).fail(function (jqXHR) {
+                const message = readAjaxErrorMessage(jqXHR, editMessages.error);
+                setWordSaveStatus($item, message, 'error');
+                setEditStatus($item, message, true);
                 setEditPanelOpen($item, true);
             }).always(function () {
                 $saveBtn.prop('disabled', false);
