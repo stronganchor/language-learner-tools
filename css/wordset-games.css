@@ -521,6 +521,196 @@
     border-color: rgba(15, 23, 42, 0.28);
 }
 
+/* Theme-resistant button hardening for front-end game controls. */
+.ll-wordset-games-page button.ll-wordset-game-card__launch,
+.ll-wordset-games-page button.ll-wordset-game-stage__nav,
+.ll-wordset-games-page button.ll-wordset-game-stage__control,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    border-style: solid !important;
+    box-sizing: border-box !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    font-weight: 700 !important;
+    letter-spacing: normal !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    text-transform: none !important;
+    vertical-align: middle !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-card__launch {
+    min-width: 120px !important;
+    min-height: 46px !important;
+    padding: 0 18px !important;
+    border-width: 1px !important;
+    border-radius: 14px !important;
+    border-color: transparent !important;
+    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    background-image: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.24) !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-card__launch:hover,
+.ll-wordset-games-page button.ll-wordset-game-card__launch:focus,
+.ll-wordset-games-page button.ll-wordset-game-card__launch:focus-visible,
+.ll-wordset-games-page button.ll-wordset-game-card__launch:active {
+    background: linear-gradient(180deg, #0c6a63 0%, #0d4f4b 100%) !important;
+    background-image: linear-gradient(180deg, #0c6a63 0%, #0d4f4b 100%) !important;
+    color: #fff !important;
+    outline: none !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-card__launch[disabled] {
+    cursor: not-allowed !important;
+    background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%) !important;
+    background-image: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%) !important;
+    color: rgba(255, 255, 255, 0.92) !important;
+    box-shadow: none !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__nav {
+    min-height: 42px !important;
+    padding: 0 14px !important;
+    gap: 8px !important;
+    border-width: 1px !important;
+    border-radius: 14px !important;
+    background: #fff !important;
+    background-color: #fff !important;
+    background-image: none !important;
+    border-color: rgba(15, 23, 42, 0.12) !important;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08) !important;
+    color: var(--ll-games-ink) !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__nav:hover,
+.ll-wordset-games-page button.ll-wordset-game-stage__nav:focus,
+.ll-wordset-games-page button.ll-wordset-game-stage__nav:focus-visible,
+.ll-wordset-games-page button.ll-wordset-game-stage__nav:active {
+    background: #fff !important;
+    background-color: #fff !important;
+    background-image: none !important;
+    border-color: rgba(15, 23, 42, 0.24) !important;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.1) !important;
+    color: var(--ll-games-ink) !important;
+    outline: none !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__nav--replay {
+    min-width: auto !important;
+    justify-content: center !important;
+    padding: 8px 10px !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__nav--pause {
+    min-width: 42px !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__nav--pause.is-paused {
+    color: var(--ll-games-accent-strong) !important;
+    border-color: rgba(15, 118, 110, 0.28) !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__control {
+    min-height: 56px !important;
+    border-width: 1px !important;
+    border-radius: 14px !important;
+    background: linear-gradient(180deg, #fff 0%, #eef4f8 100%) !important;
+    background-image: linear-gradient(180deg, #fff 0%, #eef4f8 100%) !important;
+    border-color: rgba(15, 23, 42, 0.12) !important;
+    box-shadow: 0 12px 18px rgba(15, 23, 42, 0.07) !important;
+    color: var(--ll-games-ink) !important;
+    font-size: 1rem !important;
+    line-height: 1 !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    touch-action: manipulation !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__control:hover,
+.ll-wordset-games-page button.ll-wordset-game-stage__control:focus,
+.ll-wordset-games-page button.ll-wordset-game-stage__control:focus-visible,
+.ll-wordset-games-page button.ll-wordset-game-stage__control:active,
+.ll-wordset-games-page button.ll-wordset-game-stage__control.is-active {
+    background: linear-gradient(180deg, #f3fffe 0%, #dff8f5 100%) !important;
+    background-image: linear-gradient(180deg, #f3fffe 0%, #dff8f5 100%) !important;
+    border-color: rgba(15, 118, 110, 0.34) !important;
+    color: var(--ll-games-accent-strong) !important;
+    outline: none !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__control--fire {
+    min-height: 62px !important;
+    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    background-image: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    border-color: rgba(15, 118, 110, 0.3) !important;
+    color: #fff !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__control--fire:hover,
+.ll-wordset-games-page button.ll-wordset-game-stage__control--fire:focus,
+.ll-wordset-games-page button.ll-wordset-game-stage__control--fire:focus-visible,
+.ll-wordset-games-page button.ll-wordset-game-stage__control--fire:active,
+.ll-wordset-games-page button.ll-wordset-game-stage__control--fire.is-active {
+    background: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
+    background-image: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
+    border-color: rgba(13, 79, 75, 0.4) !important;
+    color: #fff !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button {
+    min-height: 46px !important;
+    padding: 0 18px !important;
+    border-width: 1px !important;
+    border-radius: 14px !important;
+    border-color: transparent !important;
+    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    background-image: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    color: #fff !important;
+    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.22) !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:hover,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:focus,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:focus-visible,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button:active {
+    background: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
+    background-image: linear-gradient(180deg, #0c6863 0%, #0d4f4b 100%) !important;
+    color: #fff !important;
+    outline: none !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button--ghost {
+    background: #fff !important;
+    background-color: #fff !important;
+    background-image: none !important;
+    border-color: rgba(15, 23, 42, 0.14) !important;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08) !important;
+    color: var(--ll-games-ink) !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button--ghost:hover,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button--ghost:focus,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button--ghost:focus-visible,
+.ll-wordset-games-page button.ll-wordset-game-stage__overlay-button--ghost:active {
+    background: #f8fafc !important;
+    background-color: #f8fafc !important;
+    background-image: none !important;
+    border-color: rgba(15, 23, 42, 0.28) !important;
+    color: var(--ll-games-ink) !important;
+}
+
 @media (max-width: 860px) {
     .ll-wordset-game-card {
         grid-template-columns: auto minmax(0, 1fr);

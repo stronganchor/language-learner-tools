@@ -3394,6 +3394,35 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     color: #ffffff;
 }
 
+.ll-wordset-page button.ll-wordset-progress-tab {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 6px 10px !important;
+    border-radius: 9px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #fff !important;
+    background-color: #fff !important;
+    background-image: none !important;
+    color: #0f172a !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    font-weight: 600 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease !important;
+}
+
+.ll-wordset-page button.ll-wordset-progress-tab.active {
+    background: #0f172a !important;
+    background-color: #0f172a !important;
+    background-image: none !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
+}
+
 .ll-wordset-page button.ll-wordset-progress-tab:hover,
 .ll-wordset-page button.ll-wordset-progress-tab:focus,
 .ll-wordset-page button.ll-wordset-progress-tab:focus-visible {
@@ -4879,6 +4908,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 /* Theme-resistant button hardening for themes with broad button overrides. */
 .ll-wordset-page button.ll-wordset-select-all,
 .ll-wordset-page button.ll-wordset-progress-select-all,
+.ll-wordset-page button.ll-wordset-progress-tab,
 .ll-wordset-page button.ll-wordset-card__hide,
 .ll-wordset-page button.ll-wordset-card__quiz-btn,
 .ll-wordset-page button.ll-wordset-hidden-item__btn,
@@ -4886,6 +4916,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-page button.ll-wordset-progress-filter-trigger,
 .ll-wordset-page button.ll-wordset-progress-sort,
 .ll-wordset-page button.ll-wordset-progress-kpi,
+.ll-wordset-page button.ll-wordset-progress-reset-all-button,
 .ll-wordset-page button.ll-wordset-progress-clear-filters,
 .ll-wordset-page button.ll-wordset-selection-bar__clear {
     -webkit-appearance: none !important;
