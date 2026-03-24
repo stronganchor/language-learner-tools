@@ -2004,6 +2004,7 @@
             autoReplaySafeLineGated: replayTiming.gatedBySafeLine,
             hadWrongBefore: false,
             wrongCount: 0,
+            wrongHitRecoveryUntil: 0,
             exposureTracked: false,
             resolved: false
         };
@@ -2017,6 +2018,15 @@
 
     function activePromptId(run) {
         return toInt(run && run.prompt && run.prompt.promptId);
+    }
+
+    function isWrongHitRecoveryActive(run, now) {
+        return !!(
+            run
+            && run.prompt
+            && !run.prompt.resolved
+            && Number(run.prompt.wrongHitRecoveryUntil || 0) > Number(now || 0)
+        );
     }
 
     function isActivePromptCard(run, card) {
@@ -2061,6 +2071,11 @@
 
     function currentTimestamp() {
         return (root.performance && typeof root.performance.now === 'function') ? root.performance.now() : Date.now();
+    }
+
+    function getWrongHitRecoveryMs(ctx) {
+        const fireIntervalMs = Math.max(80, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.fireIntervalMs) || 165);
+        return Math.max(180, fireIntervalMs + 40);
     }
 
     function removeResolvedObjects(run, now) {
@@ -2170,20 +2185,28 @@
         if (!run || !run.prompt || run.prompt.resolved) {
             return;
         }
+        const now = currentTimestamp();
+        if (isWrongHitRecoveryActive(run, now)) {
+            return;
+        }
 
         queueExposureOnce(ctx, run.prompt);
         queueOutcome(ctx, run.prompt, false, false, { event_source: 'space_shooter', wrong_hit: true });
         run.prompt.hadWrongBefore = true;
         run.prompt.wrongCount += 1;
+        run.prompt.wrongHitRecoveryUntil = now + getWrongHitRecoveryMs(ctx);
 
         run.lives = Math.max(0, run.lives - Math.max(1, ctx.spaceShooter.wrongHitLifePenalty));
         run.coins = Math.max(0, run.coins - Math.max(0, ctx.spaceShooter.wrongHitCoinPenalty));
+        run.bullets.length = 0;
+        run.lastFireAt = now;
+        setControlState(ctx, 'fire', false);
         updateHud(ctx);
 
         card.exploding = true;
         card.explosionStyle = 'dramatic';
         card.explosionDuration = 420;
-        card.removeAt = currentTimestamp() + 420;
+        card.removeAt = now + 420;
         spawnExplosion(run, {
             x: card.x,
             y: card.y,
@@ -2317,6 +2340,7 @@
             }
         });
 
+        let collisionHandled = false;
         if (!run.prompt.resolved) {
             outerLoop:
             for (let bulletIndex = run.bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
@@ -2340,16 +2364,24 @@
                     } else {
                         handleWrongHit(ctx, card);
                     }
-                    continue outerLoop;
+                    collisionHandled = true;
+                    break outerLoop;
                 }
             }
         }
 
+        if (collisionHandled) {
+            removeResolvedObjects(run, now);
+            return;
+        }
+
         const targetCard = findTargetCard(run);
-        if (!run.prompt.resolved && !targetCard) {
-            handlePromptTimeout(ctx);
-        } else if (targetCard && !run.prompt.resolved && (targetCard.y - (targetCard.height / 2)) > run.height) {
-            handlePromptTimeout(ctx);
+        if (!run.prompt.resolved && !isWrongHitRecoveryActive(run, now)) {
+            if (!targetCard) {
+                handlePromptTimeout(ctx);
+            } else if ((targetCard.y - (targetCard.height / 2)) > run.height) {
+                handlePromptTimeout(ctx);
+            }
         }
 
         removeResolvedObjects(run, now);

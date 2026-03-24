@@ -1131,6 +1131,102 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(progressContext.wordsetId || progressContext.wordset_id).toBe(77);
 });
 
+test('space shooter only deducts one life when buffered shots hit wrong cards in one prompt', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch();
+  });
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);
+  });
+
+  const preparedCollision = await page.evaluate(() => {
+    const ctx = window.LLWordsetGames.__ctx;
+    if (!ctx || !ctx.run || !ctx.run.prompt) {
+      return null;
+    }
+
+    const run = ctx.run;
+    const activeCards = run.cards.filter((card) =>
+      card
+      && card.promptId === run.prompt.promptId
+      && !card.exploding
+      && !card.resolvedFalling
+    );
+    const wrongCards = activeCards.filter((card) => !card.isTarget);
+    const targetCard = activeCards.find((card) => card.isTarget);
+    if (wrongCards.length < 2 || !targetCard) {
+      return null;
+    }
+
+    const firstWrong = wrongCards[0];
+    const secondWrong = wrongCards[1];
+
+    firstWrong.entryRevealMs = 0;
+    secondWrong.entryRevealMs = 0;
+    targetCard.entryRevealMs = 0;
+
+    firstWrong.x = run.width * 0.28;
+    secondWrong.x = run.width * 0.72;
+    targetCard.x = run.width * 0.5;
+
+    firstWrong.y = run.height * 0.42;
+    secondWrong.y = run.height * 0.42;
+    targetCard.y = run.height * 0.24;
+
+    firstWrong.speed = 0;
+    secondWrong.speed = 0;
+    targetCard.speed = 0;
+
+    run.controls.fire = true;
+    run.lastFireAt = Number.NEGATIVE_INFINITY;
+    run.bullets = [
+      { x: firstWrong.x, y: firstWrong.y, radius: 3, speed: 0 },
+      { x: secondWrong.x, y: secondWrong.y, radius: 3, speed: 0 }
+    ];
+
+    return {
+      lives: run.lives,
+      promptId: run.prompt.promptId,
+      targetWordId: run.prompt.target ? run.prompt.target.id : 0
+    };
+  });
+
+  expect(preparedCollision).not.toBeNull();
+
+  await page.waitForFunction(({ promptId, targetWordId, lives }) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.promptId === promptId
+      && run.targetWordId === targetWordId
+      && run.lives === (lives - 1)
+      && run.activeCardCount === 3);
+  }, preparedCollision);
+
+  const postCollisionState = await page.evaluate(() => {
+    const ctx = window.LLWordsetGames.__ctx;
+    return {
+      run: window.LLWordsetGames.__debug.getRunState(),
+      progressEvents: window.__queuedProgressEvents.slice(),
+      bulletCount: ctx && ctx.run ? ctx.run.bullets.length : -1,
+      fireHeld: !!(ctx && ctx.run && ctx.run.controls && ctx.run.controls.fire)
+    };
+  });
+
+  expect(postCollisionState.run.lives).toBe(preparedCollision.lives - 1);
+  expect(postCollisionState.run.promptId).toBe(preparedCollision.promptId);
+  expect(postCollisionState.run.targetWordId).toBe(preparedCollision.targetWordId);
+  expect(postCollisionState.run.activeCardCount).toBe(3);
+  expect(postCollisionState.progressEvents).toHaveLength(2);
+  expect(postCollisionState.progressEvents[0].type).toBe('word_exposure');
+  expect(postCollisionState.progressEvents[1].type).toBe('word_outcome');
+  expect(postCollisionState.progressEvents[1].entry.isCorrect).toBe(false);
+  expect(postCollisionState.bulletCount).toBe(0);
+  expect(postCollisionState.fireHeld).toBe(false);
+});
+
 test('space shooter recovers when the active target card disappears unexpectedly', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
