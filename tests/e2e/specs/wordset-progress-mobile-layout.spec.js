@@ -335,6 +335,7 @@ function buildProgressPageConfig(overrides = {}) {
     gender: {
       enabled: false,
       options: [],
+      visual_config: {},
       min_count: 2
     },
     modeUi: {}
@@ -784,6 +785,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
 });
 
 test('progress view toggles the main tables into gender progress mode', async ({ page }) => {
+  const masculineSymbol = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="15" r="5" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M13 11L21 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M16 3h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
+  const feminineSymbol = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="9" r="5" fill="none" stroke="currentColor" stroke-width="2"></circle><path d="M12 14v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M9 18h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>';
   const analytics = buildProgressAnalytics();
   analytics.gender_progress = {
     enabled: true,
@@ -862,6 +865,49 @@ test('progress view toggles the main tables into gender progress mode', async ({
     gender: {
       enabled: true,
       options: ['masculine', 'feminine'],
+      visual_config: {
+        colors: {
+          masculine: '#1D4D99',
+          feminine: '#C2185B',
+          other: '#6B7280'
+        },
+        symbols: {
+          masculine: {
+            type: 'svg',
+            value: masculineSymbol
+          },
+          feminine: {
+            type: 'svg',
+            value: feminineSymbol
+          }
+        },
+        options: [
+          {
+            value: 'Masculine',
+            normalized: 'masculine',
+            label: 'Masculine',
+            role: 'masculine',
+            color: '#1D4D99',
+            style: '--ll-gender-accent:#1D4D99;--ll-gender-bg:rgba(29,77,153,0.14);--ll-gender-border:rgba(29,77,153,0.38);',
+            symbol: {
+              type: 'svg',
+              value: masculineSymbol
+            }
+          },
+          {
+            value: 'Feminine',
+            normalized: 'feminine',
+            label: 'Feminine',
+            role: 'feminine',
+            color: '#C2185B',
+            style: '--ll-gender-accent:#C2185B;--ll-gender-bg:rgba(194,24,91,0.14);--ll-gender-border:rgba(194,24,91,0.38);',
+            symbol: {
+              type: 'svg',
+              value: feminineSymbol
+            }
+          }
+        ]
+      },
       min_count: 2
     }
   });
@@ -890,11 +936,18 @@ test('progress view toggles the main tables into gender progress mode', async ({
   await expect(page.locator('[data-ll-wordset-progress-word-header-label="difficulty"]')).toHaveText('Level');
   await expect(page.locator('[data-ll-wordset-progress-word-header-label="seen"]')).toHaveText('Seen');
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(3);
-  await expect(page.locator('tr[data-word-id="101"]')).toContainText('Masculine');
+  await expect(page.locator('tr[data-word-id="101"] .ll-wordset-progress-word-gender-pill .ll-gender-symbol--svg svg')).toHaveCount(1);
+  await expect(page.locator('tr[data-word-id="102"] .ll-wordset-progress-word-gender-pill .ll-gender-symbol--svg svg')).toHaveCount(1);
+  await expect(page.locator('tr[data-word-id="101"] .ll-wordset-progress-word-gender-pill__label')).toBeHidden();
   await expect(page.locator('tr[data-word-id="101"]')).toContainText('Level 1');
-  await expect(page.locator('tr[data-word-id="102"]')).toContainText('Feminine');
   await expect(page.locator('tr[data-word-id="102"]')).toContainText('Level 2');
   await expect(page.locator('tr[data-word-id="103"]')).toContainText('Not started');
+
+  await page.setViewportSize({ width: 980, height: 844 });
+  await waitForLayoutFrame(page);
+  await expect(page.locator('tr[data-word-id="101"] .ll-wordset-progress-word-gender-pill__label')).toBeVisible();
+  await expect(page.locator('tr[data-word-id="101"] .ll-wordset-progress-word-gender-pill')).toContainText('Masculine');
+  await expect(page.locator('tr[data-word-id="102"] .ll-wordset-progress-word-gender-pill')).toContainText('Feminine');
 });
 
 test('desktop progress words table sticky header respects the visible admin bar while scrolling', async ({ page }) => {

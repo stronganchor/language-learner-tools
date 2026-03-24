@@ -1318,6 +1318,228 @@
         return text;
     }
 
+    function stripGenderVariation(value) {
+        return String(value === null || value === undefined ? '' : value).replace(/[\uFE0E\uFE0F]/g, '');
+    }
+
+    function normalizeGenderLookupKey(value) {
+        const cleaned = stripGenderVariation(value).trim();
+        return cleaned ? cleaned.toLowerCase() : '';
+    }
+
+    function getGenderRoleAliases() {
+        return {
+            masculine: ['masculine', 'masc', 'male', 'm', '♂'],
+            feminine: ['feminine', 'fem', 'female', 'f', '♀']
+        };
+    }
+
+    function normalizeGenderRole(role) {
+        const cleaned = String(role || '').trim().toLowerCase();
+        if (cleaned === 'masculine' || cleaned === 'feminine') {
+            return cleaned;
+        }
+        return 'other';
+    }
+
+    function inferGenderRoleFromValue(value, index) {
+        const key = normalizeGenderLookupKey(value);
+        if (key) {
+            const aliases = getGenderRoleAliases();
+            const roles = Object.keys(aliases);
+            for (let roleIndex = 0; roleIndex < roles.length; roleIndex += 1) {
+                const role = roles[roleIndex];
+                const variants = Array.isArray(aliases[role]) ? aliases[role] : [];
+                for (let variantIndex = 0; variantIndex < variants.length; variantIndex += 1) {
+                    if (normalizeGenderLookupKey(variants[variantIndex]) === key) {
+                        return role;
+                    }
+                }
+            }
+        }
+        if (index === 0) { return 'masculine'; }
+        if (index === 1) { return 'feminine'; }
+        return 'other';
+    }
+
+    function getProgressGenderVisualConfig() {
+        return (genderCfg.visual_config && typeof genderCfg.visual_config === 'object')
+            ? genderCfg.visual_config
+            : {};
+    }
+
+    function findGenderVisualOption(configOptions, value) {
+        const options = Array.isArray(configOptions) ? configOptions : [];
+        const needle = normalizeGenderLookupKey(value);
+        if (!needle) {
+            return null;
+        }
+        for (let index = 0; index < options.length; index += 1) {
+            const entry = options[index];
+            if (!entry || typeof entry !== 'object') {
+                continue;
+            }
+            const keys = [entry.normalized, entry.value, entry.label];
+            for (let keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+                if (normalizeGenderLookupKey(keys[keyIndex]) === needle) {
+                    return entry;
+                }
+            }
+        }
+        return null;
+    }
+
+    function hexToRgb(value) {
+        let cleaned = String(value || '').trim().replace(/^#/, '');
+        if (cleaned.length === 3) {
+            cleaned = cleaned.charAt(0) + cleaned.charAt(0)
+                + cleaned.charAt(1) + cleaned.charAt(1)
+                + cleaned.charAt(2) + cleaned.charAt(2);
+        }
+        if (!/^[a-f0-9]{6}$/i.test(cleaned)) {
+            return [107, 114, 128];
+        }
+        return [
+            parseInt(cleaned.slice(0, 2), 16),
+            parseInt(cleaned.slice(2, 4), 16),
+            parseInt(cleaned.slice(4, 6), 16)
+        ];
+    }
+
+    function buildGenderStyleString(color) {
+        const fallback = '#6B7280';
+        const normalized = /^#[a-f0-9]{3,6}$/i.test(String(color || '').trim())
+            ? String(color || '').trim().toUpperCase()
+            : fallback;
+        const rgb = hexToRgb(normalized);
+        return '--ll-gender-accent:' + normalized + ';'
+            + '--ll-gender-bg:rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.14);'
+            + '--ll-gender-border:rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',0.38);';
+    }
+
+    function applyGenderStyleVariables($el, styleText) {
+        if (!$el || !$el.length || !$el[0] || !$el[0].style) {
+            return;
+        }
+        const node = $el[0];
+        ['--ll-gender-accent', '--ll-gender-bg', '--ll-gender-border'].forEach(function (prop) {
+            try {
+                node.style.removeProperty(prop);
+            } catch (_) { /* no-op */ }
+        });
+
+        const raw = String(styleText || '').trim();
+        if (!raw) {
+            return;
+        }
+        raw.split(';').forEach(function (chunk) {
+            const trimmed = String(chunk || '').trim();
+            if (!trimmed) {
+                return;
+            }
+            const separatorIndex = trimmed.indexOf(':');
+            if (separatorIndex < 1) {
+                return;
+            }
+            const prop = trimmed.slice(0, separatorIndex).trim();
+            const val = trimmed.slice(separatorIndex + 1).trim();
+            if (!prop || !val || prop.indexOf('--ll-gender-') !== 0) {
+                return;
+            }
+            try {
+                node.style.setProperty(prop, val);
+            } catch (_) { /* no-op */ }
+        });
+    }
+
+    function getProgressGenderVisual(value) {
+        const displayLabel = formatGenderDisplayLabel(value);
+        const visualConfig = getProgressGenderVisualConfig();
+        const configOptions = Array.isArray(visualConfig.options) ? visualConfig.options : [];
+        const optionVisual = findGenderVisualOption(configOptions, value);
+        const defaultColors = {
+            masculine: '#1D4D99',
+            feminine: '#EC4899',
+            other: '#6B7280'
+        };
+        const configuredColors = (visualConfig.colors && typeof visualConfig.colors === 'object')
+            ? visualConfig.colors
+            : {};
+        const colors = Object.assign({}, defaultColors, configuredColors);
+        const role = normalizeGenderRole(
+            (optionVisual && optionVisual.role) || inferGenderRoleFromValue(value, -1)
+        );
+        let color = String((optionVisual && optionVisual.color) || colors[role] || colors.other || defaultColors.other).trim();
+        if (!/^#[a-f0-9]{3,6}$/i.test(color)) {
+            color = String(colors[role] || colors.other || defaultColors.other);
+        }
+
+        let style = String((optionVisual && optionVisual.style) || '').trim();
+        if (!style) {
+            style = buildGenderStyleString(color);
+        }
+
+        let symbol = null;
+        let configuredSymbol = false;
+        if (optionVisual && optionVisual.symbol && typeof optionVisual.symbol === 'object') {
+            symbol = optionVisual.symbol;
+            configuredSymbol = true;
+        } else if (role === 'masculine' || role === 'feminine') {
+            const configuredSymbols = (visualConfig.symbols && typeof visualConfig.symbols === 'object')
+                ? visualConfig.symbols
+                : {};
+            if (configuredSymbols[role] && typeof configuredSymbols[role] === 'object') {
+                symbol = configuredSymbols[role];
+                configuredSymbol = true;
+            }
+        }
+
+        let symbolType = symbol && symbol.type === 'svg' ? 'svg' : 'text';
+        let symbolValue = String((symbol && symbol.value) || '').trim();
+        if (symbolType === 'svg') {
+            const lowered = symbolValue.toLowerCase();
+            if (!(lowered.indexOf('<svg') !== -1 && lowered.indexOf('</svg>') !== -1)) {
+                symbolType = 'text';
+                symbolValue = '';
+            }
+        }
+        if (symbolType !== 'svg') {
+            symbolValue = formatGenderDisplayLabel(symbolValue);
+        }
+        if (!symbolValue) {
+            configuredSymbol = false;
+        }
+
+        return {
+            label: displayLabel,
+            role: role,
+            color: color,
+            style: style,
+            hasConfiguredSymbol: configuredSymbol,
+            symbol: configuredSymbol
+                ? {
+                    type: symbolType,
+                    value: symbolValue
+                }
+                : null
+        };
+    }
+
+    function buildProgressGenderSymbolMarkup(visual, fallbackLabel) {
+        const symbol = (visual && visual.symbol && typeof visual.symbol === 'object') ? visual.symbol : null;
+        if (!symbol) {
+            return '';
+        }
+        const symbolType = symbol.type === 'svg' ? 'svg' : 'text';
+        const symbolValue = String(symbol.value || '').trim();
+        if (symbolType === 'svg') {
+            return '<span class="ll-gender-symbol ll-gender-symbol--svg" aria-hidden="true">' + symbolValue + '</span>';
+        }
+        return '<span class="ll-gender-symbol ll-gender-symbol--text" aria-hidden="true">'
+            + escapeHtml(formatGenderDisplayLabel(symbolValue || fallbackLabel || '?'))
+            + '</span>';
+    }
+
     function analyticsWordGenderProgress(row) {
         const raw = (row && row.gender_progress && typeof row.gender_progress === 'object')
             ? row.gender_progress
@@ -3007,11 +3229,23 @@
 
     function buildGenderWordLabelPill(row) {
         const label = analyticsWordGenderLabel(row);
-        const tone = label ? label.toLowerCase() : 'empty';
-        return buildGenderWordValuePill(
-            label || '\u2014',
-            'll-wordset-progress-word-gender-pill ll-wordset-progress-word-gender-pill--' + sanitizeHtmlClassToken(tone)
-        );
+        const visual = getProgressGenderVisual(label);
+        const role = normalizeGenderRole(visual.role || '');
+        const $pill = $('<span>', {
+            class: 'll-wordset-progress-word-gender-pill ll-wordset-progress-word-gender-pill--' + sanitizeHtmlClassToken(role || 'other'),
+            title: label || '\u2014',
+            'aria-label': label || '\u2014'
+        });
+        if (visual.hasConfiguredSymbol) {
+            $pill.addClass('ll-wordset-progress-word-gender-pill--has-symbol');
+            $pill.append(buildProgressGenderSymbolMarkup(visual, label));
+        }
+        $('<span>', {
+            class: 'll-wordset-progress-word-gender-pill__label',
+            text: label || '\u2014'
+        }).appendTo($pill);
+        applyGenderStyleVariables($pill, visual.style || '');
+        return $pill;
     }
 
     function buildGenderLevelPill(row) {

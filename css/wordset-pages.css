@@ -2921,6 +2921,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
     min-height: 24px;
     padding: 3px 9px;
     border-radius: 999px;
@@ -2932,21 +2933,67 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-progress-word-gender-pill {
-    background: #f8fafc;
-    border-color: #d7e0ea;
-    color: #334155;
+    justify-content: flex-start;
+    max-width: 100%;
+    background: var(--ll-gender-bg, #f8fafc);
+    border-color: var(--ll-gender-border, #d7e0ea);
+    color: var(--ll-gender-accent, #334155);
 }
 
 .ll-wordset-progress-word-gender-pill--masculine {
-    background: rgba(29, 78, 216, 0.1);
-    border-color: rgba(29, 78, 216, 0.18);
-    color: #1e40af;
+    --ll-gender-bg: rgba(29, 78, 216, 0.1);
+    --ll-gender-border: rgba(29, 78, 216, 0.18);
+    --ll-gender-accent: #1e40af;
 }
 
 .ll-wordset-progress-word-gender-pill--feminine {
-    background: rgba(190, 24, 93, 0.1);
-    border-color: rgba(190, 24, 93, 0.18);
-    color: #9d174d;
+    --ll-gender-bg: rgba(190, 24, 93, 0.1);
+    --ll-gender-border: rgba(190, 24, 93, 0.18);
+    --ll-gender-accent: #9d174d;
+}
+
+.ll-wordset-progress-word-gender-pill__label {
+    display: inline-block;
+    min-width: 0;
+}
+
+.ll-wordset-progress-word-gender-pill .ll-gender-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    min-width: 1em;
+    height: 1em;
+    min-height: 1em;
+    font-size: 1em;
+    line-height: 1;
+    overflow: hidden;
+    flex: 0 0 auto;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+}
+
+.ll-wordset-progress-word-gender-pill .ll-gender-symbol--text {
+    font-family: inherit !important;
+    font-weight: 700;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.ll-wordset-progress-word-gender-pill .ll-gender-symbol--svg svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.ll-wordset-progress-word-gender-pill .ll-gender-symbol--svg svg,
+.ll-wordset-progress-word-gender-pill .ll-gender-symbol--svg svg * {
+    fill: currentColor !important;
+    stroke: currentColor !important;
 }
 
 .ll-wordset-progress-gender-level-pill--not-started {
@@ -5482,6 +5529,16 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 @media (max-width: 860px) {
     .ll-wordset-progress-table-wrap {
         overflow: clip;
+    }
+
+    .ll-wordset-progress-view.is-gender-view .ll-wordset-progress-word-gender-pill--has-symbol {
+        min-width: 28px;
+        justify-content: center;
+        padding-inline: 6px;
+    }
+
+    .ll-wordset-progress-view.is-gender-view .ll-wordset-progress-word-gender-pill--has-symbol .ll-wordset-progress-word-gender-pill__label {
+        display: none;
     }
 
     .ll-wordset-progress-table--categories {

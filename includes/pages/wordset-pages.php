@@ -2892,6 +2892,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     if ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options')) {
         $gender_options = ll_tools_wordset_get_gender_options($wordset_id);
     }
+    $gender_visual_config = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_visual_config'))
+        ? ll_tools_wordset_get_gender_visual_config($wordset_id)
+        : [];
     $gender_progress_analytics = (isset($analytics['gender_progress']) && is_array($analytics['gender_progress']))
         ? $analytics['gender_progress']
         : [];
@@ -3254,6 +3257,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'options' => array_values(array_filter(array_map('strval', (array) $gender_options), function ($opt) {
                 return $opt !== '';
             })),
+            'visual_config' => is_array($gender_visual_config) ? $gender_visual_config : [],
             'min_count' => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         ],
         'games' => [
