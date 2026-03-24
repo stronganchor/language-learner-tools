@@ -58,6 +58,70 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('River', $html);
     }
 
+    public function test_lesson_grid_ajax_strips_broken_one_pixel_thumbnail_dimensions(): void
+    {
+        $wordset = wp_insert_term('Deferred Grid Image Wordset', 'wordset', ['slug' => 'deferred-grid-image-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Grid Image Category', 'word-category', ['slug' => 'deferred-grid-image-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+
+        $word_id = $this->createWordWithThumbnail('Fil', $category_id, $wordset_id, 'deferred-grid-fil.png');
+        update_post_meta($word_id, 'word_translation', 'Elephant');
+
+        $thumbnail_id = (int) get_post_thumbnail_id($word_id);
+        $this->assertGreaterThan(0, $thumbnail_id);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Image Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $attr_filter = static function (array $attr, WP_Post $attachment, $size) use ($thumbnail_id): array {
+            if ((int) $attachment->ID !== $thumbnail_id) {
+                return $attr;
+            }
+
+            $attr['width'] = 1;
+            $attr['height'] = 1;
+            unset($attr['srcset'], $attr['sizes']);
+
+            return $attr;
+        };
+
+        add_filter('wp_get_attachment_image_attributes', $attr_filter, 10, 3);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            remove_filter('wp_get_attachment_image_attributes', $attr_filter, 10);
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('class="word-image', $html);
+        $this->assertStringNotContainsString('width="1"', $html);
+        $this->assertStringNotContainsString('height="1"', $html);
+    }
+
     public function test_lesson_grid_naturally_sorts_visible_word_titles(): void
     {
         $wordset = wp_insert_term('Deferred Sort Wordset', 'wordset', ['slug' => 'deferred-sort-wordset']);

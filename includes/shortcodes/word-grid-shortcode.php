@@ -2206,6 +2206,51 @@ function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, 
     return $config;
 }
 
+function ll_tools_word_grid_sanitize_thumbnail_html(string $html): string {
+    $html = trim($html);
+    if ($html === '') {
+        return '';
+    }
+
+    if (class_exists('WP_HTML_Tag_Processor')) {
+        $processor = new WP_HTML_Tag_Processor($html);
+        if ($processor->next_tag(['tag_name' => 'IMG'])) {
+            $width_attr = $processor->get_attribute('width');
+            $height_attr = $processor->get_attribute('height');
+            $has_bad_width = (null !== $width_attr && (int) $width_attr <= 1);
+            $has_bad_height = (null !== $height_attr && (int) $height_attr <= 1);
+            if ($has_bad_width || $has_bad_height) {
+                $processor->remove_attribute('width');
+                $processor->remove_attribute('height');
+                return $processor->get_updated_html();
+            }
+        }
+
+        return $html;
+    }
+
+    $width_match = [];
+    $height_match = [];
+    $has_width = preg_match('/<img\b[^>]*\bwidth=(["\']?)(\d+)\1/i', $html, $width_match) === 1;
+    $has_height = preg_match('/<img\b[^>]*\bheight=(["\']?)(\d+)\1/i', $html, $height_match) === 1;
+    $has_bad_width = $has_width && isset($width_match[2]) && (int) $width_match[2] <= 1;
+    $has_bad_height = $has_height && isset($height_match[2]) && (int) $height_match[2] <= 1;
+    if ($has_bad_width || $has_bad_height) {
+            $html = preg_replace('/\swidth=(["\']?)[^"\'>\s]+\1/i', '', $html);
+            $html = preg_replace('/\sheight=(["\']?)[^"\'>\s]+\1/i', '', $html);
+    }
+
+    return $html;
+}
+
+function ll_tools_word_grid_get_post_thumbnail_html(int $post_id, $size = 'post-thumbnail', array $attr = []): string {
+    $thumbnail_html = function_exists('ll_tools_get_post_thumbnail_html_with_repair')
+        ? ll_tools_get_post_thumbnail_html_with_repair($post_id, $size, $attr)
+        : get_the_post_thumbnail($post_id, $size, $attr);
+
+    return ll_tools_word_grid_sanitize_thumbnail_html((string) $thumbnail_html);
+}
+
 function ll_tools_word_grid_get_image_data_for_word(int $word_id): array {
     $fallback = [
         'id' => 0,
@@ -3155,7 +3200,7 @@ function ll_tools_word_grid_shortcode($atts) {
             // Featured image with container
             if (!$is_text_based && has_post_thumbnail()) {
                 echo '<div class="word-image-container">'; // Start new container
-                echo get_the_post_thumbnail(get_the_ID(), $word_grid_image_size, array(
+                echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, array(
                     'class' => 'word-image',
                     'loading' => 'lazy',
                     'decoding' => 'async',
