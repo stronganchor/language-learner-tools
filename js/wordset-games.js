@@ -17,7 +17,7 @@
     const PAUSE_REASON_INACTIVITY = 'inactivity';
     const BUBBLE_ACTIVE_MAX_SPEED = 84;
     const BUBBLE_RELEASE_MAX_SPEED = 116;
-    const BUBBLE_CORRECT_RELEASE_MAX_SPEED = 420;
+    const BUBBLE_CORRECT_RELEASE_MAX_SPEED = 1040;
     const BUBBLE_DECORATIVE_MAX_SPEED = 52;
 
     function toInt(value) {
@@ -1121,7 +1121,9 @@
     function setFloatingBodyPosition(run, body, x, y, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const bounds = getBubbleMovementBounds(run, getFloatingBodyRadius(body));
-        body.x = clamp(Number(x) || 0, bounds.minX, bounds.maxX);
+        body.x = opts.clampX === false
+            ? (Number(x) || 0)
+            : clamp(Number(x) || 0, bounds.minX, bounds.maxX);
         body.y = opts.clampY === false
             ? (Number(y) || 0)
             : clamp(Number(y) || 0, bounds.minY, bounds.maxY);
@@ -1387,6 +1389,7 @@
                 Number(card.bubbleBaseX || card.entryVisibleX || card.x) + offsets.x,
                 Number(card.bubbleBaseY || card.entryVisibleY || card.y) + offsets.y,
                 {
+                    clampX: !card.resolvedFalling,
                     clampY: false
                 }
             );
@@ -3316,7 +3319,18 @@
         run.cards = run.cards.filter(function (card) {
             if (card.resolvedFalling) {
                 if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
-                    if ((card.y + (card.height / 2)) < -card.height) {
+                    const halfWidth = Math.max(1, Number(card.width) || 0) / 2;
+                    const halfHeight = Math.max(1, Number(card.height) || 0) / 2;
+                    if ((card.x + halfWidth) < -Number(card.width || 0)) {
+                        return false;
+                    }
+                    if ((card.x - halfWidth) > (run.width + Number(card.width || 0))) {
+                        return false;
+                    }
+                    if ((card.y + halfHeight) < -Number(card.height || 0)) {
+                        return false;
+                    }
+                    if ((card.y - halfHeight) > (run.height + Number(card.height || 0))) {
                         return false;
                     }
                 } else if ((card.y - (card.height / 2)) > (run.height + card.height)) {
@@ -3391,22 +3405,32 @@
         });
     }
 
-    function boostBubbleResolvedPromptExit(run, promptId) {
+    function boostBubbleResolvedPromptExit(run, promptId, sourceX, sourceY) {
         const targetPromptId = toInt(promptId);
         if (!run || normalizeGameSlug(run && run.slug) !== BUBBLE_POP_GAME_SLUG || targetPromptId <= 0) {
             return;
         }
 
+        const originX = Number(sourceX) || 0;
+        const originY = Number(sourceY) || 0;
         run.cards.forEach(function (entry) {
             if (!entry || entry.exploding || !entry.resolvedFalling || toInt(entry.promptId) !== targetPromptId) {
                 return;
             }
 
-            entry.releaseMaxSpeed = BUBBLE_CORRECT_RELEASE_MAX_SPEED;
-            entry.speed = Math.max(Number(entry.speed) || 0, run.cardSpeed * 9.5, 380);
-            entry.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(4, 12);
-            entry.bubbleImpulseVelocityX = clamp((Number(entry.releaseDriftX) || 0) * 0.65, -36, 36);
-            entry.bubbleImpulseVelocityY = Math.min(Number(entry.bubbleImpulseVelocityY) || 0, -240);
+            const dx = Number(entry.x) - originX;
+            const dy = Number(entry.y) - originY;
+            const distance = Math.sqrt((dx * dx) + (dy * dy));
+            const directionX = distance > 0.001 ? (dx / distance) : randomBetween(-1, 1);
+            const directionY = distance > 0.001 ? (dy / distance) : -1;
+            const exitSpeed = Math.max(run.cardSpeed * 18, 920);
+
+            entry.releaseMaxSpeed = Math.max(BUBBLE_CORRECT_RELEASE_MAX_SPEED, exitSpeed);
+            entry.speed = Math.max(Number(entry.speed) || 0, exitSpeed);
+            entry.releaseDriftX = directionX * exitSpeed;
+            entry.releaseDriftY = directionY * exitSpeed;
+            entry.bubbleImpulseVelocityX = clamp(directionX * (exitSpeed * 0.24), -220, 220);
+            entry.bubbleImpulseVelocityY = clamp(directionY * (exitSpeed * 0.24), -220, 220);
         });
     }
 
@@ -3460,7 +3484,7 @@
         releaseResolvedPromptCards(run, card);
         if (isBubbleGame) {
             applyBubbleBlastImpulse(run, card.x, card.y, getBubbleRadius(card), card);
-            boostBubbleResolvedPromptExit(run, card.promptId);
+            boostBubbleResolvedPromptExit(run, card.promptId, card.x, card.y);
         }
         playFeedbackSound(ctx, 'correct').finally(function () {
             if (!ctx.run || ctx.run !== run || run.ended) {
@@ -3782,9 +3806,12 @@
                         BUBBLE_RELEASE_MAX_SPEED,
                         Number(card.releaseMaxSpeed) || 0
                     );
+                    const releaseDriftY = isFinite(Number(card.releaseDriftY))
+                        ? Number(card.releaseDriftY)
+                        : -card.speed;
                     const releaseVelocity = clampVectorMagnitude(
                         Number(card.releaseDriftX) + (Number(card.bubbleImpulseVelocityX) || 0),
-                        -card.speed + (Number(card.bubbleImpulseVelocityY) || 0),
+                        releaseDriftY + (Number(card.bubbleImpulseVelocityY) || 0),
                         releaseMaxSpeed
                     );
                     card.bubbleBaseY = Number(card.bubbleBaseY || card.y) + (releaseVelocity.y * dt);

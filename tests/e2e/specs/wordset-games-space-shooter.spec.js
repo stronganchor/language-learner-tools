@@ -1258,18 +1258,70 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
       pushedNeighbor.y - originalNeighbor.y
     )
   ).toBeGreaterThan(4);
-  const priorPromptEscapeDistance = blastState.cardSnapshot
+  const burstOrigin = preCorrectState.cardSnapshot.find((card) =>
+    card.isTarget && card.promptId === preCorrectState.promptId && !card.exploding
+  );
+  expect(burstOrigin).toBeTruthy();
+  const priorPromptEscapes = blastState.cardSnapshot
     .filter((card) => card.promptId === preCorrectState.promptId && card.resolvedFalling && !card.exploding)
-    .reduce((maxDistance, card) => {
+    .map((card) => {
       const previousCard = preCorrectState.cardSnapshot.find((entry) =>
         entry.wordId === card.wordId && entry.promptId === preCorrectState.promptId
       );
       if (!previousCard) {
-        return maxDistance;
+        return null;
       }
-      return Math.max(maxDistance, previousCard.y - card.y);
-    }, 0);
-  expect(priorPromptEscapeDistance).toBeGreaterThan(18);
+      return {
+        radialGain: Math.hypot(card.x - burstOrigin.x, card.y - burstOrigin.y) - Math.hypot(previousCard.x - burstOrigin.x, previousCard.y - burstOrigin.y),
+        travelDistance: Math.hypot(card.x - previousCard.x, card.y - previousCard.y)
+      };
+    })
+    .filter(Boolean);
+  expect(priorPromptEscapes.length).toBeGreaterThan(0);
+  const maxEscapeTravel = priorPromptEscapes.reduce((maxDistance, entry) => Math.max(maxDistance, entry.travelDistance), 0);
+  const minRadialGain = priorPromptEscapes.reduce((minDistance, entry) => Math.min(minDistance, entry.radialGain), Infinity);
+  expect(maxEscapeTravel).toBeGreaterThan(34);
+  expect(minRadialGain).toBeGreaterThan(8);
+  const forcedSideExit = await page.evaluate(() => {
+    const ctx = window.LLWordsetGames.__ctx;
+    const run = ctx && ctx.run;
+    if (!run) {
+      return null;
+    }
+    const releasedCard = run.cards.find((card) => card && card.resolvedFalling && !card.exploding);
+    if (!releasedCard) {
+      return null;
+    }
+    const stageWidth = Math.max(1, Number(run.width) || 0);
+    const cardWidth = Math.max(1, Number(releasedCard.width) || 0);
+    releasedCard.bubbleBaseX = stageWidth - (cardWidth / 2) - 2;
+    releasedCard.bubbleBaseY = Number(releasedCard.y) || Number(releasedCard.bubbleBaseY) || 0;
+    releasedCard.x = releasedCard.bubbleBaseX;
+    releasedCard.releaseDriftX = Math.max(980, Number(releasedCard.releaseDriftX) || 0);
+    releasedCard.releaseDriftY = -40;
+    releasedCard.bubbleImpulseVelocityX = 0;
+    releasedCard.bubbleImpulseVelocityY = 0;
+    return {
+      wordId: Number(releasedCard.word && releasedCard.word.id) || 0,
+      promptId: Number(releasedCard.promptId) || 0,
+      stageWidth
+    };
+  });
+  expect(forcedSideExit).toBeTruthy();
+  await page.waitForTimeout(100);
+  const sideExitState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const sideExitCard = sideExitState.cardSnapshot.find((card) =>
+    card.wordId === forcedSideExit.wordId && card.promptId === forcedSideExit.promptId
+  );
+  expect(!sideExitCard || sideExitCard.x > forcedSideExit.stageWidth).toBeTruthy();
+  await page.waitForTimeout(180);
+  const removedAfterSideExit = await page.evaluate((releaseKey) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !run || !run.cardSnapshot.some((card) =>
+      card.wordId === releaseKey.wordId && card.promptId === releaseKey.promptId
+    );
+  }, forcedSideExit);
+  expect(removedAfterSideExit).toBe(true);
 
   await page.waitForFunction(() => {
     const queued = Array.isArray(window.__queuedProgressEvents) ? window.__queuedProgressEvents : [];
