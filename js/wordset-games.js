@@ -9,6 +9,8 @@
     const CARD_RATIO_MAX = 2.5;
     const CARD_RATIO_DEFAULT = 1;
     const ASSET_PRELOAD_TIMEOUT_MS = 8000;
+    const SHORT_PROMPT_AUTO_REPLAY_MIN_MS = 1400;
+    const POST_SAFE_LINE_REPLAY_BUFFER_MS = 80;
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -1110,6 +1112,48 @@
         return (cardHeight / 2) + (maxDepth * depthRatio);
     }
 
+    function getCardSafeLineCrossDelayMs(ctx, run, card) {
+        if (!run || !card) {
+            return 0;
+        }
+
+        const speed = Number(card.speed) || 0;
+        if (!isFinite(speed) || speed <= 0) {
+            return 0;
+        }
+
+        const safeLineRatio = clamp(Number(ctx && ctx.spaceShooter && ctx.spaceShooter.audioSafeLineRatio) || 0.6, 0.35, 0.7);
+        const safeLineY = Math.max(0, Number(run.height) || 0) * safeLineRatio;
+        const visibleY = Number(card.entryVisibleY);
+        const entryRevealMs = Math.max(0, toInt(card.entryRevealMs));
+
+        if (!isFinite(visibleY) || safeLineY <= visibleY) {
+            return entryRevealMs;
+        }
+
+        return entryRevealMs + Math.round(((safeLineY - visibleY) / speed) * 1000);
+    }
+
+    function getPromptAutoReplayTiming(ctx, run, promptDurationMs, targetCard) {
+        const replayGapMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.promptAutoReplayGapMs) || 520);
+        const baseDelayMs = Math.max(0, toInt(promptDurationMs)) + replayGapMs;
+        const shortPromptLimitMs = Math.max(SHORT_PROMPT_AUTO_REPLAY_MIN_MS, replayGapMs * 3);
+        const safeLineCrossDelayMs = getCardSafeLineCrossDelayMs(ctx, run, targetCard);
+        const safeLineReplayDelayMs = safeLineCrossDelayMs > 0
+            ? safeLineCrossDelayMs + POST_SAFE_LINE_REPLAY_BUFFER_MS
+            : 0;
+        const gatedBySafeLine = promptDurationMs > 0
+            && promptDurationMs <= shortPromptLimitMs
+            && safeLineReplayDelayMs > baseDelayMs;
+
+        return {
+            baseDelayMs: baseDelayMs,
+            delayMs: gatedBySafeLine ? safeLineReplayDelayMs : baseDelayMs,
+            safeLineCrossDelayMs: safeLineCrossDelayMs,
+            gatedBySafeLine: gatedBySafeLine
+        };
+    }
+
     function buildCompatiblePromptWordSet(targetWord, pool, requiredCount) {
         const selected = [targetWord];
 
@@ -1515,9 +1559,9 @@
     }
 
     function schedulePromptAutoReplay(ctx, run, source, requestId) {
-        const replayGapMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.promptAutoReplayGapMs) || 520);
         const promptDurationMs = Math.max(0, toInt(run && run.prompt && run.prompt.audioDurationMs) || getLoadedAudioDurationMs(ctx, source));
-        if (promptDurationMs <= 0) {
+        const replayDelayMs = Math.max(0, toInt(run && run.prompt && run.prompt.autoReplayDelayMs));
+        if (promptDurationMs <= 0 || replayDelayMs <= 0) {
             return;
         }
 
@@ -1537,7 +1581,7 @@
             playPromptAudio(ctx, {
                 allowAutoReplay: false
             });
-        }, promptDurationMs + replayGapMs);
+        }, replayDelayMs);
     }
 
     function playPromptAudio(ctx, options) {
@@ -1943,6 +1987,7 @@
             card.y = card.entryStartY;
             card.speed = Math.min(variedCardSpeed, maxSafeSpeed);
         });
+        const replayTiming = getPromptAutoReplayTiming(ctx, run, promptDurationMs, targetCard);
 
         run.promptIdCounter = candidate.promptId;
         run.prompt = {
@@ -1953,6 +1998,10 @@
             distractorMode: String(candidate.distractorMode || 'mixed'),
             cardSpeed: promptCardSpeed,
             audioDurationMs: promptDurationMs,
+            autoReplayDelayMs: replayTiming.delayMs,
+            autoReplayBaseDelayMs: replayTiming.baseDelayMs,
+            safeLineCrossDelayMs: replayTiming.safeLineCrossDelayMs,
+            autoReplaySafeLineGated: replayTiming.gatedBySafeLine,
             hadWrongBefore: false,
             wrongCount: 0,
             exposureTracked: false,
@@ -2895,6 +2944,10 @@
                 awaitingPrompt: !!run.awaitingPrompt,
                 cardSpeed: Math.round(Number(run.prompt && run.prompt.cardSpeed ? run.prompt.cardSpeed : run.cardSpeed) || 0),
                 promptAudioDurationMs: Math.round(Number(run.prompt && run.prompt.audioDurationMs) || 0),
+                promptAutoReplayDelayMs: Math.round(Number(run.prompt && run.prompt.autoReplayDelayMs) || 0),
+                promptAutoReplayBaseDelayMs: Math.round(Number(run.prompt && run.prompt.autoReplayBaseDelayMs) || 0),
+                promptSafeLineCrossDelayMs: Math.round(Number(run.prompt && run.prompt.safeLineCrossDelayMs) || 0),
+                promptAutoReplaySafeLineGated: !!(run.prompt && run.prompt.autoReplaySafeLineGated),
                 promptDistractorMode: run.prompt ? String(run.prompt.distractorMode || '') : '',
                 cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,

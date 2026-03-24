@@ -528,12 +528,13 @@ async function mountGamesPage(page, {
   words = buildSpaceShooterWords(),
   audioLoadDelayMs = 60,
   promptAudioDurationSeconds = 4.2,
-  promptAutoReplayGapMs = null
+  promptAutoReplayGapMs = null,
+  spaceShooterOverrides = null
 } = {}) {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
-    ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs }) => {
+    ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides }) => {
       window.llWordsetPageData = config;
       if (
         window.llWordsetPageData
@@ -543,6 +544,15 @@ async function mountGamesPage(page, {
         && Number.isFinite(Number(replayGapMs))
       ) {
         window.llWordsetPageData.games.spaceShooter.promptAutoReplayGapMs = Number(replayGapMs);
+      }
+      if (
+        window.llWordsetPageData
+        && window.llWordsetPageData.games
+        && window.llWordsetPageData.games.spaceShooter
+        && shooterOverrides
+        && typeof shooterOverrides === 'object'
+      ) {
+        Object.assign(window.llWordsetPageData.games.spaceShooter, shooterOverrides);
       }
       window.__gameBootstrapWords = gameWords;
       window.__queuedProgressEvents = [];
@@ -761,7 +771,8 @@ async function mountGamesPage(page, {
       gameWords: words,
       audioLoadDelay: audioLoadDelayMs,
       promptAudioDuration: promptAudioDurationSeconds,
-      replayGapMs: promptAutoReplayGapMs
+      replayGapMs: promptAutoReplayGapMs,
+      shooterOverrides: spaceShooterOverrides
     }
   );
   await page.addStyleTag({ content: wordsetGamesStyles });
@@ -784,7 +795,10 @@ test('space shooter auto-replays the prompt once after a short pause', async ({ 
     isLoggedIn: true,
     audioLoadDelayMs: 20,
     promptAudioDurationSeconds: 0.35,
-    promptAutoReplayGapMs: 120
+    promptAutoReplayGapMs: 120,
+    spaceShooterOverrides: {
+      introRampStartFactor: 1
+    }
   });
 
   await page.evaluate(() => {
@@ -792,9 +806,25 @@ test('space shooter auto-replays the prompt once after a short pause', async ({ 
   });
 
   await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && run.promptId && run.promptAudioDurationMs > 0 && run.promptAutoReplayDelayMs > 0);
+  });
+
+  const replayTiming = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(replayTiming.promptAutoReplaySafeLineGated).toBe(true);
+  expect(replayTiming.promptSafeLineCrossDelayMs).toBeGreaterThan(replayTiming.promptAutoReplayBaseDelayMs);
+  expect(replayTiming.promptAutoReplayDelayMs).toBeGreaterThan(replayTiming.promptSafeLineCrossDelayMs);
+
+  await page.waitForTimeout(replayTiming.promptAutoReplayBaseDelayMs + 500);
+  const earlyPromptPlayCount = await page.evaluate(() =>
+    window.__audioEventLog.filter((entry) => entry.startsWith('prompt:') && !entry.endsWith('-ended')).length
+  );
+  expect(earlyPromptPlayCount).toBe(1);
+
+  await page.waitForFunction(() => {
     const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
     return events.filter((entry) => entry.startsWith('prompt:') && !entry.endsWith('-ended')).length >= 2;
-  });
+  }, null, { timeout: Math.max(7000, replayTiming.promptAutoReplayDelayMs + 2000) });
 
   const promptEvents = await page.evaluate(() =>
     window.__audioEventLog.filter((entry) => entry.startsWith('prompt:'))
