@@ -2199,6 +2199,14 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'last_seen_at' => $last_seen_at,
             'due_at' => $due_at,
             'is_starred' => !empty($starred_lookup[$wid]),
+            'normalized_grammatical_gender' => (string) ($word['normalized_grammatical_gender'] ?? ''),
+            'gender_marked' => !empty($word['gender_marked']),
+            'gender_progress_tracked' => !empty($word['gender_progress_tracked']),
+            'gender_eligible' => !empty($word['gender_eligible']),
+            'gender_level' => $tracks_gender_progress ? $gender_level : 0,
+            'gender_seen_total' => !empty($gender_state) ? max(0, (int) ($gender_state['seen_total'] ?? 0)) : 0,
+            'gender_last_seen_at' => !empty($gender_state['last_seen_at']) ? (string) $gender_state['last_seen_at'] : '',
+            'gender_progress' => $tracks_gender_progress ? $gender_state : [],
         ];
 
         $summary_total++;
@@ -2292,6 +2300,14 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'exposure_by_mode' => $exposure_by_mode,
             'last_mode' => $last_mode,
             'last_seen_at' => $last_seen_at,
+            'gender_progress' => [
+                'tracked_word_total' => max(0, (int) ($gender_category_totals[$cid]['tracked_word_total'] ?? 0)),
+                'not_started_words' => max(0, (int) ($gender_category_totals[$cid]['not_started_words'] ?? 0)),
+                'level_1_words' => max(0, (int) ($gender_category_totals[$cid]['level_1_words'] ?? 0)),
+                'level_2_words' => max(0, (int) ($gender_category_totals[$cid]['level_2_words'] ?? 0)),
+                'level_3_words' => max(0, (int) ($gender_category_totals[$cid]['level_3_words'] ?? 0)),
+                'last_seen_at' => isset($gender_category_last_seen[$cid]) ? (string) $gender_category_last_seen[$cid] : '',
+            ],
         ];
     }
 

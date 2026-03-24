@@ -59,7 +59,15 @@ function buildProgressAnalytics() {
           'self-check': 0
         },
         last_mode: 'practice',
-        last_seen_at: '2026-03-20 10:00:00'
+        last_seen_at: '2026-03-20 10:00:00',
+        gender_progress: {
+          tracked_word_total: 0,
+          not_started_words: 0,
+          level_1_words: 0,
+          level_2_words: 0,
+          level_3_words: 0,
+          last_seen_at: ''
+        }
       }
     ],
     words: [
@@ -78,7 +86,15 @@ function buildProgressAnalytics() {
         difficulty_score: 5,
         total_coverage: 24,
         incorrect: 10,
-        last_seen_at: '2026-03-20 10:00:00'
+        last_seen_at: '2026-03-20 10:00:00',
+        normalized_grammatical_gender: '',
+        gender_marked: false,
+        gender_progress_tracked: false,
+        gender_eligible: false,
+        gender_level: 0,
+        gender_seen_total: 0,
+        gender_last_seen_at: '',
+        gender_progress: {}
       },
       {
         id: 102,
@@ -95,7 +111,15 @@ function buildProgressAnalytics() {
         difficulty_score: 2,
         total_coverage: 5,
         incorrect: 0,
-        last_seen_at: '2026-03-19 08:30:00'
+        last_seen_at: '2026-03-19 08:30:00',
+        normalized_grammatical_gender: '',
+        gender_marked: false,
+        gender_progress_tracked: false,
+        gender_eligible: false,
+        gender_level: 0,
+        gender_seen_total: 0,
+        gender_last_seen_at: '',
+        gender_progress: {}
       },
       {
         id: 103,
@@ -110,7 +134,15 @@ function buildProgressAnalytics() {
         difficulty_score: 1,
         total_coverage: 3,
         incorrect: 1,
-        last_seen_at: '2026-03-19 08:00:00'
+        last_seen_at: '2026-03-19 08:00:00',
+        normalized_grammatical_gender: '',
+        gender_marked: false,
+        gender_progress_tracked: false,
+        gender_eligible: false,
+        gender_level: 0,
+        gender_seen_total: 0,
+        gender_last_seen_at: '',
+        gender_progress: {}
       }
     ],
     generated_at: '2026-03-20T10:00:00Z'
@@ -136,7 +168,15 @@ function buildSkewedProgressAnalytics() {
       difficulty_score: status === 'studied' ? ((index % 5) + 1) : 0,
       total_coverage: seen,
       incorrect: wrongValues[index],
-      last_seen_at: `2026-03-${String((wordNumber % 9) + 10).padStart(2, '0')} 08:00:00`
+      last_seen_at: `2026-03-${String((wordNumber % 9) + 10).padStart(2, '0')} 08:00:00`,
+      normalized_grammatical_gender: '',
+      gender_marked: false,
+      gender_progress_tracked: false,
+      gender_eligible: false,
+      gender_level: 0,
+      gender_seen_total: 0,
+      gender_last_seen_at: '',
+      gender_progress: {}
     };
   });
   return {
@@ -185,7 +225,15 @@ function buildSkewedProgressAnalytics() {
           'self-check': 0
         },
         last_mode: 'learning',
-        last_seen_at: '2026-03-20 10:00:00'
+        last_seen_at: '2026-03-20 10:00:00',
+        gender_progress: {
+          tracked_word_total: 0,
+          not_started_words: 0,
+          level_1_words: 0,
+          level_2_words: 0,
+          level_3_words: 0,
+          last_seen_at: ''
+        }
       }
     ],
     words,
@@ -250,13 +298,23 @@ function buildProgressPageConfig(overrides = {}) {
     i18n: {
       analyticsSelectionCount: '%d selected words',
       analyticsScopeAll: 'All categories (%d)',
+      analyticsWord: 'Word',
+      analyticsCategory: 'Category',
+      analyticsActivity: 'Activity',
+      analyticsWordProgress: 'Word Progress',
       analyticsMastered: 'Learned',
       analyticsStudied: 'In progress',
       analyticsNew: 'New',
       analyticsStarred: 'Starred',
       analyticsHard: 'Hard',
+      analyticsLast: 'Last',
+      analyticsNoRows: 'No data yet.',
       analyticsPlayAudio: 'Play audio',
       analyticsPlayAudioFor: 'Play audio for %s',
+      analyticsFilterStatus: 'Status',
+      analyticsFilterDifficulty: 'Difficulty Score',
+      analyticsFilterSeen: 'Seen',
+      analyticsFilterWrong: 'Wrong',
       analyticsGenderTitle: 'Gender',
       analyticsGenderNote: 'Only words with marked gender are counted.',
       analyticsGenderTrackedWords: '%d tracked words',
@@ -264,6 +322,14 @@ function buildProgressPageConfig(overrides = {}) {
       analyticsGenderLevel1: 'Level 1',
       analyticsGenderLevel2: 'Level 2',
       analyticsGenderLevel3: 'Level 3',
+      analyticsGenderTracked: 'Tracked',
+      analyticsGenderTableProgress: 'Gender progress',
+      analyticsGenderTableGender: 'Gender',
+      analyticsGenderTableLevel: 'Level',
+      analyticsGenderToggleAria: 'Show gender progress in the tables',
+      analyticsGenderToggleAriaActive: 'Show general progress in the tables',
+      analyticsGenderFilterGender: 'Filter gender',
+      analyticsGenderFilterLevel: 'Filter level',
       analyticsGenderLastPracticed: 'Last practiced'
     },
     gender: {
@@ -287,7 +353,15 @@ function buildProgressPageMarkup() {
         <div class="ll-wordset-progress-status" data-ll-wordset-progress-status></div>
         <div class="ll-wordset-progress-summary" data-ll-wordset-progress-summary></div>
         <div class="ll-wordset-progress-graph" data-ll-wordset-progress-graph></div>
-        <section class="ll-wordset-progress-gender" data-ll-wordset-progress-gender hidden>
+        <section
+          class="ll-wordset-progress-gender"
+          data-ll-wordset-progress-gender
+          data-ll-wordset-progress-gender-toggle
+          role="button"
+          tabindex="0"
+          aria-pressed="false"
+          hidden
+        >
           <div class="ll-wordset-progress-gender__head">
             <div class="ll-wordset-progress-gender__copy">
               <h2 class="ll-wordset-progress-gender__title">Gender</h2>
@@ -296,7 +370,6 @@ function buildProgressPageMarkup() {
           </div>
           <div class="ll-wordset-progress-gender__cards" data-ll-wordset-progress-gender-cards></div>
           <div class="ll-wordset-progress-gender__overview" data-ll-wordset-progress-gender-overview></div>
-          <div class="ll-wordset-progress-gender__categories" data-ll-wordset-progress-gender-categories></div>
         </section>
 
         <div class="ll-wordset-progress-tabs" role="tablist" aria-label="Progress">
@@ -316,16 +389,28 @@ function buildProgressPageMarkup() {
               <thead>
                 <tr>
                   <th scope="col" data-ll-wordset-progress-category-sort-th="category" aria-sort="none">
-                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="category"><span>Category</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="category">
+                      <span data-ll-wordset-progress-category-header-label="category">Category</span>
+                      <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
+                    </button>
                   </th>
                   <th scope="col" data-ll-wordset-progress-category-sort-th="progress" aria-sort="none">
-                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="progress"><span>Word Progress</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="progress">
+                      <span class="ll-wordset-progress-sort-label ll-wordset-progress-sort-label--progress" data-ll-wordset-progress-category-header-label="progress" data-mobile-label="Progress">Word Progress</span>
+                      <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
+                    </button>
                   </th>
                   <th scope="col" data-ll-wordset-progress-category-sort-th="activity" aria-sort="none">
-                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="activity"><span>Activity</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="activity">
+                      <span data-ll-wordset-progress-category-header-label="activity">Activity</span>
+                      <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
+                    </button>
                   </th>
                   <th scope="col" data-ll-wordset-progress-category-sort-th="last" aria-sort="none">
-                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="last"><span>Last</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="last">
+                      <span data-ll-wordset-progress-category-header-label="last">Last</span>
+                      <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
+                    </button>
                   </th>
                 </tr>
               </thead>
@@ -365,57 +450,67 @@ function buildProgressPageMarkup() {
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="star" aria-haspopup="true" aria-expanded="false" aria-label="Filter star status">
                         <span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
                       </button>
+                      <span class="screen-reader-text">Starred</span>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="star" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="star"></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="star" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter star status</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="star"></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="word" data-mobile-label="Word" aria-sort="none">
-                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="word"><span>Word</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                    <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="word"><span data-ll-wordset-progress-word-header-label="word">Word</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="category" data-mobile-label="Category" aria-sort="none">
                     <div class="ll-wordset-progress-th-controls">
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="category" aria-haspopup="true" aria-expanded="false" aria-label="Filter category">
                         <span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
                       </button>
-                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="category"><span>Category</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="category"><span data-ll-wordset-progress-word-header-label="category">Category</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop ll-wordset-progress-filter-pop--category" data-ll-wordset-progress-filter-pop="category" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options ll-wordset-progress-category-filter-options" data-ll-wordset-progress-category-filter-options></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop ll-wordset-progress-filter-pop--category" data-ll-wordset-progress-filter-pop="category" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter category</legend><div class="ll-wordset-progress-filter-options ll-wordset-progress-category-filter-options" data-ll-wordset-progress-category-filter-options></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="status" data-mobile-label="Status" aria-sort="none">
                     <div class="ll-wordset-progress-th-controls">
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="status" aria-haspopup="true" aria-expanded="false" aria-label="Filter status">
                         <span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
                       </button>
-                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="status"><span>Status</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="status"><span data-ll-wordset-progress-word-header-label="status">Status</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="status" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="status"></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="status" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter status</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="status"></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="difficulty" data-mobile-label="Difficulty" aria-sort="none">
+                    <span class="ll-wordset-progress-mobile-header-icon ll-wordset-progress-mobile-header-icon--difficulty" aria-hidden="true">
+                      <svg viewBox="0 0 64 64" class="ll-wordset-progress-mobile-header-icon-svg"><path d="M32 8 L58 52 H6 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"></path><line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line><circle cx="32" cy="45" r="3.2" fill="currentColor"></circle></svg>
+                    </span>
                     <div class="ll-wordset-progress-th-controls">
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="difficulty" aria-haspopup="true" aria-expanded="false" aria-label="Filter difficulty score"><span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></button>
-                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="difficulty"><span>Difficulty</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="difficulty"><span class="screen-reader-text">Difficulty Score</span><span class="ll-wordset-progress-sort-text-label ll-wordset-progress-sort-text-label--aux" data-ll-wordset-progress-word-header-label="difficulty">Difficulty</span><span class="ll-wordset-progress-sort-difficulty-icon-wrap" aria-hidden="true"><svg viewBox="0 0 64 64" class="ll-wordset-progress-sort-difficulty-icon"><path d="M32 8 L58 52 H6 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"></path><line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line><circle cx="32" cy="45" r="3.2" fill="currentColor"></circle></svg></span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="difficulty" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="difficulty"></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="difficulty" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter difficulty score</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="difficulty"></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="seen" data-mobile-label="Seen" aria-sort="none">
+                    <span class="ll-wordset-progress-mobile-header-icon ll-wordset-progress-mobile-header-icon--seen" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="16" height="16" class="ll-wordset-progress-mobile-header-icon-svg"><path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></svg>
+                    </span>
                     <div class="ll-wordset-progress-th-controls">
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="seen" aria-haspopup="true" aria-expanded="false" aria-label="Filter seen count"><span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></button>
-                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="seen"><span>Seen</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="seen"><span class="screen-reader-text">Seen</span><span class="ll-wordset-progress-sort-text-label ll-wordset-progress-sort-text-label--aux" data-ll-wordset-progress-word-header-label="seen">Seen</span><span class="ll-wordset-progress-sort-seen-icon-wrap" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" class="ll-wordset-progress-sort-seen-icon"><path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></svg></span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="seen" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="seen"></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="seen" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter seen count</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="seen"></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="wrong" data-mobile-label="Wrong" aria-sort="none">
+                    <span class="ll-wordset-progress-mobile-header-icon ll-wordset-progress-mobile-header-icon--wrong" aria-hidden="true">
+                      <svg viewBox="0 0 64 64" class="ll-wordset-progress-mobile-header-icon-svg"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg>
+                    </span>
                     <div class="ll-wordset-progress-th-controls">
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="wrong" aria-haspopup="true" aria-expanded="false" aria-label="Filter wrong count"><span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></button>
-                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="wrong"><span>Wrong</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="wrong"><span class="screen-reader-text">Wrong</span><span class="ll-wordset-progress-sort-text-label ll-wordset-progress-sort-text-label--aux" data-ll-wordset-progress-word-header-label="wrong">Wrong</span><span class="ll-wordset-progress-sort-wrong-icon-wrap" aria-hidden="true"><svg viewBox="0 0 64 64" class="ll-wordset-progress-sort-wrong-icon"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg></span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="wrong" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="wrong"></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="wrong" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter wrong count</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="wrong"></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="last" data-mobile-label="Last" aria-sort="none">
                     <div class="ll-wordset-progress-th-controls">
                       <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="last" aria-haspopup="true" aria-expanded="false" aria-label="Filter last seen"><span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span></button>
-                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="last"><span>Last</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="last"><span data-ll-wordset-progress-word-header-label="last">Last</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
-                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="last" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="last"></div></fieldset></div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="last" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter last seen</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="last"></div></fieldset></div>
                   </th>
                 </tr>
               </thead>
@@ -688,7 +783,7 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   expect(Math.abs(resizedMetrics.tableWidth - resizedMetrics.wrapWidth)).toBeLessThanOrEqual(2);
 });
 
-test('progress view renders gender section with overview and category breakdown', async ({ page }) => {
+test('progress view toggles the main tables into gender progress mode', async ({ page }) => {
   const analytics = buildProgressAnalytics();
   analytics.gender_progress = {
     enabled: true,
@@ -710,6 +805,57 @@ test('progress view renders gender section with overview and category breakdown'
       }
     ]
   };
+  analytics.categories[0].gender_progress = {
+    tracked_word_total: 3,
+    not_started_words: 1,
+    level_1_words: 1,
+    level_2_words: 1,
+    level_3_words: 0,
+    last_seen_at: '2026-03-20 10:00:00'
+  };
+  analytics.words = [
+    {
+      ...analytics.words[0],
+      normalized_grammatical_gender: 'Masculine',
+      gender_marked: true,
+      gender_progress_tracked: true,
+      gender_eligible: true,
+      gender_level: 1,
+      gender_seen_total: 3,
+      gender_last_seen_at: '2026-03-19 10:00:00',
+      gender_progress: {
+        level: 1,
+        seen_total: 3,
+        last_seen_at: '2026-03-19 10:00:00'
+      }
+    },
+    {
+      ...analytics.words[1],
+      normalized_grammatical_gender: 'Feminine',
+      gender_marked: true,
+      gender_progress_tracked: true,
+      gender_eligible: true,
+      gender_level: 2,
+      gender_seen_total: 6,
+      gender_last_seen_at: '2026-03-20 09:00:00',
+      gender_progress: {
+        level: 2,
+        seen_total: 6,
+        last_seen_at: '2026-03-20 09:00:00'
+      }
+    },
+    {
+      ...analytics.words[2],
+      normalized_grammatical_gender: 'Masculine',
+      gender_marked: true,
+      gender_progress_tracked: true,
+      gender_eligible: true,
+      gender_level: 0,
+      gender_seen_total: 0,
+      gender_last_seen_at: '',
+      gender_progress: {}
+    }
+  ];
 
   await mountProgressPage(page, { width: 390, height: 844 }, {
     analytics,
@@ -726,7 +872,29 @@ test('progress view renders gender section with overview and category breakdown'
   await expect(section).toContainText('Only words with marked gender are counted.');
   await expect(section).toContainText('3 tracked words');
   await expect(section.locator('.ll-wordset-progress-gender-card')).toHaveCount(4);
-  await expect(section).toContainText('Last practiced');
+  await expect(page.locator('[data-ll-wordset-progress-gender-categories]')).toHaveCount(0);
+
+  await section.click();
+  await expect(section).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-ll-wordset-progress-root]')).toHaveClass(/is-gender-view/);
+
+  await page.locator('[data-ll-wordset-progress-tab="categories"]').click();
+  await expect(page.locator('[data-ll-wordset-progress-category-header-label="progress"]')).toHaveText('Gender progress');
+  await expect(page.locator('[data-ll-wordset-progress-category-header-label="activity"]')).toHaveText('Tracked');
+  await expect(page.locator('[data-ll-wordset-progress-categories-body] tr')).toHaveCount(1);
+  await expect(page.locator('[data-ll-wordset-progress-categories-body] tr').first().locator('td').nth(2)).toHaveText('3');
+
+  await page.locator('[data-ll-wordset-progress-tab="words"]').click();
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-progress-word-header-label="status"]')).toHaveText('Gender');
+  await expect(page.locator('[data-ll-wordset-progress-word-header-label="difficulty"]')).toHaveText('Level');
+  await expect(page.locator('[data-ll-wordset-progress-word-header-label="seen"]')).toHaveText('Seen');
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(3);
+  await expect(page.locator('tr[data-word-id="101"]')).toContainText('Masculine');
+  await expect(page.locator('tr[data-word-id="101"]')).toContainText('Level 1');
+  await expect(page.locator('tr[data-word-id="102"]')).toContainText('Feminine');
+  await expect(page.locator('tr[data-word-id="102"]')).toContainText('Level 2');
+  await expect(page.locator('tr[data-word-id="103"]')).toContainText('Not started');
 });
 
 test('desktop progress words table sticky header respects the visible admin bar while scrolling', async ({ page }) => {

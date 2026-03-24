@@ -98,8 +98,8 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
         $word_a = $this->createGenderWordFixture('Gender Analytics A', 'Translation A', 'noun', 'Masculine', $category_id, $wordset_id)[0];
         $word_b = $this->createGenderWordFixture('Gender Analytics B', 'Translation B', 'noun', 'Feminine', $category_id, $wordset_id)[0];
         $word_c = $this->createGenderWordFixture('Gender Analytics C', 'Translation C', 'noun', 'Masculine', $category_id, $wordset_id)[0];
-        $this->createGenderWordFixture('Gender Analytics D', 'Translation D', 'verb', 'Masculine', $category_id, $wordset_id);
-        $this->createGenderWordFixture('Gender Analytics E', 'Translation E', 'noun', '', $category_id, $wordset_id);
+        $word_d = $this->createGenderWordFixture('Gender Analytics D', 'Translation D', 'verb', 'Masculine', $category_id, $wordset_id)[0];
+        $word_e = $this->createGenderWordFixture('Gender Analytics E', 'Translation E', 'noun', '', $category_id, $wordset_id)[0];
 
         $this->seedWordProgressRow($user_id, $word_a, $category_id, $wordset_id, [
             'gender_level' => 2,
@@ -154,6 +154,70 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($category['level_2_words'] ?? 0));
         $this->assertSame(1, (int) ($category['level_3_words'] ?? 0));
         $this->assertSame('2026-03-21 09:15:00', (string) ($category['last_gender_seen_at'] ?? ''));
+
+        $analytics_categories = (array) ($analytics['categories'] ?? []);
+        $this->assertCount(1, $analytics_categories);
+        $analytics_category = (array) $analytics_categories[0];
+        $category_gender_progress = (array) ($analytics_category['gender_progress'] ?? []);
+        $this->assertSame(3, (int) ($category_gender_progress['tracked_word_total'] ?? 0));
+        $this->assertSame(1, (int) ($category_gender_progress['not_started_words'] ?? 0));
+        $this->assertSame(1, (int) ($category_gender_progress['level_2_words'] ?? 0));
+        $this->assertSame(1, (int) ($category_gender_progress['level_3_words'] ?? 0));
+        $this->assertSame('2026-03-21 09:15:00', (string) ($category_gender_progress['last_seen_at'] ?? ''));
+
+        $analytics_words = [];
+        foreach ((array) ($analytics['words'] ?? []) as $row) {
+            $word_row = (array) $row;
+            $word_id = (int) ($word_row['id'] ?? 0);
+            if ($word_id > 0) {
+                $analytics_words[$word_id] = $word_row;
+            }
+        }
+
+        $this->assertArrayHasKey($word_a, $analytics_words);
+        $this->assertArrayHasKey($word_b, $analytics_words);
+        $this->assertArrayHasKey($word_c, $analytics_words);
+        $this->assertArrayHasKey($word_d, $analytics_words);
+        $this->assertArrayHasKey($word_e, $analytics_words);
+
+        $word_a_row = $analytics_words[$word_a];
+        $this->assertSame('Masculine', (string) ($word_a_row['normalized_grammatical_gender'] ?? ''));
+        $this->assertTrue((bool) ($word_a_row['gender_marked'] ?? false));
+        $this->assertTrue((bool) ($word_a_row['gender_progress_tracked'] ?? false));
+        $this->assertTrue((bool) ($word_a_row['gender_eligible'] ?? false));
+        $this->assertSame(2, (int) ($word_a_row['gender_level'] ?? 0));
+        $this->assertSame(6, (int) ($word_a_row['gender_seen_total'] ?? 0));
+        $this->assertSame('2026-03-20 10:00:00', (string) ($word_a_row['gender_last_seen_at'] ?? ''));
+        $this->assertSame(2, (int) (($word_a_row['gender_progress']['level'] ?? 0)));
+        $this->assertSame(6, (int) (($word_a_row['gender_progress']['seen_total'] ?? 0)));
+
+        $word_b_row = $analytics_words[$word_b];
+        $this->assertSame('Feminine', (string) ($word_b_row['normalized_grammatical_gender'] ?? ''));
+        $this->assertTrue((bool) ($word_b_row['gender_progress_tracked'] ?? false));
+        $this->assertSame(3, (int) ($word_b_row['gender_level'] ?? 0));
+        $this->assertSame(8, (int) ($word_b_row['gender_seen_total'] ?? 0));
+        $this->assertSame('2026-03-21 09:15:00', (string) ($word_b_row['gender_last_seen_at'] ?? ''));
+        $this->assertSame(3, (int) (($word_b_row['gender_progress']['level'] ?? 0)));
+        $this->assertSame(8, (int) (($word_b_row['gender_progress']['seen_total'] ?? 0)));
+
+        $word_c_row = $analytics_words[$word_c];
+        $this->assertSame('Masculine', (string) ($word_c_row['normalized_grammatical_gender'] ?? ''));
+        $this->assertTrue((bool) ($word_c_row['gender_progress_tracked'] ?? false));
+        $this->assertSame(0, (int) ($word_c_row['gender_level'] ?? 0));
+        $this->assertSame(0, (int) ($word_c_row['gender_seen_total'] ?? 0));
+        $this->assertSame('', (string) ($word_c_row['gender_last_seen_at'] ?? ''));
+        $this->assertSame([], (array) ($word_c_row['gender_progress'] ?? []));
+
+        $word_d_row = $analytics_words[$word_d];
+        $this->assertSame('Masculine', (string) ($word_d_row['normalized_grammatical_gender'] ?? ''));
+        $this->assertTrue((bool) ($word_d_row['gender_marked'] ?? false));
+        $this->assertFalse((bool) ($word_d_row['gender_progress_tracked'] ?? false));
+        $this->assertFalse((bool) ($word_d_row['gender_eligible'] ?? false));
+
+        $word_e_row = $analytics_words[$word_e];
+        $this->assertSame('', (string) ($word_e_row['normalized_grammatical_gender'] ?? ''));
+        $this->assertFalse((bool) ($word_e_row['gender_marked'] ?? false));
+        $this->assertFalse((bool) ($word_e_row['gender_progress_tracked'] ?? false));
     }
 
     /**

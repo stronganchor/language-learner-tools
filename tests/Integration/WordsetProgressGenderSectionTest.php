@@ -43,8 +43,13 @@ final class WordsetProgressGenderSectionTest extends LL_Tools_TestCase
 
         $this->assertNotSame('', $html);
         $this->assertStringContainsString('data-ll-wordset-progress-gender', $html);
+        $this->assertStringContainsString('data-ll-wordset-progress-gender-toggle', $html);
+        $this->assertStringContainsString('role="button"', $html);
+        $this->assertStringContainsString('tabindex="0"', $html);
+        $this->assertStringContainsString('aria-pressed="false"', $html);
         $this->assertStringContainsString('data-ll-wordset-progress-gender-cards', $html);
         $this->assertStringContainsString('Only words with marked gender are counted.', $html);
+        $this->assertStringNotContainsString('data-ll-wordset-progress-gender-categories', $html);
     }
 
     public function test_progress_view_omits_gender_section_when_no_marked_words_exist(): void

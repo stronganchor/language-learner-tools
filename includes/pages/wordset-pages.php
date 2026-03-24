@@ -3270,10 +3270,22 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     ? ll_tools_wordset_games_space_shooter_launch_word_cap()
                     : 60,
                 'fireIntervalMs' => 165,
-                'correctCoinReward' => 2,
+                'correctCoinReward' => 1,
                 'wrongHitCoinPenalty' => 0,
+                'wrongHitLifePenalty' => 1,
                 'timeoutCoinPenalty' => 1,
                 'timeoutLifePenalty' => 1,
+                'promptAudioVolume' => 1,
+                'correctHitVolume' => 0.28,
+                'wrongHitVolume' => 0.2,
+                'correctHitAudioSources' => [
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
+                ],
+                'wrongHitAudioSources' => [
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
+                ],
             ],
         ],
         'summaryCounts' => $summary_counts,
@@ -3326,6 +3338,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsUnavailable' => __('Progress is unavailable right now.', 'll-tools-text-domain'),
             'analyticsScopeSelected' => __('Selected categories (%d)', 'll-tools-text-domain'),
             'analyticsScopeAll' => __('All categories (%d)', 'll-tools-text-domain'),
+            'analyticsWord' => __('Word', 'll-tools-text-domain'),
+            'analyticsCategory' => __('Category', 'll-tools-text-domain'),
+            'analyticsActivity' => __('Activity', 'll-tools-text-domain'),
+            'analyticsWordProgress' => __('Word Progress', 'll-tools-text-domain'),
             'analyticsMastered' => __('Learned', 'll-tools-text-domain'),
             'analyticsStudied' => __('In progress', 'll-tools-text-domain'),
             'analyticsNew' => __('New', 'll-tools-text-domain'),
@@ -3375,11 +3391,19 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsGenderTitle' => __('Gender', 'll-tools-text-domain'),
             'analyticsGenderNote' => __('Only words with marked gender are counted.', 'll-tools-text-domain'),
             'analyticsGenderTrackedWords' => __('%d tracked words', 'll-tools-text-domain'),
+            'analyticsGenderTracked' => __('Tracked', 'll-tools-text-domain'),
             'analyticsGenderNotStarted' => __('Not started', 'll-tools-text-domain'),
             'analyticsGenderLevel1' => __('Level 1', 'll-tools-text-domain'),
             'analyticsGenderLevel2' => __('Level 2', 'll-tools-text-domain'),
             'analyticsGenderLevel3' => __('Level 3', 'll-tools-text-domain'),
             'analyticsGenderLastPracticed' => __('Last practiced', 'll-tools-text-domain'),
+            'analyticsGenderTableProgress' => __('Gender progress', 'll-tools-text-domain'),
+            'analyticsGenderTableGender' => __('Gender', 'll-tools-text-domain'),
+            'analyticsGenderTableLevel' => __('Level', 'll-tools-text-domain'),
+            'analyticsGenderToggleAria' => __('Show gender progress in the tables', 'll-tools-text-domain'),
+            'analyticsGenderToggleAriaActive' => __('Show general progress in the tables', 'll-tools-text-domain'),
+            'analyticsGenderFilterGender' => __('Filter gender', 'll-tools-text-domain'),
+            'analyticsGenderFilterLevel' => __('Filter level', 'll-tools-text-domain'),
             'modePractice' => __('Practice', 'll-tools-text-domain'),
             'modeLearning' => __('Learn', 'll-tools-text-domain'),
             'modeListening' => __('Listen', 'll-tools-text-domain'),
@@ -3531,7 +3555,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     </div>
 
                     <?php if ($render_progress_gender_section) : ?>
-                        <section class="ll-wordset-progress-gender" data-ll-wordset-progress-gender>
+                        <section
+                            class="ll-wordset-progress-gender"
+                            data-ll-wordset-progress-gender
+                            data-ll-wordset-progress-gender-toggle
+                            role="button"
+                            tabindex="0"
+                            aria-pressed="false">
                             <div class="ll-wordset-progress-gender__head">
                                 <div class="ll-wordset-progress-gender__copy">
                                     <h2 class="ll-wordset-progress-gender__title"><?php echo esc_html__('Gender', 'll-tools-text-domain'); ?></h2>
@@ -3540,7 +3570,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             </div>
                             <div class="ll-wordset-progress-gender__cards" data-ll-wordset-progress-gender-cards></div>
                             <div class="ll-wordset-progress-gender__overview" data-ll-wordset-progress-gender-overview></div>
-                            <div class="ll-wordset-progress-gender__categories" data-ll-wordset-progress-gender-categories></div>
                         </section>
                     <?php endif; ?>
 
@@ -3590,25 +3619,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                     <tr>
                                         <th scope="col" data-ll-wordset-progress-category-sort-th="category" aria-sort="none">
                                             <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="category">
-                                                <span><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
+                                                <span data-ll-wordset-progress-category-header-label="category"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
                                                 <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                             </button>
                                         </th>
                                         <th scope="col" data-ll-wordset-progress-category-sort-th="progress" aria-sort="none">
                                             <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="progress">
-                                                <span class="ll-wordset-progress-sort-label ll-wordset-progress-sort-label--progress" data-mobile-label="<?php echo esc_attr__('Progress', 'll-tools-text-domain'); ?>"><?php echo esc_html__('Word Progress', 'll-tools-text-domain'); ?></span>
+                                                <span class="ll-wordset-progress-sort-label ll-wordset-progress-sort-label--progress" data-ll-wordset-progress-category-header-label="progress" data-mobile-label="<?php echo esc_attr__('Progress', 'll-tools-text-domain'); ?>"><?php echo esc_html__('Word Progress', 'll-tools-text-domain'); ?></span>
                                                 <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                             </button>
                                         </th>
                                         <th scope="col" data-ll-wordset-progress-category-sort-th="activity" aria-sort="none">
                                             <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="activity">
-                                                <span><?php echo esc_html__('Activity', 'll-tools-text-domain'); ?></span>
+                                                <span data-ll-wordset-progress-category-header-label="activity"><?php echo esc_html__('Activity', 'll-tools-text-domain'); ?></span>
                                                 <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                             </button>
                                         </th>
                                         <th scope="col" data-ll-wordset-progress-category-sort-th="last" aria-sort="none">
                                             <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-category-sort="last">
-                                                <span><?php echo esc_html__('Last', 'll-tools-text-domain'); ?></span>
+                                                <span data-ll-wordset-progress-category-header-label="last"><?php echo esc_html__('Last', 'll-tools-text-domain'); ?></span>
                                                 <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                             </button>
                                         </th>
@@ -3667,7 +3696,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         </th>
                                         <th scope="col" data-ll-wordset-progress-sort-th="word" data-mobile-label="<?php echo esc_attr__('Word', 'll-tools-text-domain'); ?>" aria-sort="none">
                                             <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="word">
-                                                <span><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></span>
+                                                <span data-ll-wordset-progress-word-header-label="word"><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></span>
                                                 <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                             </button>
                                         </th>
@@ -3679,7 +3708,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                     </span>
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="category">
-                                                    <span><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
+                                                    <span data-ll-wordset-progress-word-header-label="category"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
                                                     <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </div>
@@ -3698,7 +3727,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                     </span>
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="status">
-                                                    <span><?php echo esc_html__('Status', 'll-tools-text-domain'); ?></span>
+                                                    <span data-ll-wordset-progress-word-header-label="status"><?php echo esc_html__('Status', 'll-tools-text-domain'); ?></span>
                                                     <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </div>
@@ -3721,6 +3750,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="difficulty">
                                                     <span class="screen-reader-text"><?php echo esc_html__('Difficulty Score', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-text-label ll-wordset-progress-sort-text-label--aux" data-ll-wordset-progress-word-header-label="difficulty"><?php echo esc_html__('Difficulty', 'll-tools-text-domain'); ?></span>
                                                     <span class="ll-wordset-progress-sort-difficulty-icon-wrap" aria-hidden="true">
                                                         <?php echo ll_tools_wordset_page_render_hard_words_icon('ll-wordset-progress-sort-difficulty-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                                     </span>
@@ -3746,6 +3776,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="seen">
                                                     <span class="screen-reader-text"><?php echo esc_html__('Seen', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-text-label ll-wordset-progress-sort-text-label--aux" data-ll-wordset-progress-word-header-label="seen"><?php echo esc_html__('Seen', 'll-tools-text-domain'); ?></span>
                                                     <span class="ll-wordset-progress-sort-seen-icon-wrap" aria-hidden="true">
                                                         <?php echo ll_tools_wordset_page_render_unhide_icon('ll-wordset-progress-sort-seen-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                                     </span>
@@ -3771,6 +3802,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="wrong">
                                                     <span class="screen-reader-text"><?php echo esc_html__('Wrong', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-text-label ll-wordset-progress-sort-text-label--aux" data-ll-wordset-progress-word-header-label="wrong"><?php echo esc_html__('Wrong', 'll-tools-text-domain'); ?></span>
                                                     <span class="ll-wordset-progress-sort-wrong-icon-wrap" aria-hidden="true">
                                                         <?php echo ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-sort-wrong-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                                     </span>
@@ -3792,7 +3824,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                     </span>
                                                 </button>
                                                 <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="last">
-                                                    <span><?php echo esc_html__('Last', 'll-tools-text-domain'); ?></span>
+                                                    <span data-ll-wordset-progress-word-header-label="last"><?php echo esc_html__('Last', 'll-tools-text-domain'); ?></span>
                                                     <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
                                                 </button>
                                             </div>
