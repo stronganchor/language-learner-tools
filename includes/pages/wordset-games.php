@@ -46,11 +46,11 @@ function ll_tools_wordset_games_render_icon(string $class = 'll-wordset-games-ic
 function ll_tools_wordset_games_render_bubble_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
-        . '<circle cx="11.5" cy="10.2" r="6.2" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.5"/>'
-        . '<circle cx="9.3" cy="8.1" r="1.5" fill="currentColor" fill-opacity="0.72"/>'
-        . '<path d="M11.5 16.4V20.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>'
-        . '<path d="M9.2 19.1L11.5 21.4L13.8 19.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
-        . '<circle cx="17.7" cy="6" r="2.3" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.3"/>'
+        . '<circle cx="10.8" cy="12" r="5.8" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.5"/>'
+        . '<circle cx="8.8" cy="9.9" r="1.4" fill="currentColor" fill-opacity="0.72"/>'
+        . '<circle cx="17.2" cy="7" r="2.6" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.3"/>'
+        . '<circle cx="16.1" cy="6.1" r="0.8" fill="currentColor" fill-opacity="0.64"/>'
+        . '<circle cx="6.5" cy="6.4" r="1.8" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.1"/>'
         . '</svg>';
 }
 

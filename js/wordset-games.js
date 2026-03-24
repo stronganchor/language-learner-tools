@@ -1101,21 +1101,23 @@
     function getBubbleFloatOffsets(card, now, strength) {
         const time = Math.max(0, Number(now) || 0) / 1000;
         const scale = isFinite(Number(strength)) ? Number(strength) : 1;
+        const offsetX = (
+            Math.sin((time * Number(card && card.bubbleFloatHzXPrimary || 0.14) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXPrimary || 0))
+                * Number(card && card.bubbleFloatAmplitudeXPrimary || 0)
+        ) + (
+            Math.sin((time * Number(card && card.bubbleFloatHzXSecondary || 0.26) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXSecondary || 0))
+                * Number(card && card.bubbleFloatAmplitudeXSecondary || 0)
+        );
+        const offsetY = (
+            Math.sin((time * Number(card && card.bubbleFloatHzYPrimary || 0.18) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseYPrimary || 0))
+                * Number(card && card.bubbleFloatAmplitudeYPrimary || 0)
+        ) + (
+            Math.sin((time * Number(card && card.bubbleFloatHzYSecondary || 0.31) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseYSecondary || 0))
+                * Number(card && card.bubbleFloatAmplitudeYSecondary || 0)
+        );
         return {
-            x: (
-                Math.sin((time * Number(card && card.bubbleFloatHzXPrimary || 0.14) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXPrimary || 0))
-                    * Number(card && card.bubbleFloatAmplitudeXPrimary || 0)
-            ) + (
-                Math.sin((time * Number(card && card.bubbleFloatHzXSecondary || 0.26) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXSecondary || 0))
-                    * Number(card && card.bubbleFloatAmplitudeXSecondary || 0)
-            ) * scale,
-            y: (
-                Math.sin((time * Number(card && card.bubbleFloatHzYPrimary || 0.18) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseYPrimary || 0))
-                    * Number(card && card.bubbleFloatAmplitudeYPrimary || 0)
-            ) + (
-                Math.sin((time * Number(card && card.bubbleFloatHzYSecondary || 0.31) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseYSecondary || 0))
-                    * Number(card && card.bubbleFloatAmplitudeYSecondary || 0)
-            ) * scale
+            x: offsetX * scale,
+            y: offsetY * scale
         };
     }
 
