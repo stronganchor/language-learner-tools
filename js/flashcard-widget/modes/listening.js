@@ -1634,6 +1634,9 @@
             const followCurrentTarget = function () {
                 const a = (audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
                     ? audioApi.getCurrentTargetAudio() : null;
+                if (a && Dom && typeof Dom.bindRepeatButtonAudio === 'function') {
+                    Dom.bindRepeatButtonAudio(a);
+                }
                 if (a && audioVisualizer && typeof audioVisualizer.followAudio === 'function') {
                     audioVisualizer.followAudio(a);
                 }

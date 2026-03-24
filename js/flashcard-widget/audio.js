@@ -144,6 +144,29 @@
             return audio.__sessionId === currentSession;
         }
 
+        function isAudioMutedForQuizGate(audio) {
+            if (!audio) return false;
+            try {
+                if (audio.muted) {
+                    return true;
+                }
+            } catch (_) { /* no-op */ }
+            try {
+                if (typeof audio.volume === 'number' && audio.volume <= 0.01) {
+                    return true;
+                }
+            } catch (_) { /* no-op */ }
+            return false;
+        }
+
+        function requestQuizSoundGate(audio, options) {
+            var domApi = window.LLFlashcards && window.LLFlashcards.Dom;
+            if (!domApi || typeof domApi.requestSoundGate !== 'function') {
+                return false;
+            }
+            return !!domApi.requestSoundGate(audio, options || {});
+        }
+
         /**
          * Play audio with session validation + AbortError resilience
          */
@@ -171,6 +194,10 @@
                     audio.currentTime = 0;
                 }
 
+                if (isAudioMutedForQuizGate(audio) && requestQuizSoundGate(audio, { reason: 'muted', force: false })) {
+                    return Promise.reject(new Error('Quiz audio is muted'));
+                }
+
                 return audio.play().catch(function (e) {
                     // Browser-specific interruption when a late pause hits just after play()
                     if (e && e.name === 'AbortError') {
@@ -183,9 +210,7 @@
 
                     if (e.name === 'NotAllowedError' && !autoplayBlocked) {
                         autoplayBlocked = true;
-                        if (window.LLFlashcards && window.LLFlashcards.Dom) {
-                            window.LLFlashcards.Dom.showAutoplayBlockedOverlay();
-                        }
+                        requestQuizSoundGate(audio, { reason: 'autoplay-blocked', force: false });
                     }
                     error('Audio: Play failed', e);
                     throw e;
@@ -493,6 +518,7 @@
 
             currentTargetAudio = audioElement;
             currentTargetAudio.__sessionId = currentSession;
+            currentTargetAudio.__options = { type: 'target' };
             activeAudioElements.set(currentTargetAudio, currentSession);
             try { currentTargetAudio.preload = 'auto'; } catch (_) { /* no-op */ }
             try { currentTargetAudio.load(); } catch (_) { /* no-op */ }

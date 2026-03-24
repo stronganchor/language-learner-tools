@@ -473,6 +473,7 @@
         practiceProgressMinDisplayRatio = 0;
         clearPrompt();
         try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
+        try { Dom.setSoundGateRequired && Dom.setSoundGateRequired(false); } catch (_) { /* no-op */ }
         setStarModeOverride(null);
         try { State.modeSessionCompleteTracked = false; } catch (_) { /* no-op */ }
 
@@ -512,6 +513,8 @@
         State.modeSessionCompleteTracked = false;
         State.hadWrongAnswerThisTurn = false;
         State.lastWordShownId = null;
+        State.soundGateRequired = false;
+        State.soundGateActive = false;
 
         State.wordsLinear = [];
         State.listenIndex = 0;
@@ -534,6 +537,37 @@
         State.learningWordSetIndex = 0;
         State.learningWordSetSignature = '';
         State.roundMediaFailureCounts = {};
+    }
+
+    function roundRequiresAudio(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const promptType = String(opts.promptType || State.currentPromptType || '');
+        const optionType = String(opts.optionType || State.currentOptionType || '');
+
+        if (State.isSelfCheckMode) {
+            return false;
+        }
+        if (State.isListeningMode || State.isLearningMode || State.isGenderMode) {
+            return true;
+        }
+        return promptType === 'audio' || optionType === 'audio' || optionType === 'text_audio';
+    }
+
+    function applyRoundSoundRequirement(required) {
+        const needsAudio = !!required;
+        State.soundGateRequired = needsAudio;
+        if (!needsAudio) {
+            State.soundGateActive = false;
+        }
+        if (Dom && typeof Dom.setSoundGateRequired === 'function') {
+            Dom.setSoundGateRequired(needsAudio);
+        }
+        if (Dom && typeof Dom.isSoundGateActive === 'function') {
+            State.soundGateActive = !!Dom.isSoundGateActive();
+        }
+        if (!needsAudio && Dom && typeof Dom.hideAutoplayBlockedOverlay === 'function') {
+            Dom.hideAutoplayBlockedOverlay();
+        }
     }
 
     // Restore the full category list for a fresh session (e.g., after completion)
@@ -684,6 +718,7 @@
 
     function shouldAutoplayOptionAudio() {
         if (!State || State.isListeningMode) return false;
+        if (State.soundGateActive) return false;
         const opt = State.currentOptionType;
         const prompt = State.currentPromptType;
         if (prompt !== 'image') return false;
@@ -3554,6 +3589,7 @@
         const modeModule = getActiveModeModule();
 
         if (modeModule && typeof modeModule.runRound === 'function') {
+            applyRoundSoundRequirement(roundRequiresAudio());
             modeModule.runRound({
                 setGuardedTimeout,
                 startQuizRound,
@@ -3616,6 +3652,7 @@
                 }
             }
             updatePracticeModeProgress();
+            applyRoundSoundRequirement(false);
             State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
             Results.showResults();
             return;
@@ -3659,6 +3696,10 @@
         const promptType = categoryConfig.prompt_type || 'audio';
         State.currentOptionType = displayMode;
         State.currentPromptType = promptType;
+        applyRoundSoundRequirement(roundRequiresAudio({
+            promptType: promptType,
+            optionType: displayMode
+        }));
         const roundSessionToken = __LLSession;
         const isStaleRound = function () {
             return roundSessionToken !== __LLSession || !State.widgetActive;
@@ -3820,6 +3861,7 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const reason = String(opts.reason || '').toLowerCase();
         const msgs = root.llToolsFlashcardsMessages || {};
+        applyRoundSoundRequirement(false);
         try { State.clearActiveTimeouts(); } catch (_) { /* no-op */ }
         try {
             if (root.FlashcardAudio && typeof root.FlashcardAudio.pauseAllAudio === 'function') {
@@ -4032,7 +4074,9 @@
                         Dom.setRepeatButton && Dom.setRepeatButton('play');
                     } else {
                         try { audio.currentTime = 0; } catch (_) { /* no-op */ }
-                        const playPromise = audio.play();
+                        const playPromise = (root.FlashcardAudio && typeof root.FlashcardAudio.playAudio === 'function')
+                            ? root.FlashcardAudio.playAudio(audio)
+                            : audio.play();
                         if (playPromise && typeof playPromise.catch === 'function') {
                             playPromise.catch(() => { });
                         }
@@ -4113,7 +4157,9 @@
                             }
 
                             const done = () => $content.off('.llAutoplayKick');
-                            const playPromise = audio.play();
+                            const playPromise = (audioApi && typeof audioApi.playAudio === 'function')
+                                ? audioApi.playAudio(audio)
+                                : audio.play();
                             if (playPromise && typeof playPromise.finally === 'function') {
                                 playPromise.catch(() => { }).finally(done);
                             } else if (playPromise && typeof playPromise.then === 'function') {

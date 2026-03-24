@@ -94,6 +94,8 @@
         listeningLoop: false,
         wrongAnswerQueue: [],
         hadWrongAnswerThisTurn: false,
+        soundGateRequired: false,
+        soundGateActive: false,
         isIntroducingWord: false,
         currentIntroductionAudio: null,
         currentIntroductionRound: 0,

@@ -47,6 +47,250 @@
     let loadingRequested = false;
     let loadingVisible = false;
     let loadingVisibleAt = 0;
+    let soundGateRequired = false;
+    let soundGateWatchedAudio = null;
+    let soundGateWatchedListeners = [];
+    let soundGateResumeAudio = null;
+
+    function getMessages() {
+        return (root && root.llToolsFlashcardsMessages && typeof root.llToolsFlashcardsMessages === 'object')
+            ? root.llToolsFlashcardsMessages
+            : {};
+    }
+
+    function isSoundGateAudioMuted(audio) {
+        if (!audio) {
+            return false;
+        }
+        try {
+            if (audio.muted) {
+                return true;
+            }
+        } catch (_) { /* no-op */ }
+        try {
+            if (typeof audio.volume === 'number' && audio.volume <= 0.01) {
+                return true;
+            }
+        } catch (_) { /* no-op */ }
+        return false;
+    }
+
+    function createSoundGateIcon() {
+        return [
+            '<span class="ll-tools-sound-gate-icon" aria-hidden="true">',
+            '<svg viewBox="0 0 80 80" focusable="false" aria-hidden="true">',
+            '<circle class="ll-tools-sound-gate-ring" cx="40" cy="40" r="31"></circle>',
+            '<path class="ll-tools-sound-gate-speaker" d="M22 47h9l14 11V22L31 33h-9z"></path>',
+            '<path class="ll-tools-sound-gate-wave wave-1" d="M50 33c4 3 6 7 6 11s-2 8-6 11"></path>',
+            '<path class="ll-tools-sound-gate-wave wave-2" d="M56 27c6 5 9 11 9 17s-3 12-9 17"></path>',
+            '<path class="ll-tools-sound-gate-slash" d="M21 59L59 21"></path>',
+            '</svg>',
+            '</span>'
+        ].join('');
+    }
+
+    function setSoundGateState(active) {
+        const enabled = !!active;
+        if (State) {
+            State.soundGateActive = enabled;
+        }
+        $('#ll-tools-flashcard-quiz-popup').toggleClass('ll-sound-gate-active', enabled);
+        $('#ll-tools-flashcard-content').toggleClass('ll-sound-gate-active', enabled);
+    }
+
+    function getFallbackSoundGateAudio() {
+        const audioApi = root.FlashcardAudio;
+        if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') {
+            return null;
+        }
+        return audioApi.getCurrentTargetAudio();
+    }
+
+    function getSoundGateAudioForResume() {
+        return soundGateResumeAudio || soundGateWatchedAudio || getFallbackSoundGateAudio();
+    }
+
+    function syncSoundGateButtonLabel() {
+        const messages = getMessages();
+        const label = String(messages.soundRequiredContinue || messages.soundRequiredResume || 'Turn on sound to continue the quiz.');
+        const buttonLabel = String(messages.soundRequiredResume || 'Resume audio');
+        const $overlay = $('#ll-tools-autoplay-overlay');
+        if (!$overlay.length) {
+            return;
+        }
+        $overlay.find('.ll-tools-autoplay-button')
+            .attr('aria-label', buttonLabel)
+            .find('.screen-reader-text')
+            .text(label);
+        $overlay.find('.ll-tools-sound-gate-live').text(label);
+    }
+
+    function ensureSoundGateOverlay() {
+        let $overlay = $('#ll-tools-autoplay-overlay');
+        if ($overlay.length) {
+            syncSoundGateButtonLabel();
+            return $overlay;
+        }
+
+        const messages = getMessages();
+        const label = String(messages.soundRequiredContinue || messages.soundRequiredResume || 'Turn on sound to continue the quiz.');
+        const buttonLabel = String(messages.soundRequiredResume || 'Resume audio');
+
+        $overlay = $('<div>', {
+            id: 'll-tools-autoplay-overlay',
+            class: 'll-tools-autoplay-overlay ll-tools-sound-gate-overlay',
+            role: 'presentation'
+        });
+
+        const $live = $('<div>', {
+            class: 'll-tools-sound-gate-live screen-reader-text',
+            role: 'status',
+            'aria-live': 'assertive',
+            text: label
+        });
+
+        const $button = $('<button>', {
+            type: 'button',
+            class: 'll-tools-autoplay-button ll-tools-sound-gate-button',
+            'aria-label': buttonLabel,
+            html: createSoundGateIcon() + '<span class="screen-reader-text">' + label + '</span>'
+        });
+
+        const haltPropagation = function (event) {
+            event.stopPropagation();
+        };
+
+        const resumeQuizAudio = function (event) {
+            const audioApi = root.FlashcardAudio;
+            const audio = getSoundGateAudioForResume();
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (audioApi && typeof audioApi.clearAutoplayBlock === 'function') {
+                audioApi.clearAutoplayBlock();
+            }
+
+            if (!audio) {
+                return;
+            }
+
+            try { audio.muted = false; } catch (_) { /* no-op */ }
+            try {
+                if (typeof audio.volume === 'number' && audio.volume <= 0.01) {
+                    audio.volume = 1;
+                }
+            } catch (_) { /* no-op */ }
+            try {
+                if (typeof audio.currentTime === 'number' && audio.currentTime > 0.01) {
+                    audio.currentTime = 0;
+                }
+            } catch (_) { /* no-op */ }
+
+            const playRequest = (audioApi && typeof audioApi.playAudio === 'function')
+                ? audioApi.playAudio(audio)
+                : audio.play();
+
+            Promise.resolve(playRequest)
+                .then(function () {
+                    if (!isSoundGateAudioMuted(audio)) {
+                        Dom.hideAutoplayBlockedOverlay();
+                    }
+                })
+                .catch(function () {
+                    setSoundGateState(true);
+                });
+        };
+
+        $overlay.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
+        $button.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
+        $button.on('click.llAutoOverlay', resumeQuizAudio);
+
+        $overlay.append($live, $button);
+        $('#ll-tools-flashcard-content').prepend($overlay);
+        return $overlay;
+    }
+
+    function setSoundGateOverlayVisible(visible) {
+        const enabled = !!visible;
+        const $overlay = enabled ? ensureSoundGateOverlay() : $('#ll-tools-autoplay-overlay');
+        setSoundGateState(enabled);
+        if (!$overlay.length) {
+            return;
+        }
+        if (enabled) {
+            syncSoundGateButtonLabel();
+            $('#ll-tools-flashcard').css('pointer-events', 'none');
+            $overlay.stop(true, true).fadeIn(180);
+            return;
+        }
+        $overlay.stop(true, true).fadeOut(180, function () {
+            $(this).remove();
+        });
+        $('#ll-tools-flashcard').css('pointer-events', 'auto');
+    }
+
+    function clearSoundGateWatch() {
+        if (soundGateWatchedAudio && soundGateWatchedListeners.length) {
+            soundGateWatchedListeners.forEach(function (item) {
+                try { soundGateWatchedAudio.removeEventListener(item.type, item.handler); } catch (_) { /* no-op */ }
+            });
+        }
+        soundGateWatchedAudio = null;
+        soundGateWatchedListeners = [];
+    }
+
+    function watchSoundGateAudio(audio) {
+        clearSoundGateWatch();
+        if (!soundGateRequired || !audio) {
+            return;
+        }
+
+        soundGateWatchedAudio = audio;
+        soundGateResumeAudio = audio;
+
+        const sync = function () {
+            if (!soundGateRequired || !State || !State.widgetActive) {
+                return;
+            }
+            if (isSoundGateAudioMuted(audio)) {
+                try {
+                    if (typeof audio.pause === 'function' && !audio.paused) {
+                        audio.pause();
+                    }
+                } catch (_) { /* no-op */ }
+                try {
+                    if (typeof audio.currentTime === 'number' && audio.currentTime > 0.01) {
+                        audio.currentTime = 0;
+                    }
+                } catch (_) { /* no-op */ }
+                setSoundGateOverlayVisible(true);
+                return;
+            }
+
+            const alreadyStarted = !!(
+                (!audio.paused && !audio.ended) ||
+                ((typeof audio.currentTime === 'number') && audio.currentTime > 0.02)
+            );
+            if (alreadyStarted) {
+                setSoundGateOverlayVisible(false);
+            }
+        };
+
+        soundGateWatchedListeners = [
+            { type: 'volumechange', handler: sync },
+            { type: 'play', handler: sync },
+            { type: 'playing', handler: sync },
+            { type: 'loadeddata', handler: sync },
+            { type: 'canplay', handler: sync }
+        ];
+
+        soundGateWatchedListeners.forEach(function (item) {
+            try { audio.addEventListener(item.type, item.handler, { passive: true }); }
+            catch (_) { audio.addEventListener(item.type, item.handler); }
+        });
+
+        sync();
+    }
 
     function clearLoadingShowTimer() {
         if (!loadingShowTimer) return;
@@ -286,6 +530,7 @@
         if (repeatMiniViz && typeof repeatMiniViz.stop === 'function') {
             repeatMiniViz.stop();
         }
+        clearSoundGateWatch();
     }
 
     function bindRepeatButtonAudio(audio) {
@@ -319,6 +564,7 @@
             try { audio.addEventListener(item.type, item.handler, { passive: true }); }
             catch (_) { audio.addEventListener(item.type, item.handler); }
         });
+        watchSoundGateAudio(audio);
         if (!audio.paused && !audio.ended) onPlay(); else onStop();
     }
 
@@ -342,6 +588,41 @@
         setRepeatButton: setRepeatButtonInternal,
         disableRepeatButton: disableRepeatButton,
         enableRepeatButton: enableRepeatButton,
+        setSoundGateRequired(required) {
+            soundGateRequired = !!required;
+            if (State) {
+                State.soundGateRequired = soundGateRequired;
+            }
+            if (!soundGateRequired) {
+                soundGateResumeAudio = null;
+                clearSoundGateWatch();
+                setSoundGateOverlayVisible(false);
+                return;
+            }
+            if (repeatAudio) {
+                watchSoundGateAudio(repeatAudio);
+            }
+        },
+        isSoundGateActive() {
+            return !!(State && State.soundGateActive);
+        },
+        requestSoundGate(audio, options) {
+            const opts = (options && typeof options === 'object') ? options : {};
+            const audioType = audio && audio.__options && audio.__options.type
+                ? String(audio.__options.type)
+                : '';
+            if (!soundGateRequired && !opts.force) {
+                return false;
+            }
+            if (audio && (audio.__sessionId === -1 || audioType.indexOf('feedback') === 0)) {
+                return false;
+            }
+            if (audio) {
+                soundGateResumeAudio = audio;
+            }
+            setSoundGateOverlayVisible(true);
+            return true;
+        },
         restoreHeaderUI() {
             $('#ll-tools-flashcard-header').show();
             $('#ll-tools-learning-progress').hide();
@@ -495,85 +776,22 @@
             $fill.css('width', widthValue);
             $progress.show();
         },
-        showAutoplayBlockedOverlay() {
-            // Check if overlay already exists
-            let $overlay = $('#ll-tools-autoplay-overlay');
-            if ($overlay.length) {
-                $overlay.show();
-                return;
+        showAutoplayBlockedOverlay(options) {
+            const opts = (options && typeof options === 'object') ? options : {};
+            const force = (typeof options === 'undefined') ? true : !!opts.force;
+            if (!soundGateRequired && !force) {
+                return false;
             }
-
-            // Create overlay
-            $overlay = $('<div>', {
-                id: 'll-tools-autoplay-overlay',
-                class: 'll-tools-autoplay-overlay'
-            });
-
-            const $button = $('<button>', {
-                class: 'll-tools-autoplay-button',
-                'aria-label': 'Click to start quiz',
-                html: `
-                    <svg width="80" height="80" viewBox="0 0 80 80" fill="white">
-                        <circle cx="40" cy="40" r="35" stroke="white" stroke-width="3" fill="rgba(255,255,255,0.1)"/>
-                        <path d="M30 20 L30 60 L60 40 Z" fill="white"/>
-                    </svg>
-                `
-            });
-
-            const haltPropagation = function (event) {
-                event.stopPropagation();
-            };
-
-            $overlay.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
-            $button.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
-
-            $button.on('click', function (event) {
-                event.preventDefault();
-                event.stopPropagation();
-
-                // Clear the autoplay block flag
-                if (root.FlashcardAudio && root.FlashcardAudio.clearAutoplayBlock) {
-                    root.FlashcardAudio.clearAutoplayBlock();
-                }
-
-                // Hide overlay
-                $overlay.fadeOut(300, function () {
-                    $(this).remove();
-                });
-                $overlay.off('.llAutoOverlay');
-
-                // Try to play the audio again only if the target audio hasn't succeeded yet
-                const audioApi = root.FlashcardAudio;
-                const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
-                    ? audioApi.getCurrentTargetAudio()
-                    : null;
-                const alreadyPlayed = audioApi && typeof audioApi.getTargetAudioHasPlayed === 'function'
-                    ? audioApi.getTargetAudioHasPlayed()
-                    : false;
-                if (audio && !alreadyPlayed) {
-                    const playPromise = audio.play();
-                    if (playPromise && typeof playPromise.catch === 'function') {
-                        playPromise.catch(e => console.error('Still cannot play:', e));
-                    }
-                }
-
-                // Enable interactions
-                $('#ll-tools-flashcard').css('pointer-events', 'auto');
-                $('#ll-tools-flashcard-content').off('.llAutoplayKick');
-            });
-
-            $overlay.append($button);
-            $('#ll-tools-flashcard-content').prepend($overlay);
-            $overlay.fadeIn(300);
+            if (opts.audio) {
+                soundGateResumeAudio = opts.audio;
+            }
+            setSoundGateOverlayVisible(true);
+            return true;
         },
         hideAutoplayBlockedOverlay() {
-            const $overlay = $('#ll-tools-autoplay-overlay');
-            $overlay.fadeOut(300, function () {
-                $(this).remove();
-            });
-            $overlay.off('.llAutoOverlay');
+            soundGateResumeAudio = null;
             $('#ll-tools-flashcard-content').off('.llAutoplayKick');
-            $('#ll-tools-flashcard').css('pointer-events', 'auto');
+            setSoundGateOverlayVisible(false);
         },
         // Export icon generators for use in templates
         getPlayIconHTML() { return createPlayIcon(); },

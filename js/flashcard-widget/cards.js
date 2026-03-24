@@ -490,6 +490,9 @@
             if ($clicked.hasClass('ll-option-disabled') || ariaDisabled === 'true') {
                 return;
             }
+            if (root.LLFlashcards && root.LLFlashcards.State && root.LLFlashcards.State.soundGateActive) {
+                return;
+            }
             const isGenderMode = !!(root.LLFlashcards && root.LLFlashcards.State && root.LLFlashcards.State.isGenderMode);
             const isPracticeMode = !!(root.LLFlashcards && root.LLFlashcards.State) &&
                 !root.LLFlashcards.State.isLearningMode &&
