@@ -15,11 +15,19 @@ if (!defined('ABSPATH')) {
 /**
  * Register the admin page under Tools.
  */
+function ll_tools_get_bulk_word_import_capability(): string {
+    return (string) apply_filters('ll_tools_bulk_word_import_capability', 'manage_options');
+}
+
+function ll_tools_current_user_can_bulk_word_import(): bool {
+    return current_user_can(ll_tools_get_bulk_word_import_capability());
+}
+
 function ll_tools_register_bulk_word_import_page() {
     add_management_page(
-        'LL Bulk Word Import',
-        'LL Bulk Word Import',
-        'view_ll_tools',
+        __('LL Bulk Word Import', 'll-tools-text-domain'),
+        __('LL Bulk Word Import', 'll-tools-text-domain'),
+        ll_tools_get_bulk_word_import_capability(),
         'll-bulk-word-import',
         'll_tools_render_bulk_word_import_page'
     );
@@ -67,7 +75,7 @@ function ll_tools_import_capitalize_word($word) {
  * Render the Bulk Word Import page.
  */
 function ll_tools_render_bulk_word_import_page() {
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_bulk_word_import()) {
         return;
     }
 

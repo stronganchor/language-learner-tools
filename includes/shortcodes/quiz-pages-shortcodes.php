@@ -1031,9 +1031,11 @@ function ll_quiz_pages_grid_shortcode($atts) {
             $gender_supported_attr = ' data-gender-supported="' . (!empty($it['gender_supported']) ? '1' : '0') . '"';
             $gender_options_attr = ' data-gender-options="' . esc_attr(wp_json_encode($it['gender_options'] ?? [])) . '"';
             $gender_visual_attr = ' data-gender-visual-config="' . esc_attr(wp_json_encode($it['gender_visual_config'] ?? [])) . '"';
+            /* translators: %s: quiz card title */
+            $start_label = sprintf(__('Start %s', 'll-tools-text-domain'), $title);
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
-            . ' aria-label="Start ' . esc_attr($title) . '"'
+            . ' aria-label="' . esc_attr($start_label) . '"'
             . ' data-category="' . esc_attr($raw_name) . '"'
             . ' data-url="' . esc_url($permalink) . '"'
             . $ws_attr

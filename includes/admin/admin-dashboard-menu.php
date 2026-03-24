@@ -481,12 +481,15 @@ function ll_tools_render_tools_hub_page() {
     $api_capability = function_exists('ll_tools_api_settings_capability')
         ? ll_tools_api_settings_capability()
         : 'manage_options';
+    $bulk_word_import_capability = function_exists('ll_tools_get_bulk_word_import_capability')
+        ? ll_tools_get_bulk_word_import_capability()
+        : 'manage_options';
     $export_import_capability = function_exists('ll_tools_get_export_import_capability')
         ? ll_tools_get_export_import_capability()
         : 'manage_options';
     $offline_app_export_capability = function_exists('ll_tools_get_offline_app_export_capability')
         ? ll_tools_get_offline_app_export_capability()
-        : 'view_ll_tools';
+        : 'manage_options';
     $export_page_slug = function_exists('ll_tools_get_export_page_slug')
         ? ll_tools_get_export_page_slug()
         : 'll-export';
@@ -520,7 +523,7 @@ function ll_tools_render_tools_hub_page() {
             'label' => __('Bulk Word Import', 'll-tools-text-domain'),
             'description' => __('Create many draft word posts at once from pasted text.', 'll-tools-text-domain'),
             'url' => ll_tools_get_tools_page_url('ll-bulk-word-import'),
-            'cap' => 'view_ll_tools',
+            'cap' => $bulk_word_import_capability,
             'icon' => 'dashicons-database-import',
         ],
         [

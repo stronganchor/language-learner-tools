@@ -3,8 +3,18 @@ declare(strict_types=1);
 
 final class SettingsMaintenanceHelpersTest extends LL_Tools_TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+    }
+
     protected function tearDown(): void
     {
+        $_POST = [];
+        $_REQUEST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
         delete_option('_transient_ll_wc_words_alpha');
         delete_option('_transient_timeout_ll_wc_words_alpha');
         delete_option('_transient_ll_wc_words_beta');
@@ -79,5 +89,65 @@ final class SettingsMaintenanceHelpersTest extends LL_Tools_TestCase
 
         $this->assertSame($alphaVersionBefore + 1, ll_tools_get_category_cache_version($alphaId));
         $this->assertSame($betaVersionBefore + 1, ll_tools_get_category_cache_version($betaId));
+    }
+
+    public function test_settings_page_flush_action_requires_maintenance_capability(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'author']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        add_option('_transient_ll_wc_words_alpha', 'alpha cache');
+        add_option('_transient_timeout_ll_wc_words_alpha', time() + HOUR_IN_SECONDS);
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_tools_flush_quiz_cache' => '1',
+            'll_tools_flush_quiz_cache_nonce' => wp_create_nonce('ll_tools_flush_quiz_cache'),
+        ];
+        $_REQUEST = $_POST;
+
+        ob_start();
+        ll_render_settings_page();
+        $output = (string) ob_get_clean();
+
+        $this->assertSame('alpha cache', get_option('_transient_ll_wc_words_alpha'));
+        $this->assertStringContainsString('You do not have permission to run maintenance actions.', $output);
+        $this->assertStringNotContainsString('Flush Quiz Caches', $output);
+    }
+
+    public function test_settings_page_purge_action_requires_maintenance_capability(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'author']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Protected Legacy Meta Word',
+        ]);
+        add_post_meta($word_id, 'word_audio_file', 'legacy-protected.mp3');
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_tools_purge_legacy_audio' => '1',
+            'll_tools_purge_legacy_audio_nonce' => wp_create_nonce('ll_tools_purge_legacy_audio'),
+        ];
+        $_REQUEST = $_POST;
+
+        ob_start();
+        ll_render_settings_page();
+        $output = (string) ob_get_clean();
+
+        $this->assertSame('legacy-protected.mp3', (string) get_post_meta($word_id, 'word_audio_file', true));
+        $this->assertStringContainsString('You do not have permission to run maintenance actions.', $output);
+        $this->assertStringNotContainsString('Purge Legacy Meta', $output);
     }
 }

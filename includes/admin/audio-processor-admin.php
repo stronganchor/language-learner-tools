@@ -170,6 +170,11 @@ function ll_enqueue_audio_processor_assets($hook) {
             'removeFromBatchTitle' => __('Remove from this batch', 'll-tools-text-domain'),
             'deleteRecordingButton' => __('Delete', 'll-tools-text-domain'),
             'deleteRecordingTitle' => __('Delete this recording', 'll-tools-text-domain'),
+            /* translators: 1: recording title, 2: current item number, 3: total items */
+            'processingStatusTemplate' => __('Processing: %1$s (%2$d/%3$d)', 'll-tools-text-domain'),
+            /* translators: 1: recording title, 2: error message */
+            'processingErrorTemplate' => __('Error processing %1$s: %2$s', 'll-tools-text-domain'),
+            'processingComplete' => __('Processing complete! Review the results below.', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -622,38 +627,38 @@ function ll_render_audio_processor_page() {
     }
     ?>
     <div class="wrap ll-audio-processor-wrap">
-        <h1>Audio Processor</h1>
-        <p>Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming.</p>
+        <h1><?php esc_html_e('Audio Processor', 'll-tools-text-domain'); ?></h1>
+        <p><?php esc_html_e('Process uploaded audio recordings with configurable noise reduction, loudness normalization, and silence trimming.', 'll-tools-text-domain'); ?></p>
 
         <?php if (!$has_recordings): ?>
             <div class="notice notice-info">
-                <p>No unprocessed audio recordings found.</p>
+                <p><?php esc_html_e('No unprocessed audio recordings found.', 'll-tools-text-domain'); ?></p>
             </div>
         <?php else: ?>
             <div class="ll-processing-options">
-                <h3>Processing Options</h3>
+                <h3><?php esc_html_e('Processing Options', 'll-tools-text-domain'); ?></h3>
                 <label>
                     <input type="checkbox" id="ll-enable-trim" checked>
-                    <span>Trim silence from start and end</span>
+                    <span><?php esc_html_e('Trim silence from start and end', 'll-tools-text-domain'); ?></span>
                 </label>
                 <label>
                     <input type="checkbox" id="ll-enable-noise" checked>
-                    <span>Apply noise reduction</span>
+                    <span><?php esc_html_e('Apply noise reduction', 'll-tools-text-domain'); ?></span>
                 </label>
                 <label>
                     <input type="checkbox" id="ll-enable-loudness" checked>
-                    <span>Normalize loudness</span>
+                    <span><?php esc_html_e('Normalize loudness', 'll-tools-text-domain'); ?></span>
                 </label>
             </div>
 
             <div class="ll-processor-controls">
-                <button id="ll-select-all" class="button">Select All</button>
-                <button id="ll-deselect-all" class="button">Deselect All</button>
+                <button id="ll-select-all" class="button"><?php esc_html_e('Select All', 'll-tools-text-domain'); ?></button>
+                <button id="ll-deselect-all" class="button"><?php esc_html_e('Deselect All', 'll-tools-text-domain'); ?></button>
                 <button id="ll-process-selected" class="button button-primary" disabled>
-                    Process Selected (<span id="ll-selected-count">0</span>)
+                    <?php esc_html_e('Process Selected', 'll-tools-text-domain'); ?> (<span id="ll-selected-count">0</span>)
                 </button>
                 <button id="ll-delete-selected" class="ll-btn-danger" type="button" disabled>
-                    <span class="ll-btn-label">Delete Selected</span> (<span id="ll-delete-selected-count">0</span>)
+                    <span class="ll-btn-label"><?php esc_html_e('Delete Selected', 'll-tools-text-domain'); ?></span> (<span id="ll-delete-selected-count">0</span>)
                 </button>
             </div>
 
@@ -661,7 +666,7 @@ function ll_render_audio_processor_page() {
                 <div class="ll-progress-bar">
                     <div class="ll-progress-fill" style="width: 0%"></div>
                 </div>
-                <p class="ll-status-text">Processing...</p>
+                <p class="ll-status-text"><?php esc_html_e('Processing...', 'll-tools-text-domain'); ?></p>
             </div>
 
             <div id="ll-save-progress-overlay" class="ll-save-progress-overlay" hidden aria-hidden="true">
@@ -744,12 +749,12 @@ function ll_render_audio_processor_page() {
 
             <!-- Review Interface (shown after processing) -->
             <div id="ll-review-interface" class="ll-review-interface">
-                <h2>Review Processed Audio</h2>
+                <h2><?php esc_html_e('Review Processed Audio', 'll-tools-text-domain'); ?></h2>
                 <div id="ll-review-files-container"></div>
                 <div class="ll-review-actions">
-                    <button id="ll-save-all" class="ll-btn-save-all">Save All Changes</button>
-                    <button id="ll-delete-all-review" class="button button-link-delete">Delete All</button>
-                    <button id="ll-cancel-review" class="ll-btn-cancel">Cancel</button>
+                    <button id="ll-save-all" class="ll-btn-save-all"><?php esc_html_e('Save All Changes', 'll-tools-text-domain'); ?></button>
+                    <button id="ll-delete-all-review" class="button button-link-delete"><?php esc_html_e('Delete All', 'll-tools-text-domain'); ?></button>
+                    <button id="ll-cancel-review" class="ll-btn-cancel"><?php esc_html_e('Cancel', 'll-tools-text-domain'); ?></button>
                 </div>
             </div>
         <?php endif; ?>

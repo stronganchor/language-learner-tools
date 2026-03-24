@@ -423,23 +423,24 @@ function ll_flashcards_get_mode_ui_config(): array {
         return $config;
     }
 
-    $gender_svg = <<<'SVG'
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Female and male symbols icon">
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">
-    <g stroke="#C64545" style="stroke:#C64545!important">
-      <circle cx="184" cy="284" r="92"/>
-      <path d="M184 376 L184 470"/>
-      <path d="M140 430 L228 430"/>
-    </g>
-    <g stroke="#1D4D99" style="stroke:#1D4D99!important">
-      <circle cx="328" cy="292" r="92"/>
-      <path d="M402 218 L480 148"/>
-      <path d="M480 148 L480 196"/>
-      <path d="M480 148 L432 148"/>
-    </g>
-  </g>
-</svg>
-SVG;
+    $gender_svg = sprintf(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="%1$s">'
+        . '<g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="28">'
+        . '<g stroke="#C64545" style="stroke:#C64545!important">'
+        . '<circle cx="184" cy="284" r="92"/>'
+        . '<path d="M184 376 L184 470"/>'
+        . '<path d="M140 430 L228 430"/>'
+        . '</g>'
+        . '<g stroke="#1D4D99" style="stroke:#1D4D99!important">'
+        . '<circle cx="328" cy="292" r="92"/>'
+        . '<path d="M402 218 L480 148"/>'
+        . '<path d="M480 148 L480 196"/>'
+        . '<path d="M480 148 L432 148"/>'
+        . '</g>'
+        . '</g>'
+        . '</svg>',
+        esc_attr__('Female and male symbols icon', 'll-tools-text-domain')
+    );
     $self_check_svg_path = LL_TOOLS_BASE_PATH . 'media/self-check-symbol.svg';
     $self_check_svg = '';
     if (file_exists($self_check_svg_path)) {

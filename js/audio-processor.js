@@ -804,7 +804,10 @@
         for (const recording of selectedRecordings) {
             try {
                 if (statusText) {
-                    statusText.textContent = `Processing: ${recording.title} (${completed + 1}/${selectedRecordings.length})`;
+                    statusText.textContent = formatText(
+                        t('processingStatusTemplate', 'Processing: %1$s (%2$d/%3$d)'),
+                        [recording.title, completed + 1, selectedRecordings.length]
+                    );
                 }
 
                 const processedData = await processAudioFile(recording.audioUrl, state.globalOptions);
@@ -826,14 +829,17 @@
             } catch (error) {
                 console.error(`Failed to process ${recording.title}:`, error);
                 if (statusText) {
-                    statusText.textContent = `Error processing ${recording.title}: ${error.message}`;
+                    statusText.textContent = formatText(
+                        t('processingErrorTemplate', 'Error processing %1$s: %2$s'),
+                        [recording.title, error && error.message ? error.message : '']
+                    );
                 }
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
 
         if (statusText) {
-            statusText.textContent = `Processing complete! Review the results below.`;
+            statusText.textContent = t('processingComplete', 'Processing complete! Review the results below.');
         }
 
         state.processing = false;

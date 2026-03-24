@@ -6,6 +6,14 @@
  * including language settings and other customizable features.
  */
 
+function ll_tools_get_settings_maintenance_capability(): string {
+    return (string) apply_filters('ll_tools_settings_maintenance_capability', 'manage_options');
+}
+
+function ll_tools_current_user_can_settings_maintenance(): bool {
+    return current_user_can(ll_tools_get_settings_maintenance_capability());
+}
+
 function ll_register_settings_page() {
     $settings_slug = function_exists('ll_tools_get_admin_settings_page_slug')
         ? ll_tools_get_admin_settings_page_slug()
@@ -237,13 +245,16 @@ function ll_render_settings_page() {
         return;
     }
 
+    $can_run_maintenance = ll_tools_current_user_can_settings_maintenance();
     $purge_notice = '';
     $purge_result = null;
     $cache_notice = '';
     $cache_result = null;
 
     if ( isset( $_POST['ll_tools_purge_legacy_audio'] ) ) {
-        if ( ! isset( $_POST['ll_tools_purge_legacy_audio_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_purge_legacy_audio_nonce'], 'll_tools_purge_legacy_audio' ) ) {
+        if ( ! $can_run_maintenance ) {
+            $purge_notice = '<div class="notice notice-error"><p>' . esc_html__('You do not have permission to run maintenance actions.', 'll-tools-text-domain') . '</p></div>';
+        } elseif ( ! isset( $_POST['ll_tools_purge_legacy_audio_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_purge_legacy_audio_nonce'], 'll_tools_purge_legacy_audio' ) ) {
             $purge_notice = '<div class="notice notice-error"><p>' . esc_html__('Purge failed security check. Please try again.', 'll-tools-text-domain') . '</p></div>';
         } else {
             $purge_result = ll_tools_purge_legacy_word_audio_meta();
@@ -268,7 +279,9 @@ function ll_render_settings_page() {
     }
 
     if ( isset( $_POST['ll_tools_flush_quiz_cache'] ) ) {
-        if ( ! isset( $_POST['ll_tools_flush_quiz_cache_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_flush_quiz_cache_nonce'], 'll_tools_flush_quiz_cache' ) ) {
+        if ( ! $can_run_maintenance ) {
+            $cache_notice = '<div class="notice notice-error"><p>' . esc_html__('You do not have permission to run maintenance actions.', 'll-tools-text-domain') . '</p></div>';
+        } elseif ( ! isset( $_POST['ll_tools_flush_quiz_cache_nonce'] ) || ! wp_verify_nonce( $_POST['ll_tools_flush_quiz_cache_nonce'], 'll_tools_flush_quiz_cache' ) ) {
             $cache_notice = '<div class="notice notice-error"><p>' . esc_html__('Cache flush failed security check. Please try again.', 'll-tools-text-domain') . '</p></div>';
         } else {
             $cache_result = ll_tools_flush_quiz_word_caches();
@@ -477,44 +490,49 @@ function ll_render_settings_page() {
 
         <hr />
 
-        <h2><?php esc_html_e('Flush quiz caches', 'll-tools-text-domain'); ?></h2>
-        <p>
-            <?php esc_html_e('Clears cached quiz word payload transients and increments cache versions for all word-category terms.', 'll-tools-text-domain'); ?>
-        </p>
-
-        <form method="post">
-            <?php wp_nonce_field( 'll_tools_flush_quiz_cache', 'll_tools_flush_quiz_cache_nonce' ); ?>
-            <p class="submit">
-                <button type="submit" name="ll_tools_flush_quiz_cache" class="button button-secondary">
-                    <?php esc_html_e('Flush Quiz Caches', 'll-tools-text-domain'); ?>
-                </button>
+        <?php if ( $can_run_maintenance ) : ?>
+            <h2><?php esc_html_e('Flush quiz caches', 'll-tools-text-domain'); ?></h2>
+            <p>
+                <?php esc_html_e('Clears cached quiz word payload transients and increments cache versions for all word-category terms.', 'll-tools-text-domain'); ?>
             </p>
-            <?php if ( is_array( $cache_result ) ) : ?>
-                <p><strong><?php esc_html_e('Transient rows deleted:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $cache_result['deleted'] ); ?> |
-                   <strong><?php esc_html_e('Categories bumped:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?> |
-                   <strong><?php esc_html_e('Object cache flushed:', 'll-tools-text-domain'); ?></strong> <?php echo ! empty( $cache_result['object_cache_flushed'] ) ? esc_html__('yes', 'll-tools-text-domain') : esc_html__('no', 'll-tools-text-domain'); ?></p>
-            <?php endif; ?>
-        </form>
 
-        <hr />
+            <form method="post">
+                <?php wp_nonce_field( 'll_tools_flush_quiz_cache', 'll_tools_flush_quiz_cache_nonce' ); ?>
+                <p class="submit">
+                    <button type="submit" name="ll_tools_flush_quiz_cache" class="button button-secondary">
+                        <?php esc_html_e('Flush Quiz Caches', 'll-tools-text-domain'); ?>
+                    </button>
+                </p>
+                <?php if ( is_array( $cache_result ) ) : ?>
+                    <p><strong><?php esc_html_e('Transient rows deleted:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $cache_result['deleted'] ); ?> |
+                       <strong><?php esc_html_e('Categories bumped:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $cache_result['bumped'] ); ?> |
+                       <strong><?php esc_html_e('Object cache flushed:', 'll-tools-text-domain'); ?></strong> <?php echo ! empty( $cache_result['object_cache_flushed'] ) ? esc_html__('yes', 'll-tools-text-domain') : esc_html__('no', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </form>
 
-        <h2><?php esc_html_e('Purge legacy word audio meta', 'll-tools-text-domain'); ?></h2>
-        <p>
-            <?php esc_html_e('Removes word_audio_file meta from words posts now that audio is stored in word_audio children. This is irreversible. Make a backup first.', 'll-tools-text-domain'); ?>
-        </p>
+            <hr />
 
-        <form method="post">
-            <?php wp_nonce_field( 'll_tools_purge_legacy_audio', 'll_tools_purge_legacy_audio_nonce' ); ?>
-            <p class="submit">
-                <button type="submit" name="ll_tools_purge_legacy_audio" class="button button-secondary">
-                    <?php esc_html_e('Purge Legacy Meta', 'll-tools-text-domain'); ?>
-                </button>
+            <h2><?php esc_html_e('Purge legacy word audio meta', 'll-tools-text-domain'); ?></h2>
+            <p>
+                <?php esc_html_e('Removes word_audio_file meta from words posts now that audio is stored in word_audio children. This is irreversible. Make a backup first.', 'll-tools-text-domain'); ?>
             </p>
-            <?php if ( is_array( $purge_result ) ) : ?>
-                <p><strong><?php esc_html_e('Legacy rows found:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $purge_result['count'] ); ?> |
-                   <strong><?php esc_html_e('Deleted:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $purge_result['deleted'] ); ?></p>
-            <?php endif; ?>
-        </form>
+
+            <form method="post">
+                <?php wp_nonce_field( 'll_tools_purge_legacy_audio', 'll_tools_purge_legacy_audio_nonce' ); ?>
+                <p class="submit">
+                    <button type="submit" name="ll_tools_purge_legacy_audio" class="button button-secondary">
+                        <?php esc_html_e('Purge Legacy Meta', 'll-tools-text-domain'); ?>
+                    </button>
+                </p>
+                <?php if ( is_array( $purge_result ) ) : ?>
+                    <p><strong><?php esc_html_e('Legacy rows found:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $purge_result['count'] ); ?> |
+                       <strong><?php esc_html_e('Deleted:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html( (string) $purge_result['deleted'] ); ?></p>
+                <?php endif; ?>
+            </form>
+        <?php else : ?>
+            <h2><?php esc_html_e('Maintenance actions', 'll-tools-text-domain'); ?></h2>
+            <p><?php esc_html_e('Quiz cache flushing and legacy meta purges require administrator-level access.', 'll-tools-text-domain'); ?></p>
+        <?php endif; ?>
     </div>
 
     <script>

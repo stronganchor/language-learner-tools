@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) {
 }
 
 function ll_tools_get_offline_app_export_capability(): string {
-    return (string) apply_filters('ll_tools_offline_app_export_capability', 'view_ll_tools');
+    return (string) apply_filters('ll_tools_offline_app_export_capability', 'manage_options');
 }
 
 function ll_tools_current_user_can_offline_app_export(): bool {

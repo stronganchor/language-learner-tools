@@ -5,6 +5,34 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQf4xX0AAAAASUVORK5CYII=';
 
+    public function test_offline_app_export_capability_defaults_to_manage_options_but_can_be_filtered(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+
+        wp_set_current_user($recorder_id);
+        $this->assertSame('manage_options', ll_tools_get_offline_app_export_capability());
+        $this->assertFalse(ll_tools_current_user_can_offline_app_export());
+
+        wp_set_current_user($admin_id);
+        $this->assertTrue(ll_tools_current_user_can_offline_app_export());
+
+        $filter = static function (): string {
+            return 'view_ll_tools';
+        };
+        add_filter('ll_tools_offline_app_export_capability', $filter);
+
+        try {
+            wp_set_current_user($recorder_id);
+            $this->assertSame('view_ll_tools', ll_tools_get_offline_app_export_capability());
+            $this->assertTrue(ll_tools_current_user_can_offline_app_export());
+        } finally {
+            remove_filter('ll_tools_offline_app_export_capability', $filter);
+        }
+    }
+
     public function test_offline_app_category_options_are_filtered_to_selected_wordset_content(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
