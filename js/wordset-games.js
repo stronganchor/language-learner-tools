@@ -2296,6 +2296,89 @@
             : Promise.resolve();
     }
 
+    function stopTransientAudio(ctx) {
+        if (!ctx || !Array.isArray(ctx.transientAudioInstances)) {
+            return;
+        }
+
+        ctx.transientAudioInstances.forEach(function (audio) {
+            if (!audio || typeof audio.pause !== 'function') {
+                return;
+            }
+            try {
+                audio.pause();
+            } catch (_) { /* no-op */ }
+        });
+        ctx.transientAudioInstances.length = 0;
+    }
+
+    function registerTransientAudioInstance(ctx, audio) {
+        if (!ctx || !audio) {
+            return;
+        }
+        if (!Array.isArray(ctx.transientAudioInstances)) {
+            ctx.transientAudioInstances = [];
+        }
+        ctx.transientAudioInstances.push(audio);
+
+        const release = function () {
+            if (!Array.isArray(ctx.transientAudioInstances)) {
+                return;
+            }
+            const index = ctx.transientAudioInstances.indexOf(audio);
+            if (index !== -1) {
+                ctx.transientAudioInstances.splice(index, 1);
+            }
+            audio.removeEventListener('ended', release);
+            audio.removeEventListener('error', release);
+            audio.removeEventListener('pause', release);
+        };
+
+        audio.addEventListener('ended', release);
+        audio.addEventListener('error', release);
+        audio.addEventListener('pause', release);
+    }
+
+    function playTransientEffectSound(ctx, sources, cacheKey, volume) {
+        const sourceList = normalizeUrlList(sources);
+        if (!sourceList.length) {
+            return Promise.resolve(false);
+        }
+
+        return resolveReadyAudioSource(ctx, sourceList, cacheKey).then(function (source) {
+            if (!source) {
+                return false;
+            }
+
+            const audio = new Audio();
+            audio.preload = 'auto';
+            audio.volume = clamp(Number(volume) || 0.2, 0.05, 1);
+            audio.src = source;
+            registerTransientAudioInstance(ctx, audio);
+
+            return Promise.resolve(audio.play()).catch(function () {
+                try {
+                    audio.pause();
+                } catch (_) { /* no-op */ }
+                return false;
+            }).then(function () {
+                return true;
+            });
+        }).catch(function () {
+            return false;
+        });
+    }
+
+    function playDecorativeBubblePopSound(ctx) {
+        const gameConfig = getGameConfig(ctx, BUBBLE_POP_GAME_SLUG);
+        return playTransientEffectSound(
+            ctx,
+            normalizeUrlList(gameConfig && gameConfig.correctHitAudioSources),
+            'bubble-pop-ambient',
+            (Number(gameConfig && gameConfig.correctHitVolume) || 0.28) * 0.92
+        );
+    }
+
     function stopFeedbackAudio(ctx) {
         if (!ctx) {
             return;
@@ -2488,7 +2571,8 @@
         ctx.promptPlaybackRequestId = requestId;
         clearPromptReplayTimer(ctx);
 
-        return waitForFeedbackQueue(ctx).then(function () {
+        const playbackGate = opts.ignoreFeedbackQueue ? Promise.resolve() : waitForFeedbackQueue(ctx);
+        return playbackGate.then(function () {
             if ((ctx.promptPlaybackRequestId || 0) !== requestId) {
                 return false;
             }
@@ -2943,6 +3027,7 @@
             hadWrongBefore: false,
             wrongCount: 0,
             wrongHitRecoveryUntil: 0,
+            lifePenaltyApplied: false,
             exposureTracked: false,
             hadUserActivity: false,
             activityFinalized: false,
@@ -3035,6 +3120,17 @@
         }
 
         run.prompt.hadUserActivity = true;
+        return true;
+    }
+
+    function applyPromptLifePenalty(run, penalty) {
+        const normalizedPenalty = Math.max(0, toInt(penalty) || 0);
+        if (!run || !run.prompt || run.prompt.resolved || run.prompt.lifePenaltyApplied || normalizedPenalty <= 0) {
+            return false;
+        }
+
+        run.lives = Math.max(0, run.lives - normalizedPenalty);
+        run.prompt.lifePenaltyApplied = true;
         return true;
     }
 
@@ -3153,6 +3249,24 @@
         });
     }
 
+    function releaseTimedOutPromptCards(run) {
+        const promptId = activePromptId(run);
+        if (!run || promptId <= 0) {
+            return;
+        }
+
+        run.cards.forEach(function (entry) {
+            if (!entry || entry.exploding || toInt(entry.promptId) !== promptId) {
+                return;
+            }
+            entry.resolvedFalling = true;
+            entry.speed = Math.max((Number(entry.speed) || 0) * 1.28, run.cardSpeed * 1.18);
+            if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
+                entry.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(14, 34);
+            }
+        });
+    }
+
     function handleCorrectHit(ctx, card) {
         const run = ctx.run;
         if (!run || !run.prompt || run.prompt.resolved) {
@@ -3215,7 +3329,7 @@
         run.prompt.wrongCount += 1;
         run.prompt.wrongHitRecoveryUntil = now + getWrongHitRecoveryMs(ctx);
 
-        run.lives = Math.max(0, run.lives - Math.max(1, toInt(gameConfig && gameConfig.wrongHitLifePenalty) || 1));
+        applyPromptLifePenalty(run, Math.max(1, toInt(gameConfig && gameConfig.wrongHitLifePenalty) || 1));
         run.coins = Math.max(0, run.coins - Math.max(0, toInt(gameConfig && gameConfig.wrongHitCoinPenalty)));
         run.bullets.length = 0;
         run.lastFireAt = now;
@@ -3294,7 +3408,21 @@
                     endRun(ctx);
                 }
             });
+            return;
         }
+
+        root.setTimeout(function () {
+            if (!ctx.run || ctx.run !== run || run.paused || run.ended || !run.prompt || run.prompt.resolved) {
+                return;
+            }
+            if (activePromptId(run) !== toInt(card && card.promptId)) {
+                return;
+            }
+            playPromptAudio(ctx, {
+                allowAutoReplay: true,
+                ignoreFeedbackQueue: true
+            });
+        }, 72);
     }
 
     function handlePromptTimeout(ctx) {
@@ -3315,14 +3443,15 @@
         }
 
         run.coins = Math.max(0, run.coins - Math.max(0, toInt(gameConfig && gameConfig.timeoutCoinPenalty) || 1));
-        if (!untouchedTimeout && !isSpaceShooterRun(ctx, run)) {
-            run.lives = Math.max(0, run.lives - Math.max(0, toInt(gameConfig && gameConfig.timeoutLifePenalty) || 1));
-        }
         updateHud(ctx);
         markPromptResolved(run);
-        run.cards = run.cards.filter(function (card) {
-            return !isActivePromptCard(run, card);
-        });
+        if (isBubblePopRun(ctx, run)) {
+            releaseTimedOutPromptCards(run);
+        } else {
+            run.cards = run.cards.filter(function (card) {
+                return !isActivePromptCard(run, card);
+            });
+        }
         if (run.lives <= 0) {
             run.ended = true;
             root.setTimeout(function () {
@@ -3434,7 +3563,7 @@
                 } else {
                     handleWrongHit(ctx, card);
                 }
-                registerPromptActivity(run);
+                markRunActivity(ctx);
                 return true;
             }
         }
@@ -3442,7 +3571,8 @@
         const decorativeBubble = findDecorativeBubbleAtPoint(run, point);
         if (decorativeBubble) {
             popDecorativeBubble(run, decorativeBubble);
-            registerPromptActivity(run);
+            playDecorativeBubblePopSound(ctx);
+            markRunActivity(ctx);
             return true;
         }
 
@@ -3566,7 +3696,7 @@
                     } else {
                         handleWrongHit(ctx, card);
                     }
-                    registerPromptActivity(run);
+                    markRunActivity(ctx);
                     collisionHandled = true;
                     break outerLoop;
                 }
@@ -3749,6 +3879,7 @@
         clearControlUi(ctx);
         pausePromptAudio(ctx);
         stopFeedbackAudio(ctx);
+        stopTransientAudio(ctx);
         updatePauseUi(ctx);
         flushProgress(ctx);
 
@@ -3788,6 +3919,7 @@
         clearPromptTimer(run, false);
         pausePromptAudio(ctx);
         stopFeedbackAudio(ctx);
+        stopTransientAudio(ctx);
         resetRunControls(run);
         clearControlUi(ctx);
         if (opts.flush !== false) {
@@ -4031,6 +4163,14 @@
             startRun(ctx, entry);
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-back]', function (event) {
+            if (ctx.$stage.prop('hidden')) {
+                return;
+            }
+            event.preventDefault();
+            showCatalog(ctx);
+        });
+
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-close], [data-ll-wordset-game-return]', function (event) {
             event.preventDefault();
             showCatalog(ctx);
@@ -4233,6 +4373,7 @@
             rootEl: rootEl,
             $page: $page,
             $gamesRoot: $gamesRoot,
+            $catalogBackLink: $page.find('[data-ll-wordset-games-back]').first(),
             $catalog: $gamesRoot.find('[data-ll-wordset-games-catalog]').first(),
             catalogCards: catalogCards,
             catalogOrder: catalogOrder,
@@ -4277,6 +4418,7 @@
             feedbackQueueVersion: 0,
             feedbackPlaying: false,
             feedbackAudioSourceCache: {},
+            transientAudioInstances: [],
             promptPlaybackRequestId: 0,
             promptReplayTimer: 0,
             bootstrapRequest: null,

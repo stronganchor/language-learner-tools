@@ -3938,7 +3938,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <?php endif; ?>
         <?php elseif ($view === 'games') : ?>
             <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
                     <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>

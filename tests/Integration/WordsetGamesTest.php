@@ -58,6 +58,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         set_query_var('ll_wordset_view', 'games');
         $gamesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
         $this->assertStringContainsString('data-ll-wordset-games-root', $gamesHtml);
+        $this->assertStringContainsString('data-ll-wordset-games-back', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="bubble-pop"', $gamesHtml);
     }

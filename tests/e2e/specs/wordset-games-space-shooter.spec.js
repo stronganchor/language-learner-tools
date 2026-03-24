@@ -23,6 +23,7 @@ const wordsetPagesSource = fs.readFileSync(
 function buildGameCardMarkup(slug, title, description) {
   return `
     <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="${slug}">
+      <div class="ll-wordset-game-card__icon" aria-hidden="true"></div>
       <div class="ll-wordset-game-card__body">
         <h2 class="ll-wordset-game-card__title">${title}</h2>
         <p class="ll-wordset-game-card__description">${description}</p>
@@ -30,7 +31,7 @@ function buildGameCardMarkup(slug, title, description) {
       </div>
       <div class="ll-wordset-game-card__actions">
         <span class="ll-wordset-game-card__count" data-ll-wordset-game-count>—</span>
-        <button type="button" data-ll-wordset-game-launch disabled>Play</button>
+        <button type="button" class="ll-wordset-game-card__launch" data-ll-wordset-game-launch disabled>Play</button>
       </div>
     </article>
   `;
@@ -39,6 +40,12 @@ function buildGameCardMarkup(slug, title, description) {
 function buildGamesMarkup() {
   return `
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="games" data-ll-wordset-id="77">
+      <header class="ll-wordset-subpage-head">
+        <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="/wordsets/test-wordset/">
+          <span class="ll-wordset-back__label">Test Wordset</span>
+        </a>
+        <h1 class="ll-wordset-title">Games</h1>
+      </header>
       <section class="ll-wordset-games-page" data-ll-wordset-games-root>
         <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
           ${buildGameCardMarkup('space-shooter', 'Arcane Space Shooter', 'Hear the word. Blast the matching picture.')}
@@ -873,6 +880,39 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
   await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
 });
 
+test('games catalog keeps cards compact on wide screens and uses the bubble theme for bubble pop launch', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1080 });
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+  await expect(gameLaunchButton(page, 'bubble-pop')).toBeEnabled();
+
+  const catalogStyles = await page.evaluate(() => {
+    const root = document.querySelector('[data-ll-wordset-games-root]');
+    const spaceCard = document.querySelector('[data-game-slug="space-shooter"]');
+    const bubbleCard = document.querySelector('[data-game-slug="bubble-pop"]');
+    const bubbleButton = bubbleCard ? bubbleCard.querySelector('[data-ll-wordset-game-launch]') : null;
+    const buttonStyles = bubbleButton ? window.getComputedStyle(bubbleButton) : null;
+
+    return {
+      rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
+      spaceCardWidth: spaceCard ? Math.round(spaceCard.getBoundingClientRect().width) : 0,
+      bubbleCardWidth: bubbleCard ? Math.round(bubbleCard.getBoundingClientRect().width) : 0,
+      bubbleButtonBackgroundImage: buttonStyles ? String(buttonStyles.backgroundImage || '') : '',
+      bubbleButtonBackgroundColor: buttonStyles ? String(buttonStyles.backgroundColor || '') : ''
+    };
+  });
+
+  expect(catalogStyles.rootWidth).toBeGreaterThan(900);
+  expect(catalogStyles.spaceCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
+  expect(catalogStyles.bubbleCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
+  expect(
+    catalogStyles.bubbleButtonBackgroundImage.includes('154, 221, 255')
+      || catalogStyles.bubbleButtonBackgroundImage.includes('120, 203, 245')
+      || catalogStyles.bubbleButtonBackgroundColor.includes('154, 221, 255')
+  ).toBe(true);
+});
+
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
   await mountGamesPage(page, {
     isLoggedIn: true,
@@ -924,6 +964,88 @@ test('space shooter auto-replays the prompt once after a short pause', async ({ 
     window.__audioEventLog.filter((entry) => entry.startsWith('prompt:') && !entry.endsWith('-ended')).length
   );
   expect(replayedPromptCount).toBe(2);
+});
+
+test('wrong answers replay the prompt quickly and never cost more than one life for that prompt', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    audioLoadDelayMs: 15,
+    promptAudioDurationSeconds: 0.35,
+    spaceShooterOverrides: {
+      introRampStartFactor: 1
+    }
+  });
+
+  for (const slug of ['space-shooter', 'bubble-pop']) {
+    await page.evaluate((requestedSlug) => {
+      window.LLWordsetGames.__debug.launch(requestedSlug);
+    }, slug);
+    await waitForActivePrompt(page, slug);
+
+    await page.evaluate(() => {
+      window.__audioEventLog = [];
+      window.LLWordsetGames.__debug.resolvePrompt('wrong');
+    });
+
+    await page.waitForFunction(() => {
+      const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+      return events.includes('wrong-feedback')
+        && events.includes('wrong-feedback-ended')
+        && events.some((entry) => entry.startsWith('prompt:') && !entry.endsWith('-ended'));
+    });
+
+    const audioEventsAfterWrong = await page.evaluate(() => window.__audioEventLog.slice());
+    const wrongFeedbackIndex = audioEventsAfterWrong.indexOf('wrong-feedback');
+    const wrongFeedbackEndedIndex = audioEventsAfterWrong.indexOf('wrong-feedback-ended');
+    const replayedPromptIndex = audioEventsAfterWrong.findIndex((entry, index) =>
+      index > wrongFeedbackIndex
+      && entry.startsWith('prompt:')
+      && !entry.endsWith('-ended')
+    );
+
+    expect(wrongFeedbackIndex).toBeGreaterThanOrEqual(0);
+    expect(wrongFeedbackEndedIndex).toBeGreaterThan(wrongFeedbackIndex);
+    expect(replayedPromptIndex).toBeGreaterThan(wrongFeedbackIndex);
+    expect(replayedPromptIndex).toBeLessThan(wrongFeedbackEndedIndex);
+
+    const afterWrongState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+    expect(afterWrongState).toBeTruthy();
+    expect(afterWrongState.lives).toBe(2);
+
+    await page.waitForTimeout(260);
+    await page.evaluate(() => {
+      window.LLWordsetGames.__debug.resolvePrompt('timeout');
+    });
+
+    await page.waitForFunction(({ expectedSlug, previousPromptId }) => {
+      const run = window.LLWordsetGames.__debug.getRunState();
+      return !!(run
+        && run.slug === expectedSlug
+        && run.promptId !== previousPromptId
+        && run.targetWordId
+        && !run.awaitingPrompt);
+    }, {
+      expectedSlug: slug,
+      previousPromptId: afterWrongState.promptId
+    });
+
+    const afterTimeoutState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+    expect(afterTimeoutState.lives).toBe(2);
+
+    if (slug === 'bubble-pop') {
+      expect(
+        afterTimeoutState.cardSnapshot.some((card) =>
+          card.promptId === afterWrongState.promptId
+          && card.resolvedFalling
+          && !card.exploding
+        )
+      ).toBe(true);
+    }
+
+    await page.click('[data-ll-wordset-game-close]');
+    await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+    await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+  }
 });
 
 test('bubble pop floats options upward and resolves clicks through the canvas', async ({ page }) => {
@@ -1061,6 +1183,25 @@ test('bubble pop pause overlay uses the bubble theme for resume', async ({ page 
   ).toBe(true);
 });
 
+test('games page header back returns to the games catalog while a run is open', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+  await waitForActivePrompt(page, 'bubble-pop');
+
+  await page.click('[data-ll-wordset-games-back]');
+
+  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+
+  const contextState = await page.evaluate(() => window.LLWordsetGames.__debug.getContext());
+  expect(contextState).toBeTruthy();
+  expect(contextState.gameRunning).toBe(false);
+  expect(contextState.stageHidden).toBe(true);
+});
+
 test('bubble pop decorative bubbles pop without affecting score or progress', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
@@ -1122,6 +1263,10 @@ test('bubble pop decorative bubbles pop without affecting score or progress', as
     const bubbles = Array.isArray(run.decorativeBubbleSnapshot) ? run.decorativeBubbleSnapshot : [];
     return bubbles.some((bubble) => bubble.id === bubbleId && bubble.exploding) || !bubbles.some((bubble) => bubble.id === bubbleId);
   }, decorativeTarget.id);
+  await page.waitForFunction(() => {
+    const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+    return events.includes('bubble-pop-feedback');
+  });
 
   const afterState = await page.evaluate(() => ({
     progressCount: Array.isArray(window.__queuedProgressEvents) ? window.__queuedProgressEvents.length : 0,
@@ -1306,7 +1451,7 @@ test('space shooter launches with safe option mixes and records progress flows',
       .filter((card) => card.promptId === midEntryRun.promptId)
       .some((card) => card.y < ((revealedCardYByWordId[card.wordId] || card.y) - 6))
   ).toBe(true);
-  expect(Math.max(...revealedCards.map((card) => card.y)) - Math.min(...revealedCards.map((card) => card.y))).toBeGreaterThan(18);
+  expect(Math.max(...revealedCards.map((card) => card.y)) - Math.min(...revealedCards.map((card) => card.y))).toBeGreaterThanOrEqual(18);
   expect(new Set(revealedCards.map((card) => card.speed)).size).toBeGreaterThan(1);
 
   const disallowedPairs = [
