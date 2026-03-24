@@ -1240,6 +1240,8 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
     };
   });
   expect(clickPoint).toBeTruthy();
+  const preCorrectState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(preCorrectState).toBeTruthy();
   await page.mouse.click(clickPoint.x, clickPoint.y);
 
   await page.waitForTimeout(60);
@@ -1256,6 +1258,18 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
       pushedNeighbor.y - originalNeighbor.y
     )
   ).toBeGreaterThan(4);
+  const priorPromptEscapeDistance = blastState.cardSnapshot
+    .filter((card) => card.promptId === preCorrectState.promptId && card.resolvedFalling && !card.exploding)
+    .reduce((maxDistance, card) => {
+      const previousCard = preCorrectState.cardSnapshot.find((entry) =>
+        entry.wordId === card.wordId && entry.promptId === preCorrectState.promptId
+      );
+      if (!previousCard) {
+        return maxDistance;
+      }
+      return Math.max(maxDistance, previousCard.y - card.y);
+    }, 0);
+  expect(priorPromptEscapeDistance).toBeGreaterThan(18);
 
   await page.waitForFunction(() => {
     const queued = Array.isArray(window.__queuedProgressEvents) ? window.__queuedProgressEvents : [];

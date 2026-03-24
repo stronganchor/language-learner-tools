@@ -17,6 +17,7 @@
     const PAUSE_REASON_INACTIVITY = 'inactivity';
     const BUBBLE_ACTIVE_MAX_SPEED = 84;
     const BUBBLE_RELEASE_MAX_SPEED = 116;
+    const BUBBLE_CORRECT_RELEASE_MAX_SPEED = 420;
     const BUBBLE_DECORATIVE_MAX_SPEED = 52;
 
     function toInt(value) {
@@ -3390,6 +3391,25 @@
         });
     }
 
+    function boostBubbleResolvedPromptExit(run, promptId) {
+        const targetPromptId = toInt(promptId);
+        if (!run || normalizeGameSlug(run && run.slug) !== BUBBLE_POP_GAME_SLUG || targetPromptId <= 0) {
+            return;
+        }
+
+        run.cards.forEach(function (entry) {
+            if (!entry || entry.exploding || !entry.resolvedFalling || toInt(entry.promptId) !== targetPromptId) {
+                return;
+            }
+
+            entry.releaseMaxSpeed = BUBBLE_CORRECT_RELEASE_MAX_SPEED;
+            entry.speed = Math.max(Number(entry.speed) || 0, run.cardSpeed * 9.5, 380);
+            entry.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(4, 12);
+            entry.bubbleImpulseVelocityX = clamp((Number(entry.releaseDriftX) || 0) * 0.65, -36, 36);
+            entry.bubbleImpulseVelocityY = Math.min(Number(entry.bubbleImpulseVelocityY) || 0, -240);
+        });
+    }
+
     function releaseTimedOutPromptCards(run) {
         const promptId = activePromptId(run);
         if (!run || promptId <= 0) {
@@ -3440,6 +3460,7 @@
         releaseResolvedPromptCards(run, card);
         if (isBubbleGame) {
             applyBubbleBlastImpulse(run, card.x, card.y, getBubbleRadius(card), card);
+            boostBubbleResolvedPromptExit(run, card.promptId);
         }
         playFeedbackSound(ctx, 'correct').finally(function () {
             if (!ctx.run || ctx.run !== run || run.ended) {
@@ -3757,10 +3778,14 @@
                 card.bubbleImpulseVelocityX = (Number(card.bubbleImpulseVelocityX) || 0) * impulseDamping;
                 card.bubbleImpulseVelocityY = (Number(card.bubbleImpulseVelocityY) || 0) * impulseDamping;
                 if (card.resolvedFalling) {
+                    const releaseMaxSpeed = Math.max(
+                        BUBBLE_RELEASE_MAX_SPEED,
+                        Number(card.releaseMaxSpeed) || 0
+                    );
                     const releaseVelocity = clampVectorMagnitude(
                         Number(card.releaseDriftX) + (Number(card.bubbleImpulseVelocityX) || 0),
                         -card.speed + (Number(card.bubbleImpulseVelocityY) || 0),
-                        BUBBLE_RELEASE_MAX_SPEED
+                        releaseMaxSpeed
                     );
                     card.bubbleBaseY = Number(card.bubbleBaseY || card.y) + (releaseVelocity.y * dt);
                     card.bubbleBaseX = Number(card.bubbleBaseX || card.x) + (releaseVelocity.x * dt);
