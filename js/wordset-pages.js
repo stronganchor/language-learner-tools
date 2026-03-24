@@ -74,6 +74,8 @@
     let analyticsCategoryRenderTimer = null;
     let analyticsCategoryLoadingTimer = null;
     let analyticsCategoryRenderToken = 0;
+    let pendingProgressAnalyticsRefreshAfterClose = false;
+    let pendingProgressAnalyticsRefreshOptions = null;
     let chunkSession = null;
     let lastFlashcardLaunch = null;
     let resultsFollowupPrefetchState = null;
@@ -3375,12 +3377,43 @@
         $progressStatus.text(text).show();
     }
 
+    function deferProgressAnalyticsRefreshUntilClose(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        pendingProgressAnalyticsRefreshAfterClose = true;
+        pendingProgressAnalyticsRefreshOptions = Object.assign(
+            {},
+            pendingProgressAnalyticsRefreshOptions || {},
+            opts
+        );
+        clearTimeout(analyticsTimer);
+        analyticsTimer = null;
+    }
+
+    function flushDeferredProgressAnalyticsRefresh() {
+        if (!pendingProgressAnalyticsRefreshAfterClose) {
+            return;
+        }
+
+        const opts = Object.assign({}, pendingProgressAnalyticsRefreshOptions || {}, {
+            silent: true
+        });
+        pendingProgressAnalyticsRefreshAfterClose = false;
+        pendingProgressAnalyticsRefreshOptions = null;
+        scheduleProgressAnalyticsRefresh(120, opts);
+    }
+
     function refreshProgressAnalyticsNow(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         if (!$progressRoot.length || !isLoggedIn || !ajaxUrl || !nonce) {
             return $.Deferred().resolve(null).promise();
         }
+        if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
+            deferProgressAnalyticsRefreshUntilClose(opts);
+            return $.Deferred().resolve(null).promise();
+        }
         const token = ++analyticsRequestToken;
+        pendingProgressAnalyticsRefreshAfterClose = false;
+        pendingProgressAnalyticsRefreshOptions = null;
         if (!opts.silent) {
             setProgressStatus(i18n.analyticsLoading || 'Loading progress...', 'loading');
         }
@@ -3399,6 +3432,10 @@
 
         return $.post(ajaxUrl, analyticsRequestData).done(function (res) {
             if (token !== analyticsRequestToken) { return; }
+            if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
+                deferProgressAnalyticsRefreshUntilClose(opts);
+                return;
+            }
             if (res && res.success && res.data && res.data.analytics) {
                 analytics = normalizeAnalytics(res.data.analytics);
                 renderProgressAnalytics();
@@ -3408,6 +3445,10 @@
             setProgressStatus(i18n.analyticsUnavailable || 'Progress is unavailable right now.', 'error');
         }).fail(function () {
             if (token !== analyticsRequestToken) { return; }
+            if (isFlashcardOpen && !opts.allowWhileFlashcardOpen) {
+                deferProgressAnalyticsRefreshUntilClose(opts);
+                return;
+            }
             setProgressStatus(i18n.analyticsUnavailable || 'Progress is unavailable right now.', 'error');
         });
     }
@@ -9198,6 +9239,8 @@
         $(document).on('lltools:flashcard-opened.llWordsetPage', function (_evt, detail) {
             isFlashcardOpen = true;
             pendingSummaryRefreshAfterClose = false;
+            clearTimeout(analyticsTimer);
+            analyticsTimer = null;
             if (resultsFollowupPrefetchState) {
                 const info = (detail && typeof detail === 'object') ? detail : {};
                 const openedMode = normalizeMode(info.mode || '');
@@ -9222,6 +9265,7 @@
                     stickyMiniWhenOffscreen: true
                 });
             }
+            flushDeferredProgressAnalyticsRefresh();
         });
 
         $(document).on('lltools:star-changed.llWordsetPage', function (_evt, detail) {
@@ -9522,6 +9566,10 @@
         });
 
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
+            if (isFlashcardOpen) {
+                deferProgressAnalyticsRefreshUntilClose({ silent: true });
+                return;
+            }
             scheduleProgressAnalyticsRefresh(220, { silent: true });
         });
 
