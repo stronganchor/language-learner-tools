@@ -381,6 +381,7 @@ function buildGamesConfig(isLoggedIn) {
         timeoutLifePenalty: 1,
         audioSafeLineRatio: 0.6,
         cardEntryRevealMs: 560,
+        promptAutoReplayGapMs: 520,
         promptAudioVolume: 1,
         correctHitVolume: 0.28,
         wrongHitVolume: 0.2,
@@ -522,17 +523,33 @@ function buildGamesConfig(isLoggedIn) {
   };
 }
 
-async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords(), audioLoadDelayMs = 60 } = {}) {
+async function mountGamesPage(page, {
+  isLoggedIn,
+  words = buildSpaceShooterWords(),
+  audioLoadDelayMs = 60,
+  promptAudioDurationSeconds = 4.2,
+  promptAutoReplayGapMs = null
+} = {}) {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
-    ({ config, gameWords, audioLoadDelay }) => {
+    ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs }) => {
       window.llWordsetPageData = config;
+      if (
+        window.llWordsetPageData
+        && window.llWordsetPageData.games
+        && window.llWordsetPageData.games.spaceShooter
+        && replayGapMs !== null
+        && Number.isFinite(Number(replayGapMs))
+      ) {
+        window.llWordsetPageData.games.spaceShooter.promptAutoReplayGapMs = Number(replayGapMs);
+      }
       window.__gameBootstrapWords = gameWords;
       window.__queuedProgressEvents = [];
       window.__flushCount = 0;
       window.__scrollCalls = [];
       window.__audioLoadDelay = Number(audioLoadDelay || 0);
+      window.__promptAudioDurationSeconds = Number(promptAudioDuration || 4.2);
       window.__audioEventLog = [];
 
       window.scrollTo = function (leftOrOptions, top) {
@@ -658,7 +675,9 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
               return;
             }
             this.readyState = 4;
-            this.duration = expectedSrc.includes('space-shooter-') ? 0.12 : 4.2;
+            this.duration = expectedSrc.includes('space-shooter-')
+              ? 0.12
+              : Number(window.__promptAudioDurationSeconds || 4.2);
             this.dispatchEvent(new Event('loadeddata'));
             this.dispatchEvent(new Event('canplay'));
             this.dispatchEvent(new Event('canplaythrough'));
@@ -737,7 +756,13 @@ async function mountGamesPage(page, { isLoggedIn, words = buildSpaceShooterWords
         return deferred.promise();
       };
     },
-    { config: buildGamesConfig(isLoggedIn), gameWords: words, audioLoadDelay: audioLoadDelayMs }
+    {
+      config: buildGamesConfig(isLoggedIn),
+      gameWords: words,
+      audioLoadDelay: audioLoadDelayMs,
+      promptAudioDuration: promptAudioDurationSeconds,
+      replayGapMs: promptAutoReplayGapMs
+    }
   );
   await page.addStyleTag({ content: wordsetGamesStyles });
   await page.addScriptTag({ content: optionConflictsSource });
@@ -752,6 +777,40 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
   await expect(page.locator('[data-ll-wordset-game-status]')).toHaveText(
     'Sign in to play with your in-progress words.'
   );
+});
+
+test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    audioLoadDelayMs: 20,
+    promptAudioDurationSeconds: 0.35,
+    promptAutoReplayGapMs: 120
+  });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch();
+  });
+
+  await page.waitForFunction(() => {
+    const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+    return events.filter((entry) => entry.startsWith('prompt:') && !entry.endsWith('-ended')).length >= 2;
+  });
+
+  const promptEvents = await page.evaluate(() =>
+    window.__audioEventLog.filter((entry) => entry.startsWith('prompt:'))
+  );
+  const firstPromptPlay = promptEvents.findIndex((entry) => !entry.endsWith('-ended'));
+  const firstPromptEnd = promptEvents.findIndex((entry, index) => index > firstPromptPlay && entry.endsWith('-ended'));
+  const secondPromptPlay = promptEvents.findIndex((entry, index) => index > firstPromptEnd && !entry.endsWith('-ended'));
+  expect(firstPromptPlay).toBeGreaterThanOrEqual(0);
+  expect(firstPromptEnd).toBeGreaterThan(firstPromptPlay);
+  expect(secondPromptPlay).toBeGreaterThan(firstPromptEnd);
+
+  await page.waitForTimeout(700);
+  const replayedPromptCount = await page.evaluate(() =>
+    window.__audioEventLog.filter((entry) => entry.startsWith('prompt:') && !entry.endsWith('-ended')).length
+  );
+  expect(replayedPromptCount).toBe(2);
 });
 
 test('space shooter launches with safe option mixes and records progress flows', async ({ page }) => {

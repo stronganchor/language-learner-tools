@@ -1308,7 +1308,17 @@
         return ctx.promptAudio;
     }
 
+    function clearPromptReplayTimer(ctx) {
+        if (!ctx || !ctx.promptReplayTimer) {
+            return;
+        }
+
+        root.clearTimeout(ctx.promptReplayTimer);
+        ctx.promptReplayTimer = 0;
+    }
+
     function cancelQueuedPromptPlayback(ctx) {
+        clearPromptReplayTimer(ctx);
         ctx.promptPlaybackRequestId = toInt(ctx.promptPlaybackRequestId) + 1;
     }
 
@@ -1504,7 +1514,34 @@
         return ctx.feedbackQueue;
     }
 
-    function playPromptAudio(ctx) {
+    function schedulePromptAutoReplay(ctx, run, source, requestId) {
+        const replayGapMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.promptAutoReplayGapMs) || 520);
+        const promptDurationMs = Math.max(0, toInt(run && run.prompt && run.prompt.audioDurationMs) || getLoadedAudioDurationMs(ctx, source));
+        if (promptDurationMs <= 0) {
+            return;
+        }
+
+        clearPromptReplayTimer(ctx);
+        ctx.promptReplayTimer = root.setTimeout(function () {
+            ctx.promptReplayTimer = 0;
+            if ((ctx.promptPlaybackRequestId || 0) !== requestId) {
+                return;
+            }
+            if (!ctx.run || ctx.run !== run || run.paused || run.ended || !run.prompt || run.prompt.resolved) {
+                return;
+            }
+            if (String(run.prompt.audioUrl || '') !== source) {
+                return;
+            }
+
+            playPromptAudio(ctx, {
+                allowAutoReplay: false
+            });
+        }, promptDurationMs + replayGapMs);
+    }
+
+    function playPromptAudio(ctx, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         const run = ctx.run;
         if (!run || run.paused || !run.prompt || !run.prompt.target) {
             return Promise.resolve(false);
@@ -1517,6 +1554,7 @@
 
         const requestId = toInt(ctx.promptPlaybackRequestId) + 1;
         ctx.promptPlaybackRequestId = requestId;
+        clearPromptReplayTimer(ctx);
 
         return waitForFeedbackQueue(ctx).then(function () {
             if ((ctx.promptPlaybackRequestId || 0) !== requestId) {
@@ -1546,6 +1584,9 @@
             if (playAttempt && typeof playAttempt.catch === 'function') {
                 return playAttempt.then(function () {
                     updateReplayAudioUi(ctx, true);
+                    if (opts.allowAutoReplay) {
+                        schedulePromptAutoReplay(ctx, run, source, requestId);
+                    }
                     return true;
                 }).catch(function () {
                     updateReplayAudioUi(ctx, false);
@@ -1554,6 +1595,9 @@
             }
 
             updateReplayAudioUi(ctx, true);
+            if (opts.allowAutoReplay) {
+                schedulePromptAutoReplay(ctx, run, source, requestId);
+            }
             return true;
         });
     }
@@ -1915,7 +1959,9 @@
             resolved: false
         };
         run.cards = run.cards.concat(candidate.cards);
-        playPromptAudio(ctx);
+        playPromptAudio(ctx, {
+            allowAutoReplay: true
+        });
         queueNextPreparedPrompt(ctx, run);
         return true;
     }
@@ -2139,6 +2185,7 @@
         if (!run || !run.prompt || run.prompt.resolved) {
             return;
         }
+        pausePromptAudio(ctx);
         const untouchedTimeout = !run.prompt.hadWrongBefore;
 
         if (untouchedTimeout) {
@@ -2356,7 +2403,9 @@
         }
 
         if (run.prompt && !run.prompt.resolved) {
-            playPromptAudio(ctx);
+            playPromptAudio(ctx, {
+                allowAutoReplay: false
+            });
         }
     }
 
@@ -2650,7 +2699,9 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-replay-audio]', function (event) {
             event.preventDefault();
-            playPromptAudio(ctx);
+            playPromptAudio(ctx, {
+                allowAutoReplay: false
+            });
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-pause-toggle]', function (event) {
@@ -2752,6 +2803,7 @@
             feedbackPlaying: false,
             feedbackAudioSourceCache: {},
             promptPlaybackRequestId: 0,
+            promptReplayTimer: 0,
             bootstrapRequest: null,
             run: null,
             overlayMode: '',
@@ -2772,6 +2824,7 @@
                 timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
                 assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
                 cardEntryRevealMs: Math.max(220, toInt(spaceShooter.cardEntryRevealMs) || 560),
+                promptAutoReplayGapMs: Math.max(220, toInt(spaceShooter.promptAutoReplayGapMs) || 520),
                 promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
                 correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
                 wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),
