@@ -1,52 +1,47 @@
-html.ll-wordset-games-modal-open,
-body.ll-wordset-games-modal-open {
+html.ll-wordset-game-run-modal-open,
+body.ll-wordset-game-run-modal-open {
     overflow: hidden;
 }
 
-.ll-wordset-games-modal {
-    --ll-wordset-games-modal-pad: clamp(18px, 2.8vw, 32px);
+.ll-wordset-game-run-modal {
+    --ll-wordset-game-run-pad: clamp(16px, 2.8vw, 28px);
     position: fixed;
     inset: 0;
     z-index: 100000;
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
-    padding: var(--ll-wordset-games-modal-pad);
+    padding: var(--ll-wordset-game-run-pad);
 }
 
-.ll-wordset-games-modal[hidden] {
+.ll-wordset-game-run-modal[hidden] {
     display: none !important;
 }
 
-.ll-wordset-games-modal__backdrop {
+.ll-wordset-game-run-modal__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(15, 23, 42, 0.42);
-    backdrop-filter: blur(8px);
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(10px);
 }
 
-.ll-wordset-games-modal__dialog {
+.ll-wordset-game-run-modal__dialog {
     position: relative;
     z-index: 1;
-    width: min(100%, 1180px);
-    max-height: calc(100dvh - (var(--ll-wordset-games-modal-pad) * 2));
-    overflow: auto;
+    width: min(100%, 960px);
+    height: 100%;
+    overflow: hidden;
     box-sizing: border-box;
-    padding: clamp(18px, 2.8vw, 30px);
-    border-radius: 32px;
-    background:
-        radial-gradient(circle at top right, rgba(191, 231, 255, 0.28), transparent 28%),
-        linear-gradient(180deg, rgba(252, 254, 255, 0.98), rgba(243, 248, 255, 0.96));
-    box-shadow: 0 36px 96px rgba(15, 23, 42, 0.26);
-    overscroll-behavior: contain;
+    display: grid;
+    align-items: center;
+    padding: 0;
 }
 
-.ll-wordset-games-modal__dialog .ll-wordset-games-page {
-    max-width: none;
-}
-
-.ll-wordset-games-modal__dialog .ll-wordset-game-stage {
-    max-width: min(100%, 860px, max(460px, calc(100dvh - 220px)));
+.ll-wordset-game-run-modal__dialog .ll-wordset-game-stage {
+    width: min(100%, 860px);
+    max-width: 100%;
+    max-height: calc(100dvh - (var(--ll-wordset-game-run-pad) * 2));
+    margin: 0 auto;
 }
 
 .ll-wordset-games-page {
@@ -218,6 +213,7 @@ body.ll-wordset-games-modal-open {
 .ll-wordset-game-stage {
     position: relative;
     width: 100%;
+    box-sizing: border-box;
     max-width: min(100%, 760px, max(420px, calc(100vh - 180px)));
     margin-right: auto;
     margin-top: 16px;
@@ -872,26 +868,21 @@ body.ll-wordset-games-modal-open {
 }
 
 @media (max-width: 640px) {
-    .ll-wordset-games-modal {
-        --ll-wordset-games-modal-pad: 0px;
-        align-items: stretch;
+    .ll-wordset-game-run-modal {
+        --ll-wordset-game-run-pad: 0px;
         padding: 0;
     }
 
-    .ll-wordset-games-modal__backdrop {
+    .ll-wordset-game-run-modal__backdrop {
         backdrop-filter: none;
     }
 
-    .ll-wordset-games-modal__dialog {
+    .ll-wordset-game-run-modal__dialog {
         width: 100%;
-        max-width: none;
-        min-height: 100dvh;
-        max-height: 100dvh;
-        padding: 14px;
-        border-radius: 0;
+        height: 100dvh;
     }
 
-    .ll-wordset-games-modal__dialog .ll-wordset-game-stage {
+    .ll-wordset-game-run-modal__dialog .ll-wordset-game-stage {
         max-width: 100%;
     }
 

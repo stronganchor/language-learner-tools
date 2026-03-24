@@ -37,30 +37,24 @@ function buildGameCardMarkup(slug, title, description) {
   `;
 }
 
-function buildGamesMarkup({ view = 'games', modalOpen = view === 'games' } = {}) {
-  const normalizedView = String(view || 'games') === 'main' ? 'main' : 'games';
+function buildGamesMarkup() {
   return `
-    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="${normalizedView}" data-ll-wordset-id="77">
-      ${normalizedView === 'main' ? `
-        <a class="ll-wordset-link-chip ll-wordset-link-chip--games" data-ll-wordset-games-open href="/wordsets/test-wordset/games/">
-          <span class="ll-wordset-link-chip__label">Games</span>
+    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="games" data-ll-wordset-id="77">
+      <header class="ll-wordset-subpage-head">
+        <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="/wordsets/test-wordset/">
+          <span class="ll-wordset-back__label" data-ll-wordset-games-back-label>Test Wordset</span>
         </a>
-      ` : ''}
-      <div class="ll-wordset-games-modal" data-ll-wordset-games-modal ${modalOpen ? '' : 'hidden'}>
-        <div class="ll-wordset-games-modal__backdrop" data-ll-wordset-games-modal-dismiss aria-hidden="true"></div>
-        <section class="ll-wordset-games-modal__dialog" data-ll-wordset-games-modal-dialog role="dialog" aria-modal="true" aria-labelledby="test-games-title">
-          <header class="ll-wordset-subpage-head">
-            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="/wordsets/test-wordset/">
-              <span class="ll-wordset-back__label" data-ll-wordset-games-back-label>Test Wordset</span>
-            </a>
-            <h1 class="ll-wordset-title" id="test-games-title" data-ll-wordset-games-page-title>Games</h1>
-          </header>
-          <section class="ll-wordset-games-page" data-ll-wordset-games-root>
-            <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
-              ${buildGameCardMarkup('space-shooter', 'Space Shooter', 'Hear the word. Blast the matching picture.')}
-              ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
-            </div>
+        <h1 class="ll-wordset-title" id="test-games-title" data-ll-wordset-games-page-title>Games</h1>
+      </header>
+      <section class="ll-wordset-games-page" data-ll-wordset-games-root>
+        <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
+          ${buildGameCardMarkup('space-shooter', 'Space Shooter', 'Hear the word. Blast the matching picture.')}
+          ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
+        </div>
 
+        <div class="ll-wordset-game-run-modal" data-ll-wordset-game-run-modal hidden>
+          <div class="ll-wordset-game-run-modal__backdrop" data-ll-wordset-game-run-dismiss aria-hidden="true"></div>
+          <section class="ll-wordset-game-run-modal__dialog" data-ll-wordset-game-run-dialog role="dialog" aria-modal="true" aria-label="Wordset game">
             <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
               <div class="ll-wordset-game-stage__hud">
                 <div class="ll-wordset-game-stage__stats">
@@ -133,8 +127,8 @@ function buildGamesMarkup({ view = 'games', modalOpen = view === 'games' } = {})
               </div>
             </section>
           </section>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   `;
 }
@@ -156,6 +150,21 @@ async function waitForActivePrompt(page, slug) {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.slug === expectedSlug && run.targetWordId && run.activeCardCount > 0 && !run.awaitingPrompt);
   }, slug);
+}
+
+async function closeRunPopup(page) {
+  await page.evaluate(() => {
+    const dismiss = document.querySelector('[data-ll-wordset-game-run-dismiss]');
+    if (dismiss) {
+      dismiss.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      }));
+    }
+  });
+  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
 }
 
 function buildSvgImage(width, height, color) {
@@ -310,13 +319,13 @@ function buildSpaceShooterWords() {
   ];
 }
 
-function buildGamesConfig(isLoggedIn, view = 'games') {
+function buildGamesConfig(isLoggedIn) {
   return {
     ajaxUrl: '/fake-admin-ajax.php',
     nonce: isLoggedIn ? 'nonce-77' : '',
     isLoggedIn: !!isLoggedIn,
     sortLocale: 'en_US',
-    view: String(view || 'games') === 'main' ? 'main' : 'games',
+    view: 'games',
     wordsetId: 77,
     wordsetSlug: 'test-wordset',
     wordsetName: 'Test Wordset',
@@ -600,11 +609,9 @@ async function mountGamesPage(page, {
   promptAudioDurationSeconds = 4.2,
   promptAutoReplayGapMs = null,
   spaceShooterOverrides = null,
-  bubblePopOverrides = null,
-  view = 'games',
-  modalOpen = view === 'games'
+  bubblePopOverrides = null
 } = {}) {
-  await page.setContent(buildGamesMarkup({ view, modalOpen }), { waitUntil: 'domcontentloaded' });
+  await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
     ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides }) => {
@@ -664,7 +671,7 @@ async function mountGamesPage(page, {
 
       const originalElementScrollTo = Element.prototype.scrollTo;
       Element.prototype.scrollTo = function (leftOrOptions, top) {
-        if (this && this.matches && this.matches('[data-ll-wordset-games-modal-dialog]')) {
+        if (this && this.matches && this.matches('[data-ll-wordset-game-run-dialog]')) {
           if (typeof leftOrOptions === 'object' && leftOrOptions !== null) {
             window.__dialogScrollCalls.push({
               top: Number(leftOrOptions.top || 0),
@@ -901,7 +908,7 @@ async function mountGamesPage(page, {
       };
     },
     {
-      config: buildGamesConfig(isLoggedIn, view),
+      config: buildGamesConfig(isLoggedIn),
       gameWords: words,
       audioLoadDelay: audioLoadDelayMs,
       promptAudioDuration: promptAudioDurationSeconds,
@@ -935,7 +942,6 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
 
   const catalogStyles = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
-    const dialog = document.querySelector('[data-ll-wordset-games-modal-dialog]');
     const spaceCard = document.querySelector('[data-game-slug="space-shooter"]');
     const bubbleCard = document.querySelector('[data-game-slug="bubble-pop"]');
     const spaceButton = spaceCard ? spaceCard.querySelector('[data-ll-wordset-game-launch]') : null;
@@ -944,8 +950,6 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
     const buttonStyles = bubbleButton ? window.getComputedStyle(bubbleButton) : null;
 
     return {
-      viewportWidth: window.innerWidth || 0,
-      dialogWidth: dialog ? Math.round(dialog.getBoundingClientRect().width) : 0,
       rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
       spaceCardWidth: spaceCard ? Math.round(spaceCard.getBoundingClientRect().width) : 0,
       bubbleCardWidth: bubbleCard ? Math.round(bubbleCard.getBoundingClientRect().width) : 0,
@@ -956,8 +960,6 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
     };
   });
 
-  expect(catalogStyles.dialogWidth).toBeGreaterThan(1000);
-  expect(catalogStyles.dialogWidth).toBeLessThan(catalogStyles.viewportWidth - 80);
   expect(catalogStyles.rootWidth).toBeGreaterThan(900);
   expect(catalogStyles.spaceCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
   expect(catalogStyles.bubbleCardWidth).toBeLessThan(catalogStyles.rootWidth * 0.75);
@@ -974,38 +976,43 @@ test('games catalog keeps cards compact on wide screens and uses distinct launch
   ).toBe(true);
 });
 
-test('main wordset view opens games in a modal that fills small screens', async ({ page }) => {
+test('play opens a fullscreen game popup without page chrome', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await mountGamesPage(page, {
-    isLoggedIn: true,
-    view: 'main',
-    modalOpen: false
-  });
+  await mountGamesPage(page, { isLoggedIn: true });
 
-  await expect(page.locator('[data-ll-wordset-games-modal]')).toBeHidden();
-  await page.click('[data-ll-wordset-games-open]');
-  await expect(page.locator('[data-ll-wordset-games-modal]')).toBeVisible();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+  await waitForActivePrompt(page, 'bubble-pop');
+
+  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeVisible();
 
   const modalState = await page.evaluate(() => {
-    const dialog = document.querySelector('[data-ll-wordset-games-modal-dialog]');
+    const dialog = document.querySelector('[data-ll-wordset-game-run-dialog]');
+    const stage = document.querySelector('[data-ll-wordset-game-stage]');
     const rect = dialog ? dialog.getBoundingClientRect() : null;
     return {
+      backCount: dialog ? dialog.querySelectorAll('[data-ll-wordset-games-back]').length : 0,
+      titleCount: dialog ? dialog.querySelectorAll('[data-ll-wordset-games-page-title]').length : 0,
       width: rect ? Math.round(rect.width) : 0,
       height: rect ? Math.round(rect.height) : 0,
+      stageWidth: stage ? Math.round(stage.getBoundingClientRect().width) : 0,
       viewportWidth: window.innerWidth || 0,
       viewportHeight: window.innerHeight || 0,
-      htmlLocked: document.documentElement.classList.contains('ll-wordset-games-modal-open'),
-      bodyLocked: document.body.classList.contains('ll-wordset-games-modal-open')
+      htmlLocked: document.documentElement.classList.contains('ll-wordset-game-run-modal-open'),
+      bodyLocked: document.body.classList.contains('ll-wordset-game-run-modal-open')
     };
   });
 
+  expect(modalState.backCount).toBe(0);
+  expect(modalState.titleCount).toBe(0);
   expect(modalState.htmlLocked).toBe(true);
   expect(modalState.bodyLocked).toBe(true);
   expect(modalState.width).toBeGreaterThanOrEqual(modalState.viewportWidth - 4);
   expect(modalState.height).toBeGreaterThanOrEqual(modalState.viewportHeight - 4);
+  expect(modalState.stageWidth).toBeLessThanOrEqual(modalState.width);
 
-  await page.click('[data-ll-wordset-games-back]');
-  await expect(page.locator('[data-ll-wordset-games-modal]')).toBeHidden();
+  await closeRunPopup(page);
 });
 
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
@@ -1137,8 +1144,7 @@ test('wrong answers replay the prompt quickly and never cost more than one life 
       ).toBe(true);
     }
 
-    await page.click('[data-ll-wordset-games-back]');
-    await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+    await closeRunPopup(page);
     await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   }
 });
@@ -1309,7 +1315,7 @@ test('bubble pop pause overlay uses the bubble theme for resume', async ({ page 
   ).toBe(true);
 });
 
-test('games page header back returns to the games catalog while a run is open', async ({ page }) => {
+test('closing the game popup returns to the games catalog', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
   await page.evaluate(() => {
@@ -1317,12 +1323,8 @@ test('games page header back returns to the games catalog while a run is open', 
   });
   await waitForActivePrompt(page, 'bubble-pop');
 
-  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Games');
-  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Bubble Pop');
+  await closeRunPopup(page);
 
-  await page.click('[data-ll-wordset-games-back]');
-
-  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
   await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Games');
@@ -1506,8 +1508,7 @@ test('both games auto-pause after three inactive rounds and resume into the next
       previousPromptId: pausedPromptId
     });
 
-    await page.click('[data-ll-wordset-games-back]');
-    await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+    await closeRunPopup(page);
     await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   }
 });
@@ -1540,14 +1541,10 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
 
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Preparing game...');
   await expect(page.locator('[data-ll-wordset-game-fire-keycap]')).toBeVisible();
-  await page.waitForFunction(() => (
-    Array.isArray(window.__scrollCalls)
-    && Array.isArray(window.__dialogScrollCalls)
-    && ((window.__scrollCalls.length + window.__dialogScrollCalls.length) > 0)
-  ));
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.awaitingPrompt && !run.targetWordId);
@@ -1567,8 +1564,8 @@ test('space shooter launches with safe option mixes and records progress flows',
     return !!(run && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);
   });
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
-  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Games');
-  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Space Shooter');
+  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
+  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Games');
 
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);
@@ -1820,8 +1817,7 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(replayState.coins).toBe(0);
   expect(replayState.lives).toBe(3);
 
-  await page.click('[data-ll-wordset-games-back]');
-  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
+  await closeRunPopup(page);
   await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
   await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Games');
@@ -1830,7 +1826,7 @@ test('space shooter launches with safe option mixes and records progress flows',
     (Array.isArray(window.__scrollCalls) ? window.__scrollCalls.length : 0)
     + (Array.isArray(window.__dialogScrollCalls) ? window.__dialogScrollCalls.length : 0)
   ));
-  expect(scrollCallCount).toBeGreaterThanOrEqual(2);
+  expect(scrollCallCount).toBe(0);
 
   const finalFlushCount = await page.evaluate(() => window.__flushCount);
   expect(finalFlushCount).toBeGreaterThan(flushCountAfterGameOver);

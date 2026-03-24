@@ -560,11 +560,11 @@
         const previousWidth = run ? Math.max(1, Number(run.width) || 1) : 1;
         const previousHeight = run ? Math.max(1, Number(run.height) || 1) : 1;
         const wrapWidth = Math.max(280, Math.round(ctx.$canvasWrap.innerWidth() || ctx.$stage.innerWidth() || 720));
-        const modalDialogHeight = isGamesModalVisible(ctx) && ctx.$modalDialog && ctx.$modalDialog.length
-            ? Math.round(ctx.$modalDialog.innerHeight() || 0)
+        const runModalDialogHeight = isRunModalVisible(ctx) && ctx.$runModalDialog && ctx.$runModalDialog.length
+            ? Math.round(ctx.$runModalDialog.innerHeight() || 0)
             : 0;
-        const viewportCap = modalDialogHeight > 0
-            ? Math.max(430, modalDialogHeight - 170)
+        const viewportCap = runModalDialogHeight > 0
+            ? Math.max(430, runModalDialogHeight - 32)
             : (root.innerHeight ? Math.round(root.innerHeight * 0.68) : 820);
         const cssHeight = clamp(Math.round(wrapWidth * 1.18), 430, Math.max(430, viewportCap));
         const dpr = clamp(root.devicePixelRatio || 1, 1, 2);
@@ -2721,15 +2721,11 @@
         }
     }
 
-    function isStandaloneGamesPage(ctx) {
-        return String(ctx && ctx.pageView || '') === 'games';
+    function isRunModalVisible(ctx) {
+        return !!(ctx && ctx.$runModal && ctx.$runModal.length && !ctx.$runModal.prop('hidden'));
     }
 
-    function isGamesModalVisible(ctx) {
-        return !!(ctx && ctx.$modal && ctx.$modal.length && !ctx.$modal.prop('hidden'));
-    }
-
-    function toggleGamesModalPageLock(isLocked) {
+    function toggleRunModalPageLock(isLocked) {
         if (!root.document) {
             return;
         }
@@ -2737,20 +2733,20 @@
         const html = root.document.documentElement;
         const body = root.document.body;
         if (html && html.classList) {
-            html.classList.toggle('ll-wordset-games-modal-open', !!isLocked);
+            html.classList.toggle('ll-wordset-game-run-modal-open', !!isLocked);
         }
         if (body && body.classList) {
-            body.classList.toggle('ll-wordset-games-modal-open', !!isLocked);
+            body.classList.toggle('ll-wordset-game-run-modal-open', !!isLocked);
         }
     }
 
-    function setGamesModalOpen(ctx, isOpen) {
-        if (!ctx || !ctx.$modal || !ctx.$modal.length) {
+    function setRunModalOpen(ctx, isOpen) {
+        if (!ctx || !ctx.$runModal || !ctx.$runModal.length) {
             return false;
         }
 
-        ctx.$modal.prop('hidden', !isOpen);
-        toggleGamesModalPageLock(!!isOpen);
+        ctx.$runModal.prop('hidden', !isOpen);
+        toggleRunModalPageLock(!!isOpen);
         if (isOpen) {
             root.requestAnimationFrame(function () {
                 syncCanvasSize(ctx);
@@ -2775,29 +2771,11 @@
             return;
         }
 
-        const modalDialog = isGamesModalVisible(ctx) && ctx.$modalDialog && ctx.$modalDialog.length
-            ? ctx.$modalDialog.get(0)
-            : null;
+        if (isRunModalVisible(ctx)) {
+            return;
+        }
 
         const performScroll = function () {
-            if (modalDialog && typeof modalDialog.scrollTo === 'function') {
-                const dialogScrollTop = Number(modalDialog.scrollTop || 0);
-                const dialogRect = modalDialog.getBoundingClientRect();
-                const stageRect = stage.getBoundingClientRect();
-                const targetTop = Math.max(0, Math.round((stageRect.top - dialogRect.top) + dialogScrollTop - 16));
-
-                try {
-                    modalDialog.scrollTo({
-                        top: targetTop,
-                        behavior: 'smooth'
-                    });
-                    return;
-                } catch (_) { /* no-op */ }
-
-                modalDialog.scrollTop = targetTop;
-                return;
-            }
-
             const currentScroll = Number(root.pageYOffset || root.scrollY || 0);
             const targetTop = Math.max(0, Math.round(stage.getBoundingClientRect().top + currentScroll - 16));
 
@@ -2845,18 +2823,6 @@
         const gameSlug = String(rawSlug || '').trim() === ''
             ? ''
             : normalizeGameSlug(rawSlug);
-        const activeGame = slugOrRun && typeof slugOrRun === 'object' ? slugOrRun : null;
-        let gameTitle = '';
-
-        if (gameSlug) {
-            if (activeGame && String(activeGame.title || '').trim() !== '') {
-                gameTitle = String(activeGame.title);
-            } else if (ctx && ctx.catalogEntries && ctx.catalogEntries[gameSlug] && String(ctx.catalogEntries[gameSlug].title || '').trim() !== '') {
-                gameTitle = String(ctx.catalogEntries[gameSlug].title);
-            } else if (ctx && ctx.catalogCards && ctx.catalogCards[gameSlug] && String(ctx.catalogCards[gameSlug].title || '').trim() !== '') {
-                gameTitle = String(ctx.catalogCards[gameSlug].title);
-            }
-        }
 
         if (ctx && ctx.$stage && ctx.$stage.length) {
             ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
@@ -2867,20 +2833,6 @@
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
             ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
         }
-        if (ctx && ctx.$catalogBackLabel && ctx.$catalogBackLabel.length) {
-            ctx.$catalogBackLabel.text(gameSlug ? String(ctx.i18n.gamesBack || 'Games') : String(ctx.catalogBackDefaultLabel || ''));
-        }
-        if (ctx && ctx.$catalogBackLink && ctx.$catalogBackLink.length) {
-            ctx.$catalogBackLink.attr(
-                'aria-label',
-                gameSlug
-                    ? String(ctx.i18n.gamesBackToCatalog || 'Back to games')
-                    : String(ctx.catalogBackDefaultAriaLabel || '')
-            );
-        }
-        if (ctx && ctx.$pageTitle && ctx.$pageTitle.length) {
-            ctx.$pageTitle.text(gameSlug ? gameTitle : String(ctx.catalogPageDefaultTitle || ''));
-        }
     }
 
     function resetGamesSurface(ctx) {
@@ -2889,26 +2841,7 @@
         ctx.activeGameSlug = '';
         updateStageGameUi(ctx, '');
         ctx.$stage.prop('hidden', true);
-        ctx.$catalog.prop('hidden', false);
-    }
-
-    function openGamesModal(ctx) {
-        if (!ctx || !ctx.$modal || !ctx.$modal.length) {
-            return false;
-        }
-
-        setGamesModalOpen(ctx, true);
-        return true;
-    }
-
-    function closeGamesModal(ctx) {
-        if (!ctx || !ctx.$modal || !ctx.$modal.length || isStandaloneGamesPage(ctx)) {
-            return false;
-        }
-
-        resetGamesSurface(ctx);
-        setGamesModalOpen(ctx, false);
-        return true;
+        setRunModalOpen(ctx, false);
     }
 
     function setControlState(ctx, control, isActive) {
@@ -4158,12 +4091,11 @@
         if (!gameConfig) {
             return;
         }
-        openGamesModal(ctx);
-        showCatalog(ctx);
-        ctx.$catalog.prop('hidden', true);
+        resetGamesSurface(ctx);
         ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
+        setRunModalOpen(ctx, true);
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
@@ -4293,6 +4225,11 @@
             syncCanvasSize(ctx);
         };
         ctx.onKeyDown = function (event) {
+            if (matchesKey(event, ['escape'], ['escape']) && isRunModalVisible(ctx)) {
+                event.preventDefault();
+                showCatalog(ctx);
+                return;
+            }
             if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden') || isBubblePopRun(ctx, ctx.run)) {
                 return;
             }
@@ -4367,22 +4304,6 @@
 
     function bindDom(ctx) {
         ctx.$page.off(MODULE_NS);
-        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-open]', function (event) {
-            if (!ctx.$modal || !ctx.$modal.length) {
-                return;
-            }
-            event.preventDefault();
-            openGamesModal(ctx);
-        });
-
-        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-modal-dismiss]', function (event) {
-            if (!ctx.$modal || !ctx.$modal.length || isStandaloneGamesPage(ctx)) {
-                return;
-            }
-            event.preventDefault();
-            closeGamesModal(ctx);
-        });
-
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-launch]', function (event) {
             event.preventDefault();
             const slug = normalizeGameSlug($(this).closest('[data-ll-wordset-game-card]').attr('data-game-slug') || '');
@@ -4393,13 +4314,7 @@
             startRun(ctx, entry);
         });
 
-        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-games-back]', function (event) {
-            if (ctx.$stage.prop('hidden')) {
-                if (closeGamesModal(ctx)) {
-                    event.preventDefault();
-                }
-                return;
-            }
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-run-dismiss]', function (event) {
             event.preventDefault();
             showCatalog(ctx);
         });
@@ -4606,10 +4521,9 @@
         return {
             rootEl: rootEl,
             $page: $page,
-            pageView: String(cfg.view || 'main'),
             $gamesRoot: $gamesRoot,
-            $modal: $page.find('[data-ll-wordset-games-modal]').first(),
-            $modalDialog: $page.find('[data-ll-wordset-games-modal-dialog]').first(),
+            $runModal: $gamesRoot.find('[data-ll-wordset-game-run-modal]').first(),
+            $runModalDialog: $gamesRoot.find('[data-ll-wordset-game-run-dialog]').first(),
             $catalogBackLink: $page.find('[data-ll-wordset-games-back]').first(),
             $catalogBackLabel: $page.find('[data-ll-wordset-games-back-label]').first(),
             $pageTitle: $page.find('[data-ll-wordset-games-page-title]').first(),
@@ -4692,11 +4606,7 @@
         updateProgressGlobals(ctx);
         bindLifecycle(ctx);
         bindDom(ctx);
-        if (ctx.$modal && ctx.$modal.length) {
-            setGamesModalOpen(ctx, !ctx.$modal.prop('hidden'));
-        } else {
-            toggleGamesModalPageLock(false);
-        }
+        toggleRunModalPageLock(false);
         syncCanvasSize(ctx);
         updateStageGameUi(ctx, '');
         renderAllCatalogCards(ctx, null, !!ctx.isLoggedIn);
