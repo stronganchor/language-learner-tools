@@ -3,6 +3,7 @@
 
     const api = root.LLWordsetGames = root.LLWordsetGames || {};
     const DEFAULT_GAME_SLUG = 'space-shooter';
+    const BUBBLE_POP_GAME_SLUG = 'bubble-pop';
     const MODULE_NS = '.llWordsetGames';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
     const CARD_RATIO_MIN = 0.55;
@@ -41,6 +42,11 @@
             .toLowerCase()
             .replace(/[\s_]+/g, '-')
             .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function normalizeGameSlug(value) {
+        const slug = normalizeRecordingType(value);
+        return slug || DEFAULT_GAME_SLUG;
     }
 
     function uniqueStringList(values) {
@@ -283,6 +289,72 @@
         };
     }
 
+    function getDefaultCatalogSlug(ctx) {
+        if (ctx && ctx.defaultCatalogSlug) {
+            return normalizeGameSlug(ctx.defaultCatalogSlug);
+        }
+        return DEFAULT_GAME_SLUG;
+    }
+
+    function getGameConfig(ctx, slugOrRun) {
+        const requestedSlug = normalizeGameSlug(
+            slugOrRun && typeof slugOrRun === 'object'
+                ? slugOrRun.slug
+                : slugOrRun
+        );
+        const gameConfigs = (ctx && ctx.gameConfigs && typeof ctx.gameConfigs === 'object')
+            ? ctx.gameConfigs
+            : {};
+        if (gameConfigs[requestedSlug]) {
+            return gameConfigs[requestedSlug];
+        }
+
+        const fallbackSlug = getDefaultCatalogSlug(ctx);
+        if (gameConfigs[fallbackSlug]) {
+            return gameConfigs[fallbackSlug];
+        }
+
+        return null;
+    }
+
+    function isBubblePopRun(ctx, run) {
+        return normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG;
+    }
+
+    function isSpaceShooterRun(ctx, run) {
+        return !isBubblePopRun(ctx, run);
+    }
+
+    function getAssetPreloadTimeoutMs(ctx, runOrSlug) {
+        const gameConfig = getGameConfig(ctx, runOrSlug);
+        return Math.max(1000, toInt(gameConfig && gameConfig.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS);
+    }
+
+    function getCurrentGameSlug(ctx) {
+        if (ctx && ctx.run) {
+            return normalizeGameSlug(ctx.run.slug);
+        }
+        if (ctx && ctx.activeGameSlug) {
+            return normalizeGameSlug(ctx.activeGameSlug);
+        }
+        return getDefaultCatalogSlug(ctx);
+    }
+
+    function getBoardLabel(ctx, slugOrRun) {
+        const requestedSlug = normalizeGameSlug(
+            slugOrRun && typeof slugOrRun === 'object'
+                ? slugOrRun.slug
+                : slugOrRun
+        );
+        if (requestedSlug === BUBBLE_POP_GAME_SLUG) {
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelBubblePop || 'Bubble Pop game board');
+        }
+        if (requestedSlug === DEFAULT_GAME_SLUG) {
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpaceShooter || 'Arcane Space Shooter game board');
+        }
+        return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board');
+    }
+
     function getGamePromptRecordingTypes(word) {
         const explicit = uniqueStringList(word && word.game_prompt_recording_types);
         const availableAudioTypes = uniqueStringList((Array.isArray(word && word.audio_files) ? word.audio_files : []).map(function (file) {
@@ -452,14 +524,14 @@
         return tracker;
     }
 
-    function buildProgressPayload(prompt, extra) {
+    function buildProgressPayload(ctx, prompt, extra) {
         const word = prompt && prompt.target ? prompt.target : null;
         return $.extend({}, extra || {}, {
             recording_type: normalizeRecordingType(prompt && prompt.recordingType || ''),
             available_recording_types: Array.isArray(word && word.practice_recording_types)
                 ? word.practice_recording_types.slice()
                 : [],
-            game_slug: DEFAULT_GAME_SLUG
+            game_slug: normalizeGameSlug(prompt && prompt.gameSlug || getCurrentGameSlug(ctx))
         });
     }
 
@@ -476,7 +548,7 @@
             wordsetId: ctx.wordsetId,
             categoryId: prompt.target.category_id,
             categoryName: prompt.target.category_name,
-            payload: buildProgressPayload(prompt, extraPayload || {})
+            payload: buildProgressPayload(ctx, prompt, extraPayload || {})
         });
     }
 
@@ -494,7 +566,7 @@
             categoryName: prompt.target.category_name,
             isCorrect: !!isCorrect,
             hadWrongBefore: !!hadWrongBefore,
-            payload: buildProgressPayload(prompt, extraPayload || {})
+            payload: buildProgressPayload(ctx, prompt, extraPayload || {})
         });
     }
 
@@ -654,7 +726,7 @@
             image.addEventListener('error', onError);
             timeoutId = root.setTimeout(function () {
                 finish(false);
-            }, Math.max(1000, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS));
+            }, getAssetPreloadTimeoutMs(ctx));
 
             try {
                 image.src = url;
@@ -736,7 +808,7 @@
             audio.addEventListener('error', onError);
             timeoutId = root.setTimeout(function () {
                 finish(false);
-            }, Math.max(1000, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS));
+            }, getAssetPreloadTimeoutMs(ctx));
 
             try {
                 audio.src = source;
@@ -774,6 +846,42 @@
         const context = ctx.canvasContext;
         context.clearRect(0, 0, run.width, run.height);
 
+        if (isBubblePopRun(ctx, run)) {
+            const bubbleGradient = context.createLinearGradient(0, 0, 0, run.height);
+            bubbleGradient.addColorStop(0, '#0F766E');
+            bubbleGradient.addColorStop(0.42, '#0F5D72');
+            bubbleGradient.addColorStop(1, '#123149');
+            context.fillStyle = bubbleGradient;
+            context.fillRect(0, 0, run.width, run.height);
+
+            const glow = context.createRadialGradient(run.width * 0.4, run.height * 0.12, 0, run.width * 0.4, run.height * 0.12, run.width * 0.55);
+            glow.addColorStop(0, 'rgba(244, 251, 255, 0.18)');
+            glow.addColorStop(1, 'rgba(244, 251, 255, 0)');
+            context.fillStyle = glow;
+            context.fillRect(0, 0, run.width, run.height);
+
+            run.stars.forEach(function (star, index) {
+                const radius = star.radius * (index % 3 === 0 ? 4.8 : 3.2);
+                context.globalAlpha = Math.min(0.26, star.alpha * 0.52);
+                context.fillStyle = index % 2 === 0 ? '#ECFEFF' : '#DBEAFE';
+                context.beginPath();
+                context.arc(star.x, star.y, radius, 0, Math.PI * 2);
+                context.fill();
+            });
+            context.globalAlpha = 1;
+
+            context.strokeStyle = 'rgba(255,255,255,0.08)';
+            context.lineWidth = 1;
+            for (let laneIndex = 1; laneIndex < run.cardCount; laneIndex += 1) {
+                const x = laneCenterX(run, laneIndex) - (run.metrics.laneWidth / 2);
+                context.beginPath();
+                context.moveTo(x, 0);
+                context.lineTo(x, run.height);
+                context.stroke();
+            }
+            return;
+        }
+
         const gradient = context.createLinearGradient(0, 0, 0, run.height);
         gradient.addColorStop(0, '#0F172A');
         gradient.addColorStop(0.48, '#132848');
@@ -808,6 +916,9 @@
     }
 
     function renderShip(ctx, run) {
+        if (!isSpaceShooterRun(ctx, run)) {
+            return;
+        }
         const context = ctx.canvasContext;
         const width = run.metrics.shipWidth;
         const height = run.metrics.shipHeight;
@@ -841,6 +952,9 @@
     }
 
     function renderBullets(ctx, run) {
+        if (!isSpaceShooterRun(ctx, run)) {
+            return;
+        }
         const context = ctx.canvasContext;
         context.fillStyle = '#67E8F9';
         run.bullets.forEach(function (bullet) {
@@ -850,7 +964,124 @@
         });
     }
 
+    function drawImageContain(context, image, x, y, width, height) {
+        if (!image || !image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+            return false;
+        }
+
+        const containScale = Math.min(
+            width / Math.max(1, image.naturalWidth),
+            height / Math.max(1, image.naturalHeight)
+        );
+        const drawWidth = image.naturalWidth * containScale;
+        const drawHeight = image.naturalHeight * containScale;
+        const drawX = x + ((width - drawWidth) / 2);
+        const drawY = y + ((height - drawHeight) / 2);
+
+        context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+        return true;
+    }
+
+    function getBubbleRadius(card) {
+        return Math.max(28, Math.min(card.width, card.height) * 0.5);
+    }
+
+    function renderBubbleCards(ctx, run, now) {
+        const context = ctx.canvasContext;
+        run.cards.forEach(function (card) {
+            const ambientMotion = (!card.exploding && !card.resolvedFalling)
+                ? getCardAmbientMotion(card, now)
+                : { bobY: 0, tilt: 0 };
+            const exploding = !!card.exploding && now < card.removeAt;
+            const explosionDuration = Math.max(180, toInt(card.explosionDuration) || (card.explosionStyle === 'dramatic' ? 320 : 220));
+            const progress = exploding ? clamp(1 - ((card.removeAt - now) / explosionDuration), 0, 1) : 0;
+            const dramatic = card.explosionStyle === 'dramatic';
+            const radius = getBubbleRadius(card);
+            const renderX = card.x + (card.resolvedFalling ? 0 : (Math.sin((now / 1000) + (card.motionTiltPhasePrimary || 0)) * 5));
+            const renderY = card.y + ambientMotion.bobY;
+            const image = loadWordImage(ctx, card.word);
+
+            context.save();
+            context.translate(renderX, renderY);
+
+            if (exploding) {
+                context.globalAlpha = clamp(1 - progress, 0, 1);
+            }
+            if (dramatic) {
+                context.rotate((Math.sin(progress * 30) * 0.12) + (progress * 0.32));
+                context.scale(1 + (progress * 0.46), 1 + (progress * 0.46));
+            } else if (!card.resolvedFalling) {
+                context.rotate(ambientMotion.tilt * 0.6);
+            }
+
+            context.shadowColor = 'rgba(15, 23, 42, 0.22)';
+            context.shadowBlur = 18;
+            context.shadowOffsetY = 10;
+
+            const bubbleGradient = context.createRadialGradient(-radius * 0.34, -radius * 0.4, radius * 0.12, 0, 0, radius);
+            bubbleGradient.addColorStop(0, 'rgba(255,255,255,0.9)');
+            bubbleGradient.addColorStop(0.22, 'rgba(236, 254, 255, 0.72)');
+            bubbleGradient.addColorStop(0.68, 'rgba(186, 230, 253, 0.26)');
+            bubbleGradient.addColorStop(1, 'rgba(125, 211, 252, 0.14)');
+            context.fillStyle = bubbleGradient;
+            context.beginPath();
+            context.arc(0, 0, radius, 0, Math.PI * 2);
+            context.fill();
+
+            context.shadowBlur = 0;
+            context.shadowOffsetY = 0;
+
+            context.save();
+            context.beginPath();
+            context.arc(0, 0, radius * 0.8, 0, Math.PI * 2);
+            context.clip();
+            if (!drawImageContain(context, image, -radius * 0.8, -radius * 0.8, radius * 1.6, radius * 1.6)) {
+                const placeholder = context.createLinearGradient(-radius, -radius, radius, radius);
+                placeholder.addColorStop(0, '#F0FDFA');
+                placeholder.addColorStop(1, '#DBEAFE');
+                context.fillStyle = placeholder;
+                context.fillRect(-radius, -radius, radius * 2, radius * 2);
+                context.fillStyle = 'rgba(15, 23, 42, 0.48)';
+                context.font = '700 28px Georgia, serif';
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillText('●', 0, 0);
+            }
+            context.restore();
+
+            context.strokeStyle = 'rgba(255,255,255,0.82)';
+            context.lineWidth = 2;
+            context.beginPath();
+            context.arc(0, 0, radius, 0, Math.PI * 2);
+            context.stroke();
+
+            context.strokeStyle = 'rgba(191, 219, 254, 0.7)';
+            context.lineWidth = 1.2;
+            context.beginPath();
+            context.arc(-radius * 0.22, -radius * 0.26, radius * 0.26, Math.PI * 1.08, Math.PI * 1.86);
+            context.stroke();
+
+            context.fillStyle = 'rgba(255,255,255,0.5)';
+            context.beginPath();
+            context.arc(-radius * 0.34, -radius * 0.38, radius * 0.12, 0, Math.PI * 2);
+            context.fill();
+
+            if (exploding) {
+                context.strokeStyle = card.isTarget ? 'rgba(16, 185, 129, 0.92)' : 'rgba(248, 113, 113, 0.94)';
+                context.lineWidth = dramatic ? 4 : 3;
+                context.beginPath();
+                context.arc(0, 0, radius * (0.78 + (progress * 0.86)), 0, Math.PI * 2);
+                context.stroke();
+            }
+            context.restore();
+        });
+    }
+
     function renderCards(ctx, run, now) {
+        if (isBubblePopRun(ctx, run)) {
+            renderBubbleCards(ctx, run, now);
+            return;
+        }
         const context = ctx.canvasContext;
         run.cards.forEach(function (card) {
             const ambientMotion = (!card.exploding && !card.resolvedFalling)
@@ -897,20 +1128,7 @@
             context.save();
             drawRoundedRect(context, left, top, card.width, card.height, getCardRadius(card));
             context.clip();
-            if (image && image.complete && image.naturalWidth > 0) {
-                const availableWidth = card.width;
-                const availableHeight = card.height;
-                const containScale = Math.min(
-                    availableWidth / Math.max(1, image.naturalWidth),
-                    availableHeight / Math.max(1, image.naturalHeight)
-                );
-                const drawWidth = image.naturalWidth * containScale;
-                const drawHeight = image.naturalHeight * containScale;
-                const drawX = left + ((availableWidth - drawWidth) / 2);
-                const drawY = top + ((availableHeight - drawHeight) / 2);
-
-                context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
-            } else {
+            if (!drawImageContain(context, image, left, top, card.width, card.height)) {
                 const placeholder = context.createLinearGradient(left, top, left + card.width, top + card.height);
                 placeholder.addColorStop(0, '#DFF7FF');
                 placeholder.addColorStop(1, '#C7F0EB');
@@ -1097,18 +1315,25 @@
     }
 
     function getCardEntryRevealMs(ctx, card) {
-        const maxRevealMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.cardEntryRevealMs) || 560);
+        const gameConfig = getGameConfig(ctx, ctx && ctx.run);
+        const maxRevealMs = Math.max(220, toInt(gameConfig && gameConfig.cardEntryRevealMs) || 560);
         const baseOffset = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
         return Math.min(maxRevealMs, 380 + Math.round(baseOffset * 150));
     }
 
-    function getCardEntryVisibleY(run, card) {
+    function getCardEntryVisibleY(ctx, run, card) {
         const cardHeight = Math.max(1, Number(card && card.height) || 1);
         const metricsCardHeight = Math.max(cardHeight, Number(run && run.metrics && run.metrics.cardHeight) || cardHeight);
-        const maxDepth = Math.min(Math.max(40, run.height * 0.24), metricsCardHeight * 0.95);
         const offsetFactor = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
         const jitter = Number(card && card.entryDepthJitter || 0);
         const depthRatio = clamp(0.06 + (offsetFactor * 0.28) + jitter, 0.05, 0.38);
+
+        if (isBubblePopRun(ctx, run)) {
+            const liftDepth = Math.min(Math.max(48, run.height * 0.24), metricsCardHeight * 1.18);
+            return run.height - (cardHeight / 2) - (liftDepth * depthRatio);
+        }
+
+        const maxDepth = Math.min(Math.max(40, run.height * 0.24), metricsCardHeight * 0.95);
         return (cardHeight / 2) + (maxDepth * depthRatio);
     }
 
@@ -1122,12 +1347,26 @@
             return 0;
         }
 
-        const safeLineRatio = clamp(Number(ctx && ctx.spaceShooter && ctx.spaceShooter.audioSafeLineRatio) || 0.6, 0.35, 0.7);
-        const safeLineY = Math.max(0, Number(run.height) || 0) * safeLineRatio;
+        const gameConfig = getGameConfig(ctx, run);
+        const safeLineRatio = clamp(Number(gameConfig && gameConfig.audioSafeLineRatio) || 0.6, 0.35, 0.7);
+        const safeLineY = isBubblePopRun(ctx, run)
+            ? Math.max(0, Number(run.height) || 0) * (1 - safeLineRatio)
+            : Math.max(0, Number(run.height) || 0) * safeLineRatio;
         const visibleY = Number(card.entryVisibleY);
         const entryRevealMs = Math.max(0, toInt(card.entryRevealMs));
 
-        if (!isFinite(visibleY) || safeLineY <= visibleY) {
+        if (!isFinite(visibleY)) {
+            return entryRevealMs;
+        }
+
+        if (isBubblePopRun(ctx, run)) {
+            if (safeLineY >= visibleY) {
+                return entryRevealMs;
+            }
+            return entryRevealMs + Math.round(((visibleY - safeLineY) / speed) * 1000);
+        }
+
+        if (safeLineY <= visibleY) {
             return entryRevealMs;
         }
 
@@ -1135,7 +1374,8 @@
     }
 
     function getPromptAutoReplayTiming(ctx, run, promptDurationMs, targetCard) {
-        const replayGapMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.promptAutoReplayGapMs) || 420);
+        const gameConfig = getGameConfig(ctx, run);
+        const replayGapMs = Math.max(220, toInt(gameConfig && gameConfig.promptAutoReplayGapMs) || 420);
         const baseDelayMs = Math.max(0, toInt(promptDurationMs)) + replayGapMs;
         const shortPromptLimitMs = Math.max(SHORT_PROMPT_AUTO_REPLAY_MIN_MS, replayGapMs * 3);
         const safeLineCrossDelayMs = getCardSafeLineCrossDelayMs(ctx, run, targetCard);
@@ -1256,13 +1496,14 @@
         });
     }
 
-    function buildPreparedEntry(ctx, rawEntry) {
+    function buildPreparedEntry(ctx, slug, rawEntry) {
         const entry = $.extend({}, rawEntry || {});
+        const gameConfig = getGameConfig(ctx, slug);
         const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
         const maxLoadedWords = Math.max(
             minimumCount,
             toInt(entry.launch_word_cap)
-                || toInt(ctx.spaceShooter.maxLoadedWords)
+                || toInt(gameConfig && gameConfig.maxLoadedWords)
                 || minimumCount
         );
         const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
@@ -1272,8 +1513,9 @@
                 return word.id > 0 && word.image !== '' && audio.url !== '';
             });
         const words = limitLaunchWords(eligibleWords, maxLoadedWords);
-        const playableTargets = findPlayableTargets(words, ctx.spaceShooter.cardCount);
+        const playableTargets = findPlayableTargets(words, Math.max(2, toInt(gameConfig && gameConfig.cardCount) || 4));
         const prepared = $.extend({}, entry, {
+            slug: normalizeGameSlug(entry.slug || slug),
             words: words,
             playableTargets: playableTargets,
             available_word_count: toInt(entry.available_word_count) || eligibleWords.length,
@@ -1309,17 +1551,29 @@
         return formatMessage(ctx.i18n.gamesNeedWords || 'Need %d more words to unlock this game.', [missing]);
     }
 
-    function renderCatalogCard(ctx, entry, isLoading) {
+    function renderCatalogCard(ctx, slug, entry, isLoading) {
+        const normalizedSlug = normalizeGameSlug(slug);
+        const card = ctx && ctx.catalogCards ? ctx.catalogCards[normalizedSlug] : null;
+        if (!card) {
+            return;
+        }
         const buttonLabel = (entry && entry.launchable)
             ? String(ctx.i18n.gamesPlay || 'Play')
             : String(ctx.i18n.gamesLocked || 'Locked');
 
-        ctx.$cardStatus.text(isLoading ? String(ctx.i18n.gamesLoading || 'Checking game availability...') : getCardStatusText(ctx, entry));
-        ctx.$cardCount.text(entry ? String(entry.available_word_count || 0) : '\u2014');
-        ctx.$launchButton.text(ctx.isLoggedIn ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
-        ctx.$launchButton.prop('disabled', isLoading || !ctx.isLoggedIn || !(entry && entry.launchable));
-        ctx.$card.toggleClass('is-launchable', !!(entry && entry.launchable));
-        ctx.$card.toggleClass('is-loading', !!isLoading);
+        card.$status.text(isLoading ? String(ctx.i18n.gamesLoading || 'Checking game availability...') : getCardStatusText(ctx, entry));
+        card.$count.text(entry ? String(entry.available_word_count || 0) : '\u2014');
+        card.$launchButton.text(ctx.isLoggedIn ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
+        card.$launchButton.prop('disabled', isLoading || !ctx.isLoggedIn || !(entry && entry.launchable));
+        card.$card.toggleClass('is-launchable', !!(entry && entry.launchable));
+        card.$card.toggleClass('is-loading', !!isLoading);
+    }
+
+    function renderAllCatalogCards(ctx, entries, isLoading) {
+        const catalogEntries = (entries && typeof entries === 'object') ? entries : {};
+        (Array.isArray(ctx.catalogOrder) ? ctx.catalogOrder : []).forEach(function (slug) {
+            renderCatalogCard(ctx, slug, catalogEntries[slug] || null, !!isLoading);
+        });
     }
 
     function updateReplayAudioUi(ctx, isPlaying) {
@@ -1390,15 +1644,17 @@
     }
 
     function getFeedbackAudioSources(ctx, type) {
+        const gameConfig = getGameConfig(ctx, ctx && ctx.run);
         return type === 'correct'
-            ? normalizeUrlList(ctx && ctx.spaceShooter && ctx.spaceShooter.correctHitAudioSources)
-            : normalizeUrlList(ctx && ctx.spaceShooter && ctx.spaceShooter.wrongHitAudioSources);
+            ? normalizeUrlList(gameConfig && gameConfig.correctHitAudioSources)
+            : normalizeUrlList(gameConfig && gameConfig.wrongHitAudioSources);
     }
 
     function getFeedbackAudioVolume(ctx, type) {
+        const gameConfig = getGameConfig(ctx, ctx && ctx.run);
         const configured = type === 'correct'
-            ? Number(ctx && ctx.spaceShooter && ctx.spaceShooter.correctHitVolume)
-            : Number(ctx && ctx.spaceShooter && ctx.spaceShooter.wrongHitVolume);
+            ? Number(gameConfig && gameConfig.correctHitVolume)
+            : Number(gameConfig && gameConfig.wrongHitVolume);
         return clamp(configured, 0.05, 1);
     }
 
@@ -1618,7 +1874,8 @@
                 promptAudio.currentTime = 0;
             } catch (_) { /* no-op */ }
 
-            promptAudio.volume = clamp(Number(ctx.spaceShooter.promptAudioVolume), 0.05, 1);
+            const gameConfig = getGameConfig(ctx, run);
+            promptAudio.volume = clamp(Number(gameConfig && gameConfig.promptAudioVolume) || 1, 0.05, 1);
             if (promptAudio.src !== source) {
                 promptAudio.src = source;
             }
@@ -1728,9 +1985,30 @@
         root.setTimeout(performScroll, 0);
     }
 
+    function updateStageGameUi(ctx, slugOrRun) {
+        const rawSlug = slugOrRun && typeof slugOrRun === 'object'
+            ? slugOrRun.slug
+            : slugOrRun;
+        const gameSlug = String(rawSlug || '').trim() === ''
+            ? ''
+            : normalizeGameSlug(rawSlug);
+        if (ctx && ctx.$stage && ctx.$stage.length) {
+            ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
+        }
+        if (ctx && ctx.$controlsWrap && ctx.$controlsWrap.length) {
+            ctx.$controlsWrap.prop('hidden', gameSlug === BUBBLE_POP_GAME_SLUG);
+        }
+        if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
+            ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
+        }
+    }
+
     function setControlState(ctx, control, isActive) {
         const run = ctx.run;
         if (!run || run.paused || !run.controls || !Object.prototype.hasOwnProperty.call(run.controls, control)) {
+            return;
+        }
+        if (isBubblePopRun(ctx, run)) {
             return;
         }
         run.controls[control] = !!isActive;
@@ -1952,19 +2230,24 @@
             return false;
         }
 
+        const gameConfig = getGameConfig(ctx, run);
         const targetCard = candidate.cards.find(function (card) {
             return !!card && card.isTarget;
         });
         const promptDurationMs = getLoadedAudioDurationMs(ctx, candidate.audioUrl);
-        const safeLineRatio = clamp(Number(ctx.spaceShooter.audioSafeLineRatio) || 0.6, 0.35, 0.7);
-        const safeLineBufferMs = Math.max(0, toInt(ctx.spaceShooter.audioSafeLineBufferMs) || 180);
-        const safeLineY = run.height * safeLineRatio;
+        const safeLineRatio = clamp(Number(gameConfig && gameConfig.audioSafeLineRatio) || 0.6, 0.35, 0.7);
+        const safeLineBufferMs = Math.max(0, toInt(gameConfig && gameConfig.audioSafeLineBufferMs) || 180);
+        const safeLineY = isBubblePopRun(ctx, run)
+            ? run.height * (1 - safeLineRatio)
+            : run.height * safeLineRatio;
         let promptCardSpeed = run.cardSpeed;
         const targetRevealMs = targetCard ? getCardEntryRevealMs(ctx, targetCard) : 0;
-        const targetVisibleY = targetCard ? getCardEntryVisibleY(run, targetCard) : 0;
+        const targetVisibleY = targetCard ? getCardEntryVisibleY(ctx, run, targetCard) : 0;
 
         if (targetCard && promptDurationMs > 0) {
-            const distanceToSafeLine = Math.max(48, safeLineY - targetVisibleY);
+            const distanceToSafeLine = isBubblePopRun(ctx, run)
+                ? Math.max(48, targetVisibleY - safeLineY)
+                : Math.max(48, safeLineY - targetVisibleY);
             const minTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - targetRevealMs) / 1000));
             const maxSafeSpeed = distanceToSafeLine / minTravelSeconds;
             if (isFinite(maxSafeSpeed) && maxSafeSpeed > 0) {
@@ -1975,14 +2258,18 @@
         const promptStartedAt = currentTimestamp();
         candidate.cards.forEach(function (card) {
             const entryRevealMs = getCardEntryRevealMs(ctx, card);
-            const entryVisibleY = getCardEntryVisibleY(run, card);
+            const entryVisibleY = getCardEntryVisibleY(ctx, run, card);
             const hiddenDistance = Math.max(card.height * 0.9, promptCardSpeed * (entryRevealMs / 1000));
             const availableTravelSeconds = Math.max(0.1, ((promptDurationMs + safeLineBufferMs - entryRevealMs) / 1000));
-            const maxSafeSpeed = Math.max(48, safeLineY - entryVisibleY) / availableTravelSeconds;
+            const maxSafeSpeed = isBubblePopRun(ctx, run)
+                ? Math.max(48, entryVisibleY - safeLineY) / availableTravelSeconds
+                : Math.max(48, safeLineY - entryVisibleY) / availableTravelSeconds;
             const variedCardSpeed = promptCardSpeed * Math.max(0.86, Number(card.fallSpeedFactor) || 1);
             card.entryRevealMs = entryRevealMs;
             card.entryStartedAt = promptStartedAt;
-            card.entryStartY = entryVisibleY - hiddenDistance;
+            card.entryStartY = isBubblePopRun(ctx, run)
+                ? entryVisibleY + hiddenDistance
+                : entryVisibleY - hiddenDistance;
             card.entryVisibleY = entryVisibleY;
             card.y = card.entryStartY;
             card.speed = Math.min(variedCardSpeed, maxSafeSpeed);
@@ -2002,6 +2289,7 @@
             autoReplayBaseDelayMs: replayTiming.baseDelayMs,
             safeLineCrossDelayMs: replayTiming.safeLineCrossDelayMs,
             autoReplaySafeLineGated: replayTiming.gatedBySafeLine,
+            gameSlug: normalizeGameSlug(run.slug),
             hadWrongBefore: false,
             wrongCount: 0,
             wrongHitRecoveryUntil: 0,
@@ -2074,14 +2362,27 @@
     }
 
     function getWrongHitRecoveryMs(ctx) {
-        const fireIntervalMs = Math.max(80, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.fireIntervalMs) || 165);
+        const gameConfig = getGameConfig(ctx, ctx && ctx.run);
+        const fireIntervalMs = Math.max(80, toInt(gameConfig && gameConfig.fireIntervalMs) || 165);
         return Math.max(180, fireIntervalMs + 40);
+    }
+
+    function getRunEventSource(run) {
+        return normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG
+            ? 'bubble_pop'
+            : 'space_shooter';
     }
 
     function removeResolvedObjects(run, now) {
         run.cards = run.cards.filter(function (card) {
-            if (card.resolvedFalling && (card.y - (card.height / 2)) > (run.height + card.height)) {
-                return false;
+            if (card.resolvedFalling) {
+                if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
+                    if ((card.y + (card.height / 2)) < -card.height) {
+                        return false;
+                    }
+                } else if ((card.y - (card.height / 2)) > (run.height + card.height)) {
+                    return false;
+                }
             }
             return !(card.exploding && now >= card.removeAt);
         });
@@ -2091,6 +2392,9 @@
     }
 
     function fireBullet(run) {
+        if (normalizeGameSlug(run && run.slug) !== DEFAULT_GAME_SLUG) {
+            return;
+        }
         run.bullets.push({
             x: run.shipX,
             y: run.metrics.shipY - (run.metrics.shipHeight * 0.8),
@@ -2150,11 +2454,12 @@
         if (!run || !run.prompt || run.prompt.resolved) {
             return;
         }
+        const gameConfig = getGameConfig(ctx, run);
 
         queueExposureOnce(ctx, run.prompt);
-        queueOutcome(ctx, run.prompt, true, !!run.prompt.hadWrongBefore, { event_source: 'space_shooter' });
+        queueOutcome(ctx, run.prompt, true, !!run.prompt.hadWrongBefore, { event_source: getRunEventSource(run) });
 
-        run.coins += Math.max(1, ctx.spaceShooter.correctCoinReward);
+        run.coins += Math.max(1, toInt(gameConfig && gameConfig.correctCoinReward) || 1);
         updateHud(ctx);
         card.exploding = true;
         card.explosionStyle = 'correct';
@@ -2185,19 +2490,20 @@
         if (!run || !run.prompt || run.prompt.resolved) {
             return;
         }
+        const gameConfig = getGameConfig(ctx, run);
         const now = currentTimestamp();
         if (isWrongHitRecoveryActive(run, now)) {
             return;
         }
 
         queueExposureOnce(ctx, run.prompt);
-        queueOutcome(ctx, run.prompt, false, false, { event_source: 'space_shooter', wrong_hit: true });
+        queueOutcome(ctx, run.prompt, false, false, { event_source: getRunEventSource(run), wrong_hit: true });
         run.prompt.hadWrongBefore = true;
         run.prompt.wrongCount += 1;
         run.prompt.wrongHitRecoveryUntil = now + getWrongHitRecoveryMs(ctx);
 
-        run.lives = Math.max(0, run.lives - Math.max(1, ctx.spaceShooter.wrongHitLifePenalty));
-        run.coins = Math.max(0, run.coins - Math.max(0, ctx.spaceShooter.wrongHitCoinPenalty));
+        run.lives = Math.max(0, run.lives - Math.max(1, toInt(gameConfig && gameConfig.wrongHitLifePenalty) || 1));
+        run.coins = Math.max(0, run.coins - Math.max(0, toInt(gameConfig && gameConfig.wrongHitCoinPenalty)));
         run.bullets.length = 0;
         run.lastFireAt = now;
         setControlState(ctx, 'fire', false);
@@ -2257,18 +2563,22 @@
         if (!run || !run.prompt || run.prompt.resolved) {
             return;
         }
+        const gameConfig = getGameConfig(ctx, run);
         pausePromptAudio(ctx);
         const untouchedTimeout = !run.prompt.hadWrongBefore;
 
         if (untouchedTimeout) {
             queueExposureOnce(ctx, run.prompt);
             queueOutcome(ctx, run.prompt, false, false, {
-                event_source: 'space_shooter',
+                event_source: getRunEventSource(run),
                 timeout: true
             });
         }
 
-        run.coins = Math.max(0, run.coins - ctx.spaceShooter.timeoutCoinPenalty);
+        run.coins = Math.max(0, run.coins - Math.max(0, toInt(gameConfig && gameConfig.timeoutCoinPenalty) || 1));
+        if (!untouchedTimeout && !isSpaceShooterRun(ctx, run)) {
+            run.lives = Math.max(0, run.lives - Math.max(0, toInt(gameConfig && gameConfig.timeoutLifePenalty) || 1));
+        }
         updateHud(ctx);
         markPromptResolved(run);
         run.cards = run.cards.filter(function (card) {
@@ -2293,6 +2603,74 @@
         return null;
     }
 
+    function getCanvasPoint(ctx, event) {
+        if (!ctx || !ctx.canvas || !ctx.run) {
+            return null;
+        }
+
+        const rect = ctx.canvas.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+            return null;
+        }
+
+        const originalEvent = event && event.originalEvent ? event.originalEvent : event;
+        const touch = originalEvent && originalEvent.touches && originalEvent.touches.length
+            ? originalEvent.touches[0]
+            : (originalEvent && originalEvent.changedTouches && originalEvent.changedTouches.length
+                ? originalEvent.changedTouches[0]
+                : originalEvent);
+        if (!touch) {
+            return null;
+        }
+
+        return {
+            x: (Number(touch.clientX || 0) - rect.left) * (ctx.run.width / rect.width),
+            y: (Number(touch.clientY || 0) - rect.top) * (ctx.run.height / rect.height)
+        };
+    }
+
+    function findBubbleCardAtPoint(run, point) {
+        if (!run || !point) {
+            return null;
+        }
+
+        for (let index = run.cards.length - 1; index >= 0; index -= 1) {
+            const card = run.cards[index];
+            if (!card || card.exploding || card.resolvedFalling || !isActivePromptCard(run, card)) {
+                continue;
+            }
+
+            const radius = getBubbleRadius(card) * 1.04;
+            const dx = Number(point.x) - Number(card.x);
+            const dy = Number(point.y) - Number(card.y);
+            if ((dx * dx) + (dy * dy) <= radius * radius) {
+                return card;
+            }
+        }
+
+        return null;
+    }
+
+    function handleCanvasPress(ctx, event) {
+        const run = ctx.run;
+        if (!run || run.paused || !run.prompt || run.prompt.resolved || !isBubblePopRun(ctx, run)) {
+            return false;
+        }
+
+        const point = getCanvasPoint(ctx, event);
+        const card = findBubbleCardAtPoint(run, point);
+        if (!card) {
+            return false;
+        }
+
+        if (card.isTarget) {
+            handleCorrectHit(ctx, card);
+        } else {
+            handleWrongHit(ctx, card);
+        }
+        return true;
+    }
+
     function stepRun(ctx, now, dtMs) {
         const run = ctx.run;
         if (!run || !run.prompt) {
@@ -2300,26 +2678,31 @@
         }
 
         const dt = Math.min(40, Math.max(0, dtMs || 0)) / 1000;
-        const direction = (run.controls.right ? 1 : 0) - (run.controls.left ? 1 : 0);
-        if (direction !== 0) {
-            run.shipX = clamp(
-                run.shipX + (direction * run.metrics.shipSpeed * dt),
-                run.metrics.shipWidth / 2,
-                run.width - (run.metrics.shipWidth / 2)
-            );
-        }
+        const cardDirection = isBubblePopRun(ctx, run) ? -1 : 1;
 
-        if (run.controls.fire && (now - run.lastFireAt) >= ctx.spaceShooter.fireIntervalMs) {
-            fireBullet(run);
-            run.lastFireAt = now;
-        }
+        if (isSpaceShooterRun(ctx, run)) {
+            const gameConfig = getGameConfig(ctx, run);
+            const direction = (run.controls.right ? 1 : 0) - (run.controls.left ? 1 : 0);
+            if (direction !== 0) {
+                run.shipX = clamp(
+                    run.shipX + (direction * run.metrics.shipSpeed * dt),
+                    run.metrics.shipWidth / 2,
+                    run.width - (run.metrics.shipWidth / 2)
+                );
+            }
 
-        run.bullets.forEach(function (bullet) {
-            bullet.y -= bullet.speed * dt;
-        });
-        run.bullets = run.bullets.filter(function (bullet) {
-            return bullet.y > -16;
-        });
+            if (run.controls.fire && (now - run.lastFireAt) >= Math.max(80, toInt(gameConfig && gameConfig.fireIntervalMs) || 165)) {
+                fireBullet(run);
+                run.lastFireAt = now;
+            }
+
+            run.bullets.forEach(function (bullet) {
+                bullet.y -= bullet.speed * dt;
+            });
+            run.bullets = run.bullets.filter(function (bullet) {
+                return bullet.y > -16;
+            });
+        }
 
         run.cards.forEach(function (card) {
             if (!card.exploding) {
@@ -2333,12 +2716,12 @@
                     card.entryRevealMs = 0;
                     card.y = card.entryVisibleY;
                 }
-                card.y += card.speed * dt;
+                card.y += cardDirection * card.speed * dt;
             }
         });
 
         let collisionHandled = false;
-        if (!run.prompt.resolved) {
+        if (!run.prompt.resolved && isSpaceShooterRun(ctx, run)) {
             outerLoop:
             for (let bulletIndex = run.bullets.length - 1; bulletIndex >= 0; bulletIndex -= 1) {
                 const bullet = run.bullets[bulletIndex];
@@ -2376,7 +2759,10 @@
         if (!run.prompt.resolved && !isWrongHitRecoveryActive(run, now)) {
             if (!targetCard) {
                 handlePromptTimeout(ctx);
-            } else if ((targetCard.y - (targetCard.height / 2)) > run.height) {
+            } else if (
+                (isBubblePopRun(ctx, run) && (targetCard.y + (targetCard.height / 2)) < 0)
+                || (isSpaceShooterRun(ctx, run) && (targetCard.y - (targetCard.height / 2)) > run.height)
+            ) {
                 handlePromptTimeout(ctx);
             }
         }
@@ -2556,15 +2942,24 @@
     function showCatalog(ctx) {
         stopRun(ctx, { flush: true });
         hideOverlay(ctx);
+        ctx.activeGameSlug = '';
+        updateStageGameUi(ctx, '');
         ctx.$stage.prop('hidden', true);
         ctx.$catalog.prop('hidden', false);
         syncCanvasSize(ctx);
     }
 
     function startRun(ctx, entry) {
+        const gameSlug = normalizeGameSlug(entry && entry.slug);
+        const gameConfig = getGameConfig(ctx, gameSlug);
+        if (!gameConfig) {
+            return;
+        }
         showCatalog(ctx);
         ctx.$catalog.prop('hidden', true);
         ctx.$stage.prop('hidden', false);
+        ctx.activeGameSlug = gameSlug;
+        updateStageGameUi(ctx, gameSlug);
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
@@ -2572,7 +2967,7 @@
         });
 
         ctx.run = {
-            slug: DEFAULT_GAME_SLUG,
+            slug: gameSlug,
             words: entry.words.slice(),
             playableTargets: shuffle(entry.playableTargets.slice()),
             promptDeck: [],
@@ -2586,7 +2981,7 @@
                 fire: false
             },
             coins: 0,
-            lives: ctx.spaceShooter.lives,
+            lives: gameConfig.lives,
             promptsResolved: 0,
             lastFireAt: 0,
             lastFrameAt: 0,
@@ -2597,14 +2992,14 @@
             dpr: 1,
             metrics: null,
             stars: [],
-            cardCount: ctx.spaceShooter.cardCount,
+            cardCount: gameConfig.cardCount,
             cardSpeed: 86,
             promptIdCounter: 0,
             promptTimer: 0,
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
-            speedRampTurns: ctx.spaceShooter.introRampTurns,
-            speedRampStartFactor: ctx.spaceShooter.introRampStartFactor,
+            speedRampTurns: gameConfig.introRampTurns,
+            speedRampStartFactor: gameConfig.introRampStartFactor,
             useSameCategoryDistractorsNext: false,
             awaitingPrompt: false,
             nextPreparedPrompt: null,
@@ -2630,9 +3025,9 @@
     }
 
     function bootstrapCatalog(ctx) {
-        renderCatalogCard(ctx, null, true);
+        renderAllCatalogCards(ctx, null, true);
         if (!ctx.isLoggedIn || !ctx.ajaxUrl || !ctx.wordsetId || !ctx.bootstrapAction) {
-            renderCatalogCard(ctx, null, false);
+            renderAllCatalogCards(ctx, null, false);
             return;
         }
 
@@ -2649,15 +3044,19 @@
                 ? response.data
                 : null;
             if (!payload || !payload.games || typeof payload.games !== 'object') {
-                renderCatalogCard(ctx, null, false);
+                renderAllCatalogCards(ctx, null, false);
                 return;
             }
 
-            const entry = buildPreparedEntry(ctx, payload.games[DEFAULT_GAME_SLUG] || {});
-            ctx.catalogEntry = entry;
-            renderCatalogCard(ctx, entry, false);
+            const nextEntries = {};
+            Object.keys(ctx.catalogCards || {}).forEach(function (slug) {
+                nextEntries[slug] = buildPreparedEntry(ctx, slug, payload.games[slug] || {});
+            });
+            ctx.catalogEntries = nextEntries;
+            ctx.catalogEntry = nextEntries[getDefaultCatalogSlug(ctx)] || null;
+            renderAllCatalogCards(ctx, nextEntries, false);
         }).fail(function () {
-            renderCatalogCard(ctx, null, false);
+            renderAllCatalogCards(ctx, null, false);
         });
     }
 
@@ -2684,7 +3083,7 @@
             syncCanvasSize(ctx);
         };
         ctx.onKeyDown = function (event) {
-            if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden')) {
+            if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden') || isBubblePopRun(ctx, ctx.run)) {
                 return;
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
@@ -2699,7 +3098,7 @@
             }
         };
         ctx.onKeyUp = function (event) {
-            if (!ctx.run || ctx.run.paused) {
+            if (!ctx.run || ctx.run.paused || isBubblePopRun(ctx, ctx.run)) {
                 return;
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
@@ -2751,10 +3150,12 @@
         ctx.$page.off(MODULE_NS);
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-launch]', function (event) {
             event.preventDefault();
-            if (!ctx.catalogEntry || !ctx.catalogEntry.launchable) {
+            const slug = normalizeGameSlug($(this).closest('[data-ll-wordset-game-card]').attr('data-game-slug') || '');
+            const entry = ctx.catalogEntries[slug] || null;
+            if (!entry || !entry.launchable) {
                 return;
             }
-            startRun(ctx, ctx.catalogEntry);
+            startRun(ctx, entry);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-close], [data-ll-wordset-game-return]', function (event) {
@@ -2768,11 +3169,14 @@
                 resumeRun(ctx);
                 return;
             }
-            if (!ctx.catalogEntry || !ctx.catalogEntry.launchable) {
+            const replaySlug = normalizeGameSlug(ctx.activeGameSlug || getDefaultCatalogSlug(ctx));
+            const entry = ctx.catalogEntries[replaySlug]
+                || (replaySlug === getDefaultCatalogSlug(ctx) ? ctx.catalogEntry : null);
+            if (!entry || !entry.launchable) {
                 return;
             }
             stopRun(ctx, { flush: true });
-            startRun(ctx, ctx.catalogEntry);
+            startRun(ctx, entry);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-replay-audio]', function (event) {
@@ -2814,6 +3218,15 @@
             setControlState(ctx, control, false);
         });
 
+        ctx.$page.on('pointerdown' + MODULE_NS + ' mousedown' + MODULE_NS + ' touchstart' + MODULE_NS, '[data-ll-wordset-game-canvas]', function (event) {
+            if (!ctx.run || ctx.run.paused || !isBubblePopRun(ctx, ctx.run)) {
+                return;
+            }
+            if (handleCanvasPress(ctx, event)) {
+                event.preventDefault();
+            }
+        });
+
         $(root.document).off('mouseup' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS).on(
             'mouseup' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS,
             function () {
@@ -2827,6 +3240,35 @@
         );
     }
 
+    function buildGameConfig(rawConfig, defaults) {
+        const cfg = (rawConfig && typeof rawConfig === 'object') ? rawConfig : {};
+        const fallback = (defaults && typeof defaults === 'object') ? defaults : {};
+        return {
+            slug: normalizeGameSlug(cfg.slug || fallback.slug),
+            lives: Math.max(1, toInt(cfg.lives) || toInt(fallback.lives) || 3),
+            cardCount: Math.max(2, toInt(cfg.cardCount) || toInt(fallback.cardCount) || 4),
+            maxLoadedWords: Math.max(5, toInt(cfg.maxLoadedWords) || toInt(fallback.maxLoadedWords) || 60),
+            fireIntervalMs: Math.max(0, toInt(cfg.fireIntervalMs) || toInt(fallback.fireIntervalMs)),
+            introRampTurns: Math.max(1, toInt(cfg.introRampTurns) || toInt(fallback.introRampTurns) || 10),
+            introRampStartFactor: clamp(Number(cfg.introRampStartFactor) || Number(fallback.introRampStartFactor) || 0.5, 0.25, 0.95),
+            audioSafeLineRatio: clamp(Number(cfg.audioSafeLineRatio) || Number(fallback.audioSafeLineRatio) || 0.6, 0.2, 0.8),
+            audioSafeLineBufferMs: Math.max(0, toInt(cfg.audioSafeLineBufferMs) || toInt(fallback.audioSafeLineBufferMs) || 180),
+            correctCoinReward: Math.max(1, toInt(cfg.correctCoinReward) || toInt(fallback.correctCoinReward) || 1),
+            wrongHitCoinPenalty: Math.max(0, toInt(cfg.wrongHitCoinPenalty) || toInt(fallback.wrongHitCoinPenalty)),
+            wrongHitLifePenalty: Math.max(1, toInt(cfg.wrongHitLifePenalty) || toInt(fallback.wrongHitLifePenalty) || 1),
+            timeoutCoinPenalty: Math.max(0, toInt(cfg.timeoutCoinPenalty) || toInt(fallback.timeoutCoinPenalty) || 1),
+            timeoutLifePenalty: Math.max(0, toInt(cfg.timeoutLifePenalty) || toInt(fallback.timeoutLifePenalty) || 1),
+            assetPreloadTimeoutMs: Math.max(1500, toInt(cfg.assetPreloadTimeoutMs) || toInt(fallback.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
+            cardEntryRevealMs: Math.max(220, toInt(cfg.cardEntryRevealMs) || toInt(fallback.cardEntryRevealMs) || 560),
+            promptAutoReplayGapMs: Math.max(220, toInt(cfg.promptAutoReplayGapMs) || toInt(fallback.promptAutoReplayGapMs) || 420),
+            promptAudioVolume: clamp(Number(cfg.promptAudioVolume) || Number(fallback.promptAudioVolume) || 1, 0.05, 1),
+            correctHitVolume: clamp(Number(cfg.correctHitVolume) || Number(fallback.correctHitVolume) || 0.28, 0.05, 1),
+            wrongHitVolume: clamp(Number(cfg.wrongHitVolume) || Number(fallback.wrongHitVolume) || 0.2, 0.05, 1),
+            correctHitAudioSources: normalizeUrlList(cfg.correctHitAudioSources || cfg.correctHitAudioUrl || fallback.correctHitAudioSources || fallback.correctHitAudioUrl),
+            wrongHitAudioSources: normalizeUrlList(cfg.wrongHitAudioSources || cfg.wrongHitAudioUrl || fallback.wrongHitAudioSources || fallback.wrongHitAudioUrl)
+        };
+    }
+
     function createContext(rootEl, cfg) {
         const $page = $(rootEl);
         const $gamesRoot = $page.find('[data-ll-wordset-games-root]').first();
@@ -2838,19 +3280,96 @@
         const spaceShooter = (gamesCfg.spaceShooter && typeof gamesCfg.spaceShooter === 'object')
             ? gamesCfg.spaceShooter
             : {};
+        const bubblePop = (gamesCfg.bubblePop && typeof gamesCfg.bubblePop === 'object')
+            ? gamesCfg.bubblePop
+            : {};
+        const catalogCards = {};
+        const catalogOrder = [];
+        const $allCards = $gamesRoot.find('[data-ll-wordset-game-card]');
+        $allCards.each(function () {
+            const $card = $(this);
+            const slug = normalizeGameSlug($card.attr('data-game-slug') || '');
+            if (!slug || catalogCards[slug]) {
+                return;
+            }
+            catalogOrder.push(slug);
+            catalogCards[slug] = {
+                slug: slug,
+                $card: $card,
+                $status: $card.find('[data-ll-wordset-game-status]').first(),
+                $count: $card.find('[data-ll-wordset-game-count]').first(),
+                $launchButton: $card.find('[data-ll-wordset-game-launch]').first()
+            };
+        });
+        const defaultCatalogSlug = catalogCards[DEFAULT_GAME_SLUG]
+            ? DEFAULT_GAME_SLUG
+            : (catalogOrder[0] || DEFAULT_GAME_SLUG);
+        const defaultCard = catalogCards[defaultCatalogSlug] || null;
+        const $canvas = $gamesRoot.find('[data-ll-wordset-game-canvas]').first();
+        const gameConfigs = {};
+        gameConfigs[DEFAULT_GAME_SLUG] = buildGameConfig(spaceShooter, {
+            slug: DEFAULT_GAME_SLUG,
+            lives: 3,
+            cardCount: 4,
+            maxLoadedWords: 60,
+            fireIntervalMs: 165,
+            introRampTurns: 10,
+            introRampStartFactor: 0.5,
+            audioSafeLineRatio: 0.6,
+            audioSafeLineBufferMs: 180,
+            correctCoinReward: 1,
+            wrongHitCoinPenalty: 0,
+            wrongHitLifePenalty: 1,
+            timeoutCoinPenalty: 1,
+            timeoutLifePenalty: 1,
+            assetPreloadTimeoutMs: ASSET_PRELOAD_TIMEOUT_MS,
+            cardEntryRevealMs: 560,
+            promptAutoReplayGapMs: 420,
+            promptAudioVolume: 1,
+            correctHitVolume: 0.28,
+            wrongHitVolume: 0.2
+        });
+        gameConfigs[BUBBLE_POP_GAME_SLUG] = buildGameConfig(bubblePop, {
+            slug: BUBBLE_POP_GAME_SLUG,
+            lives: 3,
+            cardCount: 4,
+            maxLoadedWords: 60,
+            introRampTurns: 10,
+            introRampStartFactor: 0.5,
+            audioSafeLineRatio: 0.58,
+            audioSafeLineBufferMs: 180,
+            correctCoinReward: 1,
+            wrongHitCoinPenalty: 0,
+            wrongHitLifePenalty: 1,
+            timeoutCoinPenalty: 1,
+            timeoutLifePenalty: 1,
+            assetPreloadTimeoutMs: ASSET_PRELOAD_TIMEOUT_MS,
+            cardEntryRevealMs: 520,
+            promptAutoReplayGapMs: 420,
+            promptAudioVolume: 1,
+            correctHitVolume: 0.28,
+            wrongHitVolume: 0.2
+        });
 
         return {
             rootEl: rootEl,
             $page: $page,
             $gamesRoot: $gamesRoot,
             $catalog: $gamesRoot.find('[data-ll-wordset-games-catalog]').first(),
-            $card: $gamesRoot.find('[data-ll-wordset-game-card]').first(),
-            $cardStatus: $gamesRoot.find('[data-ll-wordset-game-status]').first(),
-            $cardCount: $gamesRoot.find('[data-ll-wordset-game-count]').first(),
-            $launchButton: $gamesRoot.find('[data-ll-wordset-game-launch]').first(),
+            catalogCards: catalogCards,
+            catalogOrder: catalogOrder,
+            defaultCatalogSlug: defaultCatalogSlug,
+            catalogEntries: {},
+            activeGameSlug: '',
+            $card: defaultCard ? defaultCard.$card : $(),
+            $cardStatus: defaultCard ? defaultCard.$status : $(),
+            $cardCount: defaultCard ? defaultCard.$count : $(),
+            $launchButton: defaultCard ? defaultCard.$launchButton : $(),
             $stage: $gamesRoot.find('[data-ll-wordset-game-stage]').first(),
             $canvasWrap: $gamesRoot.find('.ll-wordset-game-stage__canvas-wrap').first(),
-            canvas: $gamesRoot.find('[data-ll-wordset-game-canvas]').get(0) || null,
+            $controlsWrap: $gamesRoot.find('[data-ll-wordset-game-controls]').first(),
+            $canvas: $canvas,
+            canvas: $canvas.get(0) || null,
             canvasContext: null,
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
             $overlayTitle: $gamesRoot.find('[data-ll-wordset-game-overlay-title]').first(),
@@ -2886,29 +3405,9 @@
             run: null,
             overlayMode: '',
             boundLifecycle: false,
-            spaceShooter: {
-                lives: Math.max(1, toInt(spaceShooter.lives) || 3),
-                cardCount: Math.max(2, toInt(spaceShooter.cardCount) || 4),
-                maxLoadedWords: Math.max(5, toInt(spaceShooter.maxLoadedWords) || 60),
-                fireIntervalMs: Math.max(80, toInt(spaceShooter.fireIntervalMs) || 165),
-                introRampTurns: Math.max(1, toInt(spaceShooter.introRampTurns) || 10),
-                introRampStartFactor: clamp(Number(spaceShooter.introRampStartFactor) || 0.5, 0.25, 0.95),
-                audioSafeLineRatio: clamp(Number(spaceShooter.audioSafeLineRatio) || 0.6, 0.35, 0.7),
-                audioSafeLineBufferMs: Math.max(0, toInt(spaceShooter.audioSafeLineBufferMs) || 180),
-                correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 1),
-                wrongHitCoinPenalty: Math.max(0, toInt(spaceShooter.wrongHitCoinPenalty)),
-                wrongHitLifePenalty: Math.max(1, toInt(spaceShooter.wrongHitLifePenalty) || 1),
-                timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
-                timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
-                assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
-                cardEntryRevealMs: Math.max(220, toInt(spaceShooter.cardEntryRevealMs) || 560),
-                promptAutoReplayGapMs: Math.max(220, toInt(spaceShooter.promptAutoReplayGapMs) || 420),
-                promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
-                correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
-                wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),
-                correctHitAudioSources: normalizeUrlList(spaceShooter.correctHitAudioSources || spaceShooter.correctHitAudioUrl),
-                wrongHitAudioSources: normalizeUrlList(spaceShooter.wrongHitAudioSources || spaceShooter.wrongHitAudioUrl)
-            }
+            gameConfigs: gameConfigs,
+            spaceShooter: gameConfigs[DEFAULT_GAME_SLUG],
+            bubblePop: gameConfigs[BUBBLE_POP_GAME_SLUG]
         };
     }
 
@@ -2932,12 +3431,13 @@
         bindLifecycle(ctx);
         bindDom(ctx);
         syncCanvasSize(ctx);
-        renderCatalogCard(ctx, null, !!ctx.isLoggedIn);
+        updateStageGameUi(ctx, '');
+        renderAllCatalogCards(ctx, null, !!ctx.isLoggedIn);
 
         if (ctx.isLoggedIn) {
             bootstrapCatalog(ctx);
         } else {
-            renderCatalogCard(ctx, null, false);
+            renderAllCatalogCards(ctx, null, false);
         }
 
         return ctx;
@@ -2949,14 +3449,16 @@
             if (!ctx) {
                 return null;
             }
+            const activeEntry = ctx.catalogEntries[getDefaultCatalogSlug(ctx)] || ctx.catalogEntry || null;
             return {
-                hasCatalogEntry: !!ctx.catalogEntry,
-                launchable: !!(ctx.catalogEntry && ctx.catalogEntry.launchable),
-                availableWordCount: ctx.catalogEntry ? toInt(ctx.catalogEntry.available_word_count) : 0,
-                launchWordCount: ctx.catalogEntry ? toInt(ctx.catalogEntry.launch_word_count) : 0,
-                launchWordCap: ctx.catalogEntry ? toInt(ctx.catalogEntry.launch_word_cap) : 0,
+                hasCatalogEntry: !!activeEntry,
+                launchable: !!(activeEntry && activeEntry.launchable),
+                availableWordCount: activeEntry ? toInt(activeEntry.available_word_count) : 0,
+                launchWordCount: activeEntry ? toInt(activeEntry.launch_word_count) : 0,
+                launchWordCap: activeEntry ? toInt(activeEntry.launch_word_cap) : 0,
                 stageHidden: !!ctx.$stage.prop('hidden'),
-                gameRunning: !!ctx.run
+                gameRunning: !!ctx.run,
+                catalogEntries: Object.keys(ctx.catalogEntries || {})
             };
         },
         getRunState: function () {
@@ -2966,6 +3468,7 @@
                 return null;
             }
             return {
+                slug: normalizeGameSlug(run.slug),
                 coins: run.coins,
                 lives: run.lives,
                 promptsResolved: run.promptsResolved,
@@ -2998,6 +3501,7 @@
                         wordId: toInt(card.word && card.word.id),
                         promptId: toInt(card.promptId),
                         categoryId: toInt(card.word && card.word.category_id),
+                        x: Math.round(Number(card.x) || 0),
                         y: Math.round(Number(card.y) || 0),
                         speed: Math.round((Number(card.speed) || 0) * 100) / 100,
                         width: Math.round(Number(card.width) || 0),
@@ -3009,9 +3513,15 @@
                 })
             };
         },
-        launch: function () {
-            if (api.__ctx && api.__ctx.catalogEntry && api.__ctx.catalogEntry.launchable) {
-                startRun(api.__ctx, api.__ctx.catalogEntry);
+        launch: function (slug) {
+            if (!api.__ctx) {
+                return;
+            }
+            const requestedSlug = normalizeGameSlug(slug || getDefaultCatalogSlug(api.__ctx));
+            const entry = api.__ctx.catalogEntries[requestedSlug]
+                || (requestedSlug === getDefaultCatalogSlug(api.__ctx) ? api.__ctx.catalogEntry : null);
+            if (entry && entry.launchable) {
+                startRun(api.__ctx, entry);
             }
         },
         togglePause: function () {

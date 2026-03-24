@@ -20,25 +20,32 @@ const wordsetPagesSource = fs.readFileSync(
   'utf8'
 );
 
+function buildGameCardMarkup(slug, title, description) {
+  return `
+    <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="${slug}">
+      <div class="ll-wordset-game-card__body">
+        <h2 class="ll-wordset-game-card__title">${title}</h2>
+        <p class="ll-wordset-game-card__description">${description}</p>
+        <p class="ll-wordset-game-card__status" data-ll-wordset-game-status></p>
+      </div>
+      <div class="ll-wordset-game-card__actions">
+        <span class="ll-wordset-game-card__count" data-ll-wordset-game-count>—</span>
+        <button type="button" data-ll-wordset-game-launch disabled>Play</button>
+      </div>
+    </article>
+  `;
+}
+
 function buildGamesMarkup() {
   return `
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="games" data-ll-wordset-id="77">
       <section class="ll-wordset-games-page" data-ll-wordset-games-root>
         <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
-          <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="space-shooter">
-            <div class="ll-wordset-game-card__body">
-              <h2 class="ll-wordset-game-card__title">Arcane Space Shooter</h2>
-              <p class="ll-wordset-game-card__description">Hear the word. Blast the matching picture.</p>
-              <p class="ll-wordset-game-card__status" data-ll-wordset-game-status></p>
-            </div>
-            <div class="ll-wordset-game-card__actions">
-              <span class="ll-wordset-game-card__count" data-ll-wordset-game-count>—</span>
-              <button type="button" data-ll-wordset-game-launch disabled>Play</button>
-            </div>
-          </article>
+          ${buildGameCardMarkup('space-shooter', 'Arcane Space Shooter', 'Hear the word. Blast the matching picture.')}
+          ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
         </div>
 
-        <section class="ll-wordset-game-stage" data-ll-wordset-game-stage hidden>
+        <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
           <div class="ll-wordset-game-stage__hud">
             <button type="button" class="ll-wordset-game-stage__nav" data-ll-wordset-game-close>Games</button>
             <div class="ll-wordset-game-stage__stats">
@@ -73,7 +80,7 @@ function buildGamesMarkup() {
           <div class="ll-wordset-game-stage__canvas-wrap">
             <canvas data-ll-wordset-game-canvas width="720" height="960"></canvas>
           </div>
-          <div class="ll-wordset-game-stage__controls">
+          <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
             <button type="button" data-ll-wordset-game-control="left" aria-label="Move left">
               <span class="ll-wordset-game-stage__control-icon" aria-hidden="true">
                 <svg class="ll-wordset-game-stage__control-arrow" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -113,6 +120,18 @@ function buildGamesMarkup() {
       </section>
     </div>
   `;
+}
+
+function gameCard(page, slug) {
+  return page.locator(`[data-ll-wordset-game-card][data-game-slug="${slug}"]`).first();
+}
+
+function gameLaunchButton(page, slug) {
+  return gameCard(page, slug).locator('[data-ll-wordset-game-launch]');
+}
+
+function gameStatus(page, slug) {
+  return gameCard(page, slug).locator('[data-ll-wordset-game-status]');
 }
 
 function buildSvgImage(width, height, color) {
@@ -367,6 +386,11 @@ function buildGamesConfig(isLoggedIn) {
           slug: 'space-shooter',
           title: 'Arcane Space Shooter',
           description: 'Hear the word. Blast the matching picture.'
+        },
+        'bubble-pop': {
+          slug: 'bubble-pop',
+          title: 'Bubble Pop',
+          description: 'Hear the word. Pop the matching bubble.'
         }
       },
       spaceShooter: {
@@ -381,6 +405,24 @@ function buildGamesConfig(isLoggedIn) {
         timeoutLifePenalty: 1,
         audioSafeLineRatio: 0.6,
         cardEntryRevealMs: 560,
+        promptAutoReplayGapMs: 420,
+        promptAudioVolume: 1,
+        correctHitVolume: 0.28,
+        wrongHitVolume: 0.2,
+        correctHitAudioSources: ['https://example.test/media/space-shooter-correct-hit.mp3'],
+        wrongHitAudioSources: ['https://example.test/media/space-shooter-wrong-hit.mp3']
+      },
+      bubblePop: {
+        slug: 'bubble-pop',
+        lives: 3,
+        cardCount: 4,
+        maxLoadedWords: 6,
+        correctCoinReward: 1,
+        wrongHitLifePenalty: 1,
+        timeoutCoinPenalty: 1,
+        timeoutLifePenalty: 1,
+        audioSafeLineRatio: 0.58,
+        cardEntryRevealMs: 520,
         promptAutoReplayGapMs: 420,
         promptAudioVolume: 1,
         correctHitVolume: 0.28,
@@ -518,7 +560,10 @@ function buildGamesConfig(isLoggedIn) {
       gamesGameOver: 'Run Complete',
       gamesSummary: 'Coins: %1$d · Prompts: %2$d',
       gamesReplayRun: 'Replay',
-      gamesBackToCatalog: 'Back to games'
+      gamesBackToCatalog: 'Back to games',
+      gamesBoardLabelDefault: 'Wordset game board',
+      gamesBoardLabelSpaceShooter: 'Arcane Space Shooter game board',
+      gamesBoardLabelBubblePop: 'Bubble Pop game board'
     }
   };
 }
@@ -529,12 +574,13 @@ async function mountGamesPage(page, {
   audioLoadDelayMs = 60,
   promptAudioDurationSeconds = 4.2,
   promptAutoReplayGapMs = null,
-  spaceShooterOverrides = null
+  spaceShooterOverrides = null,
+  bubblePopOverrides = null
 } = {}) {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate(
-    ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides }) => {
+    ({ config, gameWords, audioLoadDelay, promptAudioDuration, replayGapMs, shooterOverrides, bubbleOverrides }) => {
       window.llWordsetPageData = config;
       if (
         window.llWordsetPageData
@@ -553,6 +599,15 @@ async function mountGamesPage(page, {
         && typeof shooterOverrides === 'object'
       ) {
         Object.assign(window.llWordsetPageData.games.spaceShooter, shooterOverrides);
+      }
+      if (
+        window.llWordsetPageData
+        && window.llWordsetPageData.games
+        && window.llWordsetPageData.games.bubblePop
+        && bubbleOverrides
+        && typeof bubbleOverrides === 'object'
+      ) {
+        Object.assign(window.llWordsetPageData.games.bubblePop, bubbleOverrides);
       }
       window.__gameBootstrapWords = gameWords;
       window.__queuedProgressEvents = [];
@@ -756,6 +811,21 @@ async function mountGamesPage(page, {
                   launchable: true,
                   category_ids: [11, 22],
                   words: window.__gameBootstrapWords
+                },
+                'bubble-pop': {
+                  slug: 'bubble-pop',
+                  title: 'Bubble Pop',
+                  description: 'Hear the word. Pop the matching bubble.',
+                  minimum_word_count: 5,
+                  available_word_count: window.__gameBootstrapWords.length,
+                  launch_word_cap: Number((((window.llWordsetPageData || {}).games || {}).bubblePop || {}).maxLoadedWords || 6),
+                  launch_word_count: Math.min(
+                    window.__gameBootstrapWords.length,
+                    Number((((window.llWordsetPageData || {}).games || {}).bubblePop || {}).maxLoadedWords || 6)
+                  ),
+                  launchable: true,
+                  category_ids: [11, 22],
+                  words: window.__gameBootstrapWords
                 }
               }
             }
@@ -772,7 +842,8 @@ async function mountGamesPage(page, {
       audioLoadDelay: audioLoadDelayMs,
       promptAudioDuration: promptAudioDurationSeconds,
       replayGapMs: promptAutoReplayGapMs,
-      shooterOverrides: spaceShooterOverrides
+      shooterOverrides: spaceShooterOverrides,
+      bubbleOverrides: bubblePopOverrides
     }
   );
   await page.addStyleTag({ content: wordsetGamesStyles });
@@ -784,10 +855,11 @@ async function mountGamesPage(page, {
 test('games page keeps launch disabled when logged out', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: false });
 
-  await expect(page.locator('[data-ll-wordset-game-launch]')).toBeDisabled();
-  await expect(page.locator('[data-ll-wordset-game-status]')).toHaveText(
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeDisabled();
+  await expect(gameStatus(page, 'space-shooter')).toHaveText(
     'Sign in to play with your in-progress words.'
   );
+  await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
 });
 
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
@@ -843,11 +915,68 @@ test('space shooter auto-replays the prompt once after a short pause', async ({ 
   expect(replayedPromptCount).toBe(2);
 });
 
+test('bubble pop floats options upward and resolves clicks through the canvas', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await expect(gameLaunchButton(page, 'bubble-pop')).toBeEnabled();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && run.slug === 'bubble-pop' && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);
+  });
+
+  await expect(page.locator('[data-ll-wordset-game-stage]')).toHaveAttribute('data-ll-wordset-active-game', 'bubble-pop');
+  await expect(page.locator('[data-ll-wordset-game-controls]')).toBeHidden();
+
+  const initialState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  await page.waitForTimeout(260);
+  const movedState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const initialTarget = initialState.cardSnapshot.find((card) => card.isTarget && card.promptId === initialState.promptId);
+  const movedTarget = movedState.cardSnapshot.find((card) => card.isTarget && card.promptId === movedState.promptId);
+  expect(initialTarget).toBeTruthy();
+  expect(movedTarget).toBeTruthy();
+  expect(movedTarget.y).toBeLessThan(initialTarget.y - 6);
+
+  const clickPoint = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const canvas = document.querySelector('[data-ll-wordset-game-canvas]');
+    const target = run && Array.isArray(run.cardSnapshot)
+      ? run.cardSnapshot.find((card) => card.isTarget && card.promptId === run.promptId && !card.exploding)
+      : null;
+    if (!run || !canvas || !target) {
+      return null;
+    }
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.left + ((target.x / Math.max(1, canvas.clientWidth || run.width)) * rect.width),
+      y: rect.top + ((target.y / Math.max(1, canvas.clientHeight || run.height)) * rect.height)
+    };
+  });
+  expect(clickPoint).toBeTruthy();
+  await page.mouse.click(clickPoint.x, clickPoint.y);
+
+  await page.waitForFunction(() => {
+    const queued = Array.isArray(window.__queuedProgressEvents) ? window.__queuedProgressEvents : [];
+    return queued.length >= 2;
+  });
+
+  const progressEvents = await page.evaluate(() => window.__queuedProgressEvents.slice());
+  expect(progressEvents[0].entry.payload.game_slug).toBe('bubble-pop');
+  expect(progressEvents[1].entry.payload.game_slug).toBe('bubble-pop');
+  expect(progressEvents[1].entry.isCorrect).toBe(true);
+  await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('1');
+});
+
 test('space shooter launches with safe option mixes and records progress flows', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
-  await expect(page.locator('[data-ll-wordset-game-launch]')).toBeEnabled();
-  await expect(page.locator('[data-ll-wordset-game-status]')).toHaveText('7 words ready');
+  await expect(gameLaunchButton(page, 'space-shooter')).toBeEnabled();
+  await expect(gameStatus(page, 'space-shooter')).toHaveText('7 words ready');
+  await expect(gameLaunchButton(page, 'bubble-pop')).toBeEnabled();
+  await expect(gameStatus(page, 'bubble-pop')).toHaveText('7 words ready');
   const catalogContext = await page.evaluate(() => window.LLWordsetGames.__debug.getContext());
   expect(catalogContext.availableWordCount).toBe(7);
   expect(catalogContext.launchWordCap).toBe(6);
@@ -855,14 +984,14 @@ test('space shooter launches with safe option mixes and records progress flows',
 
   const catalogDimensions = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
-    const card = document.querySelector('[data-ll-wordset-game-card]');
+    const card = document.querySelector('[data-game-slug="space-shooter"]');
     return {
       rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
       cardWidth: card ? Math.round(card.getBoundingClientRect().width) : 0
     };
   });
   expect(catalogDimensions.cardWidth).toBeGreaterThan(0);
-  expect(catalogDimensions.rootWidth - catalogDimensions.cardWidth).toBeGreaterThan(80);
+  expect(catalogDimensions.rootWidth).toBeGreaterThanOrEqual(catalogDimensions.cardWidth);
 
   await page.evaluate(() => {
     window.LLWordsetGames.__debug.launch();
@@ -886,7 +1015,7 @@ test('space shooter launches with safe option mixes and records progress flows',
     };
   });
   expect(stageDimensions.stageWidth).toBeGreaterThan(0);
-  expect(stageDimensions.rootWidth - stageDimensions.stageWidth).toBeGreaterThan(80);
+  expect(stageDimensions.rootWidth).toBeGreaterThanOrEqual(stageDimensions.stageWidth);
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);

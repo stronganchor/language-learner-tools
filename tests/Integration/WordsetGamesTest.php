@@ -59,6 +59,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $gamesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
         $this->assertStringContainsString('data-ll-wordset-games-root', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
+        $this->assertStringContainsString('data-game-slug="bubble-pop"', $gamesHtml);
     }
 
     public function test_space_shooter_pool_only_includes_studied_words_with_images_and_core_prompt_recordings_in_scope(): void
@@ -106,6 +107,31 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame(4, (int) ($pool['available_word_count'] ?? 0));
         $this->assertFalse((bool) ($pool['launchable'] ?? true));
         $this->assertSame(5, (int) ($pool['minimum_word_count'] ?? 0));
+    }
+
+    public function test_bubble_pop_pool_reuses_practice_mode_word_selection_rules(): void
+    {
+        $fixture = $this->createGamesFixture(5);
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $spacePool = ll_tools_wordset_games_build_space_shooter_pool((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $bubblePool = ll_tools_wordset_games_build_bubble_pop_pool((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $spaceIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($spacePool['words'] ?? []))));
+        $bubbleIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($bubblePool['words'] ?? []))));
+        sort($spaceIds);
+        sort($bubbleIds);
+
+        $this->assertSame('space-shooter', (string) ($spacePool['slug'] ?? ''));
+        $this->assertSame('bubble-pop', (string) ($bubblePool['slug'] ?? ''));
+        $this->assertSame((int) ($spacePool['available_word_count'] ?? 0), (int) ($bubblePool['available_word_count'] ?? -1));
+        $this->assertSame((int) ($spacePool['minimum_word_count'] ?? 0), (int) ($bubblePool['minimum_word_count'] ?? -1));
+        $this->assertSame((string) ($spacePool['pool_source'] ?? ''), (string) ($bubblePool['pool_source'] ?? ''));
+        $this->assertSame($spaceIds, $bubbleIds);
     }
 
     public function test_space_shooter_pool_caps_launch_words_but_preserves_full_available_count(): void

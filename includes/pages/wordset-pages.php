@@ -3318,6 +3318,33 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
                 ],
             ],
+            'bubblePop' => [
+                'slug' => 'bubble-pop',
+                'lives' => 3,
+                'cardCount' => 4,
+                'maxLoadedWords' => function_exists('ll_tools_wordset_games_bubble_pop_launch_word_cap')
+                    ? ll_tools_wordset_games_bubble_pop_launch_word_cap()
+                    : 60,
+                'correctCoinReward' => 1,
+                'wrongHitLifePenalty' => 1,
+                'timeoutCoinPenalty' => 1,
+                'timeoutLifePenalty' => 1,
+                'audioSafeLineRatio' => 0.58,
+                'cardEntryRevealMs' => 520,
+                'promptAutoReplayGapMs' => 420,
+                'promptAudioVolume' => 1,
+                'correctHitVolume' => 0.28,
+                'wrongHitVolume' => 0.2,
+                'assetPreloadTimeoutMs' => 8000,
+                'correctHitAudioSources' => [
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
+                ],
+                'wrongHitAudioSources' => [
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
+                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
+                ],
+            ],
         ],
         'summaryCounts' => $summary_counts,
         'summaryCountsDeferred' => $summary_counts_deferred,
@@ -3469,17 +3496,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesSummary' => __('Coins: %1$d · Prompts: %2$d', 'll-tools-text-domain'),
             'gamesReplayRun' => __('Replay', 'll-tools-text-domain'),
             'gamesBackToCatalog' => __('Back to games', 'll-tools-text-domain'),
+            'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
+            'gamesBoardLabelSpaceShooter' => __('Arcane Space Shooter game board', 'll-tools-text-domain'),
+            'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
             'progressResetCategoryConfirm' => $progress_reset_category_confirm_template,
             'progressResetCategoryAria' => $progress_reset_category_aria_template,
         ],
     ]);
-
-    $space_shooter_game = (isset($games_catalog['space-shooter']) && is_array($games_catalog['space-shooter']))
-        ? $games_catalog['space-shooter']
-        : [
-            'title' => __('Arcane Space Shooter', 'll-tools-text-domain'),
-            'description' => __('Hear the word. Blast the matching picture.', 'll-tools-text-domain'),
-        ];
 
     ob_start();
     ?>
@@ -3928,34 +3951,41 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
             <section class="ll-wordset-games-page" data-ll-wordset-games-root>
                 <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
-                    <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="space-shooter">
-                        <div class="ll-wordset-game-card__icon" aria-hidden="true">
-                            <?php echo function_exists('ll_tools_wordset_games_render_icon') ? ll_tools_wordset_games_render_icon('ll-wordset-game-card__icon-svg') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        </div>
-                        <div class="ll-wordset-game-card__body">
-                            <h2 class="ll-wordset-game-card__title"><?php echo esc_html((string) ($space_shooter_game['title'] ?? __('Arcane Space Shooter', 'll-tools-text-domain'))); ?></h2>
-                            <p class="ll-wordset-game-card__description"><?php echo esc_html((string) ($space_shooter_game['description'] ?? __('Hear the word. Blast the matching picture.', 'll-tools-text-domain'))); ?></p>
-                            <p class="ll-wordset-game-card__status" data-ll-wordset-game-status>
+                    <?php foreach ($games_catalog as $game_slug => $game_row) : ?>
+                        <?php if (!is_array($game_row)) { continue; } ?>
+                        <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="<?php echo esc_attr((string) $game_slug); ?>">
+                            <div class="ll-wordset-game-card__icon" aria-hidden="true">
                                 <?php
-                                echo esc_html(
-                                    $is_study_user
-                                        ? __('Checking game availability...', 'll-tools-text-domain')
-                                        : __('Sign in to play with your in-progress words.', 'll-tools-text-domain')
-                                );
+                                echo function_exists('ll_tools_wordset_games_render_game_icon')
+                                    ? ll_tools_wordset_games_render_game_icon((string) $game_slug, 'll-wordset-game-card__icon-svg')
+                                    : (function_exists('ll_tools_wordset_games_render_icon') ? ll_tools_wordset_games_render_icon('ll-wordset-game-card__icon-svg') : ''); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                                 ?>
-                            </p>
-                        </div>
-                        <div class="ll-wordset-game-card__actions">
-                            <span class="ll-wordset-game-card__count" data-ll-wordset-game-count aria-label="<?php echo esc_attr__('Eligible words', 'll-tools-text-domain'); ?>">&#8212;</span>
-                            <button
-                                type="button"
-                                class="ll-wordset-game-card__launch"
-                                data-ll-wordset-game-launch
-                                disabled>
-                                <?php echo esc_html($is_study_user ? _x('Play', 'launch game action', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
-                            </button>
-                        </div>
-                    </article>
+                            </div>
+                            <div class="ll-wordset-game-card__body">
+                                <h2 class="ll-wordset-game-card__title"><?php echo esc_html((string) ($game_row['title'] ?? '')); ?></h2>
+                                <p class="ll-wordset-game-card__description"><?php echo esc_html((string) ($game_row['description'] ?? '')); ?></p>
+                                <p class="ll-wordset-game-card__status" data-ll-wordset-game-status>
+                                    <?php
+                                    echo esc_html(
+                                        $is_study_user
+                                            ? __('Checking game availability...', 'll-tools-text-domain')
+                                            : __('Sign in to play with your in-progress words.', 'll-tools-text-domain')
+                                    );
+                                    ?>
+                                </p>
+                            </div>
+                            <div class="ll-wordset-game-card__actions">
+                                <span class="ll-wordset-game-card__count" data-ll-wordset-game-count aria-label="<?php echo esc_attr__('Eligible words', 'll-tools-text-domain'); ?>">&#8212;</span>
+                                <button
+                                    type="button"
+                                    class="ll-wordset-game-card__launch"
+                                    data-ll-wordset-game-launch
+                                    disabled>
+                                    <?php echo esc_html($is_study_user ? _x('Play', 'launch game action', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
+                                </button>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
                 </div>
 
                 <?php if (!$is_study_user) : ?>
@@ -3973,7 +4003,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     ?>
                 <?php endif; ?>
 
-                <section class="ll-wordset-game-stage" data-ll-wordset-game-stage hidden>
+                <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
                     <div class="ll-wordset-game-stage__hud">
                         <button
                             type="button"
@@ -4035,7 +4065,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             data-ll-wordset-game-canvas
                             width="720"
                             height="960"
-                            aria-label="<?php echo esc_attr__('Arcane Space Shooter game board', 'll-tools-text-domain'); ?>"></canvas>
+                            aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
                     </div>
 
                     <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
