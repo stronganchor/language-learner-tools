@@ -4637,6 +4637,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: none !important;
 }
 
+.ll-wordset-selection-bar__priority-toggle[hidden],
 .ll-wordset-selection-bar__starred-toggle[hidden],
 .ll-wordset-selection-bar__hard-toggle[hidden] {
     display: none !important;
@@ -4648,24 +4649,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     white-space: nowrap;
 }
 
-.ll-wordset-selection-bar__starred-toggle {
-    position: relative;
-    min-width: 34px;
-    min-height: 34px;
-    height: 34px;
-    padding: 0 10px;
-    border-radius: 10px;
-    border: 1px solid #e2e8f0;
-    background: #ffffff;
-    color: #111827;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    cursor: pointer;
-    transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
-}
-
+.ll-wordset-selection-bar__priority-toggle,
+.ll-wordset-selection-bar__starred-toggle,
 .ll-wordset-selection-bar__hard-toggle {
     position: relative;
     min-width: 34px;
@@ -4684,6 +4669,31 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 }
 
+.ll-wordset-selection-bar__priority-toggle {
+    --ll-wordset-selection-priority-active-bg: #ffffff;
+    --ll-wordset-selection-priority-active-border: #cbd5e1;
+    --ll-wordset-selection-priority-active-text: #111827;
+}
+
+.ll-wordset-selection-bar__priority-toggle--new {
+    --ll-wordset-selection-priority-active-bg: var(--ll-wp-pill-slate);
+    --ll-wordset-selection-priority-active-border: var(--ll-wp-pill-slate-border);
+    --ll-wordset-selection-priority-active-text: var(--ll-wp-pill-slate-text);
+}
+
+.ll-wordset-selection-bar__priority-toggle--studied {
+    --ll-wordset-selection-priority-active-bg: var(--ll-wp-pill-blue);
+    --ll-wordset-selection-priority-active-border: var(--ll-wp-pill-blue-border);
+    --ll-wordset-selection-priority-active-text: var(--ll-wp-pill-blue-text);
+}
+
+.ll-wordset-selection-bar__priority-toggle--learned {
+    --ll-wordset-selection-priority-active-bg: var(--ll-wp-pill-green);
+    --ll-wordset-selection-priority-active-border: var(--ll-wp-pill-green-border);
+    --ll-wordset-selection-priority-active-text: var(--ll-wp-pill-green-text);
+}
+
+.ll-wordset-selection-bar__priority-toggle input,
 .ll-wordset-selection-bar__starred-toggle input {
     position: absolute;
     width: 1px;
@@ -4700,6 +4710,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     pointer-events: none;
 }
 
+.ll-wordset-selection-bar__priority-toggle:hover,
+.ll-wordset-selection-bar__priority-toggle:focus-within {
+    border-color: var(--ll-wordset-selection-priority-active-border);
+}
+
 .ll-wordset-selection-bar__starred-toggle:hover,
 .ll-wordset-selection-bar__starred-toggle:focus-within {
     border-color: var(--ll-wp-pill-gold-border);
@@ -4708,6 +4723,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-selection-bar__hard-toggle:hover,
 .ll-wordset-selection-bar__hard-toggle:focus-within {
     border-color: var(--ll-wp-pill-red-border);
+}
+
+.ll-wordset-selection-bar__priority-toggle.is-active {
+    background: var(--ll-wordset-selection-priority-active-bg);
+    border-color: var(--ll-wordset-selection-priority-active-border);
+    color: var(--ll-wordset-selection-priority-active-text);
 }
 
 .ll-wordset-selection-bar__starred-toggle.is-active {
@@ -4720,6 +4741,23 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: var(--ll-wp-pill-red);
     border-color: var(--ll-wp-pill-red-border);
     color: var(--ll-wp-pill-red-text);
+}
+
+.ll-wordset-selection-bar__priority-icon {
+    width: 15px;
+    height: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    line-height: 1;
+    color: inherit;
+}
+
+.ll-wordset-selection-bar__priority-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
 .ll-wordset-selection-bar__starred-icon {
@@ -4755,6 +4793,14 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-selection-bar__starred-text {
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 600;
+    white-space: nowrap;
+    color: inherit;
+}
+
+.ll-wordset-selection-bar__priority-text {
     font-size: 12px;
     line-height: 1;
     font-weight: 600;

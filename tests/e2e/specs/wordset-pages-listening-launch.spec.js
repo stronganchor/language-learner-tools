@@ -35,6 +35,11 @@ function buildWordsetMarkup() {
 
       <div data-ll-wordset-selection-bar hidden>
         <span data-ll-wordset-selection-text>Select categories to study together</span>
+        <label class="ll-wordset-selection-bar__priority-toggle" hidden>
+          <input type="checkbox" data-ll-wordset-selection-priority-only />
+          <span data-ll-wordset-selection-priority-icon></span>
+          <span data-ll-wordset-selection-priority-label>Priority words only</span>
+        </label>
         <label class="ll-wordset-selection-bar__starred-toggle">
           <input type="checkbox" data-ll-wordset-selection-starred-only />
           <span data-ll-wordset-selection-starred-icon>☆</span>
@@ -247,10 +252,19 @@ function buildPageConfig({ isLoggedIn }) {
     i18n: {
       selectionLabel: 'Select categories to study together',
       selectionWordsOnly: '%d words',
+      selectionNewOnly: 'New words only',
+      selectionStudiedOnly: 'In progress only',
+      selectionLearnedOnly: 'Learned only',
       selectAll: 'Select all',
       deselectAll: 'Deselect all',
       noCategoriesSelected: 'Select at least one category.',
       noWordsInSelection: 'No quiz words are available for this selection.',
+      noNewWordsInSelection: 'No new words are available for this selection.',
+      noStudiedWordsInSelection: 'No in progress words are available for this selection.',
+      noLearnedWordsInSelection: 'No learned words are available for this selection.',
+      priorityFocusNew: 'New words',
+      priorityFocusStudied: 'In progress words',
+      priorityFocusLearned: 'Learned words',
       priorityFocusStarred: 'Starred words',
       priorityFocusHard: 'Hard words',
       continueLabel: 'Continue',
@@ -832,6 +846,133 @@ test('selection keeps starred-only hidden when fewer than eight starred words ar
   await page.locator('[data-ll-wordset-select-all]').click();
 
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
+});
+
+test('priority-only practice selection filters to the current study focus', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 8, 'A').map((row, index) => Object.assign({}, row, {
+      category_id: 11,
+      category_ids: [11],
+      status: index < 5 ? 'studied' : 'new',
+      difficulty_score: index < 5 ? 2 : 0
+    })),
+    22: buildCategoryWordRows(22, 8, 'B').map((row, index) => Object.assign({}, row, {
+      category_id: 22,
+      category_ids: [22],
+      status: index < 4 ? 'studied' : 'new',
+      difficulty_score: index < 4 ? 1 : 0
+    })),
+    33: buildCategoryWordRows(33, 8, 'C').map((row) => Object.assign({}, row, {
+      category_id: 33,
+      category_ids: [33],
+      status: 'new',
+      difficulty_score: 0
+    }))
+  };
+  const expectedStudiedWordIds = Object.values(wordsByCategory)
+    .flat()
+    .filter((row) => row.status === 'studied')
+    .map((row) => Number(row && row.id) || 0)
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 8,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 8,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 8,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      visibleCategoryIds: [11, 22, 33],
+      hiddenCategoryIds: [],
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: expectedStudiedWordIds.length,
+        new: 24 - expectedStudiedWordIds.length,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('.ll-wordset-selection-bar__priority-toggle')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-selection-priority-label]')).toHaveText('In progress only');
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await expect(selectionPracticeButton).toBeEnabled();
+  await selectionPracticeButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(launch.sessionWordIds.slice().sort((a, b) => a - b)).toEqual(expectedStudiedWordIds);
 });
 
 test('starred-only practice selection launches one full filtered activity', async ({ page }) => {

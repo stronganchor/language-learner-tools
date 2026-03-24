@@ -41,6 +41,7 @@
     let summaryMetricsLoadingToken = 0;
     let cardProgressInitialLoading = (view === 'main' && summaryMetricsLoading);
     let selectedCategoryIds = [];
+    let selectionPriorityOnly = false;
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
     let saveStateTimer = null;
@@ -265,6 +266,10 @@
     const $selectAllButton = $root.find('[data-ll-wordset-select-all]');
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
     const $selectionText = $root.find('[data-ll-wordset-selection-text]');
+    const $selectionPriorityToggle = $root.find('[data-ll-wordset-selection-priority-only]');
+    const $selectionPriorityIcon = $root.find('[data-ll-wordset-selection-priority-icon]');
+    const $selectionPriorityLabel = $root.find('[data-ll-wordset-selection-priority-label]');
+    const $selectionPriorityWrap = $selectionPriorityToggle.closest('.ll-wordset-selection-bar__priority-toggle');
     const $selectionStarredToggle = $root.find('[data-ll-wordset-selection-starred-only]');
     const $selectionStarredIcon = $root.find('[data-ll-wordset-selection-starred-icon]');
     const $selectionStarredLabel = $root.find('[data-ll-wordset-selection-starred-label]');
@@ -1848,9 +1853,17 @@
     }
 
     function analyticsWordIsDifficult(row) {
-        const status = String(row && row.status || 'new');
+        const status = analyticsWordStatus(row);
         if (status !== 'studied') { return false; }
         return analyticsWordDifficulty(row) >= HARD_WORD_DIFFICULTY_THRESHOLD;
+    }
+
+    function analyticsWordStatus(row) {
+        const status = String(row && row.status || '').trim().toLowerCase();
+        if (status === 'mastered' || status === 'studied' || status === 'new') {
+            return status;
+        }
+        return 'new';
     }
 
     function analyticsWordSeen(row) {
@@ -4750,13 +4763,77 @@
         return '';
     }
 
+    function normalizeSelectionPriorityFilterFocus(value) {
+        const key = normalizePriorityFocus(value);
+        return (key === 'new' || key === 'studied' || key === 'learned') ? key : '';
+    }
+
+    function getSelectionPriorityFilterFocus() {
+        return normalizeSelectionPriorityFilterFocus(goals.priority_focus || '');
+    }
+
+    function selectionPriorityOnlyLabel(focus) {
+        const key = normalizeSelectionPriorityFilterFocus(focus);
+        if (key === 'new') { return String(i18n.selectionNewOnly || 'New words only'); }
+        if (key === 'studied') { return String(i18n.selectionStudiedOnly || 'In progress only'); }
+        if (key === 'learned') { return String(i18n.selectionLearnedOnly || 'Learned only'); }
+        return '';
+    }
+
+    function selectionPriorityOnlyEmptyMessage(focus) {
+        const key = normalizeSelectionPriorityFilterFocus(focus);
+        if (key === 'new') { return String(i18n.noNewWordsInSelection || 'No new words are available for this selection.'); }
+        if (key === 'studied') { return String(i18n.noStudiedWordsInSelection || 'No in progress words are available for this selection.'); }
+        if (key === 'learned') { return String(i18n.noLearnedWordsInSelection || 'No learned words are available for this selection.'); }
+        return String(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
+    }
+
+    function selectionPriorityIconStatus(focus) {
+        const key = normalizeSelectionPriorityFilterFocus(focus);
+        if (key === 'learned') {
+            return 'mastered';
+        }
+        return key;
+    }
+
+    function selectionPriorityIconMarkup(focus) {
+        const status = selectionPriorityIconStatus(focus);
+        return status ? buildProgressIconMarkup(status, 'll-wordset-selection-bar__priority-icon') : '';
+    }
+
+    function selectionWordMatchesPriorityFocus(row, focus) {
+        const key = normalizeSelectionPriorityFilterFocus(focus);
+        if (!key) {
+            return false;
+        }
+        const status = analyticsWordStatus(row);
+        if (key === 'learned') {
+            return status === 'mastered';
+        }
+        return status === key;
+    }
+
+    function wordRowCategoryIds(row) {
+        const ids = uniqueIntList((row && row.category_ids) || []);
+        if (!ids.length) {
+            const categoryId = parseInt(row && row.category_id, 10) || 0;
+            if (categoryId > 0) {
+                ids.push(categoryId);
+            }
+        }
+        return ids;
+    }
+
     function resolveSelectionCriteriaKey(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const starOnly = !!opts.starOnly;
         const hardOnly = !!opts.hardOnly;
+        const priorityFocus = normalizeSelectionPriorityFilterFocus(opts.priorityFocus || '');
+        const priorityOnly = !!opts.priorityOnly && !!priorityFocus;
         if (starOnly && hardOnly) { return 'starred'; }
         if (starOnly) { return 'starred'; }
         if (hardOnly) { return 'hard'; }
+        if (priorityOnly) { return priorityFocus; }
         return '';
     }
 
@@ -4942,11 +5019,68 @@
         return lookup;
     }
 
+    function buildSelectionHardWordLookup(categoryIds) {
+        const ids = uniqueIntList(categoryIds || []);
+        if (!ids.length) {
+            return {};
+        }
+
+        const categoryLookup = {};
+        ids.forEach(function (id) {
+            categoryLookup[id] = true;
+        });
+
+        const lookup = {};
+        const rows = Array.isArray(analytics.words) ? analytics.words : [];
+        rows.forEach(function (row) {
+            const wordId = parseInt(row && row.id, 10) || 0;
+            if (!wordId || !analyticsWordIsDifficult(row)) { return; }
+            const rowCategoryIds = wordRowCategoryIds(row);
+            const inSelection = !rowCategoryIds.length || rowCategoryIds.some(function (id) {
+                return !!categoryLookup[id];
+            });
+            if (inSelection) {
+                lookup[wordId] = true;
+            }
+        });
+
+        return lookup;
+    }
+
+    function buildSelectionPriorityWordLookup(categoryIds, focus) {
+        const ids = uniqueIntList(categoryIds || []);
+        const key = normalizeSelectionPriorityFilterFocus(focus);
+        if (!ids.length || !key) {
+            return {};
+        }
+
+        const categoryLookup = {};
+        ids.forEach(function (id) {
+            categoryLookup[id] = true;
+        });
+
+        const lookup = {};
+        const rows = Array.isArray(analytics.words) ? analytics.words : [];
+        rows.forEach(function (row) {
+            const wordId = parseInt(row && row.id, 10) || 0;
+            if (!wordId || !selectionWordMatchesPriorityFocus(row, key)) { return; }
+            const rowCategoryIds = wordRowCategoryIds(row);
+            const inSelection = !rowCategoryIds.length || rowCategoryIds.some(function (id) {
+                return !!categoryLookup[id];
+            });
+            if (inSelection) {
+                lookup[wordId] = true;
+            }
+        });
+
+        return lookup;
+    }
+
     function buildSelectionWordMetrics(categoryIds) {
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
-        const metrics = { total: 0, starred: 0, hard: 0, starredHard: 0 };
+        const metrics = { total: 0, mastered: 0, studied: 0, new: 0, starred: 0, hard: 0, starredHard: 0 };
         if (!ids.length) {
             return metrics;
         }
@@ -4959,7 +5093,7 @@
         uniqueIntList(state.starred_word_ids || []).forEach(function (id) {
             starredLookup[id] = true;
         });
-        const hardLookup = getHardWordLookup();
+        const hardLookup = buildSelectionHardWordLookup(ids);
         const seen = {};
         const selectionMatchesVisibleScope = areCategorySetsEqual(ids, getVisibleCategoryIds());
         const analyticsScopeCategoryIds = uniqueIntList(
@@ -4974,13 +5108,21 @@
         const analyticsCoversSelection = !!analyticsScopeCategoryIds.length && ids.every(function (id) {
             return !!analyticsScopeLookup[id];
         });
-        const applyWord = function (wordId) {
+        const applyWord = function (wordId, row) {
             if (!wordId || seen[wordId]) { return; }
             seen[wordId] = true;
             metrics.total += 1;
 
+            const status = analyticsWordStatus(row);
             const isStarred = !!starredLookup[wordId];
-            const isHard = !!hardLookup[wordId];
+            const isHard = !!hardLookup[wordId] || analyticsWordIsDifficult(row);
+            if (status === 'mastered') {
+                metrics.mastered += 1;
+            } else if (status === 'studied') {
+                metrics.studied += 1;
+            } else {
+                metrics.new += 1;
+            }
             if (isStarred) {
                 metrics.starred += 1;
             }
@@ -5008,7 +5150,7 @@
                 return !!categoryLookup[id];
             });
             if (!inSelection) { return; }
-            applyWord(wordId);
+            applyWord(wordId, row);
         });
         if (analyticsCoversSelection) {
             return metrics;
@@ -5021,11 +5163,20 @@
             if (!Array.isArray(wordsByCategory[categoryId])) { return; }
             loadedCategoryCount += 1;
             rows.forEach(function (row) {
-                applyWord(parseInt(row && row.id, 10) || 0);
+                applyWord(parseInt(row && row.id, 10) || 0, row);
             });
         });
         if (selectionMatchesVisibleScope) {
             const summary = normalizeSummaryCounts(summaryCounts || {});
+            if (summary.mastered > metrics.mastered) {
+                metrics.mastered = summary.mastered;
+            }
+            if (summary.studied > metrics.studied) {
+                metrics.studied = summary.studied;
+            }
+            if (summary.new > metrics.new) {
+                metrics.new = summary.new;
+            }
             if (summary.starred > metrics.starred) {
                 metrics.starred = summary.starred;
             }
@@ -5047,6 +5198,9 @@
         }, 0);
         if (selectionMatchesVisibleScope) {
             const summary = normalizeSummaryCounts(summaryCounts || {});
+            metrics.mastered = Math.max(metrics.mastered, summary.mastered);
+            metrics.studied = Math.max(metrics.studied, summary.studied);
+            metrics.new = Math.max(metrics.new, summary.new);
             metrics.starred = Math.max(metrics.starred, summary.starred);
             metrics.hard = Math.max(metrics.hard, summary.hard);
         }
@@ -5054,8 +5208,26 @@
         return metrics;
     }
 
+    function getSelectionPriorityMetricCount(metrics, focus) {
+        const data = (metrics && typeof metrics === 'object') ? metrics : {};
+        const key = normalizeSelectionPriorityFilterFocus(focus);
+        if (key === 'new') {
+            return Math.max(0, parseInt(data.new, 10) || 0);
+        }
+        if (key === 'studied') {
+            return Math.max(0, parseInt(data.studied, 10) || 0);
+        }
+        if (key === 'learned') {
+            return Math.max(0, parseInt(data.mastered, 10) || 0);
+        }
+        return 0;
+    }
+
     function getSelectionEffectiveWordCount(metrics) {
-        const data = (metrics && typeof metrics === 'object') ? metrics : { total: 0, starred: 0, hard: 0, starredHard: 0 };
+        const data = (metrics && typeof metrics === 'object') ? metrics : { total: 0, mastered: 0, studied: 0, new: 0, starred: 0, hard: 0, starredHard: 0 };
+        if (selectionPriorityOnly) {
+            return getSelectionPriorityMetricCount(data, getSelectionPriorityFilterFocus());
+        }
         if (selectionStarredOnly) {
             return Math.max(0, parseInt(data.starred, 10) || 0);
         }
@@ -7646,6 +7818,8 @@
 
     function syncSettingsButtons() {
         const selectedFocus = normalizePriorityFocus(goals.priority_focus || '');
+        const selectionPriorityFocus = getSelectionPriorityFilterFocus();
+        const selectionPriorityLabelText = selectionPriorityOnlyLabel(selectionPriorityFocus);
         $root.find('[data-ll-wordset-priority-focus]').each(function () {
             const value = String($(this).attr('data-ll-wordset-priority-focus') || '');
             const active = normalizePriorityFocus(value) === selectedFocus && selectedFocus !== '';
@@ -7673,6 +7847,23 @@
                 .attr('aria-disabled', available ? 'false' : 'true');
         });
 
+        if ($selectionPriorityToggle.length) {
+            $selectionPriorityToggle.prop('checked', !!selectionPriorityOnly);
+        }
+        if ($selectionPriorityWrap.length) {
+            $selectionPriorityWrap
+                .toggleClass('is-active', !!selectionPriorityOnly)
+                .toggleClass('ll-wordset-selection-bar__priority-toggle--new', selectionPriorityFocus === 'new')
+                .toggleClass('ll-wordset-selection-bar__priority-toggle--studied', selectionPriorityFocus === 'studied')
+                .toggleClass('ll-wordset-selection-bar__priority-toggle--learned', selectionPriorityFocus === 'learned')
+                .attr('aria-label', selectionPriorityLabelText || '');
+        }
+        if ($selectionPriorityIcon.length) {
+            $selectionPriorityIcon.html(selectionPriorityIconMarkup(selectionPriorityFocus));
+        }
+        if ($selectionPriorityLabel.length) {
+            $selectionPriorityLabel.text(selectionPriorityLabelText);
+        }
         if ($selectionStarredToggle.length) {
             $selectionStarredToggle.prop('checked', !!selectionStarredOnly);
         }
@@ -7732,8 +7923,12 @@
             if ($selectionText.length) {
                 $selectionText.text(i18n.selectionLabel || 'Select categories to study together');
             }
+            selectionPriorityOnly = false;
             selectionStarredOnly = false;
             selectionHardOnly = false;
+            if ($selectionPriorityToggle.length) {
+                $selectionPriorityToggle.prop('checked', false);
+            }
             if ($selectionStarredToggle.length) {
                 $selectionStarredToggle.prop('checked', false);
             }
@@ -7746,6 +7941,9 @@
             if ($selectionHardWrap.length) {
                 $selectionHardWrap.prop('hidden', true);
             }
+            if ($selectionPriorityWrap.length) {
+                $selectionPriorityWrap.prop('hidden', true);
+            }
             syncSelectionModeButtons();
             syncSettingsButtons();
             syncPrimaryActionState();
@@ -7754,12 +7952,22 @@
         }
 
         const metrics = buildSelectionWordMetrics(selectedIds);
+        const selectionPriorityFocus = getSelectionPriorityFilterFocus();
         const filteredMinimumWords = getSelectionFilteredMinimumWordCount();
-        // Starred/hard filters are user-specific and should stay unavailable for guests.
+        // Selection filters are user-specific and should stay unavailable for guests.
+        const showPriorityOnly = isLoggedIn
+            && selectionPriorityFocus !== ''
+            && getSelectionPriorityMetricCount(metrics, selectionPriorityFocus) >= filteredMinimumWords;
         const showStarredOnly = isLoggedIn && metrics.starred >= filteredMinimumWords;
         const minimumHardWordsForSelectionFilter = Math.max(5, getSelectionMinimumWordCount());
         const showHardOnly = isLoggedIn && metrics.hard >= minimumHardWordsForSelectionFilter;
 
+        if (!showPriorityOnly) {
+            selectionPriorityOnly = false;
+            if ($selectionPriorityToggle.length) {
+                $selectionPriorityToggle.prop('checked', false);
+            }
+        }
         if (!showStarredOnly) {
             selectionStarredOnly = false;
             if ($selectionStarredToggle.length) {
@@ -7772,13 +7980,25 @@
                 $selectionHardToggle.prop('checked', false);
             }
         }
-        if (selectionStarredOnly && selectionHardOnly) {
+        if (selectionPriorityOnly) {
+            selectionStarredOnly = false;
+            selectionHardOnly = false;
+            if ($selectionStarredToggle.length) {
+                $selectionStarredToggle.prop('checked', false);
+            }
+            if ($selectionHardToggle.length) {
+                $selectionHardToggle.prop('checked', false);
+            }
+        } else if (selectionStarredOnly && selectionHardOnly) {
             selectionHardOnly = false;
             if ($selectionHardToggle.length) {
                 $selectionHardToggle.prop('checked', false);
             }
         }
 
+        if ($selectionPriorityWrap.length) {
+            $selectionPriorityWrap.prop('hidden', !showPriorityOnly);
+        }
         if ($selectionStarredWrap.length) {
             $selectionStarredWrap.prop('hidden', !showStarredOnly);
         }
@@ -7831,9 +8051,13 @@
     function clearCategorySelection(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         selectedCategoryIds = [];
+        selectionPriorityOnly = false;
         selectionStarredOnly = false;
         selectionHardOnly = false;
         $root.find('[data-ll-wordset-select]').prop('checked', false);
+        if ($selectionPriorityToggle.length) {
+            $selectionPriorityToggle.prop('checked', false);
+        }
         if ($selectionStarredToggle.length) {
             $selectionStarredToggle.prop('checked', false);
         }
@@ -7983,11 +8207,14 @@
         const ids = uniqueIntList(categoryIds || []);
         const starOnly = !!opts.starOnly;
         const hardOnly = !!opts.hardOnly;
+        const criteriaKey = resolveSelectionCriteriaKey(opts);
+        const priorityFocus = normalizeSelectionPriorityFilterFocus(criteriaKey);
         const starredLookup = {};
         uniqueIntList(state.starred_word_ids || []).forEach(function (id) {
             starredLookup[id] = true;
         });
-        const hardLookup = hardOnly ? getHardWordLookup() : {};
+        const hardLookup = hardOnly ? buildSelectionHardWordLookup(ids) : {};
+        const priorityLookup = priorityFocus ? buildSelectionPriorityWordLookup(ids, priorityFocus) : {};
 
         const out = {
             categoryIds: ids,
@@ -8015,7 +8242,8 @@
                 allIds.push(wordId);
 
                 if (starOnly && !starredLookup[wordId]) { return; }
-                if (hardOnly && !hardLookup[wordId]) { return; }
+                if (hardOnly && !hardLookup[wordId] && !analyticsWordIsDifficult(word)) { return; }
+                if (priorityFocus && !priorityLookup[wordId] && !selectionWordMatchesPriorityFocus(word, priorityFocus)) { return; }
                 filteredIds.push(wordId);
             });
 
@@ -8383,7 +8611,9 @@
         const requireMatchingPresentation = !!opts.requireMatchingPresentation;
         const wordLists = buildWordIdListsByCategory(ids, {
             starOnly: !!opts.starOnly,
-            hardOnly: !!opts.hardOnly
+            hardOnly: !!opts.hardOnly,
+            priorityOnly: !!opts.priorityOnly,
+            priorityFocus: opts.priorityFocus || ''
         });
         const groups = buildCategoryCompatibilityGroups(ids, {
             requireMatchingPresentation: requireMatchingPresentation
@@ -8485,7 +8715,9 @@
         const criteriaKey = resolveSelectionCriteriaKey(opts);
         const lists = buildWordIdListsByCategory(ids, {
             starOnly: !!opts.starOnly,
-            hardOnly: !!opts.hardOnly
+            hardOnly: !!opts.hardOnly,
+            priorityOnly: !!opts.priorityOnly,
+            priorityFocus: opts.priorityFocus || ''
         });
         const filteredWordIds = uniqueIntList(lists.filteredWordIds || []);
         if (filteredWordIds.length < minimumWords) {
@@ -9607,7 +9839,8 @@
             let effectiveRequestedCategoryLabelOverride = requestedCategoryLabelOverride;
             if (finalMode === 'learning') {
                 const criteriaKey = normalizePriorityFocus(launchDetails.priority_focus || '');
-                const isCriteriaFiltered = criteriaKey === 'starred' || criteriaKey === 'hard';
+                const selectionPriorityFocus = normalizeSelectionPriorityFilterFocus(criteriaKey);
+                const isCriteriaFiltered = criteriaKey === 'starred' || criteriaKey === 'hard' || selectionPriorityFocus !== '';
                 const minimumWords = isCriteriaFiltered
                     ? LEARNING_MIN_CHUNK_SIZE
                     : getSelectionMinimumWordCount();
@@ -9619,6 +9852,8 @@
                     const learningPlan = buildLearningSelectionLaunchPlan(launchCategoryIds, {
                         starOnly: criteriaKey === 'starred',
                         hardOnly: criteriaKey === 'hard',
+                        priorityOnly: selectionPriorityFocus !== '',
+                        priorityFocus: selectionPriorityFocus,
                         preferCategoryId: launchCategoryIds[0] || 0,
                         minimumWords: minimumWords
                     });
@@ -9759,15 +9994,22 @@
         const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
             return !isCategoryHidden(id);
         });
+        const selectionPriorityFocus = getSelectionPriorityFilterFocus();
+        const priorityOnlyActive = !!selectionPriorityOnly && selectionPriorityFocus !== '';
         const starredOnlyActive = !!selectionStarredOnly;
         const hardOnlyActive = !!selectionHardOnly;
         const criteriaKey = resolveSelectionCriteriaKey({
             starOnly: starredOnlyActive,
-            hardOnly: hardOnlyActive
+            hardOnly: hardOnlyActive,
+            priorityOnly: priorityOnlyActive,
+            priorityFocus: selectionPriorityFocus
         });
         const resolveEmptyMessage = function () {
             if (starredOnlyActive && hardOnlyActive) {
                 return i18n.noStarredHardWordsInSelection || 'No starred hard words are available for this selection.';
+            }
+            if (priorityOnlyActive) {
+                return selectionPriorityOnlyEmptyMessage(selectionPriorityFocus);
             }
             if (starredOnlyActive) {
                 return i18n.noStarredWordsInSelection || 'No starred words are available for this selection.';
@@ -9783,7 +10025,7 @@
             return;
         }
 
-        if (normalizedMode === 'listening' && !starredOnlyActive && !hardOnlyActive) {
+        if (normalizedMode === 'listening' && !criteriaKey) {
             const ids = filterCategoryIdsByAspectBucket(selectedIds, {
                 preferCategoryId: selectedIds[0] || 0
             });
@@ -9805,6 +10047,8 @@
                 const learningPlan = buildLearningSelectionLaunchPlan(selectedIds, {
                     starOnly: starredOnlyActive,
                     hardOnly: hardOnlyActive,
+                    priorityOnly: priorityOnlyActive,
+                    priorityFocus: selectionPriorityFocus,
                     preferCategoryId: selectedIds[0] || 0,
                     minimumWords: LEARNING_MIN_CHUNK_SIZE
                 });
@@ -9871,6 +10115,8 @@
             const launchPlan = buildSelectionPracticeLaunchPlan(selectedIds, {
                 starOnly: starredOnlyActive,
                 hardOnly: hardOnlyActive,
+                priorityOnly: priorityOnlyActive,
+                priorityFocus: selectionPriorityFocus,
                 minimumWords: minimumWordCount
             });
             const practiceCategoryIds = uniqueIntList(launchPlan.categoryIds || []);
@@ -10125,6 +10371,7 @@
             const nextChoice = (value === previousChoice) ? '' : value;
             applyFocusChoice(nextChoice);
             syncSettingsButtons();
+            renderSelectionBar();
             const saveRequest = saveGoalsNow();
             const saveToken = parseInt(saveRequest && saveRequest.llToolsRequestToken, 10) || 0;
             saveRequest.fail(function () {
@@ -10133,6 +10380,7 @@
                 }
                 applyFocusChoice(previousChoice);
                 syncSettingsButtons();
+                renderSelectionBar();
                 alert(i18n.saveError || 'Unable to save right now.');
             });
         });
@@ -10167,10 +10415,29 @@
             renderSelectionBar();
         });
 
+        $root.on('change', '[data-ll-wordset-selection-priority-only]', function () {
+            selectionPriorityOnly = !!$(this).is(':checked');
+            if (selectionPriorityOnly) {
+                selectionStarredOnly = false;
+                selectionHardOnly = false;
+                if ($selectionStarredToggle.length) {
+                    $selectionStarredToggle.prop('checked', false);
+                }
+                if ($selectionHardToggle.length) {
+                    $selectionHardToggle.prop('checked', false);
+                }
+            }
+            renderSelectionBar();
+        });
+
         $root.on('change', '[data-ll-wordset-selection-starred-only]', function () {
             selectionStarredOnly = !!$(this).is(':checked');
             if (selectionStarredOnly) {
+                selectionPriorityOnly = false;
                 selectionHardOnly = false;
+                if ($selectionPriorityToggle.length) {
+                    $selectionPriorityToggle.prop('checked', false);
+                }
                 if ($selectionHardToggle.length) {
                     $selectionHardToggle.prop('checked', false);
                 }
@@ -10181,7 +10448,11 @@
         $root.on('change', '[data-ll-wordset-selection-hard-only]', function () {
             selectionHardOnly = !!$(this).is(':checked');
             if (selectionHardOnly) {
+                selectionPriorityOnly = false;
                 selectionStarredOnly = false;
+                if ($selectionPriorityToggle.length) {
+                    $selectionPriorityToggle.prop('checked', false);
+                }
                 if ($selectionStarredToggle.length) {
                     $selectionStarredToggle.prop('checked', false);
                 }

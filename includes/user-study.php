@@ -332,6 +332,12 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
                 'gender_progress' => function_exists('ll_tools_get_progress_row_gender_progress')
                     ? ll_tools_get_progress_row_gender_progress($progress)
                     : [],
+                'status' => function_exists('ll_tools_user_progress_word_status')
+                    ? (string) ll_tools_user_progress_word_status($progress)
+                    : (!empty($progress) ? 'studied' : 'new'),
+                'difficulty_score' => function_exists('ll_tools_user_progress_word_difficulty_score')
+                    ? max(0, (int) ll_tools_user_progress_word_difficulty_score($progress))
+                    : 0,
                 'wordset_ids'    => isset($w['wordset_ids']) ? (array) $w['wordset_ids'] : [],
                 'progress_total_coverage' => max(0, (int) ($progress['total_coverage'] ?? 0)),
                 'progress_stage' => max(0, (int) ($progress['stage'] ?? 0)),

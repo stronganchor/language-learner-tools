@@ -2175,6 +2175,25 @@ function ll_tools_wordset_page_render_priority_focus_icon(string $focus, string 
     return '';
 }
 
+function ll_tools_wordset_page_selection_priority_focus(string $focus): string {
+    $focus = sanitize_key($focus);
+    return in_array($focus, ['new', 'studied', 'learned'], true) ? $focus : '';
+}
+
+function ll_tools_wordset_page_selection_priority_only_label(string $focus): string {
+    $focus = ll_tools_wordset_page_selection_priority_focus($focus);
+    if ($focus === 'new') {
+        return __('New words only', 'll-tools-text-domain');
+    }
+    if ($focus === 'studied') {
+        return __('In progress only', 'll-tools-text-domain');
+    }
+    if ($focus === 'learned') {
+        return __('Learned only', 'll-tools-text-domain');
+    }
+    return __('Priority words only', 'll-tools-text-domain');
+}
+
 function ll_tools_wordset_page_summary_counts(array $analytics): array {
     $summary = (isset($analytics['summary']) && is_array($analytics['summary'])) ? $analytics['summary'] : [];
     $mastered = max(0, (int) ($summary['mastered_words'] ?? 0));
@@ -3326,6 +3345,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'selectionWordsOnly' => __('%d words', 'll-tools-text-domain'),
             'selectionStarredOnly' => __('Starred only', 'll-tools-text-domain'),
             'selectionHardOnly' => __('Hard words only', 'll-tools-text-domain'),
+            'selectionNewOnly' => __('New words only', 'll-tools-text-domain'),
+            'selectionStudiedOnly' => __('In progress only', 'll-tools-text-domain'),
+            'selectionLearnedOnly' => __('Learned only', 'll-tools-text-domain'),
             'selectAll' => __('Select all', 'll-tools-text-domain'),
             'deselectAll' => __('Deselect all', 'll-tools-text-domain'),
             'priorityFocusNew' => __('New words', 'll-tools-text-domain'),
@@ -3339,6 +3361,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'noWordsInSelection' => __('No quiz words are available for this selection.', 'll-tools-text-domain'),
             'noStarredWordsInSelection' => __('No starred words are available for this selection.', 'll-tools-text-domain'),
             'noHardWordsInSelection' => __('No hard words are available for this selection.', 'll-tools-text-domain'),
+            'noNewWordsInSelection' => __('No new words are available for this selection.', 'll-tools-text-domain'),
+            'noStudiedWordsInSelection' => __('No in progress words are available for this selection.', 'll-tools-text-domain'),
+            'noLearnedWordsInSelection' => __('No learned words are available for this selection.', 'll-tools-text-domain'),
             'noStarredHardWordsInSelection' => __('No starred hard words are available for this selection.', 'll-tools-text-domain'),
             'hiddenEmpty' => __('No hidden categories in this word set.', 'll-tools-text-domain'),
             'hiddenCountLabel' => __('Hidden categories: %d', 'll-tools-text-domain'),
@@ -4918,8 +4943,21 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             <?php endif; ?>
 
+            <?php
+            $selection_priority_focus = function_exists('ll_tools_wordset_page_selection_priority_focus')
+                ? ll_tools_wordset_page_selection_priority_focus((string) ($goals['priority_focus'] ?? ''))
+                : '';
+            $selection_priority_label = function_exists('ll_tools_wordset_page_selection_priority_only_label')
+                ? ll_tools_wordset_page_selection_priority_only_label($selection_priority_focus)
+                : esc_html__('Priority words only', 'll-tools-text-domain');
+            ?>
             <div class="ll-wordset-selection-bar" data-ll-wordset-selection-bar hidden>
                 <span class="ll-wordset-selection-bar__text" data-ll-wordset-selection-text><?php echo esc_html__('Select categories to study together', 'll-tools-text-domain'); ?></span>
+                <label class="ll-wordset-selection-bar__priority-toggle<?php echo $selection_priority_focus !== '' ? ' ll-wordset-selection-bar__priority-toggle--' . esc_attr($selection_priority_focus) : ''; ?>" aria-label="<?php echo esc_attr($selection_priority_label); ?>" hidden>
+                    <input type="checkbox" data-ll-wordset-selection-priority-only />
+                    <span class="ll-wordset-selection-bar__priority-icon" data-ll-wordset-selection-priority-icon aria-hidden="true"><?php echo ll_tools_wordset_page_render_priority_focus_icon($selection_priority_focus, 'll-wordset-selection-bar__priority-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></span>
+                    <span class="ll-wordset-selection-bar__priority-text" data-ll-wordset-selection-priority-label><?php echo esc_html($selection_priority_label); ?></span>
+                </label>
                 <label class="ll-wordset-selection-bar__starred-toggle" aria-label="<?php echo esc_attr__('Starred only', 'll-tools-text-domain'); ?>" hidden>
                     <input type="checkbox" data-ll-wordset-selection-starred-only />
                     <span class="ll-wordset-selection-bar__starred-icon" data-ll-wordset-selection-starred-icon aria-hidden="true">☆</span>

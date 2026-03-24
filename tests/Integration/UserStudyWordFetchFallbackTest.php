@@ -39,6 +39,44 @@ final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
         return (int) $term['term_id'];
     }
 
+    private function seedWordProgressRow(int $user_id, int $word_id, int $category_id, int $wordset_id, array $overrides): void
+    {
+        global $wpdb;
+        $tables = ll_tools_user_progress_table_names();
+        $table = $tables['words'];
+
+        $now = gmdate('Y-m-d H:i:s');
+        $data = array_merge([
+            'user_id' => $user_id,
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'first_seen_at' => $now,
+            'last_seen_at' => $now,
+            'last_mode' => 'practice',
+            'total_coverage' => 0,
+            'coverage_learning' => 0,
+            'coverage_practice' => 0,
+            'coverage_listening' => 0,
+            'coverage_gender' => 0,
+            'coverage_self_check' => 0,
+            'correct_clean' => 0,
+            'correct_after_retry' => 0,
+            'incorrect' => 0,
+            'lapse_count' => 0,
+            'stage' => 0,
+            'due_at' => $now,
+            'updated_at' => $now,
+        ], $overrides);
+
+        $inserted = $wpdb->replace($table, $data, [
+            '%d', '%d', '%d', '%d', '%s', '%s', '%s',
+            '%d', '%d', '%d', '%d', '%d', '%d',
+            '%d', '%d', '%d', '%d', '%d', '%s', '%s',
+        ]);
+        $this->assertNotFalse($inserted);
+    }
+
     public function test_user_study_words_use_effective_option_type_after_audio_fallback(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -79,6 +117,45 @@ final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
             $this->assertCount(1, (array) $words_by_category[$category_id]);
             $this->assertSame($word_id, (int) ($words_by_category[$category_id][0]['id'] ?? 0));
             $this->assertSame('Fallback Study Translation', (string) ($words_by_category[$category_id][0]['translation'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_user_study_words_include_progress_status_and_difficulty_score(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $wordset_id = $this->createWordset('Progress Study Wordset ' . (string) wp_rand(1000, 9999));
+            $category_id = $this->createCategory('Progress Study Category ' . (string) wp_rand(1000, 9999));
+            $word_id = $this->createWord(
+                $category_id,
+                $wordset_id,
+                'Progress Study Word',
+                'Progress Study Translation'
+            );
+
+            $this->seedWordProgressRow($user_id, $word_id, $category_id, $wordset_id, [
+                'total_coverage' => 2,
+                'coverage_practice' => 2,
+                'incorrect' => 1,
+                'lapse_count' => 0,
+                'stage' => 0,
+            ]);
+
+            $words_by_category = ll_tools_user_study_words([$category_id], $wordset_id);
+
+            $this->assertArrayHasKey($category_id, $words_by_category);
+            $this->assertCount(1, (array) $words_by_category[$category_id]);
+            $this->assertSame('studied', (string) ($words_by_category[$category_id][0]['status'] ?? ''));
+            $this->assertSame(5, (int) ($words_by_category[$category_id][0]['difficulty_score'] ?? 0));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
