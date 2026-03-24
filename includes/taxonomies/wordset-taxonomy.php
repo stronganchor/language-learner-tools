@@ -1258,7 +1258,36 @@ function ll_tools_wordset_get_admin_category_ordering_rows(int $wordset_id): arr
         return [];
     }
 
-    return array_values($rows);
+    $rows = array_values($rows);
+
+    if (!function_exists('ll_tools_user_study_filter_quizzable_category_ids')) {
+        return $rows;
+    }
+
+    $row_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck($rows, 'id'));
+    if (empty($row_ids)) {
+        return [];
+    }
+
+    $allowed_ids = ll_tools_user_study_filter_quizzable_category_ids($row_ids, $wordset_id);
+    if (empty($allowed_ids)) {
+        return [];
+    }
+
+    $allowed_lookup = array_fill_keys(array_map('intval', $allowed_ids), true);
+    $filtered_rows = [];
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $row_id = (int) ($row['id'] ?? 0);
+        if ($row_id <= 0 || !isset($allowed_lookup[$row_id])) {
+            continue;
+        }
+        $filtered_rows[] = $row;
+    }
+
+    return $filtered_rows;
 }
 
 function ll_tools_wordset_render_category_ordering_field_html(int $wordset_id): string {
@@ -2442,9 +2471,18 @@ function ll_save_wordset_language($term_id) {
         $posted_category_ids = isset($_POST['ll_wordset_category_order_category_ids'])
             ? ll_tools_wordset_parse_category_id_csv(wp_unslash((string) $_POST['ll_wordset_category_order_category_ids']))
             : [];
+
+        $allowed_rows = ll_tools_wordset_get_admin_category_ordering_rows((int) $term_id);
+        $allowed_category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck($allowed_rows, 'id'));
+        if (!empty($posted_category_ids) && !empty($allowed_category_ids)) {
+            $allowed_category_lookup = array_fill_keys($allowed_category_ids, true);
+            $posted_category_ids = array_values(array_filter($posted_category_ids, static function ($category_id) use ($allowed_category_lookup): bool {
+                return isset($allowed_category_lookup[(int) $category_id]);
+            }));
+        }
+
         if (empty($posted_category_ids)) {
-            $fallback_rows = ll_tools_wordset_get_admin_category_ordering_rows((int) $term_id);
-            $posted_category_ids = ll_tools_wordset_normalize_category_id_list(wp_list_pluck($fallback_rows, 'id'));
+            $posted_category_ids = $allowed_category_ids;
         }
 
         if (!empty($posted_category_ids)) {
