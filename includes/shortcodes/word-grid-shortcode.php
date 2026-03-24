@@ -2236,8 +2236,8 @@ function ll_tools_word_grid_sanitize_thumbnail_html(string $html): string {
     $has_bad_width = $has_width && isset($width_match[2]) && (int) $width_match[2] <= 1;
     $has_bad_height = $has_height && isset($height_match[2]) && (int) $height_match[2] <= 1;
     if ($has_bad_width || $has_bad_height) {
-            $html = preg_replace('/\swidth=(["\']?)[^"\'>\s]+\1/i', '', $html);
-            $html = preg_replace('/\sheight=(["\']?)[^"\'>\s]+\1/i', '', $html);
+        $html = preg_replace('/\swidth=(["\']?)[^"\'>\s]+\1/i', '', $html);
+        $html = preg_replace('/\sheight=(["\']?)[^"\'>\s]+\1/i', '', $html);
     }
 
     return $html;
