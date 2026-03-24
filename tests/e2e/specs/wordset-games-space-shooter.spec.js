@@ -42,9 +42,9 @@ function buildGamesMarkup() {
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="games" data-ll-wordset-id="77">
       <header class="ll-wordset-subpage-head">
         <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="/wordsets/test-wordset/">
-          <span class="ll-wordset-back__label">Test Wordset</span>
+          <span class="ll-wordset-back__label" data-ll-wordset-games-back-label>Test Wordset</span>
         </a>
-        <h1 class="ll-wordset-title">Games</h1>
+        <h1 class="ll-wordset-title" data-ll-wordset-games-page-title>Games</h1>
       </header>
       <section class="ll-wordset-games-page" data-ll-wordset-games-root>
         <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
@@ -54,7 +54,6 @@ function buildGamesMarkup() {
 
         <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
           <div class="ll-wordset-game-stage__hud">
-            <button type="button" class="ll-wordset-game-stage__nav" data-ll-wordset-game-close>Games</button>
             <div class="ll-wordset-game-stage__stats">
               <span data-ll-wordset-game-coins>0</span>
               <span data-ll-wordset-game-lives>3</span>
@@ -1042,7 +1041,7 @@ test('wrong answers replay the prompt quickly and never cost more than one life 
       ).toBe(true);
     }
 
-    await page.click('[data-ll-wordset-game-close]');
+    await page.click('[data-ll-wordset-games-back]');
     await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
     await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   }
@@ -1191,10 +1190,15 @@ test('games page header back returns to the games catalog while a run is open', 
   });
   await waitForActivePrompt(page, 'bubble-pop');
 
+  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Games');
+  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Bubble Pop');
+
   await page.click('[data-ll-wordset-games-back]');
 
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
+  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Games');
 
   const contextState = await page.evaluate(() => window.LLWordsetGames.__debug.getContext());
   expect(contextState).toBeTruthy();
@@ -1355,7 +1359,7 @@ test('both games auto-pause after three inactive rounds and resume into the next
       previousPromptId: pausedPromptId
     });
 
-    await page.click('[data-ll-wordset-game-close]');
+    await page.click('[data-ll-wordset-games-back]');
     await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
     await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
   }
@@ -1412,6 +1416,8 @@ test('space shooter launches with safe option mixes and records progress flows',
     return !!(run && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);
   });
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Games');
+  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Arcane Space Shooter');
 
   const initialRun = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
   expect(initialRun.activeCardCount).toBe(4);
@@ -1663,9 +1669,11 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(replayState.coins).toBe(0);
   expect(replayState.lives).toBe(3);
 
-  await page.click('[data-ll-wordset-game-close]');
+  await page.click('[data-ll-wordset-games-back]');
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-games-back-label]')).toHaveText('Test Wordset');
+  await expect(page.locator('[data-ll-wordset-games-page-title]')).toHaveText('Games');
 
   const scrollCallCount = await page.evaluate(() => window.__scrollCalls.length);
   expect(scrollCallCount).toBeGreaterThanOrEqual(2);

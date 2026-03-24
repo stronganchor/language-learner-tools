@@ -59,8 +59,11 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $gamesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
         $this->assertStringContainsString('data-ll-wordset-games-root', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-back', $gamesHtml);
+        $this->assertStringContainsString('data-ll-wordset-games-back-label', $gamesHtml);
+        $this->assertStringContainsString('data-ll-wordset-games-page-title', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="bubble-pop"', $gamesHtml);
+        $this->assertStringNotContainsString('data-ll-wordset-game-close', $gamesHtml);
     }
 
     public function test_space_shooter_pool_only_includes_studied_words_with_images_and_core_prompt_recordings_in_scope(): void

@@ -197,7 +197,7 @@
 
 .ll-wordset-game-stage__hud {
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto 1fr;
     align-items: center;
     gap: 12px;
     margin-bottom: 12px;
@@ -207,6 +207,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: flex-end;
+    justify-self: stretch;
     gap: 10px;
 }
 
@@ -831,14 +832,7 @@
 
     .ll-wordset-game-stage__hud {
         grid-template-columns: 1fr auto;
-        grid-template-areas:
-            "back actions"
-            "stats stats";
-    }
-
-    .ll-wordset-game-stage__nav:not(.ll-wordset-game-stage__nav--replay):not(.ll-wordset-game-stage__nav--pause) {
-        grid-area: back;
-        justify-self: flex-start;
+        grid-template-areas: "stats actions";
     }
 
     .ll-wordset-game-stage__hud-actions {

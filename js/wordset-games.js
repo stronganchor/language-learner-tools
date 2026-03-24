@@ -2708,6 +2708,19 @@
         const gameSlug = String(rawSlug || '').trim() === ''
             ? ''
             : normalizeGameSlug(rawSlug);
+        const activeGame = slugOrRun && typeof slugOrRun === 'object' ? slugOrRun : null;
+        let gameTitle = '';
+
+        if (gameSlug) {
+            if (activeGame && String(activeGame.title || '').trim() !== '') {
+                gameTitle = String(activeGame.title);
+            } else if (ctx && ctx.catalogEntries && ctx.catalogEntries[gameSlug] && String(ctx.catalogEntries[gameSlug].title || '').trim() !== '') {
+                gameTitle = String(ctx.catalogEntries[gameSlug].title);
+            } else if (ctx && ctx.catalogCards && ctx.catalogCards[gameSlug] && String(ctx.catalogCards[gameSlug].title || '').trim() !== '') {
+                gameTitle = String(ctx.catalogCards[gameSlug].title);
+            }
+        }
+
         if (ctx && ctx.$stage && ctx.$stage.length) {
             ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
         }
@@ -2716,6 +2729,20 @@
         }
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
             ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
+        }
+        if (ctx && ctx.$catalogBackLabel && ctx.$catalogBackLabel.length) {
+            ctx.$catalogBackLabel.text(gameSlug ? String(ctx.i18n.gamesBack || 'Games') : String(ctx.catalogBackDefaultLabel || ''));
+        }
+        if (ctx && ctx.$catalogBackLink && ctx.$catalogBackLink.length) {
+            ctx.$catalogBackLink.attr(
+                'aria-label',
+                gameSlug
+                    ? String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+                    : String(ctx.catalogBackDefaultAriaLabel || '')
+            );
+        }
+        if (ctx && ctx.$pageTitle && ctx.$pageTitle.length) {
+            ctx.$pageTitle.text(gameSlug ? gameTitle : String(ctx.catalogPageDefaultTitle || ''));
         }
     }
 
@@ -4171,7 +4198,7 @@
             showCatalog(ctx);
         });
 
-        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-close], [data-ll-wordset-game-return]', function (event) {
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-return]', function (event) {
             event.preventDefault();
             showCatalog(ctx);
         });
@@ -4314,6 +4341,7 @@
             catalogCards[slug] = {
                 slug: slug,
                 $card: $card,
+                title: String($card.find('.ll-wordset-game-card__title').first().text() || ''),
                 $status: $card.find('[data-ll-wordset-game-status]').first(),
                 $count: $card.find('[data-ll-wordset-game-count]').first(),
                 $launchButton: $card.find('[data-ll-wordset-game-launch]').first()
@@ -4374,9 +4402,14 @@
             $page: $page,
             $gamesRoot: $gamesRoot,
             $catalogBackLink: $page.find('[data-ll-wordset-games-back]').first(),
+            $catalogBackLabel: $page.find('[data-ll-wordset-games-back-label]').first(),
+            $pageTitle: $page.find('[data-ll-wordset-games-page-title]').first(),
             $catalog: $gamesRoot.find('[data-ll-wordset-games-catalog]').first(),
             catalogCards: catalogCards,
             catalogOrder: catalogOrder,
+            catalogBackDefaultLabel: String($page.find('[data-ll-wordset-games-back-label]').first().text() || ''),
+            catalogBackDefaultAriaLabel: String($page.find('[data-ll-wordset-games-back]').first().attr('aria-label') || ''),
+            catalogPageDefaultTitle: String($page.find('[data-ll-wordset-games-page-title]').first().text() || ''),
             defaultCatalogSlug: defaultCatalogSlug,
             catalogEntries: {},
             activeGameSlug: '',

@@ -3944,9 +3944,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+                    <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_term->name); ?></span>
                 </a>
-                <h1 class="ll-wordset-title"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></h1>
+                <h1 class="ll-wordset-title" data-ll-wordset-games-page-title><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></h1>
             </header>
 
             <section class="ll-wordset-games-page" data-ll-wordset-games-root>
@@ -4005,14 +4005,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
                 <section class="ll-wordset-game-stage" data-ll-wordset-game-stage data-ll-wordset-active-game="" hidden>
                     <div class="ll-wordset-game-stage__hud">
-                        <button
-                            type="button"
-                            class="ll-wordset-game-stage__nav"
-                            data-ll-wordset-game-close
-                            aria-label="<?php echo esc_attr__('Back to games', 'll-tools-text-domain'); ?>">
-                            <span aria-hidden="true">&larr;</span>
-                            <span><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
-                        </button>
                         <div class="ll-wordset-game-stage__stats">
                             <span class="ll-wordset-game-stage__stat">
                                 <span class="screen-reader-text"><?php echo esc_html__('Coins', 'll-tools-text-domain'); ?></span>
