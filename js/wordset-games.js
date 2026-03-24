@@ -95,6 +95,11 @@
         return Math.min(CARD_RATIO_MAX, Math.max(CARD_RATIO_MIN, num));
     }
 
+    function easeOutCubic(progress) {
+        const clamped = clamp(progress, 0, 1);
+        return 1 - Math.pow(1 - clamped, 3);
+    }
+
     function shuffle(list) {
         const copy = Array.isArray(list) ? list.slice() : [];
         for (let index = copy.length - 1; index > 0; index -= 1) {
@@ -1026,12 +1031,15 @@
             promptId: toInt(promptId),
             laneIndex: laneIndex,
             x: laneCenterX(run, laneIndex),
-            y: (dimensions.height / 2) - (run.cardSpeed * 0.24),
+            y: -dimensions.height,
             width: dimensions.width,
             height: dimensions.height,
             aspectRatio: dimensions.aspectRatio,
             entryOffsetFactor: baseOffset,
             entryRevealMs: 0,
+            entryStartedAt: 0,
+            entryStartY: -dimensions.height,
+            entryVisibleY: dimensions.height / 2,
             speed: run.cardSpeed,
             isTarget: !!isTarget,
             resolvedFalling: false,
@@ -1042,9 +1050,9 @@
     }
 
     function getCardEntryRevealMs(ctx, card) {
-        const maxRevealMs = Math.max(140, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.cardEntryRevealMs) || 300);
+        const maxRevealMs = Math.max(180, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.cardEntryRevealMs) || 420);
         const baseOffset = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
-        return Math.min(maxRevealMs, 160 + Math.round(baseOffset * 120));
+        return Math.min(maxRevealMs, 280 + Math.round(baseOffset * 120));
     }
 
     function buildCompatiblePromptWordSet(targetWord, pool, requiredCount) {
@@ -1821,11 +1829,15 @@
             }
         }
 
+        const promptStartedAt = currentTimestamp();
         candidate.cards.forEach(function (card) {
             const entryRevealMs = getCardEntryRevealMs(ctx, card);
-            const hiddenDistance = promptCardSpeed * (entryRevealMs / 1000);
+            const hiddenDistance = Math.max(card.height * 0.78, promptCardSpeed * (entryRevealMs / 1000));
             card.entryRevealMs = entryRevealMs;
-            card.y = (card.height / 2) - hiddenDistance;
+            card.entryStartedAt = promptStartedAt;
+            card.entryStartY = (card.height / 2) - hiddenDistance;
+            card.entryVisibleY = card.height / 2;
+            card.y = card.entryStartY;
             card.speed = promptCardSpeed;
         });
 
@@ -2136,6 +2148,16 @@
 
         run.cards.forEach(function (card) {
             if (!card.exploding) {
+                if (!card.resolvedFalling && card.entryRevealMs > 0) {
+                    const elapsedMs = Math.max(0, now - Number(card.entryStartedAt || 0));
+                    if (elapsedMs < card.entryRevealMs) {
+                        const easedProgress = easeOutCubic(elapsedMs / card.entryRevealMs);
+                        card.y = card.entryStartY + ((card.entryVisibleY - card.entryStartY) * easedProgress);
+                        return;
+                    }
+                    card.entryRevealMs = 0;
+                    card.y = card.entryVisibleY;
+                }
                 card.y += card.speed * dt;
             }
         });
@@ -2690,7 +2712,7 @@
                 timeoutCoinPenalty: Math.max(0, toInt(spaceShooter.timeoutCoinPenalty) || 1),
                 timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
                 assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
-                cardEntryRevealMs: Math.max(140, toInt(spaceShooter.cardEntryRevealMs) || 300),
+                cardEntryRevealMs: Math.max(180, toInt(spaceShooter.cardEntryRevealMs) || 420),
                 promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
                 correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
                 wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),
