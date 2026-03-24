@@ -72,9 +72,11 @@
     let analyticsWordRenderTimer = null;
     let analyticsWordLoadingTimer = null;
     let analyticsWordRenderToken = 0;
+    let progressWordChunkTask = null;
     let analyticsCategoryRenderTimer = null;
     let analyticsCategoryLoadingTimer = null;
     let analyticsCategoryRenderToken = 0;
+    let progressCategoryChunkTask = null;
     let pendingProgressAnalyticsRefreshAfterClose = false;
     let pendingProgressAnalyticsRefreshOptions = null;
     let chunkSession = null;
@@ -2809,6 +2811,197 @@
         $progressCategorySearchLoading.prop('hidden', !isLoading);
     }
 
+    function cancelScheduledProgressTask(task) {
+        if (!task || typeof task !== 'object') {
+            return;
+        }
+        if (task.type === 'idle' && window.cancelIdleCallback) {
+            window.cancelIdleCallback(task.id);
+            return;
+        }
+        if (task.type === 'raf' && window.cancelAnimationFrame) {
+            window.cancelAnimationFrame(task.id);
+            return;
+        }
+        clearTimeout(task.id);
+    }
+
+    function scheduleProgressDeferredTask(callback, delayMs) {
+        const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+        if (delay > 0) {
+            return {
+                type: 'timeout',
+                id: setTimeout(callback, delay)
+            };
+        }
+        if (window.requestIdleCallback) {
+            return {
+                type: 'idle',
+                id: window.requestIdleCallback(function () {
+                    callback();
+                }, { timeout: 120 })
+            };
+        }
+        if (window.requestAnimationFrame) {
+            return {
+                type: 'raf',
+                id: window.requestAnimationFrame(function () {
+                    callback();
+                })
+            };
+        }
+        return {
+            type: 'timeout',
+            id: setTimeout(callback, 16)
+        };
+    }
+
+    function clearProgressWordChunkTask() {
+        if (!progressWordChunkTask) {
+            return;
+        }
+        cancelScheduledProgressTask(progressWordChunkTask.handle);
+        progressWordChunkTask = null;
+    }
+
+    function clearProgressCategoryChunkTask() {
+        if (!progressCategoryChunkTask) {
+            return;
+        }
+        cancelScheduledProgressTask(progressCategoryChunkTask.handle);
+        progressCategoryChunkTask = null;
+    }
+
+    function clearProgressWordChunkTaskForToken(token) {
+        const currentToken = parseInt(token, 10) || 0;
+        if (!progressWordChunkTask || progressWordChunkTask.token !== currentToken) {
+            return;
+        }
+        cancelScheduledProgressTask(progressWordChunkTask.handle);
+        progressWordChunkTask = null;
+    }
+
+    function clearProgressCategoryChunkTaskForToken(token) {
+        const currentToken = parseInt(token, 10) || 0;
+        if (!progressCategoryChunkTask || progressCategoryChunkTask.token !== currentToken) {
+            return;
+        }
+        cancelScheduledProgressTask(progressCategoryChunkTask.handle);
+        progressCategoryChunkTask = null;
+    }
+
+    function setProgressWordChunkTask(task, token) {
+        const currentToken = parseInt(token, 10) || 0;
+        if (!task) {
+            if (!progressWordChunkTask || progressWordChunkTask.token === currentToken) {
+                progressWordChunkTask = null;
+            }
+            return;
+        }
+        progressWordChunkTask = {
+            token: currentToken,
+            handle: task
+        };
+    }
+
+    function setProgressCategoryChunkTask(task, token) {
+        const currentToken = parseInt(token, 10) || 0;
+        if (!task) {
+            if (!progressCategoryChunkTask || progressCategoryChunkTask.token === currentToken) {
+                progressCategoryChunkTask = null;
+            }
+            return;
+        }
+        progressCategoryChunkTask = {
+            token: currentToken,
+            handle: task
+        };
+    }
+
+    function getProgressTableInitialRowCount(kind) {
+        const key = String(kind || '').trim().toLowerCase();
+        const viewport = Math.max(360, window.innerHeight || 0);
+        if (key === 'categories') {
+            return Math.max(12, Math.ceil(viewport / 72) + 6);
+        }
+        return Math.max(16, Math.ceil(viewport / 88) + 8);
+    }
+
+    function getProgressTableChunkSize(kind) {
+        return String(kind || '').trim().toLowerCase() === 'categories' ? 20 : 28;
+    }
+
+    function renderProgressRowsProgressively(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const $body = opts.$body;
+        const bodyEl = $body && $body.length ? $body[0] : null;
+        const rows = Array.isArray(opts.rows) ? opts.rows : [];
+        const buildRow = typeof opts.buildRow === 'function' ? opts.buildRow : null;
+        const onDone = typeof opts.onDone === 'function' ? opts.onDone : function () {};
+        const getToken = typeof opts.getToken === 'function' ? opts.getToken : function () { return 0; };
+        const clearAnyTask = typeof opts.clearAnyTask === 'function' ? opts.clearAnyTask : function () {};
+        const clearTaskForToken = typeof opts.clearTaskForToken === 'function' ? opts.clearTaskForToken : function () {};
+        const setTask = typeof opts.setTask === 'function' ? opts.setTask : function () {};
+        const initialCount = Math.max(1, parseInt(opts.initialCount, 10) || 1);
+        const chunkSize = Math.max(1, parseInt(opts.chunkSize, 10) || 1);
+        const token = parseInt(opts.token, 10) || 0;
+
+        if (!bodyEl || !buildRow) {
+            onDone();
+            return;
+        }
+
+        clearAnyTask();
+        let index = 0;
+        bodyEl.setAttribute('aria-busy', 'true');
+
+        const finalize = function () {
+            if (token === getToken() && bodyEl.getAttribute('aria-busy') === 'true') {
+                bodyEl.removeAttribute('aria-busy');
+            }
+            clearTaskForToken(token);
+            setTask(null, token);
+            onDone();
+        };
+
+        const appendBatch = function (count) {
+            if (token !== getToken()) {
+                finalize();
+                return false;
+            }
+            const fragment = document.createDocumentFragment();
+            const max = Math.min(rows.length, index + Math.max(1, count));
+            for (; index < max; index += 1) {
+                const node = buildRow(rows[index], index);
+                if (node) {
+                    fragment.appendChild(node);
+                }
+            }
+            bodyEl.appendChild(fragment);
+            if (index >= rows.length) {
+                finalize();
+                return false;
+            }
+            return true;
+        };
+
+        if (!appendBatch(initialCount)) {
+            return;
+        }
+
+        const queueNext = function () {
+            setTask(scheduleProgressDeferredTask(function () {
+                setTask(null, token);
+                if (!appendBatch(chunkSize)) {
+                    return;
+                }
+                queueNext();
+            }, 0), token);
+        };
+
+        queueNext();
+    }
+
     function scheduleProgressWordTableRender(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const shouldShowLoading = !!opts.showLoading;
@@ -2829,7 +3022,7 @@
 
         analyticsWordRenderTimer = setTimeout(function () {
             if (token !== analyticsWordRenderToken) { return; }
-            renderProgressWordTable();
+            renderProgressWordTable({ token: token });
             clearTimeout(analyticsWordLoadingTimer);
             analyticsWordLoadingTimer = null;
             setProgressWordLoading(false);
@@ -2856,7 +3049,7 @@
 
         analyticsCategoryRenderTimer = setTimeout(function () {
             if (token !== analyticsCategoryRenderToken) { return; }
-            renderProgressCategoryTable();
+            renderProgressCategoryTable({ token: token });
             clearTimeout(analyticsCategoryLoadingTimer);
             analyticsCategoryLoadingTimer = null;
             setProgressCategoryLoading(false);
@@ -3473,9 +3666,165 @@
         return $wrap;
     }
 
-    function renderProgressCategoryTable() {
+    function buildProgressCategoryRowElement(row, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const renderGenderTable = !!opts.renderGenderTable;
+        const metrics = analyticsCategoryWordProgress(row);
+        const genderMetrics = analyticsCategoryGenderProgress(row);
+        const $tr = $('<tr>');
+        const $categoryCell = $('<td>');
+        const meta = categoryMetaById(row.id);
+        const categoryUrl = String(meta && meta.url || '').trim();
+        const categoryLabel = String(row.label || (meta && meta.label) || '').trim();
+        const preview = (meta && Array.isArray(meta.preview)) ? meta.preview.slice(0, 2) : [];
+        const $categoryWrap = $('<div>', { class: 'll-wordset-progress-category-cell' });
+        const $thumbs = $('<span>', { class: 'll-wordset-progress-category-thumbs' });
+
+        preview.forEach(function (item) {
+            const entry = (item && typeof item === 'object') ? item : {};
+            const type = String(entry.type || '').toLowerCase();
+            const $thumb = $('<span>', {
+                class: 'll-wordset-progress-category-thumb' + (type === 'image' && entry.url ? ' is-image' : '')
+            });
+            if (type === 'image' && entry.url) {
+                const $img = $('<img>', {
+                    src: String(entry.url),
+                    alt: String(entry.alt || categoryLabel || ''),
+                    loading: 'lazy',
+                    decoding: 'async',
+                    fetchpriority: 'low'
+                });
+                $img.appendTo($thumb);
+                if ($img[0]) {
+                    bindWordsetThumbImageLoadState($img[0]);
+                }
+            } else {
+                $('<span>', {
+                    class: 'll-wordset-progress-category-thumb-text',
+                    dir: 'auto',
+                    text: String(entry.label || '').trim().slice(0, 2)
+                }).appendTo($thumb);
+            }
+            $thumbs.append($thumb);
+        });
+
+        if ($thumbs.children().length) {
+            $categoryWrap.append($thumbs);
+        }
+        if (categoryUrl) {
+            $('<a>', {
+                class: 'll-wordset-progress-category-link',
+                href: categoryUrl,
+                dir: 'auto',
+                text: categoryLabel
+            }).appendTo($categoryWrap);
+        } else {
+            $('<span>', { dir: 'auto', text: categoryLabel }).appendTo($categoryWrap);
+        }
+
+        if (!renderGenderTable && progressResetIsEnabled() && row.id > 0 && analyticsCategoryHasRecordedProgress(row)) {
+            const resetActionUrl = String(progressResetCfg.actionUrl || '').trim();
+            const resetNonce = String(progressResetCfg.nonce || '').trim();
+            const resetWordsetId = parseInt(progressResetCfg.wordsetId, 10) || 0;
+            const resetCategoryId = parseInt(row.id, 10) || 0;
+            if (resetActionUrl && resetNonce && resetWordsetId > 0 && resetCategoryId > 0) {
+                const categoryNameForMessages = String(categoryLabel || (i18n.categoriesLabel || 'category')).trim() || 'category';
+                const resetConfirmMessage = formatTemplate(
+                    i18n.progressResetCategoryConfirm || 'This will permanently delete your progress for %s. This cannot be undone. Continue?',
+                    [categoryNameForMessages]
+                );
+                const resetAriaLabel = formatTemplate(
+                    i18n.progressResetCategoryAria || 'Reset progress for %s',
+                    [categoryNameForMessages]
+                );
+
+                const $categoryResetForm = $('<form>', {
+                    class: 'll-wordset-progress-category-reset-form',
+                    method: 'post',
+                    action: resetActionUrl,
+                    'data-ll-wordset-progress-reset-form': '1',
+                    'data-confirm': resetConfirmMessage
+                });
+
+                $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_action', value: 'category' }).appendTo($categoryResetForm);
+                $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_nonce', value: resetNonce }).appendTo($categoryResetForm);
+                $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_wordset_id', value: String(resetWordsetId) }).appendTo($categoryResetForm);
+                $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_category_id', value: String(resetCategoryId) }).appendTo($categoryResetForm);
+
+                $('<button>', {
+                    type: 'submit',
+                    class: 'll-wordset-progress-category-reset-button',
+                    title: resetAriaLabel,
+                    'aria-label': resetAriaLabel,
+                    html: buildProgressResetIconMarkup('ll-wordset-progress-category-reset-icon')
+                }).appendTo($categoryResetForm);
+
+                $categoryWrap.append($categoryResetForm);
+            }
+        }
+        $categoryCell.append($categoryWrap).appendTo($tr);
+
+        const $progressCell = $('<td>');
+        if (renderGenderTable) {
+            $progressCell.append(buildGenderProgressBreakdown(genderMetrics, {
+                compact: true
+            }));
+            $progressCell.appendTo($tr);
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--tracked',
+                text: String(Math.max(0, parseInt(genderMetrics.tracked_word_total, 10) || 0))
+            }).appendTo($tr);
+        } else {
+            const progressTitle = [
+                String(metrics.mastered) + ' ' + (i18n.analyticsMastered || 'Learned'),
+                String(metrics.studied) + ' ' + (i18n.analyticsStudied || 'In progress'),
+                String(metrics.newWords) + ' ' + (i18n.analyticsNew || 'New')
+            ].join(' · ');
+            const $progressMini = $('<span>', {
+                class: 'll-wordset-progress-mini ll-wordset-progress-mini--static',
+                title: progressTitle
+            });
+            [
+                { key: 'mastered', value: metrics.mastered },
+                { key: 'studied', value: metrics.studied },
+                { key: 'new', value: metrics.newWords }
+            ].forEach(function (pill) {
+                const icon = buildProgressIconMarkup(pill.key, 'll-wordset-progress-pill__icon');
+                const $pill = $('<span>', {
+                    class: 'll-wordset-progress-pill ll-wordset-progress-pill--' + pill.key
+                });
+                $pill.append(icon);
+                $('<span>', { class: 'll-wordset-progress-pill__value', text: String(pill.value) }).appendTo($pill);
+                $progressMini.append($pill);
+            });
+            $progressCell.append($progressMini);
+            $progressCell.appendTo($tr);
+            $('<td>').append(renderProgressActivityPills(row)).appendTo($tr);
+        }
+
+        const categoryLastSource = renderGenderTable ? genderMetrics.last_seen_at : row.last_seen_at;
+        const categoryLastFull = formatAnalyticsLastSeen(categoryLastSource);
+        const categoryLastDate = formatAnalyticsLastSeenDate(categoryLastSource);
+        const $categoryLastCell = $('<td>', { class: 'll-wordset-progress-last-cell' });
+        $('<span>', { class: 'll-wordset-progress-last-full', text: categoryLastFull }).appendTo($categoryLastCell);
+        $('<span>', { class: 'll-wordset-progress-last-date', text: categoryLastDate }).appendTo($categoryLastCell);
+        $categoryLastCell.appendTo($tr);
+
+        return $tr[0];
+    }
+
+    function renderProgressCategoryTable(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const token = parseInt(opts.token, 10) || (++analyticsCategoryRenderToken);
         if (!$progressCategoryRows.length) { return; }
-        $progressCategoryRows.empty();
+
+        clearTimeout(analyticsCategoryRenderTimer);
+        analyticsCategoryRenderTimer = null;
+        clearTimeout(analyticsCategoryLoadingTimer);
+        analyticsCategoryLoadingTimer = null;
+        clearProgressCategoryChunkTask();
+
+        $progressCategoryRows.empty().removeAttr('aria-busy');
         const rows = buildProgressCategoryRowsForDisplay();
         if (!rows.length) {
             $('<tr>').append(
@@ -3484,142 +3833,24 @@
             return;
         }
 
-        rows.forEach(function (row) {
-            const metrics = analyticsCategoryWordProgress(row);
-            const genderMetrics = analyticsCategoryGenderProgress(row);
-            const renderGenderTable = isGenderProgressViewActive();
-            const $tr = $('<tr>');
-            const $categoryCell = $('<td>');
-            const meta = categoryMetaById(row.id);
-            const categoryUrl = String(meta && meta.url || '').trim();
-            const categoryLabel = String(row.label || (meta && meta.label) || '').trim();
-            const preview = (meta && Array.isArray(meta.preview)) ? meta.preview.slice(0, 2) : [];
-            const $categoryWrap = $('<div>', { class: 'll-wordset-progress-category-cell' });
-            const $thumbs = $('<span>', { class: 'll-wordset-progress-category-thumbs' });
-            preview.forEach(function (item) {
-                const entry = (item && typeof item === 'object') ? item : {};
-                const type = String(entry.type || '').toLowerCase();
-                const $thumb = $('<span>', { class: 'll-wordset-progress-category-thumb' + (type === 'image' && entry.url ? ' is-image' : '') });
-                if (type === 'image' && entry.url) {
-                    $('<img>', {
-                        src: String(entry.url),
-                        alt: String(entry.alt || categoryLabel || ''),
-                        loading: 'lazy',
-                        decoding: 'async',
-                        fetchpriority: 'low'
-                    }).appendTo($thumb);
-                } else {
-                    $('<span>', {
-                        class: 'll-wordset-progress-category-thumb-text',
-                        dir: 'auto',
-                        text: String(entry.label || '').trim().slice(0, 2)
-                    }).appendTo($thumb);
-                }
-                $thumbs.append($thumb);
-            });
-            if ($thumbs.children().length) {
-                $categoryWrap.append($thumbs);
-            }
-            if (categoryUrl) {
-                $('<a>', {
-                    class: 'll-wordset-progress-category-link',
-                    href: categoryUrl,
-                    dir: 'auto',
-                    text: categoryLabel
-                }).appendTo($categoryWrap);
-            } else {
-                $('<span>', { dir: 'auto', text: categoryLabel }).appendTo($categoryWrap);
-            }
-
-            if (!renderGenderTable && progressResetIsEnabled() && row.id > 0 && analyticsCategoryHasRecordedProgress(row)) {
-                const resetActionUrl = String(progressResetCfg.actionUrl || '').trim();
-                const resetNonce = String(progressResetCfg.nonce || '').trim();
-                const resetWordsetId = parseInt(progressResetCfg.wordsetId, 10) || 0;
-                const resetCategoryId = parseInt(row.id, 10) || 0;
-                if (resetActionUrl && resetNonce && resetWordsetId > 0 && resetCategoryId > 0) {
-                    const categoryNameForMessages = String(categoryLabel || (i18n.categoriesLabel || 'category')).trim() || 'category';
-                    const resetConfirmMessage = formatTemplate(
-                        i18n.progressResetCategoryConfirm || 'This will permanently delete your progress for %s. This cannot be undone. Continue?',
-                        [categoryNameForMessages]
-                    );
-                    const resetAriaLabel = formatTemplate(
-                        i18n.progressResetCategoryAria || 'Reset progress for %s',
-                        [categoryNameForMessages]
-                    );
-
-                    const $categoryResetForm = $('<form>', {
-                        class: 'll-wordset-progress-category-reset-form',
-                        method: 'post',
-                        action: resetActionUrl,
-                        'data-ll-wordset-progress-reset-form': '1',
-                        'data-confirm': resetConfirmMessage
-                    });
-
-                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_action', value: 'category' }).appendTo($categoryResetForm);
-                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_nonce', value: resetNonce }).appendTo($categoryResetForm);
-                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_wordset_id', value: String(resetWordsetId) }).appendTo($categoryResetForm);
-                    $('<input>', { type: 'hidden', name: 'll_wordset_progress_reset_category_id', value: String(resetCategoryId) }).appendTo($categoryResetForm);
-
-                    $('<button>', {
-                        type: 'submit',
-                        class: 'll-wordset-progress-category-reset-button',
-                        title: resetAriaLabel,
-                        'aria-label': resetAriaLabel,
-                        html: buildProgressResetIconMarkup('ll-wordset-progress-category-reset-icon')
-                    }).appendTo($categoryResetForm);
-
-                    $categoryWrap.append($categoryResetForm);
-                }
-            }
-            $categoryCell.append($categoryWrap).appendTo($tr);
-
-            const $progressCell = $('<td>');
-            if (renderGenderTable) {
-                $progressCell.append(buildGenderProgressBreakdown(genderMetrics, {
-                    compact: true
-                }));
-                $progressCell.appendTo($tr);
-                $('<td>', {
-                    class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--tracked',
-                    text: String(Math.max(0, parseInt(genderMetrics.tracked_word_total, 10) || 0))
-                }).appendTo($tr);
-            } else {
-                const progressTitle = [
-                    String(metrics.mastered) + ' ' + (i18n.analyticsMastered || 'Learned'),
-                    String(metrics.studied) + ' ' + (i18n.analyticsStudied || 'In progress'),
-                    String(metrics.newWords) + ' ' + (i18n.analyticsNew || 'New')
-                ].join(' · ');
-                const $progressMini = $('<span>', {
-                    class: 'll-wordset-progress-mini ll-wordset-progress-mini--static',
-                    title: progressTitle
+        const renderGenderTable = isGenderProgressViewActive();
+        renderProgressRowsProgressively({
+            $body: $progressCategoryRows,
+            rows: rows,
+            buildRow: function (row) {
+                return buildProgressCategoryRowElement(row, {
+                    renderGenderTable: renderGenderTable
                 });
-                const progressPills = [
-                    { key: 'mastered', value: metrics.mastered },
-                    { key: 'studied', value: metrics.studied },
-                    { key: 'new', value: metrics.newWords }
-                ];
-                progressPills.forEach(function (pill) {
-                    const icon = buildProgressIconMarkup(pill.key, 'll-wordset-progress-pill__icon');
-                    const $pill = $('<span>', {
-                        class: 'll-wordset-progress-pill ll-wordset-progress-pill--' + pill.key
-                    });
-                    $pill.append(icon);
-                    $('<span>', { class: 'll-wordset-progress-pill__value', text: String(pill.value) }).appendTo($pill);
-                    $progressMini.append($pill);
-                });
-                $progressCell.append($progressMini);
-                $progressCell.appendTo($tr);
-                $('<td>').append(renderProgressActivityPills(row)).appendTo($tr);
-            }
-
-            const categoryLastSource = renderGenderTable ? genderMetrics.last_seen_at : row.last_seen_at;
-            const categoryLastFull = formatAnalyticsLastSeen(categoryLastSource);
-            const categoryLastDate = formatAnalyticsLastSeenDate(categoryLastSource);
-            const $categoryLastCell = $('<td>', { class: 'll-wordset-progress-last-cell' });
-            $('<span>', { class: 'll-wordset-progress-last-full', text: categoryLastFull }).appendTo($categoryLastCell);
-            $('<span>', { class: 'll-wordset-progress-last-date', text: categoryLastDate }).appendTo($categoryLastCell);
-            $categoryLastCell.appendTo($tr);
-            $progressCategoryRows.append($tr);
+            },
+            getToken: function () {
+                return analyticsCategoryRenderToken;
+            },
+            clearAnyTask: clearProgressCategoryChunkTask,
+            clearTaskForToken: clearProgressCategoryChunkTaskForToken,
+            setTask: setProgressCategoryChunkTask,
+            initialCount: getProgressTableInitialRowCount('categories'),
+            chunkSize: getProgressTableChunkSize('categories'),
+            token: token
         });
     }
 
@@ -3879,162 +4110,237 @@
         });
     }
 
-    function renderProgressWordTable() {
+    function buildProgressWordRowElement(row, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const renderGenderTable = !!opts.renderGenderTable;
+        const selectedLookup = (opts.selectedLookup && typeof opts.selectedLookup === 'object')
+            ? opts.selectedLookup
+            : {};
+        const rowId = parseInt(row && row.id, 10) || 0;
+        const isSelected = !!selectedLookup[rowId];
+        const isStarred = isWordStarred(rowId);
+        const starLabel = isStarred ? (i18n.analyticsUnstarWord || 'Unstar word') : (i18n.analyticsStarWord || 'Star word');
+        const $tr = $('<tr>', {
+            'data-word-id': rowId,
+            class: isSelected ? 'is-selected' : ''
+        });
+
+        const $starCell = $('<td>');
+        $('<button>', {
+            type: 'button',
+            class: 'll-wordset-progress-star ll-tools-star-button' + (isStarred ? ' active' : ''),
+            'data-ll-wordset-progress-word-star': rowId,
+            'aria-pressed': isStarred ? 'true' : 'false',
+            'aria-label': starLabel,
+            title: starLabel
+        }).appendTo($starCell);
+        $starCell.appendTo($tr);
+
+        const primaryWord = String(row.title || '').trim();
+        const secondaryWord = String(row.translation || '').trim();
+        const imageUrl = String(row.image || '').trim();
+        const $wordCell = $('<td>');
+        const $wordContent = $('<div>', {
+            class: 'll-wordset-progress-word-cell'
+                + (imageUrl ? ' ll-wordset-progress-word-cell--has-thumb' : ' ll-wordset-progress-word-cell--text-only')
+        });
+        if (imageUrl) {
+            const $wordThumb = $('<span>', { class: 'll-wordset-progress-word-thumb' });
+            const $img = $('<img>', {
+                src: imageUrl,
+                alt: primaryWord || secondaryWord || '',
+                loading: 'lazy',
+                decoding: 'async',
+                fetchpriority: 'low'
+            });
+            $img.appendTo($wordThumb);
+            if ($img[0]) {
+                bindWordsetThumbImageLoadState($img[0]);
+            }
+            $wordContent.append($wordThumb);
+        }
+        const $wordBody = $('<div>', { class: 'll-wordset-progress-word-body' });
+        const $wordMain = $('<div>', { class: 'll-wordset-progress-word-main' });
+        $('<span>', {
+            class: 'll-wordset-progress-word-main-text',
+            dir: 'auto',
+            text: protectMaqafNoBreak(primaryWord)
+        }).appendTo($wordMain);
+        $('<span>', {
+            class: 'll-wordset-progress-word-main-sub',
+            dir: 'auto',
+            text: protectMaqafNoBreak(secondaryWord)
+        }).appendTo($wordMain);
+        $wordBody.append($wordMain);
+        $wordContent.append($wordBody);
+        const $audioButton = buildProgressWordAudioButton(row);
+        if ($audioButton.length) {
+            $('<div>', { class: 'll-wordset-progress-word-audio-row' })
+                .append($audioButton)
+                .appendTo($wordContent);
+        }
+        $wordCell.append($wordContent).appendTo($tr);
+
+        const $categoryCell = $('<td>');
+        const categoryIds = Array.isArray(row.category_ids) ? row.category_ids : [];
+        const categoryLabels = Array.isArray(row.category_labels) ? row.category_labels : [];
+        let renderedCategories = 0;
+        categoryIds.forEach(function (categoryId, index) {
+            const cid = parseInt(categoryId, 10) || 0;
+            if (!cid) { return; }
+            const meta = categoryMetaById(cid);
+            const label = String(categoryLabels[index] || (meta && meta.label) || '').trim();
+            if (!label) { return; }
+            if (renderedCategories > 0) {
+                $categoryCell.append(document.createTextNode(', '));
+            }
+            const url = String(meta && meta.url || '').trim();
+            if (url) {
+                $('<a>', {
+                    class: 'll-wordset-progress-category-link',
+                    href: url,
+                    dir: 'auto',
+                    text: label
+                }).appendTo($categoryCell);
+            } else {
+                $('<span>', { dir: 'auto', text: label }).appendTo($categoryCell);
+            }
+            renderedCategories += 1;
+        });
+        if (!renderedCategories) {
+            $('<span>', { dir: 'auto', text: row.category_label || '' }).appendTo($categoryCell);
+        }
+        $categoryCell.appendTo($tr);
+
+        const $statusCell = $('<td>');
+        if (renderGenderTable) {
+            $statusCell.append(buildGenderWordLabelPill(row));
+        } else {
+            const iconKey = (row.status === 'mastered') ? 'mastered' : ((row.status === 'studied') ? 'studied' : 'new');
+            const statusHtml = buildProgressIconMarkup(iconKey, 'll-wordset-progress-status-icon');
+            $('<span>', {
+                class: 'll-wordset-progress-status-pill ll-wordset-progress-status-pill--' + iconKey,
+                html: statusHtml + '<span class="ll-wordset-progress-status-label">' + escapeHtml(analyticsStatusLabel(row.status)) + '</span>'
+            }).appendTo($statusCell);
+        }
+        $statusCell.appendTo($tr);
+
+        if (renderGenderTable) {
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--difficulty ll-wordset-progress-num-cell--gender-level'
+            }).append(buildGenderLevelPill(row)).appendTo($tr);
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--seen',
+                text: analyticsWordGenderSeen(row)
+            }).appendTo($tr);
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--wrong ll-wordset-progress-col--wrong',
+                text: ''
+            }).appendTo($tr);
+        } else {
+            const difficulty = analyticsWordDifficulty(row);
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--difficulty'
+                    + (analyticsWordIsDifficult(row) ? ' is-difficult' : ''),
+                text: difficulty
+            }).appendTo($tr);
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--seen',
+                text: analyticsWordSeen(row)
+            }).appendTo($tr);
+            $('<td>', {
+                class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--wrong ll-wordset-progress-col--wrong',
+                text: analyticsWordWrong(row)
+            }).appendTo($tr);
+        }
+
+        const lastSeenSource = renderGenderTable ? analyticsWordGenderProgress(row).last_seen_at : row.last_seen_at;
+        const wordLastFull = formatAnalyticsLastSeen(lastSeenSource);
+        const wordLastDate = formatAnalyticsLastSeenDate(lastSeenSource);
+        const $wordLastCell = $('<td>', { class: 'll-wordset-progress-last-cell' });
+        $('<span>', { class: 'll-wordset-progress-last-full', text: wordLastFull }).appendTo($wordLastCell);
+        $('<span>', { class: 'll-wordset-progress-last-date', text: wordLastDate }).appendTo($wordLastCell);
+        $wordLastCell.appendTo($tr);
+
+        return $tr[0];
+    }
+
+    function renderProgressWordTable(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const token = parseInt(opts.token, 10) || (++analyticsWordRenderToken);
         if (!$progressWordRows.length) { return; }
+
+        clearTimeout(analyticsWordRenderTimer);
+        analyticsWordRenderTimer = null;
+        clearTimeout(analyticsWordLoadingTimer);
+        analyticsWordLoadingTimer = null;
+        clearProgressWordChunkTask();
+
         stopProgressWordAudio();
-        $progressWordRows.empty();
+        $progressWordRows.empty().removeAttr('aria-busy');
+
         const rows = buildProgressWordRowsForDisplay();
         const renderGenderTable = isGenderProgressViewActive();
         const selectedLookup = {};
         getProgressSelectedWordIds().forEach(function (id) {
             selectedLookup[id] = true;
         });
+
+        syncProgressSelectionControls(rows);
         if (!rows.length) {
-            syncProgressSelectionControls([]);
             $('<tr>').append(
                 $('<td>', { colspan: 8, text: i18n.analyticsNoRows || 'No data yet.' })
             ).appendTo($progressWordRows);
             return;
         }
 
-        rows.forEach(function (row) {
-            const isStarred = isWordStarred(row.id);
-            const starLabel = isStarred ? (i18n.analyticsUnstarWord || 'Unstar word') : (i18n.analyticsStarWord || 'Star word');
-            const rowId = parseInt(row && row.id, 10) || 0;
-            const isSelected = !!selectedLookup[rowId];
-            const $tr = $('<tr>', {
-                'data-word-id': row.id,
-                class: isSelected ? 'is-selected' : ''
-            });
-
-            const $starCell = $('<td>');
-            $('<button>', {
-                type: 'button',
-                class: 'll-wordset-progress-star ll-tools-star-button' + (isStarred ? ' active' : ''),
-                'data-ll-wordset-progress-word-star': row.id,
-                'aria-pressed': isStarred ? 'true' : 'false',
-                'aria-label': starLabel,
-                title: starLabel
-            }).appendTo($starCell);
-            $starCell.appendTo($tr);
-
-            const primaryWord = String(row.title || '').trim();
-            const secondaryWord = String(row.translation || '').trim();
-            const $wordCell = $('<td>');
-            const imageUrl = String(row.image || '').trim();
-            const $wordContent = $('<div>', {
-                class: 'll-wordset-progress-word-cell' + (imageUrl ? ' ll-wordset-progress-word-cell--has-thumb' : ' ll-wordset-progress-word-cell--text-only')
-            });
-            if (imageUrl) {
-                const $wordThumb = $('<span>', { class: 'll-wordset-progress-word-thumb' });
-                $('<img>', {
-                    src: imageUrl,
-                    alt: primaryWord || secondaryWord || '',
-                    loading: 'lazy',
-                    decoding: 'async',
-                    fetchpriority: 'low'
-                }).appendTo($wordThumb);
-                $wordContent.append($wordThumb);
-            }
-            const $wordBody = $('<div>', { class: 'll-wordset-progress-word-body' });
-            const $wordMain = $('<div>', { class: 'll-wordset-progress-word-main' });
-            $('<span>', { class: 'll-wordset-progress-word-main-text', dir: 'auto', text: protectMaqafNoBreak(primaryWord) }).appendTo($wordMain);
-            $('<span>', { class: 'll-wordset-progress-word-main-sub', dir: 'auto', text: protectMaqafNoBreak(secondaryWord) }).appendTo($wordMain);
-            $wordBody.append($wordMain);
-            $wordContent.append($wordBody);
-            const $audioButton = buildProgressWordAudioButton(row);
-            if ($audioButton.length) {
-                $('<div>', { class: 'll-wordset-progress-word-audio-row' })
-                    .append($audioButton)
-                    .appendTo($wordContent);
-            }
-            $wordCell.append($wordContent).appendTo($tr);
-
-            const $categoryCell = $('<td>');
-            const categoryIds = Array.isArray(row.category_ids) ? row.category_ids : [];
-            const categoryLabels = Array.isArray(row.category_labels) ? row.category_labels : [];
-            let renderedCategories = 0;
-            categoryIds.forEach(function (categoryId, index) {
-                const cid = parseInt(categoryId, 10) || 0;
-                if (!cid) { return; }
-                const meta = categoryMetaById(cid);
-                const label = String(categoryLabels[index] || (meta && meta.label) || '').trim();
-                if (!label) { return; }
-                if (renderedCategories > 0) {
-                    $categoryCell.append(document.createTextNode(', '));
-                }
-                const url = String(meta && meta.url || '').trim();
-                if (url) {
-                    $('<a>', {
-                        class: 'll-wordset-progress-category-link',
-                        href: url,
-                        dir: 'auto',
-                        text: label
-                    }).appendTo($categoryCell);
-                } else {
-                    $('<span>', { dir: 'auto', text: label }).appendTo($categoryCell);
-                }
-                renderedCategories += 1;
-            });
-            if (!renderedCategories) {
-                $('<span>', { dir: 'auto', text: row.category_label || '' }).appendTo($categoryCell);
-            }
-            $categoryCell.appendTo($tr);
-
-            const $statusCell = $('<td>');
-            if (renderGenderTable) {
-                $statusCell.append(buildGenderWordLabelPill(row));
-            } else {
-                const iconKey = (row.status === 'mastered') ? 'mastered' : ((row.status === 'studied') ? 'studied' : 'new');
-                const statusHtml = buildProgressIconMarkup(iconKey, 'll-wordset-progress-status-icon');
-                $('<span>', {
-                    class: 'll-wordset-progress-status-pill ll-wordset-progress-status-pill--' + iconKey,
-                    html: statusHtml + '<span class="ll-wordset-progress-status-label">' + escapeHtml(analyticsStatusLabel(row.status)) + '</span>'
-                }).appendTo($statusCell);
-            }
-            $statusCell.appendTo($tr);
-
-            if (renderGenderTable) {
-                $('<td>', {
-                    class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--difficulty ll-wordset-progress-num-cell--gender-level'
-                }).append(buildGenderLevelPill(row)).appendTo($tr);
-                $('<td>', {
-                    class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--seen',
-                    text: analyticsWordGenderSeen(row)
-                }).appendTo($tr);
-                $('<td>', {
-                    class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--wrong ll-wordset-progress-col--wrong',
-                    text: ''
-                }).appendTo($tr);
-            } else {
-                const difficulty = analyticsWordDifficulty(row);
-                $('<td>', {
-                    class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--difficulty' + (analyticsWordIsDifficult(row) ? ' is-difficult' : ''),
-                    text: difficulty
-                }).appendTo($tr);
-                $('<td>', { class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--seen', text: analyticsWordSeen(row) }).appendTo($tr);
-                const wrong = analyticsWordWrong(row);
-                $('<td>', { class: 'll-wordset-progress-num-cell ll-wordset-progress-num-cell--wrong ll-wordset-progress-col--wrong', text: wrong }).appendTo($tr);
-            }
-            const lastSeenSource = renderGenderTable ? analyticsWordGenderProgress(row).last_seen_at : row.last_seen_at;
-            const wordLastFull = formatAnalyticsLastSeen(lastSeenSource);
-            const wordLastDate = formatAnalyticsLastSeenDate(lastSeenSource);
-            const $wordLastCell = $('<td>', { class: 'll-wordset-progress-last-cell' });
-            $('<span>', { class: 'll-wordset-progress-last-full', text: wordLastFull }).appendTo($wordLastCell);
-            $('<span>', { class: 'll-wordset-progress-last-date', text: wordLastDate }).appendTo($wordLastCell);
-            $wordLastCell.appendTo($tr);
-            $progressWordRows.append($tr);
+        renderProgressRowsProgressively({
+            $body: $progressWordRows,
+            rows: rows,
+            buildRow: function (row) {
+                return buildProgressWordRowElement(row, {
+                    renderGenderTable: renderGenderTable,
+                    selectedLookup: selectedLookup
+                });
+            },
+            getToken: function () {
+                return analyticsWordRenderToken;
+            },
+            clearAnyTask: clearProgressWordChunkTask,
+            clearTaskForToken: clearProgressWordChunkTaskForToken,
+            setTask: setProgressWordChunkTask,
+            initialCount: getProgressTableInitialRowCount('words'),
+            chunkSize: getProgressTableChunkSize('words'),
+            token: token
         });
-
-        syncProgressSelectionControls(rows);
     }
 
     function setProgressTab(nextTab, options) {
         if (!$progressRoot.length) { return; }
         const opts = (options && typeof options === 'object') ? options : {};
+        const previousTab = analyticsTab;
         analyticsTab = (nextTab === 'words') ? 'words' : 'categories';
         if (analyticsTab !== 'words') {
             stopProgressWordAudio();
+        }
+        if (analyticsTab === 'words') {
+            clearTimeout(analyticsCategoryRenderTimer);
+            analyticsCategoryRenderTimer = null;
+            clearTimeout(analyticsCategoryLoadingTimer);
+            analyticsCategoryLoadingTimer = null;
+            analyticsCategoryRenderToken += 1;
+            setProgressCategoryLoading(false);
+            clearProgressCategoryChunkTask();
+            $progressCategoryRows.removeAttr('aria-busy');
+        } else {
+            clearTimeout(analyticsWordRenderTimer);
+            analyticsWordRenderTimer = null;
+            clearTimeout(analyticsWordLoadingTimer);
+            analyticsWordLoadingTimer = null;
+            analyticsWordRenderToken += 1;
+            setProgressWordLoading(false);
+            clearProgressWordChunkTask();
+            $progressWordRows.removeAttr('aria-busy');
         }
         $progressTabButtons.each(function () {
             const tab = String($(this).attr('data-ll-wordset-progress-tab') || '');
@@ -4048,11 +4354,17 @@
         if (!opts.skipPersist) {
             writeProgressTabPreference(analyticsTab);
         }
-        if (analyticsTab === 'words') {
-            syncProgressSelectionControls(buildProgressWordRowsForDisplay());
-        } else if ($progressSelectionBar.length) {
+        if (analyticsTab !== 'words' && $progressSelectionBar.length) {
             $progressSelectionBar.prop('hidden', true);
         }
+        if (opts.skipRender || previousTab === analyticsTab) {
+            return;
+        }
+        if (analyticsTab === 'words') {
+            renderProgressWordTable();
+            return;
+        }
+        renderProgressCategoryTable();
     }
 
     function renderProgressAnalytics() {
@@ -4070,9 +4382,15 @@
         closeProgressFilterPops('');
         setProgressWordLoading(false);
         setProgressCategoryLoading(false);
-        renderProgressCategoryTable();
-        renderProgressWordTable();
-        setProgressTab(analyticsTab);
+        setProgressTab(analyticsTab, {
+            skipPersist: true,
+            skipRender: true
+        });
+        if (analyticsTab === 'words') {
+            renderProgressWordTable();
+        } else {
+            renderProgressCategoryTable();
+        }
         const hasRows = (Array.isArray(analytics.words) && analytics.words.length > 0) ||
             (Array.isArray(analytics.categories) && analytics.categories.length > 0);
         if (hasRows) {
@@ -4095,12 +4413,10 @@
             setProgressTableSortDefaults(nextMode);
         }
 
-        renderProgressAnalytics();
         if (opts.preferTab === 'words' || opts.preferTab === 'categories') {
-            setProgressTab(opts.preferTab);
-        } else {
-            setProgressTab(analyticsTab);
+            analyticsTab = opts.preferTab;
         }
+        renderProgressAnalytics();
         return changed;
     }
 
@@ -10056,8 +10372,11 @@
         if (preferredTab === 'words' || preferredTab === 'categories') {
             analyticsTab = preferredTab;
         }
+        setProgressTab(analyticsTab, {
+            skipPersist: true,
+            skipRender: true
+        });
         renderProgressAnalytics();
-        setProgressTab(analyticsTab);
 
         if ($progressWordSearchInput.length) {
             $progressWordSearchInput.val(analyticsWordSearchQuery);
@@ -10121,7 +10440,7 @@
             clearProgressSelection();
             renderProgressSummary();
             renderProgressFilterTriggerStates();
-            setProgressTab('words');
+            setProgressTab('words', { skipRender: true });
             triggerProgressKpiFeedback($button);
             triggerProgressWordFilterAnimation();
             scheduleProgressWordTableRender({ showLoading: false });
