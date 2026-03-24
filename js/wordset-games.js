@@ -1135,7 +1135,7 @@
     }
 
     function getPromptAutoReplayTiming(ctx, run, promptDurationMs, targetCard) {
-        const replayGapMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.promptAutoReplayGapMs) || 520);
+        const replayGapMs = Math.max(220, toInt(ctx && ctx.spaceShooter && ctx.spaceShooter.promptAutoReplayGapMs) || 420);
         const baseDelayMs = Math.max(0, toInt(promptDurationMs)) + replayGapMs;
         const shortPromptLimitMs = Math.max(SHORT_PROMPT_AUTO_REPLAY_MIN_MS, replayGapMs * 3);
         const safeLineCrossDelayMs = getCardSafeLineCrossDelayMs(ctx, run, targetCard);
@@ -2873,7 +2873,7 @@
                 timeoutLifePenalty: Math.max(0, toInt(spaceShooter.timeoutLifePenalty) || 1),
                 assetPreloadTimeoutMs: Math.max(1500, toInt(spaceShooter.assetPreloadTimeoutMs) || ASSET_PRELOAD_TIMEOUT_MS),
                 cardEntryRevealMs: Math.max(220, toInt(spaceShooter.cardEntryRevealMs) || 560),
-                promptAutoReplayGapMs: Math.max(220, toInt(spaceShooter.promptAutoReplayGapMs) || 520),
+                promptAutoReplayGapMs: Math.max(220, toInt(spaceShooter.promptAutoReplayGapMs) || 420),
                 promptAudioVolume: clamp(Number(spaceShooter.promptAudioVolume) || 1, 0.05, 1),
                 correctHitVolume: clamp(Number(spaceShooter.correctHitVolume) || 0.28, 0.05, 1),
                 wrongHitVolume: clamp(Number(spaceShooter.wrongHitVolume) || 0.2, 0.05, 1),

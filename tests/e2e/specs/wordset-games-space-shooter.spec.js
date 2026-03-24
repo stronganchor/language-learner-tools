@@ -381,7 +381,7 @@ function buildGamesConfig(isLoggedIn) {
         timeoutLifePenalty: 1,
         audioSafeLineRatio: 0.6,
         cardEntryRevealMs: 560,
-        promptAutoReplayGapMs: 520,
+        promptAutoReplayGapMs: 420,
         promptAudioVolume: 1,
         correctHitVolume: 0.28,
         wrongHitVolume: 0.2,
