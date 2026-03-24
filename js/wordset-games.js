@@ -1100,7 +1100,6 @@
 
     function getBubbleFloatOffsets(card, now, strength) {
         const time = Math.max(0, Number(now) || 0) / 1000;
-        const scale = isFinite(Number(strength)) ? Number(strength) : 1;
         const offsetX = (
             Math.sin((time * Number(card && card.bubbleFloatHzXPrimary || 0.14) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXPrimary || 0))
                 * Number(card && card.bubbleFloatAmplitudeXPrimary || 0)
@@ -1116,9 +1115,82 @@
                 * Number(card && card.bubbleFloatAmplitudeYSecondary || 0)
         );
         return {
-            x: offsetX * scale,
-            y: offsetY * scale
+            x: offsetX,
+            y: offsetY
         };
+    }
+
+    function ensureBubbleFloatReference(card, now) {
+        if (!card) {
+            return { x: 0, y: 0 };
+        }
+
+        const rawOffsets = getBubbleFloatOffsets(card, now);
+        if (!isFinite(Number(card.bubbleFloatReferenceX)) || !isFinite(Number(card.bubbleFloatReferenceY))) {
+            card.bubbleFloatReferenceX = rawOffsets.x;
+            card.bubbleFloatReferenceY = rawOffsets.y;
+        }
+        return rawOffsets;
+    }
+
+    function getRelativeBubbleFloatOffsets(card, now, strength) {
+        const scale = isFinite(Number(strength)) ? Number(strength) : 1;
+        const rawOffsets = ensureBubbleFloatReference(card, now);
+        return {
+            x: (rawOffsets.x - Number(card.bubbleFloatReferenceX || 0)) * scale,
+            y: (rawOffsets.y - Number(card.bubbleFloatReferenceY || 0)) * scale
+        };
+    }
+
+    function addFloatingBodyImpulse(body, impulseX, impulseY) {
+        if (!body) {
+            return;
+        }
+
+        body.bubbleImpulseVelocityX = clamp((Number(body.bubbleImpulseVelocityX) || 0) + (Number(impulseX) || 0), -220, 220);
+        body.bubbleImpulseVelocityY = clamp((Number(body.bubbleImpulseVelocityY) || 0) + (Number(impulseY) || 0), -220, 220);
+    }
+
+    function applyBubbleBlastImpulse(run, sourceX, sourceY, sourceRadius, excludedBody) {
+        if (!run) {
+            return;
+        }
+
+        const originX = Number(sourceX) || 0;
+        const originY = Number(sourceY) || 0;
+        const radius = Math.max(24, Number(sourceRadius) || 24);
+        const effectRadius = Math.max(170, radius * 4.2);
+        const maxImpulse = Math.max(150, radius * 4);
+        const bodies = []
+            .concat(Array.isArray(run.cards) ? run.cards : [])
+            .concat(Array.isArray(run.decorativeBubbles) ? run.decorativeBubbles : []);
+
+        bodies.forEach(function (body) {
+            if (!body || body === excludedBody || body.exploding) {
+                return;
+            }
+            if (body.word && body.entryRevealMs > 0) {
+                return;
+            }
+
+            const dx = Number(body.x) - originX;
+            const dy = Number(body.y) - originY;
+            const distance = Math.sqrt((dx * dx) + (dy * dy));
+            if (distance > effectRadius) {
+                return;
+            }
+
+            const normalizedDistance = clamp(distance / effectRadius, 0, 1);
+            const strength = Math.pow(1 - normalizedDistance, 1.45);
+            if (strength <= 0) {
+                return;
+            }
+
+            const directionX = distance > 0.001 ? (dx / distance) : (Math.random() < 0.5 ? -1 : 1);
+            const directionY = distance > 0.001 ? (dy / distance) : -0.25;
+            const impulse = maxImpulse * strength;
+            addFloatingBodyImpulse(body, directionX * impulse, directionY * impulse);
+        });
     }
 
     function resolveFloatingBubbleOverlaps(run, bodies, gap) {
@@ -1224,6 +1296,8 @@
             card.bubbleFloatPhaseXSecondary = randomBetween(0, Math.PI * 2);
             card.bubbleFloatPhaseYPrimary = randomBetween(0, Math.PI * 2);
             card.bubbleFloatPhaseYSecondary = randomBetween(0, Math.PI * 2);
+            card.bubbleFloatReferenceX = null;
+            card.bubbleFloatReferenceY = null;
             card.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(16, 42);
             setFloatingBodyPosition(run, card, chosen.x, chosen.y);
 
@@ -1243,7 +1317,7 @@
             }
 
             const motionStrength = card.resolvedFalling ? 0.32 : 1;
-            const offsets = getBubbleFloatOffsets(card, now, motionStrength);
+            const offsets = getRelativeBubbleFloatOffsets(card, now, motionStrength);
             setFloatingBodyPosition(
                 run,
                 card,
@@ -1291,6 +1365,8 @@
             driftPhaseXSecondary: randomBetween(0, Math.PI * 2),
             driftPhaseYPrimary: randomBetween(0, Math.PI * 2),
             driftPhaseYSecondary: randomBetween(0, Math.PI * 2),
+            bubbleImpulseVelocityX: 0,
+            bubbleImpulseVelocityY: 0,
             alpha: randomBetween(0.14, 0.28),
             exploding: false,
             removeAt: 0
@@ -1326,8 +1402,11 @@
             }
 
             const bounds = getBubbleMovementBounds(run, bubble.radius);
-            bubble.baseY -= bubble.speed * dt;
-            bubble.baseX += bubble.wanderVelocityX * dt;
+            const impulseDamping = Math.max(0, 1 - (5.2 * dt));
+            bubble.bubbleImpulseVelocityX = (Number(bubble.bubbleImpulseVelocityX) || 0) * impulseDamping;
+            bubble.bubbleImpulseVelocityY = (Number(bubble.bubbleImpulseVelocityY) || 0) * impulseDamping;
+            bubble.baseY += ((-bubble.speed + (Number(bubble.bubbleImpulseVelocityY) || 0)) * dt);
+            bubble.baseX += ((bubble.wanderVelocityX + (Number(bubble.bubbleImpulseVelocityX) || 0)) * dt);
             if (bubble.baseX <= bounds.minX || bubble.baseX >= bounds.maxX) {
                 bubble.wanderVelocityX *= -1;
                 bubble.baseX = clamp(bubble.baseX, bounds.minX, bounds.maxX);
@@ -1427,6 +1506,7 @@
             style: 'bubble-pop',
             rayCount: 8
         });
+        applyBubbleBlastImpulse(run, bubble.x, bubble.y, bubble.radius, bubble);
         return true;
     }
 
@@ -1830,6 +1910,10 @@
             bubbleFloatPhaseXSecondary: 0,
             bubbleFloatPhaseYPrimary: 0,
             bubbleFloatPhaseYSecondary: 0,
+            bubbleFloatReferenceX: null,
+            bubbleFloatReferenceY: null,
+            bubbleImpulseVelocityX: 0,
+            bubbleImpulseVelocityY: 0,
             releaseDriftX: 0,
             fallSpeedFactor: isTarget ? 1 : (0.9 + (Math.random() * 0.2)),
             speed: run.cardSpeed,
@@ -3099,6 +3183,9 @@
 
         markPromptResolved(run);
         releaseResolvedPromptCards(run, card);
+        if (isBubbleGame) {
+            applyBubbleBlastImpulse(run, card.x, card.y, getBubbleRadius(card), card);
+        }
         playFeedbackSound(ctx, 'correct').finally(function () {
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
@@ -3162,6 +3249,7 @@
                 rayCount: 10,
                 spin: -0.12
             });
+            applyBubbleBlastImpulse(run, card.x, card.y, Math.max(card.width, card.height) * 0.92, card);
         } else {
             spawnExplosion(run, {
                 x: card.x,
@@ -3387,17 +3475,25 @@
                     card.entryRevealMs = 0;
                     card.bubbleBaseX = Number(card.entryVisibleX);
                     card.bubbleBaseY = Number(card.entryVisibleY);
+                    const floatReference = ensureBubbleFloatReference(card, now);
+                    card.bubbleFloatReferenceX = floatReference.x;
+                    card.bubbleFloatReferenceY = floatReference.y;
+                    card.x = Number(card.entryVisibleX);
+                    card.y = Number(card.entryVisibleY);
                 }
 
+                const impulseDamping = Math.max(0, 1 - (5.2 * dt));
+                card.bubbleImpulseVelocityX = (Number(card.bubbleImpulseVelocityX) || 0) * impulseDamping;
+                card.bubbleImpulseVelocityY = (Number(card.bubbleImpulseVelocityY) || 0) * impulseDamping;
                 if (card.resolvedFalling) {
-                    card.bubbleBaseY = Number(card.bubbleBaseY || card.y) - (card.speed * dt);
-                    card.bubbleBaseX = Number(card.bubbleBaseX || card.x) + (Number(card.releaseDriftX) * dt);
+                    card.bubbleBaseY = Number(card.bubbleBaseY || card.y) + ((-card.speed + (Number(card.bubbleImpulseVelocityY) || 0)) * dt);
+                    card.bubbleBaseX = Number(card.bubbleBaseX || card.x) + ((Number(card.releaseDriftX) + (Number(card.bubbleImpulseVelocityX) || 0)) * dt);
                     return;
                 }
 
                 const bounds = getBubbleMovementBounds(run, getBubbleRadius(card));
-                card.bubbleBaseY = Number(card.bubbleBaseY || card.entryVisibleY || card.y) - (card.speed * dt);
-                card.bubbleBaseX = Number(card.bubbleBaseX || card.entryVisibleX || card.x) + (Number(card.bubbleWanderVelocityX) * dt);
+                card.bubbleBaseY = Number(card.bubbleBaseY || card.entryVisibleY || card.y) + ((-card.speed + (Number(card.bubbleImpulseVelocityY) || 0)) * dt);
+                card.bubbleBaseX = Number(card.bubbleBaseX || card.entryVisibleX || card.x) + ((Number(card.bubbleWanderVelocityX) + (Number(card.bubbleImpulseVelocityX) || 0)) * dt);
                 if (card.bubbleBaseX <= bounds.minX || card.bubbleBaseX >= bounds.maxX) {
                     card.bubbleWanderVelocityX *= -1;
                     card.bubbleBaseX = clamp(card.bubbleBaseX, bounds.minX, bounds.maxX);
@@ -3543,7 +3639,9 @@
         if (ctx.$overlaySecondary && ctx.$overlaySecondary.length) {
             ctx.$overlaySecondary.text(secondaryLabel).prop('hidden', secondaryLabel === '');
         }
-        ctx.$overlay.prop('hidden', false);
+        ctx.$overlay
+            .attr('data-ll-wordset-game-overlay-mode', ctx.overlayMode || '')
+            .prop('hidden', false);
     }
 
     function hideOverlay(ctx) {
@@ -3554,7 +3652,9 @@
         if (ctx.$overlaySecondary && ctx.$overlaySecondary.length) {
             ctx.$overlaySecondary.prop('hidden', false);
         }
-        ctx.$overlay.prop('hidden', true);
+        ctx.$overlay
+            .attr('data-ll-wordset-game-overlay-mode', '')
+            .prop('hidden', true);
     }
 
     function pauseRun(ctx, options) {

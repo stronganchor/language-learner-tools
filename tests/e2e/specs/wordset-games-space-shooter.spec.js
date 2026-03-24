@@ -112,8 +112,8 @@ function buildGamesMarkup() {
             <div class="ll-wordset-game-stage__overlay-card">
               <h2 data-ll-wordset-game-overlay-title></h2>
               <p data-ll-wordset-game-overlay-summary></p>
-              <button type="button" data-ll-wordset-game-replay>Replay</button>
-              <button type="button" data-ll-wordset-game-return>Back</button>
+              <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay>Replay</button>
+              <button type="button" class="ll-wordset-game-stage__overlay-button ll-wordset-game-stage__overlay-button--ghost" data-ll-wordset-game-return>Back</button>
             </div>
           </div>
         </section>
@@ -951,6 +951,25 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   expect(movedTarget).toBeTruthy();
   expect(movedTarget.y).toBeLessThan(initialTarget.y - 6);
 
+  await page.waitForTimeout(240);
+  const handoffState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  await page.waitForTimeout(90);
+  const settledState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const handoffTarget = handoffState.cardSnapshot.find((card) => card.isTarget && card.promptId === handoffState.promptId);
+  const settledTarget = settledState.cardSnapshot.find((card) => card.isTarget && card.promptId === settledState.promptId);
+  expect(handoffTarget).toBeTruthy();
+  expect(settledTarget).toBeTruthy();
+  expect(Math.abs(settledTarget.x - handoffTarget.x)).toBeLessThan(12);
+
+  const blastCandidate = movedState.cardSnapshot
+    .filter((card) => !card.isTarget && card.promptId === movedState.promptId)
+    .map((card) => ({
+      wordId: card.wordId,
+      distance: Math.hypot(card.x - movedTarget.x, card.y - movedTarget.y)
+    }))
+    .sort((left, right) => left.distance - right.distance)[0];
+  expect(blastCandidate).toBeTruthy();
+
   const clickPoint = await page.evaluate(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     const canvas = document.querySelector('[data-ll-wordset-game-canvas]');
@@ -969,6 +988,21 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   expect(clickPoint).toBeTruthy();
   await page.mouse.click(clickPoint.x, clickPoint.y);
 
+  await page.waitForTimeout(60);
+  const blastState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  const poppedTarget = blastState.cardSnapshot.find((card) => card.isTarget && card.promptId === movedState.promptId);
+  const pushedNeighbor = blastState.cardSnapshot.find((card) => card.wordId === blastCandidate.wordId);
+  const originalNeighbor = movedState.cardSnapshot.find((card) => card.wordId === blastCandidate.wordId);
+  expect(poppedTarget).toBeTruthy();
+  expect(pushedNeighbor).toBeTruthy();
+  expect(originalNeighbor).toBeTruthy();
+  expect(
+    Math.hypot(
+      pushedNeighbor.x - originalNeighbor.x,
+      pushedNeighbor.y - originalNeighbor.y
+    )
+  ).toBeGreaterThan(4);
+
   await page.waitForFunction(() => {
     const queued = Array.isArray(window.__queuedProgressEvents) ? window.__queuedProgressEvents : [];
     return queued.length >= 2;
@@ -983,6 +1017,48 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   expect(progressEvents[1].entry.payload.game_slug).toBe('bubble-pop');
   expect(progressEvents[1].entry.isCorrect).toBe(true);
   await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('1');
+});
+
+test('bubble pop pause overlay uses the bubble theme for resume', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run && run.slug === 'bubble-pop' && run.targetWordId && !run.awaitingPrompt);
+  });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.togglePause();
+  });
+
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-replay]')).toHaveText('Resume');
+
+  const overlayStyles = await page.evaluate(() => {
+    const button = document.querySelector('[data-ll-wordset-game-replay]');
+    const overlay = document.querySelector('[data-ll-wordset-game-overlay]');
+    if (!button || !overlay) {
+      return null;
+    }
+
+    const styles = window.getComputedStyle(button);
+    return {
+      mode: overlay.getAttribute('data-ll-wordset-game-overlay-mode') || '',
+      backgroundImage: styles.backgroundImage,
+      backgroundColor: styles.backgroundColor
+    };
+  });
+
+  expect(overlayStyles).toBeTruthy();
+  expect(overlayStyles.mode).toBe('paused');
+  expect(
+    overlayStyles.backgroundImage.includes('154, 221, 255')
+      || overlayStyles.backgroundColor.includes('154, 221, 255')
+  ).toBe(true);
 });
 
 test('bubble pop decorative bubbles pop without affecting score or progress', async ({ page }) => {
