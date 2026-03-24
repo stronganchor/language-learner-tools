@@ -52,6 +52,7 @@
         State.quizResults = State.quizResults || { correctOnFirstTry: 0, incorrect: [], wordAttempts: {} };
         State.quizResults.wordAttempts = State.quizResults.wordAttempts || {};
         State.quizResults.incorrect = Array.isArray(State.quizResults.incorrect) ? State.quizResults.incorrect : [];
+        State.quizResults.selfCheckRoundAttempts = State.quizResults.selfCheckRoundAttempts || {};
         return State.quizResults;
     }
 
@@ -108,47 +109,191 @@
         return fallback;
     }
 
-    function getEstimatedRoundTotal() {
+    function normalizeWordId(value) {
+        const id = parseInt(value, 10);
+        return id > 0 ? id : 0;
+    }
+
+    function getSelfCheckImageIdentity(word) {
+        if (SelfCheckShared && typeof SelfCheckShared.getWordImageIdentity === 'function') {
+            return SelfCheckShared.getWordImageIdentity(word);
+        }
+        const conflicts = root.LLToolsOptionConflicts || null;
+        if (conflicts && typeof conflicts.getWordImageIdentity === 'function') {
+            return conflicts.getWordImageIdentity(word);
+        }
+        return '';
+    }
+
+    function isPromptEligibleWord(word) {
+        if (!word || typeof word !== 'object') {
+            return false;
+        }
+        const selectionApi = root.LLFlashcards && root.LLFlashcards.Selection;
+        if (selectionApi && typeof selectionApi.isWordBlockedFromPromptRounds === 'function') {
+            return !selectionApi.isWordBlockedFromPromptRounds(word);
+        }
+        return true;
+    }
+
+    function sortSelfCheckRoundWords(words) {
+        return (Array.isArray(words) ? words.slice() : []).sort(function (left, right) {
+            const leftText = getWordText(left);
+            const rightText = getWordText(right);
+            if (leftText && rightText) {
+                const textCompare = leftText.localeCompare(rightText, undefined, { sensitivity: 'base' });
+                if (textCompare !== 0) {
+                    return textCompare;
+                }
+            } else if (leftText || rightText) {
+                return leftText ? -1 : 1;
+            }
+
+            return normalizeWordId(left && left.id) - normalizeWordId(right && right.id);
+        });
+    }
+
+    function getEligibleSelfCheckWordsForCategory(categoryName) {
+        const name = String(categoryName || '').trim();
+        const categoryWords = (State.wordsByCategory && Array.isArray(State.wordsByCategory[name]))
+            ? State.wordsByCategory[name]
+            : ((State.currentCategoryName === name && Array.isArray(State.currentCategory)) ? State.currentCategory : []);
+
+        return categoryWords.filter(isPromptEligibleWord);
+    }
+
+    function buildSelfCheckGroupKey(word, categoryName) {
+        const categoryKey = String(categoryName || '').trim();
+        const imageIdentity = getSelfCheckImageIdentity(word);
+        if (imageIdentity) {
+            return categoryKey + '::image::' + imageIdentity;
+        }
+
+        const wordId = normalizeWordId(word && word.id);
+        return categoryKey + '::word::' + String(wordId || getWordText(word) || 'unknown');
+    }
+
+    function collectSelfCheckRoundGroups() {
         const sourceNames = (Array.isArray(State.initialCategoryNames) && State.initialCategoryNames.length)
             ? State.initialCategoryNames
             : (Array.isArray(State.categoryNames) ? State.categoryNames : []);
-        const names = sourceNames.filter(Boolean);
-        if (!names.length) { return 0; }
+        const categoryNames = Array.from(new Set(sourceNames.filter(Boolean)));
+        const claimedWordIds = {};
+        const groups = [];
 
-        const starredLookup = getStarredLookup();
-        const starMode = getEffectiveStarMode();
-        const seenWords = {};
-        let total = 0;
-
-        names.forEach(function (name) {
-            const words = (State.wordsByCategory && Array.isArray(State.wordsByCategory[name]))
-                ? State.wordsByCategory[name]
-                : [];
-            words.forEach(function (word) {
-                const wordId = parseInt(word && word.id, 10) || 0;
-                if (!wordId || seenWords[wordId]) { return; }
-                seenWords[wordId] = true;
-
-                if (starMode === 'only' && !starredLookup[wordId]) {
+        categoryNames.forEach(function (categoryName) {
+            const categoryGroups = {};
+            getEligibleSelfCheckWordsForCategory(categoryName).forEach(function (word) {
+                const wordId = normalizeWordId(word && word.id);
+                if (!wordId || claimedWordIds[wordId]) {
                     return;
                 }
-                total += (starMode === 'weighted' && starredLookup[wordId]) ? 2 : 1;
+
+                const groupKey = buildSelfCheckGroupKey(word, categoryName);
+                if (!categoryGroups[groupKey]) {
+                    categoryGroups[groupKey] = {
+                        key: groupKey,
+                        categoryName: categoryName,
+                        words: []
+                    };
+                }
+                categoryGroups[groupKey].words.push(word);
+                claimedWordIds[wordId] = true;
+            });
+
+            Object.keys(categoryGroups).forEach(function (groupKey) {
+                const group = categoryGroups[groupKey];
+                group.words = sortSelfCheckRoundWords(group.words);
+                group.promptWord = group.words[0] || null;
+                groups.push(group);
             });
         });
 
-        return total;
+        return groups;
+    }
+
+    function buildSelfCheckRound(targetWord, categoryName) {
+        const roundCategory = String(categoryName || (targetWord && targetWord.__categoryName) || State.currentCategoryName || '').trim();
+        const targetId = normalizeWordId(targetWord && targetWord.id);
+        const imageIdentity = getSelfCheckImageIdentity(targetWord);
+        const seenWordIds = {};
+        let roundWords = getEligibleSelfCheckWordsForCategory(roundCategory).filter(function (word) {
+            const wordId = normalizeWordId(word && word.id);
+            if (!wordId || seenWordIds[wordId]) {
+                return false;
+            }
+            seenWordIds[wordId] = true;
+
+            if (imageIdentity) {
+                return getSelfCheckImageIdentity(word) === imageIdentity;
+            }
+
+            return wordId === targetId;
+        });
+
+        if (!roundWords.length && targetWord) {
+            roundWords = [targetWord];
+        }
+
+        roundWords = sortSelfCheckRoundWords(roundWords);
+        roundWords.forEach(function (word) {
+            try { word.__categoryName = roundCategory; } catch (_) { /* no-op */ }
+        });
+
+        return {
+            key: buildSelfCheckGroupKey(targetWord || roundWords[0], roundCategory),
+            categoryName: roundCategory,
+            promptWord: targetWord || roundWords[0] || null,
+            words: roundWords,
+            isGrouped: roundWords.length > 1
+        };
+    }
+
+    function markSelfCheckRoundWordsPlayed(roundWords) {
+        State.starPlayCounts = State.starPlayCounts || {};
+        State.usedWordIDs = Array.isArray(State.usedWordIDs) ? State.usedWordIDs : [];
+
+        (Array.isArray(roundWords) ? roundWords : []).forEach(function (word) {
+            const wordId = normalizeWordId(word && word.id);
+            if (!wordId) {
+                return;
+            }
+            State.starPlayCounts[wordId] = Math.max(1, parseInt(State.starPlayCounts[wordId], 10) || 0);
+            if (State.usedWordIDs.indexOf(wordId) === -1) {
+                State.usedWordIDs.push(wordId);
+            }
+        });
+    }
+
+    function getEstimatedRoundTotal() {
+        return collectSelfCheckRoundGroups().length;
     }
 
     function getAnsweredRoundCount() {
         const results = ensureQuizResultsShape();
-        const attempts = results.wordAttempts || {};
+        const rounds = results.selfCheckRoundAttempts || {};
         let count = 0;
+
+        Object.keys(rounds).forEach(function (key) {
+            const info = rounds[key] || {};
+            const seen = parseInt(info.seen, 10) || 0;
+            if (seen > 0) {
+                count += 1;
+            }
+        });
+
+        if (count > 0) {
+            return count;
+        }
+
+        const attempts = results.wordAttempts || {};
+        let fallbackCount = 0;
         Object.keys(attempts).forEach(function (key) {
             const info = attempts[key] || {};
             const seen = parseInt(info.seen, 10) || 0;
-            count += Math.max(0, seen);
+            fallbackCount += Math.max(0, seen);
         });
-        return count;
+        return fallbackCount;
     }
 
     function buildRoundMeta(categoryName) {
@@ -190,7 +335,7 @@
     }
 
     function recordSelfCheckResult(wordId, confidence, bucket) {
-        const idNum = parseInt(wordId, 10);
+        const idNum = normalizeWordId(wordId);
         if (!idNum) { return; }
         const key = String(idNum);
         const results = ensureQuizResultsShape();
@@ -223,6 +368,19 @@
         }
         results.wordAttempts[key] = stats;
         recomputeQuizResultTotals();
+    }
+
+    function recordSelfCheckRoundAttempt(groupKey) {
+        const key = String(groupKey || '').trim();
+        if (!key) {
+            return;
+        }
+        const results = ensureQuizResultsShape();
+        const rounds = results.selfCheckRoundAttempts || {};
+        const stats = rounds[key] || { seen: 0 };
+        stats.seen += 1;
+        rounds[key] = stats;
+        results.selfCheckRoundAttempts = rounds;
     }
 
     function getWordText(word) {
@@ -410,6 +568,38 @@
         });
     }
 
+    function playIsolationAudioSequence(words, ctx) {
+        const roundWords = Array.isArray(words) ? words : [];
+        const seenAudioUrls = {};
+        const queue = roundWords.filter(function (word) {
+            const audioUrl = getIsolationAudioUrl(word);
+            if (!audioUrl || seenAudioUrls[audioUrl]) {
+                return false;
+            }
+            seenAudioUrls[audioUrl] = true;
+            return true;
+        });
+
+        if (!queue.length) {
+            return Promise.resolve(false);
+        }
+
+        let playedAny = false;
+        let chain = Promise.resolve();
+
+        queue.forEach(function (word) {
+            chain = chain.then(function () {
+                return playIsolationAudio(word, ctx).then(function (played) {
+                    playedAny = playedAny || played;
+                });
+            });
+        });
+
+        return chain.then(function () {
+            return playedAny;
+        });
+    }
+
     function appendDisplayContentFallback($host, displayMode, word, ctx) {
         if (!$host || !$host.length || !word) { return; }
         $host.empty();
@@ -543,16 +733,25 @@
         $actions.find('button').prop('disabled', !!disabled).toggleClass('disabled', !!disabled);
     }
 
-    function renderPromptAndAnswerDisplays($front, $back, targetWord, ctx, msgs) {
+    function renderPromptAndAnswerDisplays($front, $back, roundData, ctx, msgs) {
         if (!$front || !$front.length || !$back || !$back.length) {
             return;
         }
+        const promptWord = roundData && roundData.promptWord ? roundData.promptWord : roundData;
+        const roundWords = (roundData && Array.isArray(roundData.words) && roundData.words.length)
+            ? roundData.words
+            : (promptWord ? [promptWord] : []);
         const renderOptions = getSelfCheckRenderOptions(msgs, ctx);
 
         if (SelfCheckShared && typeof SelfCheckShared.renderSelfCheckPromptDisplay === 'function' && typeof SelfCheckShared.renderSelfCheckAnswerDisplay === 'function') {
-            SelfCheckShared.renderSelfCheckPromptDisplay($front, targetWord, Object.assign({}, renderOptions, { displayType: 'image' }));
-            SelfCheckShared.renderSelfCheckAnswerDisplay($back, targetWord, Object.assign({}, renderOptions, {
+            SelfCheckShared.renderSelfCheckPromptDisplay($front, promptWord, Object.assign({}, renderOptions, {
                 displayType: 'image',
+                answerCount: roundWords.length,
+                messages: renderOptions
+            }));
+            SelfCheckShared.renderSelfCheckAnswerDisplay($back, promptWord, Object.assign({}, renderOptions, {
+                displayType: 'image',
+                answerWords: roundWords,
                 recordingTypes: ['isolation', 'introduction'],
                 isolationFallbackToAnyAudio: false,
                 introductionFallbackToAnyAudio: false,
@@ -561,17 +760,34 @@
             return;
         }
 
-        appendDisplayContent($front, 'image', targetWord, ctx);
-        appendDisplayContent($back, 'image', targetWord, ctx);
+        appendDisplayContent($front, 'image', promptWord, ctx);
+        appendDisplayContent($back, 'image', promptWord, ctx);
     }
 
-    function buildRound(targetWord, promptType, optionType, ctx, meta) {
+    function buildRound(roundData, promptType, optionType, ctx, meta) {
         const msgs = root.llToolsFlashcardsMessages || {};
         const $flashcard = (ctx && ctx.flashcardContainer && ctx.flashcardContainer.length)
             ? ctx.flashcardContainer
             : $('#ll-tools-flashcard');
+        const promptWord = roundData && roundData.promptWord ? roundData.promptWord : null;
+        const roundWords = (roundData && Array.isArray(roundData.words) && roundData.words.length)
+            ? roundData.words.slice()
+            : (promptWord ? [promptWord] : []);
+        const roundKey = String((roundData && roundData.key) || '');
+        const roundCategoryName = String((roundData && roundData.categoryName) || State.currentCategoryName || '');
+        const uniqueRoundWords = [];
+        const roundWordIds = {};
 
-        if (!$flashcard || !$flashcard.length) { return; }
+        roundWords.forEach(function (word) {
+            const wordId = normalizeWordId(word && word.id);
+            if (!wordId || roundWordIds[wordId]) {
+                return;
+            }
+            roundWordIds[wordId] = true;
+            uniqueRoundWords.push(word);
+        });
+
+        if (!$flashcard || !$flashcard.length || !promptWord) { return; }
         stopPromptAudio();
         $flashcard.empty();
 
@@ -606,7 +822,7 @@
         $header.append($headerTitleWrap, $headerMeta);
 
         // Match dashboard self-check behavior: image prompt first, then image + recordings on answer side.
-        renderPromptAndAnswerDisplays($front, $back, targetWord, ctx, msgs);
+        renderPromptAndAnswerDisplays($front, $back, roundData, ctx, msgs);
 
         let answered = false;
         let phase = 'confidence';
@@ -686,33 +902,48 @@
 
             try {
                 const tracker = getProgressTracker();
-                if (tracker && typeof tracker.trackWordExposure === 'function') {
-                    tracker.trackWordExposure({
-                        mode: 'self-check',
-                        wordId: targetWord.id,
-                        categoryName: State.currentCategoryName || '',
-                        wordsetId: resolveWordsetIdForProgress()
-                    });
-                }
-                if (tracker && typeof tracker.trackWordOutcome === 'function') {
-                    tracker.trackWordOutcome({
-                        mode: 'self-check',
-                        wordId: targetWord.id,
-                        categoryName: State.currentCategoryName || '',
-                        wordsetId: resolveWordsetIdForProgress(),
-                        isCorrect: isCorrect,
-                        hadWrongBefore: hadWrongBefore,
-                        payload: {
-                            self_check_confidence: confidenceKey,
-                            self_check_result: resultKey || bucket,
-                            self_check_bucket: bucket,
-                            forced_prompt: 'image'
-                        }
-                    });
-                }
+                uniqueRoundWords.forEach(function (word) {
+                    const wordId = normalizeWordId(word && word.id);
+                    if (!wordId) {
+                        return;
+                    }
+                    const wordCategoryName = String((word && word.__categoryName) || roundCategoryName || State.currentCategoryName || '');
+
+                    if (tracker && typeof tracker.trackWordExposure === 'function') {
+                        tracker.trackWordExposure({
+                            mode: 'self-check',
+                            wordId: wordId,
+                            categoryName: wordCategoryName,
+                            wordsetId: resolveWordsetIdForProgress()
+                        });
+                    }
+                    if (tracker && typeof tracker.trackWordOutcome === 'function') {
+                        tracker.trackWordOutcome({
+                            mode: 'self-check',
+                            wordId: wordId,
+                            categoryName: wordCategoryName,
+                            wordsetId: resolveWordsetIdForProgress(),
+                            isCorrect: isCorrect,
+                            hadWrongBefore: hadWrongBefore,
+                            payload: {
+                                self_check_confidence: confidenceKey,
+                                self_check_result: resultKey || bucket,
+                                self_check_bucket: bucket,
+                                self_check_group_key: roundKey,
+                                self_check_group_size: uniqueRoundWords.length,
+                                forced_prompt: 'image'
+                            }
+                        });
+                    }
+                });
             } catch (_) { /* no-op */ }
 
-            recordSelfCheckResult(targetWord.id, confidenceKey, bucket);
+            if (roundKey) {
+                recordSelfCheckRoundAttempt(roundKey);
+            }
+            uniqueRoundWords.forEach(function (word) {
+                recordSelfCheckResult(word && word.id, confidenceKey, bucket);
+            });
             State.isFirstRound = false;
             State.hadWrongAnswerThisTurn = hadWrongBefore;
 
@@ -752,7 +983,7 @@
 
             if (pendingConfidence === 'idk') {
                 setFlipped(false);
-                playIsolationAudio(targetWord, ctx).then(function (played) {
+                playIsolationAudioSequence(roundWords, ctx).then(function (played) {
                     if (!isActionTokenCurrent(token)) { return; }
                     clearAdvanceTimer();
                     advanceTimer = setTimeout(function () {
@@ -765,7 +996,7 @@
             }
 
             setFlipped(true);
-            playIsolationAudio(targetWord, ctx).then(function (played) {
+            playIsolationAudioSequence(roundWords, ctx).then(function (played) {
                 if (!isActionTokenCurrent(token)) { return; }
                 const enableResultButtons = function () {
                     if (!isActionTokenCurrent(token)) { return; }
@@ -911,6 +1142,7 @@
             ? Selection.getTargetCategoryName(targetWord)
             : ((targetWord && targetWord.__categoryName) || State.currentCategoryName);
         const categoryNameForRound = targetCategoryName || State.currentCategoryName;
+        const roundData = buildSelfCheckRound(targetWord, categoryNameForRound);
 
         if (categoryNameForRound && categoryNameForRound !== State.currentCategoryName) {
             State.currentCategoryName = categoryNameForRound;
@@ -919,6 +1151,8 @@
                 try { ctx.Dom.updateCategoryNameDisplay(categoryNameForRound); } catch (_) { /* no-op */ }
             }
         }
+
+        markSelfCheckRoundWordsPlayed(roundData.words);
 
         const categoryConfig = (Selection && typeof Selection.getCategoryConfig === 'function')
             ? Selection.getCategoryConfig(categoryNameForRound)
@@ -965,7 +1199,7 @@
 
         const loader = ctx.FlashcardLoader;
         if (!loader || typeof loader.loadResourcesForWord !== 'function') {
-            buildRound(targetWord, promptType, optionType, ctx, roundMeta);
+            buildRound(roundData, promptType, optionType, ctx, roundMeta);
             if (ctx.Dom && typeof ctx.Dom.hideLoading === 'function') {
                 ctx.Dom.hideLoading();
             }
@@ -976,7 +1210,7 @@
         }
 
         loader.loadResourcesForWord(targetWord, optionType, categoryNameForRound, categoryConfig).then(function () {
-            buildRound(targetWord, promptType, optionType, ctx, roundMeta);
+            buildRound(roundData, promptType, optionType, ctx, roundMeta);
             if (ctx.Dom && typeof ctx.Dom.hideLoading === 'function') {
                 ctx.Dom.hideLoading();
             }
@@ -987,7 +1221,7 @@
             console.error('Self check round failed:', err);
             // Degrade gracefully instead of leaving a spinner-only screen when a
             // specific resource (image/audio) cannot be loaded for the target word.
-            buildRound(targetWord, promptType, optionType, ctx, roundMeta);
+            buildRound(roundData, promptType, optionType, ctx, roundMeta);
             if (ctx.Dom && typeof ctx.Dom.hideLoading === 'function') {
                 ctx.Dom.hideLoading();
             }
