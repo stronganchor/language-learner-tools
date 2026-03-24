@@ -1088,19 +1088,45 @@ test('space shooter launches with safe option mixes and records progress flows',
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.promptId !== priorPromptId && run.targetWordId && !run.awaitingPrompt);
   }, resumedRun.promptId);
-  await page.evaluate(() => {
+  const postWrongTimeout = await page.evaluate(() => {
     const ctx = window.LLWordsetGames.__ctx;
     if (ctx && ctx.run && ctx.run.prompt) {
+      const priorPromptId = ctx.run.prompt.promptId;
       ctx.run.lives = 1;
       ctx.run.prompt.hadWrongBefore = true;
+      window.LLWordsetGames.__debug.resolvePrompt('timeout');
+      return {
+        priorPromptId,
+        lives: ctx.run.lives
+      };
     }
-    window.LLWordsetGames.__debug.resolvePrompt('timeout');
+    return null;
   });
+  expect(postWrongTimeout).not.toBeNull();
 
   progressEvents = await page.evaluate(() => window.__queuedProgressEvents);
   expect(progressEvents).toHaveLength(5);
   expect(progressEvents.filter((entry) => entry.type === 'word_exposure')).toHaveLength(2);
   expect(progressEvents.filter((entry) => entry.type === 'word_outcome')).toHaveLength(3);
+  await expect(page.locator('[data-ll-wordset-game-lives]')).toHaveText('1');
+
+  await page.waitForFunction(({ priorPromptId, lives }) => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return !!(run
+      && run.promptId !== priorPromptId
+      && run.targetWordId
+      && !run.awaitingPrompt
+      && run.lives === lives);
+  }, postWrongTimeout);
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeHidden();
+
+  await page.evaluate(() => {
+    const ctx = window.LLWordsetGames.__ctx;
+    if (ctx && ctx.run) {
+      ctx.run.lives = 1;
+    }
+    window.LLWordsetGames.__debug.resolvePrompt('wrong');
+  });
 
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Run Complete');

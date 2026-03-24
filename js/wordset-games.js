@@ -2269,9 +2269,6 @@
         }
 
         run.coins = Math.max(0, run.coins - ctx.spaceShooter.timeoutCoinPenalty);
-        if (!untouchedTimeout) {
-            run.lives = Math.max(0, run.lives - Math.max(0, ctx.spaceShooter.timeoutLifePenalty));
-        }
         updateHud(ctx);
         markPromptResolved(run);
         run.cards = run.cards.filter(function (card) {
