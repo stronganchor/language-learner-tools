@@ -356,7 +356,7 @@
             shipHeight: shipHeight,
             shipY: height - Math.max(44, shipHeight * 0.8),
             bulletSpeed: clamp(height * 1.2, 640, 1020),
-            shipSpeed: clamp(width * 0.68, 280, 520)
+            shipSpeed: clamp(width * 0.78, 320, 580)
         };
     }
 
@@ -1026,7 +1026,7 @@
             promptId: toInt(promptId),
             laneIndex: laneIndex,
             x: laneCenterX(run, laneIndex),
-            y: -dimensions.height * (0.58 + baseOffset + (Math.random() * 0.14)),
+            y: dimensions.height * (0.62 + (baseOffset * 0.22) + (Math.random() * 0.06)),
             width: dimensions.width,
             height: dimensions.height,
             aspectRatio: dimensions.aspectRatio,
@@ -1797,7 +1797,7 @@
             return !!card && card.isTarget;
         });
         const promptDurationMs = getLoadedAudioDurationMs(ctx, candidate.audioUrl);
-        const safeLineRatio = clamp(Number(ctx.spaceShooter.audioSafeLineRatio) || 0.5, 0.35, 0.7);
+        const safeLineRatio = clamp(Number(ctx.spaceShooter.audioSafeLineRatio) || 0.6, 0.35, 0.7);
         const safeLineBufferMs = Math.max(0, toInt(ctx.spaceShooter.audioSafeLineBufferMs) || 180);
         const safeLineY = run.height * safeLineRatio;
         let promptCardSpeed = run.cardSpeed;
@@ -2668,7 +2668,7 @@
                 fireIntervalMs: Math.max(80, toInt(spaceShooter.fireIntervalMs) || 165),
                 introRampTurns: Math.max(1, toInt(spaceShooter.introRampTurns) || 10),
                 introRampStartFactor: clamp(Number(spaceShooter.introRampStartFactor) || 0.5, 0.25, 0.95),
-                audioSafeLineRatio: clamp(Number(spaceShooter.audioSafeLineRatio) || 0.5, 0.35, 0.7),
+                audioSafeLineRatio: clamp(Number(spaceShooter.audioSafeLineRatio) || 0.6, 0.35, 0.7),
                 audioSafeLineBufferMs: Math.max(0, toInt(spaceShooter.audioSafeLineBufferMs) || 180),
                 correctCoinReward: Math.max(1, toInt(spaceShooter.correctCoinReward) || 1),
                 wrongHitCoinPenalty: Math.max(0, toInt(spaceShooter.wrongHitCoinPenalty)),

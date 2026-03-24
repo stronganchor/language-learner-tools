@@ -379,6 +379,7 @@ function buildGamesConfig(isLoggedIn) {
         wrongHitLifePenalty: 1,
         timeoutCoinPenalty: 1,
         timeoutLifePenalty: 1,
+        audioSafeLineRatio: 0.6,
         promptAudioVolume: 1,
         correctHitVolume: 0.28,
         wrongHitVolume: 0.2,
@@ -809,6 +810,11 @@ test('space shooter launches with safe option mixes and records progress flows',
   expect(initialRun.cardSpeed).toBeLessThan(86);
   expect(initialRun.promptDistractorMode).toBe('mixed');
   expect(new Set(initialRun.cardWordIds).size).toBeLessThanOrEqual(6);
+  expect(
+    initialRun.cardSnapshot
+      .filter((card) => card.promptId === initialRun.promptId)
+      .every((card) => (card.y - (card.height / 2)) >= 0)
+  ).toBe(true);
 
   const disallowedPairs = [
     [101, 102],

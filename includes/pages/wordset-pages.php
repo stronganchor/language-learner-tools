@@ -3279,6 +3279,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'wrongHitLifePenalty' => 1,
                 'timeoutCoinPenalty' => 1,
                 'timeoutLifePenalty' => 1,
+                'audioSafeLineRatio' => 0.6,
                 'promptAudioVolume' => 1,
                 'correctHitVolume' => 0.28,
                 'wrongHitVolume' => 0.2,
