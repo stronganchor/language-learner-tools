@@ -6945,6 +6945,10 @@ msgstr ""
 msgid "Play"
 msgstr ""
 
+msgctxt "launch game action"
+msgid "Play"
+msgstr ""
+
 #: includes/shortcodes/audio-recording-shortcode.php:1174
 msgid "Processing..."
 msgstr ""
@@ -7648,6 +7652,93 @@ msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:340
 msgid "Play audio"
+msgstr ""
+
+msgid "Arcane Space Shooter"
+msgstr ""
+
+msgid "Hear the word. Blast the matching picture."
+msgstr ""
+
+msgid "Checking game availability..."
+msgstr ""
+
+msgid "Preparing game..."
+msgstr ""
+
+msgid "Sign in to play with your in-progress words."
+msgstr ""
+
+msgid "Unable to load games right now."
+msgstr ""
+
+#, php-format
+msgid "%d words ready"
+msgstr ""
+
+#, php-format
+msgid "Need %1$d more words to unlock this game."
+msgstr ""
+
+msgid "This word set does not have a playable mix of picture cards yet."
+msgstr ""
+
+msgid "Games"
+msgstr ""
+
+msgid "Replay prompt"
+msgstr ""
+
+msgid "Pause run"
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "Paused"
+msgstr ""
+
+msgid "Coins"
+msgstr ""
+
+msgid "Lives"
+msgstr ""
+
+msgid "Move left"
+msgstr ""
+
+msgid "Move right"
+msgstr ""
+
+msgid "Fire"
+msgstr ""
+
+msgid "Run Complete"
+msgstr ""
+
+#, php-format
+msgid "Coins: %1$d · Prompts: %2$d"
+msgstr ""
+
+msgid "Replay"
+msgstr ""
+
+msgid "Back to games"
+msgstr ""
+
+msgid "Eligible words"
+msgstr ""
+
+msgid "Sign in to play games"
+msgstr ""
+
+msgid "Games use your in-progress words and save results to your practice history."
+msgstr ""
+
+msgid "Arcane Space Shooter game board"
+msgstr ""
+
+msgid "Fire or press space bar"
 msgstr ""
 
 #: includes/shortcodes/flashcard-widget.php:345

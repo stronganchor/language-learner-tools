@@ -8,7 +8,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-03-13 09:00+0000\n"
+"PO-Revision-Date: 2026-03-24 00:00+0000\n"
 "Language: tr_TR\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 "X-Generator: Loco https://localise.biz/\n"
@@ -6079,7 +6079,11 @@ msgstr "Seçildi"
 #: includes/shortcodes/quiz-pages-shortcodes.php:660
 #: templates/flashcard-widget-template.php:69
 msgid "Play"
-msgstr "Oyun"
+msgstr "Oynat"
+
+msgctxt "launch game action"
+msgid "Play"
+msgstr "Oyna"
 
 #. translators: %s recording type label
 #: includes/admin/export-import.php:1423
@@ -6093,6 +6097,93 @@ msgstr "%s kaydını oynat"
 #: includes/shortcodes/flashcard-widget.php:340
 msgid "Play audio"
 msgstr "Sesi çal"
+
+msgid "Arcane Space Shooter"
+msgstr "Gizemli Uzay Nişancısı"
+
+msgid "Hear the word. Blast the matching picture."
+msgstr "Kelimeyi dinle. Eşleşen görseli vur."
+
+msgid "Checking game availability..."
+msgstr "Oyun hazır mı kontrol ediliyor..."
+
+msgid "Preparing game..."
+msgstr "Oyun hazırlanıyor..."
+
+msgid "Sign in to play with your in-progress words."
+msgstr "Çalıştığın kelimelerle oynamak için oturum aç."
+
+msgid "Unable to load games right now."
+msgstr "Oyunlar şu anda yüklenemiyor."
+
+#, php-format
+msgid "%d words ready"
+msgstr "%d kelime hazır"
+
+#, php-format
+msgid "Need %1$d more words to unlock this game."
+msgstr "Bu oyunun açılması için %1$d kelime daha gerekiyor."
+
+msgid "This word set does not have a playable mix of picture cards yet."
+msgstr "Bu kelime setinde henüz oynanabilir bir görsel kart kombinasyonu yok."
+
+msgid "Games"
+msgstr "Oyunlar"
+
+msgid "Replay prompt"
+msgstr "İpucunu tekrar oynat"
+
+msgid "Pause run"
+msgstr "Turu duraklat"
+
+msgid "Resume"
+msgstr "Devam et"
+
+msgid "Paused"
+msgstr "Duraklatıldı"
+
+msgid "Coins"
+msgstr "Jetonlar"
+
+msgid "Lives"
+msgstr "Canlar"
+
+msgid "Move left"
+msgstr "Sola git"
+
+msgid "Move right"
+msgstr "Sağa git"
+
+msgid "Fire"
+msgstr "Ateş et"
+
+msgid "Run Complete"
+msgstr "Tur tamamlandı"
+
+#, php-format
+msgid "Coins: %1$d · Prompts: %2$d"
+msgstr "Jetonlar: %1$d · İpuçları: %2$d"
+
+msgid "Replay"
+msgstr "Tekrar oyna"
+
+msgid "Back to games"
+msgstr "Oyunlara dön"
+
+msgid "Eligible words"
+msgstr "Uygun kelimeler"
+
+msgid "Sign in to play games"
+msgstr "Oyun oynamak için oturum aç"
+
+msgid "Games use your in-progress words and save results to your practice history."
+msgstr "Oyunlar, çalıştığın kelimeleri kullanır ve sonuçları pratik geçmişine kaydeder."
+
+msgid "Arcane Space Shooter game board"
+msgstr "Gizemli Uzay Nişancısı oyun alanı"
+
+msgid "Fire or press space bar"
+msgstr "Ateş et veya boşluk tuşuna bas"
 
 #: includes/admin/uploads/image-upload-form.php:319
 #: includes/taxonomies/word-category-taxonomy.php:544

@@ -3453,7 +3453,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),
             'gamesNeedWords' => __('Need %1$d more words to unlock this game.', 'll-tools-text-domain'),
             'gamesNeedCompatibleWords' => __('This word set does not have a playable mix of picture cards yet.', 'll-tools-text-domain'),
-            'gamesPlay' => __('Play', 'll-tools-text-domain'),
+            'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
             'gamesLocked' => __('Locked', 'll-tools-text-domain'),
             'gamesBack' => __('Games', 'll-tools-text-domain'),
             'gamesReplayAudio' => __('Replay prompt', 'll-tools-text-domain'),
@@ -3952,7 +3952,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 class="ll-wordset-game-card__launch"
                                 data-ll-wordset-game-launch
                                 disabled>
-                                <?php echo esc_html($is_study_user ? __('Play', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
+                                <?php echo esc_html($is_study_user ? _x('Play', 'launch game action', 'll-tools-text-domain') : __('Sign in', 'll-tools-text-domain')); ?>
                             </button>
                         </div>
                     </article>
