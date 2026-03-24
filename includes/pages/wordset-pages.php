@@ -3337,8 +3337,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'wrongHitVolume' => 0.2,
                 'assetPreloadTimeoutMs' => 8000,
                 'correctHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
+                    LL_TOOLS_BASE_URL . 'media/bubble-pop.mp3',
                 ],
                 'wrongHitAudioSources' => [
                     LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
@@ -3487,6 +3486,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesPauseRun' => __('Pause run', 'll-tools-text-domain'),
             'gamesResumeRun' => __('Resume', 'll-tools-text-domain'),
             'gamesPaused' => __('Paused', 'll-tools-text-domain'),
+            'gamesInactivePauseSummary' => __('Paused after %d rounds without input.', 'll-tools-text-domain'),
             'gamesCoins' => __('Coins', 'll-tools-text-domain'),
             'gamesLives' => __('Lives', 'll-tools-text-domain'),
             'gamesControlLeft' => __('Move left', 'll-tools-text-domain'),

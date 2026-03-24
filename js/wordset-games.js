@@ -12,6 +12,9 @@
     const ASSET_PRELOAD_TIMEOUT_MS = 8000;
     const SHORT_PROMPT_AUTO_REPLAY_MIN_MS = 1400;
     const POST_SAFE_LINE_REPLAY_BUFFER_MS = 80;
+    const INACTIVITY_ROUND_PAUSE_LIMIT = 3;
+    const RESUME_ACTION_NEXT_PROMPT = 'next-prompt';
+    const PAUSE_REASON_INACTIVITY = 'inactivity';
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -21,6 +24,19 @@
     function clamp(value, min, max) {
         const num = Number(value) || 0;
         return Math.max(min, Math.min(max, num));
+    }
+
+    function randomBetween(min, max) {
+        const start = Number(min) || 0;
+        const end = Number(max);
+        if (!isFinite(end) || end <= start) {
+            return start;
+        }
+        return start + (Math.random() * (end - start));
+    }
+
+    function lerp(start, end, progress) {
+        return Number(start || 0) + ((Number(end || 0) - Number(start || 0)) * clamp(progress, 0, 1));
     }
 
     function uniqueIntList(values) {
@@ -457,12 +473,69 @@
         return stars;
     }
 
+    function scaleBubbleRunLayout(run, widthRatio, heightRatio) {
+        if (!run || !isFinite(widthRatio) || !isFinite(heightRatio)) {
+            return;
+        }
+
+        const decorativeBubbles = Array.isArray(run.decorativeBubbles) ? run.decorativeBubbles : [];
+        if (!Array.isArray(run.decorativeBubbles)) {
+            run.decorativeBubbles = decorativeBubbles;
+        }
+
+        run.cards.forEach(function (card) {
+            [
+                'bubbleVisibleX',
+                'bubbleBaseX',
+                'entryVisibleX',
+                'entryStartX',
+                'x'
+            ].forEach(function (key) {
+                if (isFinite(Number(card && card[key]))) {
+                    card[key] = Number(card[key]) * widthRatio;
+                }
+            });
+            [
+                'bubbleVisibleY',
+                'bubbleBaseY',
+                'entryVisibleY',
+                'entryStartY',
+                'y'
+            ].forEach(function (key) {
+                if (isFinite(Number(card && card[key]))) {
+                    card[key] = Number(card[key]) * heightRatio;
+                }
+            });
+        });
+
+        decorativeBubbles.forEach(function (bubble) {
+            [
+                'baseX',
+                'x'
+            ].forEach(function (key) {
+                if (isFinite(Number(bubble && bubble[key]))) {
+                    bubble[key] = Number(bubble[key]) * widthRatio;
+                }
+            });
+            [
+                'baseY',
+                'y'
+            ].forEach(function (key) {
+                if (isFinite(Number(bubble && bubble[key]))) {
+                    bubble[key] = Number(bubble[key]) * heightRatio;
+                }
+            });
+        });
+    }
+
     function syncCanvasSize(ctx) {
         if (!ctx || !ctx.canvas || !ctx.canvas.getContext) {
             return;
         }
 
         const run = ctx.run;
+        const previousWidth = run ? Math.max(1, Number(run.width) || 1) : 1;
+        const previousHeight = run ? Math.max(1, Number(run.height) || 1) : 1;
         const wrapWidth = Math.max(280, Math.round(ctx.$canvasWrap.innerWidth() || ctx.$stage.innerWidth() || 720));
         const viewportCap = root.innerHeight ? Math.round(root.innerHeight * 0.68) : 820;
         const cssHeight = clamp(Math.round(wrapWidth * 1.18), 430, Math.max(430, viewportCap));
@@ -494,6 +567,11 @@
         run.cards.forEach(function (card) {
             applyCardDimensions(ctx, run, card);
         });
+        if (isBubblePopRun(ctx, run)) {
+            scaleBubbleRunLayout(run, run.width / previousWidth, run.height / previousHeight);
+            seedDecorativeBubbles(run);
+            refreshBubblePromptCardPositions(run, currentTimestamp());
+        }
         run.bullets.forEach(function (bullet) {
             bullet.x = clamp(bullet.x, 0, run.width);
             bullet.y = clamp(bullet.y, -20, run.height + 20);
@@ -663,6 +741,14 @@
         card.width = dimensions.width;
         card.height = dimensions.height;
         card.aspectRatio = dimensions.aspectRatio;
+        if (isBubblePopRun(ctx, run)) {
+            if (isFinite(Number(card.entryStartX))) {
+                card.x = Number(card.entryStartX);
+            } else if (isFinite(Number(card.bubbleVisibleX))) {
+                card.x = Number(card.bubbleVisibleX);
+            }
+            return;
+        }
         card.x = laneCenterX(run, card.laneIndex);
     }
 
@@ -848,37 +934,33 @@
 
         if (isBubblePopRun(ctx, run)) {
             const bubbleGradient = context.createLinearGradient(0, 0, 0, run.height);
-            bubbleGradient.addColorStop(0, '#0F766E');
-            bubbleGradient.addColorStop(0.42, '#0F5D72');
-            bubbleGradient.addColorStop(1, '#123149');
+            bubbleGradient.addColorStop(0, '#A9E7FF');
+            bubbleGradient.addColorStop(0.46, '#8AD8FC');
+            bubbleGradient.addColorStop(1, '#6ABBE9');
             context.fillStyle = bubbleGradient;
             context.fillRect(0, 0, run.width, run.height);
 
-            const glow = context.createRadialGradient(run.width * 0.4, run.height * 0.12, 0, run.width * 0.4, run.height * 0.12, run.width * 0.55);
-            glow.addColorStop(0, 'rgba(244, 251, 255, 0.18)');
-            glow.addColorStop(1, 'rgba(244, 251, 255, 0)');
+            const glow = context.createRadialGradient(run.width * 0.36, run.height * 0.12, 0, run.width * 0.36, run.height * 0.12, run.width * 0.58);
+            glow.addColorStop(0, 'rgba(255, 255, 255, 0.34)');
+            glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
             context.fillStyle = glow;
+            context.fillRect(0, 0, run.width, run.height);
+
+            const lowerGlow = context.createRadialGradient(run.width * 0.78, run.height * 0.82, 0, run.width * 0.78, run.height * 0.82, run.width * 0.48);
+            lowerGlow.addColorStop(0, 'rgba(225, 245, 255, 0.24)');
+            lowerGlow.addColorStop(1, 'rgba(225, 245, 255, 0)');
+            context.fillStyle = lowerGlow;
             context.fillRect(0, 0, run.width, run.height);
 
             run.stars.forEach(function (star, index) {
                 const radius = star.radius * (index % 3 === 0 ? 4.8 : 3.2);
-                context.globalAlpha = Math.min(0.26, star.alpha * 0.52);
-                context.fillStyle = index % 2 === 0 ? '#ECFEFF' : '#DBEAFE';
+                context.globalAlpha = Math.min(0.24, star.alpha * 0.48);
+                context.fillStyle = index % 2 === 0 ? '#F8FDFF' : '#D7F0FF';
                 context.beginPath();
                 context.arc(star.x, star.y, radius, 0, Math.PI * 2);
                 context.fill();
             });
             context.globalAlpha = 1;
-
-            context.strokeStyle = 'rgba(255,255,255,0.08)';
-            context.lineWidth = 1;
-            for (let laneIndex = 1; laneIndex < run.cardCount; laneIndex += 1) {
-                const x = laneCenterX(run, laneIndex) - (run.metrics.laneWidth / 2);
-                context.beginPath();
-                context.moveTo(x, 0);
-                context.lineTo(x, run.height);
-                context.stroke();
-            }
             return;
         }
 
@@ -986,6 +1068,366 @@
         return Math.max(28, Math.min(card.width, card.height) * 0.5);
     }
 
+    function getFloatingBodyRadius(body) {
+        const explicitRadius = Number(body && body.radius);
+        if (isFinite(explicitRadius) && explicitRadius > 0) {
+            return explicitRadius;
+        }
+        return getBubbleRadius(body);
+    }
+
+    function getBubbleMovementBounds(run, radius) {
+        const bubbleRadius = Math.max(10, Number(radius) || 10);
+        const sidePadding = Math.max(20, run.width * 0.04);
+        const topPadding = Math.max(12, run.height * 0.02);
+        const bottomPadding = Math.max(72, run.height * 0.08);
+        return {
+            minX: bubbleRadius + sidePadding,
+            maxX: run.width - bubbleRadius - sidePadding,
+            minY: bubbleRadius + topPadding,
+            maxY: run.height - bubbleRadius - bottomPadding
+        };
+    }
+
+    function setFloatingBodyPosition(run, body, x, y, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const bounds = getBubbleMovementBounds(run, getFloatingBodyRadius(body));
+        body.x = clamp(Number(x) || 0, bounds.minX, bounds.maxX);
+        body.y = opts.clampY === false
+            ? (Number(y) || 0)
+            : clamp(Number(y) || 0, bounds.minY, bounds.maxY);
+    }
+
+    function getBubbleFloatOffsets(card, now, strength) {
+        const time = Math.max(0, Number(now) || 0) / 1000;
+        const scale = isFinite(Number(strength)) ? Number(strength) : 1;
+        return {
+            x: (
+                Math.sin((time * Number(card && card.bubbleFloatHzXPrimary || 0.14) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXPrimary || 0))
+                    * Number(card && card.bubbleFloatAmplitudeXPrimary || 0)
+            ) + (
+                Math.sin((time * Number(card && card.bubbleFloatHzXSecondary || 0.26) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseXSecondary || 0))
+                    * Number(card && card.bubbleFloatAmplitudeXSecondary || 0)
+            ) * scale,
+            y: (
+                Math.sin((time * Number(card && card.bubbleFloatHzYPrimary || 0.18) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseYPrimary || 0))
+                    * Number(card && card.bubbleFloatAmplitudeYPrimary || 0)
+            ) + (
+                Math.sin((time * Number(card && card.bubbleFloatHzYSecondary || 0.31) * Math.PI * 2) + Number(card && card.bubbleFloatPhaseYSecondary || 0))
+                    * Number(card && card.bubbleFloatAmplitudeYSecondary || 0)
+            ) * scale
+        };
+    }
+
+    function resolveFloatingBubbleOverlaps(run, bodies, gap) {
+        const list = Array.isArray(bodies) ? bodies.filter(Boolean) : [];
+        const padding = Math.max(0, Number(gap) || 0);
+        for (let pass = 0; pass < 3; pass += 1) {
+            let moved = false;
+            for (let leftIndex = 0; leftIndex < list.length; leftIndex += 1) {
+                for (let rightIndex = leftIndex + 1; rightIndex < list.length; rightIndex += 1) {
+                    const left = list[leftIndex];
+                    const right = list[rightIndex];
+                    const dx = Number(right.x) - Number(left.x);
+                    const dy = Number(right.y) - Number(left.y);
+                    const distance = Math.sqrt((dx * dx) + (dy * dy)) || 0.001;
+                    const minimumDistance = getFloatingBodyRadius(left) + getFloatingBodyRadius(right) + padding;
+                    if (distance >= minimumDistance) {
+                        continue;
+                    }
+
+                    const overlap = minimumDistance - distance;
+                    const normalX = dx / distance;
+                    const normalY = dy / distance;
+                    setFloatingBodyPosition(run, left, Number(left.x) - (normalX * overlap * 0.5), Number(left.y) - (normalY * overlap * 0.5), {
+                        clampY: false
+                    });
+                    setFloatingBodyPosition(run, right, Number(right.x) + (normalX * overlap * 0.5), Number(right.y) + (normalY * overlap * 0.5), {
+                        clampY: false
+                    });
+                    moved = true;
+                }
+            }
+            if (!moved) {
+                break;
+            }
+        }
+    }
+
+    function placeBubblePromptCards(run, cards) {
+        const promptCards = Array.isArray(cards) ? cards.slice() : [];
+        const orderedCards = promptCards.sort(function (left, right) {
+            return getBubbleRadius(right) - getBubbleRadius(left);
+        });
+        const bandCenters = shuffle([0.61, 0.68, 0.74, 0.8, 0.65, 0.77]);
+        const placed = [];
+
+        orderedCards.forEach(function (card, index) {
+            const radius = getBubbleRadius(card);
+            const bounds = getBubbleMovementBounds(run, radius);
+            const bandCenter = bandCenters[index % bandCenters.length];
+            const bandMin = clamp((run.height * bandCenter) - (run.height * 0.03), bounds.minY, bounds.maxY);
+            const bandMax = clamp((run.height * bandCenter) + (run.height * 0.03), bandMin, bounds.maxY);
+            let bestCandidate = null;
+            let bestClearance = -Infinity;
+
+            for (let attempt = 0; attempt < 90; attempt += 1) {
+                const candidate = {
+                    x: randomBetween(bounds.minX, bounds.maxX),
+                    y: randomBetween(bandMin, bandMax)
+                };
+                let minimumClearance = placed.length ? Infinity : 9999;
+                let overlapping = false;
+
+                placed.forEach(function (existing) {
+                    const distance = Math.sqrt(Math.pow(candidate.x - existing.x, 2) + Math.pow(candidate.y - existing.y, 2));
+                    const clearance = distance - (radius + existing.radius + 18);
+                    minimumClearance = Math.min(minimumClearance, clearance);
+                    if (clearance < 0) {
+                        overlapping = true;
+                    }
+                });
+
+                if (minimumClearance > bestClearance) {
+                    bestCandidate = candidate;
+                    bestClearance = minimumClearance;
+                }
+                if (!overlapping) {
+                    bestCandidate = candidate;
+                    break;
+                }
+            }
+
+            const chosen = bestCandidate || {
+                x: (bounds.minX + bounds.maxX) / 2,
+                y: clamp(run.height * bandCenter, bounds.minY, bounds.maxY)
+            };
+            card.bubbleVisibleX = chosen.x;
+            card.bubbleVisibleY = chosen.y;
+            card.bubbleBaseX = chosen.x;
+            card.bubbleBaseY = chosen.y;
+            card.entryVisibleX = chosen.x;
+            card.entryVisibleY = chosen.y;
+            card.entryStartX = clamp(chosen.x + randomBetween(-34, 34), bounds.minX, bounds.maxX);
+            card.bubbleWanderVelocityX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(8, 20);
+            card.bubbleFloatAmplitudeXPrimary = randomBetween(10, 24);
+            card.bubbleFloatAmplitudeXSecondary = randomBetween(4, 11);
+            card.bubbleFloatAmplitudeYPrimary = randomBetween(7, 16);
+            card.bubbleFloatAmplitudeYSecondary = randomBetween(3, 8);
+            card.bubbleFloatHzXPrimary = randomBetween(0.11, 0.24);
+            card.bubbleFloatHzXSecondary = randomBetween(0.21, 0.41);
+            card.bubbleFloatHzYPrimary = randomBetween(0.14, 0.28);
+            card.bubbleFloatHzYSecondary = randomBetween(0.24, 0.44);
+            card.bubbleFloatPhaseXPrimary = randomBetween(0, Math.PI * 2);
+            card.bubbleFloatPhaseXSecondary = randomBetween(0, Math.PI * 2);
+            card.bubbleFloatPhaseYPrimary = randomBetween(0, Math.PI * 2);
+            card.bubbleFloatPhaseYSecondary = randomBetween(0, Math.PI * 2);
+            card.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(16, 42);
+            setFloatingBodyPosition(run, card, chosen.x, chosen.y);
+
+            placed.push({
+                x: chosen.x,
+                y: chosen.y,
+                radius: radius
+            });
+        });
+    }
+
+    function refreshBubblePromptCardPositions(run, now) {
+        const activeCards = [];
+        run.cards.forEach(function (card) {
+            if (!card || card.exploding || card.entryRevealMs > 0) {
+                return;
+            }
+
+            const motionStrength = card.resolvedFalling ? 0.32 : 1;
+            const offsets = getBubbleFloatOffsets(card, now, motionStrength);
+            setFloatingBodyPosition(
+                run,
+                card,
+                Number(card.bubbleBaseX || card.entryVisibleX || card.x) + offsets.x,
+                Number(card.bubbleBaseY || card.entryVisibleY || card.y) + offsets.y,
+                {
+                    clampY: false
+                }
+            );
+
+            if (!card.resolvedFalling) {
+                activeCards.push(card);
+            }
+        });
+
+        resolveFloatingBubbleOverlaps(run, activeCards, 12);
+    }
+
+    function getDecorativeBubbleTargetCount(run) {
+        return run.width < 480 ? 9 : 13;
+    }
+
+    function createDecorativeBubble(run, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const radius = randomBetween(10, 23);
+        const bounds = getBubbleMovementBounds(run, radius);
+        const bubble = {
+            id: toInt(run.decorativeBubbleIdCounter) + 1,
+            radius: radius,
+            baseX: clamp(Number(opts.baseX) || randomBetween(bounds.minX, bounds.maxX), bounds.minX, bounds.maxX),
+            baseY: isFinite(Number(opts.baseY)) ? Number(opts.baseY) : randomBetween(bounds.minY, run.height + radius),
+            x: 0,
+            y: 0,
+            speed: randomBetween(8, 24),
+            wanderVelocityX: (Math.random() < 0.5 ? -1 : 1) * randomBetween(2, 8),
+            driftXAmplitudePrimary: randomBetween(3, 10),
+            driftXAmplitudeSecondary: randomBetween(1.5, 5.5),
+            driftYAmplitudePrimary: randomBetween(2, 8),
+            driftYAmplitudeSecondary: randomBetween(1, 4),
+            driftHzXPrimary: randomBetween(0.08, 0.2),
+            driftHzXSecondary: randomBetween(0.18, 0.36),
+            driftHzYPrimary: randomBetween(0.1, 0.24),
+            driftHzYSecondary: randomBetween(0.22, 0.4),
+            driftPhaseXPrimary: randomBetween(0, Math.PI * 2),
+            driftPhaseXSecondary: randomBetween(0, Math.PI * 2),
+            driftPhaseYPrimary: randomBetween(0, Math.PI * 2),
+            driftPhaseYSecondary: randomBetween(0, Math.PI * 2),
+            alpha: randomBetween(0.14, 0.28),
+            exploding: false,
+            removeAt: 0
+        };
+        run.decorativeBubbleIdCounter = bubble.id;
+        setFloatingBodyPosition(run, bubble, bubble.baseX, bubble.baseY, {
+            clampY: false
+        });
+        return bubble;
+    }
+
+    function seedDecorativeBubbles(run) {
+        if (!run) {
+            return;
+        }
+        if (!Array.isArray(run.decorativeBubbles)) {
+            run.decorativeBubbles = [];
+        }
+        const targetCount = getDecorativeBubbleTargetCount(run);
+        while (run.decorativeBubbles.length < targetCount) {
+            run.decorativeBubbles.push(createDecorativeBubble(run));
+        }
+    }
+
+    function updateDecorativeBubblePositions(run, now, dt) {
+        if (!run) {
+            return;
+        }
+
+        run.decorativeBubbles.forEach(function (bubble) {
+            if (!bubble || bubble.exploding) {
+                return;
+            }
+
+            const bounds = getBubbleMovementBounds(run, bubble.radius);
+            bubble.baseY -= bubble.speed * dt;
+            bubble.baseX += bubble.wanderVelocityX * dt;
+            if (bubble.baseX <= bounds.minX || bubble.baseX >= bounds.maxX) {
+                bubble.wanderVelocityX *= -1;
+                bubble.baseX = clamp(bubble.baseX, bounds.minX, bounds.maxX);
+            }
+
+            const offsets = {
+                x: (
+                    Math.sin((now / 1000 * bubble.driftHzXPrimary * Math.PI * 2) + bubble.driftPhaseXPrimary) * bubble.driftXAmplitudePrimary
+                ) + (
+                    Math.sin((now / 1000 * bubble.driftHzXSecondary * Math.PI * 2) + bubble.driftPhaseXSecondary) * bubble.driftXAmplitudeSecondary
+                ),
+                y: (
+                    Math.sin((now / 1000 * bubble.driftHzYPrimary * Math.PI * 2) + bubble.driftPhaseYPrimary) * bubble.driftYAmplitudePrimary
+                ) + (
+                    Math.sin((now / 1000 * bubble.driftHzYSecondary * Math.PI * 2) + bubble.driftPhaseYSecondary) * bubble.driftYAmplitudeSecondary
+                )
+            };
+
+            setFloatingBodyPosition(run, bubble, bubble.baseX + offsets.x, bubble.baseY + offsets.y, {
+                clampY: false
+            });
+        });
+
+        const floatingBubbles = run.decorativeBubbles.filter(function (bubble) {
+            return bubble && !bubble.exploding;
+        });
+        resolveFloatingBubbleOverlaps(run, floatingBubbles, 6);
+
+        run.decorativeBubbles = run.decorativeBubbles.filter(function (bubble) {
+            if (!bubble) {
+                return false;
+            }
+            if (bubble.exploding) {
+                return now < bubble.removeAt;
+            }
+            return (bubble.y + bubble.radius) > (-bubble.radius * 1.8);
+        });
+        seedDecorativeBubbles(run);
+    }
+
+    function renderDecorativeBubbles(ctx, run, now) {
+        const context = ctx.canvasContext;
+        run.decorativeBubbles.forEach(function (bubble) {
+            if (!bubble) {
+                return;
+            }
+
+            const exploding = !!bubble.exploding && now < bubble.removeAt;
+            const duration = Math.max(140, toInt(bubble.explosionDuration) || 180);
+            const progress = exploding ? clamp(1 - ((bubble.removeAt - now) / duration), 0, 1) : 0;
+
+            context.save();
+            context.translate(Number(bubble.x) || 0, Number(bubble.y) || 0);
+            context.globalAlpha = Math.max(0, Number(bubble.alpha) || 0.18) * (exploding ? (1 - progress) : 1);
+            context.scale(1 + (progress * 0.28), 1 + (progress * 0.28));
+
+            const gradient = context.createRadialGradient(-bubble.radius * 0.32, -bubble.radius * 0.36, bubble.radius * 0.08, 0, 0, bubble.radius);
+            gradient.addColorStop(0, 'rgba(255,255,255,0.72)');
+            gradient.addColorStop(0.34, 'rgba(255,255,255,0.26)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0.04)');
+            context.fillStyle = gradient;
+            context.beginPath();
+            context.arc(0, 0, bubble.radius, 0, Math.PI * 2);
+            context.fill();
+
+            context.strokeStyle = 'rgba(255,255,255,0.42)';
+            context.lineWidth = 1.2;
+            context.beginPath();
+            context.arc(0, 0, bubble.radius, 0, Math.PI * 2);
+            context.stroke();
+
+            context.strokeStyle = 'rgba(255,255,255,0.34)';
+            context.lineWidth = 0.9;
+            context.beginPath();
+            context.arc(-bubble.radius * 0.2, -bubble.radius * 0.24, bubble.radius * 0.24, Math.PI * 1.08, Math.PI * 1.86);
+            context.stroke();
+            context.restore();
+        });
+    }
+
+    function popDecorativeBubble(run, bubble) {
+        if (!run || !bubble || bubble.exploding) {
+            return false;
+        }
+
+        const now = currentTimestamp();
+        bubble.exploding = true;
+        bubble.explosionDuration = 180;
+        bubble.removeAt = now + 180;
+        spawnExplosion(run, {
+            x: bubble.x,
+            y: bubble.y,
+            radius: bubble.radius * 2.1,
+            primaryColor: 'rgba(233, 248, 255, 0.88)',
+            secondaryColor: 'rgba(154, 221, 255, 0.78)',
+            duration: 220,
+            style: 'bubble-pop',
+            rayCount: 8
+        });
+        return true;
+    }
+
     function renderBubbleCards(ctx, run, now) {
         const context = ctx.canvasContext;
         run.cards.forEach(function (card) {
@@ -993,13 +1435,14 @@
                 ? getCardAmbientMotion(card, now)
                 : { bobY: 0, tilt: 0 };
             const exploding = !!card.exploding && now < card.removeAt;
-            const explosionDuration = Math.max(180, toInt(card.explosionDuration) || (card.explosionStyle === 'dramatic' ? 320 : 220));
+            const explosionDuration = Math.max(180, toInt(card.explosionDuration) || 240);
             const progress = exploding ? clamp(1 - ((card.removeAt - now) / explosionDuration), 0, 1) : 0;
-            const dramatic = card.explosionStyle === 'dramatic';
             const radius = getBubbleRadius(card);
-            const renderX = card.x + (card.resolvedFalling ? 0 : (Math.sin((now / 1000) + (card.motionTiltPhasePrimary || 0)) * 5));
-            const renderY = card.y + ambientMotion.bobY;
+            const renderX = card.x;
+            const renderY = card.y;
             const image = loadWordImage(ctx, card.word);
+            const isCorrectPop = card.explosionStyle === 'bubble-correct';
+            const isWrongBurst = card.explosionStyle === 'bubble-wrong';
 
             context.save();
             context.translate(renderX, renderY);
@@ -1007,11 +1450,13 @@
             if (exploding) {
                 context.globalAlpha = clamp(1 - progress, 0, 1);
             }
-            if (dramatic) {
-                context.rotate((Math.sin(progress * 30) * 0.12) + (progress * 0.32));
-                context.scale(1 + (progress * 0.46), 1 + (progress * 0.46));
+            if (isWrongBurst) {
+                context.rotate((Math.sin(progress * 24) * 0.08) + (progress * 0.24));
+                context.scale(1 + (progress * 0.52), 1 + (progress * 0.52));
+            } else if (isCorrectPop) {
+                context.scale(1 + (progress * 0.18), 1 + (progress * 0.18));
             } else if (!card.resolvedFalling) {
-                context.rotate(ambientMotion.tilt * 0.6);
+                context.rotate(ambientMotion.tilt * 0.32);
             }
 
             context.shadowColor = 'rgba(15, 23, 42, 0.22)';
@@ -1019,9 +1464,9 @@
             context.shadowOffsetY = 10;
 
             const bubbleGradient = context.createRadialGradient(-radius * 0.34, -radius * 0.4, radius * 0.12, 0, 0, radius);
-            bubbleGradient.addColorStop(0, 'rgba(255,255,255,0.9)');
-            bubbleGradient.addColorStop(0.22, 'rgba(236, 254, 255, 0.72)');
-            bubbleGradient.addColorStop(0.68, 'rgba(186, 230, 253, 0.26)');
+            bubbleGradient.addColorStop(0, 'rgba(255,255,255,0.92)');
+            bubbleGradient.addColorStop(0.22, 'rgba(244, 252, 255, 0.76)');
+            bubbleGradient.addColorStop(0.68, 'rgba(191, 231, 255, 0.28)');
             bubbleGradient.addColorStop(1, 'rgba(125, 211, 252, 0.14)');
             context.fillStyle = bubbleGradient;
             context.beginPath();
@@ -1037,8 +1482,8 @@
             context.clip();
             if (!drawImageContain(context, image, -radius * 0.8, -radius * 0.8, radius * 1.6, radius * 1.6)) {
                 const placeholder = context.createLinearGradient(-radius, -radius, radius, radius);
-                placeholder.addColorStop(0, '#F0FDFA');
-                placeholder.addColorStop(1, '#DBEAFE');
+                placeholder.addColorStop(0, '#F5FCFF');
+                placeholder.addColorStop(1, '#DDEFFD');
                 context.fillStyle = placeholder;
                 context.fillRect(-radius, -radius, radius * 2, radius * 2);
                 context.fillStyle = 'rgba(15, 23, 42, 0.48)';
@@ -1061,16 +1506,41 @@
             context.arc(-radius * 0.22, -radius * 0.26, radius * 0.26, Math.PI * 1.08, Math.PI * 1.86);
             context.stroke();
 
-            context.fillStyle = 'rgba(255,255,255,0.5)';
+            context.fillStyle = 'rgba(255,255,255,0.54)';
             context.beginPath();
             context.arc(-radius * 0.34, -radius * 0.38, radius * 0.12, 0, Math.PI * 2);
             context.fill();
 
-            if (exploding) {
-                context.strokeStyle = card.isTarget ? 'rgba(16, 185, 129, 0.92)' : 'rgba(248, 113, 113, 0.94)';
-                context.lineWidth = dramatic ? 4 : 3;
+            if (exploding && isCorrectPop) {
+                context.strokeStyle = 'rgba(154, 221, 255, 0.96)';
+                context.lineWidth = 3.8;
                 context.beginPath();
-                context.arc(0, 0, radius * (0.78 + (progress * 0.86)), 0, Math.PI * 2);
+                context.arc(0, 0, radius * (0.68 + (progress * 0.92)), 0, Math.PI * 2);
+                context.stroke();
+
+                context.strokeStyle = 'rgba(255,255,255,0.88)';
+                context.lineWidth = 2;
+                context.beginPath();
+                context.arc(0, 0, radius * (0.42 + (progress * 0.62)), 0, Math.PI * 2);
+                context.stroke();
+            } else if (exploding && isWrongBurst) {
+                const rayCount = 12;
+                context.strokeStyle = 'rgba(255, 134, 105, 0.96)';
+                context.lineWidth = 3.4;
+                for (let index = 0; index < rayCount; index += 1) {
+                    const angle = (Math.PI * 2 * index) / rayCount;
+                    const innerRadius = radius * 0.42;
+                    const outerRadius = radius * (0.92 + (progress * 1.18) + ((index % 2) * 0.14));
+                    context.beginPath();
+                    context.moveTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
+                    context.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius);
+                    context.stroke();
+                }
+
+                context.strokeStyle = 'rgba(255, 241, 236, 0.84)';
+                context.lineWidth = 2.2;
+                context.beginPath();
+                context.arc(0, 0, radius * (0.58 + (progress * 0.9)), 0, Math.PI * 2);
                 context.stroke();
             }
             context.restore();
@@ -1203,7 +1673,49 @@
             context.rotate(progress * (Number(explosion.spin) || 0) * Math.PI * 6);
             context.globalAlpha = 1 - progress;
 
-            if (explosion.style === 'burst') {
+            if (explosion.style === 'bubble-pop') {
+                context.strokeStyle = String(explosion.primaryColor || 'rgba(154, 221, 255, 0.94)');
+                context.lineWidth = 3.6 - (progress * 1.4);
+                context.beginPath();
+                context.arc(0, 0, radius * 0.92, 0, Math.PI * 2);
+                context.stroke();
+
+                context.strokeStyle = String(explosion.secondaryColor || 'rgba(255,255,255,0.88)');
+                context.lineWidth = 1.8;
+                context.beginPath();
+                context.arc(0, 0, radius * 0.56, 0, Math.PI * 2);
+                context.stroke();
+
+                context.fillStyle = String(explosion.secondaryColor || 'rgba(255,255,255,0.82)');
+                const dropletCount = Math.max(6, toInt(explosion.rayCount) || 8);
+                for (let index = 0; index < dropletCount; index += 1) {
+                    const angle = (Math.PI * 2 * index) / dropletCount;
+                    const dotRadius = Math.max(1.6, radius * 0.08 * (1 - (progress * 0.3)));
+                    const offset = radius * (0.46 + (progress * 0.62));
+                    context.beginPath();
+                    context.arc(Math.cos(angle) * offset, Math.sin(angle) * offset, dotRadius, 0, Math.PI * 2);
+                    context.fill();
+                }
+            } else if (explosion.style === 'bubble-ray-burst') {
+                const rayCount = Math.max(10, toInt(explosion.rayCount) || 14);
+                context.strokeStyle = String(explosion.primaryColor || 'rgba(255, 134, 105, 0.96)');
+                context.lineWidth = 2.8 + ((1 - progress) * 3.4);
+                for (let index = 0; index < rayCount; index += 1) {
+                    const angle = (Math.PI * 2 * index) / rayCount;
+                    const innerRadius = radius * 0.14;
+                    const outerRadius = radius * (1 + ((index % 2) * 0.18));
+                    context.beginPath();
+                    context.moveTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
+                    context.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius);
+                    context.stroke();
+                }
+
+                context.strokeStyle = String(explosion.secondaryColor || 'rgba(255, 241, 236, 0.84)');
+                context.lineWidth = 2.2 + ((1 - progress) * 1.4);
+                context.beginPath();
+                context.arc(0, 0, radius * 0.72, 0, Math.PI * 2);
+                context.stroke();
+            } else if (explosion.style === 'burst') {
                 const rayCount = Math.max(6, toInt(explosion.rayCount) || 10);
                 context.strokeStyle = String(explosion.primaryColor || 'rgba(248, 113, 113, 0.96)');
                 context.lineWidth = 2.4 + ((1 - progress) * 3.8);
@@ -1229,11 +1741,13 @@
                 context.stroke();
             }
 
-            context.strokeStyle = String(explosion.primaryColor || explosion.color || 'rgba(255,255,255,0.9)');
-            context.lineWidth = 2 + ((1 - progress) * (explosion.style === 'burst' ? 3.4 : 4));
-            context.beginPath();
-            context.arc(0, 0, radius, 0, Math.PI * 2);
-            context.stroke();
+            if (explosion.style !== 'bubble-pop' && explosion.style !== 'bubble-ray-burst') {
+                context.strokeStyle = String(explosion.primaryColor || explosion.color || 'rgba(255,255,255,0.9)');
+                context.lineWidth = 2 + ((1 - progress) * (explosion.style === 'burst' ? 3.4 : 4));
+                context.beginPath();
+                context.arc(0, 0, radius, 0, Math.PI * 2);
+                context.stroke();
+            }
             context.restore();
         });
     }
@@ -1244,6 +1758,9 @@
             return;
         }
         renderBackground(ctx, run);
+        if (isBubblePopRun(ctx, run)) {
+            renderDecorativeBubbles(ctx, run, now);
+        }
         renderCards(ctx, run, now);
         renderBullets(ctx, run);
         renderExplosions(ctx, run, now);
@@ -1290,8 +1807,28 @@
             entryDepthJitter: Math.random() * 0.08,
             entryRevealMs: 0,
             entryStartedAt: 0,
+            entryStartX: laneCenterX(run, laneIndex),
             entryStartY: -dimensions.height,
+            entryVisibleX: laneCenterX(run, laneIndex),
             entryVisibleY: dimensions.height / 2,
+            bubbleVisibleX: null,
+            bubbleVisibleY: null,
+            bubbleBaseX: null,
+            bubbleBaseY: null,
+            bubbleWanderVelocityX: 0,
+            bubbleFloatAmplitudeXPrimary: 0,
+            bubbleFloatAmplitudeXSecondary: 0,
+            bubbleFloatAmplitudeYPrimary: 0,
+            bubbleFloatAmplitudeYSecondary: 0,
+            bubbleFloatHzXPrimary: 0,
+            bubbleFloatHzXSecondary: 0,
+            bubbleFloatHzYPrimary: 0,
+            bubbleFloatHzYSecondary: 0,
+            bubbleFloatPhaseXPrimary: 0,
+            bubbleFloatPhaseXSecondary: 0,
+            bubbleFloatPhaseYPrimary: 0,
+            bubbleFloatPhaseYSecondary: 0,
+            releaseDriftX: 0,
             fallSpeedFactor: isTarget ? 1 : (0.9 + (Math.random() * 0.2)),
             speed: run.cardSpeed,
             motionBobAmplitudePrimary: 3.2 + (Math.random() * 2.4),
@@ -1322,6 +1859,10 @@
     }
 
     function getCardEntryVisibleY(ctx, run, card) {
+        if (isBubblePopRun(ctx, run) && isFinite(Number(card && card.bubbleVisibleY))) {
+            return Number(card.bubbleVisibleY);
+        }
+
         const cardHeight = Math.max(1, Number(card && card.height) || 1);
         const metricsCardHeight = Math.max(cardHeight, Number(run && run.metrics && run.metrics.cardHeight) || cardHeight);
         const offsetFactor = Math.max(0, Number(card && card.entryOffsetFactor) || 0);
@@ -1474,13 +2015,12 @@
         }
 
         const shuffledWords = shuffle(selected);
-        const laneOrder = shuffle([0, 1, 2, 3]);
         const stagger = shuffle([0.1, 0.38, 0.72, 1.02]);
-        return shuffledWords.map(function (word, index) {
+        const cards = shuffledWords.map(function (word, index) {
             const card = createCard(
                 run,
                 word,
-                laneOrder[index],
+                index,
                 toInt(word.id) === toInt(targetWord.id),
                 stagger[index] || (index * 0.28),
                 promptId
@@ -1488,6 +2028,12 @@
             applyCardDimensions(ctx, run, card);
             return card;
         });
+
+        if (isBubblePopRun(ctx, run)) {
+            placeBubblePromptCards(run, cards);
+        }
+
+        return cards;
     }
 
     function findPlayableTargets(words, cardCount) {
@@ -2231,6 +2777,9 @@
         }
 
         const gameConfig = getGameConfig(ctx, run);
+        if (isBubblePopRun(ctx, run)) {
+            placeBubblePromptCards(run, candidate.cards);
+        }
         const targetCard = candidate.cards.find(function (card) {
             return !!card && card.isTarget;
         });
@@ -2267,10 +2816,25 @@
             const variedCardSpeed = promptCardSpeed * Math.max(0.86, Number(card.fallSpeedFactor) || 1);
             card.entryRevealMs = entryRevealMs;
             card.entryStartedAt = promptStartedAt;
+            card.entryVisibleX = isBubblePopRun(ctx, run)
+                ? Number(card.bubbleVisibleX || card.entryVisibleX || card.x)
+                : laneCenterX(run, card.laneIndex);
+            card.entryStartX = isBubblePopRun(ctx, run)
+                ? clamp(
+                    Number(card.entryStartX || card.entryVisibleX || card.x),
+                    getBubbleMovementBounds(run, getBubbleRadius(card)).minX,
+                    getBubbleMovementBounds(run, getBubbleRadius(card)).maxX
+                )
+                : card.entryVisibleX;
             card.entryStartY = isBubblePopRun(ctx, run)
                 ? entryVisibleY + hiddenDistance
                 : entryVisibleY - hiddenDistance;
             card.entryVisibleY = entryVisibleY;
+            if (isBubblePopRun(ctx, run)) {
+                card.bubbleBaseX = card.entryVisibleX;
+                card.bubbleBaseY = card.entryVisibleY;
+                card.x = card.entryStartX;
+            }
             card.y = card.entryStartY;
             card.speed = Math.min(variedCardSpeed, maxSafeSpeed);
         });
@@ -2294,9 +2858,14 @@
             wrongCount: 0,
             wrongHitRecoveryUntil: 0,
             exposureTracked: false,
+            hadUserActivity: false,
+            activityFinalized: false,
             resolved: false
         };
         run.cards = run.cards.concat(candidate.cards);
+        if (isBubblePopRun(ctx, run)) {
+            refreshBubblePromptCardPositions(run, promptStartedAt);
+        }
         playPromptAudio(ctx, {
             allowAutoReplay: true
         });
@@ -2373,6 +2942,52 @@
             : 'space_shooter';
     }
 
+    function markRunActivity(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || run.paused || run.ended || !run.prompt || run.prompt.resolved) {
+            return false;
+        }
+
+        run.prompt.hadUserActivity = true;
+        return true;
+    }
+
+    function finalizePromptActivity(run) {
+        if (!run || !run.prompt || run.prompt.activityFinalized) {
+            return Math.max(0, toInt(run && run.inactiveRounds));
+        }
+
+        const hadUserActivity = !!run.prompt.hadUserActivity;
+        run.inactiveRounds = hadUserActivity
+            ? 0
+            : Math.max(0, toInt(run.inactiveRounds)) + 1;
+        run.lastResolvedPromptHadUserActivity = hadUserActivity;
+        run.prompt.activityFinalized = true;
+        return run.inactiveRounds;
+    }
+
+    function maybePauseForInactivity(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !run.prompt || !run.prompt.resolved || run.ended) {
+            return false;
+        }
+
+        const inactiveRounds = finalizePromptActivity(run);
+        if (inactiveRounds < INACTIVITY_ROUND_PAUSE_LIMIT) {
+            return false;
+        }
+
+        pauseRun(ctx, {
+            reason: PAUSE_REASON_INACTIVITY,
+            resumeAction: RESUME_ACTION_NEXT_PROMPT,
+            summary: formatMessage(
+                ctx.i18n.gamesInactivePauseSummary || 'Paused after %d rounds without input.',
+                [INACTIVITY_ROUND_PAUSE_LIMIT]
+            )
+        });
+        return true;
+    }
+
     function removeResolvedObjects(run, now) {
         run.cards = run.cards.filter(function (card) {
             if (card.resolvedFalling) {
@@ -2446,6 +3061,9 @@
             }
             entry.resolvedFalling = true;
             entry.speed = Math.max(entry.speed * 3.3, run.cardSpeed * 3.6);
+            if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
+                entry.releaseDriftX = (Math.random() < 0.5 ? -1 : 1) * randomBetween(18, 44);
+            }
         });
     }
 
@@ -2455,6 +3073,7 @@
             return;
         }
         const gameConfig = getGameConfig(ctx, run);
+        const isBubbleGame = isBubblePopRun(ctx, run);
 
         queueExposureOnce(ctx, run.prompt);
         queueOutcome(ctx, run.prompt, true, !!run.prompt.hadWrongBefore, { event_source: getRunEventSource(run) });
@@ -2462,23 +3081,27 @@
         run.coins += Math.max(1, toInt(gameConfig && gameConfig.correctCoinReward) || 1);
         updateHud(ctx);
         card.exploding = true;
-        card.explosionStyle = 'correct';
-        card.explosionDuration = 220;
-        card.removeAt = currentTimestamp() + 220;
+        card.explosionStyle = isBubbleGame ? 'bubble-correct' : 'correct';
+        card.explosionDuration = isBubbleGame ? 280 : 220;
+        card.removeAt = currentTimestamp() + card.explosionDuration;
         spawnExplosion(run, {
             x: card.x,
             y: card.y,
-            radius: card.width * 0.72,
-            primaryColor: 'rgba(16, 185, 129, 0.96)',
-            secondaryColor: 'rgba(103, 232, 249, 0.78)',
-            duration: 300,
-            style: 'ring'
+            radius: isBubbleGame ? (card.width * 0.98) : (card.width * 0.72),
+            primaryColor: isBubbleGame ? 'rgba(154, 221, 255, 0.98)' : 'rgba(16, 185, 129, 0.96)',
+            secondaryColor: isBubbleGame ? 'rgba(255, 255, 255, 0.9)' : 'rgba(103, 232, 249, 0.78)',
+            duration: isBubbleGame ? 340 : 300,
+            style: isBubbleGame ? 'bubble-pop' : 'ring',
+            rayCount: isBubbleGame ? 10 : 0
         });
 
         markPromptResolved(run);
         releaseResolvedPromptCards(run, card);
         playFeedbackSound(ctx, 'correct').finally(function () {
             if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            if (maybePauseForInactivity(ctx)) {
                 return;
             }
             startNextPrompt(ctx);
@@ -2491,6 +3114,7 @@
             return;
         }
         const gameConfig = getGameConfig(ctx, run);
+        const isBubbleGame = isBubblePopRun(ctx, run);
         const now = currentTimestamp();
         if (isWrongHitRecoveryActive(run, now)) {
             return;
@@ -2510,40 +3134,65 @@
         updateHud(ctx);
 
         card.exploding = true;
-        card.explosionStyle = 'dramatic';
-        card.explosionDuration = 420;
-        card.removeAt = now + 420;
-        spawnExplosion(run, {
-            x: card.x,
-            y: card.y,
-            radius: Math.max(card.width, card.height) * 1.12,
-            primaryColor: 'rgba(248, 113, 113, 0.98)',
-            secondaryColor: 'rgba(251, 191, 36, 0.92)',
-            duration: 520,
-            style: 'burst',
-            rayCount: 18,
-            spin: 0.18
-        });
-        spawnExplosion(run, {
-            x: card.x + ((Math.random() * 18) - 9),
-            y: card.y + ((Math.random() * 18) - 9),
-            radius: Math.max(card.width, card.height) * 0.82,
-            primaryColor: 'rgba(255, 255, 255, 0.94)',
-            secondaryColor: 'rgba(249, 115, 22, 0.9)',
-            duration: 360,
-            style: 'burst',
-            rayCount: 12,
-            spin: -0.22
-        });
-        spawnExplosion(run, {
-            x: card.x,
-            y: card.y,
-            radius: Math.max(card.width, card.height) * 1.34,
-            primaryColor: 'rgba(255, 214, 10, 0.7)',
-            secondaryColor: 'rgba(248, 113, 113, 0.55)',
-            duration: 420,
-            style: 'ring'
-        });
+        card.explosionStyle = isBubbleGame ? 'bubble-wrong' : 'dramatic';
+        card.explosionDuration = isBubbleGame ? 520 : 420;
+        card.removeAt = now + card.explosionDuration;
+        if (isBubbleGame) {
+            spawnExplosion(run, {
+                x: card.x,
+                y: card.y,
+                radius: Math.max(card.width, card.height) * 1.52,
+                primaryColor: 'rgba(255, 134, 105, 0.98)',
+                secondaryColor: 'rgba(255, 241, 236, 0.88)',
+                duration: 560,
+                style: 'bubble-ray-burst',
+                rayCount: 18,
+                spin: 0.16
+            });
+            spawnExplosion(run, {
+                x: card.x,
+                y: card.y,
+                radius: Math.max(card.width, card.height) * 1.9,
+                primaryColor: 'rgba(255, 173, 153, 0.62)',
+                secondaryColor: 'rgba(255, 255, 255, 0.54)',
+                duration: 420,
+                style: 'bubble-ray-burst',
+                rayCount: 10,
+                spin: -0.12
+            });
+        } else {
+            spawnExplosion(run, {
+                x: card.x,
+                y: card.y,
+                radius: Math.max(card.width, card.height) * 1.12,
+                primaryColor: 'rgba(248, 113, 113, 0.98)',
+                secondaryColor: 'rgba(251, 191, 36, 0.92)',
+                duration: 520,
+                style: 'burst',
+                rayCount: 18,
+                spin: 0.18
+            });
+            spawnExplosion(run, {
+                x: card.x + ((Math.random() * 18) - 9),
+                y: card.y + ((Math.random() * 18) - 9),
+                radius: Math.max(card.width, card.height) * 0.82,
+                primaryColor: 'rgba(255, 255, 255, 0.94)',
+                secondaryColor: 'rgba(249, 115, 22, 0.9)',
+                duration: 360,
+                style: 'burst',
+                rayCount: 12,
+                spin: -0.22
+            });
+            spawnExplosion(run, {
+                x: card.x,
+                y: card.y,
+                radius: Math.max(card.width, card.height) * 1.34,
+                primaryColor: 'rgba(255, 214, 10, 0.7)',
+                secondaryColor: 'rgba(248, 113, 113, 0.55)',
+                duration: 420,
+                style: 'ring'
+            });
+        }
 
         const feedbackPlayback = playFeedbackSound(ctx, 'wrong');
         if (run.lives <= 0) {
@@ -2589,6 +3238,9 @@
             root.setTimeout(function () {
                 endRun(ctx);
             }, 220);
+            return;
+        }
+        if (maybePauseForInactivity(ctx)) {
             return;
         }
         schedulePrompt(ctx, 220);
@@ -2651,24 +3303,60 @@
         return null;
     }
 
+    function findDecorativeBubbleAtPoint(run, point) {
+        if (!run || !point) {
+            return null;
+        }
+
+        for (let index = run.decorativeBubbles.length - 1; index >= 0; index -= 1) {
+            const bubble = run.decorativeBubbles[index];
+            if (!bubble || bubble.exploding) {
+                continue;
+            }
+
+            const radius = getFloatingBodyRadius(bubble) * 1.08;
+            const dx = Number(point.x) - Number(bubble.x);
+            const dy = Number(point.y) - Number(bubble.y);
+            if ((dx * dx) + (dy * dy) <= radius * radius) {
+                return bubble;
+            }
+        }
+
+        return null;
+    }
+
     function handleCanvasPress(ctx, event) {
         const run = ctx.run;
-        if (!run || run.paused || !run.prompt || run.prompt.resolved || !isBubblePopRun(ctx, run)) {
+        if (!run || run.paused || !isBubblePopRun(ctx, run)) {
             return false;
         }
 
         const point = getCanvasPoint(ctx, event);
-        const card = findBubbleCardAtPoint(run, point);
-        if (!card) {
+        if (!point) {
             return false;
         }
 
-        if (card.isTarget) {
-            handleCorrectHit(ctx, card);
-        } else {
-            handleWrongHit(ctx, card);
+        if (run.prompt && !run.prompt.resolved) {
+            const card = findBubbleCardAtPoint(run, point);
+            if (card) {
+                if (card.isTarget) {
+                    handleCorrectHit(ctx, card);
+                } else {
+                    handleWrongHit(ctx, card);
+                }
+                registerPromptActivity(run);
+                return true;
+            }
         }
-        return true;
+
+        const decorativeBubble = findDecorativeBubbleAtPoint(run, point);
+        if (decorativeBubble) {
+            popDecorativeBubble(run, decorativeBubble);
+            registerPromptActivity(run);
+            return true;
+        }
+
+        return false;
     }
 
     function stepRun(ctx, now, dtMs) {
@@ -2678,9 +3366,45 @@
         }
 
         const dt = Math.min(40, Math.max(0, dtMs || 0)) / 1000;
-        const cardDirection = isBubblePopRun(ctx, run) ? -1 : 1;
+        if (isBubblePopRun(ctx, run)) {
+            run.cards.forEach(function (card) {
+                if (!card || card.exploding) {
+                    return;
+                }
 
-        if (isSpaceShooterRun(ctx, run)) {
+                if (!card.resolvedFalling && card.entryRevealMs > 0) {
+                    const elapsedMs = Math.max(0, now - Number(card.entryStartedAt || 0));
+                    if (elapsedMs < card.entryRevealMs) {
+                        const easedProgress = easeOutCubic(elapsedMs / card.entryRevealMs);
+                        setFloatingBodyPosition(run, card, lerp(card.entryStartX, card.entryVisibleX, easedProgress), lerp(card.entryStartY, card.entryVisibleY, easedProgress), {
+                            clampY: false
+                        });
+                        return;
+                    }
+
+                    card.entryRevealMs = 0;
+                    card.bubbleBaseX = Number(card.entryVisibleX);
+                    card.bubbleBaseY = Number(card.entryVisibleY);
+                }
+
+                if (card.resolvedFalling) {
+                    card.bubbleBaseY = Number(card.bubbleBaseY || card.y) - (card.speed * dt);
+                    card.bubbleBaseX = Number(card.bubbleBaseX || card.x) + (Number(card.releaseDriftX) * dt);
+                    return;
+                }
+
+                const bounds = getBubbleMovementBounds(run, getBubbleRadius(card));
+                card.bubbleBaseY = Number(card.bubbleBaseY || card.entryVisibleY || card.y) - (card.speed * dt);
+                card.bubbleBaseX = Number(card.bubbleBaseX || card.entryVisibleX || card.x) + (Number(card.bubbleWanderVelocityX) * dt);
+                if (card.bubbleBaseX <= bounds.minX || card.bubbleBaseX >= bounds.maxX) {
+                    card.bubbleWanderVelocityX *= -1;
+                    card.bubbleBaseX = clamp(card.bubbleBaseX, bounds.minX, bounds.maxX);
+                }
+            });
+
+            refreshBubblePromptCardPositions(run, now);
+            updateDecorativeBubblePositions(run, now, dt);
+        } else {
             const gameConfig = getGameConfig(ctx, run);
             const direction = (run.controls.right ? 1 : 0) - (run.controls.left ? 1 : 0);
             if (direction !== 0) {
@@ -2702,23 +3426,23 @@
             run.bullets = run.bullets.filter(function (bullet) {
                 return bullet.y > -16;
             });
-        }
 
-        run.cards.forEach(function (card) {
-            if (!card.exploding) {
-                if (!card.resolvedFalling && card.entryRevealMs > 0) {
-                    const elapsedMs = Math.max(0, now - Number(card.entryStartedAt || 0));
-                    if (elapsedMs < card.entryRevealMs) {
-                        const easedProgress = easeOutCubic(elapsedMs / card.entryRevealMs);
-                        card.y = card.entryStartY + ((card.entryVisibleY - card.entryStartY) * easedProgress);
-                        return;
+            run.cards.forEach(function (card) {
+                if (!card.exploding) {
+                    if (!card.resolvedFalling && card.entryRevealMs > 0) {
+                        const elapsedMs = Math.max(0, now - Number(card.entryStartedAt || 0));
+                        if (elapsedMs < card.entryRevealMs) {
+                            const easedProgress = easeOutCubic(elapsedMs / card.entryRevealMs);
+                            card.y = card.entryStartY + ((card.entryVisibleY - card.entryStartY) * easedProgress);
+                            return;
+                        }
+                        card.entryRevealMs = 0;
+                        card.y = card.entryVisibleY;
                     }
-                    card.entryRevealMs = 0;
-                    card.y = card.entryVisibleY;
+                    card.y += card.speed * dt;
                 }
-                card.y += cardDirection * card.speed * dt;
-            }
-        });
+            });
+        }
 
         let collisionHandled = false;
         if (!run.prompt.resolved && isSpaceShooterRun(ctx, run)) {
@@ -2744,6 +3468,7 @@
                     } else {
                         handleWrongHit(ctx, card);
                     }
+                    registerPromptActivity(run);
                     collisionHandled = true;
                     break outerLoop;
                 }
@@ -2830,24 +3555,39 @@
         ctx.$overlay.prop('hidden', true);
     }
 
-    function pauseRun(ctx) {
+    function pauseRun(ctx, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         const run = ctx.run;
         if (!run || run.ended || run.paused) {
             return;
         }
 
         run.paused = true;
-        clearPromptTimer(run, true);
+        clearPromptTimer(run, opts.preservePromptTimer !== false);
         pausePromptAudio(ctx);
         stopFeedbackAudio(ctx);
         resetRunControls(run);
         clearControlUi(ctx);
+        run.resumeAction = String(opts.resumeAction || '');
+        if (!run.resumeAction && (!run.prompt || run.prompt.resolved)) {
+            run.resumeAction = RESUME_ACTION_NEXT_PROMPT;
+        }
+        run.pauseReason = String(opts.reason || 'manual');
         updatePauseUi(ctx);
-        showOverlay(ctx, String(ctx.i18n.gamesPaused || 'Paused'), '', {
-            mode: 'paused',
-            primaryLabel: String(ctx.i18n.gamesResumeRun || 'Resume'),
-            secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
-        });
+        showOverlay(
+            ctx,
+            Object.prototype.hasOwnProperty.call(opts, 'title')
+                ? String(opts.title || '')
+                : String(ctx.i18n.gamesPaused || 'Paused'),
+            Object.prototype.hasOwnProperty.call(opts, 'summary')
+                ? String(opts.summary || '')
+                : '',
+            {
+                mode: 'paused',
+                primaryLabel: String(ctx.i18n.gamesResumeRun || 'Resume'),
+                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+            }
+        );
     }
 
     function resumeRun(ctx) {
@@ -2856,10 +3596,22 @@
             return;
         }
 
+        const resumeAction = String(run.resumeAction || '');
+        const pauseReason = String(run.pauseReason || '');
         run.paused = false;
         run.lastFrameAt = 0;
+        run.resumeAction = '';
+        run.pauseReason = '';
+        if (pauseReason === PAUSE_REASON_INACTIVITY) {
+            run.inactiveRounds = 0;
+        }
         hideOverlay(ctx);
         updatePauseUi(ctx);
+
+        if (resumeAction === RESUME_ACTION_NEXT_PROMPT) {
+            startNextPrompt(ctx);
+            return;
+        }
 
         if (run.promptTimerRemainingMs > 0) {
             schedulePrompt(ctx, run.promptTimerRemainingMs);
@@ -2888,6 +3640,8 @@
             run.rafId = 0;
         }
         run.paused = false;
+        run.resumeAction = '';
+        run.pauseReason = '';
         clearPromptTimer(run, false);
         resetRunControls(run);
         clearControlUi(ctx);
@@ -2927,6 +3681,8 @@
         run.awaitingPrompt = false;
         run.nextPreparedPrompt = null;
         run.nextPromptPromise = null;
+        run.resumeAction = '';
+        run.pauseReason = '';
         clearPromptTimer(run, false);
         pausePromptAudio(ctx);
         stopFeedbackAudio(ctx);
@@ -2975,6 +3731,7 @@
             cards: [],
             bullets: [],
             explosions: [],
+            decorativeBubbles: [],
             controls: {
                 left: false,
                 right: false,
@@ -2998,12 +3755,17 @@
             promptTimer: 0,
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
+            decorativeBubbleIdCounter: 0,
             speedRampTurns: gameConfig.introRampTurns,
             speedRampStartFactor: gameConfig.introRampStartFactor,
             useSameCategoryDistractorsNext: false,
             awaitingPrompt: false,
             nextPreparedPrompt: null,
             nextPromptPromise: null,
+            inactiveRounds: 0,
+            lastResolvedPromptHadUserActivity: false,
+            resumeAction: '',
+            pauseReason: '',
             paused: false,
             ended: false,
             rafId: 0
@@ -3088,12 +3850,21 @@
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
                 event.preventDefault();
+                if (!event.repeat) {
+                    markRunActivity(ctx);
+                }
                 setControlState(ctx, 'left', true);
             } else if (matchesKey(event, ['arrowright', 'd'], ['arrowright', 'keyd'])) {
                 event.preventDefault();
+                if (!event.repeat) {
+                    markRunActivity(ctx);
+                }
                 setControlState(ctx, 'right', true);
             } else if (matchesKey(event, [' ', 'space', 'spacebar'], ['space'])) {
                 event.preventDefault();
+                if (!event.repeat) {
+                    markRunActivity(ctx);
+                }
                 setControlState(ctx, 'fire', true);
             }
         };
@@ -3181,6 +3952,9 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-replay-audio]', function (event) {
             event.preventDefault();
+            if (ctx.run && !ctx.run.paused) {
+                markRunActivity(ctx);
+            }
             playPromptAudio(ctx, {
                 allowAutoReplay: false
             });
@@ -3206,6 +3980,7 @@
             if (!ctx.run || ctx.run.paused) {
                 return;
             }
+            markRunActivity(ctx);
             const control = String($(this).attr('data-ll-wordset-game-control') || '');
             setControlState(ctx, control, true);
         });
@@ -3222,6 +3997,7 @@
             if (!ctx.run || ctx.run.paused || !isBubblePopRun(ctx, ctx.run)) {
                 return;
             }
+            markRunActivity(ctx);
             if (handleCanvasPress(ctx, event)) {
                 event.preventDefault();
             }
@@ -3472,8 +4248,13 @@
                 coins: run.coins,
                 lives: run.lives,
                 promptsResolved: run.promptsResolved,
+                inactiveRounds: Math.max(0, toInt(run.inactiveRounds)),
                 paused: !!run.paused,
+                pauseReason: String(run.pauseReason || ''),
+                resumeAction: String(run.resumeAction || ''),
                 awaitingPrompt: !!run.awaitingPrompt,
+                currentPromptHadUserActivity: !!(run.prompt && run.prompt.hadUserActivity),
+                lastResolvedPromptHadUserActivity: !!run.lastResolvedPromptHadUserActivity,
                 cardSpeed: Math.round(Number(run.prompt && run.prompt.cardSpeed ? run.prompt.cardSpeed : run.cardSpeed) || 0),
                 promptAudioDurationMs: Math.round(Number(run.prompt && run.prompt.audioDurationMs) || 0),
                 promptAutoReplayDelayMs: Math.round(Number(run.prompt && run.prompt.autoReplayDelayMs) || 0),
@@ -3496,6 +4277,7 @@
                             && wordsShareCategory(card.word, run.prompt.target);
                     }).length
                     : 0,
+                decorativeBubbleCount: Array.isArray(run.decorativeBubbles) ? run.decorativeBubbles.length : 0,
                 cardSnapshot: run.cards.map(function (card) {
                     return {
                         wordId: toInt(card.word && card.word.id),
@@ -3509,6 +4291,15 @@
                         exploding: !!card.exploding,
                         resolvedFalling: !!card.resolvedFalling,
                         isTarget: !!card.isTarget
+                    };
+                }),
+                decorativeBubbleSnapshot: (Array.isArray(run.decorativeBubbles) ? run.decorativeBubbles : []).map(function (bubble) {
+                    return {
+                        id: toInt(bubble && bubble.id),
+                        x: Math.round(Number(bubble && bubble.x) || 0),
+                        y: Math.round(Number(bubble && bubble.y) || 0),
+                        radius: Math.round((Number(bubble && bubble.radius) || 0) * 100) / 100,
+                        exploding: !!(bubble && bubble.exploding)
                     };
                 })
             };
