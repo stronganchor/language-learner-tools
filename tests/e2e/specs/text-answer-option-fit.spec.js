@@ -93,14 +93,14 @@ test('text answer cards shrink long single words instead of splitting them', asy
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
 });
 
-test('text answer cards keep phrase-based labels centered and shrink to fit', async ({ page }) => {
+test('text answer cards wrap multi-word labels instead of forcing one row', async ({ page }) => {
   await mountTextCardHarness(page, 'medium');
   const metrics = await page.evaluate(() => {
     const card = window.LLFlashcards.Cards.appendWordToContainer(
       {
         id: 102,
-        title: 'Teyze oğlu teyze',
-        label: 'Teyze oğlu teyze'
+        title: 'הַיַּלְדָּה לֹא רוֹצָה לִשְׁתּוֹת מַיִם קָרִים',
+        label: 'הַיַּלְדָּה לֹא רוֹצָה לִשְׁתּוֹת מַיִם קָרִים'
       },
       'text_translation',
       'image',
@@ -119,22 +119,28 @@ test('text answer cards keep phrase-based labels centered and shrink to fit', as
     }
 
     const style = window.getComputedStyle(label);
+    const range = document.createRange();
+    range.selectNodeContents(label);
+    const textRects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
     return {
       whiteSpace: style.whiteSpace,
       justifyContent: style.justifyContent,
       alignItems: style.alignItems,
       fontSize: parseFloat(style.fontSize || '0'),
+      lineHeight: parseFloat(style.lineHeight || '0'),
+      lineBoxCount: textRects.length,
       clientWidth: Math.ceil(label.clientWidth || 0),
       scrollWidth: Math.ceil(label.scrollWidth || 0)
     };
   });
 
   expect(metrics).not.toBeNull();
-  expect(metrics.whiteSpace).toBe('nowrap');
+  expect(metrics.whiteSpace).toBe('normal');
   expect(metrics.justifyContent).toBe('center');
   expect(metrics.alignItems).toBe('center');
-  expect(metrics.fontSize).toBeLessThan(48);
   expect(metrics.fontSize).toBeGreaterThan(20);
+  expect(metrics.lineHeight).toBeGreaterThan(metrics.fontSize);
+  expect(metrics.lineBoxCount).toBeGreaterThan(1);
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
 });
 

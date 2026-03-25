@@ -5,9 +5,6 @@
     let optionMiniViz = null;
     let textCardResizeBound = false;
     let textCardResizeTimer = null;
-    let measureCanvas = null;
-    let measureCtx = null;
-
     function clampInt(value, min, max, fallback) {
         const parsed = parseInt(value, 10);
         if (!Number.isFinite(parsed)) {
@@ -70,24 +67,6 @@
         return cfg.lineHeightRatio;
     }
 
-    function measureTextWidth(text, font) {
-        if (!measureCanvas) {
-            measureCanvas = document.createElement('canvas');
-        }
-        if (!measureCtx) {
-            measureCtx = measureCanvas.getContext('2d');
-        }
-        if (!measureCtx) {
-            return 0;
-        }
-        try {
-            measureCtx.font = String(font || '');
-            return measureCtx.measureText(String(text || '')).width || 0;
-        } catch (_) {
-            return 0;
-        }
-    }
-
     function applyAnswerOptionContainerCssVars() {
         const cfg = getAnswerOptionTextStyleConfig();
         const container = document.getElementById('ll-tools-flashcard-container') || document.getElementById('ll-tools-flashcard-popup');
@@ -143,22 +122,69 @@
         });
     }
 
-    function textCardLabelFits(labelEl, maxHeight) {
-        if (!labelEl) {
-            return false;
-        }
-        const availableWidth = Math.max(0, Math.floor(labelEl.clientWidth || 0));
-        const computed = root.getComputedStyle ? root.getComputedStyle(labelEl) : null;
-        const paddingY = computed
-            ? (parseFloat(computed.paddingTop || '0') + parseFloat(computed.paddingBottom || '0'))
-            : 0;
-        const lineHeight = computed ? parseFloat(computed.lineHeight || '0') : 0;
-        const measuredHeight = Math.max(0, Math.ceil(lineHeight + paddingY));
-        const widthFits = availableWidth > 0
-            ? Math.ceil(labelEl.scrollWidth || 0) <= availableWidth + 1
-            : true;
+    function textCardLabelCanWrap(labelText) {
+        return /\s/u.test(String(labelText || '').trim());
+    }
 
-        return widthFits && measuredHeight <= Math.ceil(maxHeight) + 1;
+    function measureTextCardLabel(labelEl, labelText, fontSizePx, lineHeightRatio, noWrap, availableWidth) {
+        if (!labelEl || !document || !document.body) {
+            return { width: 0, height: 0 };
+        }
+
+        const computed = root.getComputedStyle ? root.getComputedStyle(labelEl) : null;
+        const lineHeightPx = Math.round(fontSizePx * lineHeightRatio * 100) / 100;
+        const probe = document.createElement('div');
+        probe.textContent = String(labelText || '');
+
+        const dir = labelEl.getAttribute ? String(labelEl.getAttribute('dir') || '') : '';
+        if (dir) {
+            probe.setAttribute('dir', dir);
+        }
+
+        probe.style.position = 'absolute';
+        probe.style.left = '-9999px';
+        probe.style.top = '-9999px';
+        probe.style.visibility = 'hidden';
+        probe.style.pointerEvents = 'none';
+        probe.style.boxSizing = 'border-box';
+        probe.style.width = Math.max(1, availableWidth) + 'px';
+        probe.style.maxWidth = Math.max(1, availableWidth) + 'px';
+        probe.style.margin = '0';
+        probe.style.padding = '0';
+        probe.style.border = '0';
+        probe.style.display = 'block';
+        probe.style.whiteSpace = noWrap ? 'nowrap' : 'normal';
+        probe.style.overflowWrap = 'normal';
+        probe.style.wordBreak = 'normal';
+        probe.style.hyphens = 'none';
+        probe.style.fontSize = fontSizePx + 'px';
+        probe.style.lineHeight = lineHeightPx + 'px';
+
+        if (computed) {
+            probe.style.fontFamily = computed.fontFamily || '';
+            probe.style.fontWeight = computed.fontWeight || '';
+            probe.style.fontStyle = computed.fontStyle || '';
+            probe.style.fontVariant = computed.fontVariant || '';
+            probe.style.fontStretch = computed.fontStretch || '';
+            probe.style.letterSpacing = computed.letterSpacing || '';
+            probe.style.textAlign = computed.textAlign || '';
+            probe.style.direction = computed.direction || '';
+        }
+
+        document.body.appendChild(probe);
+
+        const measured = {
+            width: Math.max(0, Math.ceil(probe.scrollWidth || probe.getBoundingClientRect().width || 0)),
+            height: Math.max(0, Math.ceil(probe.scrollHeight || probe.getBoundingClientRect().height || 0))
+        };
+
+        probe.remove();
+        return measured;
+    }
+
+    function textCardLabelFits(labelEl, labelText, fontSizePx, lineHeightRatio, noWrap, availableWidth, availableHeight) {
+        const measured = measureTextCardLabel(labelEl, labelText, fontSizePx, lineHeightRatio, noWrap, availableWidth);
+        return measured.width <= Math.ceil(availableWidth) + 1 && measured.height <= Math.ceil(availableHeight) + 1;
     }
 
     function fitTextCardLabel($label, labelText, cfg, maxHeight) {
@@ -183,32 +209,30 @@
         const lineHeightRatio = getAnswerOptionLineHeightRatio(labelText);
         const minFontSize = clampInt(cfg.minFontSizePx, 10, 24, 10);
         const startFontSize = Math.max(minFontSize, clampInt(cfg.fontSizePx, minFontSize, 72, 48));
-        const fontFamily = computed && computed.fontFamily ? computed.fontFamily : (cfg.fontFamily || 'sans-serif');
-        const fontWeight = computed && computed.fontWeight ? String(computed.fontWeight) : String(cfg.fontWeight || '700');
-        const measuredWidthAtStart = measureTextWidth(labelText || '', fontWeight + ' ' + startFontSize + 'px ' + fontFamily);
-        const widthScale = measuredWidthAtStart > 0 ? (availableWidth / measuredWidthAtStart) : 1;
-        const heightScale = availableHeight > 0 ? (availableHeight / Math.max(1, startFontSize * lineHeightRatio)) : 1;
-        let targetFontSize = startFontSize;
+        const noWrap = !textCardLabelCanWrap(labelText);
 
-        if (widthScale > 0 && widthScale < 1) {
-            targetFontSize = Math.min(targetFontSize, startFontSize * widthScale);
-        }
-        if (heightScale > 0 && heightScale < 1) {
-            targetFontSize = Math.min(targetFontSize, startFontSize * heightScale);
+        if (textCardLabelFits(labelEl, labelText, startFontSize, lineHeightRatio, noWrap, availableWidth, availableHeight)) {
+            applyTextCardLabelSize($label, startFontSize, lineHeightRatio, noWrap);
+            return true;
         }
 
-        targetFontSize = Math.max(minFontSize, Math.min(startFontSize, Math.round(targetFontSize * 100) / 100));
-        applyTextCardLabelSize($label, targetFontSize, lineHeightRatio, true);
+        let low = Math.round(minFontSize * 2);
+        let high = Math.round(startFontSize * 2);
+        let bestFontSize = minFontSize;
 
-        for (let i = 0; i < 8 && targetFontSize > minFontSize && !textCardLabelFits(labelEl, maxHeight); i++) {
-            targetFontSize = Math.max(minFontSize, Math.round((targetFontSize - 0.5) * 100) / 100);
-            applyTextCardLabelSize($label, targetFontSize, lineHeightRatio, true);
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const fontSizePx = mid / 2;
+            if (textCardLabelFits(labelEl, labelText, fontSizePx, lineHeightRatio, noWrap, availableWidth, availableHeight)) {
+                bestFontSize = fontSizePx;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
         }
 
-        if (!textCardLabelFits(labelEl, maxHeight)) {
-            applyTextCardLabelSize($label, minFontSize, lineHeightRatio, true);
-        }
-
+        // Keep whole words intact: single long words stay on one line, phrases can wrap.
+        applyTextCardLabelSize($label, bestFontSize, lineHeightRatio, noWrap);
         return true;
     }
 
