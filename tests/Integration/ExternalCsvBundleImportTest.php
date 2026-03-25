@@ -426,6 +426,90 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_import_processes_external_text_to_text_csv_with_numbered_answer_columns(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for this test.');
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_term = wp_insert_term('External CSV Numbered Text Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_term));
+        $this->assertIsArray($wordset_term);
+        $wordset_id = (int) $wordset_term['term_id'];
+
+        $category_name = 'Numbered Text Quiz External ' . wp_generate_password(6, false, false);
+        $csv = "quiz,url,page,prompt,prompt_a1,a2,a3,a4,audio1,audio2,audio3,audio4,status\n";
+        $csv .= $category_name . ",https://example.test/cat,0,Question Cat,Cat,Dog,Bird,Lynx,,,,,retried_from_hash_route_dom\n";
+        $csv .= $category_name . ",https://example.test/dog,0,Question Dog,Dog,Cat,,,,,,,retried_from_hash_route_dom\n";
+        $csv .= $category_name . ",https://example.test/bird,0,Question Bird,Bird,Cat,Dog,,,,,,retried_from_hash_route_dom\n";
+
+        $zip_path = $this->createExternalZip([
+            'text-to-text-numbered.csv' => $csv,
+        ]);
+
+        try {
+            $result = ll_tools_process_import_zip($zip_path, [
+                'wordset_mode' => 'assign_existing',
+                'target_wordset_id' => $wordset_id,
+            ]);
+
+            $this->assertIsArray($result);
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertEmpty((array) ($result['errors'] ?? []));
+
+            $term = get_term_by('name', $category_name, 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $term);
+            $category_id = (int) $term->term_id;
+
+            $this->assertSame('text_translation', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('text_title', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
+
+            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $category_id);
+            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $category_id);
+            $bird_word_id = $this->findWordIdByTitleAndCategory('Bird', $category_id);
+
+            $this->assertGreaterThan(0, $cat_word_id);
+            $this->assertGreaterThan(0, $dog_word_id);
+            $this->assertGreaterThan(0, $bird_word_id);
+
+            $this->assertSame('Question Cat', (string) get_post_meta($cat_word_id, 'word_translation', true));
+            $this->assertSame('Question Dog', (string) get_post_meta($dog_word_id, 'word_translation', true));
+            $this->assertSame('Question Bird', (string) get_post_meta($bird_word_id, 'word_translation', true));
+            $this->assertSame([], $this->getWordAudioPathsForWord($cat_word_id));
+
+            $rows = ll_get_words_by_category(
+                $category_name,
+                'text_title',
+                null,
+                [
+                    'prompt_type' => 'text_translation',
+                    'option_type' => 'text_title',
+                ]
+            );
+
+            $this->assertCount(3, $rows);
+            $rows_by_id = [];
+            foreach ($rows as $row) {
+                $rows_by_id[(int) ($row['id'] ?? 0)] = $row;
+            }
+
+            $this->assertSame('Question Cat', (string) ($rows_by_id[$cat_word_id]['prompt_label'] ?? ''));
+            $this->assertSame('Cat', (string) ($rows_by_id[$cat_word_id]['label'] ?? ''));
+            $this->assertFalse((bool) ($rows_by_id[$cat_word_id]['has_audio'] ?? true));
+            $this->assertFalse((bool) ($rows_by_id[$cat_word_id]['has_image'] ?? true));
+
+            $cat_wrong_titles = $this->getWordTitlesForIds($this->getSpecificWrongIdsForWord($cat_word_id));
+            sort($cat_wrong_titles, SORT_STRING);
+            $this->assertSame(['Bird', 'Dog'], $cat_wrong_titles);
+            $this->assertContains('Lynx', $this->getSpecificWrongTextsForWord($cat_word_id));
+        } finally {
+            @unlink($zip_path);
+        }
+    }
+
     public function test_import_processes_external_audio_text_to_text_csv_with_extra_columns(): void
     {
         if (!class_exists('ZipArchive')) {

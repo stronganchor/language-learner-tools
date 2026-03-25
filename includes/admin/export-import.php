@@ -2999,6 +2999,72 @@ function ll_tools_import_find_external_csv_header_index(array $headers, array $c
 }
 
 /**
+ * Detect a numbered answer slot from a normalized CSV header.
+ *
+ * Supported examples:
+ * - prompt_a1
+ * - prompt a1
+ * - a1
+ * - answer 1
+ * - option 1
+ *
+ * @param string $header Normalized header.
+ * @return int
+ */
+function ll_tools_import_get_external_csv_answer_slot(string $header): int {
+    $header = ll_tools_import_normalize_external_csv_header($header);
+    if ($header === '') {
+        return 0;
+    }
+
+    if (preg_match('/^(?:prompt\s+)?a(\d+)$/', $header, $matches)) {
+        return max(0, (int) ($matches[1] ?? 0));
+    }
+
+    if (preg_match('/^(?:answer|option|choice)\s+(\d+)$/', $header, $matches)) {
+        return max(0, (int) ($matches[1] ?? 0));
+    }
+
+    return 0;
+}
+
+/**
+ * Detect a numbered answer-audio slot from a normalized CSV header.
+ *
+ * Supported examples:
+ * - audio1
+ * - audio 1
+ * - recording 1
+ * - sound 1
+ * - answer audio 1
+ * - option audio 1
+ * - a1 audio
+ *
+ * @param string $header Normalized header.
+ * @return int
+ */
+function ll_tools_import_get_external_csv_audio_slot(string $header): int {
+    $header = ll_tools_import_normalize_external_csv_header($header);
+    if ($header === '') {
+        return 0;
+    }
+
+    if (preg_match('/^(?:audio|recording|sound)\s*(\d+)$/', $header, $matches)) {
+        return max(0, (int) ($matches[1] ?? 0));
+    }
+
+    if (preg_match('/^(?:answer|option|choice)\s+audio\s+(\d+)$/', $header, $matches)) {
+        return max(0, (int) ($matches[1] ?? 0));
+    }
+
+    if (preg_match('/^a(\d+)\s+(?:audio|recording|sound)$/', $header, $matches)) {
+        return max(0, (int) ($matches[1] ?? 0));
+    }
+
+    return 0;
+}
+
+/**
  * Build a compatible import payload from an external CSV + media bundle.
  *
  * Supported CSV modes:
@@ -3282,11 +3348,24 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
 
         $wrong_indexes = [];
         $wrong_audio_indexes = [];
+        $answer_slot_indexes = [];
+        $audio_slot_indexes = [];
         foreach ($headers as $index => $header) {
             $header = (string) $header;
             if ($header === '') {
                 continue;
             }
+
+            $answer_slot = ll_tools_import_get_external_csv_answer_slot($header);
+            if ($answer_slot > 0 && !isset($answer_slot_indexes[$answer_slot])) {
+                $answer_slot_indexes[$answer_slot] = (int) $index;
+            }
+
+            $audio_slot = ll_tools_import_get_external_csv_audio_slot($header);
+            if ($audio_slot > 0 && !isset($audio_slot_indexes[$audio_slot])) {
+                $audio_slot_indexes[$audio_slot] = (int) $index;
+            }
+
             if (
                 strpos($header, 'wrong') !== false
                 && (
@@ -3308,6 +3387,39 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 $wrong_indexes[] = (int) $index;
             }
         }
+
+        if ($correct_index < 0 && isset($answer_slot_indexes[1])) {
+            $correct_index = (int) $answer_slot_indexes[1];
+        }
+
+        if ($correct_audio_index < 0 && isset($audio_slot_indexes[1])) {
+            $correct_audio_index = (int) $audio_slot_indexes[1];
+        }
+
+        if (!empty($answer_slot_indexes)) {
+            ksort($answer_slot_indexes, SORT_NUMERIC);
+            foreach ($answer_slot_indexes as $slot => $slot_index) {
+                $slot = (int) $slot;
+                if ($slot <= 1) {
+                    continue;
+                }
+                $wrong_indexes[] = (int) $slot_index;
+            }
+        }
+
+        if (!empty($audio_slot_indexes)) {
+            ksort($audio_slot_indexes, SORT_NUMERIC);
+            foreach ($audio_slot_indexes as $slot => $slot_index) {
+                $slot = (int) $slot;
+                if ($slot <= 1) {
+                    continue;
+                }
+                $wrong_audio_indexes[] = (int) $slot_index;
+            }
+        }
+
+        $wrong_indexes = array_values(array_unique(array_map('intval', $wrong_indexes)));
+        $wrong_audio_indexes = array_values(array_unique(array_map('intval', $wrong_audio_indexes)));
 
         $mode = '';
         if ($image_index >= 0 && $correct_audio_index >= 0) {
