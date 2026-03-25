@@ -510,6 +510,76 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_import_processes_external_text_to_image_csv_with_correct_image_alias_and_wrong_image_columns(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for this test.');
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_term = wp_insert_term('External CSV Correct Image Alias Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_term));
+        $this->assertIsArray($wordset_term);
+        $wordset_id = (int) $wordset_term['term_id'];
+
+        $category_name = 'Correct Image Alias Quiz ' . wp_generate_password(6, false, false);
+        $csv = "quiz,source_type,source_url,correct_answer,correct_image_file,wrong_image_1,wrong_image_2,wrong_image_3\n";
+        $csv .= $category_name . ",match_image_text,#/lesson/130/cat,Cat,cat.jpg,dog.jpg,bird.jpg,\n";
+        $csv .= $category_name . ",match_image_text,#/lesson/130/dog,Dog,dog.jpg,cat.jpg,bird.jpg,\n";
+        $csv .= $category_name . ",match_image_text,#/lesson/130/bird,Bird,bird.jpg,cat.jpg,dog.jpg,\n";
+
+        $png = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($png);
+
+        $zip_path = $this->createExternalZip([
+            'read_select_image_from_drag_remaining.csv' => $csv,
+            'images/cat.webp' => $png,
+            'images/dog.webp' => $png,
+            'images/bird.webp' => $png,
+        ]);
+
+        try {
+            $preview = ll_tools_read_import_preview_from_zip($zip_path);
+            $this->assertFalse(is_wp_error($preview), is_wp_error($preview) ? $preview->get_error_message() : '');
+            $this->assertIsArray($preview);
+
+            $result = ll_tools_process_import_zip($zip_path, [
+                'wordset_mode' => 'assign_existing',
+                'target_wordset_id' => $wordset_id,
+            ]);
+
+            $this->assertIsArray($result);
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertEmpty((array) ($result['errors'] ?? []));
+
+            $term = get_term_by('name', $category_name, 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $term);
+            $category_id = (int) $term->term_id;
+
+            $this->assertSame('text_title', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('image', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
+
+            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $category_id);
+            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $category_id);
+            $bird_word_id = $this->findWordIdByTitleAndCategory('Bird', $category_id);
+
+            $this->assertGreaterThan(0, $cat_word_id);
+            $this->assertGreaterThan(0, $dog_word_id);
+            $this->assertGreaterThan(0, $bird_word_id);
+
+            $this->assertGreaterThan(0, (int) get_post_thumbnail_id($cat_word_id));
+            $this->assertGreaterThan(0, (int) get_post_thumbnail_id($dog_word_id));
+            $this->assertGreaterThan(0, (int) get_post_thumbnail_id($bird_word_id));
+
+            $this->assertSame([], $this->getSpecificWrongIdsForWord($cat_word_id));
+            $this->assertSame([], $this->getSpecificWrongTextsForWord($cat_word_id));
+        } finally {
+            @unlink($zip_path);
+        }
+    }
+
     public function test_import_processes_external_audio_text_to_text_csv_with_extra_columns(): void
     {
         if (!class_exists('ZipArchive')) {

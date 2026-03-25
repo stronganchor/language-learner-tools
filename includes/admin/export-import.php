@@ -923,6 +923,79 @@ function ll_tools_render_import_page() {
     ll_tools_render_export_import_page('import');
 }
 
+function ll_tools_get_import_csv_reference_examples(): array {
+    return [
+        [
+            'title' => __('Image -> text', 'll-tools-text-domain'),
+            'description' => __('Use image files from the zip /images folder.', 'll-tools-text-domain'),
+            'csv' => "quiz,image,correct_answer,wrong_answer_1,wrong_answer_2,wrong_answer_3\nQuiz 1,cat.jpg,Cat,Dog,Bird,\n",
+        ],
+        [
+            'title' => __('Image -> text + audio', 'll-tools-text-domain'),
+            'description' => __('Uses /images for prompts and /audio for answer audio.', 'll-tools-text-domain'),
+            'csv' => "quiz,image,correct_answer,correct_audio_file,wrong_answer_1,wrong_audio_1,wrong_answer_2,wrong_audio_2,wrong_answer_3,wrong_audio_3\nQuiz 1,cat.jpg,Cat,cat.mp3,Dog,dog.mp3,Bird,bird.mp3,,\n",
+        ],
+        [
+            'title' => __('Text -> image', 'll-tools-text-domain'),
+            'description' => __('Canonical header is "image". The importer also accepts aliases like "correct_image_file". Optional wrong_image_* columns are ignored.', 'll-tools-text-domain'),
+            'csv' => "quiz,image,correct_answer\nQuiz 1,cat.jpg,Cat\n",
+        ],
+        [
+            'title' => __('Text -> text', 'll-tools-text-domain'),
+            'description' => __('Prompt text is imported into the word translation field.', 'll-tools-text-domain'),
+            'csv' => "quiz,prompt_text,correct_answer,wrong_answer_1,wrong_answer_2,wrong_answer_3\nQuiz 1,Question Cat,Cat,Dog,Bird,\n",
+        ],
+        [
+            'title' => __('Audio -> text', 'll-tools-text-domain'),
+            'description' => __('Use audio files from the zip /audio folder.', 'll-tools-text-domain'),
+            'csv' => "quiz,audio_file,correct_answer,wrong_answer_1,wrong_answer_2,wrong_answer_3\nQuiz 1,cat_prompt.mp3,Cat,Dog,Bird,\n",
+        ],
+        [
+            'title' => __('Audio + text -> text', 'll-tools-text-domain'),
+            'description' => __('Combines an audio prompt with visible prompt text.', 'll-tools-text-domain'),
+            'csv' => "quiz,prompt_text,audio_file,correct_answer,wrong_answer_1,wrong_answer_2,wrong_answer_3\nQuiz 1,Question Cat,cat_prompt.mp3,Cat,Dog,Bird,\n",
+        ],
+    ];
+}
+
+function ll_tools_render_import_csv_reference_section(): void {
+    $examples = ll_tools_get_import_csv_reference_examples();
+    if (empty($examples)) {
+        return;
+    }
+    ?>
+    <div class="ll-tools-import-csv-reference">
+        <h3><?php esc_html_e('CSV Column Reference', 'll-tools-text-domain'); ?></h3>
+        <p class="description"><?php esc_html_e('Copy a header row from one of these templates when preparing CSV-based zip imports. CSV files must live at the top level of the zip and include a "quiz" column. Extra metadata columns such as url, page, source_type, source_url, and status are ignored.', 'll-tools-text-domain'); ?></p>
+        <div class="ll-tools-import-csv-reference-list">
+            <?php foreach ($examples as $example) : ?>
+                <?php
+                $title = isset($example['title']) ? (string) $example['title'] : '';
+                $description = isset($example['description']) ? (string) $example['description'] : '';
+                $csv = isset($example['csv']) ? (string) $example['csv'] : '';
+                if ($title === '' || $csv === '') {
+                    continue;
+                }
+                $rows = max(3, substr_count($csv, "\n") + 1);
+                ?>
+                <div class="ll-tools-import-csv-reference-card">
+                    <h4><?php echo esc_html($title); ?></h4>
+                    <?php if ($description !== '') : ?>
+                        <p class="description"><?php echo esc_html($description); ?></p>
+                    <?php endif; ?>
+                    <textarea
+                        class="large-text code ll-tools-import-csv-reference-text"
+                        rows="<?php echo esc_attr((string) $rows); ?>"
+                        readonly
+                        spellcheck="false"
+                    ><?php echo esc_textarea($csv); ?></textarea>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php
+}
+
 function ll_tools_import_history_created_summary(array $stats): string {
     $summary = [];
     $map = [
@@ -1882,6 +1955,8 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 </form>
             </div>
         <?php endif; ?>
+
+        <?php ll_tools_render_import_csv_reference_section(); ?>
         <?php endif; ?>
     </div>
     <?php
@@ -3660,6 +3735,11 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
             'image file',
             'image filename',
             'image name',
+            'correct image',
+            'correct image file',
+            'correct image filename',
+            'answer image',
+            'answer image file',
             'image prompt',
             'prompt image',
             'picture',
@@ -3739,6 +3819,9 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 && strpos($header, 'audio') === false
                 && strpos($header, 'recording') === false
                 && strpos($header, 'sound') === false
+                && strpos($header, 'image') === false
+                && strpos($header, 'picture') === false
+                && strpos($header, 'photo') === false
                 && (strpos($header, 'answer') !== false || preg_match('/^wrong(?:\s+answer)?(\b|\s*\d+)/', $header))
             ) {
                 $wrong_indexes[] = (int) $index;
