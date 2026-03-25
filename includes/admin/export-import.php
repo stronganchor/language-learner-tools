@@ -3602,6 +3602,14 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                     ? array_values(array_unique(array_map('strval', $word_keys_by_category_label[$category_slug][$normalized_title_key])))
                     : [];
 
+                // If the answer label already exists as a normal imported word in this category,
+                // keep its existing correct-answer audio and ignore repeated wrong-answer audio
+                // variants from other rows. Only create/import queued wrong-answer audio when the
+                // label never appeared as a correct answer and needs a wrong-answer-only placeholder.
+                if (!empty($matching_keys)) {
+                    continue;
+                }
+
                 if (empty($matching_keys)) {
                     $placeholder_key = $build_word_key($category_slug, 'image_to_text_audio', $normalized_title_key, '');
                     $ensure_word_map_entry($placeholder_key, $category_slug, 'image_to_text_audio', $title, $normalized_title_key, '');

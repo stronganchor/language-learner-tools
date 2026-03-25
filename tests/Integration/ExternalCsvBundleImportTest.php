@@ -685,9 +685,9 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $this->assertCount(2, $true_ids);
             $this->assertCount(2, $false_ids);
 
-            $this->assertCount(2, $this->getWordAudioPathsForWord($true_ids[0]));
+            $this->assertCount(1, $this->getWordAudioPathsForWord($true_ids[0]));
             $this->assertCount(1, $this->getWordAudioPathsForWord($true_ids[1]));
-            $this->assertCount(2, $this->getWordAudioPathsForWord($false_ids[0]));
+            $this->assertCount(1, $this->getWordAudioPathsForWord($false_ids[0]));
             $this->assertCount(1, $this->getWordAudioPathsForWord($false_ids[1]));
 
             $this->assertSame([$false_ids[0]], $this->getSpecificWrongIdsForWord($true_ids[0]));
