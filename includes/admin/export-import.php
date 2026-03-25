@@ -3005,6 +3005,7 @@ function ll_tools_import_find_external_csv_header_index(array $headers, array $c
  * - image -> text: quiz,image,correct answer,wrong answer...
  * - text -> image: quiz,image,correct answer
  * - text -> text:  quiz,prompt_text,correct_answer,wrong_answer...
+ * - audio + text -> text: quiz,prompt_text,audio_file,correct_answer,wrong_answer...
  * - audio -> text: quiz,audio_file,correct_answer,wrong_answer...
  *
  * @param string $extract_dir
@@ -3146,6 +3147,8 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
         $mode = '';
         if ($image_index >= 0) {
             $mode = !empty($wrong_indexes) ? 'image_to_text' : 'text_to_image';
+        } elseif ($audio_index >= 0 && $prompt_text_index >= 0) {
+            $mode = 'audio_text_to_text';
         } elseif ($audio_index >= 0) {
             $mode = 'audio_to_text';
         } elseif ($prompt_text_index >= 0) {
@@ -3193,6 +3196,15 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 $rows_skipped++;
                 $add_warning(sprintf(
                     __('Skipped row %1$d in CSV "%2$s": prompt text is required for text-to-text quizzes.', 'll-tools-text-domain'),
+                    $csv_row_number,
+                    basename((string) $csv_path)
+                ));
+                continue;
+            }
+            if ($mode === 'audio_text_to_text' && ($prompt_text === '' || $audio_reference === '')) {
+                $rows_skipped++;
+                $add_warning(sprintf(
+                    __('Skipped row %1$d in CSV "%2$s": prompt text and audio are required for audio+text quizzes.', 'll-tools-text-domain'),
                     $csv_row_number,
                     basename((string) $csv_path)
                 ));
@@ -3247,7 +3259,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
 
                 $used_image_files[$image_relative] = true;
                 $prompt_identity = 'image:' . ll_tools_import_normalize_match_text($image_relative);
-            } elseif ($mode === 'audio_to_text') {
+            } elseif ($mode === 'audio_to_text' || $mode === 'audio_text_to_text') {
                 $audio_relative = ll_tools_import_choose_external_audio_match($audio_reference, $audio_catalog);
                 if ($audio_relative === '') {
                     $rows_skipped++;
@@ -3261,7 +3273,11 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 }
 
                 $used_audio_files[$audio_relative] = true;
-                $prompt_identity = 'audio:' . ll_tools_import_normalize_match_text($audio_relative);
+                if ($mode === 'audio_text_to_text') {
+                    $prompt_identity = 'audio_text:' . ll_tools_import_normalize_match_text($audio_relative) . '|' . ll_tools_import_normalize_match_text($prompt_text);
+                } else {
+                    $prompt_identity = 'audio:' . ll_tools_import_normalize_match_text($audio_relative);
+                }
             } elseif ($mode === 'text_to_text') {
                 $prompt_identity = 'text:' . ll_tools_import_normalize_match_text($prompt_text);
             }
@@ -3297,7 +3313,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 $used_slugs[$slug] = true;
 
                 $meta = [];
-                if ($mode === 'text_to_text' && $prompt_text !== '') {
+                if (in_array($mode, ['text_to_text', 'audio_text_to_text'], true) && $prompt_text !== '') {
                     $meta['word_translation'] = [$prompt_text];
                 } elseif ($mode === 'text_to_image') {
                     // Text->image CSVs define only a title label; clear legacy translation fields
@@ -3332,7 +3348,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                     'alt'       => $correct_answer,
                     'title'     => $correct_answer,
                 ];
-            } elseif ($mode === 'audio_to_text') {
+            } elseif ($mode === 'audio_to_text' || $mode === 'audio_text_to_text') {
                 $existing_audio_entries = isset($word_map[$word_key]['audio_entries']) && is_array($word_map[$word_key]['audio_entries'])
                     ? $word_map[$word_key]['audio_entries']
                     : [];
@@ -3364,7 +3380,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                         ],
                     ];
                 }
-            } elseif ($mode === 'text_to_text') {
+            } elseif ($mode === 'text_to_text' || $mode === 'audio_text_to_text') {
                 $existing_prompt = isset($word_map[$word_key]['meta']['word_translation'][0])
                     ? (string) $word_map[$word_key]['meta']['word_translation'][0]
                     : '';
@@ -3373,7 +3389,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 }
             }
 
-            if (in_array($mode, ['image_to_text', 'audio_to_text', 'text_to_text'], true) && !empty($wrong_indexes)) {
+            if (in_array($mode, ['image_to_text', 'audio_to_text', 'audio_text_to_text', 'text_to_text'], true) && !empty($wrong_indexes)) {
                 $existing_wrong = isset($word_map[$word_key]['specific_wrong_answer_texts']) && is_array($word_map[$word_key]['specific_wrong_answer_texts'])
                     ? $word_map[$word_key]['specific_wrong_answer_texts']
                     : [];
@@ -3437,6 +3453,9 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
             $option_type = 'text_title';
         } elseif ($mode === 'text_to_text') {
             $prompt_type = 'text_translation';
+            $option_type = 'text_title';
+        } elseif ($mode === 'audio_text_to_text') {
+            $prompt_type = 'audio_text_translation';
             $option_type = 'text_title';
         } elseif ($mode === 'audio_to_text') {
             $prompt_type = 'audio';
