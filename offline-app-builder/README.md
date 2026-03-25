@@ -52,7 +52,7 @@ The batch script:
 - accepts pasted paths with or without surrounding quotes
 - installs `offline-app-builder` dependencies on first run
 - builds a debug APK
-- copies the generated APK next to the selected zip as `<zip-name>.apk`
+- copies the generated APK next to the selected zip as `<app-name>-<version>.apk`
 
 You can also drag a zip file onto `build-offline-app-apk.bat` or pass the zip path as the first argument.
 

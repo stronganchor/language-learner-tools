@@ -7,6 +7,7 @@ set "ROOT_DIR=%~dp0"
 if "%ROOT_DIR:~-1%"=="\" set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 set "BUILDER_DIR=%ROOT_DIR%\offline-app-builder"
 set "OUTPUT_APK=%BUILDER_DIR%\android\app\build\outputs\apk\debug\app-debug.apk"
+set "APK_BASENAME="
 set "EXIT_CODE=0"
 
 if not exist "%BUILDER_DIR%\package.json" (
@@ -99,7 +100,15 @@ if not exist "%OUTPUT_APK%" (
     goto finish
 )
 
-set "DEST_APK=%ZIP_DIR%%ZIP_NAME%.apk"
+for /f "usebackq delims=" %%I in (`node "%BUILDER_DIR%\scripts\get-apk-name.mjs" 2^>nul`) do (
+    if not defined APK_BASENAME set "APK_BASENAME=%%I"
+)
+
+if not defined APK_BASENAME (
+    set "APK_BASENAME=%ZIP_NAME%"
+)
+
+set "DEST_APK=%ZIP_DIR%%APK_BASENAME%.apk"
 copy /Y "%OUTPUT_APK%" "%DEST_APK%" >nul
 if errorlevel 1 (
     echo APK built, but it could not be copied to:
