@@ -1078,6 +1078,9 @@
     }
 
     function isPlainTextOptionType(optionType) {
+        if (Util && typeof Util.isPlainTextOptionType === 'function') {
+            return !!Util.isPlainTextOptionType(optionType);
+        }
         return optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation';
     }
 
@@ -1414,7 +1417,10 @@
         const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
         const showImage = promptTypeHasImage(promptType) || (isGender && optionType === 'image');
         const showText = isTextPrompt || (isGender && isTextOption);
-        const showAudio = isGender && requirements.requiresAudio && !promptTypeHasAudio(promptType);
+        const hideAudioControls = (Util && typeof Util.isTextToTextQuizPresentation === 'function')
+            ? !!Util.isTextToTextQuizPresentation(promptType, optionType)
+            : (promptTypeHasText(promptType) && !promptTypeHasImage(promptType) && isPlainTextOptionType(optionType));
+        const showAudio = isGender && requirements.requiresAudio && !promptTypeHasAudio(promptType) && !hideAudioControls;
         const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
         const $ = root.jQuery;
         if (!$) return;

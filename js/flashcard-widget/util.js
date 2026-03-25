@@ -6,6 +6,9 @@
         normalizePromptType(value) {
             return String(value || '').trim().toLowerCase() || 'audio';
         },
+        normalizeOptionType(value) {
+            return String(value || '').trim().toLowerCase();
+        },
         getPromptTextType(promptType) {
             const normalized = Util.normalizePromptType(promptType);
             if (normalized === 'text_translation' || normalized === 'audio_text_translation' || normalized === 'image_text_translation') {
@@ -26,6 +29,15 @@
         promptTypeHasImage(promptType) {
             const normalized = Util.normalizePromptType(promptType);
             return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+        },
+        isPlainTextOptionType(optionType) {
+            const normalized = Util.normalizeOptionType(optionType);
+            return normalized === 'text' || normalized === 'text_title' || normalized === 'text_translation';
+        },
+        isTextToTextQuizPresentation(promptType, optionType) {
+            return Util.promptTypeHasText(promptType)
+                && !Util.promptTypeHasImage(promptType)
+                && Util.isPlainTextOptionType(optionType);
         },
         protectMaqafNoBreak(value) {
             const text = (value === null || value === undefined) ? '' : String(value);

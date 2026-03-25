@@ -483,11 +483,27 @@
         }
     }
 
+    function shouldHideRepeatButton() {
+        if (!State) {
+            return false;
+        }
+        if (State.isListeningMode) {
+            return true;
+        }
+        const promptType = State.currentPromptType || '';
+        if (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : promptType === 'image') {
+            return true;
+        }
+        if (Util.isTextToTextQuizPresentation) {
+            return !!Util.isTextToTextQuizPresentation(promptType, State.currentOptionType || '');
+        }
+        return false;
+    }
+
     function setRepeatButtonInternal(state) {
         const $btn = ensureRepeatButtonContent();
         if (!$btn || !$btn.length) return;
-        // In listening mode, hide the header repeat button entirely
-        const hideBtn = State && (State.isListeningMode || (Util.promptTypeHasImage ? Util.promptTypeHasImage(State.currentPromptType) : State.currentPromptType === 'image'));
+        const hideBtn = shouldHideRepeatButton();
         if (hideBtn) {
             $btn.hide();
             updateStackForRepeat(false);
@@ -506,7 +522,7 @@
     function disableRepeatButton() {
         const $btn = ensureRepeatButtonContent();
         if (!$btn || !$btn.length) return;
-        const hideBtn = State && (State.isListeningMode || (Util.promptTypeHasImage ? Util.promptTypeHasImage(State.currentPromptType) : State.currentPromptType === 'image'));
+        const hideBtn = shouldHideRepeatButton();
         if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
         $btn.addClass('disabled').prop('disabled', true);
     }
@@ -514,7 +530,7 @@
     function enableRepeatButton() {
         const $btn = ensureRepeatButtonContent();
         if (!$btn || !$btn.length) return;
-        const hideBtn = State && (State.isListeningMode || (Util.promptTypeHasImage ? Util.promptTypeHasImage(State.currentPromptType) : State.currentPromptType === 'image'));
+        const hideBtn = shouldHideRepeatButton();
         if (hideBtn) { $btn.hide(); updateStackForRepeat(false); return; }
         updateStackForRepeat(true);
         $btn.removeClass('disabled').prop('disabled', false).show();
