@@ -565,9 +565,43 @@ function ll_tools_get_category_image_aspect_stats($category_id, array $args = []
 }
 
 /**
+ * Aspect normalization only matters when images appear as answer options.
+ * Prompt-only image categories can safely mix ratios without crop enforcement.
+ */
+function ll_tools_category_requires_image_answer_aspect_normalization($category_id): bool {
+    $category_id = (int) $category_id;
+    if ($category_id <= 0) {
+        return false;
+    }
+
+    $option_type = '';
+    if (function_exists('ll_tools_get_category_quiz_config')) {
+        $config = ll_tools_get_category_quiz_config($category_id);
+        if (is_array($config)) {
+            $option_type = sanitize_key((string) ($config['option_type'] ?? ''));
+        }
+    }
+
+    if ($option_type === '') {
+        $stored_option_type = get_term_meta($category_id, 'll_quiz_option_type', true);
+        $option_type = sanitize_key(is_string($stored_option_type) ? $stored_option_type : (string) $stored_option_type);
+    }
+
+    if ($option_type === '') {
+        return true;
+    }
+
+    return ($option_type === 'image');
+}
+
+/**
  * True when category has mixed image ratios and at least one non-canonical image.
  */
 function ll_tools_category_needs_aspect_normalization($category_id, array $args = []): bool {
+    if (!ll_tools_category_requires_image_answer_aspect_normalization($category_id)) {
+        return false;
+    }
+
     $stats = ll_tools_get_category_image_aspect_stats((int) $category_id, $args);
     $ratio_count = count((array) ($stats['ratios'] ?? []));
     $offending_count = (int) ($stats['offending_count'] ?? 0);
@@ -582,6 +616,9 @@ function ll_tools_get_category_aspect_bucket_key($category_id, array $args = [])
     $category_id = (int) $category_id;
     if ($category_id <= 0) {
         return '';
+    }
+    if (!ll_tools_category_requires_image_answer_aspect_normalization($category_id)) {
+        return 'no-image';
     }
 
     $stats = ll_tools_get_category_image_aspect_stats($category_id, $args);
