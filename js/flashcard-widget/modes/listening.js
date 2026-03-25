@@ -1211,6 +1211,9 @@
         const $jq = getJQuery();
         if (!$jq || !$ph || !$ph.length) return null;
         const $label = $jq('<div>', { text: labelText || '', class: 'quiz-text', dir: 'auto' });
+        if (Cards && typeof Cards.applyAnswerOptionTextStyle === 'function') {
+            Cards.applyAnswerOptionTextStyle($label, labelText || '');
+        }
 
         // Measure text to fit within the placeholder box using the same aspect ratio
         // as practice mode's text card, but scaled slightly larger for listening.
@@ -1473,6 +1476,9 @@
                     class: 'listening-text',
                     text: answerLabel
                 });
+                if (Cards && typeof Cards.applyAnswerOptionTextStyle === 'function') {
+                    Cards.applyAnswerOptionTextStyle($text, answerLabel || '');
+                }
                 $text.css('opacity', 0);
                 ($stack || $container || $jq('#ll-tools-flashcard')).append($text);
             }

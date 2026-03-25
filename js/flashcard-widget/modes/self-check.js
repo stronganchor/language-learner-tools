@@ -609,6 +609,7 @@
         const $inner = $('<div>', { class: 'll-study-check-prompt-inner' });
 
         let hasContent = false;
+        const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
         if (mode === 'image' && word.image) {
             const $imgWrap = $('<div>', { class: 'll-study-check-image' });
             $('<img>', {
@@ -621,7 +622,11 @@
         }
 
         if (isTextMode(mode) && text) {
-            $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+            const $text = $('<div>', { class: 'll-study-check-text', text: text });
+            if (cardsApi && typeof cardsApi.applyAnswerOptionTextStyle === 'function') {
+                cardsApi.applyAnswerOptionTextStyle($text, text);
+            }
+            $text.appendTo($inner);
             hasContent = true;
         }
 
@@ -642,7 +647,11 @@
         }
 
         if (!hasContent && text) {
-            $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+            const $text = $('<div>', { class: 'll-study-check-text', text: text });
+            if (cardsApi && typeof cardsApi.applyAnswerOptionTextStyle === 'function') {
+                cardsApi.applyAnswerOptionTextStyle($text, text);
+            }
+            $text.appendTo($inner);
             hasContent = true;
         }
 

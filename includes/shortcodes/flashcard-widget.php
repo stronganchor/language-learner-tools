@@ -703,6 +703,8 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'firstCategoryData'     => $initial_words,
         'firstCategoryName'     => $firstCategoryName,
         'imageSize'             => get_option('ll_flashcard_image_size', 'small'),
+        'quizFont'              => (string) get_option('ll_quiz_font', ''),
+        'quiz_font'             => (string) get_option('ll_quiz_font', ''),
         'maxOptionsOverride'    => get_option('ll_max_options_override', 9),
         'wordset'               => $wordset,
         'wordsetFallback'       => $wordset_fallback,

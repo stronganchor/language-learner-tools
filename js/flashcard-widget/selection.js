@@ -1415,8 +1415,12 @@
         const showImage = promptTypeHasImage(promptType) || (isGender && optionType === 'image');
         const showText = isTextPrompt || (isGender && isTextOption);
         const showAudio = isGender && requirements.requiresAudio && !promptTypeHasAudio(promptType);
+        const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
         const $ = root.jQuery;
         if (!$) return;
+        if (cardsApi && typeof cardsApi.applyAnswerOptionContainerCssVars === 'function') {
+            cardsApi.applyAnswerOptionContainerCssVars();
+        }
         let $prompt = $('#ll-tools-prompt');
         if (!$prompt.length) {
             $prompt = $('<div>', { id: 'll-tools-prompt', class: 'll-tools-prompt', style: 'display:none;' });
@@ -1465,11 +1469,15 @@
             $stack.append($wrap);
         }
         if (hasText) {
-            $('<div>', {
+            const $promptText = $('<div>', {
                 class: 'll-prompt-text',
                 text: labelText,
                 dir: 'auto'
-            }).appendTo($stack);
+            });
+            if (cardsApi && typeof cardsApi.applyAnswerOptionTextStyle === 'function') {
+                cardsApi.applyAnswerOptionTextStyle($promptText, labelText);
+            }
+            $promptText.appendTo($stack);
         }
         if (hasAudio) {
             const $btn = $('<button>', {

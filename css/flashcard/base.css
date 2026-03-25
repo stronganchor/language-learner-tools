@@ -276,9 +276,10 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     border-radius: 0;
     background: transparent;
     color: #111827;
+    font-family: var(--ll-answer-option-font-family, inherit);
     font-size: 18px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-weight: var(--ll-answer-option-font-weight, 600);
+    line-height: var(--ll-answer-option-line-height-ratio, 1.2);
     letter-spacing: normal;
     text-transform: none;
     text-align: center;
@@ -1124,6 +1125,7 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 
 .flashcard-container.text-based .quiz-text,
 .flashcard-container.audio-option .quiz-text {
+    font-family: var(--ll-answer-option-font-family, inherit);
     font-weight: var(--ll-answer-option-font-weight, 700);
     word-break: normal;
 }

@@ -62,6 +62,14 @@
         return '';
     }
 
+    function applyAnswerOptionTextStyle($label, text) {
+        const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
+        if (!cardsApi || typeof cardsApi.applyAnswerOptionTextStyle !== 'function') {
+            return;
+        }
+        cardsApi.applyAnswerOptionTextStyle($label, text);
+    }
+
     function normalizeRecordingType(value) {
         return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
     }
@@ -424,7 +432,9 @@
         }
 
         if (showText && text) {
-            $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+            const $text = $('<div>', { class: 'll-study-check-text', text: text });
+            applyAnswerOptionTextStyle($text, text);
+            $text.appendTo($inner);
             hasContent = true;
         }
 
@@ -439,7 +449,9 @@
 
         if (!$inner.children().length) {
             if (text) {
-                $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+                const $text = $('<div>', { class: 'll-study-check-text', text: text });
+                applyAnswerOptionTextStyle($text, text);
+                $text.appendTo($inner);
                 hasContent = true;
             } else {
                 $('<div>', { class: 'll-study-check-empty', text: emptyLabel }).appendTo($inner);

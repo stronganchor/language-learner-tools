@@ -105,6 +105,10 @@ p:has(.ll-word-audio) {
     font-family: var(--ll-word-grid-answer-option-font-family, inherit) !important;
 }
 
+.word-grid.ll-word-grid.ll-word-grid--answer-option-font-custom .ll-word-translation {
+    font-family: var(--ll-word-grid-answer-option-font-family, inherit) !important;
+}
+
 .word-grid.ll-word-grid.ll-word-grid--answer-option-font-custom .word-title {
     line-height: var(--ll-word-grid-answer-option-line-height, 1.2) !important;
 }

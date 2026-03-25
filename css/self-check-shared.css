@@ -244,11 +244,12 @@
 }
 
 .ll-study-check-text {
+  font-family: var(--ll-answer-option-font-family, inherit);
   font-size: 24px;
-  font-weight: 700;
+  font-weight: var(--ll-answer-option-font-weight, 700);
   color: #0f172a;
   text-align: center;
-  line-height: 1.2;
+  line-height: var(--ll-answer-option-line-height-ratio, 1.2);
   word-break: break-word;
 }
 

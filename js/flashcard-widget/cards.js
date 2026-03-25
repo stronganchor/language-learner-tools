@@ -6,6 +6,16 @@
     let optionMiniViz = null;
     let textCardResizeBound = false;
     let textCardResizeTimer = null;
+
+    function sanitizeFontFamily(value) {
+        let fontFamily = String(value || '').trim();
+        fontFamily = fontFamily.replace(/[\r\n{};]/g, ' ').trim();
+        if (fontFamily.length > 160) {
+            fontFamily = fontFamily.slice(0, 160).trim();
+        }
+        return fontFamily;
+    }
+
     function clampInt(value, min, max, fallback) {
         const parsed = parseInt(value, 10);
         if (!Number.isFinite(parsed)) {
@@ -29,10 +39,9 @@
                 ? root.llToolsFlashcardsData.answer_option_text_style
                 : {});
 
-        let fontFamily = String(raw.fontFamily || '').trim();
-        fontFamily = fontFamily.replace(/[\r\n{};]/g, ' ').trim();
-        if (fontFamily.length > 160) {
-            fontFamily = fontFamily.slice(0, 160).trim();
+        let fontFamily = sanitizeFontFamily(raw.fontFamily || '');
+        if (!fontFamily && root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object') {
+            fontFamily = sanitizeFontFamily(root.llToolsFlashcardsData.quizFont || root.llToolsFlashcardsData.quiz_font || '');
         }
 
         let fontWeight = String(raw.fontWeight || '700').trim();
@@ -70,20 +79,29 @@
 
     function applyAnswerOptionContainerCssVars() {
         const cfg = getAnswerOptionTextStyleConfig();
-        const container = document.getElementById('ll-tools-flashcard-container') || document.getElementById('ll-tools-flashcard-popup');
-        if (!container || !container.style) {
+        const containers = [
+            document.getElementById('ll-tools-flashcard-container'),
+            document.getElementById('ll-tools-flashcard-popup'),
+            document.getElementById('ll-tools-flashcard-quiz-popup'),
+            document.getElementById('ll-tools-flashcard-content')
+        ].filter(function (el, index, all) {
+            return !!el && !!el.style && all.indexOf(el) === index;
+        });
+        if (!containers.length) {
             return;
         }
 
-        if (cfg.fontFamily) {
-            container.style.setProperty('--ll-answer-option-font-family', cfg.fontFamily);
-        } else {
-            container.style.removeProperty('--ll-answer-option-font-family');
-        }
-        container.style.setProperty('--ll-answer-option-font-weight', cfg.fontWeight);
-        container.style.setProperty('--ll-answer-option-font-size-px', cfg.fontSizePx + 'px');
-        container.style.setProperty('--ll-answer-option-text-line-height', String(cfg.lineHeightRatio));
-        container.style.setProperty('--ll-answer-option-text-line-height-marked', String(cfg.lineHeightRatioWithDiacritics));
+        containers.forEach(function (container) {
+            if (cfg.fontFamily) {
+                container.style.setProperty('--ll-answer-option-font-family', cfg.fontFamily);
+            } else {
+                container.style.removeProperty('--ll-answer-option-font-family');
+            }
+            container.style.setProperty('--ll-answer-option-font-weight', cfg.fontWeight);
+            container.style.setProperty('--ll-answer-option-font-size-px', cfg.fontSizePx + 'px');
+            container.style.setProperty('--ll-answer-option-text-line-height', String(cfg.lineHeightRatio));
+            container.style.setProperty('--ll-answer-option-text-line-height-marked', String(cfg.lineHeightRatioWithDiacritics));
+        });
     }
 
     function applyAnswerOptionTextStyle($label, text) {
@@ -583,7 +601,16 @@
             });
     }
     installOptionGuards();
+    applyAnswerOptionContainerCssVars();
 
     root.LLFlashcards = root.LLFlashcards || {};
-    root.LLFlashcards.Cards = { appendWordToContainer, addClickEventToCard, playOptionAudio, refitTextAnswerOptionCards, prepareTextAnswerOptionCardsForReveal };
+    root.LLFlashcards.Cards = {
+        appendWordToContainer,
+        addClickEventToCard,
+        playOptionAudio,
+        refitTextAnswerOptionCards,
+        prepareTextAnswerOptionCardsForReveal,
+        applyAnswerOptionContainerCssVars,
+        applyAnswerOptionTextStyle
+    };
 })(window, jQuery);
