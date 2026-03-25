@@ -575,6 +575,47 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $this->assertSame([], $this->getSpecificWrongIdsForWord($cat_word_id));
             $this->assertSame([], $this->getSpecificWrongTextsForWord($cat_word_id));
+
+            $rules = ll_tools_get_word_option_rules($wordset_id, $category_id);
+            $this->assertIsArray($rules);
+            $groups = isset($rules['groups']) && is_array($rules['groups']) ? $rules['groups'] : [];
+            $this->assertNotEmpty($groups);
+
+            $csv_group_ids = [];
+            foreach ($groups as $group) {
+                $label = isset($group['label']) ? (string) $group['label'] : '';
+                $ids = isset($group['word_ids']) && is_array($group['word_ids'])
+                    ? array_values(array_map('intval', $group['word_ids']))
+                    : [];
+                if (strpos($label, 'CSV image import ') === 0) {
+                    $csv_group_ids = array_merge($csv_group_ids, $ids);
+                }
+            }
+            $csv_group_ids = array_values(array_unique(array_map('intval', $csv_group_ids)));
+            sort($csv_group_ids, SORT_NUMERIC);
+            $this->assertContains($cat_word_id, $csv_group_ids);
+            $this->assertContains($dog_word_id, $csv_group_ids);
+            $this->assertContains($bird_word_id, $csv_group_ids);
+
+            $rows = ll_get_words_by_category(
+                $category_name,
+                'image',
+                [$wordset_id],
+                [
+                    'prompt_type' => 'text_title',
+                    'option_type' => 'image',
+                ]
+            );
+            $this->assertCount(3, $rows);
+
+            $rows_by_id = [];
+            foreach ($rows as $row) {
+                $rows_by_id[(int) ($row['id'] ?? 0)] = $row;
+            }
+
+            $this->assertNotEmpty((array) ($rows_by_id[$cat_word_id]['option_groups'] ?? []));
+            $this->assertNotEmpty((array) ($rows_by_id[$dog_word_id]['option_groups'] ?? []));
+            $this->assertNotEmpty((array) ($rows_by_id[$bird_word_id]['option_groups'] ?? []));
         } finally {
             @unlink($zip_path);
         }

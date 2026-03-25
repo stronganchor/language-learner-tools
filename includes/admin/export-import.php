@@ -937,8 +937,8 @@ function ll_tools_get_import_csv_reference_examples(): array {
         ],
         [
             'title' => __('Text -> image', 'll-tools-text-domain'),
-            'description' => __('Canonical header is "image". The importer also accepts aliases like "correct_image_file". Optional wrong_image_* columns are ignored.', 'll-tools-text-domain'),
-            'csv' => "quiz,image,correct_answer\nQuiz 1,cat.jpg,Cat\n",
+            'description' => __('Canonical header is "image". The importer also accepts aliases like "correct_image_file". Optional wrong_image_* columns are imported as preferred image distractor groups.', 'll-tools-text-domain'),
+            'csv' => "quiz,image,correct_answer,wrong_image_1,wrong_image_2,wrong_image_3\nQuiz 1,cat.jpg,Cat,dog.jpg,bird.jpg,\n",
         ],
         [
             'title' => __('Text -> text', 'll-tools-text-domain'),
@@ -3620,6 +3620,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
             'featured_image'  => [],
             'audio_entries' => [],
             'specific_wrong_answer_texts' => [],
+            'preferred_wrong_image_files' => [],
         ];
     };
     $append_audio_entry = static function (string $word_key, string $audio_relative, string $title) use (&$word_map): void {
@@ -3785,6 +3786,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
 
         $wrong_indexes = [];
         $wrong_audio_indexes = [];
+        $wrong_image_indexes = [];
         $answer_slot_indexes = [];
         $audio_slot_indexes = [];
         foreach ($headers as $index => $header) {
@@ -3812,6 +3814,17 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                 )
             ) {
                 $wrong_audio_indexes[] = (int) $index;
+                continue;
+            }
+            if (
+                strpos($header, 'wrong') !== false
+                && (
+                    strpos($header, 'image') !== false
+                    || strpos($header, 'picture') !== false
+                    || strpos($header, 'photo') !== false
+                )
+            ) {
+                $wrong_image_indexes[] = (int) $index;
                 continue;
             }
             if (
@@ -3860,6 +3873,7 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
 
         $wrong_indexes = array_values(array_unique(array_map('intval', $wrong_indexes)));
         $wrong_audio_indexes = array_values(array_unique(array_map('intval', $wrong_audio_indexes)));
+        $wrong_image_indexes = array_values(array_unique(array_map('intval', $wrong_image_indexes)));
 
         $mode = '';
         if ($image_index >= 0 && $correct_audio_index >= 0) {
@@ -4099,6 +4113,44 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                     }
                 }
                 $word_map[$word_key]['specific_wrong_answer_texts'] = array_values($wrong_lookup);
+            }
+
+            if ($mode === 'text_to_image' && !empty($wrong_image_indexes)) {
+                $existing_wrong_images = isset($word_map[$word_key]['preferred_wrong_image_files']) && is_array($word_map[$word_key]['preferred_wrong_image_files'])
+                    ? $word_map[$word_key]['preferred_wrong_image_files']
+                    : [];
+                $wrong_image_lookup = [];
+                foreach ($existing_wrong_images as $existing_wrong_image) {
+                    $existing_wrong_image = ltrim((string) $existing_wrong_image, '/');
+                    if ($existing_wrong_image !== '') {
+                        $wrong_image_lookup[$existing_wrong_image] = $existing_wrong_image;
+                    }
+                }
+                foreach ($wrong_image_indexes as $wrong_image_index) {
+                    $wrong_image_reference = ll_tools_import_get_external_csv_cell($row, (int) $wrong_image_index);
+                    if ($wrong_image_reference === '') {
+                        continue;
+                    }
+
+                    $wrong_image_relative = ll_tools_import_choose_external_image_match($wrong_image_reference, $image_catalog);
+                    if ($wrong_image_relative === '') {
+                        $add_warning(sprintf(
+                            __('Skipped wrong-image reference "%1$s" on row %2$d in CSV "%3$s" because the file was not found in /images.', 'll-tools-text-domain'),
+                            $wrong_image_reference,
+                            $csv_row_number,
+                            basename((string) $csv_path)
+                        ));
+                        continue;
+                    }
+
+                    $wrong_image_relative = ltrim($wrong_image_relative, '/');
+                    if ($wrong_image_relative === '' || $wrong_image_relative === $image_relative) {
+                        continue;
+                    }
+
+                    $wrong_image_lookup[$wrong_image_relative] = $wrong_image_relative;
+                }
+                $word_map[$word_key]['preferred_wrong_image_files'] = array_values($wrong_image_lookup);
             }
 
             $rows_used++;
@@ -6416,6 +6468,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
     $word_label_index_by_category = [];
     $word_label_index_global = [];
     $pending_specific_wrong_answers = [];
+    $pending_preferred_wrong_image_groups = [];
     foreach ((array) ($payload['words'] ?? []) as $item) {
         $slug = isset($item['slug']) ? sanitize_title($item['slug']) : '';
         $origin_id = isset($item['origin_id']) ? (int) $item['origin_id'] : 0;
@@ -6544,6 +6597,25 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             }
         }
 
+        if (!empty($item['preferred_wrong_image_files']) && is_array($item['preferred_wrong_image_files'])) {
+            $wrong_image_files = array_values(array_filter(array_map(static function ($value): string {
+                return ltrim((string) $value, '/');
+            }, $item['preferred_wrong_image_files']), static function (string $value): bool {
+                return $value !== '';
+            }));
+            $source_image_file = isset($item['featured_image']['file']) ? ltrim((string) $item['featured_image']['file'], '/') : '';
+            if (!empty($wrong_image_files) && $source_image_file !== '' && !empty($category_ids) && !empty($wordset_ids)) {
+                $pending_preferred_wrong_image_groups[] = [
+                    'word_id' => $word_id,
+                    'word_slug' => $slug,
+                    'source_image_file' => $source_image_file,
+                    'wrong_image_files' => $wrong_image_files,
+                    'category_ids' => $category_ids,
+                    'wordset_ids' => $wordset_ids,
+                ];
+            }
+        }
+
         $word_image_link = ll_tools_import_resolve_word_image_link_for_word($item, $word_image_slug_to_id);
         $linked_word_image_id = (int) ($word_image_link['word_image_id'] ?? 0);
         $linked_word_image_source = (string) ($word_image_link['source'] ?? '');
@@ -6635,6 +6707,10 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             $word_label_index_global,
             $result
         );
+    }
+
+    if (!empty($pending_preferred_wrong_image_groups)) {
+        ll_tools_import_apply_preferred_wrong_image_groups($pending_preferred_wrong_image_groups, $result);
     }
 }
 
@@ -6821,6 +6897,259 @@ function ll_tools_import_apply_specific_wrong_answers_from_texts(
 
     if (!empty($touched_category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
         ll_tools_bump_category_cache_version(array_map('intval', array_keys($touched_category_ids)));
+    }
+}
+
+function ll_tools_import_csv_image_option_group_label_prefix(): string {
+    return 'CSV image import ';
+}
+
+function ll_tools_import_is_csv_image_option_group_label(string $label): bool {
+    $prefix = ll_tools_import_csv_image_option_group_label_prefix();
+    return $prefix !== '' && strpos($label, $prefix) === 0;
+}
+
+function ll_tools_import_build_word_option_group_components(array $adjacency): array {
+    $components = [];
+    $visited = [];
+
+    $node_ids = array_values(array_unique(array_filter(array_map('intval', array_keys($adjacency)), static function (int $id): bool {
+        return $id > 0;
+    })));
+    sort($node_ids, SORT_NUMERIC);
+
+    foreach ($node_ids as $node_id) {
+        if (isset($visited[$node_id])) {
+            continue;
+        }
+
+        $stack = [$node_id];
+        $component = [];
+        while (!empty($stack)) {
+            $current = (int) array_pop($stack);
+            if ($current <= 0 || isset($visited[$current])) {
+                continue;
+            }
+
+            $visited[$current] = true;
+            $component[$current] = true;
+            $neighbors = isset($adjacency[$current]) && is_array($adjacency[$current]) ? $adjacency[$current] : [];
+            foreach ($neighbors as $neighbor_id_raw => $enabled) {
+                if (empty($enabled)) {
+                    continue;
+                }
+                $neighbor_id = (int) $neighbor_id_raw;
+                if ($neighbor_id > 0 && !isset($visited[$neighbor_id])) {
+                    $stack[] = $neighbor_id;
+                }
+            }
+        }
+
+        $component_ids = array_values(array_map('intval', array_keys($component)));
+        sort($component_ids, SORT_NUMERIC);
+        if (count($component_ids) >= 2) {
+            $components[] = $component_ids;
+        }
+    }
+
+    usort($components, static function (array $left, array $right): int {
+        $left_first = isset($left[0]) ? (int) $left[0] : 0;
+        $right_first = isset($right[0]) ? (int) $right[0] : 0;
+        return $left_first <=> $right_first;
+    });
+
+    return $components;
+}
+
+/**
+ * Apply imported image-option preferences as word option groups.
+ *
+ * CSV `wrong_image_*` references are intentionally treated as a soft preference:
+ * words sharing an imported group are preferred as distractors for each other,
+ * but the quiz remains free to fall back to other category words when needed.
+ *
+ * @param array $pending
+ * @param array $result
+ * @return void
+ */
+function ll_tools_import_apply_preferred_wrong_image_groups(array $pending, array &$result): void {
+    if (empty($pending)) {
+        return;
+    }
+
+    if (!function_exists('ll_tools_get_word_option_rules') || !function_exists('ll_tools_update_word_option_rules')) {
+        $result['warnings'][] = __('Imported wrong-image preferences were skipped because word option rules are unavailable.', 'll-tools-text-domain');
+        return;
+    }
+
+    $scope_image_map = [];
+    $scope_graphs = [];
+    $touched_scopes = [];
+    $warning_count = 0;
+    $max_warnings = 20;
+
+    foreach ($pending as $config) {
+        if (!is_array($config)) {
+            continue;
+        }
+
+        $word_id = isset($config['word_id']) ? (int) $config['word_id'] : 0;
+        $source_image_file = ltrim((string) ($config['source_image_file'] ?? ''), '/');
+        $category_ids = isset($config['category_ids']) && is_array($config['category_ids'])
+            ? array_values(array_filter(array_map('intval', $config['category_ids']), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+        $wordset_ids = isset($config['wordset_ids']) && is_array($config['wordset_ids'])
+            ? array_values(array_filter(array_map('intval', $config['wordset_ids']), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+
+        if ($word_id <= 0 || $source_image_file === '' || empty($category_ids) || empty($wordset_ids)) {
+            continue;
+        }
+
+        foreach ($category_ids as $category_id) {
+            foreach ($wordset_ids as $wordset_id) {
+                $scope_key = $wordset_id . ':' . $category_id;
+                if (!isset($scope_image_map[$scope_key])) {
+                    $scope_image_map[$scope_key] = [];
+                }
+                if (!isset($scope_image_map[$scope_key][$source_image_file])) {
+                    $scope_image_map[$scope_key][$source_image_file] = [];
+                }
+                $scope_image_map[$scope_key][$source_image_file][$word_id] = true;
+            }
+        }
+    }
+
+    foreach ($pending as $config) {
+        if (!is_array($config)) {
+            continue;
+        }
+
+        $word_id = isset($config['word_id']) ? (int) $config['word_id'] : 0;
+        $word_slug = sanitize_title((string) ($config['word_slug'] ?? ''));
+        $wrong_image_files = isset($config['wrong_image_files']) && is_array($config['wrong_image_files'])
+            ? array_values(array_filter(array_map(static function ($value): string {
+                return ltrim((string) $value, '/');
+            }, $config['wrong_image_files']), static function (string $value): bool {
+                return $value !== '';
+            }))
+            : [];
+        $category_ids = isset($config['category_ids']) && is_array($config['category_ids'])
+            ? array_values(array_filter(array_map('intval', $config['category_ids']), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+        $wordset_ids = isset($config['wordset_ids']) && is_array($config['wordset_ids'])
+            ? array_values(array_filter(array_map('intval', $config['wordset_ids']), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+
+        if ($word_id <= 0 || empty($wrong_image_files) || empty($category_ids) || empty($wordset_ids)) {
+            continue;
+        }
+
+        foreach ($category_ids as $category_id) {
+            foreach ($wordset_ids as $wordset_id) {
+                $scope_key = $wordset_id . ':' . $category_id;
+                $touched_scopes[$scope_key] = [
+                    'wordset_id' => $wordset_id,
+                    'category_id' => $category_id,
+                ];
+                if (!isset($scope_graphs[$scope_key])) {
+                    $scope_graphs[$scope_key] = [];
+                }
+                if (!isset($scope_graphs[$scope_key][$word_id])) {
+                    $scope_graphs[$scope_key][$word_id] = [];
+                }
+
+                foreach ($wrong_image_files as $wrong_image_file) {
+                    $candidate_ids = isset($scope_image_map[$scope_key][$wrong_image_file]) && is_array($scope_image_map[$scope_key][$wrong_image_file])
+                        ? array_values(array_map('intval', array_keys($scope_image_map[$scope_key][$wrong_image_file])))
+                        : [];
+                    $candidate_ids = array_values(array_filter($candidate_ids, static function (int $candidate_id) use ($word_id): bool {
+                        return $candidate_id > 0 && $candidate_id !== $word_id;
+                    }));
+
+                    if (empty($candidate_ids)) {
+                        if ($warning_count < $max_warnings) {
+                            $result['warnings'][] = sprintf(
+                                __('Imported wrong-image preference "%1$s" for word "%2$s" could not be matched to another imported word in the same category/word set.', 'll-tools-text-domain'),
+                                $wrong_image_file,
+                                $word_slug !== '' ? $word_slug : ('#' . $word_id)
+                            );
+                        }
+                        $warning_count++;
+                        continue;
+                    }
+
+                    foreach ($candidate_ids as $candidate_id) {
+                        if (!isset($scope_graphs[$scope_key][$candidate_id])) {
+                            $scope_graphs[$scope_key][$candidate_id] = [];
+                        }
+                        $scope_graphs[$scope_key][$word_id][$candidate_id] = true;
+                        $scope_graphs[$scope_key][$candidate_id][$word_id] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    if ($warning_count > $max_warnings) {
+        $result['warnings'][] = sprintf(
+            _n(
+                '%d additional wrong-image preference warning was not shown.',
+                '%d additional wrong-image preference warnings were not shown.',
+                $warning_count - $max_warnings,
+                'll-tools-text-domain'
+            ),
+            $warning_count - $max_warnings
+        );
+    }
+
+    foreach ($touched_scopes as $scope_key => $scope) {
+        $wordset_id = isset($scope['wordset_id']) ? (int) $scope['wordset_id'] : 0;
+        $category_id = isset($scope['category_id']) ? (int) $scope['category_id'] : 0;
+        if ($wordset_id <= 0 || $category_id <= 0) {
+            continue;
+        }
+
+        $current_rules = ll_tools_get_word_option_rules($wordset_id, $category_id);
+        $existing_groups = isset($current_rules['groups']) && is_array($current_rules['groups']) ? $current_rules['groups'] : [];
+        $manual_groups = [];
+        foreach ($existing_groups as $group) {
+            if (!is_array($group)) {
+                continue;
+            }
+            $label = trim((string) ($group['label'] ?? ''));
+            if (ll_tools_import_is_csv_image_option_group_label($label)) {
+                continue;
+            }
+            $manual_groups[] = $group;
+        }
+
+        $imported_groups = [];
+        $components = ll_tools_import_build_word_option_group_components($scope_graphs[$scope_key] ?? []);
+        $component_index = 1;
+        foreach ($components as $component_ids) {
+            $imported_groups[] = [
+                'label' => ll_tools_import_csv_image_option_group_label_prefix() . $component_index,
+                'word_ids' => $component_ids,
+            ];
+            $component_index++;
+        }
+
+        ll_tools_update_word_option_rules(
+            $wordset_id,
+            $category_id,
+            array_merge($manual_groups, $imported_groups),
+            isset($current_rules['pairs']) && is_array($current_rules['pairs']) ? $current_rules['pairs'] : [],
+            isset($current_rules['similar_image_overrides']) && is_array($current_rules['similar_image_overrides']) ? $current_rules['similar_image_overrides'] : []
+        );
     }
 }
 
