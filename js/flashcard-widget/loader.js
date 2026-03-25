@@ -4,6 +4,7 @@
  * Handles loading of resources (audio, images) for flashcards.
  */
 (function ($) {
+    const Util = (window.LLFlashcards = window.LLFlashcards || {}).Util || {};
     /**
      * FlashcardLoader Module
      * 
@@ -75,12 +76,15 @@
 
         function categoryRequiresAudio(config) {
             const opt = config.option_type || config.mode;
-            return (config.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
+            return (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(config.prompt_type) : (config.prompt_type === 'audio'))
+                || opt === 'audio'
+                || opt === 'text_audio';
         }
 
         function categoryRequiresImage(config, displayMode) {
             const opt = displayMode || config.option_type || config.mode;
-            return (config.prompt_type === 'image') || opt === 'image';
+            return (Util.promptTypeHasImage ? Util.promptTypeHasImage(config.prompt_type) : (config.prompt_type === 'image'))
+                || opt === 'image';
         }
 
         function getWordsetKey() {

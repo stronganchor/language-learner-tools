@@ -623,8 +623,8 @@
         const cfg = getRawCategoryConfig(categoryName);
         const opt = cfg.option_type || cfg.mode || State.DEFAULT_DISPLAY_MODE;
         const promptType = cfg.prompt_type || 'audio';
-        const requiresAudio = (promptType === 'audio') || opt === 'audio' || opt === 'text_audio';
-        const requiresImage = (promptType === 'image') || opt === 'image';
+        const requiresAudio = Util.promptTypeHasAudio(promptType) || opt === 'audio' || opt === 'text_audio';
+        const requiresImage = Util.promptTypeHasImage(promptType) || opt === 'image';
         return { requiresAudio, requiresImage };
     }
 
@@ -861,7 +861,7 @@
     function categoryRequiresAudio(nameOrConfig) {
         const cfg = typeof nameOrConfig === 'object' ? (nameOrConfig || {}) : getCategoryConfig(nameOrConfig);
         const opt = cfg.option_type || cfg.mode;
-        return (cfg.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
+        return Util.promptTypeHasAudio(cfg.prompt_type) || opt === 'audio' || opt === 'text_audio';
     }
 
     function normalizeTextForComparison(text) {
@@ -1041,7 +1041,7 @@
     }
 
     function isTextPromptType(promptType) {
-        return promptType === 'text' || promptType === 'text_title' || promptType === 'text_translation';
+        return Util.promptTypeHasText(promptType);
     }
 
     function isPlainTextOptionType(optionType) {
@@ -1379,9 +1379,9 @@
         const isTextOption = (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
         const isTextPrompt = isTextPromptType(promptType);
         const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
-        const showImage = (promptType === 'image') || (isGender && optionType === 'image');
+        const showImage = Util.promptTypeHasImage(promptType) || (isGender && optionType === 'image');
         const showText = isTextPrompt || (isGender && isTextOption);
-        const showAudio = isGender && requirements.requiresAudio && promptType !== 'audio';
+        const showAudio = isGender && requirements.requiresAudio && !Util.promptTypeHasAudio(promptType);
         const $ = root.jQuery;
         if (!$) return;
         let $prompt = $('#ll-tools-prompt');
@@ -1963,7 +1963,7 @@
         );
         renderPrompt(targetWord, config);
 
-        const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
+        const isAudioLineLayout = Util.promptTypeHasImage(promptType) && (mode === 'audio' || mode === 'text_audio');
         const $container = jQuery('#ll-tools-flashcard');
         const $content = jQuery('#ll-tools-flashcard-content');
         const optionRevealToken = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
@@ -2255,7 +2255,7 @@
 
         const alignAudioLineWidths = function () {
             const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
-            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$cards.length) {
+            if (!Util.promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$cards.length) {
                 $cards.css('width', '');
                 return 0;
             }
@@ -2278,7 +2278,7 @@
 
         const shrinkAudioLineText = function () {
             const $labels = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option .ll-audio-option-label');
-            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$labels.length) {
+            if (!Util.promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$labels.length) {
                 $labels.css('font-size', '');
                 return;
             }
@@ -2296,7 +2296,7 @@
         };
 
         const revealOptions = function () {
-            const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
+            const isAudioLineTextAudio = (Util.promptTypeHasImage(State.currentPromptType) && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
                 $all.css({ display: '', visibility: 'visible' });

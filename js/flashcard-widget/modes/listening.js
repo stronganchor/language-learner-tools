@@ -797,7 +797,7 @@
                 const categoryConfig = getListeningCategoryConfig(categoryName);
                 const optionType = String(categoryConfig.option_type || 'image');
                 const promptType = String(categoryConfig.prompt_type || 'audio');
-                const skipImagePreload = (promptType === 'audio');
+                const skipImagePreload = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
 
                 return Promise.resolve(
                     loader.loadResourcesForWord(word, optionType, categoryName, categoryConfig, {
@@ -1441,8 +1441,8 @@
             $jq('#ll-tools-flashcard').empty();
         }
         const hasImage = !!(target && target.image);
-        const promptIsImage = (promptType === 'image' && hasImage);
-        const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || promptType === 'audio');
+        const promptIsImage = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image')) && hasImage;
+        const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
         const showAnswerText = (/^text/.test(String(optionType || '')));
         const shouldUseVisualizerText = (!optionHasAudio && promptIsImage && showAnswerText);
         const answerLabel = target.label || target.title || '';
@@ -1525,9 +1525,9 @@
             }
         } catch (_) { /* no-op */ }
 
-        const deferImagePreload = (promptType === 'audio');
+        const deferImagePreload = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
         const isFirstListeningWord = (State.listenIndex || 0) <= 1;
-        const skipCurrentWordAudioPreload = isFirstListeningWord && promptType === 'audio';
+        const skipCurrentWordAudioPreload = isFirstListeningWord && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'));
         const prefetchRoundSerial = (listeningPrefetchRoundSerial += 1);
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
             skipImagePreload: deferImagePreload,
@@ -1592,7 +1592,7 @@
 
             let sequence = [];
             const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
-            const isAudioPromptFlow = (!promptIsImage && promptType === 'audio');
+            const isAudioPromptFlow = (!promptIsImage && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
             if (isAudioPromptFlow) {
                 const isolationClip = isoUrl || introUrl || ((audioApi && typeof audioApi.selectBestAudio === 'function')
                     ? audioApi.selectBestAudio(target, ['question'])

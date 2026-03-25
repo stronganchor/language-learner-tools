@@ -1990,7 +1990,9 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $quiz_config = ll_tools_get_category_quiz_config($category_term);
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? '');
-        $requires_images = ($prompt_type === 'image') || ($option_type === 'image');
+        $requires_images = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : (($prompt_type === 'image') || ($option_type === 'image'));
         $is_text_based = !$requires_images && (strpos($option_type, 'text') === 0);
         $has_text_only_answer_options = in_array($option_type, ['text', 'text_translation', 'text_title'], true);
     }

@@ -1,5 +1,6 @@
 (function (root, $) {
     'use strict';
+    const Util = root.LLFlashcards.Util || {};
     const { State } = root.LLFlashcards;
     const { Dom } = root.LLFlashcards;
     let optionMiniViz = null;
@@ -409,7 +410,7 @@
 
     function createAudioCard(word, includeText, promptType) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
-        const isImagePrompt = (promptType === 'image');
+        const isImagePrompt = Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image');
         const classes = ['flashcard-container', 'audio-option'];
         if (!isImagePrompt) classes.push(sizeClass);
         if (includeText) classes.push('text-audio-option');
@@ -498,7 +499,7 @@
     ensureTextCardResizeBinding();
 
     function addClickEventToCard($card, index, targetWord, optionType, promptType) {
-        const gateOnAudio = (promptType === 'audio');
+        const gateOnAudio = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
         let lastPointerHandledAt = 0;
         const handleSelection = function (e, triggerType) {
             // Ignore clicks on the inline play button for audio options

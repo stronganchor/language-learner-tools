@@ -146,7 +146,8 @@
             : null;
         const promptType = cfg ? cfg.prompt_type : null;
         const optionType = cfg ? (cfg.option_type || cfg.mode) : mode;
-        const isImagePromptAudio = (promptType === 'image') && (optionType === 'audio' || optionType === 'text_audio');
+        const isImagePromptAudio = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image'))
+            && (optionType === 'audio' || optionType === 'text_audio');
         if (isImagePromptAudio) {
             maxCount = Math.min(maxCount, 4);
         }
@@ -923,7 +924,7 @@
         const cfg = (Selection && typeof Selection.getCategoryConfig === 'function')
             ? Selection.getCategoryConfig(State.currentCategoryName)
             : {};
-        const introMode = (cfg && cfg.prompt_type === 'image' && (mode === 'audio' || mode === 'text_audio'))
+        const introMode = (cfg && (Util.promptTypeHasImage ? Util.promptTypeHasImage(cfg.prompt_type) : (cfg.prompt_type === 'image')) && (mode === 'audio' || mode === 'text_audio'))
             ? 'image'
             : mode;
 
@@ -1278,7 +1279,7 @@
     function configureTargetAudio(target) {
         if (State.isIntroducingWord || !target) return;
         const promptType = State.currentPromptType || 'audio';
-        if (promptType !== 'audio') {
+        if (!(Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))) {
             delete target.__promptRecordingType;
             return;
         }

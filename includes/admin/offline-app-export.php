@@ -1015,8 +1015,15 @@ function ll_tools_offline_app_rewrite_category_words(array $words, string $categ
         'prompt_type' => (string) ($category_config['prompt_type'] ?? 'audio'),
         'option_type' => (string) ($category_config['option_type'] ?? 'image'),
     ], (string) ($category_config['option_type'] ?? 'image'));
-    $needs_image = ((string) ($category_config['prompt_type'] ?? '') === 'image')
-        || ((string) ($category_config['option_type'] ?? '') === 'image');
+    $needs_image = function_exists('ll_tools_quiz_requires_image')
+        ? ll_tools_quiz_requires_image([
+            'prompt_type' => (string) ($category_config['prompt_type'] ?? 'audio'),
+            'option_type' => (string) ($category_config['option_type'] ?? 'image'),
+        ], (string) ($category_config['option_type'] ?? 'image'))
+        : (
+            ((string) ($category_config['prompt_type'] ?? '') === 'image')
+            || ((string) ($category_config['option_type'] ?? '') === 'image')
+        );
 
     foreach ($words as $word) {
         if (!is_array($word)) {
@@ -1611,7 +1618,9 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
         $requires_audio = function_exists('ll_tools_quiz_requires_audio')
             ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
-        $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+        $requires_image = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : (($prompt_type === 'image') || ($option_type === 'image'));
 
         $translation = $use_translations
             ? (get_term_meta($term->term_id, 'term_translation', true) ?: $term->name)

@@ -122,9 +122,9 @@ function ll_tools_vocab_lesson_category_requires_images($category): bool {
     $config = ll_tools_get_category_quiz_config($category);
     $prompt_type = (string) ($config['prompt_type'] ?? 'audio');
     $option_type = (string) ($config['option_type'] ?? '');
-    $prompt_requires_image = ($prompt_type === 'image');
-    $option_requires_image = ($option_type === 'image');
-    return $prompt_requires_image || $option_requires_image;
+    return function_exists('ll_tools_quiz_requires_image')
+        ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+        : (($prompt_type === 'image') || ($option_type === 'image'));
 }
 
 function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, bool $force_refresh = false): array {

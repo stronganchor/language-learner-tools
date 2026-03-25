@@ -406,7 +406,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         $config = ll_tools_get_category_quiz_config($category_id);
         $prompt_type = (string) ($config['prompt_type'] ?? 'audio');
         $option_type = (string) ($config['option_type'] ?? '');
-        $use_images = ($prompt_type === 'image') || ($option_type === 'image');
+        $use_images = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : (($prompt_type === 'image') || ($option_type === 'image'));
     }
 
     $image_size = 'medium';
@@ -711,7 +713,9 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         if (function_exists('ll_tools_vocab_lesson_category_requires_images')) {
             $requires_images = ll_tools_vocab_lesson_category_requires_images($category);
         } else {
-            $requires_images = ($prompt_type === 'image') || ($option_type === 'image');
+            $requires_images = function_exists('ll_tools_quiz_requires_image')
+                ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+                : (($prompt_type === 'image') || ($option_type === 'image'));
         }
 
         $image_preview_limit = max(1, (int) $preview_limit);

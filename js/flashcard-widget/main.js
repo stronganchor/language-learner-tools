@@ -550,7 +550,7 @@
         if (State.isListeningMode || State.isLearningMode || State.isGenderMode) {
             return true;
         }
-        return promptType === 'audio' || optionType === 'audio' || optionType === 'text_audio';
+        return Util.promptTypeHasAudio(promptType) || optionType === 'audio' || optionType === 'text_audio';
     }
 
     function applyRoundSoundRequirement(required) {
@@ -779,14 +779,14 @@
 
     function hideLoadingThenPlayPromptAudio(promptType, isStaleRound) {
         const audioApi = root.FlashcardAudio;
-        const expectedAudio = (promptType === 'audio' && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
+        const expectedAudio = (Util.promptTypeHasAudio(promptType) && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
             ? audioApi.getCurrentTargetAudio()
             : null;
         const hidePromise = (Dom && typeof Dom.hideLoading === 'function')
             ? Promise.resolve(Dom.hideLoading()).catch(function () { return; })
             : Promise.resolve();
 
-        if (promptType !== 'audio') {
+        if (!Util.promptTypeHasAudio(promptType)) {
             return hidePromise;
         }
 
@@ -1866,7 +1866,7 @@
                 const promptType = State && State.currentPromptType ? State.currentPromptType : (root.LLFlashcards && root.LLFlashcards.Selection && typeof root.LLFlashcards.Selection.getCategoryPromptType === 'function'
                     ? root.LLFlashcards.Selection.getCategoryPromptType(State.currentCategoryName)
                     : 'audio');
-                if (promptType === 'image') {
+                if (Util.promptTypeHasImage(promptType)) {
                     $container = ensureImageInlineRow() || getStarRow();
                     if ($container && !$container.hasClass('ll-quiz-star-inline')) {
                         $container = ensureImageInlineRow();
@@ -3079,7 +3079,7 @@
         const hadWrongAlready = !!State.hadWrongAnswerThisTurn;
         State.hadWrongAnswerThisTurn = true;
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
-        const isAudioLineLayout = (State.currentPromptType === 'image') &&
+        const isAudioLineLayout = Util.promptTypeHasImage(State.currentPromptType) &&
             (State.currentOptionType === 'audio' || State.currentOptionType === 'text_audio');
         const removeWrongCard = function () {
             let removed = false;
@@ -3424,7 +3424,7 @@
     }
 
     function waitForTargetAudioReady(promptType, timeoutMs) {
-        if (promptType !== 'audio') return Promise.resolve(true);
+        if (!Util.promptTypeHasAudio(promptType)) return Promise.resolve(true);
         const audioApi = root.FlashcardAudio;
         if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') return Promise.resolve(false);
         const audio = audioApi.getCurrentTargetAudio();
@@ -3745,7 +3745,7 @@
                 StarManager.updateForWord(target, { variant: State.isListeningMode ? 'listening' : 'content' });
             } catch (_) { /* no-op */ }
 
-            if (promptType === 'audio') {
+            if (Util.promptTypeHasAudio(promptType)) {
                 root.FlashcardAudio.setTargetAudioHasPlayed(false);
                 root.FlashcardAudio.setTargetWordAudio(target, { autoplay: false });
                 Dom.enableRepeatButton();
@@ -3782,7 +3782,7 @@
                 }
             };
 
-            const needsPromptAudio = (promptType === 'audio') && !!(target && target.audio);
+            const needsPromptAudio = Util.promptTypeHasAudio(promptType) && !!(target && target.audio);
             Promise.all([
                 optionMediaPromise,
                 waitForRoundMediaReadiness(promptType, {

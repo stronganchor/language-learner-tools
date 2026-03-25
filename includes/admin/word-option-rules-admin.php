@@ -1257,7 +1257,9 @@ function ll_render_word_option_rules_admin_page() {
     $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
         ? ll_tools_get_category_quiz_config($category_term)
         : ['prompt_type' => 'audio'];
-    $include_recording_text_pairs = ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+    $include_recording_text_pairs = function_exists('ll_tools_quiz_prompt_type_has_audio')
+        ? ll_tools_quiz_prompt_type_has_audio((string) ($category_config['prompt_type'] ?? 'audio'))
+        : ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
     $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
         ll_tools_word_option_rules_build_compare_rows($words, $audio_by_word),
         $include_recording_text_pairs
@@ -1911,7 +1913,9 @@ function ll_tools_handle_word_option_rules_save() {
     $category_config = ($category_term instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
         ? ll_tools_get_category_quiz_config($category_term)
         : ['prompt_type' => 'audio'];
-    $include_recording_text_pairs = ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+    $include_recording_text_pairs = function_exists('ll_tools_quiz_prompt_type_has_audio')
+        ? ll_tools_quiz_prompt_type_has_audio((string) ($category_config['prompt_type'] ?? 'audio'))
+        : ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
     $word_posts = ll_tools_word_option_rules_get_word_posts($wordset_id, $category_id);
     $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
         ? ll_tools_word_grid_collect_audio_files($word_ids, true)

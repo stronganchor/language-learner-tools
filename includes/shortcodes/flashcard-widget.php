@@ -896,7 +896,9 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
         $fallback_count = ll_get_words_by_category_count($category->name, 'text', $wordset_ids, $fallback_config);
         if ($fallback_count >= $min_word_count) {
             $option_type = 'text_translation';
-            $learning_supported = ($prompt_type === 'image') ? false : $learning_supported;
+            $learning_supported = (function_exists('ll_tools_quiz_prompt_type_has_image') && ll_tools_quiz_prompt_type_has_image($prompt_type))
+                ? false
+                : (($prompt_type === 'image') ? false : $learning_supported);
             $word_count = $fallback_count;
         }
     }
@@ -968,7 +970,9 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
         $requires_audio = function_exists('ll_tools_quiz_requires_audio')
             ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
-        $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+        $requires_image = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : (($prompt_type === 'image') || ($option_type === 'image'));
         $aspect_bucket = function_exists('ll_tools_get_category_aspect_bucket_key')
             ? (string) ll_tools_get_category_aspect_bucket_key((int) $category->term_id)
             : '';

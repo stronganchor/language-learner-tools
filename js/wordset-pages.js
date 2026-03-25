@@ -4572,7 +4572,7 @@
 
         const promptType = String(cat.prompt_type || '').trim().toLowerCase();
         const optionType = String(cat.option_type || '').trim().toLowerCase();
-        return promptType.indexOf('text') === 0
+        return promptType.indexOf('text') !== -1
             || optionType.indexOf('text') === 0
             || !cat.has_images;
     }
@@ -4599,6 +4599,12 @@
         const key = String(value || '').trim().toLowerCase();
         if (key === 'text_title' || key === 'text_translation') {
             return 'text';
+        }
+        if (key === 'audio_text_title' || key === 'audio_text_translation') {
+            return 'audio_text';
+        }
+        if (key === 'image_text_title' || key === 'image_text_translation') {
+            return 'image_text';
         }
         return key || 'audio';
     }

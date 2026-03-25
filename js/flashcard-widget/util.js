@@ -3,6 +3,30 @@
     const Util = {
         randomlySort(arr) { return Array.isArray(arr) ? [...arr].sort(() => 0.5 - Math.random()) : arr; },
         randomInt(min, max) { return Math.floor((Math.random() * (max - min + 1)) + min); },
+        normalizePromptType(value) {
+            return String(value || '').trim().toLowerCase() || 'audio';
+        },
+        getPromptTextType(promptType) {
+            const normalized = Util.normalizePromptType(promptType);
+            if (normalized === 'text_translation' || normalized === 'audio_text_translation' || normalized === 'image_text_translation') {
+                return 'text_translation';
+            }
+            if (normalized === 'text_title' || normalized === 'audio_text_title' || normalized === 'image_text_title') {
+                return 'text_title';
+            }
+            return '';
+        },
+        promptTypeHasText(promptType) {
+            return Util.getPromptTextType(promptType) !== '';
+        },
+        promptTypeHasAudio(promptType) {
+            const normalized = Util.normalizePromptType(promptType);
+            return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+        },
+        promptTypeHasImage(promptType) {
+            const normalized = Util.normalizePromptType(promptType);
+            return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+        },
         protectMaqafNoBreak(value) {
             const text = (value === null || value === undefined) ? '' : String(value);
             if (!text) return '';

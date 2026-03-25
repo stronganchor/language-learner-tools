@@ -517,8 +517,11 @@
         const cfg = getCategoryConfig(categoryName);
         const optionType = cfg.option_type || cfg.mode || 'image';
         const promptType = cfg.prompt_type || 'audio';
-        const requiresAudio = (promptType === 'audio') || optionType === 'audio' || optionType === 'text_audio';
-        const requiresImage = (promptType === 'image') || optionType === 'image';
+        const requiresAudio = (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))
+            || optionType === 'audio'
+            || optionType === 'text_audio';
+        const requiresImage = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image'))
+            || optionType === 'image';
         return { requiresAudio, requiresImage };
     }
 

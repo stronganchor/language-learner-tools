@@ -17,26 +17,56 @@
             return;
         }
 
+        function promptHasAudio(value) {
+            return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title';
+        }
+
+        function promptHasImage(value) {
+            return value === 'image' || value === 'image_text_translation' || value === 'image_text_title';
+        }
+
+        function getPromptTextType(value) {
+            if (value === 'text_translation' || value === 'audio_text_translation' || value === 'image_text_translation') {
+                return 'text_translation';
+            }
+            if (value === 'text_title' || value === 'audio_text_title' || value === 'image_text_title') {
+                return 'text_title';
+            }
+            return '';
+        }
+
+        function getFallbackOption(value) {
+            var promptTextType = getPromptTextType(value);
+            if (promptTextType === 'text_title') {
+                return 'text_translation';
+            }
+            if (promptTextType === 'text_translation') {
+                return 'text_title';
+            }
+            return 'text_translation';
+        }
+
         $option.find('option').prop('disabled', false);
 
-        if ($prompt.val() === 'image') {
+        if (promptHasImage($prompt.val())) {
             $option.find('option[value="image"]').prop('disabled', true);
             if ($option.val() === 'image') {
-                $option.val('text_translation');
+                $option.val(getFallbackOption($prompt.val()));
             }
         }
 
-        if ($prompt.val() === 'audio') {
+        if (promptHasAudio($prompt.val())) {
             $option.find('option[value="audio"]').prop('disabled', true);
             if ($option.val() === 'audio') {
-                $option.val('text_translation');
+                $option.val(getFallbackOption($prompt.val()));
             }
         }
 
-        if ($prompt.val() === 'text_title' || $prompt.val() === 'text_translation') {
-            var opposite = ($prompt.val() === 'text_title') ? 'text_translation' : 'text_title';
-            $option.find('option[value="' + $prompt.val() + '"]').prop('disabled', true);
-            if ($option.val() === $prompt.val()) {
+        var promptTextType = getPromptTextType($prompt.val());
+        if (promptTextType) {
+            var opposite = (promptTextType === 'text_title') ? 'text_translation' : 'text_title';
+            $option.find('option[value="' + promptTextType + '"]').prop('disabled', true);
+            if ($option.val() === promptTextType) {
                 $option.val(opposite);
             }
         }
@@ -51,8 +81,8 @@
             return false;
         }
 
-        var promptIsImage = (prompt === 'image');
-        var promptIsText = (prompt === 'text_translation' || prompt === 'text_title');
+        var promptIsImage = (prompt === 'image' || prompt === 'image_text_translation' || prompt === 'image_text_title');
+        var promptIsText = (prompt === 'text_translation' || prompt === 'text_title' || prompt === 'audio_text_translation' || prompt === 'audio_text_title' || prompt === 'image_text_translation' || prompt === 'image_text_title');
         var optionIsImage = (option === 'image');
         var optionIsText = (option === 'text' || option === 'text_translation' || option === 'text_title');
 

@@ -778,7 +778,7 @@
     function configureTargetAudio(target) {
         if (!target) return true;
         const promptType = State.currentPromptType || 'audio';
-        if (promptType !== 'audio') {
+        if (!(Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))) {
             delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;

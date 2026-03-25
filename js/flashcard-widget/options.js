@@ -4,6 +4,7 @@
  * Manages the configuration and dynamic adjustment of flashcard options based on user interactions and quiz performance.
  */
 (function ($) {
+    const Util = (window.LLFlashcards = window.LLFlashcards || {}).Util || {};
     /**
      * FlashcardOptions Module
      *
@@ -227,7 +228,7 @@
                 maxOptionsCount = Math.min(maxOptionsCount, MAXIMUM_TEXT_OPTIONS);
             }
 
-            const isImagePromptAudioOptions = (promptType === 'image') &&
+            const isImagePromptAudioOptions = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image')) &&
                 (optionTypeFromConfig === 'audio' || optionTypeFromConfig === 'text_audio');
             if (isImagePromptAudioOptions) {
                 maxOptionsCount = Math.min(maxOptionsCount, 4);

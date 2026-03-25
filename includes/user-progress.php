@@ -426,7 +426,15 @@ function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id,
             $option_type
         )
         : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
-    $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
+    $requires_image = function_exists('ll_tools_quiz_requires_image')
+        ? ll_tools_quiz_requires_image(
+            [
+                'prompt_type' => $prompt_type,
+                'option_type' => $option_type,
+            ],
+            $option_type
+        )
+        : (($prompt_type === 'image') || ($option_type === 'image'));
 
     $has_audio = !empty($word['has_audio']) || !empty($word['audio']);
     $has_image = !empty($word['has_image']) || !empty($word['image']);
