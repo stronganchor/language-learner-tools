@@ -341,10 +341,181 @@ function ll_tools_import_default_undo_payload(): array {
     ];
 }
 
+function ll_tools_import_default_history_context(): array {
+    return [
+        'categories' => [],
+        'wordsets' => [],
+    ];
+}
+
 function ll_tools_import_normalize_id_list(array $values): array {
     return array_values(array_unique(array_filter(array_map('intval', $values), static function (int $id): bool {
         return $id > 0;
     })));
+}
+
+function ll_tools_import_normalize_history_term_entries(array $entries, string $taxonomy = ''): array {
+    $taxonomy = sanitize_key($taxonomy);
+    $normalized = [];
+    $seen = [];
+
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $term_id = isset($entry['term_id']) ? (int) $entry['term_id'] : 0;
+        $name = sanitize_text_field((string) ($entry['name'] ?? ''));
+        $slug = sanitize_title((string) ($entry['slug'] ?? ''));
+
+        if ($term_id > 0 && $taxonomy !== '') {
+            $term = get_term($term_id, $taxonomy);
+            if ($term instanceof WP_Term && !is_wp_error($term)) {
+                $name = (string) $term->name;
+                $slug = (string) $term->slug;
+            }
+        }
+
+        if ($term_id <= 0 && $name === '' && $slug === '') {
+            continue;
+        }
+
+        $dedupe_key = ($term_id > 0)
+            ? ('id:' . $term_id)
+            : (($slug !== '') ? ('slug:' . $slug) : ('name:' . ll_tools_import_normalize_match_text($name)));
+        if ($dedupe_key === '' || isset($seen[$dedupe_key])) {
+            continue;
+        }
+        $seen[$dedupe_key] = true;
+
+        $normalized[] = [
+            'term_id' => max(0, $term_id),
+            'name' => $name,
+            'slug' => $slug,
+        ];
+    }
+
+    return $normalized;
+}
+
+function ll_tools_import_normalize_history_context(array $context): array {
+    return [
+        'categories' => ll_tools_import_normalize_history_term_entries(
+            isset($context['categories']) && is_array($context['categories']) ? $context['categories'] : [],
+            'word-category'
+        ),
+        'wordsets' => ll_tools_import_normalize_history_term_entries(
+            isset($context['wordsets']) && is_array($context['wordsets']) ? $context['wordsets'] : [],
+            'wordset'
+        ),
+    ];
+}
+
+function ll_tools_import_build_history_term_entries_from_ids(array $term_ids, string $taxonomy): array {
+    $term_ids = ll_tools_import_normalize_id_list($term_ids);
+    if (empty($term_ids)) {
+        return [];
+    }
+
+    $entries = [];
+    foreach ($term_ids as $term_id) {
+        $term = get_term((int) $term_id, $taxonomy);
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+        $entries[] = [
+            'term_id' => (int) $term->term_id,
+            'name' => (string) $term->name,
+            'slug' => (string) $term->slug,
+        ];
+    }
+
+    return ll_tools_import_normalize_history_term_entries($entries, $taxonomy);
+}
+
+function ll_tools_import_get_history_context_from_entry(array $entry): array {
+    $context = ll_tools_import_default_history_context();
+    if (isset($entry['history_context']) && is_array($entry['history_context'])) {
+        $context = ll_tools_import_normalize_history_context($entry['history_context']);
+    }
+
+    $undo = isset($entry['undo']) && is_array($entry['undo']) ? $entry['undo'] : [];
+    if (empty($context['categories']) && !empty($undo['category_term_ids']) && is_array($undo['category_term_ids'])) {
+        $context['categories'] = ll_tools_import_build_history_term_entries_from_ids((array) $undo['category_term_ids'], 'word-category');
+    }
+    if (empty($context['wordsets']) && !empty($undo['wordset_term_ids']) && is_array($undo['wordset_term_ids'])) {
+        $context['wordsets'] = ll_tools_import_build_history_term_entries_from_ids((array) $undo['wordset_term_ids'], 'wordset');
+    }
+
+    return $context;
+}
+
+function ll_tools_import_build_history_category_entries(array $categories, array $slug_to_term_id): array {
+    $entries = [];
+    foreach ($categories as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $slug = sanitize_title((string) ($category['slug'] ?? ''));
+        if ($slug === '' || !isset($slug_to_term_id[$slug])) {
+            continue;
+        }
+
+        $entries[] = [
+            'term_id' => (int) $slug_to_term_id[$slug],
+            'name' => isset($category['name']) ? (string) $category['name'] : $slug,
+            'slug' => $slug,
+        ];
+    }
+
+    return ll_tools_import_normalize_history_term_entries($entries, 'word-category');
+}
+
+function ll_tools_import_build_history_wordset_entries(array $payload_wordsets, array $wordset_map, array $options): array {
+    $entries = [];
+    $mode = isset($options['wordset_mode']) ? sanitize_key((string) $options['wordset_mode']) : 'create_from_export';
+    $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+
+    if ($mode === 'assign_existing' && $target_wordset_id > 0) {
+        $term = get_term($target_wordset_id, 'wordset');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            $entries[] = [
+                'term_id' => (int) $term->term_id,
+                'name' => (string) $term->name,
+                'slug' => (string) $term->slug,
+            ];
+        }
+    }
+
+    foreach ($payload_wordsets as $wordset) {
+        if (!is_array($wordset)) {
+            continue;
+        }
+
+        $slug = sanitize_title((string) ($wordset['slug'] ?? ''));
+        if ($slug === '' || !isset($wordset_map[$slug])) {
+            continue;
+        }
+
+        $term_id = (int) $wordset_map[$slug];
+        $term = get_term($term_id, 'wordset');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            $entries[] = [
+                'term_id' => (int) $term->term_id,
+                'name' => (string) $term->name,
+                'slug' => (string) $term->slug,
+            ];
+        } else {
+            $entries[] = [
+                'term_id' => $term_id,
+                'name' => isset($wordset['name']) ? (string) $wordset['name'] : $slug,
+                'slug' => $slug,
+            ];
+        }
+    }
+
+    return ll_tools_import_normalize_history_term_entries($entries, 'wordset');
 }
 
 /**
@@ -442,6 +613,12 @@ function ll_tools_import_write_history(array $entries): void {
 function ll_tools_import_append_history_entry(array $entry): void {
     if (empty($entry['id'])) {
         $entry['id'] = wp_generate_uuid4();
+    }
+
+    if (isset($entry['history_context']) && is_array($entry['history_context'])) {
+        $entry['history_context'] = ll_tools_import_normalize_history_context($entry['history_context']);
+    } else {
+        $entry['history_context'] = ll_tools_import_default_history_context();
     }
 
     $entries = ll_tools_import_read_history();
@@ -787,6 +964,142 @@ function ll_tools_import_history_created_summary(array $stats): string {
     return implode(' | ', $summary);
 }
 
+function ll_tools_import_get_history_term_display_name(array $entry): string {
+    $name = trim((string) ($entry['name'] ?? ''));
+    if ($name !== '') {
+        return $name;
+    }
+
+    $slug = trim((string) ($entry['slug'] ?? ''));
+    if ($slug !== '') {
+        return $slug;
+    }
+
+    $term_id = isset($entry['term_id']) ? (int) $entry['term_id'] : 0;
+    if ($term_id > 0) {
+        return sprintf(
+            /* translators: %d term ID */
+            __('Term #%d', 'll-tools-text-domain'),
+            $term_id
+        );
+    }
+
+    return __('Unknown term', 'll-tools-text-domain');
+}
+
+function ll_tools_import_get_vocab_lesson_links_for_category(int $category_id, array $wordset_entries): array {
+    if ($category_id <= 0) {
+        return [];
+    }
+
+    $target_wordset_ids = [];
+    foreach ($wordset_entries as $wordset_entry) {
+        if (!is_array($wordset_entry)) {
+            continue;
+        }
+        $wordset_id = isset($wordset_entry['term_id']) ? (int) $wordset_entry['term_id'] : 0;
+        if ($wordset_id > 0) {
+            $target_wordset_ids[] = $wordset_id;
+        }
+    }
+    $target_wordset_ids = ll_tools_import_normalize_id_list($target_wordset_ids);
+
+    $category_meta_key = defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')
+        ? LL_TOOLS_VOCAB_LESSON_CATEGORY_META
+        : '_ll_tools_vocab_category_id';
+    $wordset_meta_key = defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')
+        ? LL_TOOLS_VOCAB_LESSON_WORDSET_META
+        : '_ll_tools_vocab_wordset_id';
+
+    $lesson_posts = get_posts([
+        'post_type' => 'll_vocab_lesson',
+        'post_status' => 'publish',
+        'numberposts' => -1,
+        'orderby' => 'title',
+        'order' => 'ASC',
+        'meta_key' => $category_meta_key,
+        'meta_value' => (string) $category_id,
+    ]);
+
+    if (empty($lesson_posts)) {
+        return [];
+    }
+
+    $links = [];
+    $seen = [];
+    foreach ($lesson_posts as $lesson_post) {
+        if (!($lesson_post instanceof WP_Post)) {
+            continue;
+        }
+
+        $wordset_id = (int) get_post_meta($lesson_post->ID, $wordset_meta_key, true);
+        if (!empty($target_wordset_ids) && !in_array($wordset_id, $target_wordset_ids, true)) {
+            continue;
+        }
+
+        $url = get_permalink($lesson_post->ID);
+        if (!is_string($url) || $url === '') {
+            continue;
+        }
+
+        $label = '';
+        if ($wordset_id > 0) {
+            $wordset_term = get_term($wordset_id, 'wordset');
+            if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term)) {
+                $label = (string) $wordset_term->name;
+            }
+        }
+        if ($label === '') {
+            $label = get_the_title($lesson_post);
+        }
+        if ($label === '') {
+            $label = __('Lesson page', 'll-tools-text-domain');
+        }
+
+        $dedupe_key = $lesson_post->ID . '|' . $label;
+        if (isset($seen[$dedupe_key])) {
+            continue;
+        }
+        $seen[$dedupe_key] = true;
+
+        $links[] = [
+            'label' => $label,
+            'url' => $url,
+        ];
+    }
+
+    usort($links, static function (array $a, array $b): int {
+        return strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+    });
+
+    return $links;
+}
+
+function ll_tools_import_build_recent_import_category_rows(array $entry): array {
+    $context = ll_tools_import_get_history_context_from_entry($entry);
+    $categories = isset($context['categories']) && is_array($context['categories']) ? $context['categories'] : [];
+    $wordsets = isset($context['wordsets']) && is_array($context['wordsets']) ? $context['wordsets'] : [];
+
+    if (empty($categories)) {
+        return [];
+    }
+
+    $rows = [];
+    foreach ($categories as $category_entry) {
+        if (!is_array($category_entry)) {
+            continue;
+        }
+
+        $category_id = isset($category_entry['term_id']) ? (int) $category_entry['term_id'] : 0;
+        $rows[] = [
+            'name' => ll_tools_import_get_history_term_display_name($category_entry),
+            'lesson_links' => ll_tools_import_get_vocab_lesson_links_for_category($category_id, $wordsets),
+        ];
+    }
+
+    return $rows;
+}
+
 function ll_tools_render_recent_imports_section(array $recent_imports): void {
     ?>
     <div class="ll-tools-recent-imports">
@@ -822,6 +1135,7 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
                         $undo = isset($entry['undo']) && is_array($entry['undo']) ? $entry['undo'] : [];
                         $undone_at = isset($entry['undone_at']) ? (int) $entry['undone_at'] : 0;
                         $can_undo = ($undone_at <= 0 && ll_tools_import_has_undo_targets($undo));
+                        $category_rows = ll_tools_import_build_recent_import_category_rows($entry);
                         $time_text = $finished_at > 0
                             ? wp_date(get_option('date_format') . ' ' . get_option('time_format'), $finished_at)
                             : __('Unknown', 'll-tools-text-domain');
@@ -852,7 +1166,50 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
                             <td><?php echo esc_html($time_text); ?></td>
                             <td><?php echo esc_html($source_label); ?></td>
                             <td><?php echo esc_html($status_label); ?></td>
-                            <td><?php echo esc_html(ll_tools_import_history_created_summary($stats)); ?></td>
+                            <td>
+                                <div class="ll-tools-recent-imports-created-summary"><?php echo esc_html(ll_tools_import_history_created_summary($stats)); ?></div>
+                                <?php if (!empty($category_rows)) : ?>
+                                    <details class="ll-tools-recent-imports-categories">
+                                        <summary>
+                                            <?php
+                                            echo esc_html(sprintf(
+                                                /* translators: %d number of imported categories */
+                                                _n('Categories (%d)', 'Categories (%d)', count($category_rows), 'll-tools-text-domain'),
+                                                count($category_rows)
+                                            ));
+                                            ?>
+                                        </summary>
+                                        <ul class="ll-tools-recent-imports-category-list">
+                                            <?php foreach ($category_rows as $category_row) : ?>
+                                                <?php
+                                                $category_name = isset($category_row['name']) ? (string) $category_row['name'] : '';
+                                                $lesson_links = isset($category_row['lesson_links']) && is_array($category_row['lesson_links'])
+                                                    ? $category_row['lesson_links']
+                                                    : [];
+                                                ?>
+                                                <li>
+                                                    <span class="ll-tools-recent-imports-category-name"><?php echo esc_html($category_name); ?></span>
+                                                    <?php if (!empty($lesson_links)) : ?>
+                                                        <span class="ll-tools-recent-imports-category-links-label"><?php esc_html_e('Lesson pages:', 'll-tools-text-domain'); ?></span>
+                                                        <span class="ll-tools-recent-imports-category-links">
+                                                            <?php foreach ($lesson_links as $lesson_link) : ?>
+                                                                <?php
+                                                                $lesson_label = isset($lesson_link['label']) ? (string) $lesson_link['label'] : '';
+                                                                $lesson_url = isset($lesson_link['url']) ? (string) $lesson_link['url'] : '';
+                                                                if ($lesson_label === '' || $lesson_url === '') {
+                                                                    continue;
+                                                                }
+                                                                ?>
+                                                                <a href="<?php echo esc_url($lesson_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($lesson_label); ?></a>
+                                                            <?php endforeach; ?>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </details>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php if ($can_undo) : ?>
                                     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -4075,6 +4432,9 @@ function ll_tools_handle_import_bundle() {
         'source_type' => $history_source_type === 'uploaded' ? 'uploaded' : 'server',
         'source_zip' => $history_source_zip !== '' ? $history_source_zip : basename($zip_path),
         'undo' => isset($processed['undo']) && is_array($processed['undo']) ? $processed['undo'] : ll_tools_import_default_undo_payload(),
+        'history_context' => isset($processed['history_context']) && is_array($processed['history_context'])
+            ? $processed['history_context']
+            : ll_tools_import_default_history_context(),
         'undone_at' => 0,
     ]);
 
@@ -5373,6 +5733,7 @@ function ll_tools_process_import_zip($zip_path, array $options = []) {
         'warnings' => [],
         'stats'   => ll_tools_import_default_stats(),
         'undo'    => ll_tools_import_default_undo_payload(),
+        'history_context' => ll_tools_import_default_history_context(),
     ];
 
     if (!file_exists($zip_path)) {
@@ -5432,6 +5793,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         'warnings' => [],
         'stats'   => ll_tools_import_default_stats(),
         'undo'    => ll_tools_import_default_undo_payload(),
+        'history_context' => ll_tools_import_default_history_context(),
     ];
 
     if (!array_key_exists('categories', $payload) || !array_key_exists('word_images', $payload)) {
@@ -5552,6 +5914,11 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         }
         ll_tools_import_replace_term_meta_values((int) $slug_to_term_id[$slug], isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [], 'word-category');
     }
+
+    $result['history_context']['categories'] = ll_tools_import_build_history_category_entries(
+        isset($payload['categories']) && is_array($payload['categories']) ? $payload['categories'] : [],
+        $slug_to_term_id
+    );
 
     // Import word images.
     $word_image_slug_to_id = [];
@@ -5952,6 +6319,11 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
         isset($payload['wordsets']) && is_array($payload['wordsets']) ? $payload['wordsets'] : [],
         $options,
         $result
+    );
+    $result['history_context']['wordsets'] = ll_tools_import_build_history_wordset_entries(
+        isset($payload['wordsets']) && is_array($payload['wordsets']) ? $payload['wordsets'] : [],
+        $wordset_map,
+        $options
     );
     $word_image_slug_to_id = isset($options['word_image_slug_to_id']) && is_array($options['word_image_slug_to_id'])
         ? $options['word_image_slug_to_id']

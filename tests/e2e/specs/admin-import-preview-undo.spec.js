@@ -162,6 +162,10 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     const importRow = page.locator('.ll-tools-recent-imports-table tbody tr').filter({ hasText: fixture.zipName }).first();
     await expect(importRow).toBeVisible({ timeout: 60000 });
     await expect(importRow.locator('.ll-tools-undo-import-button')).toBeVisible({ timeout: 60000 });
+    const categoriesDetails = importRow.locator('.ll-tools-recent-imports-categories');
+    await expect(categoriesDetails).toBeVisible({ timeout: 60000 });
+    await categoriesDetails.locator('summary').click();
+    await expect(categoriesDetails).toContainText(fixture.categoryName);
 
     page.once('dialog', (dialog) => dialog.accept());
     await Promise.all([

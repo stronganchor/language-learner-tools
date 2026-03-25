@@ -105,4 +105,82 @@ final class ImportHistoryUndoTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($stats['wordsets_deleted'] ?? 0));
         $this->assertSame(1, (int) ($stats['audio_files_deleted'] ?? 0));
     }
+
+    public function test_recent_imports_section_lists_categories_and_matching_lesson_links(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $category_insert = wp_insert_term('History Category ' . wp_generate_password(6, false, false), 'word-category');
+        $this->assertFalse(is_wp_error($category_insert));
+        $this->assertIsArray($category_insert);
+        $category_id = (int) $category_insert['term_id'];
+        $category = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category);
+
+        $primary_wordset_insert = wp_insert_term('History Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertFalse(is_wp_error($primary_wordset_insert));
+        $this->assertIsArray($primary_wordset_insert);
+        $primary_wordset_id = (int) $primary_wordset_insert['term_id'];
+        $primary_wordset = get_term($primary_wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $primary_wordset);
+
+        $secondary_wordset_insert = wp_insert_term('Other Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertFalse(is_wp_error($secondary_wordset_insert));
+        $this->assertIsArray($secondary_wordset_insert);
+        $secondary_wordset_id = (int) $secondary_wordset_insert['term_id'];
+
+        $matching_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Matching History Lesson',
+        ]);
+        update_post_meta($matching_lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+        update_post_meta($matching_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $primary_wordset_id);
+
+        $non_matching_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Non Matching History Lesson',
+        ]);
+        update_post_meta($non_matching_lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+        update_post_meta($non_matching_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $secondary_wordset_id);
+
+        ob_start();
+        ll_tools_render_recent_imports_section([
+            [
+                'id' => 'history-entry-with-lessons',
+                'finished_at' => time(),
+                'ok' => true,
+                'stats' => [
+                    'categories_created' => 1,
+                ],
+                'undo' => ll_tools_import_default_undo_payload(),
+                'history_context' => [
+                    'categories' => [
+                        [
+                            'term_id' => $category_id,
+                            'name' => $category->name,
+                            'slug' => $category->slug,
+                        ],
+                    ],
+                    'wordsets' => [
+                        [
+                            'term_id' => $primary_wordset_id,
+                            'name' => $primary_wordset->name,
+                            'slug' => $primary_wordset->slug,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Categories (1)', $html);
+        $this->assertStringContainsString($category->name, $html);
+        $this->assertStringContainsString('Lesson pages:', $html);
+        $this->assertStringContainsString($primary_wordset->name, $html);
+        $this->assertStringContainsString(get_permalink($matching_lesson_id), $html);
+        $this->assertStringNotContainsString(get_permalink($non_matching_lesson_id), $html);
+    }
 }

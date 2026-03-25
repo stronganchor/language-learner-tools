@@ -491,6 +491,44 @@
   vertical-align: top;
 }
 
+.ll-tools-export-import .ll-tools-recent-imports-created-summary {
+  margin-bottom: 6px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-categories {
+  margin: 8px 0 0;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-categories summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-list {
+  margin: 8px 0 0 18px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-list li {
+  margin: 0 0 8px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-name {
+  font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-links-label {
+  display: block;
+  margin-top: 4px;
+  color: #4b5563;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 4px;
+}
+
 .ll-tools-export-import .ll-tools-undo-import-button {
   white-space: nowrap;
 }
