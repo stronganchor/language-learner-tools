@@ -3609,17 +3609,20 @@ function ll_tools_import_build_payload_from_external_csv_bundle($extract_dir) {
                     $word_keys_by_category_label[$category_slug][$normalized_title_key] = [$placeholder_key];
                 }
 
+                $canonical_key = (string) reset($matching_keys);
+                if ($canonical_key === '') {
+                    continue;
+                }
+
                 $audio_files = isset($option_word['audio_files']) && is_array($option_word['audio_files'])
                     ? array_keys($option_word['audio_files'])
                     : [];
-                foreach ($matching_keys as $matching_key) {
-                    foreach ($audio_files as $audio_relative_raw) {
-                        $audio_relative = (string) $audio_relative_raw;
-                        if ($audio_relative === '') {
-                            continue;
-                        }
-                        $append_audio_entry($matching_key, $audio_relative, $title);
+                foreach ($audio_files as $audio_relative_raw) {
+                    $audio_relative = (string) $audio_relative_raw;
+                    if ($audio_relative === '') {
+                        continue;
                     }
+                    $append_audio_entry($canonical_key, $audio_relative, $title);
                 }
             }
         }
@@ -6087,6 +6090,7 @@ function ll_tools_import_apply_specific_wrong_answers_from_texts(
         : '_ll_specific_wrong_answer_texts';
     $touched_category_ids = [];
     $word_category_cache = [];
+    $category_option_type_cache = [];
 
     foreach ($pending as $owner_word_id_raw => $config) {
         $owner_word_id = (int) $owner_word_id_raw;
@@ -6126,6 +6130,29 @@ function ll_tools_import_apply_specific_wrong_answers_from_texts(
         }
 
         $resolved_lookup = [];
+        $prefer_single_candidate_per_text = false;
+        foreach ($category_ids as $category_id) {
+            $category_id = (int) $category_id;
+            if ($category_id <= 0) {
+                continue;
+            }
+
+            if (!array_key_exists($category_id, $category_option_type_cache)) {
+                $option_type = '';
+                $term = get_term($category_id, 'word-category');
+                if ($term instanceof WP_Term && !is_wp_error($term) && function_exists('ll_tools_get_category_quiz_config')) {
+                    $config = ll_tools_get_category_quiz_config($term);
+                    $option_type = isset($config['option_type']) ? sanitize_key((string) $config['option_type']) : '';
+                }
+                $category_option_type_cache[$category_id] = $option_type;
+            }
+
+            if ($category_option_type_cache[$category_id] === 'text_audio') {
+                $prefer_single_candidate_per_text = true;
+                break;
+            }
+        }
+
         foreach ($wrong_texts as $wrong_text_raw) {
             $wrong_text = sanitize_text_field((string) $wrong_text_raw);
             $wrong_key = ll_tools_import_normalize_match_text($wrong_text);
@@ -6178,6 +6205,10 @@ function ll_tools_import_apply_specific_wrong_answers_from_texts(
 
             if (empty($candidate_ids)) {
                 continue;
+            }
+
+            if ($prefer_single_candidate_per_text) {
+                $candidate_ids = [(int) reset($candidate_ids)];
             }
 
             foreach ($candidate_ids as $candidate_id) {

@@ -47,6 +47,31 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         return 0;
     }
 
+    private function findWordIdsByTitleAndCategory(string $title, int $category_id): array
+    {
+        $posts = get_posts([
+            'post_type' => 'words',
+            'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+            'posts_per_page' => -1,
+            'orderby' => 'ID',
+            'order' => 'ASC',
+            'tax_query' => [[
+                'taxonomy' => 'word-category',
+                'field' => 'term_id',
+                'terms' => [$category_id],
+            ]],
+        ]);
+
+        $ids = [];
+        foreach ($posts as $post) {
+            if ($post instanceof WP_Post && (string) $post->post_title === $title) {
+                $ids[] = (int) $post->ID;
+            }
+        }
+
+        return $ids;
+    }
+
     private function getSpecificWrongIdsForWord(int $word_id): array
     {
         if ($word_id <= 0) {
@@ -600,6 +625,84 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
                 ]
             );
             $this->assertSame(2, $count);
+        } finally {
+            @unlink($zip_path);
+        }
+    }
+
+    public function test_import_image_to_text_audio_does_not_multiply_shared_answer_audio_or_wrong_ids(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for this test.');
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_term = wp_insert_term('External CSV Binary Audio Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_term));
+        $this->assertIsArray($wordset_term);
+        $wordset_id = (int) $wordset_term['term_id'];
+
+        $category_name = 'Binary Image Audio Quiz ' . wp_generate_password(6, false, false);
+        $csv = "quiz,activity_id,page_index,source_url,image_file,correct_answer,correct_audio_file,wrong_answer_1,wrong_audio_1\n";
+        $csv .= $category_name . ",286,0,#/lesson/1/true-1,true.jpg,True,true_1.wav,False,false_1.wav\n";
+        $csv .= $category_name . ",286,1,#/lesson/1/false-1,false.jpg,False,false_1.wav,True,true_1.wav\n";
+        $csv .= $category_name . ",286,2,#/lesson/1/true-2,true2.jpg,True,true_2.wav,False,false_2.wav\n";
+        $csv .= $category_name . ",286,3,#/lesson/1/false-2,false2.jpg,False,false_2.wav,True,true_2.wav\n";
+
+        $png = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($png);
+
+        $zip_path = $this->createExternalZip([
+            'image-to-text-audio-duplicates.csv' => $csv,
+            'images/true.webp' => $png,
+            'images/false.webp' => $png,
+            'images/true2.webp' => $png,
+            'images/false2.webp' => $png,
+            'audio/true_1.mp3' => self::TINY_MP3_BYTES,
+            'audio/false_1.mp3' => self::TINY_MP3_BYTES,
+            'audio/true_2.mp3' => self::TINY_MP3_BYTES,
+            'audio/false_2.mp3' => self::TINY_MP3_BYTES,
+        ]);
+
+        try {
+            $result = ll_tools_process_import_zip($zip_path, [
+                'wordset_mode' => 'assign_existing',
+                'target_wordset_id' => $wordset_id,
+            ]);
+
+            $this->assertIsArray($result);
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertEmpty((array) ($result['errors'] ?? []));
+
+            $term = get_term_by('name', $category_name, 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $term);
+            $category_id = (int) $term->term_id;
+
+            $true_ids = $this->findWordIdsByTitleAndCategory('True', $category_id);
+            $false_ids = $this->findWordIdsByTitleAndCategory('False', $category_id);
+            $this->assertCount(2, $true_ids);
+            $this->assertCount(2, $false_ids);
+
+            $this->assertCount(2, $this->getWordAudioPathsForWord($true_ids[0]));
+            $this->assertCount(1, $this->getWordAudioPathsForWord($true_ids[1]));
+            $this->assertCount(2, $this->getWordAudioPathsForWord($false_ids[0]));
+            $this->assertCount(1, $this->getWordAudioPathsForWord($false_ids[1]));
+
+            $this->assertSame([$false_ids[0]], $this->getSpecificWrongIdsForWord($true_ids[0]));
+            $this->assertSame([$true_ids[0]], $this->getSpecificWrongIdsForWord($false_ids[0]));
+
+            $all_rows = ll_get_words_by_category(
+                $category_name,
+                'text_audio',
+                null,
+                [
+                    'prompt_type' => 'image',
+                    'option_type' => 'text_audio',
+                ]
+            );
+            $this->assertCount(4, $all_rows);
         } finally {
             @unlink($zip_path);
         }

@@ -152,3 +152,49 @@ test('text-audio mode prefers specific wrong-answer IDs over synthetic text-only
 
   expect(picked).toEqual(['901', '902', '903']);
 });
+
+test('text-audio mode suppresses duplicate labels when specific wrong-answer IDs repeat the same answer text', async ({ page }) => {
+  const category = 'Binary image audio answers';
+  const targetWord = {
+    id: 951,
+    title: 'False',
+    label: 'False',
+    image: 'https://example.com/false.jpg',
+    audio: 'https://example.com/false.mp3',
+    specific_wrong_answer_ids: [952, 953],
+    specific_wrong_answer_texts: ['True']
+  };
+  const firstTrueWord = {
+    id: 952,
+    title: 'True',
+    label: 'True',
+    audio: 'https://example.com/true-1.mp3'
+  };
+  const secondTrueWord = {
+    id: 953,
+    title: 'True',
+    label: 'True',
+    audio: 'https://example.com/true-2.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'image', option_type: 'text_audio' }],
+    targetCategoryName: category,
+    desiredCount: 4,
+    wordsByCategory: {
+      [category]: [targetWord, firstTrueWord, secondTrueWord]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, firstTrueWord, secondTrueWord]
+    }
+  });
+
+  const picked = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Binary image audio answers' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => String(el.getAttribute('data-word-id') || ''));
+  }, targetWord);
+
+  expect(picked).toEqual(['951', '952']);
+});

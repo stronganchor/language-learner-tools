@@ -2203,7 +2203,7 @@
                 if (!candidate || String(candidate.id) === String(targetWord.id)) return;
                 addCandidate(candidate, {
                     enforceSimilarity: false,
-                    enforceTextUniqueness: false,
+                    enforceTextUniqueness: true,
                     enforceConflict: false,
                     enforceOwnerScope: true
                 });
