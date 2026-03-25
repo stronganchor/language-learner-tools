@@ -62,6 +62,12 @@ async function mountRestartHarness(page) {
     window.LLFlashcards.Util = {
       randomlySort(items) {
         return Array.isArray(items) ? items.slice() : [];
+      },
+      promptTypeHasAudio(promptType) {
+        return String(promptType || '').trim().toLowerCase() === 'audio';
+      },
+      promptTypeHasImage(promptType) {
+        return String(promptType || '').trim().toLowerCase() === 'image';
       }
     };
     window.LLFlashcards.Dom = {
@@ -139,16 +145,19 @@ async function mountRestartHarness(page) {
 }
 
 async function mountPracticeProgressHarness(page, options = {}) {
-  const targets = Array.isArray(options.targets) && options.targets.length
+  const uniqueTargets = Array.isArray(options.targets) && options.targets.length
     ? options.targets
     : [
         { id: 501, title: 'Cup', __categoryName: 'Kitchen' },
         { id: 502, title: 'Plate', __categoryName: 'Kitchen' }
       ];
+  const roundTargets = Array.isArray(options.roundTargets) && options.roundTargets.length
+    ? options.roundTargets
+    : uniqueTargets.slice();
   const categories = Array.isArray(options.categories) && options.categories.length
     ? options.categories
     : [
-        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text', word_count: targets.length }
+        { id: 11, name: 'Kitchen', slug: 'kitchen', prompt_type: 'image', option_type: 'text', word_count: uniqueTargets.length }
       ];
   const sessionWordIds = Array.isArray(options.sessionWordIds)
     ? options.sessionWordIds
@@ -162,7 +171,7 @@ async function mountPracticeProgressHarness(page, options = {}) {
   const wordsByCategory = options.wordsByCategory && typeof options.wordsByCategory === 'object'
     ? options.wordsByCategory
     : {
-        Kitchen: targets.slice()
+        Kitchen: uniqueTargets.slice()
       };
   const currentCategoryName = String(options.currentCategoryName || categoryNames[0] || initialCategoryNames[0] || 'Kitchen');
   await page.goto('about:blank');
@@ -189,7 +198,7 @@ async function mountPracticeProgressHarness(page, options = {}) {
     window.__progressCalls = [];
     window.__showResultsCount = 0;
     window.__currentTarget = null;
-    window.__targets = bootstrap.targets.slice();
+    window.__targets = bootstrap.roundTargets.slice();
 
     window.llToolsFlashcardsData = {
       debug: false,
@@ -249,6 +258,9 @@ async function mountPracticeProgressHarness(page, options = {}) {
       fillQuizOptions(targetWord) {
         const $container = window.jQuery('#ll-tools-flashcard');
         $container.empty();
+        window.jQuery('<button class="flashcard-container wrong-card" type="button"></button>')
+          .attr('data-word-id', `${targetWord.id}-wrong`)
+          .appendTo($container);
         window.jQuery('<button class="flashcard-container correct-card" type="button"></button>')
           .attr('data-word-id', targetWord.id)
           .appendTo($container);
@@ -281,6 +293,11 @@ async function mountPracticeProgressHarness(page, options = {}) {
       initializeAudio() {},
       getCorrectAudioURL() { return ''; },
       getWrongAudioURL() { return ''; },
+      playFeedback(isCorrect, audioUrl, callback) {
+        if (typeof callback === 'function') {
+          callback();
+        }
+      },
       pauseAllAudio() {},
       setTargetAudioHasPlayed() {},
       setTargetWordAudio() {},
@@ -300,7 +317,7 @@ async function mountPracticeProgressHarness(page, options = {}) {
     window.categoryNames = state.categoryNames;
     window.categoryRoundCount = state.categoryRoundCount;
   }, {
-    targets,
+    roundTargets,
     categories,
     sessionWordIds,
     categoryNames,
@@ -393,28 +410,53 @@ test('practice progress reaches full on the actual last answer without inserting
   expect(finalState.flowState).toBe('showing_results');
 });
 
-test('practice progress advances after a correct answer even if the turn had a wrong guess first', async ({ page }) => {
-  await mountPracticeProgressHarness(page);
+test('practice progress waits for a clean replay round after a wrong guess', async ({ page }) => {
+  const cup = { id: 501, title: 'Cup', __categoryName: 'Kitchen' };
+  const plate = { id: 502, title: 'Plate', __categoryName: 'Kitchen' };
+
+  await mountPracticeProgressHarness(page, {
+    targets: [cup, plate],
+    roundTargets: [cup, cup, plate]
+  });
 
   await page.evaluate(() => {
     window.LLFlashcards.Main.runQuizRound();
   });
   await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
 
-  const outcome = await page.evaluate(() => {
-    window.LLFlashcards.State.hadWrongAnswerThisTurn = true;
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.onWrongAnswer(
+      window.__currentTarget,
+      0,
+      window.jQuery('.wrong-card')
+    );
+  });
+  await page.waitForTimeout(30);
+
+  let progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 0, total: 2 });
+
+  await page.evaluate(() => {
     window.LLFlashcards.Main.onCorrectAnswer(
       window.__currentTarget,
       window.jQuery('.correct-card')
     );
-    return {
-      flowState: window.LLFlashcards.State.getState(),
-      progressCalls: window.__progressCalls.slice()
-    };
   });
+  await page.waitForFunction(() => window.LLFlashcards.State.getState() === 'showing_question');
 
-  expect(outcome.flowState).toBe('processing_answer');
-  expect(outcome.progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 0, total: 2 });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Main.onCorrectAnswer(
+      window.__currentTarget,
+      window.jQuery('.correct-card')
+    );
+  });
+  await page.waitForFunction(() => window.__progressCalls.length >= 4);
+
+  progressCalls = await page.evaluate(() => window.__progressCalls.slice());
+  expect(progressCalls.at(-1)).toEqual({ current: 1, total: 2 });
 });
 
 test('practice progress prefers exact session word totals while later categories are still unloaded', async ({ page }) => {

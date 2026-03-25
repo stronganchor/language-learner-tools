@@ -1357,8 +1357,8 @@
         let count = 0;
         Object.keys(attempts).forEach(function (key) {
             const info = attempts[key] || {};
-            const seen = parseInt(info.seen, 10) || 0;
-            if (seen > 0) {
+            const clean = parseInt(info.clean, 10) || 0;
+            if (clean > 0) {
                 count += 1;
             }
         });
