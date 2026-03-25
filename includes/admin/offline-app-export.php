@@ -1192,41 +1192,43 @@ function ll_tools_offline_app_register_word_image_asset(int $word_id, array &$as
     return './' . ltrim($relative_path, '/');
 }
 
-function ll_tools_offline_app_build_launcher_preview(array $words, int $limit = 2): array {
+function ll_tools_offline_app_build_launcher_preview(array $words, int $limit = 2, bool $use_images = true): array {
     $limit = max(1, (int) $limit);
     $preview = [];
     $seen_image_urls = [];
     $seen_text_labels = [];
 
-    foreach ($words as $word) {
-        if (count($preview) >= $limit || !is_array($word)) {
-            continue;
-        }
+    if ($use_images) {
+        foreach ($words as $word) {
+            if (count($preview) >= $limit || !is_array($word)) {
+                continue;
+            }
 
-        $image_url = isset($word['image']) ? trim((string) $word['image']) : '';
-        if ($image_url === '' || isset($seen_image_urls[$image_url])) {
-            continue;
-        }
+            $image_url = isset($word['image']) ? trim((string) $word['image']) : '';
+            if ($image_url === '' || isset($seen_image_urls[$image_url])) {
+                continue;
+            }
 
-        $seen_image_urls[$image_url] = true;
-        $dimensions = [
-            'ratio' => '',
-            'width' => 0,
-            'height' => 0,
-        ];
-        $attachment_id = get_post_thumbnail_id((int) ($word['id'] ?? 0));
-        if ($attachment_id > 0 && function_exists('ll_tools_get_image_dimensions_for_size')) {
-            $dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, 'medium');
-        }
+            $seen_image_urls[$image_url] = true;
+            $dimensions = [
+                'ratio' => '',
+                'width' => 0,
+                'height' => 0,
+            ];
+            $attachment_id = get_post_thumbnail_id((int) ($word['id'] ?? 0));
+            if ($attachment_id > 0 && function_exists('ll_tools_get_image_dimensions_for_size')) {
+                $dimensions = ll_tools_get_image_dimensions_for_size($attachment_id, 'medium');
+            }
 
-        $preview[] = [
-            'type'   => 'image',
-            'url'    => $image_url,
-            'alt'    => (string) ($word['title'] ?? ''),
-            'ratio'  => (string) ($dimensions['ratio'] ?? ''),
-            'width'  => (int) ($dimensions['width'] ?? 0),
-            'height' => (int) ($dimensions['height'] ?? 0),
-        ];
+            $preview[] = [
+                'type'   => 'image',
+                'url'    => $image_url,
+                'alt'    => (string) ($word['title'] ?? ''),
+                'ratio'  => (string) ($dimensions['ratio'] ?? ''),
+                'width'  => (int) ($dimensions['width'] ?? 0),
+                'height' => (int) ($dimensions['height'] ?? 0),
+            ];
+        }
     }
 
     foreach ($words as $word) {
@@ -1252,6 +1254,20 @@ function ll_tools_offline_app_build_launcher_preview(array $words, int $limit = 
     return array_values(array_slice($preview, 0, $limit));
 }
 
+function ll_tools_offline_app_category_requires_images(array $category): bool {
+    $prompt_type = isset($category['prompt_type']) ? (string) $category['prompt_type'] : 'audio';
+    $option_type = isset($category['option_type']) ? (string) $category['option_type'] : (string) ($category['mode'] ?? 'image');
+
+    if (function_exists('ll_tools_quiz_requires_image')) {
+        return ll_tools_quiz_requires_image([
+            'prompt_type' => $prompt_type,
+            'option_type' => $option_type,
+        ], $option_type);
+    }
+
+    return (($prompt_type === 'image') || ($option_type === 'image'));
+}
+
 function ll_tools_offline_app_build_launcher_categories(array $categories, array $category_data): array {
     $launcher_categories = [];
 
@@ -1272,16 +1288,11 @@ function ll_tools_offline_app_build_launcher_categories(array $categories, array
             continue;
         }
 
-        $has_image_words = false;
-        foreach ($words as $word) {
-            if (is_array($word) && !empty($word['image'])) {
-                $has_image_words = true;
-                break;
-            }
-        }
-
-        $preview_limit = $has_image_words ? 2 : 1;
-        $preview = ll_tools_offline_app_build_launcher_preview($words, $preview_limit);
+        $requires_images = array_key_exists('requires_images', $category)
+            ? !empty($category['requires_images'])
+            : ll_tools_offline_app_category_requires_images($category);
+        $preview_limit = $requires_images ? 2 : 4;
+        $preview = ll_tools_offline_app_build_launcher_preview($words, $preview_limit, $requires_images);
         $has_images = false;
         $preview_aspect_ratio = '';
         foreach ($preview as $preview_item) {
@@ -1434,10 +1445,16 @@ function ll_tools_offline_app_zip_directory(string $source_dir, string $zip_path
 }
 
 function ll_tools_offline_app_normalize_id_list(array $values): array {
-    $normalized = array_values(array_unique(array_filter(array_map('intval', $values), static function (int $value): bool {
-        return $value > 0;
-    })));
-    sort($normalized, SORT_NUMERIC);
+    $normalized = [];
+    $seen = [];
+    foreach ($values as $value) {
+        $normalized_value = (int) $value;
+        if ($normalized_value <= 0 || isset($seen[$normalized_value])) {
+            continue;
+        }
+        $normalized[] = $normalized_value;
+        $seen[$normalized_value] = true;
+    }
     return $normalized;
 }
 
@@ -1667,6 +1684,7 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             'mode'               => $option_type,
             'option_type'        => $option_type,
             'prompt_type'        => $prompt_type,
+            'requires_images'    => $requires_image,
             'learning_supported' => !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']),
             'use_titles'         => !empty($config['use_titles']),
             'word_count'         => $word_count,
@@ -1674,6 +1692,32 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             'gender_supported'   => ($gender_enabled && $gender_word_count >= $min_word_count),
             'aspect_bucket'      => $aspect_bucket,
         ];
+    }
+
+    if (count($categories) > 1 && function_exists('ll_tools_wordset_sort_category_ids')) {
+        $categories_by_id = [];
+        $category_ids_to_sort = [];
+        foreach ($categories as $category) {
+            $category_id = (int) ($category['id'] ?? 0);
+            if ($category_id <= 0) {
+                continue;
+            }
+            $categories_by_id[$category_id] = $category;
+            $category_ids_to_sort[] = $category_id;
+        }
+
+        $ordered_ids = ll_tools_wordset_sort_category_ids($category_ids_to_sort, $wordset_id, [
+            'categories_payload' => $categories,
+        ]);
+        $ordered_categories = [];
+        foreach ($ordered_ids as $category_id) {
+            if (isset($categories_by_id[$category_id])) {
+                $ordered_categories[] = $categories_by_id[$category_id];
+            }
+        }
+        if (!empty($ordered_categories)) {
+            $categories = $ordered_categories;
+        }
     }
 
     return array_values($categories);

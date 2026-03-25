@@ -280,7 +280,8 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('./content/images/', $offline_data);
                 $this->assertStringContainsString('./content/audio/', $offline_data);
                 $this->assertStringContainsString('"launcher":{"categories":[', $offline_data);
-                $this->assertStringContainsString('"preview":[{"type":"image","url":"./content/images/', $offline_data);
+                $this->assertStringContainsString('"preview":[{"type":"text","label":"Offline Export Translation"}]', $offline_data);
+                $this->assertStringContainsString('"preview_limit":4', $offline_data);
                 $this->assertStringContainsString('"preview_aspect_ratio":"', $offline_data);
                 $this->assertStringContainsString('"genderEnabled":true', $offline_data);
                 $this->assertStringContainsString('"gender_supported":true', $offline_data);
@@ -332,6 +333,166 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                     ll_tools_rrmdir($staging_dir);
                 }
             }
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_offline_app_build_categories_uses_wordset_smart_alphabetical_order(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $admin_id = self::factory()->user->create(['role' => 'administrator']);
+            wp_set_current_user($admin_id);
+
+            $wordset_term = wp_insert_term('Offline Order Wordset ' . wp_generate_password(6, false), 'wordset');
+            $this->assertFalse(is_wp_error($wordset_term));
+            $this->assertIsArray($wordset_term);
+            $wordset_id = (int) $wordset_term['term_id'];
+
+            $suffix = wp_generate_password(4, false, false);
+            $category_55_name = 'Quiz 55.4 ' . $suffix;
+            $category_6_name = 'Quiz 6.1 ' . $suffix;
+            $category_55 = wp_insert_term($category_55_name, 'word-category');
+            $category_6 = wp_insert_term($category_6_name, 'word-category');
+            $this->assertFalse(is_wp_error($category_55));
+            $this->assertFalse(is_wp_error($category_6));
+            $this->assertIsArray($category_55);
+            $this->assertIsArray($category_6);
+
+            $category_55_id = (int) $category_55['term_id'];
+            $category_6_id = (int) $category_6['term_id'];
+
+            $recording_term = wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);
+            if (is_wp_error($recording_term)) {
+                $existing = get_term_by('slug', 'isolation', 'recording_type');
+                $this->assertInstanceOf(WP_Term::class, $existing);
+                $recording_type_id = (int) $existing->term_id;
+            } else {
+                $this->assertIsArray($recording_term);
+                $recording_type_id = (int) $recording_term['term_id'];
+            }
+
+            foreach ([$category_55_id, $category_6_id] as $category_id) {
+                update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+                update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+            }
+
+            update_term_meta($wordset_id, 'll_wordset_category_ordering_mode', 'none');
+
+            $this->createPublishedOfflineBundleWord(
+                'Order Word 55',
+                'Order Translation 55',
+                $category_55_id,
+                $wordset_id,
+                $recording_type_id,
+                'offline-order-55.png',
+                'offline-order-55.mp3'
+            );
+            $this->createPublishedOfflineBundleWord(
+                'Order Word 6',
+                'Order Translation 6',
+                $category_6_id,
+                $wordset_id,
+                $recording_type_id,
+                'offline-order-6.png',
+                'offline-order-6.mp3'
+            );
+
+            $bundle = ll_tools_build_offline_app_bundle([
+                'wordset_id' => $wordset_id,
+                'category_ids' => [$category_55_id, $category_6_id],
+                'app_name' => 'Offline Order App',
+                'version_name' => '1.0.0',
+                'version_code' => 1,
+                'app_id_suffix' => 'tests.offline.order',
+            ]);
+
+            $this->assertFalse(is_wp_error($bundle), is_wp_error($bundle) ? $bundle->get_error_message() : '');
+            $this->assertIsArray($bundle);
+
+            $zip_path = (string) ($bundle['zip_path'] ?? '');
+            $staging_dir = (string) ($bundle['staging_dir'] ?? '');
+            $this->assertNotSame('', $zip_path);
+            $this->assertFileExists($zip_path);
+
+            try {
+                $zip = new ZipArchive();
+                $this->assertTrue($zip->open($zip_path) === true);
+
+                $offline_data = $zip->getFromName('www/data/offline-data.js');
+                $this->assertIsString($offline_data);
+
+                $quiz_6_position = strpos($offline_data, '"name":"' . $category_6_name . '"');
+                $quiz_55_position = strpos($offline_data, '"name":"' . $category_55_name . '"');
+
+                $this->assertNotFalse($quiz_6_position);
+                $this->assertNotFalse($quiz_55_position);
+                $this->assertLessThan($quiz_55_position, $quiz_6_position);
+
+                $zip->close();
+            } finally {
+                @unlink($zip_path);
+                if ($staging_dir !== '' && is_dir($staging_dir)) {
+                    ll_tools_rrmdir($staging_dir);
+                }
+            }
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_offline_app_launcher_uses_four_text_previews_for_text_categories(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $admin_id = self::factory()->user->create(['role' => 'administrator']);
+            wp_set_current_user($admin_id);
+
+            $category_name = 'Offline Text Preview Category ' . wp_generate_password(4, false, false);
+            $categories = [[
+                'id' => 501,
+                'slug' => 'offline-text-preview-category',
+                'name' => $category_name,
+                'translation' => $category_name,
+                'mode' => 'text_title',
+                'option_type' => 'text_title',
+                'prompt_type' => 'text_translation',
+                'requires_images' => false,
+                'learning_supported' => true,
+                'use_titles' => false,
+                'aspect_bucket' => 'no-image',
+            ]];
+
+            $launcher_categories = ll_tools_offline_app_build_launcher_categories($categories, [
+                $category_name => [
+                    ['title' => 'Alpha preview', 'translation' => 'Text Preview Translation 1'],
+                    ['title' => 'Beta preview', 'translation' => 'Text Preview Translation 2'],
+                    ['title' => 'Gamma preview', 'translation' => 'Text Preview Translation 3'],
+                    ['title' => 'Delta preview', 'translation' => 'Text Preview Translation 4'],
+                    ['title' => 'Epsilon preview', 'translation' => 'Text Preview Translation 5'],
+                ],
+            ]);
+
+            $this->assertCount(1, $launcher_categories);
+            $launcher_category = $launcher_categories[0];
+            $preview = (array) ($launcher_category['preview'] ?? []);
+
+            $this->assertSame(4, (int) ($launcher_category['preview_limit'] ?? 0));
+            $this->assertCount(4, $preview);
+            $this->assertSame(['text', 'text', 'text', 'text'], array_map(static function ($item): string {
+                return is_array($item) ? (string) ($item['type'] ?? '') : '';
+            }, $preview));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
@@ -402,5 +563,55 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         }
 
         return '/' . ltrim(trailingslashit($base_url_path) . $relative_path, '/');
+    }
+
+    private function createPublishedOfflineTextWord(string $title, string $translation, int $category_id, int $wordset_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', $translation);
+
+        return (int) $word_id;
+    }
+
+    private function createPublishedOfflineBundleWord(string $title, string $translation, int $category_id, int $wordset_id, int $recording_type_id, string $image_file_name, string $audio_file_name): int
+    {
+        $image_attachment_id = $this->create_image_attachment($image_file_name);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => $title,
+        ]);
+
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        set_post_thumbnail($word_id, $image_attachment_id);
+        update_post_meta($word_id, 'word_translation', $translation);
+
+        $audio_path = $this->create_audio_upload_file($audio_file_name);
+
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $title,
+        ]);
+
+        update_post_meta($audio_post_id, 'audio_file_path', $audio_path);
+        update_post_meta($audio_post_id, 'recording_text', $title);
+        wp_set_post_terms($audio_post_id, [$recording_type_id], 'recording_type', false);
+
+        wp_update_post([
+            'ID' => $word_id,
+            'post_status' => 'publish',
+        ]);
+
+        return (int) $word_id;
     }
 }
