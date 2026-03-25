@@ -2190,11 +2190,25 @@
             }
         };
 
-        const specificWrongAnswerTexts = getWordSpecificWrongAnswerTexts(targetWord);
-        const hasSpecificWrongAnswerTexts = isTextOptionMode && specificWrongAnswerTexts.length > 0;
         const specificWrongAnswerIds = getWordSpecificWrongAnswerIds(targetWord);
         const hasSpecificWrongAnswerIds = specificWrongAnswerIds.length > 0;
-        if (hasSpecificWrongAnswerTexts) {
+        const optionRequiresAudio = (mode === 'audio' || mode === 'text_audio');
+        const specificWrongAnswerTexts = getWordSpecificWrongAnswerTexts(targetWord);
+        const hasSpecificWrongAnswerTexts = isTextOptionMode && !optionRequiresAudio && specificWrongAnswerTexts.length > 0;
+        if (optionRequiresAudio && hasSpecificWrongAnswerIds) {
+            const lookup = buildWordLookupById();
+            specificWrongAnswerIds.forEach(function (wrongId) {
+                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                const candidate = findWordById(wrongId, lookup);
+                if (!candidate || String(candidate.id) === String(targetWord.id)) return;
+                addCandidate(candidate, {
+                    enforceSimilarity: false,
+                    enforceTextUniqueness: false,
+                    enforceConflict: false,
+                    enforceOwnerScope: true
+                });
+            });
+        } else if (hasSpecificWrongAnswerTexts) {
             specificWrongAnswerTexts.forEach(function (wrongText, index) {
                 if (!root.FlashcardOptions.canAddMoreCards()) return;
                 const syntheticId = String(targetWord.id) + '-wrong-text-' + String(index + 1);

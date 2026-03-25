@@ -497,6 +497,114 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_import_processes_external_image_to_text_audio_csv_with_answer_audio_columns(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is required for this test.');
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_term = wp_insert_term('External CSV Image Audio Text Wordset ' . wp_generate_password(6, false, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset_term));
+        $this->assertIsArray($wordset_term);
+        $wordset_id = (int) $wordset_term['term_id'];
+
+        $category_name = 'Image Audio Text Quiz ' . wp_generate_password(6, false, false);
+        $csv = "quiz,activity_id,page_index,source_url,image_file,correct_answer,correct_audio_file,wrong_answer_1,wrong_audio_1,wrong_answer_2,wrong_audio_2,wrong_answer_3,wrong_audio_3\n";
+        $csv .= $category_name . ",32,0,#/lesson/132/cat,cat.jpg,Cat,cat_prompt.wav,Dog,dog_prompt.wav,Bird,bird_prompt.wav,,\n";
+        $csv .= $category_name . ",32,1,#/lesson/132/dog,dog.jpg,Dog,dog_prompt.wav,Cat,cat_prompt.wav,Bird,bird_prompt.wav,,\n";
+
+        $png = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($png);
+
+        $zip_path = $this->createExternalZip([
+            'image-to-text-audio.csv' => $csv,
+            'images/cat.webp' => $png,
+            'images/dog.webp' => $png,
+            // Test extension drift: CSV references .jpg/.wav while files are .webp/.mp3.
+            'audio/cat_prompt.mp3' => self::TINY_MP3_BYTES,
+            'audio/dog_prompt.mp3' => self::TINY_MP3_BYTES,
+            'audio/bird_prompt.mp3' => self::TINY_MP3_BYTES,
+        ]);
+
+        try {
+            $result = ll_tools_process_import_zip($zip_path, [
+                'wordset_mode' => 'assign_existing',
+                'target_wordset_id' => $wordset_id,
+            ]);
+
+            $this->assertIsArray($result);
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertEmpty((array) ($result['errors'] ?? []));
+
+            $term = get_term_by('name', $category_name, 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $term);
+            $category_id = (int) $term->term_id;
+
+            $this->assertSame('image', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('text_audio', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
+
+            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $category_id);
+            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $category_id);
+            $bird_word_id = $this->findWordIdByTitleAndCategory('Bird', $category_id);
+
+            $this->assertGreaterThan(0, $cat_word_id);
+            $this->assertGreaterThan(0, $dog_word_id);
+            $this->assertGreaterThan(0, $bird_word_id);
+
+            $this->assertGreaterThan(0, (int) get_post_thumbnail_id($cat_word_id));
+            $this->assertGreaterThan(0, (int) get_post_thumbnail_id($dog_word_id));
+            $this->assertSame(0, (int) get_post_thumbnail_id($bird_word_id));
+
+            $this->assertNotEmpty($this->getWordAudioPathsForWord($cat_word_id));
+            $this->assertNotEmpty($this->getWordAudioPathsForWord($dog_word_id));
+            $this->assertNotEmpty($this->getWordAudioPathsForWord($bird_word_id));
+
+            $cat_wrong_titles = $this->getWordTitlesForIds($this->getSpecificWrongIdsForWord($cat_word_id));
+            sort($cat_wrong_titles, SORT_STRING);
+            $this->assertSame(['Bird', 'Dog'], $cat_wrong_titles);
+
+            $rows = ll_get_words_by_category(
+                $category_name,
+                'text_audio',
+                null,
+                [
+                    'prompt_type' => 'image',
+                    'option_type' => 'text_audio',
+                ]
+            );
+            $this->assertCount(3, $rows);
+
+            $rows_by_id = [];
+            foreach ($rows as $row) {
+                $rows_by_id[(int) ($row['id'] ?? 0)] = $row;
+            }
+
+            $this->assertTrue((bool) ($rows_by_id[$cat_word_id]['has_image'] ?? false));
+            $this->assertTrue((bool) ($rows_by_id[$cat_word_id]['has_audio'] ?? false));
+            $this->assertFalse((bool) ($rows_by_id[$cat_word_id]['is_specific_wrong_answer_only'] ?? true));
+
+            $this->assertFalse((bool) ($rows_by_id[$bird_word_id]['has_image'] ?? true));
+            $this->assertTrue((bool) ($rows_by_id[$bird_word_id]['has_audio'] ?? false));
+            $this->assertTrue((bool) ($rows_by_id[$bird_word_id]['is_specific_wrong_answer_only'] ?? false));
+
+            $count = ll_get_words_by_category_count(
+                $category_name,
+                'text_audio',
+                null,
+                [
+                    'prompt_type' => 'image',
+                    'option_type' => 'text_audio',
+                ]
+            );
+            $this->assertSame(2, $count);
+        } finally {
+            @unlink($zip_path);
+        }
+    }
+
     public function test_import_audio_to_text_stores_unresolved_wrong_answers_as_text_meta(): void
     {
         if (!class_exists('ZipArchive')) {

@@ -2615,6 +2615,36 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         return $count;
     }
 
+    $count_promptable_rows = static function (array $rows): int {
+        $count = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $is_wrong_only = false;
+            if (array_key_exists('is_specific_wrong_answer_only', $row)) {
+                $raw_flag = $row['is_specific_wrong_answer_only'];
+                if (is_bool($raw_flag)) {
+                    $is_wrong_only = $raw_flag;
+                } elseif (is_numeric($raw_flag)) {
+                    $is_wrong_only = ((int) $raw_flag) > 0;
+                } else {
+                    $normalized_flag = strtolower(trim((string) $raw_flag));
+                    $is_wrong_only = in_array($normalized_flag, ['1', 'true', 'yes', 'on'], true);
+                }
+            }
+
+            if ($is_wrong_only) {
+                continue;
+            }
+
+            $count++;
+        }
+
+        return $count;
+    };
+
     // If the full row cache is already warm, derive the count from it.
     $cached_rows = wp_cache_get($rows_cache_key, 'll_tools_words');
     if ($cached_rows === false) {
@@ -2628,9 +2658,9 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
             && isset($cached_rows['rows'])
             && is_array($cached_rows['rows'])
         ) {
-            $count = count($cached_rows['rows']);
+            $count = $count_promptable_rows($cached_rows['rows']);
         } else {
-            $count = is_array($cached_rows) ? count($cached_rows) : 0;
+            $count = is_array($cached_rows) ? $count_promptable_rows($cached_rows) : 0;
         }
 
         $payload = [
@@ -2725,8 +2755,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $needs_text_values = $needs_option_text || $needs_prompt_text;
 
     $specific_wrong_owner_map = [];
-    $needs_wrong_answer_only_exception_check = ($require_audio && !$option_requires_audio);
-    if ($needs_wrong_answer_only_exception_check && function_exists('ll_tools_get_specific_wrong_answer_owner_map')) {
+    if (function_exists('ll_tools_get_specific_wrong_answer_owner_map')) {
         $specific_wrong_owner_map = ll_tools_get_specific_wrong_answer_owner_map();
     }
 
@@ -2741,29 +2770,27 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
             continue;
         }
 
+        $specific_wrong_answer_owner_ids = isset($specific_wrong_owner_map[$word_id]) && is_array($specific_wrong_owner_map[$word_id])
+            ? array_values(array_filter(array_map('intval', $specific_wrong_owner_map[$word_id]), static function ($id): bool {
+                return $id > 0;
+            }))
+            : [];
+        $specific_wrong_answer_ids = function_exists('ll_tools_get_word_specific_wrong_answer_ids')
+            ? ll_tools_get_word_specific_wrong_answer_ids($word_id)
+            : [];
+        $specific_wrong_answer_texts = function_exists('ll_tools_get_word_specific_wrong_answer_texts')
+            ? ll_tools_get_word_specific_wrong_answer_texts($word_id)
+            : [];
+        $is_specific_wrong_answer_only = !empty($specific_wrong_answer_owner_ids)
+            && empty($specific_wrong_answer_ids)
+            && empty($specific_wrong_answer_texts);
+        if ($is_specific_wrong_answer_only) {
+            continue;
+        }
+
         $has_audio = !empty($has_audio_by_word[$word_id]);
         if ($require_audio && !$has_audio) {
-            $is_specific_wrong_answer_only = false;
-            if ($needs_wrong_answer_only_exception_check) {
-                $specific_wrong_answer_owner_ids = isset($specific_wrong_owner_map[$word_id]) && is_array($specific_wrong_owner_map[$word_id])
-                    ? array_values(array_filter(array_map('intval', $specific_wrong_owner_map[$word_id]), static function ($id): bool {
-                        return $id > 0;
-                    }))
-                    : [];
-                $specific_wrong_answer_ids = function_exists('ll_tools_get_word_specific_wrong_answer_ids')
-                    ? ll_tools_get_word_specific_wrong_answer_ids($word_id)
-                    : [];
-                $specific_wrong_answer_texts = function_exists('ll_tools_get_word_specific_wrong_answer_texts')
-                    ? ll_tools_get_word_specific_wrong_answer_texts($word_id)
-                    : [];
-                $is_specific_wrong_answer_only = !empty($specific_wrong_answer_owner_ids)
-                    && empty($specific_wrong_answer_ids)
-                    && empty($specific_wrong_answer_texts);
-            }
-
-            if (!$is_specific_wrong_answer_only || $option_requires_audio) {
-                continue;
-            }
+            continue;
         }
 
         if ($require_prompt_image || $require_option_image) {
@@ -3263,7 +3290,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             }
         }
         if (($require_prompt_image || $require_option_image) && (!$image_id || empty($image))) {
-            continue;
+            // Wrong-answer-only words can still be used for image-prompt quizzes when
+            // the answer options are non-image and the word is never eligible as a prompt target.
+            if (!$is_specific_wrong_answer_only || $require_option_image) {
+                continue;
+            }
         }
         if (in_array($option_type, ['text_translation', 'text_title', 'text_audio'], true) && $label === '') {
             continue;
