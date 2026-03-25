@@ -6,6 +6,39 @@
     const MINIMUM_QUIZ_OPTIONS = 2;
     const MINIMUM_OPTIONS_ERROR_CODE = 'LL_MINIMUM_OPTIONS_VIOLATION';
 
+    function normalizePromptType(promptType) {
+        return String(promptType || '').trim().toLowerCase() || 'audio';
+    }
+
+    function promptTypeHasText(promptType) {
+        if (Util && typeof Util.promptTypeHasText === 'function') {
+            return !!Util.promptTypeHasText(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'text_translation'
+            || normalized === 'text_title'
+            || normalized === 'audio_text_translation'
+            || normalized === 'audio_text_title'
+            || normalized === 'image_text_translation'
+            || normalized === 'image_text_title';
+    }
+
+    function promptTypeHasAudio(promptType) {
+        if (Util && typeof Util.promptTypeHasAudio === 'function') {
+            return !!Util.promptTypeHasAudio(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+    }
+
+    function promptTypeHasImage(promptType) {
+        if (Util && typeof Util.promptTypeHasImage === 'function') {
+            return !!Util.promptTypeHasImage(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -623,8 +656,8 @@
         const cfg = getRawCategoryConfig(categoryName);
         const opt = cfg.option_type || cfg.mode || State.DEFAULT_DISPLAY_MODE;
         const promptType = cfg.prompt_type || 'audio';
-        const requiresAudio = Util.promptTypeHasAudio(promptType) || opt === 'audio' || opt === 'text_audio';
-        const requiresImage = Util.promptTypeHasImage(promptType) || opt === 'image';
+        const requiresAudio = promptTypeHasAudio(promptType) || opt === 'audio' || opt === 'text_audio';
+        const requiresImage = promptTypeHasImage(promptType) || opt === 'image';
         return { requiresAudio, requiresImage };
     }
 
@@ -861,7 +894,7 @@
     function categoryRequiresAudio(nameOrConfig) {
         const cfg = typeof nameOrConfig === 'object' ? (nameOrConfig || {}) : getCategoryConfig(nameOrConfig);
         const opt = cfg.option_type || cfg.mode;
-        return Util.promptTypeHasAudio(cfg.prompt_type) || opt === 'audio' || opt === 'text_audio';
+        return promptTypeHasAudio(cfg.prompt_type) || opt === 'audio' || opt === 'text_audio';
     }
 
     function normalizeTextForComparison(text) {
@@ -1041,7 +1074,7 @@
     }
 
     function isTextPromptType(promptType) {
-        return Util.promptTypeHasText(promptType);
+        return promptTypeHasText(promptType);
     }
 
     function isPlainTextOptionType(optionType) {
@@ -1379,9 +1412,9 @@
         const isTextOption = (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
         const isTextPrompt = isTextPromptType(promptType);
         const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
-        const showImage = Util.promptTypeHasImage(promptType) || (isGender && optionType === 'image');
+        const showImage = promptTypeHasImage(promptType) || (isGender && optionType === 'image');
         const showText = isTextPrompt || (isGender && isTextOption);
-        const showAudio = isGender && requirements.requiresAudio && !Util.promptTypeHasAudio(promptType);
+        const showAudio = isGender && requirements.requiresAudio && !promptTypeHasAudio(promptType);
         const $ = root.jQuery;
         if (!$) return;
         let $prompt = $('#ll-tools-prompt');
@@ -1963,7 +1996,7 @@
         );
         renderPrompt(targetWord, config);
 
-        const isAudioLineLayout = Util.promptTypeHasImage(promptType) && (mode === 'audio' || mode === 'text_audio');
+        const isAudioLineLayout = promptTypeHasImage(promptType) && (mode === 'audio' || mode === 'text_audio');
         const $container = jQuery('#ll-tools-flashcard');
         const $content = jQuery('#ll-tools-flashcard-content');
         const optionRevealToken = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
@@ -2255,7 +2288,7 @@
 
         const alignAudioLineWidths = function () {
             const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
-            if (!Util.promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$cards.length) {
+            if (!promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$cards.length) {
                 $cards.css('width', '');
                 return 0;
             }
@@ -2278,7 +2311,7 @@
 
         const shrinkAudioLineText = function () {
             const $labels = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option .ll-audio-option-label');
-            if (!Util.promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$labels.length) {
+            if (!promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$labels.length) {
                 $labels.css('font-size', '');
                 return;
             }
@@ -2296,7 +2329,7 @@
         };
 
         const revealOptions = function () {
-            const isAudioLineTextAudio = (Util.promptTypeHasImage(State.currentPromptType) && State.currentOptionType === 'text_audio');
+            const isAudioLineTextAudio = (promptTypeHasImage(State.currentPromptType) && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
                 $all.css({ display: '', visibility: 'visible' });

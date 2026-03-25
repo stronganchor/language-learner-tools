@@ -31,6 +31,26 @@
         suppressResetTimer: null
     };
 
+    function normalizePromptType(promptType) {
+        return String(promptType || '').trim().toLowerCase() || 'audio';
+    }
+
+    function promptTypeHasAudio(promptType) {
+        if (Util && typeof Util.promptTypeHasAudio === 'function') {
+            return !!Util.promptTypeHasAudio(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+    }
+
+    function promptTypeHasImage(promptType) {
+        if (Util && typeof Util.promptTypeHasImage === 'function') {
+            return !!Util.promptTypeHasImage(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+    }
+
     // Keep the quiz popup at the top document level so theme/container transforms
     // cannot clip or scale it when opened from lesson/dashboard contexts.
     function ensureFlashcardPopupPortal() {
@@ -550,7 +570,7 @@
         if (State.isListeningMode || State.isLearningMode || State.isGenderMode) {
             return true;
         }
-        return Util.promptTypeHasAudio(promptType) || optionType === 'audio' || optionType === 'text_audio';
+        return promptTypeHasAudio(promptType) || optionType === 'audio' || optionType === 'text_audio';
     }
 
     function applyRoundSoundRequirement(required) {
@@ -779,14 +799,14 @@
 
     function hideLoadingThenPlayPromptAudio(promptType, isStaleRound) {
         const audioApi = root.FlashcardAudio;
-        const expectedAudio = (Util.promptTypeHasAudio(promptType) && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
+        const expectedAudio = (promptTypeHasAudio(promptType) && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
             ? audioApi.getCurrentTargetAudio()
             : null;
         const hidePromise = (Dom && typeof Dom.hideLoading === 'function')
             ? Promise.resolve(Dom.hideLoading()).catch(function () { return; })
             : Promise.resolve();
 
-        if (!Util.promptTypeHasAudio(promptType)) {
+        if (!promptTypeHasAudio(promptType)) {
             return hidePromise;
         }
 
@@ -1866,7 +1886,7 @@
                 const promptType = State && State.currentPromptType ? State.currentPromptType : (root.LLFlashcards && root.LLFlashcards.Selection && typeof root.LLFlashcards.Selection.getCategoryPromptType === 'function'
                     ? root.LLFlashcards.Selection.getCategoryPromptType(State.currentCategoryName)
                     : 'audio');
-                if (Util.promptTypeHasImage(promptType)) {
+                if (promptTypeHasImage(promptType)) {
                     $container = ensureImageInlineRow() || getStarRow();
                     if ($container && !$container.hasClass('ll-quiz-star-inline')) {
                         $container = ensureImageInlineRow();
@@ -3079,7 +3099,7 @@
         const hadWrongAlready = !!State.hadWrongAnswerThisTurn;
         State.hadWrongAnswerThisTurn = true;
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
-        const isAudioLineLayout = Util.promptTypeHasImage(State.currentPromptType) &&
+        const isAudioLineLayout = promptTypeHasImage(State.currentPromptType) &&
             (State.currentOptionType === 'audio' || State.currentOptionType === 'text_audio');
         const removeWrongCard = function () {
             let removed = false;
@@ -3424,7 +3444,7 @@
     }
 
     function waitForTargetAudioReady(promptType, timeoutMs) {
-        if (!Util.promptTypeHasAudio(promptType)) return Promise.resolve(true);
+        if (!promptTypeHasAudio(promptType)) return Promise.resolve(true);
         const audioApi = root.FlashcardAudio;
         if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') return Promise.resolve(false);
         const audio = audioApi.getCurrentTargetAudio();
@@ -3745,7 +3765,7 @@
                 StarManager.updateForWord(target, { variant: State.isListeningMode ? 'listening' : 'content' });
             } catch (_) { /* no-op */ }
 
-            if (Util.promptTypeHasAudio(promptType)) {
+            if (promptTypeHasAudio(promptType)) {
                 root.FlashcardAudio.setTargetAudioHasPlayed(false);
                 root.FlashcardAudio.setTargetWordAudio(target, { autoplay: false });
                 Dom.enableRepeatButton();
@@ -3782,7 +3802,7 @@
                 }
             };
 
-            const needsPromptAudio = Util.promptTypeHasAudio(promptType) && !!(target && target.audio);
+            const needsPromptAudio = promptTypeHasAudio(promptType) && !!(target && target.audio);
             Promise.all([
                 optionMediaPromise,
                 waitForRoundMediaReadiness(promptType, {
