@@ -491,13 +491,10 @@
             return true;
         }
         const promptType = State.currentPromptType || '';
-        if (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : promptType === 'image') {
-            return true;
-        }
-        if (Util.isTextToTextQuizPresentation) {
-            return !!Util.isTextToTextQuizPresentation(promptType, State.currentOptionType || '');
-        }
-        return false;
+        const hasPromptAudio = Util.promptTypeHasAudio
+            ? Util.promptTypeHasAudio(promptType)
+            : promptType === 'audio';
+        return !hasPromptAudio;
     }
 
     function setRepeatButtonInternal(state) {

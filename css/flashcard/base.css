@@ -289,6 +289,12 @@ body:not(.ll-tools-flashcard-open):not(.ll-qpg-popup-active) #ll-tools-mode-swit
     direction: auto;
 }
 
+.ll-tools-prompt .ll-prompt-text.ll-prompt-text--standalone {
+    max-width: min(100%, 18ch);
+    margin-inline: auto;
+    font-size: clamp(32px, calc(var(--ll-answer-option-font-size-px, 48px) * 0.95), 72px);
+}
+
 .ll-prompt-image-wrap {
     position: relative;
     overflow: visible;

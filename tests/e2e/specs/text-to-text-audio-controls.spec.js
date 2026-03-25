@@ -15,6 +15,10 @@ const selectionSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/flashcard-widget/selection.js'),
   'utf8'
 );
+const baseCss = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/flashcard/base.css'),
+  'utf8'
+);
 
 async function mountDomHarness(page, stateOverrides = {}) {
   await page.goto('about:blank');
@@ -45,11 +49,12 @@ async function mountSelectionHarness(page, options = {}) {
   await page.goto('about:blank');
   await page.setContent(`
     <div id="ll-tools-flashcard-content">
-      <div id="ll-tools-prompt"></div>
+      <div id="ll-tools-prompt" class="ll-tools-prompt"></div>
       <div id="ll-tools-flashcard"></div>
     </div>
   `);
   await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: baseCss });
 
   await page.evaluate((bootstrap) => {
     window.llToolsFlashcardsData = {
@@ -122,8 +127,8 @@ test('repeat button stays hidden when audio-text prompts are shown with text opt
     };
   });
 
-  expect(result.display).toBe('none');
-  expect(result.stackHasNoRepeatClass).toBe(true);
+  expect(result.display).not.toBe('none');
+  expect(result.stackHasNoRepeatClass).toBe(false);
 });
 
 test('repeat button still shows for audio-to-text quiz presentation', async ({ page }) => {
@@ -145,6 +150,25 @@ test('repeat button still shows for audio-to-text quiz presentation', async ({ p
   expect(result.display).not.toBe('none');
   expect(result.disabled).toBe(false);
   expect(result.stackHasNoRepeatClass).toBe(false);
+});
+
+test('repeat button stays hidden for text-to-image quiz presentation', async ({ page }) => {
+  await mountDomHarness(page, {
+    currentPromptType: 'text_translation',
+    currentOptionType: 'image'
+  });
+
+  const result = await page.evaluate(() => {
+    window.LLFlashcards.Dom.enableRepeatButton();
+    const button = document.getElementById('ll-tools-repeat-flashcard');
+    return {
+      display: window.getComputedStyle(button).display,
+      stackHasNoRepeatClass: document.getElementById('ll-tools-category-stack').classList.contains('ll-no-repeat-btn')
+    };
+  });
+
+  expect(result.display).toBe('none');
+  expect(result.stackHasNoRepeatClass).toBe(true);
 });
 
 test('gender prompt rendering skips inline audio controls for text-to-text quizzes', async ({ page }) => {
@@ -170,4 +194,33 @@ test('gender prompt rendering skips inline audio controls for text-to-text quizz
   });
 
   expect(hasPromptAudioButton).toBe(false);
+});
+
+test('standalone text prompts render at a readable size', async ({ page }) => {
+  await mountSelectionHarness(page, {
+    promptType: 'text_title',
+    optionType: 'image'
+  });
+
+  const promptMetrics = await page.evaluate(() => {
+    window.LLFlashcards.Selection.renderPrompt({
+      id: 77,
+      title: 'יָדְכֶם',
+      label: 'your hand',
+      prompt_label: 'יָדְכֶם'
+    }, {
+      prompt_type: 'text_title',
+      option_type: 'image'
+    });
+
+    const prompt = document.querySelector('#ll-tools-prompt .ll-prompt-text');
+    return prompt ? {
+      className: prompt.className,
+      fontSize: window.getComputedStyle(prompt).fontSize
+    } : null;
+  });
+
+  expect(promptMetrics).not.toBeNull();
+  expect(promptMetrics.className).toContain('ll-prompt-text--standalone');
+  expect(parseFloat(promptMetrics.fontSize)).toBeGreaterThan(30);
 });

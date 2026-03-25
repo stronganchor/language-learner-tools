@@ -1480,6 +1480,9 @@
                 text: labelText,
                 dir: 'auto'
             });
+            if (!hasImage) {
+                $promptText.addClass('ll-prompt-text--standalone');
+            }
             if (cardsApi && typeof cardsApi.applyAnswerOptionTextStyle === 'function') {
                 cardsApi.applyAnswerOptionTextStyle($promptText, labelText);
             }
