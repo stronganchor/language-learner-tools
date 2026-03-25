@@ -38,6 +38,24 @@ npm run build:debug -- /absolute/path/to/ll-tools-offline-app.zip
 
 The script creates the Android project on first run with `npx cap add android`, syncs the web assets, and builds a debug APK.
 
+## Windows batch shortcut
+
+From the plugin root on Windows, you can run:
+
+```bat
+build-offline-app-apk.bat
+```
+
+The batch script:
+
+- prompts for the offline app export zip path
+- accepts pasted paths with or without surrounding quotes
+- installs `offline-app-builder` dependencies on first run
+- builds a debug APK
+- copies the generated APK next to the selected zip as `<zip-name>.apk`
+
+You can also drag a zip file onto `build-offline-app-apk.bat` or pass the zip path as the first argument.
+
 ## Build a signed release APK
 
 Set these environment variables first:
