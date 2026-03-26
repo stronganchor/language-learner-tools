@@ -2371,6 +2371,17 @@
         return clamp(configured, 0.05, 1);
     }
 
+    function getFeedbackAudioCacheKey(ctx, type, slugOrRun) {
+        const soundType = (type === 'correct') ? 'correct' : 'wrong';
+        const gameConfig = getGameConfig(ctx, slugOrRun || (ctx && ctx.run));
+        const gameSlug = normalizeGameSlug(
+            gameConfig && gameConfig.slug
+                ? gameConfig.slug
+                : getCurrentGameSlug(ctx)
+        );
+        return 'feedback:' + gameSlug + ':' + soundType;
+    }
+
     function waitForFeedbackQueue(ctx) {
         return ctx && ctx.feedbackQueue && typeof ctx.feedbackQueue.then === 'function'
             ? ctx.feedbackQueue.catch(function () {})
@@ -2561,6 +2572,7 @@
     function playFeedbackSound(ctx, type) {
         const soundType = (type === 'correct') ? 'correct' : 'wrong';
         const sources = getFeedbackAudioSources(ctx, soundType);
+        const cacheKey = getFeedbackAudioCacheKey(ctx, soundType);
         if (!sources.length) {
             return waitForFeedbackQueue(ctx);
         }
@@ -2574,7 +2586,7 @@
                 return;
             }
 
-            return resolveReadyAudioSource(ctx, sources, soundType).then(function (source) {
+            return resolveReadyAudioSource(ctx, sources, cacheKey).then(function (source) {
                 if (!source || (ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
                     return;
                 }
@@ -4354,6 +4366,49 @@
         ctx.boundLifecycle = false;
     }
 
+    function getPrimaryPressStartEvents() {
+        if (root.PointerEvent) {
+            return 'pointerdown' + MODULE_NS;
+        }
+        return 'touchstart' + MODULE_NS + ' mousedown' + MODULE_NS;
+    }
+
+    function getPrimaryPressReleaseEvents() {
+        if (root.PointerEvent) {
+            return 'pointerup' + MODULE_NS + ' pointercancel' + MODULE_NS + ' pointerleave' + MODULE_NS;
+        }
+        return 'mouseup' + MODULE_NS + ' mouseleave' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS;
+    }
+
+    function getDocumentPressReleaseEvents() {
+        if (root.PointerEvent) {
+            return 'pointerup' + MODULE_NS + ' pointercancel' + MODULE_NS;
+        }
+        return 'mouseup' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS;
+    }
+
+    function shouldIgnoreSyntheticMouseFromTouch(ctx, event, channel) {
+        const eventType = String(event && event.type || '');
+        if (!ctx || (eventType !== 'touchstart' && eventType !== 'mousedown')) {
+            return false;
+        }
+
+        if (!ctx.syntheticMouseTouchGuards || typeof ctx.syntheticMouseTouchGuards !== 'object') {
+            ctx.syntheticMouseTouchGuards = {};
+        }
+
+        const guardKey = String(channel || 'default');
+        const guard = ctx.syntheticMouseTouchGuards[guardKey] || { lastTouchAt: 0 };
+        ctx.syntheticMouseTouchGuards[guardKey] = guard;
+
+        if (eventType === 'touchstart') {
+            guard.lastTouchAt = currentTimestamp();
+            return false;
+        }
+
+        return guard.lastTouchAt > 0 && (currentTimestamp() - guard.lastTouchAt) < 450;
+    }
+
     function bindDom(ctx) {
         ctx.$page.off(MODULE_NS);
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-launch]', function (event) {
@@ -4414,11 +4469,15 @@
             pauseRun(ctx);
         });
 
-        const pointerControls = 'pointerdown' + MODULE_NS + ' mousedown' + MODULE_NS + ' touchstart' + MODULE_NS;
-        const pointerRelease = 'pointerup' + MODULE_NS + ' mouseup' + MODULE_NS + ' mouseleave' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS;
+        const pointerControls = getPrimaryPressStartEvents();
+        const pointerRelease = getPrimaryPressReleaseEvents();
+        const documentPointerRelease = getDocumentPressReleaseEvents();
 
         ctx.$page.on(pointerControls, '[data-ll-wordset-game-control]', function (event) {
             event.preventDefault();
+            if (shouldIgnoreSyntheticMouseFromTouch(ctx, event, 'control')) {
+                return;
+            }
             if (!ctx.run || ctx.run.paused) {
                 return;
             }
@@ -4435,7 +4494,11 @@
             setControlState(ctx, control, false);
         });
 
-        ctx.$page.on('pointerdown' + MODULE_NS + ' mousedown' + MODULE_NS + ' touchstart' + MODULE_NS, '[data-ll-wordset-game-canvas]', function (event) {
+        ctx.$page.on(pointerControls, '[data-ll-wordset-game-canvas]', function (event) {
+            if (shouldIgnoreSyntheticMouseFromTouch(ctx, event, 'canvas')) {
+                event.preventDefault();
+                return;
+            }
             if (!ctx.run || ctx.run.paused || !isBubblePopRun(ctx, ctx.run)) {
                 return;
             }
@@ -4445,8 +4508,8 @@
             }
         });
 
-        $(root.document).off('mouseup' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS).on(
-            'mouseup' + MODULE_NS + ' touchend' + MODULE_NS + ' touchcancel' + MODULE_NS,
+        $(root.document).off(documentPointerRelease).on(
+            documentPointerRelease,
             function () {
                 if (!ctx.run) {
                     return;

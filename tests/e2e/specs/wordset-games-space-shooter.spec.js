@@ -1149,6 +1149,75 @@ test('wrong answers replay the prompt quickly and never cost more than one life 
   }
 });
 
+test('correct feedback audio stays scoped to the active game after switching games', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    audioLoadDelayMs: 15,
+    promptAudioDurationSeconds: 0.35,
+    spaceShooterOverrides: {
+      introRampStartFactor: 1
+    }
+  });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  await page.evaluate(() => {
+    window.__audioEventLog = [];
+    window.LLWordsetGames.__debug.resolvePrompt('correct');
+  });
+  await page.waitForFunction(() => {
+    const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+    return events.includes('correct-feedback') && events.includes('correct-feedback-ended');
+  });
+
+  let audioEvents = await page.evaluate(() => window.__audioEventLog.slice());
+  expect(audioEvents).toContain('correct-feedback');
+  expect(audioEvents).not.toContain('bubble-pop-feedback');
+
+  await closeRunPopup(page);
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+  await waitForActivePrompt(page, 'bubble-pop');
+
+  await page.evaluate(() => {
+    window.__audioEventLog = [];
+    window.LLWordsetGames.__debug.resolvePrompt('correct');
+  });
+  await page.waitForFunction(() => {
+    const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+    return events.includes('bubble-pop-feedback') && events.includes('bubble-pop-feedback-ended');
+  });
+
+  audioEvents = await page.evaluate(() => window.__audioEventLog.slice());
+  expect(audioEvents).toContain('bubble-pop-feedback');
+  expect(audioEvents).not.toContain('correct-feedback');
+
+  await closeRunPopup(page);
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  await page.evaluate(() => {
+    window.__audioEventLog = [];
+    window.LLWordsetGames.__debug.resolvePrompt('correct');
+  });
+  await page.waitForFunction(() => {
+    const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+    return events.includes('correct-feedback') && events.includes('correct-feedback-ended');
+  });
+
+  audioEvents = await page.evaluate(() => window.__audioEventLog.slice());
+  expect(audioEvents).toContain('correct-feedback');
+  expect(audioEvents).not.toContain('bubble-pop-feedback');
+});
+
 test('bubble pop floats options upward and resolves clicks through the canvas', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 
@@ -1337,6 +1406,106 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   expect(progressEvents[1].entry.payload.game_slug).toBe('bubble-pop');
   expect(progressEvents[1].entry.isCorrect).toBe(true);
   await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('1');
+});
+
+test('bubble pop treats one touch press as one pop even when a synthetic mouse event follows', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    audioLoadDelayMs: 15,
+    promptAudioDurationSeconds: 0.35
+  });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+  await waitForActivePrompt(page, 'bubble-pop');
+
+  const dispatched = await page.evaluate(() => {
+    window.__audioEventLog = [];
+
+    const ctx = window.LLWordsetGames.__ctx;
+    const run = ctx && ctx.run;
+    const canvas = document.querySelector('[data-ll-wordset-game-canvas]');
+    const target = run && Array.isArray(run.cards)
+      ? run.cards.find((card) =>
+        card
+        && card.isTarget
+        && !card.exploding
+        && !card.resolvedFalling
+        && Number(card.promptId) === Number(run.prompt && run.prompt.promptId)
+      )
+      : null;
+
+    if (!run || !canvas || !target || typeof PointerEvent !== 'function') {
+      return false;
+    }
+
+    run.decorativeBubbleIdCounter = Number(run.decorativeBubbleIdCounter || 0) + 1;
+    run.decorativeBubbles.push({
+      id: run.decorativeBubbleIdCounter,
+      x: Number(target.x),
+      y: Number(target.y),
+      baseX: Number(target.x),
+      baseY: Number(target.y),
+      radius: Math.max(18, Math.min(Number(target.width) || 0, Number(target.height) || 0) * 0.24),
+      alpha: 0.18,
+      speed: 0,
+      wanderVelocityX: 0,
+      driftXAmplitudePrimary: 0,
+      driftXAmplitudeSecondary: 0,
+      driftYAmplitudePrimary: 0,
+      driftYAmplitudeSecondary: 0,
+      driftHzXPrimary: 0.01,
+      driftHzXSecondary: 0.01,
+      driftHzYPrimary: 0.01,
+      driftHzYSecondary: 0.01,
+      driftPhaseXPrimary: 0,
+      driftPhaseXSecondary: 0,
+      driftPhaseYPrimary: 0,
+      driftPhaseYSecondary: 0,
+      bubbleImpulseVelocityX: 0,
+      bubbleImpulseVelocityY: 0,
+      exploding: false,
+      removeAt: 0,
+      explosionDuration: 180
+    });
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = rect.left + ((target.x / Math.max(1, canvas.clientWidth || run.width)) * rect.width);
+    const clientY = rect.top + ((target.y / Math.max(1, canvas.clientHeight || run.height)) * rect.height);
+
+    canvas.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: 'touch',
+      clientX,
+      clientY
+    }));
+    canvas.dispatchEvent(new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      clientY,
+      view: window
+    }));
+
+    return true;
+  });
+  expect(dispatched).toBe(true);
+
+  await page.waitForFunction(() => {
+    const events = Array.isArray(window.__audioEventLog) ? window.__audioEventLog : [];
+    return events.filter((entry) => entry === 'bubble-pop-feedback').length >= 1;
+  });
+  await page.waitForTimeout(180);
+
+  const bubbleFeedbackCount = await page.evaluate(() => (
+    Array.isArray(window.__audioEventLog)
+      ? window.__audioEventLog.filter((entry) => entry === 'bubble-pop-feedback').length
+      : 0
+  ));
+  expect(bubbleFeedbackCount).toBe(1);
 });
 
 test('bubble pop pause overlay uses the bubble theme for resume', async ({ page }) => {
