@@ -47,18 +47,18 @@ function buildMarkup() {
               <input type="checkbox" value="11" data-ll-wordset-select />
               <span class="ll-wordset-card__select-box" aria-hidden="true"></span>
             </label>
-            <a class="ll-wordset-card__heading" href="#" aria-label="Aile">
-              <h2 class="ll-wordset-card__title">Aile</h2>
+            <a class="ll-wordset-card__heading" href="#" aria-label="Geniş Aile 2 - Kuzenler">
+              <h2 class="ll-wordset-card__title">Geniş Aile 2 - Kuzenler</h2>
             </a>
             <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
           </div>
-          <a class="ll-wordset-card__lesson-link" href="#" aria-label="Aile">
+          <a class="ll-wordset-card__lesson-link" href="#" aria-label="Geniş Aile 2 - Kuzenler">
             <div class="ll-wordset-card__preview has-text">
               <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                <span class="ll-wordset-preview-text" dir="auto">Hala oglu</span>
+                <span class="ll-wordset-preview-text" dir="auto">Hala oğlu</span>
               </span>
               <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                <span class="ll-wordset-preview-text" dir="auto">Hala kizi</span>
+                <span class="ll-wordset-preview-text" dir="auto">Hala kızı</span>
               </span>
             </div>
           </a>
@@ -122,8 +122,8 @@ function buildConfig() {
       {
         id: 11,
         slug: 'aile',
-        name: 'Aile',
-        translation: 'Aile',
+        name: 'Geniş Aile 2 - Kuzenler',
+        translation: 'Geniş Aile 2 - Kuzenler',
         count: 9,
         url: '#',
         mode: 'text_title',
@@ -136,7 +136,7 @@ function buildConfig() {
         preview: [
           {
             type: 'text',
-            label: 'Hala oglu ve hala kizi'
+            label: 'Hala oğlu ve hala kızı'
           }
         ],
         has_images: false
@@ -290,6 +290,10 @@ test('text-based recommendation preview is single and rectangular while category
 
     const categoryPreview = document.querySelector('.ll-wordset-card__preview');
     const categoryItems = categoryPreview ? categoryPreview.querySelectorAll('.ll-wordset-preview-item--text') : [];
+    const categoryText = categoryPreview ? categoryPreview.querySelector('.ll-wordset-preview-text') : null;
+    const categoryTextStyle = categoryText ? window.getComputedStyle(categoryText) : null;
+    const title = document.querySelector('.ll-wordset-card__title');
+    const titleStyle = title ? window.getComputedStyle(title) : null;
 
     return {
       nextPreviewClassName: document.querySelector('[data-ll-wordset-next-preview]')?.className || '',
@@ -297,6 +301,14 @@ test('text-based recommendation preview is single and rectangular while category
       category: categoryPreview ? {
         itemCount: categoryItems.length,
         gridTemplateColumns: window.getComputedStyle(categoryPreview).gridTemplateColumns || ''
+      } : null,
+      categoryText: categoryText && categoryTextStyle ? {
+        clientHeight: categoryText.clientHeight || 0,
+        lineHeight: parseFloat(categoryTextStyle.lineHeight || '0') || 0
+      } : null,
+      title: title && titleStyle ? {
+        clientHeight: title.clientHeight || 0,
+        lineHeight: parseFloat(titleStyle.lineHeight || '0') || 0
       } : null
     };
   });
@@ -304,6 +316,8 @@ test('text-based recommendation preview is single and rectangular while category
   expect(metrics.nextPreviewClassName).toContain('ll-wordset-next-card__preview--text-only');
   expect(metrics.next).not.toBeNull();
   expect(metrics.category).not.toBeNull();
+  expect(metrics.categoryText).not.toBeNull();
+  expect(metrics.title).not.toBeNull();
 
   expect(metrics.next.slotWidth).toBeGreaterThan(metrics.next.slotHeight);
   expect(metrics.category.itemCount).toBe(2);
@@ -318,4 +332,6 @@ test('text-based recommendation preview is single and rectangular while category
 
   expect(metrics.next.scrollWidth).toBeLessThanOrEqual(metrics.next.clientWidth + 1);
   expect(metrics.next.actualContentHeight).toBeLessThanOrEqual(metrics.next.maxContentHeight);
+  expect(metrics.categoryText.clientHeight - metrics.categoryText.lineHeight).toBeGreaterThan(0.75);
+  expect(metrics.title.clientHeight - metrics.title.lineHeight).toBeGreaterThan(0.75);
 });

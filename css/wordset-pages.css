@@ -1882,6 +1882,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
+    box-sizing: border-box;
+    padding-bottom: 0.12em;
     overflow: hidden;
 }
 
@@ -1896,6 +1898,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font-weight: 600 !important;
     color: var(--ll-wp-text) !important;
     line-height: 1.28 !important;
+    padding-bottom: 0.12em;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1906,7 +1909,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 /* Theme heading styles often target h2 globally; lock card titles to the card scale. */
 .ll-wordset-page .ll-wordset-card__heading > h2.ll-wordset-card__title {
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 0 0 0.12em 0 !important;
     border: 0 !important;
     background: transparent !important;
     font-family: inherit !important;
