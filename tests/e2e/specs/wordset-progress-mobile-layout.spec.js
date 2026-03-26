@@ -1042,6 +1042,12 @@ test('desktop progress words table sticky header respects the visible admin bar 
   await mountProgressPage(page, { width: 1280, height: 900 });
   await addVisibleAdminBar(page, 32);
 
+  const legend = page.locator('[data-ll-wordset-progress-mobile-legend]');
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText('Hard');
+  await expect(legend).toContainText('Seen');
+  await expect(legend).toContainText('Wrong');
+
   await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-page]');
     if (!root || !root.parentNode) {

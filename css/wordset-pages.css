@@ -3889,7 +3889,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-progress-mobile-legend {
-    display: none;
+    display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 9px;
