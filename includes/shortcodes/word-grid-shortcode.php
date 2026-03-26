@@ -1528,6 +1528,99 @@ function ll_tools_word_grid_label_with_code(string $label, string $code): string
     return $label . ' (' . $code . ')';
 }
 
+function ll_tools_word_grid_render_inline_title_editor(array $args): string {
+    $field = (string) ($args['field'] ?? '');
+    if ($field !== 'translation') {
+        $field = 'word';
+    }
+
+    $value = (string) ($args['value'] ?? '');
+    $editor_id = (string) ($args['editor_id'] ?? ('ll-word-inline-editor-' . $field));
+    $input_id = (string) ($args['input_id'] ?? ($editor_id . '-input'));
+    $field_label = (string) ($args['field_label'] ?? '');
+    $trigger_label = (string) ($args['trigger_label'] ?? '');
+    $placeholder = (string) ($args['placeholder'] ?? '');
+    $display_attr = ($field === 'translation') ? 'data-ll-word-translation' : 'data-ll-word-text';
+    $display_class = ($field === 'translation') ? 'll-word-translation' : 'll-word-text';
+    $is_empty = trim($value) === '';
+    $display_html = function_exists('ll_tools_esc_html_display')
+        ? ll_tools_esc_html_display($value)
+        : esc_html($value);
+
+    ob_start();
+    ?>
+    <span
+        class="ll-word-inline-edit ll-word-inline-edit--<?php echo esc_attr($field); ?>"
+        data-ll-inline-word-editor="<?php echo esc_attr($field); ?>"
+        id="<?php echo esc_attr($editor_id); ?>">
+        <button
+            type="button"
+            class="ll-word-inline-edit-trigger"
+            data-ll-inline-word-trigger="<?php echo esc_attr($field); ?>"
+            aria-expanded="false"
+            aria-controls="<?php echo esc_attr($editor_id . '-controls'); ?>"
+            aria-label="<?php echo esc_attr($trigger_label); ?>"
+            title="<?php echo esc_attr($trigger_label); ?>">
+            <span
+                class="<?php echo esc_attr($display_class); ?>"
+                <?php echo $display_attr; ?>
+                dir="auto"
+                <?php if ($is_empty) : ?>hidden<?php endif; ?>><?php echo $display_html; ?></span>
+            <span
+                class="ll-word-inline-edit-placeholder"
+                data-ll-inline-word-placeholder
+                <?php if (!$is_empty) : ?>hidden<?php endif; ?>><?php echo esc_html($placeholder); ?></span>
+            <span class="ll-word-inline-edit-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+        </button>
+        <span
+            class="ll-word-inline-edit-controls"
+            id="<?php echo esc_attr($editor_id . '-controls'); ?>"
+            data-ll-inline-word-form
+            hidden>
+            <input
+                type="text"
+                class="ll-word-inline-edit-input"
+                id="<?php echo esc_attr($input_id); ?>"
+                data-ll-inline-word-input="<?php echo esc_attr($field); ?>"
+                value="<?php echo esc_attr($value); ?>"
+                placeholder="<?php echo esc_attr($placeholder); ?>"
+                aria-label="<?php echo esc_attr($field_label); ?>"
+                dir="auto"
+                autocomplete="off" />
+            <span class="ll-word-inline-edit-actions">
+                <button
+                    type="button"
+                    class="ll-word-inline-edit-action ll-word-inline-edit-action--save"
+                    data-ll-inline-word-save
+                    aria-label="<?php echo esc_attr__('Save', 'll-tools-text-domain'); ?>"
+                    title="<?php echo esc_attr__('Save', 'll-tools-text-domain'); ?>">
+                    <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                        <path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    class="ll-word-inline-edit-action ll-word-inline-edit-action--cancel"
+                    data-ll-inline-word-cancel
+                    aria-label="<?php echo esc_attr__('Cancel editing', 'll-tools-text-domain'); ?>"
+                    title="<?php echo esc_attr__('Cancel editing', 'll-tools-text-domain'); ?>">
+                    <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                        <path d="M4 4l8 8M12 4 4 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </span>
+        </span>
+    </span>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_word_grid_resolve_display_text(int $word_id): array {
     $word_post = get_post($word_id);
     if (!$word_post || $word_post->post_type !== 'words') {
@@ -3019,8 +3112,11 @@ function ll_tools_word_grid_shortcode($atts) {
     $play_label_template = __('Play %s recording', 'll-tools-text-domain');
     $edit_labels = [
         'edit_word'   => __('Edit word', 'll-tools-text-domain'),
+        'edit_field'  => __('Edit %s', 'll-tools-text-domain'),
         'word'        => ll_tools_word_grid_label_with_code(__('Word', 'll-tools-text-domain'), $target_lang_code),
         'translation' => ll_tools_word_grid_label_with_code(__('Translation', 'll-tools-text-domain'), $translation_lang_code),
+        'add_word'    => __('Add word', 'll-tools-text-domain'),
+        'add_translation' => __('Add translation', 'll-tools-text-domain'),
         'note'        => __('Note', 'll-tools-text-domain'),
         'image'       => __('Image', 'll-tools-text-domain'),
         'select_image' => __('Choose image', 'll-tools-text-domain'),
@@ -3346,8 +3442,32 @@ function ll_tools_word_grid_shortcode($atts) {
 
             $title_row_html = '<div class="ll-word-title-row">';
             $title_row_html .= '<h3 class="word-title">';
-            $title_row_html .= '<span class="ll-word-text" data-ll-word-text dir="auto">' . ll_tools_esc_html_display($word_text) . '</span>';
-            $title_row_html .= '<span class="ll-word-translation" data-ll-word-translation dir="auto">' . ll_tools_esc_html_display($translation_text) . '</span>';
+            $show_inline_title_edit = $can_edit_words
+                && ll_tools_word_grid_is_lesson_context($context)
+                && !$hide_lesson_grid_text;
+            if ($show_inline_title_edit) {
+                $title_row_html .= ll_tools_word_grid_render_inline_title_editor([
+                    'field' => 'word',
+                    'value' => $word_text,
+                    'editor_id' => 'll-word-inline-editor-word-' . $word_id,
+                    'input_id' => 'll-word-inline-input-word-' . $word_id,
+                    'field_label' => $edit_labels['word'],
+                    'trigger_label' => sprintf($edit_labels['edit_field'], $edit_labels['word']),
+                    'placeholder' => $edit_labels['add_word'],
+                ]);
+                $title_row_html .= ll_tools_word_grid_render_inline_title_editor([
+                    'field' => 'translation',
+                    'value' => $translation_text,
+                    'editor_id' => 'll-word-inline-editor-translation-' . $word_id,
+                    'input_id' => 'll-word-inline-input-translation-' . $word_id,
+                    'field_label' => $edit_labels['translation'],
+                    'trigger_label' => sprintf($edit_labels['edit_field'], $edit_labels['translation']),
+                    'placeholder' => $edit_labels['add_translation'],
+                ]);
+            } else {
+                $title_row_html .= '<span class="ll-word-text" data-ll-word-text dir="auto">' . ll_tools_esc_html_display($word_text) . '</span>';
+                $title_row_html .= '<span class="ll-word-translation" data-ll-word-translation dir="auto">' . ll_tools_esc_html_display($translation_text) . '</span>';
+            }
             $title_row_html .= '</h3>';
             $title_row_html .= '</div>';
 
