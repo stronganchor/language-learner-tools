@@ -12,6 +12,9 @@ $term = $embed_category ? get_term_by('slug', $embed_category, 'word-category') 
 $term_is_accessible = $term && !is_wp_error($term) && (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term));
 $term = $term_is_accessible ? $term : null;
 $site_name = trim(wp_strip_all_tags((string) get_bloginfo('name')));
+$viewport_content = function_exists('ll_tools_get_locked_viewport_content')
+    ? ll_tools_get_locked_viewport_content()
+    : 'width=device-width, initial-scale=1';
 
 if (!$term_is_accessible) {
     status_header(404);
@@ -35,7 +38,7 @@ if ($term && !is_wp_error($term)) {
 <html <?php language_attributes(); ?>>
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="<?php echo esc_attr($viewport_content); ?>">
     <meta name="robots" content="noindex, nofollow">
     <?php if ($quiz_page_title !== ''): ?>
         <?php

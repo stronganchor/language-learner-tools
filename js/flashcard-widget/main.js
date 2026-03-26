@@ -28,7 +28,8 @@
         historyToken: 0,
         listenersBound: false,
         suppressNextPopstate: false,
-        suppressResetTimer: null
+        suppressResetTimer: null,
+        pinchDistance: 0
     };
 
     function normalizePromptType(promptType) {
@@ -281,12 +282,73 @@
         e.preventDefault();
     }
 
-    function onFlashcardGuardTouchMove(e) {
+    function getFlashcardGuardViewportScale() {
+        if (root.visualViewport && typeof root.visualViewport.scale === 'number' && isFinite(root.visualViewport.scale) && root.visualViewport.scale > 0) {
+            return root.visualViewport.scale;
+        }
+
+        return 1;
+    }
+
+    function flashcardGuardViewportIsZoomed() {
+        return getFlashcardGuardViewportScale() > 1.01;
+    }
+
+    function getFlashcardGuardTouchDistance(touches) {
+        if (!touches || touches.length < 2) {
+            return 0;
+        }
+
+        const first = touches[0];
+        const second = touches[1];
+        const dx = (Number(second.clientX) || 0) - (Number(first.clientX) || 0);
+        const dy = (Number(second.clientY) || 0) - (Number(first.clientY) || 0);
+        return Math.sqrt((dx * dx) + (dy * dy));
+    }
+
+    function resetFlashcardGuardPinchDistance() {
+        flashcardInteractionGuard.pinchDistance = 0;
+    }
+
+    function onFlashcardGuardTouchStart(e) {
         if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            resetFlashcardGuardPinchDistance();
             return;
         }
 
-        e.preventDefault();
+        flashcardInteractionGuard.pinchDistance = getFlashcardGuardTouchDistance(e.touches);
+        if (!flashcardGuardViewportIsZoomed()) {
+            e.preventDefault();
+        }
+    }
+
+    function onFlashcardGuardTouchMove(e) {
+        if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            resetFlashcardGuardPinchDistance();
+            return;
+        }
+
+        const currentDistance = getFlashcardGuardTouchDistance(e.touches);
+        const previousDistance = flashcardInteractionGuard.pinchDistance;
+        flashcardInteractionGuard.pinchDistance = currentDistance;
+
+        if (!flashcardGuardViewportIsZoomed()) {
+            e.preventDefault();
+            return;
+        }
+
+        if (previousDistance > 0 && currentDistance > (previousDistance + 4)) {
+            e.preventDefault();
+        }
+    }
+
+    function onFlashcardGuardTouchEnd(e) {
+        if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            resetFlashcardGuardPinchDistance();
+            return;
+        }
+
+        flashcardInteractionGuard.pinchDistance = getFlashcardGuardTouchDistance(e.touches);
     }
 
     function onFlashcardGuardGesture(e) {
@@ -294,7 +356,14 @@
             return;
         }
 
-        e.preventDefault();
+        if (!flashcardGuardViewportIsZoomed()) {
+            e.preventDefault();
+            return;
+        }
+
+        if (e.type === 'gesturechange' && typeof e.scale === 'number' && isFinite(e.scale) && e.scale >= 1) {
+            e.preventDefault();
+        }
     }
 
     function onFlashcardGuardDoubleClick(e) {
@@ -321,7 +390,10 @@
         root.document.addEventListener('contextmenu', onFlashcardGuardContextMenu, true);
         root.document.addEventListener('dragstart', onFlashcardGuardDragstart, true);
         root.document.addEventListener('wheel', onFlashcardGuardWheel, { passive: false, capture: true });
+        root.document.addEventListener('touchstart', onFlashcardGuardTouchStart, { passive: false, capture: true });
         root.document.addEventListener('touchmove', onFlashcardGuardTouchMove, { passive: false, capture: true });
+        root.document.addEventListener('touchend', onFlashcardGuardTouchEnd, true);
+        root.document.addEventListener('touchcancel', onFlashcardGuardTouchEnd, true);
         root.document.addEventListener('gesturestart', onFlashcardGuardGesture, true);
         root.document.addEventListener('gesturechange', onFlashcardGuardGesture, true);
         root.document.addEventListener('gestureend', onFlashcardGuardGesture, true);
@@ -345,6 +417,7 @@
         const opts = (options && typeof options === 'object') ? options : {};
 
         flashcardInteractionGuard.active = false;
+        resetFlashcardGuardPinchDistance();
         setQuizGuardPageClass(false);
 
         if (opts.historyAlreadyHandled) {

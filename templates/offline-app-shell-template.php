@@ -49,12 +49,15 @@ $escape_asset_url = static function ($asset): string {
 
   return esc_attr($asset);
 };
+$viewport_content = function_exists('ll_tools_get_locked_viewport_content')
+  ? ll_tools_get_locked_viewport_content()
+  : 'width=device-width, initial-scale=1';
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="<?php echo esc_attr($viewport_content); ?>">
   <title><?php echo esc_html($app_title); ?></title>
   <?php if ($app_icon_url !== '') : ?>
     <link rel="icon" href="<?php echo $escape_asset_url($app_icon_url); ?>"<?php echo $app_icon_mime !== '' ? ' type="' . esc_attr($app_icon_mime) . '"' : ''; ?>>

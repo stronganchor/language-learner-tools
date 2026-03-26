@@ -28,11 +28,14 @@ if (is_string($print_image_size)) {
         $print_image_size = 'large';
     }
 }
+$viewport_content = function_exists('ll_tools_get_locked_viewport_content')
+    ? ll_tools_get_locked_viewport_content()
+    : 'width=device-width, initial-scale=1';
 ?><!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="<?php echo esc_attr($viewport_content); ?>">
     <meta name="robots" content="noindex,nofollow">
     <title><?php echo esc_html($document_title); ?></title>
     <?php wp_head(); ?>

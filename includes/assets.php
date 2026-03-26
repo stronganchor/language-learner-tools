@@ -1,6 +1,10 @@
 <?php
 if (!defined('WPINC')) { die; }
 
+function ll_tools_get_locked_viewport_content(): string {
+    return 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+}
+
 function ll_enqueue_asset_by_timestamp($relative_path, $handle, $deps = [], $in_footer = false) {
     static $version_cache = [];
 
@@ -61,6 +65,7 @@ function ll_tools_enqueue_public_assets() {
     $enqueued = true;
 
     ll_tools_enqueue_custom_font_stylesheet();
+    ll_enqueue_asset_by_timestamp('/js/public-viewport-guard.js', 'll-tools-public-viewport-guard');
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
     if (function_exists('ll_tools_enqueue_login_window_assets')) {
