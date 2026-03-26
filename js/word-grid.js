@@ -522,11 +522,12 @@
 
                 const rowStyle = window.getComputedStyle(row);
                 const rowGap = parseGapValue(rowStyle.columnGap || rowStyle.gap || '0');
+                const rowPaddingX = parseGapValue(rowStyle.paddingLeft) + parseGapValue(rowStyle.paddingRight);
                 const textStyle = window.getComputedStyle(textWrap);
                 const textGap = parseGapValue(textStyle.columnGap || textStyle.gap || '0');
                 const btnEl = row.querySelector('.ll-study-recording-btn');
                 const btnWidth = btnEl ? btnEl.getBoundingClientRect().width : 0;
-                const availableTextWidth = Math.max(0, contentWidth - btnWidth - rowGap);
+                const availableTextWidth = Math.max(0, contentWidth - btnWidth - rowGap - rowPaddingX);
 
                 let mainWidth = 0;
                 if (mainText) {
@@ -554,7 +555,7 @@
                     lineWidth = Math.min(lineWidth, availableTextWidth);
                 }
 
-                let targetWidth = btnWidth + rowGap + lineWidth;
+                let targetWidth = btnWidth + rowGap + lineWidth + rowPaddingX;
                 if (contentWidth > 0) {
                     targetWidth = Math.min(contentWidth, targetWidth);
                 }
@@ -2151,6 +2152,105 @@
         }
     }
 
+    const recordingEditTriggerIconMarkup = '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">'
+        + '<path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '</svg>';
+
+    function syncRecordingRowEditTrigger($row) {
+        if (!$row || !$row.length) { return; }
+
+        const $button = $row.find('.ll-word-grid-recording-btn').first();
+        const recId = parseInt($row.attr('data-recording-id'), 10)
+            || parseInt($button.attr('data-recording-id'), 10)
+            || 0;
+        const editLabel = ($button.attr('data-ll-recording-edit-label') || '').toString();
+        let $trigger = $row.find('[data-ll-recording-edit-trigger]').first();
+
+        if (!recId || editLabel === '') {
+            $row.removeClass('ll-word-recording-row--editable is-edit-trigger-visible');
+            if ($trigger.length) {
+                $trigger.remove();
+            }
+            return;
+        }
+
+        $row.attr('data-recording-id', String(recId));
+        $row.addClass('ll-word-recording-row--editable');
+
+        if (!$trigger.length) {
+            $trigger = $('<button>', {
+                type: 'button',
+                class: 'll-word-recording-edit-trigger',
+                'data-ll-recording-edit-trigger': '1'
+            });
+            $trigger.append(recordingEditTriggerIconMarkup);
+            $row.append($trigger);
+        }
+
+        $trigger.attr({
+            'data-recording-id': String(recId),
+            'aria-label': editLabel,
+            title: editLabel
+        });
+    }
+
+    function clearVisibleRecordingRowEditTriggers($scope) {
+        const $context = ($scope && $scope.length) ? $scope : $grids;
+        $context.find('.ll-word-recording-row.is-edit-trigger-visible').removeClass('is-edit-trigger-visible');
+    }
+
+    function revealRecordingRowEditTrigger($row) {
+        if (!$row || !$row.length || !$row.hasClass('ll-word-recording-row--editable')) {
+            return;
+        }
+
+        clearVisibleRecordingRowEditTriggers($row.closest('.word-item'));
+        $row.addClass('is-edit-trigger-visible');
+    }
+
+    function openRecordingEditor($item, recordingId) {
+        if (!$item || !$item.length || $item.hasClass('ll-word-save-pending')) {
+            return;
+        }
+
+        const recId = parseInt(recordingId, 10) || 0;
+        if (!recId) {
+            return;
+        }
+
+        const $recording = $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]').first();
+        if (!$recording.length) {
+            return;
+        }
+
+        setWordSaveStatus($item, '', '');
+        setEditStatus($item, '');
+        setEditPanelOpen($item, true);
+        setRecordingsPanelOpen($item, true);
+        clearVisibleRecordingRowEditTriggers($item);
+
+        window.requestAnimationFrame(function () {
+            const recordingEl = $recording.get(0);
+            if (recordingEl && typeof recordingEl.scrollIntoView === 'function') {
+                recordingEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+
+            const $firstInput = $recording
+                .find('[data-ll-recording-input="text"], [data-ll-recording-input="translation"], [data-ll-recording-input="ipa"], input, textarea, select')
+                .filter(':enabled:visible')
+                .first();
+
+            if ($firstInput.length) {
+                $firstInput.trigger('focus');
+                const inputEl = $firstInput.get(0);
+                if (inputEl && typeof inputEl.select === 'function' && ($firstInput.is('input[type="text"]') || $firstInput.is('textarea'))) {
+                    inputEl.select();
+                }
+            }
+        });
+    }
+
     const ipaAllowedChar = /[a-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
     const ipaPostModifier = /[\u02B0-\u02B8\u02D0\u02D1\u02E0-\u02E4\u1D2C-\u1D6A\u1D9B-\u1DBF\u2070-\u209F\u{10784}]/u;
@@ -3382,32 +3482,28 @@
         });
 
         const $buttons = $wrap.find('.ll-word-grid-recording-btn');
-        if (hasCaption) {
-            if (!$wrap.hasClass('ll-word-recordings--with-text')) {
-                $wrap.empty().addClass('ll-word-recordings--with-text');
-                $buttons.each(function () {
-                    const $btn = $(this);
-                    const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
-                    const caption = recId ? (captionMap[recId] || null) : null;
-                    const $row = $('<div>', { class: 'll-word-recording-row' });
-                    if (recId) {
-                        $row.attr('data-recording-id', recId);
-                    }
-                    $row.append($btn);
-                    renderRecordingCaption($row, caption);
-                    $wrap.append($row);
-                });
-            } else {
-                $wrap.find('.ll-word-recording-row').each(function () {
-                    const $row = $(this);
-                    const recId = parseInt($row.attr('data-recording-id'), 10)
-                        || parseInt($row.find('.ll-word-grid-recording-btn').attr('data-recording-id'), 10)
-                        || 0;
-                    if (!recId) { return; }
-                    const caption = captionMap[recId] || null;
-                    renderRecordingCaption($row, caption);
-                });
-            }
+        const keepRowLayout = $buttons.filter(function () {
+            return (($(this).attr('data-ll-recording-edit-label') || '').toString() !== '');
+        }).length > 0;
+
+        if (hasCaption || keepRowLayout) {
+            $wrap
+                .toggleClass('ll-word-recordings--with-text', hasCaption)
+                .empty();
+
+            $buttons.each(function () {
+                const $btn = $(this);
+                const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
+                const caption = recId ? (captionMap[recId] || null) : null;
+                const $row = $('<div>', { class: 'll-word-recording-row' });
+                if (recId) {
+                    $row.attr('data-recording-id', recId);
+                }
+                $row.append($btn);
+                renderRecordingCaption($row, caption);
+                syncRecordingRowEditTrigger($row);
+                $wrap.append($row);
+            });
         } else if ($wrap.hasClass('ll-word-recordings--with-text')) {
             $wrap.removeClass('ll-word-recordings--with-text').empty();
             $buttons.each(function () {
@@ -4835,6 +4931,39 @@
             if (!$panel.length) { return; }
             const isOpen = $panel.attr('aria-hidden') === 'false';
             setRecordingsPanelOpen($item, !isOpen);
+        });
+
+        $grids.on('click', '.ll-word-recording-row', function (e) {
+            const $row = $(this);
+            if (!$row.hasClass('ll-word-recording-row--editable')) {
+                return;
+            }
+            if ($(e.target).closest('[data-ll-recording-edit-trigger]').length) {
+                return;
+            }
+            if ($(e.target).closest('.ll-study-recording-btn, .ll-word-recording-text').length) {
+                revealRecordingRowEditTrigger($row);
+            }
+        });
+
+        $grids.on('click', '[data-ll-recording-edit-trigger]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $row = $(this).closest('.ll-word-recording-row');
+            const $item = $row.closest('.word-item');
+            const recId = parseInt($(this).attr('data-recording-id'), 10)
+                || parseInt($row.attr('data-recording-id'), 10)
+                || 0;
+
+            openRecordingEditor($item, recId);
+        });
+
+        $(document).on('click.llWordGridRecordingEdit', function (event) {
+            if ($(event.target).closest('.ll-word-recording-row--editable, .ll-word-edit-panel').length) {
+                return;
+            }
+            clearVisibleRecordingRowEditTriggers();
         });
 
         $grids.on('click', '[data-ll-inline-word-trigger]', function (e) {

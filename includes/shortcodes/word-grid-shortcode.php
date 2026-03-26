@@ -3113,6 +3113,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $edit_labels = [
         'edit_word'   => __('Edit word', 'll-tools-text-domain'),
         'edit_field'  => __('Edit %s', 'll-tools-text-domain'),
+        'edit_recording' => __('Edit %s recording', 'll-tools-text-domain'),
         'word'        => ll_tools_word_grid_label_with_code(__('Word', 'll-tools-text-domain'), $target_lang_code),
         'translation' => ll_tools_word_grid_label_with_code(__('Translation', 'll-tools-text-domain'), $translation_lang_code),
         'add_word'    => __('Add word', 'll-tools-text-domain'),
@@ -3132,6 +3133,7 @@ function ll_tools_word_grid_shortcode($atts) {
     ];
     $show_stars = is_user_logged_in();
     $starred_ids = array_values(array_filter(array_map('intval', (array) ($user_study_state['starred_word_ids'] ?? []))));
+    $show_lesson_recording_edit_triggers = $can_edit_words && ll_tools_word_grid_is_lesson_context($context);
 
     // The Loop
     if ($query->have_posts()) {
@@ -3334,7 +3336,14 @@ function ll_tools_word_grid_shortcode($atts) {
                 if (!empty($entry['id'])) {
                     $recording_id_attr = ' data-recording-id="' . esc_attr((int) $entry['id']) . '"';
                 }
-                $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '">';
+                $recording_edit_label = ($show_lesson_recording_edit_triggers && !empty($entry['id']))
+                    ? sprintf($edit_labels['edit_recording'], $label)
+                    : '';
+                $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '"';
+                if ($recording_edit_label !== '') {
+                    $recording_button .= ' data-ll-recording-edit-label="' . esc_attr($recording_edit_label) . '"';
+                }
+                $recording_button .= '>';
                 $recording_button .= '<span class="ll-study-recording-icon" aria-hidden="true"></span>';
                 $recording_button .= '<span class="ll-study-recording-visualizer" aria-hidden="true">';
                 for ($i = 0; $i < 4; $i++) {
@@ -3348,6 +3357,7 @@ function ll_tools_word_grid_shortcode($atts) {
                     'translation' => $recording_translation,
                     'ipa' => $recording_ipa,
                     'id' => !empty($entry['id']) ? (int) $entry['id'] : 0,
+                    'edit_label' => $recording_edit_label,
                 ];
 
                 if ($can_edit_words && !empty($entry['id'])) {
@@ -3390,7 +3400,14 @@ function ll_tools_word_grid_shortcode($atts) {
                     if (!empty($entry['id'])) {
                         $recording_id_attr = ' data-recording-id="' . esc_attr((int) $entry['id']) . '"';
                     }
-                    $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '">';
+                    $recording_edit_label = ($show_lesson_recording_edit_triggers && !empty($entry['id']))
+                        ? sprintf($edit_labels['edit_recording'], $label)
+                        : '';
+                    $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '"';
+                    if ($recording_edit_label !== '') {
+                        $recording_button .= ' data-ll-recording-edit-label="' . esc_attr($recording_edit_label) . '"';
+                    }
+                    $recording_button .= '>';
                     $recording_button .= '<span class="ll-study-recording-icon" aria-hidden="true"></span>';
                     $recording_button .= '<span class="ll-study-recording-visualizer" aria-hidden="true">';
                     for ($i = 0; $i < 4; $i++) {
@@ -3404,6 +3421,7 @@ function ll_tools_word_grid_shortcode($atts) {
                         'translation' => $recording_translation,
                         'ipa' => $recording_ipa,
                         'id' => !empty($entry['id']) ? (int) $entry['id'] : 0,
+                        'edit_label' => $recording_edit_label,
                     ];
 
                     if ($can_edit_words && !empty($entry['id'])) {
@@ -3789,11 +3807,20 @@ function ll_tools_word_grid_shortcode($atts) {
 
             // Audio buttons
             if ($has_recordings) {
-                if ($has_recording_caption && !$hide_lesson_grid_text) {
-                    $recordings_html .= '<div class="ll-word-recordings ll-word-recordings--with-text" aria-label="' . esc_attr__('Recordings', 'll-tools-text-domain') . '">';
+                $use_recording_rows = ($has_recording_caption && !$hide_lesson_grid_text) || $show_lesson_recording_edit_triggers;
+                if ($use_recording_rows) {
+                    $recordings_wrap_classes = 'll-word-recordings';
+                    if ($has_recording_caption && !$hide_lesson_grid_text) {
+                        $recordings_wrap_classes .= ' ll-word-recordings--with-text';
+                    }
+                    $recordings_html .= '<div class="' . esc_attr($recordings_wrap_classes) . '" aria-label="' . esc_attr__('Recordings', 'll-tools-text-domain') . '">';
                     foreach ($recording_rows as $row) {
                         $row_id_attr = !empty($row['id']) ? ' data-recording-id="' . esc_attr((int) $row['id']) . '"' : '';
-                        $recordings_html .= '<div class="ll-word-recording-row"' . $row_id_attr . '>';
+                        $row_classes = 'll-word-recording-row';
+                        if ($show_lesson_recording_edit_triggers && !empty($row['id']) && !empty($row['edit_label'])) {
+                            $row_classes .= ' ll-word-recording-row--editable';
+                        }
+                        $recordings_html .= '<div class="' . esc_attr($row_classes) . '"' . $row_id_attr . '>';
                         $recordings_html .= $row['button'];
                         if (!empty($row['text']) || !empty($row['translation']) || !empty($row['ipa'])) {
                             $recordings_html .= '<span class="ll-word-recording-text">';
@@ -3807,6 +3834,11 @@ function ll_tools_word_grid_shortcode($atts) {
                                 $recordings_html .= '<span class="ll-word-recording-ipa ll-ipa">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa']) . '</span>';
                             }
                             $recordings_html .= '</span>';
+                        }
+                        if ($show_lesson_recording_edit_triggers && !empty($row['id']) && !empty($row['edit_label'])) {
+                            $recordings_html .= '<button type="button" class="ll-word-recording-edit-trigger" data-ll-recording-edit-trigger data-recording-id="' . esc_attr((int) $row['id']) . '" aria-label="' . esc_attr((string) $row['edit_label']) . '" title="' . esc_attr((string) $row['edit_label']) . '">';
+                            $recordings_html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                            $recordings_html .= '</button>';
                         }
                         $recordings_html .= '</div>';
                     }
