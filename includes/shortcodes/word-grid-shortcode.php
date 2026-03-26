@@ -2228,6 +2228,14 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'savingBackground' => __('Saving in background...', 'll-tools-text-domain'),
             'saved'  => __('Saved.', 'll-tools-text-domain'),
             'error'  => __('Unable to save changes.', 'll-tools-text-domain'),
+            'save' => __('Save', 'll-tools-text-domain'),
+            'cancel' => __('Cancel editing', 'll-tools-text-domain'),
+            'recordingText' => __('Recording text', 'll-tools-text-domain'),
+            'recordingTranslation' => __('Recording translation', 'll-tools-text-domain'),
+            'recordingIpa' => __('Recording IPA', 'll-tools-text-domain'),
+            'addRecordingText' => __('Add text', 'll-tools-text-domain'),
+            'addRecordingTranslation' => __('Add translation', 'll-tools-text-domain'),
+            'addRecordingIpa' => __('Add IPA', 'll-tools-text-domain'),
             'ipaCommon' => __('Common IPA symbols', 'll-tools-text-domain'),
             'ipaWordset' => __('Wordset IPA symbols', 'll-tools-text-domain'),
         ],
@@ -3339,7 +3347,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 $recording_edit_label = ($show_lesson_recording_edit_triggers && !empty($entry['id']))
                     ? sprintf($edit_labels['edit_recording'], $label)
                     : '';
-                $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '"';
+                $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '" data-ll-recording-label="' . esc_attr($label) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '"';
                 if ($recording_edit_label !== '') {
                     $recording_button .= ' data-ll-recording-edit-label="' . esc_attr($recording_edit_label) . '"';
                 }
@@ -3403,7 +3411,7 @@ function ll_tools_word_grid_shortcode($atts) {
                     $recording_edit_label = ($show_lesson_recording_edit_triggers && !empty($entry['id']))
                         ? sprintf($edit_labels['edit_recording'], $label)
                         : '';
-                    $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '"';
+                    $recording_button = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-study-recording-btn--' . esc_attr($type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($type) . '" data-ll-recording-label="' . esc_attr($label) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($play_label) . '" title="' . esc_attr($play_label) . '"';
                     if ($recording_edit_label !== '') {
                         $recording_button .= ' data-ll-recording-edit-label="' . esc_attr($recording_edit_label) . '"';
                     }
@@ -3836,8 +3844,10 @@ function ll_tools_word_grid_shortcode($atts) {
                             $recordings_html .= '</span>';
                         }
                         if ($show_lesson_recording_edit_triggers && !empty($row['id']) && !empty($row['edit_label'])) {
-                            $recordings_html .= '<button type="button" class="ll-word-recording-edit-trigger" data-ll-recording-edit-trigger data-recording-id="' . esc_attr((int) $row['id']) . '" aria-label="' . esc_attr((string) $row['edit_label']) . '" title="' . esc_attr((string) $row['edit_label']) . '">';
+                            $recordings_html .= '<button type="button" class="ll-word-inline-edit-trigger ll-word-recording-edit-trigger" data-ll-recording-edit-trigger data-recording-id="' . esc_attr((int) $row['id']) . '" aria-label="' . esc_attr((string) $row['edit_label']) . '" title="' . esc_attr((string) $row['edit_label']) . '">';
+                            $recordings_html .= '<span class="ll-word-inline-edit-icon" aria-hidden="true">';
                             $recordings_html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+                            $recordings_html .= '</span>';
                             $recordings_html .= '</button>';
                         }
                         $recordings_html .= '</div>';
@@ -4748,6 +4758,86 @@ function ll_tools_word_grid_update_word_handler() {
         'verb_mood' => [
             'value' => $verb_mood_value,
             'label' => $verb_mood_label,
+        ],
+    ]);
+}
+
+add_action('wp_ajax_ll_tools_word_grid_update_recording', 'll_tools_word_grid_update_recording_handler');
+function ll_tools_word_grid_update_recording_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error([
+            'message' => __('You must be logged in.', 'll-tools-text-domain'),
+        ], 401);
+    }
+
+    if (!ll_tools_user_can_edit_vocab_words()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to edit this recording.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $recording_id = (int) ($_POST['recording_id'] ?? 0);
+    if ($recording_id <= 0) {
+        wp_send_json_error([
+            'message' => __('Missing recording ID.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $recording_post = get_post($recording_id);
+    if (!$recording_post || $recording_post->post_type !== 'word_audio') {
+        wp_send_json_error([
+            'message' => __('Invalid recording ID.', 'll-tools-text-domain'),
+        ], 404);
+    }
+
+    $word_id = (int) $recording_post->post_parent;
+    if ($word_id <= 0 || get_post_type($word_id) !== 'words') {
+        wp_send_json_error([
+            'message' => __('Invalid parent word.', 'll-tools-text-domain'),
+        ], 404);
+    }
+
+    $requested_wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    if (!ll_tools_word_grid_user_can_manage_word($word_id, $requested_wordset_id)) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to edit this recording.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $recording_text = sanitize_text_field($_POST['recording_text'] ?? '');
+    $recording_text = trim($recording_text);
+    $recording_translation = sanitize_text_field($_POST['recording_translation'] ?? '');
+    $recording_translation = trim($recording_translation);
+    $recording_ipa = ll_tools_word_grid_sanitize_ipa((string) ($_POST['recording_ipa'] ?? ''));
+
+    if ($recording_text !== '') {
+        update_post_meta($recording_id, 'recording_text', $recording_text);
+    } else {
+        delete_post_meta($recording_id, 'recording_text');
+    }
+    if ($recording_translation !== '') {
+        update_post_meta($recording_id, 'recording_translation', $recording_translation);
+    } else {
+        delete_post_meta($recording_id, 'recording_translation');
+    }
+    if ($recording_ipa !== '') {
+        update_post_meta($recording_id, 'recording_ipa', $recording_ipa);
+    } else {
+        delete_post_meta($recording_id, 'recording_ipa');
+    }
+
+    ll_tools_word_grid_schedule_wordset_ipa_rebuild($word_id);
+    ll_tools_word_grid_bump_category_cache_for_words([$word_id]);
+
+    wp_send_json_success([
+        'recording' => [
+            'id' => $recording_id,
+            'word_id' => $word_id,
+            'recording_text' => $recording_text,
+            'recording_translation' => $recording_translation,
+            'recording_ipa' => ll_tools_word_grid_normalize_ipa_output($recording_ipa),
         ],
     ]);
 }
