@@ -3500,6 +3500,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesSummary' => __('Coins: %1$d · Prompts: %2$d', 'll-tools-text-domain'),
             'gamesReplayRun' => __('Replay', 'll-tools-text-domain'),
             'gamesBackToCatalog' => __('Back to games', 'll-tools-text-domain'),
+            'gamesCloseConfirm' => __('Leave this game? Your current run will be lost.', 'll-tools-text-domain'),
             'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
             'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
             'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),

@@ -19,6 +19,14 @@
     const BUBBLE_RELEASE_MAX_SPEED = 116;
     const BUBBLE_CORRECT_RELEASE_MAX_SPEED = 1040;
     const BUBBLE_DECORATIVE_MAX_SPEED = 52;
+    const gameInteractionGuard = {
+        active: false,
+        historyActive: false,
+        historyToken: 0,
+        suppressNextPopstate: false,
+        suppressResetTimer: null,
+        pinchDistance: 0
+    };
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
@@ -87,6 +95,33 @@
     function normalizeGameSlug(value) {
         const slug = normalizeRecordingType(value);
         return slug || DEFAULT_GAME_SLUG;
+    }
+
+    function isEditableEventTarget(target) {
+        if (!target || typeof target.closest !== 'function') {
+            return false;
+        }
+
+        if (target.isContentEditable) {
+            return true;
+        }
+
+        const contentEditable = target.closest('[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], textarea');
+        if (contentEditable) {
+            return true;
+        }
+
+        const input = target.closest('input');
+        if (!input) {
+            return false;
+        }
+
+        if (input.disabled || input.readOnly) {
+            return false;
+        }
+
+        const type = String(input.type || 'text').toLowerCase();
+        return ['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image', 'hidden'].indexOf(type) === -1;
     }
 
     function uniqueStringList(values) {
@@ -2737,8 +2772,171 @@
         }
     }
 
+    function setGameGuardPageClass(enabled) {
+        if (!root.document) {
+            return;
+        }
+
+        const method = enabled ? 'add' : 'remove';
+        const html = root.document.documentElement;
+        const body = root.document.body;
+
+        if (html && html.classList) {
+            html.classList[method]('ll-tools-wordset-game-guard-active');
+        }
+        if (body && body.classList) {
+            body.classList[method]('ll-tools-wordset-game-guard-active');
+        }
+    }
+
+    function clearGamePopstateSuppression() {
+        if (gameInteractionGuard.suppressResetTimer) {
+            root.clearTimeout(gameInteractionGuard.suppressResetTimer);
+            gameInteractionGuard.suppressResetTimer = null;
+        }
+        gameInteractionGuard.suppressNextPopstate = false;
+    }
+
+    function scheduleGamePopstateSuppressionReset() {
+        if (gameInteractionGuard.suppressResetTimer) {
+            root.clearTimeout(gameInteractionGuard.suppressResetTimer);
+        }
+        gameInteractionGuard.suppressResetTimer = root.setTimeout(function () {
+            gameInteractionGuard.suppressResetTimer = null;
+            gameInteractionGuard.suppressNextPopstate = false;
+        }, 600);
+    }
+
+    function getGameCloseConfirmMessage(ctx) {
+        return String((ctx && ctx.i18n && ctx.i18n.gamesCloseConfirm) || 'Leave this game? Your current run will be lost.');
+    }
+
+    function pushGameHistoryState() {
+        if (!root.history || typeof root.history.pushState !== 'function') {
+            return false;
+        }
+
+        gameInteractionGuard.historyToken += 1;
+
+        try {
+            const currentState = (root.history.state && typeof root.history.state === 'object')
+                ? Object.assign({}, root.history.state)
+                : {};
+            currentState.llWordsetGameGuard = gameInteractionGuard.historyToken;
+            root.history.pushState(currentState, root.document ? root.document.title : '', root.location.href);
+            gameInteractionGuard.historyActive = true;
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function consumeGameHistoryState() {
+        if (!gameInteractionGuard.historyActive || !root.history || typeof root.history.back !== 'function') {
+            gameInteractionGuard.historyActive = false;
+            clearGamePopstateSuppression();
+            return false;
+        }
+
+        gameInteractionGuard.historyActive = false;
+        gameInteractionGuard.suppressNextPopstate = true;
+        scheduleGamePopstateSuppressionReset();
+
+        try {
+            root.history.back();
+            return true;
+        } catch (_) {
+            clearGamePopstateSuppression();
+            return false;
+        }
+    }
+
+    function getGameGuardViewportScale() {
+        if (root.visualViewport && typeof root.visualViewport.scale === 'number' && isFinite(root.visualViewport.scale) && root.visualViewport.scale > 0) {
+            return root.visualViewport.scale;
+        }
+
+        return 1;
+    }
+
+    function gameGuardViewportIsZoomed() {
+        return getGameGuardViewportScale() > 1.01;
+    }
+
+    function getGameGuardTouchDistance(touches) {
+        if (!touches || touches.length < 2) {
+            return 0;
+        }
+
+        const first = touches[0];
+        const second = touches[1];
+        const dx = (Number(second.clientX) || 0) - (Number(first.clientX) || 0);
+        const dy = (Number(second.clientY) || 0) - (Number(first.clientY) || 0);
+        return Math.sqrt((dx * dx) + (dy * dy));
+    }
+
+    function resetGameGuardPinchDistance() {
+        gameInteractionGuard.pinchDistance = 0;
+    }
+
     function isRunModalVisible(ctx) {
         return !!(ctx && ctx.$runModal && ctx.$runModal.length && !ctx.$runModal.prop('hidden'));
+    }
+
+    function isGameGuardActive(ctx) {
+        return !!gameInteractionGuard.active && isRunModalVisible(ctx);
+    }
+
+    function activateGameInteractionGuard() {
+        if (gameInteractionGuard.active) {
+            return;
+        }
+
+        gameInteractionGuard.active = true;
+        setGameGuardPageClass(true);
+        if (!gameInteractionGuard.historyActive) {
+            pushGameHistoryState();
+        }
+    }
+
+    function deactivateGameInteractionGuard(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+
+        gameInteractionGuard.active = false;
+        resetGameGuardPinchDistance();
+        setGameGuardPageClass(false);
+
+        if (opts.historyAlreadyHandled) {
+            gameInteractionGuard.historyActive = false;
+            clearGamePopstateSuppression();
+            return;
+        }
+
+        consumeGameHistoryState();
+    }
+
+    function confirmAndCloseGameFromGuard(ctx, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        let shouldClose = true;
+
+        try {
+            shouldClose = root.confirm(getGameCloseConfirmMessage(ctx));
+        } catch (_) {
+            shouldClose = true;
+        }
+
+        if (shouldClose) {
+            showCatalog(ctx, {
+                historyAlreadyHandled: !!opts.historyAlreadyHandled
+            });
+            return true;
+        }
+
+        if (opts.rearmHistory) {
+            pushGameHistoryState();
+        }
+
+        return false;
     }
 
     function toggleRunModalPageLock(isLocked) {
@@ -2851,13 +3049,19 @@
         }
     }
 
-    function resetGamesSurface(ctx) {
+    function resetGamesSurface(ctx, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         stopRun(ctx, { flush: true });
         hideOverlay(ctx);
         ctx.activeGameSlug = '';
         updateStageGameUi(ctx, '');
         ctx.$stage.prop('hidden', true);
-        setRunModalOpen(ctx, false);
+        if (!opts.keepModalOpen) {
+            setRunModalOpen(ctx, false);
+            deactivateGameInteractionGuard({
+                historyAlreadyHandled: !!opts.historyAlreadyHandled
+            });
+        }
     }
 
     function setControlState(ctx, control, isActive) {
@@ -4144,8 +4348,8 @@
         updatePauseUi(ctx);
     }
 
-    function showCatalog(ctx) {
-        resetGamesSurface(ctx);
+    function showCatalog(ctx, options) {
+        resetGamesSurface(ctx, options);
         syncCanvasSize(ctx);
     }
 
@@ -4155,11 +4359,15 @@
         if (!gameConfig) {
             return;
         }
-        resetGamesSurface(ctx);
+        const keepModalOpen = isRunModalVisible(ctx);
+        resetGamesSurface(ctx, {
+            keepModalOpen: keepModalOpen
+        });
         ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
         setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
@@ -4282,6 +4490,22 @@
                 flushProgress(ctx);
             }
         };
+        ctx.onPopState = function () {
+            if (gameInteractionGuard.suppressNextPopstate) {
+                clearGamePopstateSuppression();
+                return;
+            }
+
+            if (!isGameGuardActive(ctx)) {
+                gameInteractionGuard.historyActive = false;
+                return;
+            }
+
+            confirmAndCloseGameFromGuard(ctx, {
+                historyAlreadyHandled: true,
+                rearmHistory: true
+            });
+        };
         ctx.onPageHide = function () {
             flushProgress(ctx);
         };
@@ -4289,6 +4513,17 @@
             syncCanvasSize(ctx);
         };
         ctx.onKeyDown = function (event) {
+            if (matchesKey(event, ['backspace'], ['backspace']) && isGameGuardActive(ctx) && !event.defaultPrevented) {
+                if (isEditableEventTarget(event.target)) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                confirmAndCloseGameFromGuard(ctx);
+                return;
+            }
+
             if (matchesKey(event, ['escape'], ['escape']) && isRunModalVisible(ctx)) {
                 event.preventDefault();
                 showCatalog(ctx);
@@ -4329,11 +4564,88 @@
                 setControlState(ctx, 'fire', false);
             }
         };
+        ctx.onWheel = function (event) {
+            if (!isGameGuardActive(ctx) || !event.ctrlKey) {
+                return;
+            }
+
+            event.preventDefault();
+        };
+        ctx.onTouchStart = function (event) {
+            if (!isGameGuardActive(ctx) || !event.touches || event.touches.length < 2) {
+                resetGameGuardPinchDistance();
+                return;
+            }
+
+            gameInteractionGuard.pinchDistance = getGameGuardTouchDistance(event.touches);
+            if (!gameGuardViewportIsZoomed()) {
+                event.preventDefault();
+            }
+        };
+        ctx.onTouchMove = function (event) {
+            if (!isGameGuardActive(ctx) || !event.touches || event.touches.length < 2) {
+                resetGameGuardPinchDistance();
+                return;
+            }
+
+            const currentDistance = getGameGuardTouchDistance(event.touches);
+            const previousDistance = gameInteractionGuard.pinchDistance;
+            gameInteractionGuard.pinchDistance = currentDistance;
+
+            if (!gameGuardViewportIsZoomed()) {
+                event.preventDefault();
+                return;
+            }
+
+            if (previousDistance > 0 && currentDistance > (previousDistance + 4)) {
+                event.preventDefault();
+            }
+        };
+        ctx.onTouchEnd = function (event) {
+            if (!isGameGuardActive(ctx) || !event.touches || event.touches.length < 2) {
+                resetGameGuardPinchDistance();
+                return;
+            }
+
+            gameInteractionGuard.pinchDistance = getGameGuardTouchDistance(event.touches);
+        };
+        ctx.onGesture = function (event) {
+            if (!isGameGuardActive(ctx)) {
+                return;
+            }
+
+            if (!gameGuardViewportIsZoomed()) {
+                event.preventDefault();
+                return;
+            }
+
+            if (event.type === 'gesturechange' && typeof event.scale === 'number' && isFinite(event.scale) && event.scale >= 1) {
+                event.preventDefault();
+            }
+        };
+        ctx.onDoubleClick = function (event) {
+            const target = event && event.target;
+            if (!isGameGuardActive(ctx) || !target || typeof target.closest !== 'function' || !target.closest('[data-ll-wordset-game-run-modal]')) {
+                return;
+            }
+
+            event.preventDefault();
+        };
 
         if (root.document && root.document.addEventListener) {
             root.document.addEventListener('visibilitychange', ctx.onVisibilityChange);
+            root.document.addEventListener('wheel', ctx.onWheel, { passive: false, capture: true });
+            root.document.addEventListener('touchstart', ctx.onTouchStart, { passive: false, capture: true });
+            root.document.addEventListener('touchmove', ctx.onTouchMove, { passive: false, capture: true });
+            root.document.addEventListener('touchend', ctx.onTouchEnd, true);
+            root.document.addEventListener('touchcancel', ctx.onTouchEnd, true);
+            root.document.addEventListener('gesturestart', ctx.onGesture, true);
+            root.document.addEventListener('gesturechange', ctx.onGesture, true);
+            root.document.addEventListener('gestureend', ctx.onGesture, true);
+            root.document.addEventListener('dblclick', ctx.onDoubleClick, true);
         }
         if (root.addEventListener) {
+            root.addEventListener('popstate', ctx.onPopState);
             root.addEventListener('pagehide', ctx.onPageHide);
             root.addEventListener('resize', ctx.onResize);
             root.addEventListener('keydown', ctx.onKeyDown);
@@ -4348,8 +4660,32 @@
         }
         if (root.document && root.document.removeEventListener && ctx.onVisibilityChange) {
             root.document.removeEventListener('visibilitychange', ctx.onVisibilityChange);
+            if (ctx.onWheel) {
+                root.document.removeEventListener('wheel', ctx.onWheel, true);
+            }
+            if (ctx.onTouchStart) {
+                root.document.removeEventListener('touchstart', ctx.onTouchStart, true);
+            }
+            if (ctx.onTouchMove) {
+                root.document.removeEventListener('touchmove', ctx.onTouchMove, true);
+            }
+            if (ctx.onTouchEnd) {
+                root.document.removeEventListener('touchend', ctx.onTouchEnd, true);
+                root.document.removeEventListener('touchcancel', ctx.onTouchEnd, true);
+            }
+            if (ctx.onGesture) {
+                root.document.removeEventListener('gesturestart', ctx.onGesture, true);
+                root.document.removeEventListener('gesturechange', ctx.onGesture, true);
+                root.document.removeEventListener('gestureend', ctx.onGesture, true);
+            }
+            if (ctx.onDoubleClick) {
+                root.document.removeEventListener('dblclick', ctx.onDoubleClick, true);
+            }
         }
         if (root.removeEventListener) {
+            if (ctx.onPopState) {
+                root.removeEventListener('popstate', ctx.onPopState);
+            }
             if (ctx.onPageHide) {
                 root.removeEventListener('pagehide', ctx.onPageHide);
             }
@@ -4708,7 +5044,7 @@
         }
 
         if (api.__ctx) {
-            stopRun(api.__ctx, { flush: true });
+            resetGamesSurface(api.__ctx);
             unbindLifecycle(api.__ctx);
         }
 
@@ -4722,6 +5058,7 @@
         bindLifecycle(ctx);
         bindDom(ctx);
         toggleRunModalPageLock(false);
+        setGameGuardPageClass(false);
         syncCanvasSize(ctx);
         updateStageGameUi(ctx, '');
         renderAllCatalogCards(ctx, null, !!ctx.isLoggedIn);

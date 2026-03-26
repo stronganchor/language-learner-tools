@@ -595,6 +595,7 @@ function buildGamesConfig(isLoggedIn) {
       gamesSummary: 'Coins: %1$d · Prompts: %2$d',
       gamesReplayRun: 'Replay',
       gamesBackToCatalog: 'Back to games',
+      gamesCloseConfirm: 'Leave this game? Your current run will be lost.',
       gamesBoardLabelDefault: 'Wordset game board',
       gamesBoardLabelSpaceShooter: 'Space Shooter game board',
       gamesBoardLabelBubblePop: 'Bubble Pop game board'
@@ -1013,6 +1014,84 @@ test('play opens a fullscreen game popup without page chrome', async ({ page }) 
   expect(modalState.stageWidth).toBeLessThanOrEqual(modalState.width);
 
   await closeRunPopup(page);
+});
+
+test('game popup blocks pinch-style zoom and confirms before backspace or browser-back close', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  const modal = page.locator('[data-ll-wordset-game-run-modal]');
+  await expect(modal).toBeVisible();
+
+  const guardState = await page.evaluate(() => {
+    const dispatchTouch = (type, points) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'touches', {
+        configurable: true,
+        value: points.map(([clientX, clientY]) => ({ clientX, clientY }))
+      });
+      document.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      ctrlKey: true,
+      deltaY: 120
+    });
+    document.dispatchEvent(wheelEvent);
+
+    return {
+      pinchStartBlocked: dispatchTouch('touchstart', [[0, 0], [100, 0]]),
+      pinchGrowBlocked: dispatchTouch('touchmove', [[0, 0], [120, 0]]),
+      ctrlWheelBlocked: wheelEvent.defaultPrevented,
+      htmlGuard: document.documentElement.classList.contains('ll-tools-wordset-game-guard-active'),
+      bodyGuard: document.body.classList.contains('ll-tools-wordset-game-guard-active')
+    };
+  });
+
+  expect(guardState.pinchStartBlocked).toBe(true);
+  expect(guardState.pinchGrowBlocked).toBe(true);
+  expect(guardState.ctrlWheelBlocked).toBe(true);
+  expect(guardState.htmlGuard).toBe(true);
+  expect(guardState.bodyGuard).toBe(true);
+
+  const cancelDialogPromise = page.waitForEvent('dialog');
+  await page.evaluate(() => {
+    window.setTimeout(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true
+      }));
+    }, 0);
+  });
+  const cancelDialog = await cancelDialogPromise;
+  expect(cancelDialog.message()).toContain('Leave this game?');
+  await cancelDialog.dismiss();
+
+  await expect(modal).toBeVisible();
+  await expect(page.locator('body')).toHaveClass(/ll-wordset-game-run-modal-open/);
+  await expect(page.locator('body')).toHaveClass(/ll-tools-wordset-game-guard-active/);
+
+  const acceptDialogPromise = page.waitForEvent('dialog');
+  await page.evaluate(() => {
+    window.setTimeout(() => window.history.back(), 0);
+  });
+  const acceptDialog = await acceptDialogPromise;
+  expect(acceptDialog.message()).toContain('Leave this game?');
+  await acceptDialog.accept();
+
+  await expect(modal).toBeHidden({ timeout: 30000 });
+  await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden({ timeout: 30000 });
+  await expect(page.locator('body')).not.toHaveClass(/ll-wordset-game-run-modal-open/);
+  await expect(page.locator('body')).not.toHaveClass(/ll-tools-wordset-game-guard-active/);
 });
 
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {

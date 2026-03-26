@@ -3,6 +3,22 @@ body.ll-wordset-game-run-modal-open {
     overflow: hidden;
 }
 
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-run-modal,
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-run-modal *,
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage,
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-run-modal,
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-run-modal__dialog,
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage,
+body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
+    overscroll-behavior: contain;
+}
+
 .ll-wordset-game-run-modal {
     --ll-wordset-game-run-pad: clamp(16px, 2.8vw, 28px);
     position: fixed;
