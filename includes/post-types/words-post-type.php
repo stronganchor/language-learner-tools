@@ -1007,13 +1007,112 @@ function ll_make_words_columns_sortable($columns) {
     return $columns;
 }
 
+/**
+ * Value used by the words admin list filter for words with no quizzable category.
+ */
+function ll_tools_get_words_no_quizzable_category_filter_value(): string {
+    return 'no_quizzable';
+}
+
+/**
+ * Return the post statuses shown on the default admin "All" view for words.
+ *
+ * @return string[]
+ */
+function ll_tools_get_words_admin_list_statuses(): array {
+    $statuses = get_post_stati(['show_in_admin_all_list' => true], 'names');
+    if (!is_array($statuses) || empty($statuses)) {
+        return ['publish', 'future', 'draft', 'pending', 'private'];
+    }
+
+    $statuses = array_values(array_filter(array_map('sanitize_key', $statuses), static function (string $status): bool {
+        return $status !== '';
+    }));
+
+    return !empty($statuses) ? $statuses : ['publish', 'future', 'draft', 'pending', 'private'];
+}
+
+/**
+ * Build the taxonomy clause that keeps only words outside all currently quizzable categories.
+ *
+ * @return array<string,mixed>|null
+ */
+function ll_tools_get_words_without_quizzable_categories_tax_clause(): ?array {
+    if (!function_exists('ll_tools_get_quizzable_category_ids')) {
+        return null;
+    }
+
+    $quizzable_category_ids = ll_tools_get_quizzable_category_ids([]);
+    if (empty($quizzable_category_ids)) {
+        return null;
+    }
+
+    return [
+        'taxonomy' => 'word-category',
+        'field'    => 'term_id',
+        'terms'    => array_map('intval', $quizzable_category_ids),
+        'operator' => 'NOT IN',
+    ];
+}
+
+/**
+ * Build query args for words that are not assigned to any currently quizzable category.
+ *
+ * @param array<string,mixed> $overrides
+ * @return array<string,mixed>
+ */
+function ll_tools_get_words_without_quizzable_categories_query_args(array $overrides = []): array {
+    $args = [
+        'post_type'      => 'words',
+        'post_status'    => ll_tools_get_words_admin_list_statuses(),
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => false,
+        'suppress_filters' => true,
+    ];
+
+    $tax_clause = ll_tools_get_words_without_quizzable_categories_tax_clause();
+    if (is_array($tax_clause) && !empty($tax_clause)) {
+        $args['tax_query'] = [$tax_clause];
+    }
+
+    return array_merge($args, $overrides);
+}
+
+/**
+ * Count words that are not assigned to any currently quizzable category.
+ */
+function ll_tools_get_words_without_quizzable_categories_count(): int {
+    $query = new WP_Query(ll_tools_get_words_without_quizzable_categories_query_args());
+    $count = (int) $query->found_posts;
+    wp_reset_postdata();
+
+    return max(0, $count);
+}
+
+/**
+ * Build the admin URL for the filtered words list showing words with no quizzable category.
+ *
+ * @param array<string,string|int> $args
+ */
+function ll_tools_get_words_without_quizzable_categories_admin_url(array $args = []): string {
+    $base_args = [
+        'post_type' => 'words',
+        'll_quiz_category_status' => ll_tools_get_words_no_quizzable_category_filter_value(),
+    ];
+
+    return add_query_arg(array_merge($base_args, $args), admin_url('edit.php'));
+}
+
 // Add dropdown filters for categories and featured image
 function ll_add_words_filters() {
     global $typenow;
     if ($typenow === 'words') {
         $selected_category = isset($_GET['word_category']) ? (string) $_GET['word_category'] : '';
+        $selected_quiz_category_status = isset($_GET['ll_quiz_category_status']) ? sanitize_key((string) $_GET['ll_quiz_category_status']) : '';
         $selected_image = isset($_GET['has_image']) ? $_GET['has_image'] : '';
         $uncategorized_value = 'll_uncategorized';
+        $no_quizzable_value = ll_tools_get_words_no_quizzable_category_filter_value();
 
         // Category filter with accurate counts
         echo '<select name="word_category">';
@@ -1027,6 +1126,17 @@ function ll_add_words_filters() {
             intval($uncategorized_count)
         );
         ll_render_category_dropdown_with_counts('word-category', 'words', $selected_category);
+        echo '</select>';
+
+        echo '<select name="ll_quiz_category_status">';
+        echo '<option value="">' . esc_html__('All Quiz Category Statuses', 'll-tools-text-domain') . '</option>';
+        printf(
+            '<option value="%s"%s>%s (%d)</option>',
+            esc_attr($no_quizzable_value),
+            selected($selected_quiz_category_status, $no_quizzable_value, false),
+            esc_html__('No Quizzable Category', 'll-tools-text-domain'),
+            ll_tools_get_words_without_quizzable_categories_count()
+        );
         echo '</select>';
 
         // Word set filter
@@ -1169,6 +1279,16 @@ function ll_apply_words_filters($query) {
             'field'    => 'slug',
             'terms'    => sanitize_text_field($_GET['wordset']),
         );
+    }
+
+    if (
+        !empty($_GET['ll_quiz_category_status'])
+        && sanitize_key((string) $_GET['ll_quiz_category_status']) === ll_tools_get_words_no_quizzable_category_filter_value()
+    ) {
+        $tax_clause = ll_tools_get_words_without_quizzable_categories_tax_clause();
+        if (is_array($tax_clause) && !empty($tax_clause)) {
+            $tax_query[] = $tax_clause;
+        }
     }
 
     if (!empty($tax_query)) {

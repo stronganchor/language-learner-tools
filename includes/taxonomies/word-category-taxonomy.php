@@ -3859,6 +3859,62 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
 }
 
 /**
+ * Return the category IDs that currently meet quiz-generation requirements.
+ *
+ * @param array|int $wordset_ids Optional wordset term IDs to scope counts.
+ * @param int $min_word_count Minimum number of words required to count as quizzable.
+ * @return int[]
+ */
+function ll_tools_get_quizzable_category_ids($wordset_ids = [], int $min_word_count = 0): array {
+    static $request_cache = [];
+
+    $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    sort($wordset_ids, SORT_NUMERIC);
+
+    if ($min_word_count <= 0) {
+        $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    }
+    if ($min_word_count < 1) {
+        $min_word_count = 1;
+    }
+
+    $request_cache_key = md5(wp_json_encode([
+        'wordset_ids' => $wordset_ids,
+        'min_word_count' => $min_word_count,
+        'schema' => 1,
+    ]));
+    if (array_key_exists($request_cache_key, $request_cache)) {
+        return $request_cache[$request_cache_key];
+    }
+
+    $terms = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'fields' => 'all',
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        $request_cache[$request_cache_key] = [];
+        return [];
+    }
+
+    $quizzable_ids = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
+            continue;
+        }
+
+        if (ll_can_category_generate_quiz($term, $min_word_count, $wordset_ids)) {
+            $quizzable_ids[] = (int) $term->term_id;
+        }
+    }
+
+    $request_cache[$request_cache_key] = $quizzable_ids;
+    return $quizzable_ids;
+}
+
+/**
  * SHARED BULK EDIT FUNCTIONS FOR WORD-CATEGORY TAXONOMY
  * Used by both 'words' and 'word_images' post types
  */

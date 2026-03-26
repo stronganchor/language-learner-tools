@@ -1131,7 +1131,7 @@ function ll_tools_get_audio_processing_queue_count(): int {
 /**
  * Build LL Tools maintenance task list for the global admin notice.
  *
- * @return array<int,array{key:string,url:string,screen_id:string,title:string,message:string}>
+ * @return array<int,array{key:string,url:string,screen_id:string,title:string,message:string,screen_query_args?:array<string,string>}>
  */
 function ll_tools_get_admin_maintenance_tasks(): array {
     $tasks = [];
@@ -1180,10 +1180,15 @@ function ll_tools_get_admin_maintenance_tasks(): array {
     }
 
     if (function_exists('ll_tools_webp_optimizer_get_queue') && function_exists('ll_tools_get_webp_optimizer_admin_url')) {
-        $webp_queue = ll_tools_webp_optimizer_get_queue([
-            'ids_only' => true,
-            'include_non_flagged' => false,
-        ]);
+        $webp_queue = [];
+        try {
+            $webp_queue = ll_tools_webp_optimizer_get_queue([
+                'ids_only' => true,
+                'include_non_flagged' => false,
+            ]);
+        } catch (Throwable $e) {
+            $webp_queue = [];
+        }
         $webp_queued_count = (int) (($webp_queue['summary']['queued_count'] ?? 0));
         if ($webp_queued_count > 0) {
             $tasks[] = [
@@ -1205,7 +1210,69 @@ function ll_tools_get_admin_maintenance_tasks(): array {
         }
     }
 
+    if (
+        function_exists('ll_tools_get_words_without_quizzable_categories_count')
+        && function_exists('ll_tools_get_words_without_quizzable_categories_admin_url')
+        && function_exists('ll_tools_get_words_no_quizzable_category_filter_value')
+    ) {
+        $missing_quizzable_category_count = ll_tools_get_words_without_quizzable_categories_count();
+        if ($missing_quizzable_category_count > 0) {
+            $tasks[] = [
+                'key' => 'words_without_quizzable_category',
+                'url' => ll_tools_get_words_without_quizzable_categories_admin_url(),
+                'screen_id' => 'edit-words',
+                'screen_query_args' => [
+                    'll_quiz_category_status' => ll_tools_get_words_no_quizzable_category_filter_value(),
+                ],
+                'title' => __('Words', 'll-tools-text-domain'),
+                'message' => sprintf(
+                    /* translators: %d: number of words */
+                    _n(
+                        '%d word is not in any quizzable category',
+                        '%d words are not in any quizzable category',
+                        $missing_quizzable_category_count,
+                        'll-tools-text-domain'
+                    ),
+                    $missing_quizzable_category_count
+                ),
+            ];
+        }
+    }
+
     return $tasks;
+}
+
+/**
+ * Determine whether the current admin screen already matches a maintenance task destination.
+ *
+ * @param array<string,mixed> $task
+ * @param WP_Screen|null $screen
+ */
+function ll_tools_is_current_admin_task_screen(array $task, $screen = null): bool {
+    if (!($screen instanceof WP_Screen) && function_exists('get_current_screen')) {
+        $screen = get_current_screen();
+    }
+    if (!($screen instanceof WP_Screen)) {
+        return false;
+    }
+
+    $task_screen_id = isset($task['screen_id']) ? (string) $task['screen_id'] : '';
+    if ($task_screen_id === '' || $task_screen_id !== (string) $screen->id) {
+        return false;
+    }
+
+    $required_query_args = isset($task['screen_query_args']) && is_array($task['screen_query_args'])
+        ? $task['screen_query_args']
+        : [];
+
+    foreach ($required_query_args as $key => $value) {
+        $actual = isset($_GET[$key]) ? sanitize_text_field(wp_unslash((string) $_GET[$key])) : '';
+        if ($actual !== (string) $value) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -1224,8 +1291,7 @@ function ll_audio_processor_admin_notice() {
     }
 
     $screen = function_exists('get_current_screen') ? get_current_screen() : null;
-    $current_screen_id = ($screen instanceof WP_Screen) ? (string) $screen->id : '';
-    if (count($tasks) === 1 && $current_screen_id !== '' && $current_screen_id === (string) ($tasks[0]['screen_id'] ?? '')) {
+    if (count($tasks) === 1 && ll_tools_is_current_admin_task_screen($tasks[0], $screen)) {
         return;
     }
 
