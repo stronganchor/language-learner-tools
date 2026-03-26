@@ -914,12 +914,6 @@
             .replace(/[^a-z0-9-]/g, '');
     }
 
-    function getNormalizedOptionText(word) {
-        if (!word || typeof word !== 'object') return '';
-        const val = (typeof word.label === 'string' && word.label !== '') ? word.label : word.title;
-        return normalizeTextForComparison(val);
-    }
-
     function getNormalizedWordTitle(word) {
         if (!word || typeof word !== 'object') return '';
         return normalizeTextForComparison(word.title);
@@ -962,6 +956,112 @@
         }
 
         return '';
+    }
+
+    function getRecordingTranslationForType(word, recordingType) {
+        const typeKey = normalizeRecordingTypeKey(recordingType);
+        if (!word || typeof word !== 'object' || !typeKey) {
+            return '';
+        }
+
+        if (Util && typeof Util.getRecordingTranslationForType === 'function') {
+            return String(Util.getRecordingTranslationForType(word, typeKey) || '').trim();
+        }
+
+        const translationMap = (word.recording_translations_by_type && typeof word.recording_translations_by_type === 'object')
+            ? word.recording_translations_by_type
+            : null;
+        if (translationMap) {
+            const mapKeys = Object.keys(translationMap);
+            for (let i = 0; i < mapKeys.length; i += 1) {
+                if (normalizeRecordingTypeKey(mapKeys[i]) !== typeKey) {
+                    continue;
+                }
+                const mappedValue = String(translationMap[mapKeys[i]] || '').trim();
+                if (mappedValue) {
+                    return mappedValue;
+                }
+            }
+        }
+
+        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
+        for (let i = 0; i < audioFiles.length; i += 1) {
+            const entry = audioFiles[i] || {};
+            if (normalizeRecordingTypeKey(entry.recording_type) !== typeKey) {
+                continue;
+            }
+            const translatedValue = String(entry.recording_translation || '').trim();
+            if (translatedValue) {
+                return translatedValue;
+            }
+        }
+
+        return '';
+    }
+
+    function getOptionLabelText(word, optionType, promptType, promptRecordingType) {
+        if (!word || typeof word !== 'object') {
+            return '';
+        }
+
+        if (Util && typeof Util.getEffectiveOptionLabel === 'function') {
+            return String(Util.getEffectiveOptionLabel(word, optionType, promptType, {
+                promptRecordingType: promptRecordingType
+            }) || '').trim();
+        }
+
+        const normalizedOptionType = String(optionType || '').trim().toLowerCase();
+        const activeRecordingType = normalizeRecordingTypeKey(
+            promptRecordingType
+                || word.__activeOptionRecordingType
+                || word.__promptRecordingType
+                || word.__practiceRecordingType
+        );
+        if (
+            promptTypeHasAudio(promptType)
+            && (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio')
+            && activeRecordingType
+        ) {
+            const recordingTranslation = getRecordingTranslationForType(word, activeRecordingType);
+            if (recordingTranslation) {
+                return recordingTranslation;
+            }
+        }
+
+        const label = String(word.label || '').trim();
+        if (label) {
+            return label;
+        }
+
+        if (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio') {
+            const translation = String(word.translation || '').trim();
+            if (translation) {
+                return translation;
+            }
+        }
+
+        return String(word.title || '').trim();
+    }
+
+    function getNormalizedOptionText(word, optionType, promptType, promptRecordingType) {
+        return normalizeTextForComparison(getOptionLabelText(word, optionType, promptType, promptRecordingType));
+    }
+
+    function prepareWordForOptionRendering(word, optionType, promptType, promptRecordingType) {
+        if (!word || typeof word !== 'object') {
+            return word;
+        }
+
+        word.__activeOptionRecordingType = promptRecordingType || '';
+
+        const labelText = getOptionLabelText(word, optionType, promptType, promptRecordingType);
+        if (labelText) {
+            word.__resolvedOptionLabel = labelText;
+        } else if (Object.prototype.hasOwnProperty.call(word, '__resolvedOptionLabel')) {
+            delete word.__resolvedOptionLabel;
+        }
+
+        return word;
     }
 
     function getPromptRecordingTypeBlockedIds(word, recordingType) {
@@ -2120,11 +2220,12 @@
         }
 
         // Add target word first
+        prepareWordForOptionRendering(targetWord, mode, promptType, activePromptRecordingType);
         queueWordPreload(targetWord);
         chosen.push(targetWord);
         root.LLFlashcards.Cards.appendWordToContainer(targetWord, mode, promptType);
         if (isTextOptionMode && targetWord) {
-            seenOptionTexts.add(getNormalizedOptionText(targetWord));
+            seenOptionTexts.add(getNormalizedOptionText(targetWord, mode, promptType, activePromptRecordingType));
         }
 
         // Determine how many options to show
@@ -2168,7 +2269,7 @@
                 if (isSim) return false;
             }
 
-            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
+            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate, mode, promptType, activePromptRecordingType) : '';
             if (isTextOptionMode && enforceTextUniqueness && seenOptionTexts.has(normalizedText)) {
                 return false;
             }
@@ -2186,6 +2287,7 @@
             if (isTextOptionMode) {
                 seenOptionTexts.add(normalizedText);
             }
+            prepareWordForOptionRendering(candidate, mode, promptType, activePromptRecordingType);
             queueWordPreload(candidate);
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;

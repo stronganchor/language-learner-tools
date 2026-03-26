@@ -351,10 +351,21 @@
         return $c;
     }
 
-    function createTextCard(word) {
+    function resolveCardLabelText(word, optionType, promptType) {
+        const resolvedLabel = String((word && word.__resolvedOptionLabel) || '').trim();
+        if (resolvedLabel) {
+            return resolvedLabel;
+        }
+        if (Util && typeof Util.getEffectiveOptionLabel === 'function') {
+            return Util.getEffectiveOptionLabel(word, optionType, promptType);
+        }
+        return word.label || word.title || '';
+    }
+
+    function createTextCard(word, optionType, promptType) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
         const $c = $('<div>', { class: `flashcard-container text-based ll-answer-option-text-card ${sizeClass}`, 'data-word': word.title, 'data-word-id': word.id });
-        const labelText = word.label || word.title || '';
+        const labelText = resolveCardLabelText(word, optionType, promptType);
         const $label = $('<div>', { text: labelText, class: 'quiz-text', dir: 'auto' }).appendTo($c);
         applyAnswerOptionTextStyle($label, labelText);
 
@@ -476,7 +487,7 @@
         }
 
         if (includeText) {
-            const labelText = word.label || word.title || '';
+            const labelText = resolveCardLabelText(word, includeText ? 'text_audio' : 'audio', promptType);
             const $label = $('<div>', { class: 'quiz-text ll-audio-option-label', text: labelText, dir: 'auto' }).appendTo($c);
             applyAnswerOptionTextStyle($label, labelText);
         } else {
@@ -505,7 +516,7 @@
                 ? createAudioCard(word, false, promptType)
                 : (mode === 'text_audio'
                     ? createAudioCard(word, true, promptType)
-                    : (isTextMode ? createTextCard(word) : createTextCard(word))));
+                    : (isTextMode ? createTextCard(word, mode, promptType) : createTextCard(word, mode, promptType))));
         if (ordered) {
             $('#ll-tools-flashcard').append($card);
         } else {

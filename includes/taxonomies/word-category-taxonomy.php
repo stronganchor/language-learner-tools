@@ -2586,7 +2586,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
         'term_slug'            => ($term && !is_wp_error($term)) ? (string) $term->slug : '',
-        'text_label_schema'    => 3,
+        'text_label_schema'    => 4,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
             : true,
@@ -3080,6 +3080,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $audio_files = [];
         $recording_texts_by_type = [];
         $recording_text_preferred = [];
+        $recording_translations_by_type = [];
+        $recording_translation_preferred = [];
         $practice_recording_types = [];
         $audio_posts = isset($audio_posts_by_word[$word_id]) && is_array($audio_posts_by_word[$word_id])
             ? $audio_posts_by_word[$word_id]
@@ -3092,6 +3094,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 $audio_url       = ll_tools_resolve_audio_file_url($audio_path);
                 $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
                 $recording_text  = trim((string) get_post_meta($audio_post->ID, 'recording_text', true));
+                $recording_translation = trim((string) get_post_meta($audio_post->ID, 'recording_translation', true));
                 $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
                 if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
                 $recording_types = is_wp_error($recording_types) ? [] : (array) $recording_types;
@@ -3115,6 +3118,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                         'recording_type' => $recording_type,
                         'speaker_user_id'=> $speaker_uid,
                         'recording_text' => $entry_text,
+                        'recording_translation' => $recording_translation,
                     ];
                     $practice_recording_types[$recording_type] = $recording_type;
 
@@ -3127,6 +3131,16 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                     if ($should_replace) {
                         $recording_texts_by_type[$recording_type] = $entry_text;
                         $recording_text_preferred[$recording_type] = $is_preferred_speaker ? 1 : 0;
+                    }
+
+                    $existing_translation = isset($recording_translations_by_type[$recording_type]) ? (string) $recording_translations_by_type[$recording_type] : '';
+                    $existing_translation_is_preferred = !empty($recording_translation_preferred[$recording_type]);
+                    $should_replace_translation = !array_key_exists($recording_type, $recording_translations_by_type)
+                        || ($existing_translation === '' && $recording_translation !== '')
+                        || (!$existing_translation_is_preferred && $is_preferred_speaker && $recording_translation !== '');
+                    if ($should_replace_translation) {
+                        $recording_translations_by_type[$recording_type] = $recording_translation;
+                        $recording_translation_preferred[$recording_type] = $is_preferred_speaker ? 1 : 0;
                     }
                 }
             }
@@ -3251,6 +3265,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'audio'           => $primary_audio,
             'audio_files'     => $audio_files,
             'recording_texts_by_type' => $recording_texts_by_type,
+            'recording_translations_by_type' => $recording_translations_by_type,
             'practice_recording_types' => $practice_recording_types,
             'preferred_speaker_user_id' => $preferred_speaker,
             'image'           => $image ?: '',
@@ -3279,6 +3294,21 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                     },
                     $word_data['specific_wrong_answer_texts']
                 ));
+            }
+
+            if (!empty($word_data['recording_translations_by_type']) && is_array($word_data['recording_translations_by_type'])) {
+                foreach ($word_data['recording_translations_by_type'] as $recording_type => $value) {
+                    $word_data['recording_translations_by_type'][$recording_type] = ll_tools_protect_maqqef_for_display((string) $value);
+                }
+            }
+
+            if (!empty($word_data['audio_files']) && is_array($word_data['audio_files'])) {
+                foreach ($word_data['audio_files'] as $audio_idx => $audio_file) {
+                    if (!is_array($audio_file) || !isset($audio_file['recording_translation'])) {
+                        continue;
+                    }
+                    $word_data['audio_files'][$audio_idx]['recording_translation'] = ll_tools_protect_maqqef_for_display((string) $audio_file['recording_translation']);
+                }
             }
         }
 

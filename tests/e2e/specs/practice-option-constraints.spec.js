@@ -90,7 +90,8 @@ async function mountSelectionHarness(page, options = {}) {
           const $card = window.jQuery('<div>', {
             class: 'flashcard-container',
             'data-word-id': String((word && word.id) || ''),
-            'data-word-image': String((word && word.image) || '')
+            'data-word-image': String((word && word.image) || ''),
+            'data-word-label': String((word && (word.__resolvedOptionLabel || word.label || word.title)) || '')
           });
           window.jQuery('#ll-tools-flashcard').append($card);
           return $card;
@@ -598,6 +599,66 @@ test('practice options exclude wrong answers with the same active recording-type
   }, targetWord);
 
   expect(pickedIds).toEqual([301, 303]);
+});
+
+test('audio-to-text options prefer active recording-type translations and de-dupe on the rendered label', async ({ page }) => {
+  const category = 'Recording translation labels';
+  const targetWord = {
+    id: 901,
+    title: 'Caminar',
+    label: 'Walk',
+    recording_translations_by_type: {
+      isolation: 'Walk now'
+    }
+  };
+  const duplicateRenderedLabel = {
+    id: 902,
+    title: 'Marchar',
+    label: 'March',
+    recording_translations_by_type: {
+      isolation: 'Walk now'
+    }
+  };
+  const distinctRenderedLabel = {
+    id: 903,
+    title: 'Correr',
+    label: 'Run',
+    recording_translations_by_type: {
+      isolation: 'Run now'
+    }
+  };
+  const fallbackLabel = {
+    id: 904,
+    title: 'Saltar',
+    label: 'Jump'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'text_translation' }],
+    targetCategoryName: category,
+    desiredCount: 4,
+    wordsByCategory: {
+      [category]: [targetWord]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, duplicateRenderedLabel, distinctRenderedLabel, fallbackLabel]
+    }
+  });
+
+  const picked = await page.evaluate((word) => {
+    const target = Object.assign({ __categoryName: 'Recording translation labels', __promptRecordingType: 'isolation' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container')).map((el) => ({
+      id: Number(el.getAttribute('data-word-id')) || 0,
+      label: String(el.getAttribute('data-word-label') || '')
+    }));
+  }, targetWord);
+
+  expect(picked).toEqual([
+    { id: 901, label: 'Walk now' },
+    { id: 903, label: 'Run now' },
+    { id: 904, label: 'Jump' }
+  ]);
 });
 
 test('practice options still allow words whose other recording types differ', async ({ page }) => {

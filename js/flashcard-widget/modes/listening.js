@@ -1448,7 +1448,11 @@
         const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
         const showAnswerText = (/^text/.test(String(optionType || '')));
         const shouldUseVisualizerText = (!optionHasAudio && promptIsImage && showAnswerText);
-        const answerLabel = target.label || target.title || '';
+        const answerLabel = (Util && typeof Util.getEffectiveOptionLabel === 'function')
+            ? Util.getEffectiveOptionLabel(target, optionType, promptType, {
+                promptRecordingType: target && (target.__promptRecordingType || target.__practiceRecordingType)
+            })
+            : (target.label || target.title || '');
         const placeholderAspect = hasImage ? getFallbackAspectRatio(true) : null;
         // Build a wrapper so placeholder and visualizer act as a single flex item
         let $stack = null;
@@ -1573,7 +1577,7 @@
                         });
                         $ph.prepend($img);
                     } else {
-                        renderTextIntoPlaceholder($ph, target.label || target.title || '');
+                        renderTextIntoPlaceholder($ph, answerLabel);
                         schedulePlaceholderMetrics($ph);
                     }
                 }
