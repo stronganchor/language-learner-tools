@@ -5193,7 +5193,11 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                         </div>
 
                         <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
-                            <div class="ll-wordset-game-stage__overlay-card">
+                            <div class="ll-wordset-game-stage__loading" data-ll-wordset-game-loading hidden role="status" aria-live="polite">
+                                <div class="ll-tools-loading-animation ll-wordset-game-stage__loading-animation" aria-hidden="true"></div>
+                                <span class="screen-reader-text" data-ll-wordset-game-loading-text><?php echo esc_html__('Preparing game...', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-wordset-game-stage__overlay-card" data-ll-wordset-game-overlay-card>
                                 <h2 data-ll-wordset-game-overlay-title></h2>
                                 <p data-ll-wordset-game-overlay-summary></p>
                                 <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay><?php echo esc_html__('Replay', 'll-tools-text-domain'); ?></button>

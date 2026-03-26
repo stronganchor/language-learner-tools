@@ -4178,6 +4178,7 @@
         const secondaryLabel = Object.prototype.hasOwnProperty.call(opts, 'secondaryLabel')
             ? String(opts.secondaryLabel || '')
             : String(ctx.i18n.gamesBackToCatalog || 'Back to games');
+        const isLoadingMode = String(opts.mode || '') === 'loading';
 
         ctx.overlayMode = String(opts.mode || '');
         ctx.$overlayTitle.text(title);
@@ -4188,13 +4189,29 @@
         if (ctx.$overlaySecondary && ctx.$overlaySecondary.length) {
             ctx.$overlaySecondary.text(secondaryLabel).prop('hidden', secondaryLabel === '');
         }
+        if (ctx.$overlayCard && ctx.$overlayCard.length) {
+            ctx.$overlayCard.prop('hidden', isLoadingMode);
+        }
+        if (ctx.$overlayLoading && ctx.$overlayLoading.length) {
+            ctx.$overlayLoading.prop('hidden', !isLoadingMode);
+        }
+        if (ctx.$overlayLoadingText && ctx.$overlayLoadingText.length) {
+            ctx.$overlayLoadingText.text(title);
+        }
         ctx.$overlay
             .attr('data-ll-wordset-game-overlay-mode', ctx.overlayMode || '')
+            .attr('aria-busy', isLoadingMode ? 'true' : 'false')
             .prop('hidden', false);
     }
 
     function hideOverlay(ctx) {
         ctx.overlayMode = '';
+        if (ctx.$overlayCard && ctx.$overlayCard.length) {
+            ctx.$overlayCard.prop('hidden', false);
+        }
+        if (ctx.$overlayLoading && ctx.$overlayLoading.length) {
+            ctx.$overlayLoading.prop('hidden', true);
+        }
         if (ctx.$overlayPrimary && ctx.$overlayPrimary.length) {
             ctx.$overlayPrimary.prop('hidden', false);
         }
@@ -4203,6 +4220,7 @@
         }
         ctx.$overlay
             .attr('data-ll-wordset-game-overlay-mode', '')
+            .removeAttr('aria-busy')
             .prop('hidden', true);
     }
 
@@ -4998,6 +5016,9 @@
             canvas: $canvas.get(0) || null,
             canvasContext: null,
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
+            $overlayCard: $gamesRoot.find('[data-ll-wordset-game-overlay-card]').first(),
+            $overlayLoading: $gamesRoot.find('[data-ll-wordset-game-loading]').first(),
+            $overlayLoadingText: $gamesRoot.find('[data-ll-wordset-game-loading-text]').first(),
             $overlayTitle: $gamesRoot.find('[data-ll-wordset-game-overlay-title]').first(),
             $overlaySummary: $gamesRoot.find('[data-ll-wordset-game-overlay-summary]').first(),
             $overlayPrimary: $gamesRoot.find('[data-ll-wordset-game-replay]').first(),

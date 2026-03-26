@@ -118,7 +118,11 @@ function buildGamesMarkup() {
                 </button>
               </div>
               <div class="ll-wordset-game-stage__overlay" data-ll-wordset-game-overlay hidden>
-                <div class="ll-wordset-game-stage__overlay-card">
+                <div class="ll-wordset-game-stage__loading" data-ll-wordset-game-loading hidden role="status" aria-live="polite">
+                  <div class="ll-tools-loading-animation ll-wordset-game-stage__loading-animation" aria-hidden="true"></div>
+                  <span class="screen-reader-text" data-ll-wordset-game-loading-text>Preparing game...</span>
+                </div>
+                <div class="ll-wordset-game-stage__overlay-card" data-ll-wordset-game-overlay-card>
                   <h2 data-ll-wordset-game-overlay-title></h2>
                   <p data-ll-wordset-game-overlay-summary></p>
                   <button type="button" class="ll-wordset-game-stage__overlay-button" data-ll-wordset-game-replay>Replay</button>
@@ -1857,7 +1861,8 @@ test('space shooter launches with safe option mixes and records progress flows',
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
-  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('Preparing game...');
+  await expect(page.locator('[data-ll-wordset-game-loading]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay-card]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-game-fire-keycap]')).toBeVisible();
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
