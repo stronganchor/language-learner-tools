@@ -475,6 +475,7 @@
     background-color: #eef4ff !important;
     color: #1d4d99 !important;
     border: 1px solid #c7d7ef !important;
+    text-decoration: none !important;
     box-shadow: 0 6px 14px rgba(29, 77, 153, 0.12);
 }
 
@@ -485,6 +486,30 @@
     border-color: #8fb3e8 !important;
     color: #143c7d !important;
     box-shadow: 0 10px 20px rgba(29, 77, 153, 0.16);
+}
+
+.ll-vocab-lesson-print-panel__submit.ll-vocab-lesson-print-button {
+    background: #eef4ff !important;
+    background-color: #eef4ff !important;
+    border: 1px solid #c7d7ef !important;
+    color: #1d4d99 !important;
+    text-decoration: none !important;
+    box-shadow: 0 2px 0 rgba(255, 255, 255, 0.7) inset !important;
+}
+
+.ll-vocab-lesson-print-panel__submit.ll-vocab-lesson-print-button:hover,
+.ll-vocab-lesson-print-panel__submit.ll-vocab-lesson-print-button:focus,
+.ll-vocab-lesson-print-panel__submit.ll-vocab-lesson-print-button:focus-visible {
+    background: #dbeafe !important;
+    background-color: #dbeafe !important;
+    border-color: #8fb3e8 !important;
+    color: #143c7d !important;
+    box-shadow: 0 10px 20px rgba(29, 77, 153, 0.14) !important;
+}
+
+.ll-vocab-lesson-print-panel__submit.ll-vocab-lesson-print-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(29, 77, 153, 0.12) !important;
 }
 
 .ll-vocab-lesson-print-panel.ll-tools-settings-panel {
@@ -1378,7 +1403,7 @@
     }
 }
 
-.ll-vocab-lesson-settings-button.ll-tools-settings-button {
+.ll-vocab-lesson-settings-button.ll-tools-settings-button:not(.ll-vocab-lesson-print-trigger) {
     background: #6b7280 !important;
     background-color: #6b7280 !important;
     background-image: none !important;
@@ -1388,10 +1413,19 @@
     box-shadow: 0 6px 14px rgba(46, 42, 36, 0.08);
 }
 
-.ll-vocab-lesson-settings-button.ll-tools-settings-button:hover {
+.ll-vocab-lesson-settings-button.ll-tools-settings-button:not(.ll-vocab-lesson-print-trigger):hover {
     background: #4b5563 !important;
     background-color: #4b5563 !important;
     box-shadow: 0 10px 20px rgba(46, 42, 36, 0.12);
+}
+
+.ll-vocab-lesson-print-trigger.ll-vocab-lesson-settings-button {
+    border: 1px solid #c7d7ef !important;
+}
+
+.ll-vocab-lesson-print-trigger.ll-vocab-lesson-settings-button:hover,
+.ll-vocab-lesson-print-trigger.ll-vocab-lesson-settings-button:focus-visible {
+    border-color: #8fb3e8 !important;
 }
 
 .ll-vocab-lesson-settings-panel.ll-tools-settings-panel {
