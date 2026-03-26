@@ -22,7 +22,8 @@ const hostileThemeCss = `
   }
 `;
 
-function buildWordEditorMarkup() {
+function buildWordEditorMarkup(options = {}) {
+  const isOpen = !!options.isOpen;
   const extraFields = Array.from({ length: 16 }, (_, index) => {
     const fieldIndex = index + 1;
     return `
@@ -38,8 +39,8 @@ function buildWordEditorMarkup() {
   return `
     <div class="word-grid ll-word-grid" data-ll-word-grid>
       <div class="word-item ll-word-edit-open" data-word-id="101">
-        <div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="false"></div>
-        <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="false">
+        <div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="${isOpen ? 'false' : 'true'}"${isOpen ? '' : ' hidden'}></div>
+        <div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="${isOpen ? 'false' : 'true'}">
           <div class="ll-word-edit-body" data-ll-word-edit-body>
             <div class="ll-word-edit-fields">
               <label class="ll-word-edit-label" for="ll-word-edit-word-101">Word</label>
@@ -72,10 +73,22 @@ function buildWordEditorMarkup() {
   `;
 }
 
-test('mobile vocab lesson word editor keeps save and cancel visible while the form scrolls', async ({ page }) => {
+test('closed vocab lesson word editor panels stay hidden', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('about:blank');
   await page.setContent(buildWordEditorMarkup());
+  await page.addStyleTag({ content: languageLearnerToolsCssSource });
+  await page.addStyleTag({ content: hostileThemeCss });
+
+  const panel = page.locator('[data-ll-word-edit-panel]');
+  await expect(panel).toHaveAttribute('aria-hidden', 'true');
+  await expect(panel).toBeHidden();
+});
+
+test('mobile vocab lesson word editor keeps save and cancel visible while the form scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('about:blank');
+  await page.setContent(buildWordEditorMarkup({ isOpen: true }));
   await page.addStyleTag({ content: languageLearnerToolsCssSource });
   await page.addStyleTag({ content: hostileThemeCss });
   await page.evaluate(() => {

@@ -446,7 +446,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 }
 
 .word-grid.ll-word-grid .ll-word-edit-panel[aria-hidden="true"] {
-    display: none;
+    display: none !important;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-body {
