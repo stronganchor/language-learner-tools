@@ -253,6 +253,21 @@ function ll_tools_wordset_games_word_has_recording_type(array $word, string $rec
     return false;
 }
 
+/**
+ * Wordset games render card art into a canvas, so animated WebPs degrade to a still frame.
+ */
+function ll_tools_wordset_games_word_has_supported_image(array $word): bool {
+    $image_url = trim((string) ($word['image'] ?? ''));
+    if ($image_url === '') {
+        return false;
+    }
+
+    $is_animated_webp = !empty($word['image_is_animated_webp']);
+    $allow_animated_webp = (bool) apply_filters('ll_tools_wordset_games_allow_animated_webp_images', false, $word);
+
+    return !$is_animated_webp || $allow_animated_webp;
+}
+
 function ll_tools_wordset_games_prompt_recording_types(): array {
     $types = function_exists('ll_tools_get_main_recording_types')
         ? ll_tools_get_main_recording_types()
@@ -612,7 +627,7 @@ function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int 
             $status = ll_tools_user_progress_word_status($progress);
         }
 
-        if (empty($word['image'])) {
+        if (!ll_tools_wordset_games_word_has_supported_image($word)) {
             continue;
         }
         $prompt_recording_types = ll_tools_wordset_games_get_word_prompt_recording_types($word);

@@ -11,6 +11,7 @@ require_once __DIR__ . '/template-loader.php';
 require_once __DIR__ . '/login-window.php';
 require_once __DIR__ . '/lib/media-proxy.php';
 require_once __DIR__ . '/lib/image-aspect.php';
+require_once __DIR__ . '/lib/image-animation.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
 require_once __DIR__ . '/lib/image-hash.php';
 

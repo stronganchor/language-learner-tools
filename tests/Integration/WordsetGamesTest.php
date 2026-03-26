@@ -139,6 +139,94 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame($spaceIds, $bubbleIds);
     }
 
+    public function test_games_exclude_words_with_animated_webp_images_by_default(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Animated Games Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Animated Games Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        $categoryTerm = get_term($categoryId, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $categoryTerm);
+
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+
+        $expectedIds = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Static Game Word ' . $index,
+                'Static Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Static word ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+            $expectedIds[] = $wordId;
+        }
+
+        $animatedAttachmentId = $this->createAnimatedWebpAttachment('animated-game-word.webp');
+        $animatedWordId = $this->createWordWithGameMedia(
+            'Animated Game Word',
+            'Animated Translation',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['question' => 'Animated word'],
+            $animatedAttachmentId
+        );
+        $this->seedWordProgressRow($userId, $animatedWordId, $categoryId, $wordsetId, [
+            'total_coverage' => 3,
+            'coverage_practice' => 3,
+            'correct_clean' => 1,
+            'incorrect' => 1,
+            'stage' => 1,
+        ]);
+
+        $rows = ll_get_words_by_category((string) $categoryTerm->name, 'image', [$wordsetId], [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+            '__skip_quiz_config_merge' => true,
+        ]);
+        $animatedRow = null;
+        foreach ($rows as $row) {
+            if ((int) ($row['id'] ?? 0) !== $animatedWordId) {
+                continue;
+            }
+            $animatedRow = $row;
+            break;
+        }
+
+        $this->assertIsArray($animatedRow);
+        $this->assertTrue((bool) ($animatedRow['image_is_animated_webp'] ?? false));
+
+        wp_set_current_user($userId);
+        $pool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($pool['words'] ?? []))));
+        sort($expectedIds);
+        sort($returnedIds);
+
+        $this->assertSame(5, (int) ($pool['available_word_count'] ?? 0));
+        $this->assertTrue((bool) ($pool['launchable'] ?? false));
+        $this->assertSame($expectedIds, $returnedIds);
+        $this->assertNotContains($animatedWordId, $returnedIds);
+    }
+
     public function test_space_shooter_pool_caps_launch_words_but_preserves_full_available_count(): void
     {
         $fixture = $this->createGamesFixture(10);
@@ -577,7 +665,8 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         int $categoryId,
         int $wordsetId,
         bool $withImage,
-        array $recordingTypes
+        array $recordingTypes,
+        int $attachmentId = 0
     ): int {
         $wordId = self::factory()->post->create([
             'post_type' => 'words',
@@ -590,8 +679,10 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         update_post_meta($wordId, 'word_translation', $translation);
 
         if ($withImage) {
-            $attachmentId = $this->createImageAttachment(sanitize_title($title) . '.jpg');
-            set_post_thumbnail($wordId, $attachmentId);
+            if ($attachmentId <= 0) {
+                $attachmentId = $this->createImageAttachment(sanitize_title($title) . '.jpg');
+            }
+            set_post_thumbnail($wordId, (int) $attachmentId);
         }
 
         foreach ($recordingTypes as $slug => $recordingText) {
@@ -620,6 +711,39 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         ]);
 
         update_post_meta($attachmentId, '_wp_attached_file', '2026/03/' . $filename);
+
+        return (int) $attachmentId;
+    }
+
+    private function createAnimatedWebpAttachment(string $filename): int
+    {
+        $uploads = wp_upload_dir();
+        $this->assertIsArray($uploads);
+
+        $subdir = '/2026/03';
+        $basedir = rtrim((string) ($uploads['basedir'] ?? ''), '/\\');
+        $targetDir = $basedir . $subdir;
+        wp_mkdir_p($targetDir);
+
+        $path = $targetDir . '/' . ltrim($filename, '/');
+        $bytes = "RIFF"
+            . pack('V', 22)
+            . "WEBP"
+            . "ANIM"
+            . pack('V', 6)
+            . "\x00\x00\x00\x00\x00\x00"
+            . "ANMF"
+            . pack('V', 0);
+        $this->assertNotFalse(file_put_contents($path, $bytes));
+
+        $attachmentId = self::factory()->post->create([
+            'post_type' => 'attachment',
+            'post_mime_type' => 'image/webp',
+            'post_status' => 'inherit',
+            'post_title' => $filename,
+        ]);
+
+        update_post_meta($attachmentId, '_wp_attached_file', ltrim($subdir . '/' . $filename, '/'));
 
         return (int) $attachmentId;
     }

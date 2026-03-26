@@ -2925,6 +2925,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'term_slug'            => ($term && !is_wp_error($term)) ? (string) $term->slug : '',
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 3,
+        'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
             : true,
@@ -3076,6 +3077,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 $image = wp_get_attachment_image_url($image_id, $image_size) ?: '';
             }
         }
+        $image_is_animated_webp = $image_id > 0 && function_exists('ll_tools_is_attachment_animated_webp')
+            ? ll_tools_is_attachment_animated_webp((int) $image_id)
+            : false;
 
         $audio_files = [];
         $recording_texts_by_type = [];
@@ -3268,7 +3272,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'recording_translations_by_type' => $recording_translations_by_type,
             'practice_recording_types' => $practice_recording_types,
             'preferred_speaker_user_id' => $preferred_speaker,
+            'image_attachment_id' => (int) $image_id,
             'image'           => $image ?: '',
+            'image_is_animated_webp' => $image_is_animated_webp,
             'all_categories'  => $all_categories,
             'part_of_speech'  => $part_of_speech,
             'grammatical_gender' => $grammatical_gender,
