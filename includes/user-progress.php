@@ -333,6 +333,108 @@ function ll_tools_get_progress_row_gender_progress(array $row): array {
     return $state;
 }
 
+function ll_tools_get_part_of_speech_abbreviation(string $slug, string $label = ''): string {
+    $key = sanitize_key($slug);
+    $map = [
+        'noun' => 'n',
+        'verb' => 'v',
+        'adjective' => 'adj',
+        'adverb' => 'adv',
+        'pronoun' => 'pron',
+        'preposition' => 'prep',
+        'conjunction' => 'conj',
+        'interjection' => 'interj',
+        'article' => 'art',
+        'numeral' => 'num',
+        'particle' => 'ptcl',
+        'classifier' => 'clf',
+        'determiner' => 'det',
+        'affix' => 'aff',
+        'idiom' => 'idm',
+        'phrase' => 'phr',
+        'other' => 'oth',
+    ];
+
+    if ($key !== '' && isset($map[$key])) {
+        return $map[$key];
+    }
+
+    $fallback = trim($label);
+    if ($fallback === '') {
+        $fallback = trim(str_replace(['-', '_'], ' ', $key));
+    }
+    if ($fallback === '') {
+        return '';
+    }
+
+    $abbreviation = function_exists('mb_substr')
+        ? mb_substr($fallback, 0, 4)
+        : substr($fallback, 0, 4);
+
+    return strtolower(trim($abbreviation));
+}
+
+function ll_tools_get_word_part_of_speech_map(array $word_ids): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    static $cache = [];
+    $missing = [];
+    foreach ($word_ids as $word_id) {
+        if (!array_key_exists($word_id, $cache)) {
+            $missing[] = $word_id;
+        }
+    }
+
+    if (!empty($missing)) {
+        foreach ($missing as $word_id) {
+            $cache[$word_id] = [];
+        }
+
+        $terms = wp_get_object_terms($missing, 'part_of_speech', [
+            'fields' => 'all_with_object_id',
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+
+        if (!is_wp_error($terms) && !empty($terms)) {
+            foreach ($terms as $term) {
+                if (!($term instanceof WP_Term)) {
+                    continue;
+                }
+
+                $word_id = isset($term->object_id) ? (int) $term->object_id : 0;
+                if ($word_id <= 0 || !empty($cache[$word_id])) {
+                    continue;
+                }
+
+                $slug = sanitize_key((string) $term->slug);
+                $label = sanitize_text_field((string) $term->name);
+                $cache[$word_id] = [
+                    'term_id' => (int) $term->term_id,
+                    'slug' => $slug,
+                    'label' => $label,
+                    'abbreviation' => ll_tools_get_part_of_speech_abbreviation($slug, $label),
+                ];
+            }
+        }
+    }
+
+    $out = [];
+    foreach ($word_ids as $word_id) {
+        if (!empty($cache[$word_id]) && is_array($cache[$word_id])) {
+            $out[$word_id] = $cache[$word_id];
+        }
+    }
+
+    return $out;
+}
+
 function ll_tools_word_is_blocked_from_prompt_rounds(array $word): bool {
     if (array_key_exists('is_specific_wrong_answer_only', $word) && !empty($word['is_specific_wrong_answer_only'])) {
         return true;
@@ -2039,6 +2141,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     $all_word_ids = array_values(array_filter(array_map('intval', array_keys($word_map)), function ($id) {
         return $id > 0;
     }));
+    $part_of_speech_by_word = ll_tools_get_word_part_of_speech_map($all_word_ids);
     $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     $category_progress = ll_tools_get_user_category_progress($uid);
 
@@ -2070,6 +2173,9 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
 
     foreach ($word_map as $wid => $word) {
         $progress = isset($progress_rows[$wid]) && is_array($progress_rows[$wid]) ? $progress_rows[$wid] : [];
+        $part_of_speech = isset($part_of_speech_by_word[$wid]) && is_array($part_of_speech_by_word[$wid])
+            ? $part_of_speech_by_word[$wid]
+            : [];
         $gender_state = ll_tools_get_progress_row_gender_progress($progress);
         $status = ll_tools_user_progress_word_status($progress);
         $difficulty = ll_tools_user_progress_word_difficulty_score($progress);
@@ -2114,6 +2220,21 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             return $id > 0;
         }));
         sort($word_category_ids, SORT_NUMERIC);
+        $part_of_speech_slug = sanitize_key((string) ($part_of_speech['slug'] ?? ''));
+        if ($part_of_speech_slug === '') {
+            $part_of_speech_values = array_values(array_filter(array_map('sanitize_key', array_map('strval', (array) ($word['part_of_speech'] ?? [])))));
+            if (!empty($part_of_speech_values)) {
+                $part_of_speech_slug = (string) $part_of_speech_values[0];
+            }
+        }
+        $part_of_speech_label = sanitize_text_field((string) ($part_of_speech['label'] ?? ''));
+        if ($part_of_speech_label === '' && $part_of_speech_slug !== '') {
+            $part_of_speech_label = ucwords(str_replace(['-', '_'], ' ', $part_of_speech_slug));
+        }
+        $part_of_speech_abbreviation = sanitize_text_field((string) ($part_of_speech['abbreviation'] ?? ''));
+        if ($part_of_speech_abbreviation === '' && $part_of_speech_slug !== '') {
+            $part_of_speech_abbreviation = ll_tools_get_part_of_speech_abbreviation($part_of_speech_slug, $part_of_speech_label);
+        }
         $audio_entry = ll_tools_user_progress_get_word_audio_entry(
             isset($word['audio_files']) && is_array($word['audio_files']) ? $word['audio_files'] : [],
             (int) ($word['preferred_speaker_user_id'] ?? 0),
@@ -2208,6 +2329,9 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'category_labels' => $word_category_labels,
             'category_id' => !empty($word_category_ids) ? (int) $word_category_ids[0] : 0,
             'category_label' => !empty($word_category_labels) ? (string) $word_category_labels[0] : '',
+            'part_of_speech_slug' => $part_of_speech_slug,
+            'part_of_speech_label' => $part_of_speech_label,
+            'part_of_speech_abbreviation' => $part_of_speech_abbreviation,
             'status' => $status,
             'difficulty_score' => $difficulty,
             'total_coverage' => $coverage,

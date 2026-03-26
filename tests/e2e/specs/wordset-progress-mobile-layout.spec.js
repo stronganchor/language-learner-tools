@@ -82,6 +82,9 @@ function buildProgressAnalytics() {
         category_label: 'Cat A',
         category_ids: [11],
         category_labels: ['Cat A'],
+        part_of_speech_slug: 'noun',
+        part_of_speech_label: 'Noun',
+        part_of_speech_abbreviation: 'n',
         status: 'studied',
         difficulty_score: 5,
         total_coverage: 24,
@@ -107,6 +110,9 @@ function buildProgressAnalytics() {
         category_label: 'Cat A',
         category_ids: [11],
         category_labels: ['Cat A'],
+        part_of_speech_slug: 'adjective',
+        part_of_speech_label: 'Adjective',
+        part_of_speech_abbreviation: 'adj',
         status: 'studied',
         difficulty_score: 2,
         total_coverage: 5,
@@ -130,6 +136,9 @@ function buildProgressAnalytics() {
         category_label: 'Cat A',
         category_ids: [11],
         category_labels: ['Cat A'],
+        part_of_speech_slug: '',
+        part_of_speech_label: '',
+        part_of_speech_abbreviation: '',
         status: 'new',
         difficulty_score: 1,
         total_coverage: 3,
@@ -300,6 +309,8 @@ function buildProgressPageConfig(overrides = {}) {
       analyticsScopeAll: 'All categories (%d)',
       analyticsWord: 'Word',
       analyticsCategory: 'Category',
+      analyticsPartOfSpeech: 'Part of speech',
+      analyticsPartOfSpeechShort: 'POS',
       analyticsActivity: 'Activity',
       analyticsWordProgress: 'Word Progress',
       analyticsMastered: 'Learned',
@@ -311,6 +322,7 @@ function buildProgressPageConfig(overrides = {}) {
       analyticsNoRows: 'No data yet.',
       analyticsPlayAudio: 'Play audio',
       analyticsPlayAudioFor: 'Play audio for %s',
+      analyticsFilterPartOfSpeech: 'Filter part of speech',
       analyticsFilterStatus: 'Status',
       analyticsFilterDifficulty: 'Difficulty Score',
       analyticsFilterSeen: 'Seen',
@@ -466,6 +478,15 @@ function buildProgressPageMarkup() {
                       <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="category"><span data-ll-wordset-progress-word-header-label="category">Category</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
                     </div>
                     <div class="ll-wordset-progress-filter-pop ll-wordset-progress-filter-pop--category" data-ll-wordset-progress-filter-pop="category" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter category</legend><div class="ll-wordset-progress-filter-options ll-wordset-progress-category-filter-options" data-ll-wordset-progress-category-filter-options></div></fieldset></div>
+                  </th>
+                  <th scope="col" data-ll-wordset-progress-sort-th="part_of_speech" data-mobile-label="POS" aria-sort="none">
+                    <div class="ll-wordset-progress-th-controls">
+                      <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="part_of_speech" aria-haspopup="true" aria-expanded="false" aria-label="Filter part of speech">
+                        <span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>
+                      </button>
+                      <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="part_of_speech"><span data-ll-wordset-progress-word-header-label="part_of_speech">Part of speech</span><span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span></button>
+                    </div>
+                    <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="part_of_speech" hidden><fieldset class="ll-wordset-progress-filter-fieldset"><legend class="screen-reader-text">Filter part of speech</legend><div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="part_of_speech"></div></fieldset></div>
                   </th>
                   <th scope="col" data-ll-wordset-progress-sort-th="status" data-mobile-label="Status" aria-sort="none">
                     <div class="ll-wordset-progress-th-controls">
@@ -693,6 +714,15 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   await expect(statusFilterPop).toBeVisible();
   await expect(statusFilterPop).toContainText('In progress (2)');
   await expect(statusFilterPop).toContainText('New (1)');
+
+  await page.locator('[data-ll-wordset-progress-filter-trigger="part_of_speech"]').click();
+  const posFilterPop = page.locator('[data-ll-wordset-progress-filter-pop="part_of_speech"]');
+  await expect(posFilterPop).toBeVisible();
+  await expect(posFilterPop).toContainText('Adjective (1)');
+  await expect(posFilterPop).toContainText('Noun (1)');
+
+  await expect(page.locator('tr[data-word-id="101"] .ll-wordset-progress-pos-pill__abbr')).toHaveText('n');
+  await expect(page.locator('tr[data-word-id="102"] .ll-wordset-progress-pos-pill__abbr')).toHaveText('adj');
 
   const metrics = await page.evaluate(() => {
     const legend = document.querySelector('[data-ll-wordset-progress-mobile-legend]');

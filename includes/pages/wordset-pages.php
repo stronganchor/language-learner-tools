@@ -3407,6 +3407,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsScopeAll' => __('All categories (%d)', 'll-tools-text-domain'),
             'analyticsWord' => __('Word', 'll-tools-text-domain'),
             'analyticsCategory' => __('Category', 'll-tools-text-domain'),
+            'analyticsPartOfSpeech' => __('Part of speech', 'll-tools-text-domain'),
+            'analyticsPartOfSpeechShort' => __('POS', 'll-tools-text-domain'),
             'analyticsActivity' => __('Activity', 'll-tools-text-domain'),
             'analyticsWordProgress' => __('Word Progress', 'll-tools-text-domain'),
             'analyticsMastered' => __('Learned', 'll-tools-text-domain'),
@@ -3430,6 +3432,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsUnstarWord' => __('Unstar word', 'll-tools-text-domain'),
             'analyticsFilterAny' => __('Any', 'll-tools-text-domain'),
             'analyticsFilterStar' => __('Starred', 'll-tools-text-domain'),
+            'analyticsFilterPartOfSpeech' => __('Filter part of speech', 'll-tools-text-domain'),
             'analyticsFilterStatus' => __('Status', 'll-tools-text-domain'),
             'analyticsFilterLast' => __('Last', 'll-tools-text-domain'),
             'analyticsFilterDifficulty' => __('Difficulty Score', 'll-tools-text-domain'),
@@ -3784,6 +3787,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                                 </fieldset>
                                             </div>
                                         </th>
+                                        <th scope="col" data-ll-wordset-progress-sort-th="part_of_speech" data-mobile-label="<?php echo esc_attr__('POS', 'll-tools-text-domain'); ?>" aria-sort="none">
+                                            <div class="ll-wordset-progress-th-controls">
+                                                <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="part_of_speech" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Filter part of speech', 'll-tools-text-domain'); ?>">
+                                                    <span class="ll-wordset-progress-filter-trigger__icon" aria-hidden="true">
+                                                        <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true"><path d="M2 3h12L9.5 8v4.4l-3 1.6V8L2 3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
+                                                    </span>
+                                                </button>
+                                                <button type="button" class="ll-wordset-progress-sort" data-ll-wordset-progress-sort="part_of_speech">
+                                                    <span data-ll-wordset-progress-word-header-label="part_of_speech"><?php echo esc_html__('Part of speech', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-wordset-progress-sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </div>
+                                            <div class="ll-wordset-progress-filter-pop" data-ll-wordset-progress-filter-pop="part_of_speech" hidden>
+                                                <fieldset class="ll-wordset-progress-filter-fieldset">
+                                                    <legend class="screen-reader-text"><?php echo esc_html__('Filter part of speech', 'll-tools-text-domain'); ?></legend>
+                                                    <div class="ll-wordset-progress-filter-options" data-ll-wordset-progress-column-filter-options="part_of_speech"></div>
+                                                </fieldset>
+                                            </div>
+                                        </th>
                                         <th scope="col" data-ll-wordset-progress-sort-th="status" data-mobile-label="<?php echo esc_attr__('Status', 'll-tools-text-domain'); ?>" aria-sort="none">
                                             <div class="ll-wordset-progress-th-controls">
                                                 <button type="button" class="ll-wordset-progress-filter-trigger" data-ll-wordset-progress-filter-trigger="status" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Filter status', 'll-tools-text-domain'); ?>">
@@ -3904,7 +3926,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 </thead>
                                 <tbody data-ll-wordset-progress-words-body>
                                     <tr>
-                                        <td colspan="8"><?php echo esc_html__('No data yet.', 'll-tools-text-domain'); ?></td>
+                                        <td colspan="9"><?php echo esc_html__('No data yet.', 'll-tools-text-domain'); ?></td>
                                     </tr>
                                 </tbody>
                             </table>
