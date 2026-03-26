@@ -458,6 +458,107 @@
     --ll-tools-fab-size: 36px;
 }
 
+.ll-vocab-lesson-print-settings {
+    margin-left: auto;
+}
+
+.ll-vocab-lesson-print-trigger.ll-vocab-lesson-settings-button {
+    width: auto !important;
+    height: auto !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    flex: 0 0 auto !important;
+    border-radius: 999px !important;
+    padding: 6px 12px !important;
+    gap: 8px;
+    background: #eef4ff !important;
+    background-color: #eef4ff !important;
+    color: #1d4d99 !important;
+    border: 1px solid #c7d7ef !important;
+    box-shadow: 0 6px 14px rgba(29, 77, 153, 0.12);
+}
+
+.ll-vocab-lesson-print-trigger.ll-vocab-lesson-settings-button:hover,
+.ll-vocab-lesson-print-trigger.ll-vocab-lesson-settings-button:focus-visible {
+    background: #dbeafe !important;
+    background-color: #dbeafe !important;
+    border-color: #8fb3e8 !important;
+    color: #143c7d !important;
+    box-shadow: 0 10px 20px rgba(29, 77, 153, 0.16);
+}
+
+.ll-vocab-lesson-print-panel.ll-tools-settings-panel {
+    top: calc(100% + 10px) !important;
+    bottom: auto !important;
+    right: 0 !important;
+    width: min(280px, 92vw) !important;
+    padding: 14px !important;
+    display: grid;
+    gap: 12px;
+    background: #ffffff !important;
+    background-image: none !important;
+    text-shadow: none !important;
+}
+
+.ll-vocab-lesson-print-panel.ll-tools-settings-panel,
+.ll-vocab-lesson-print-panel.ll-tools-settings-panel * {
+    box-sizing: border-box !important;
+}
+
+.ll-vocab-lesson-print-panel.ll-tools-settings-panel input,
+.ll-vocab-lesson-print-panel.ll-tools-settings-panel button {
+    margin: 0 !important;
+    font: inherit !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    background-image: none !important;
+    border-image: none !important;
+}
+
+.ll-vocab-lesson-print-panel.ll-tools-settings-panel button {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.ll-vocab-lesson-print-panel__title {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #1f2937;
+}
+
+.ll-vocab-lesson-print-panel__option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    line-height: 1.35;
+    color: #334155;
+    cursor: pointer;
+}
+
+.ll-vocab-lesson-print-panel__option input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    border: 1px solid #94a3b8 !important;
+    border-radius: 5px !important;
+    background: #ffffff !important;
+    accent-color: #1d4d99 !important;
+}
+
+.ll-vocab-lesson-print-panel__hint {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #64748b;
+}
+
+.ll-vocab-lesson-print-panel__submit {
+    justify-content: center;
+}
+
 .ll-vocab-lesson-bulk {
     position: relative;
     display: inline-flex;
@@ -1400,7 +1501,7 @@
     background: #edf2f7;
     color: #111827;
     margin: 0;
-    padding: 0;
+    padding: 16px 0 32px;
     overflow-x: auto;
 }
 
@@ -1410,8 +1511,12 @@
     margin: 0 auto;
     padding: 10mm;
     box-sizing: border-box;
+    display: grid;
+    gap: 10mm;
 }
 
+.ll-vocab-lesson-print-toolbar,
+.ll-vocab-lesson-print-removed,
 .ll-vocab-lesson-print-sheet,
 .ll-vocab-lesson-print-state {
     background: #ffffff;
@@ -1420,10 +1525,130 @@
     box-shadow: 0 18px 38px rgba(15, 23, 42, 0.1);
 }
 
+.ll-vocab-lesson-print-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.ll-vocab-lesson-print-toolbar__group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.ll-vocab-lesson-print-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    border: 1px solid #d7dee8;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.ll-vocab-lesson-print-toggle input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #1d4d99;
+}
+
+.ll-vocab-lesson-print-toolbar__button {
+    border: 1px solid #d0d8e5;
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.ll-vocab-lesson-print-toolbar__button--primary {
+    background: #1d4d99;
+    color: #ffffff;
+    border-color: #1d4d99;
+    box-shadow: 0 10px 20px rgba(29, 77, 153, 0.18);
+}
+
+.ll-vocab-lesson-print-toolbar__button--primary:hover,
+.ll-vocab-lesson-print-toolbar__button--primary:focus-visible {
+    background: #143c7d;
+    border-color: #143c7d;
+}
+
+.ll-vocab-lesson-print-toolbar__button--secondary {
+    background: #ffffff;
+    color: #334155;
+}
+
+.ll-vocab-lesson-print-toolbar__button--secondary:hover,
+.ll-vocab-lesson-print-toolbar__button--secondary:focus-visible {
+    border-color: #94a3b8;
+    background: #f8fafc;
+}
+
+.ll-vocab-lesson-print-removed {
+    display: grid;
+    gap: 10px;
+    padding: 14px 16px;
+}
+
+.ll-vocab-lesson-print-removed__title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.ll-vocab-lesson-print-removed__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ll-vocab-lesson-print-removed__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #d7dee8;
+    border-radius: 999px;
+    padding: 7px 12px;
+    background: #ffffff;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.2;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.ll-vocab-lesson-print-removed__item svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.ll-vocab-lesson-print-canvas {
+    display: grid;
+    gap: 10mm;
+}
+
 .ll-vocab-lesson-print-sheet {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    margin: 0 0 10mm;
     padding: 0;
     height: calc(297mm - 20mm);
     break-after: page;
@@ -1457,13 +1682,85 @@
 }
 
 .ll-vocab-lesson-print-card {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
     min-width: 0;
     min-height: 0;
     break-inside: avoid;
     page-break-inside: avoid;
+    overflow: hidden;
+}
+
+.ll-vocab-lesson-print-card__controls {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    z-index: 2;
+    display: flex;
+    gap: 5px;
+}
+
+.ll-vocab-lesson-print-card__action {
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(148, 163, 184, 0.38);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #334155;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.ll-vocab-lesson-print-card__action:hover,
+.ll-vocab-lesson-print-card__action:focus-visible {
+    background: #ffffff;
+    border-color: rgba(29, 77, 153, 0.46);
+    color: #1d4d99;
+}
+
+.ll-vocab-lesson-print-card__action:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.ll-vocab-lesson-print-card__action svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+.ll-vocab-lesson-print-card__media {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+}
+
+.ll-vocab-lesson-print-card__captions {
+    display: grid;
+    gap: 2mm;
+    padding: 2.2mm 2.4mm 0;
+    text-align: center;
+}
+
+.ll-vocab-lesson-print-card__text,
+.ll-vocab-lesson-print-card__translation {
+    margin: 0;
+    font-size: 11pt;
+    line-height: 1.2;
+    color: #0f172a;
+    overflow-wrap: anywhere;
+}
+
+.ll-vocab-lesson-print-card__translation {
+    color: #475569;
 }
 
 .ll-vocab-lesson-print-image {
@@ -1675,6 +1972,7 @@
 
     body.ll-vocab-lesson-print-body {
         color: #000000;
+        padding: 0;
         print-color-adjust: exact;
         -webkit-print-color-adjust: exact;
     }
@@ -1684,6 +1982,18 @@
         min-width: 0;
         margin: 0;
         padding: 0;
+        display: block;
+        gap: 0;
+    }
+
+    .ll-vocab-lesson-print-toolbar,
+    .ll-vocab-lesson-print-removed,
+    .ll-vocab-lesson-print-card__controls {
+        display: none !important;
+    }
+
+    .ll-vocab-lesson-print-canvas {
+        display: block;
     }
 
     .ll-vocab-lesson-print-sheet,
@@ -1707,5 +2017,10 @@
     .ll-vocab-lesson-print-grid {
         gap: 0;
         padding: 0;
+    }
+
+    .ll-vocab-lesson-print-card__captions {
+        padding-left: 0;
+        padding-right: 0;
     }
 }

@@ -1091,6 +1091,21 @@ function ll_tools_vocab_lesson_enqueue_assets() {
         ll_tools_vocab_lesson_bootstrap_flashcards();
     }
     ll_enqueue_asset_by_timestamp('/css/vocab-lesson-pages.css', 'll-vocab-lesson-pages-css', ['ll-tools-flashcard-style']);
+    if (ll_tools_is_vocab_lesson_print_request()) {
+        ll_enqueue_asset_by_timestamp('/js/vocab-lesson-print-page.js', 'll-tools-vocab-lesson-print-page', [], true);
+        wp_localize_script('ll-tools-vocab-lesson-print-page', 'llToolsVocabLessonPrintData', [
+            'i18n' => [
+                'moveEarlier' => __('Move earlier', 'll-tools-text-domain'),
+                'moveLater' => __('Move later', 'll-tools-text-domain'),
+                'removeWord' => __('Remove from print', 'll-tools-text-domain'),
+                'restoreWord' => __('Add back to print', 'll-tools-text-domain'),
+                'restoreAll' => __('Restore all', 'll-tools-text-domain'),
+                'removedWords' => __('Removed', 'll-tools-text-domain'),
+                'allRemovedTitle' => __('All words removed.', 'll-tools-text-domain'),
+                'allRemovedMessage' => __('Restore one or more words to print this lesson.', 'll-tools-text-domain'),
+            ],
+        ]);
+    }
 }
 add_action('wp_enqueue_scripts', 'll_tools_vocab_lesson_enqueue_assets');
 
@@ -1202,23 +1217,6 @@ function ll_tools_update_vocab_lesson_category_title_handler() {
     ]);
 }
 
-function ll_tools_user_can_print_vocab_lesson_images(): bool {
-    if (!is_user_logged_in()) {
-        return false;
-    }
-
-    $allowed = false;
-    if (current_user_can('manage_options') || current_user_can('edit_others_posts')) {
-        $allowed = true;
-    } else {
-        $user = wp_get_current_user();
-        $roles = ($user instanceof WP_User) ? (array) $user->roles : [];
-        $allowed = in_array('ll_tools_editor', $roles, true);
-    }
-
-    return (bool) apply_filters('ll_tools_user_can_print_vocab_lesson_images', $allowed);
-}
-
 function ll_tools_is_vocab_lesson_image_print_request(): bool {
     $flag = isset($_GET['ll_print_images'])
         ? wp_unslash((string) $_GET['ll_print_images'])
@@ -1227,7 +1225,39 @@ function ll_tools_is_vocab_lesson_image_print_request(): bool {
     return ($flag === '1');
 }
 
-function ll_tools_get_vocab_lesson_image_print_url(int $lesson_id): string {
+function ll_tools_is_vocab_lesson_print_request(): bool {
+    $flag = isset($_GET['ll_print'])
+        ? wp_unslash((string) $_GET['ll_print'])
+        : '';
+
+    return ($flag === '1') || ll_tools_is_vocab_lesson_image_print_request();
+}
+
+function ll_tools_get_vocab_lesson_print_default_settings(): array {
+    return [
+        'show_text' => false,
+        'show_translations' => false,
+        'auto_print' => false,
+    ];
+}
+
+function ll_tools_get_vocab_lesson_print_request_settings(): array {
+    $settings = ll_tools_get_vocab_lesson_print_default_settings();
+    $settings['show_text'] = isset($_GET['ll_print_text'])
+        && wp_unslash((string) $_GET['ll_print_text']) === '1';
+    $settings['show_translations'] = isset($_GET['ll_print_translations'])
+        && wp_unslash((string) $_GET['ll_print_translations']) === '1';
+    $settings['auto_print'] = isset($_GET['ll_auto_print'])
+        && wp_unslash((string) $_GET['ll_auto_print']) === '1';
+
+    if (ll_tools_is_vocab_lesson_image_print_request() && !isset($_GET['ll_auto_print'])) {
+        $settings['auto_print'] = true;
+    }
+
+    return $settings;
+}
+
+function ll_tools_get_vocab_lesson_print_url(int $lesson_id, array $args = []): string {
     $lesson_id = (int) $lesson_id;
     if ($lesson_id <= 0) {
         return '';
@@ -1243,30 +1273,77 @@ function ll_tools_get_vocab_lesson_image_print_url(int $lesson_id): string {
         return '';
     }
 
-    return add_query_arg([
-        'll_print_images' => '1',
-        'll_print_nonce'  => wp_create_nonce('ll_vocab_lesson_print_' . $lesson_id),
-    ], $url);
+    $settings = array_merge(ll_tools_get_vocab_lesson_print_default_settings(), $args);
+    $query_args = [
+        'll_print' => '1',
+    ];
+
+    if (!empty($settings['show_text'])) {
+        $query_args['ll_print_text'] = '1';
+    }
+    if (!empty($settings['show_translations'])) {
+        $query_args['ll_print_translations'] = '1';
+    }
+    if (!empty($settings['auto_print'])) {
+        $query_args['ll_auto_print'] = '1';
+    }
+
+    return add_query_arg($query_args, $url);
+}
+
+function ll_tools_get_vocab_lesson_image_print_url(int $lesson_id): string {
+    return ll_tools_get_vocab_lesson_print_url($lesson_id, [
+        'auto_print' => true,
+    ]);
+}
+
+function ll_tools_vocab_lesson_print_view_is_available(int $wordset_id, $category = null): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id)) {
+        return false;
+    }
+
+    if ($category !== null && function_exists('ll_tools_user_can_view_category')) {
+        if (!ll_tools_user_can_view_category($category)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_user_can_print_vocab_lesson_images(): bool {
+    $allowed = false;
+
+    if (is_singular('ll_vocab_lesson')) {
+        $lesson_id = (int) get_queried_object_id();
+        if ($lesson_id > 0) {
+            $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+            $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+            $allowed = ll_tools_vocab_lesson_print_view_is_available($wordset_id, $category_id);
+        }
+    }
+
+    return (bool) apply_filters('ll_tools_user_can_print_vocab_lesson_images', $allowed);
 }
 
 function ll_tools_verify_vocab_lesson_image_print_request(int $lesson_id): bool {
-    if (!ll_tools_is_vocab_lesson_image_print_request() || !ll_tools_user_can_print_vocab_lesson_images()) {
-        return false;
-    }
-
     $lesson_id = (int) $lesson_id;
-    if ($lesson_id <= 0) {
+    if ($lesson_id <= 0 || !ll_tools_is_vocab_lesson_print_request()) {
         return false;
     }
 
-    $nonce = isset($_GET['ll_print_nonce'])
-        ? wp_unslash((string) $_GET['ll_print_nonce'])
-        : '';
+    $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+    $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
 
-    return ($nonce !== '') && (bool) wp_verify_nonce($nonce, 'll_vocab_lesson_print_' . $lesson_id);
+    return ll_tools_vocab_lesson_print_view_is_available($wordset_id, $category_id);
 }
 
-function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id): array {
+function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
     $category_id = (int) $category_id;
     if ($wordset_id <= 0 || $category_id <= 0) {
@@ -1278,10 +1355,7 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
     if (!($category instanceof WP_Term) || is_wp_error($category) || !($wordset instanceof WP_Term) || is_wp_error($wordset)) {
         return [];
     }
-    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id)) {
-        return [];
-    }
-    if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category)) {
+    if (!ll_tools_vocab_lesson_print_view_is_available($wordset_id, $category)) {
         return [];
     }
 
@@ -1352,11 +1426,28 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
     if (function_exists('ll_tools_word_grid_group_same_name_or_image')) {
         $posts = ll_tools_word_grid_group_same_name_or_image($posts, $display_values_cache);
     }
-    if (function_exists('ll_tools_word_grid_sort_posts_by_display_title')) {
+
+    $sort_visible_titles = true;
+    if (function_exists('ll_tools_should_hide_lesson_grid_text')) {
+        $sort_visible_titles = !ll_tools_should_hide_lesson_grid_text($category, $wordset_id);
+    }
+    if ($sort_visible_titles && function_exists('ll_tools_word_grid_sort_posts_by_display_title')) {
         $posts = ll_tools_word_grid_sort_posts_by_display_title($posts, $display_values_cache);
     }
 
+    return array_values(array_filter($posts, static function ($post_obj): bool {
+        return $post_obj instanceof WP_Post && !empty($post_obj->ID);
+    }));
+}
+
+function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id): array {
+    $posts = ll_tools_get_vocab_lesson_print_posts($wordset_id, $category_id);
+    if (empty($posts)) {
+        return [];
+    }
+
     $items = [];
+    $display_values_cache = [];
     foreach ($posts as $post_obj) {
         $word_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
         if ($word_id <= 0) {
@@ -1375,7 +1466,13 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
         $display_values = isset($display_values_cache[$word_id]) && is_array($display_values_cache[$word_id])
             ? $display_values_cache[$word_id]
             : [];
-        $label = trim((string) ($display_values['word_text'] ?? ''));
+        $word_text = trim((string) ($display_values['word_text'] ?? ''));
+        $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
+
+        $label = $word_text;
+        if ($label === '') {
+            $label = $translation_text;
+        }
         if ($label === '') {
             $label = trim((string) get_the_title($word_id));
         }
@@ -1389,10 +1486,12 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
         }
 
         $items[] = [
-            'word_id'       => $word_id,
-            'attachment_id' => $attachment_id,
-            'label'         => $label,
-            'alt'           => $alt,
+            'word_id'          => $word_id,
+            'attachment_id'    => $attachment_id,
+            'label'            => $label,
+            'alt'              => $alt,
+            'word_text'        => ($word_text !== '') ? $word_text : $label,
+            'translation_text' => $translation_text,
         ];
     }
 
