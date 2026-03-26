@@ -1456,7 +1456,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     padding-right: 0;
 }
 
-.word-grid.ll-word-grid .ll-word-recording-row--editable:hover,
+.word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:hover,
 .word-grid.ll-word-grid .ll-word-recording-row--editable:focus-within,
 .word-grid.ll-word-grid .ll-word-recording-row--editable.is-edit-trigger-visible {
     width: var(--ll-recording-row-reveal-width, var(--ll-recording-row-collapsed-width, auto));
@@ -1563,7 +1563,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     transform: none;
 }
 
-.word-grid.ll-word-grid .ll-word-recording-row--editable:hover .ll-word-recording-edit-trigger,
+.word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:hover .ll-word-recording-edit-trigger,
 .word-grid.ll-word-grid .ll-word-recording-row--editable:focus-within .ll-word-recording-edit-trigger,
 .word-grid.ll-word-grid .ll-word-recording-row--editable.is-edit-trigger-visible .ll-word-recording-edit-trigger {
     opacity: 1;
