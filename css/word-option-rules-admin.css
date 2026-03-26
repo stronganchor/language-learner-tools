@@ -11,10 +11,26 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .ll-tools-word-options .ll-tools-word-options-table {
   margin-top: 12px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table-wrap {
+  margin-top: 12px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table-wrap .ll-tools-word-options-table {
+  margin-top: 0;
+  min-width: 100%;
+  table-layout: auto;
+  width: max-content;
 }
 
 .ll-tools-word-options .ll-tools-word-options-input {
@@ -26,9 +42,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 160px;
 }
 
 .ll-tools-word-options .ll-tools-word-options-media {
+  min-width: 72px;
   vertical-align: middle;
 }
 
@@ -196,13 +214,14 @@
 .ll-tools-word-options .ll-tools-word-options-group-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .ll-tools-word-options .ll-tools-word-options-group-input {
-  min-width: 220px;
+  min-width: 0;
   max-width: 360px;
-  width: 100%;
+  width: min(100%, 360px);
 }
 
 .ll-tools-word-options .ll-tools-word-options-add-group {
@@ -210,6 +229,7 @@
 }
 
 .ll-tools-word-options .ll-tools-word-options-group-cell {
+  min-width: 56px;
   text-align: center;
 }
 
@@ -329,6 +349,7 @@
 
 body.ll-tools-word-options-iframe {
   background: #f6f1e6;
+  overflow-x: hidden;
 }
 
 body.ll-tools-word-options-iframe #adminmenumain,
@@ -365,6 +386,7 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   color: var(--ll-word-options-text);
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   padding: 24px;
 }
 
@@ -442,7 +464,14 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   border: 1px solid var(--ll-word-options-border);
   border-radius: 22px;
   box-shadow: 0 18px 40px rgba(45, 42, 37, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   padding: 22px;
+}
+
+.ll-tools-word-options--iframe .ll-tools-word-options-form > * {
+  max-width: 100%;
 }
 
 .ll-tools-word-options--iframe .ll-tools-word-options-group-editor,
@@ -451,6 +480,10 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   border: 1px solid var(--ll-word-options-border);
   border-radius: 18px;
   padding: 16px;
+}
+
+.ll-tools-word-options--iframe .ll-tools-word-options-table-wrap {
+  border-radius: 18px;
 }
 
 .ll-tools-word-options--iframe input[type="text"],
@@ -551,11 +584,46 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
 
 @media (max-width: 782px) {
   body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
-    padding: 16px;
+    padding: 14px;
+  }
+
+  .ll-tools-word-options--iframe .ll-tools-word-options-hero {
+    margin-bottom: 16px;
   }
 
   .ll-tools-word-options--iframe .ll-tools-word-options-form {
     border-radius: 18px;
-    padding: 16px;
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .ll-tools-word-options--iframe .ll-tools-word-options-group-editor,
+  .ll-tools-word-options--iframe .ll-tools-word-options-pair-add {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .ll-tools-word-options--iframe .ll-tools-word-options-filter,
+  .ll-tools-word-options--iframe .ll-tools-word-options-pair-add,
+  .ll-tools-word-options--iframe .ll-tools-word-options-group-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ll-tools-word-options--iframe .ll-tools-word-options-field,
+  .ll-tools-word-options--iframe .ll-tools-word-options-group-input,
+  .ll-tools-word-options--iframe .ll-tools-word-options-filter select,
+  .ll-tools-word-options--iframe .ll-tools-word-options-pair-add select,
+  .ll-tools-word-options--iframe .ll-tools-word-options-pair-add .ll-tools-button,
+  .ll-tools-word-options--iframe .ll-tools-word-options-actions .ll-tools-button,
+  .ll-tools-word-options--iframe .ll-tools-word-options-group-row .ll-tools-button {
+    max-width: none;
+    width: 100%;
+  }
+
+  .ll-tools-word-options--iframe .ll-tools-word-options-table-wrap {
+    margin-left: -2px;
+    margin-right: -2px;
+    padding-bottom: 4px;
   }
 }

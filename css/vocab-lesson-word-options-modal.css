@@ -77,6 +77,11 @@
   padding: 22px 24px 18px;
 }
 
+.ll-vocab-lesson-word-options-modal__title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .ll-vocab-lesson-word-options-modal__title {
   color: #2e2a24;
   font-size: clamp(24px, 3vw, 34px);
@@ -207,19 +212,53 @@ body.ll-vocab-lesson-word-options-open {
 }
 
 @media (max-width: 782px) {
+  .ll-vocab-lesson-word-options-modal {
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
   .ll-vocab-lesson-word-options-modal__dialog {
-    border-radius: 22px;
-    height: min(92vh, 980px);
-    width: min(96vw, 1240px);
+    border-radius: 20px;
+    bottom: 0;
+    height: auto;
+    left: 0;
+    max-height: none;
+    max-width: none;
+    right: 0;
+    top: 0;
+    transform: none;
+    width: auto;
   }
 
   .ll-vocab-lesson-word-options-modal__header {
+    gap: 12px;
     padding: 18px 18px 14px;
+  }
+
+  .ll-vocab-lesson-word-options-modal__title {
+    font-size: clamp(21px, 6vw, 28px);
+    line-height: 1.05;
+  }
+
+  .ll-vocab-lesson-word-options-modal__meta {
+    gap: 6px;
+    margin-top: 8px;
   }
 
   .ll-vocab-lesson-word-options-modal__loading {
     left: 12px;
     right: 12px;
     top: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .ll-vocab-lesson-word-options-modal__dialog {
+    border-radius: 18px;
+  }
+
+  .ll-vocab-lesson-word-options-modal__close {
+    height: 40px;
+    width: 40px;
   }
 }

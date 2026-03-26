@@ -1444,6 +1444,7 @@ function ll_render_word_option_rules_admin_page() {
     echo '<button type="button" class="button button-secondary ll-tools-button ll-tools-word-options-add-group" data-group-add>' . esc_html__('Add group', 'll-tools-text-domain') . '</button>';
     echo '</div>';
 
+    echo '<div class="ll-tools-word-options-table-wrap ll-tools-word-options-table-wrap--groups">';
     echo '<table class="widefat striped ll-tools-word-options-table" data-ll-group-table>';
     echo '<thead><tr>';
     echo '<th scope="col">' . esc_html__('Image', 'll-tools-text-domain') . '</th>';
@@ -1527,6 +1528,7 @@ function ll_render_word_option_rules_admin_page() {
     }
     echo '</tbody>';
     echo '</table>';
+    echo '</div>';
 
     echo '<p class="ll-tools-word-options-actions">';
     $save_label = $is_iframe ? __('Save lesson rules', 'll-tools-text-domain') : __('Save groups', 'll-tools-text-domain');
@@ -1587,6 +1589,7 @@ function ll_render_word_option_rules_admin_page() {
         ];
         $reason_order = ['manual', 'similar', 'similar_image', 'same_image', 'same_title', 'same_translation', 'recording_text'];
 
+        echo '<div class="ll-tools-word-options-table-wrap ll-tools-word-options-table-wrap--pairs">';
         echo '<table class="widefat striped ll-tools-word-options-table ll-tools-word-options-pair-table">';
         echo '<thead><tr>';
         echo '<th scope="col">' . esc_html__('Remove', 'll-tools-text-domain') . '</th>';
@@ -1654,6 +1657,7 @@ function ll_render_word_option_rules_admin_page() {
         }
         echo '</tbody>';
         echo '</table>';
+        echo '</div>';
         echo '<p class="description">' . esc_html__('Click the x to remove a pair.', 'll-tools-text-domain') . '</p>';
     } else {
         echo '<p class="description">' . esc_html__('No blocked pairs yet.', 'll-tools-text-domain') . '</p>';

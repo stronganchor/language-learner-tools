@@ -13,6 +13,8 @@ final class WordOptionAutomaticTextBlockingTest extends LL_Tools_TestCase
 
         $html = $this->renderWordOptionRulesAdminPage($fixture['wordset_id'], $fixture['category_id']);
 
+        $this->assertStringContainsString('ll-tools-word-options-table-wrap ll-tools-word-options-table-wrap--groups', $html);
+        $this->assertStringContainsString('ll-tools-word-options-table-wrap ll-tools-word-options-table-wrap--pairs', $html);
         $this->assertStringContainsString('Dog - animal / Hound - animal', $html);
         $this->assertStringContainsString('ll-tools-word-options-reason--same_translation', $html);
         $this->assertStringContainsString('Car / Truck', $html);
