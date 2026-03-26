@@ -1202,9 +1202,11 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     $visibility = isset($_POST['ll_wordset_visibility'])
         ? ll_tools_normalize_wordset_visibility(wp_unslash((string) $_POST['ll_wordset_visibility']))
         : 'public';
+    $submitted_tool = ll_tools_get_wordset_settings_tool();
 
-    $base_redirect = ll_tools_wordset_page_with_back_url(
-        ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
+    $base_redirect = ll_tools_get_wordset_settings_tool_url(
+        $wordset_term,
+        $submitted_tool !== '' ? $submitted_tool : 'visibility',
         ll_tools_wordset_page_resolve_back_url($wordset_term)
     );
 
@@ -1484,9 +1486,11 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
         ? sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_manager_import_new_category']))
         : '';
     $allow_duplicate_titles = !empty($_POST['ll_wordset_manager_import_allow_duplicates']);
+    $submitted_tool = ll_tools_get_wordset_settings_tool();
 
-    $base_redirect = ll_tools_wordset_page_with_back_url(
-        ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
+    $base_redirect = ll_tools_get_wordset_settings_tool_url(
+        $wordset_term,
+        $submitted_tool !== '' ? $submitted_tool : 'import',
         ll_tools_wordset_page_resolve_back_url($wordset_term)
     );
 
@@ -1844,9 +1848,11 @@ function ll_tools_wordset_page_handle_manager_recorder_action(): void {
     $nonce = isset($_POST['ll_wordset_manager_recorder_nonce'])
         ? wp_unslash((string) $_POST['ll_wordset_manager_recorder_nonce'])
         : '';
+    $submitted_tool = ll_tools_get_wordset_settings_tool();
 
-    $base_redirect = ll_tools_wordset_page_with_back_url(
-        ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
+    $base_redirect = ll_tools_get_wordset_settings_tool_url(
+        $wordset_term,
+        $submitted_tool !== '' ? $submitted_tool : 'recorder',
         ll_tools_wordset_page_resolve_back_url($wordset_term)
     );
 
@@ -2684,6 +2690,769 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     return (string) ob_get_clean();
 }
 
+function ll_tools_get_wordset_settings_tool_keys(): array {
+    return ['study', 'visibility', 'import', 'recorder', 'image-upload', 'audio-upload'];
+}
+
+function ll_tools_get_wordset_settings_tool(): string {
+    $raw = '';
+    if (isset($_GET['ll_wordset_tool'])) {
+        $raw = (string) wp_unslash($_GET['ll_wordset_tool']);
+    } elseif (isset($_POST['ll_wordset_tool'])) {
+        $raw = (string) wp_unslash($_POST['ll_wordset_tool']);
+    }
+
+    $tool = sanitize_key($raw);
+    return in_array($tool, ll_tools_get_wordset_settings_tool_keys(), true) ? $tool : '';
+}
+
+function ll_tools_get_wordset_settings_tool_url(WP_Term $wordset_term, string $tool = '', string $back_url = ''): string {
+    $url = ll_tools_wordset_page_with_back_url(
+        ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
+        $back_url
+    );
+
+    $tool = sanitize_key($tool);
+    if ($tool !== '' && in_array($tool, ll_tools_get_wordset_settings_tool_keys(), true)) {
+        return (string) add_query_arg('ll_wordset_tool', $tool, $url);
+    }
+
+    return (string) remove_query_arg('ll_wordset_tool', $url);
+}
+
+function ll_tools_wordset_settings_tool_label(string $tool): string {
+    $tool = sanitize_key($tool);
+    if ($tool === 'study') {
+        return __('Study', 'll-tools-text-domain');
+    }
+    if ($tool === 'visibility') {
+        return __('Word Set', 'll-tools-text-domain');
+    }
+    if ($tool === 'import') {
+        return __('Import', 'll-tools-text-domain');
+    }
+    if ($tool === 'recorder') {
+        return __('Recorder', 'll-tools-text-domain');
+    }
+    if ($tool === 'image-upload') {
+        return __('Images', 'll-tools-text-domain');
+    }
+    if ($tool === 'audio-upload') {
+        return __('Audio', 'll-tools-text-domain');
+    }
+
+    return __('Settings', 'll-tools-text-domain');
+}
+
+function ll_tools_wordset_settings_tool_title(string $tool): string {
+    $tool = sanitize_key($tool);
+    if ($tool === 'study') {
+        return __('Study Settings', 'll-tools-text-domain');
+    }
+    if ($tool === 'visibility') {
+        return __('Word Set Settings', 'll-tools-text-domain');
+    }
+    if ($tool === 'import') {
+        return __('Import Words', 'll-tools-text-domain');
+    }
+    if ($tool === 'recorder') {
+        return __('Recorder Access', 'll-tools-text-domain');
+    }
+    if ($tool === 'image-upload') {
+        return __('Image Upload', 'll-tools-text-domain');
+    }
+    if ($tool === 'audio-upload') {
+        return __('Audio Upload', 'll-tools-text-domain');
+    }
+
+    return __('Word Set Tools', 'll-tools-text-domain');
+}
+
+function ll_tools_wordset_settings_tool_description(string $tool): string {
+    $tool = sanitize_key($tool);
+    if ($tool === 'study') {
+        return __('Practice preferences, learning modes, and next activities.', 'll-tools-text-domain');
+    }
+    if ($tool === 'visibility') {
+        return __('Public or private access for this word set.', 'll-tools-text-domain');
+    }
+    if ($tool === 'import') {
+        return __('Create words quickly from pasted prompt and answer pairs.', 'll-tools-text-domain');
+    }
+    if ($tool === 'recorder') {
+        return __('Assign and review audio recorder access for this word set.', 'll-tools-text-domain');
+    }
+    if ($tool === 'image-upload') {
+        return __('Upload images and optionally create draft words here.', 'll-tools-text-domain');
+    }
+    if ($tool === 'audio-upload') {
+        return __('Upload audio and create or match word records.', 'll-tools-text-domain');
+    }
+
+    return '';
+}
+
+function ll_tools_wordset_page_render_settings_notice(array $notice): string {
+    if (empty($notice['message'])) {
+        return '';
+    }
+
+    $type = (($notice['type'] ?? 'error') === 'success') ? 'success' : 'error';
+    $role = ($type === 'success') ? 'status' : 'alert';
+
+    return '<div class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--' . esc_attr($type) . '" role="' . esc_attr($role) . '">' .
+        esc_html((string) $notice['message']) .
+        '</div>';
+}
+
+function ll_tools_wordset_page_render_settings_tool_icon(string $tool, string $class = 'll-wordset-settings-tool-card__icon-svg'): string {
+    $tool = sanitize_key($tool);
+
+    if ($tool === 'study') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M5 6.5A2.5 2.5 0 0 1 7.5 4H19v14H7.5A2.5 2.5 0 0 0 5 20.5v-14Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+            . '<path d="M8.5 8.5h7M8.5 12h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<path d="M5 20.5A2.5 2.5 0 0 1 7.5 18H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'visibility') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M12 3.75 4.5 7v4.9c0 4.4 3 8.5 7.5 9.85 4.5-1.35 7.5-5.45 7.5-9.85V7L12 3.75Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+            . '<path d="M9.25 12 11 13.75 14.75 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'import') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M12 4v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<path d="m8.5 10.5 3.5 3.5 3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<path d="M5 16.5v1.75A1.75 1.75 0 0 0 6.75 20h10.5A1.75 1.75 0 0 0 19 18.25V16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'recorder') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<rect x="9" y="3.75" width="6" height="10.5" rx="3" stroke="currentColor" stroke-width="1.8"/>'
+            . '<path d="M6.75 10.5a5.25 5.25 0 1 0 10.5 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<path d="M12 15.75V20.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<path d="M9 20.25h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'image-upload') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<rect x="3.75" y="4.75" width="16.5" height="14.5" rx="2.25" stroke="currentColor" stroke-width="1.8"/>'
+            . '<circle cx="9" cy="10" r="1.5" fill="currentColor"/>'
+            . '<path d="m6.5 17 3.5-3.5 2.25 2.25 2.75-3 2.5 4.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'audio-upload') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M6 9.5v5M9 7.5v9M12 5.5v13M15 7.5v9M18 9.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<path d="M4.5 19.25h15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '</svg>';
+    }
+
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+        . '<circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.8"/>'
+        . '</svg>';
+}
+
+function ll_tools_wordset_page_render_settings_hub(array $cards): string {
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--hub" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-lead">
+            <p class="ll-wordset-settings-lead__text"><?php echo esc_html__('Choose a tool for this word set.', 'll-tools-text-domain'); ?></p>
+        </div>
+        <div class="ll-wordset-settings-tool-grid">
+            <?php foreach ($cards as $card) : ?>
+                <?php
+                if (!is_array($card)) {
+                    continue;
+                }
+                $tool = sanitize_key((string) ($card['tool'] ?? ''));
+                $label = (string) ($card['label'] ?? '');
+                $description = (string) ($card['description'] ?? '');
+                $status = (string) ($card['status'] ?? '');
+                $url = (string) ($card['url'] ?? '');
+                $enabled = !empty($card['enabled']) && $url !== '';
+                $card_classes = 'll-wordset-settings-tool-card';
+                if ($tool !== '') {
+                    $card_classes .= ' ll-wordset-settings-tool-card--' . sanitize_html_class($tool);
+                }
+                if (!$enabled) {
+                    $card_classes .= ' is-disabled';
+                }
+                ?>
+                <?php if ($enabled) : ?>
+                    <a class="<?php echo esc_attr($card_classes); ?>" href="<?php echo esc_url($url); ?>">
+                        <span class="ll-wordset-settings-tool-card__icon" aria-hidden="true">
+                            <?php echo ll_tools_wordset_page_render_settings_tool_icon($tool); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </span>
+                        <span class="ll-wordset-settings-tool-card__content">
+                            <span class="ll-wordset-settings-tool-card__title"><?php echo esc_html($label); ?></span>
+                            <?php if ($description !== '') : ?>
+                                <span class="ll-wordset-settings-tool-card__description"><?php echo esc_html($description); ?></span>
+                            <?php endif; ?>
+                            <?php if ($status !== '') : ?>
+                                <span class="ll-wordset-settings-tool-card__status"><?php echo esc_html($status); ?></span>
+                            <?php endif; ?>
+                        </span>
+                        <span class="ll-wordset-settings-tool-card__arrow" aria-hidden="true">
+                            <svg viewBox="0 0 16 16" width="16" height="16" focusable="false" aria-hidden="true">
+                                <path d="M5.5 3.25 10.25 8 5.5 12.75" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                    </a>
+                <?php else : ?>
+                    <div class="<?php echo esc_attr($card_classes); ?>" aria-disabled="true">
+                        <span class="ll-wordset-settings-tool-card__icon" aria-hidden="true">
+                            <?php echo ll_tools_wordset_page_render_settings_tool_icon($tool); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        </span>
+                        <span class="ll-wordset-settings-tool-card__content">
+                            <span class="ll-wordset-settings-tool-card__title"><?php echo esc_html($label); ?></span>
+                            <?php if ($description !== '') : ?>
+                                <span class="ll-wordset-settings-tool-card__description"><?php echo esc_html($description); ?></span>
+                            <?php endif; ?>
+                            <?php if ($status !== '') : ?>
+                                <span class="ll-wordset-settings-tool-card__status"><?php echo esc_html($status); ?></span>
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, string $wordset_visibility, bool $wordset_is_private): string {
+    $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $back_url);
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Word Set', 'll-tools-text-domain'); ?></h2>
+            <form method="post" action="<?php echo esc_url($action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
+                <input type="hidden" name="ll_wordset_manager_settings_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                <input type="hidden" name="ll_wordset_view" value="settings" />
+                <input type="hidden" name="ll_wordset_tool" value="visibility" />
+                <?php wp_nonce_field('ll_wordset_manager_settings_' . $wordset_id, 'll_wordset_manager_settings_nonce'); ?>
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Visibility', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-visibility" class="screen-reader-text"><?php echo esc_html__('Word set visibility', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-visibility" name="ll_wordset_visibility" class="ll-tools-settings-select" style="max-width: 260px;">
+                        <option value="public" <?php selected($wordset_visibility, 'public'); ?>><?php echo esc_html__('Public', 'll-tools-text-domain'); ?></option>
+                        <option value="private" <?php selected($wordset_visibility, 'private'); ?>><?php echo esc_html__('Private', 'll-tools-text-domain'); ?></option>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Private word sets are only visible to the assigned manager and administrators in this first pass.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <p class="description" style="margin-top:0;">
+                        <?php
+                        echo esc_html(
+                            $wordset_is_private
+                                ? __('This word set is currently private.', 'll-tools-text-domain')
+                                : __('This word set is currently public.', 'll-tools-text-domain')
+                        );
+                        ?>
+                    </p>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Word Set Settings', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_import_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $enhanced_categories): string {
+    $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'import', $back_url);
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Bulk Import', 'll-tools-text-domain'); ?></h2>
+            <form method="post" action="<?php echo esc_url($action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_import_action" value="import_pairs" />
+                <input type="hidden" name="ll_wordset_manager_import_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                <input type="hidden" name="ll_wordset_view" value="settings" />
+                <input type="hidden" name="ll_wordset_tool" value="import" />
+                <?php wp_nonce_field('ll_wordset_manager_import_' . $wordset_id, 'll_wordset_manager_import_nonce'); ?>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Paste Prompt + Answer Pairs', 'll-tools-text-domain'); ?></h3>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('Quizlet-style tab-separated lines work best. Supported separators: tab, =>, ::, |', 'll-tools-text-domain'); ?>
+                    </p>
+                    <label for="ll-wordset-manager-import-pairs" class="screen-reader-text"><?php echo esc_html__('Prompt and answer pairs', 'll-tools-text-domain'); ?></label>
+                    <textarea
+                        id="ll-wordset-manager-import-pairs"
+                        name="ll_wordset_manager_import_pairs"
+                        rows="10"
+                        style="width:100%;min-height:180px;"
+                        placeholder="<?php echo esc_attr__("merhaba[TAB]hello\nnasilsin[TAB]how are you", 'll-tools-text-domain'); ?>"></textarea>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-manager-import-existing-category" class="screen-reader-text"><?php echo esc_html__('Existing category', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-manager-import-existing-category" name="ll_wordset_manager_import_existing_category" class="ll-tools-settings-select" style="max-width: 420px;">
+                        <option value="0"><?php echo esc_html__('No category (optional)', 'll-tools-text-domain'); ?></option>
+                        <?php foreach ($enhanced_categories as $import_category) : ?>
+                            <?php
+                            if (!is_array($import_category)) {
+                                continue;
+                            }
+                            $import_category_id = isset($import_category['id']) ? (int) $import_category['id'] : 0;
+                            if ($import_category_id <= 0) {
+                                continue;
+                            }
+                            $import_category_name = isset($import_category['translation']) && (string) $import_category['translation'] !== ''
+                                ? (string) $import_category['translation']
+                                : (string) ($import_category['name'] ?? '');
+                            $import_category_hidden = !empty($import_category['hidden']);
+                            $import_category_label = $import_category_name;
+                            if ($import_category_hidden) {
+                                $import_category_label .= ' (' . __('Hidden', 'll-tools-text-domain') . ')';
+                            }
+                            ?>
+                            <option value="<?php echo esc_attr($import_category_id); ?>"><?php echo esc_html($import_category_label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Or create a new category (new name takes priority):', 'll-tools-text-domain'); ?>
+                    </p>
+                    <label for="ll-wordset-manager-import-new-category" class="screen-reader-text"><?php echo esc_html__('New category name', 'll-tools-text-domain'); ?></label>
+                    <input
+                        type="text"
+                        id="ll-wordset-manager-import-new-category"
+                        name="ll_wordset_manager_import_new_category"
+                        class="regular-text"
+                        style="max-width:420px;width:100%;"
+                        placeholder="<?php echo esc_attr__('New category name', 'll-tools-text-domain'); ?>" />
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Bulk import assumes text-to-text (prompt -> translation, answer -> word title) and publishes items by default.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <label for="ll-wordset-manager-import-allow-duplicates" style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+                        <input
+                            type="checkbox"
+                            id="ll-wordset-manager-import-allow-duplicates"
+                            name="ll_wordset_manager_import_allow_duplicates"
+                            value="1" />
+                        <span><?php echo esc_html__('Allow duplicate titles in this word set (do not skip matches)', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Leave this off to skip duplicates and review the import count first.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Import Words', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_recorder_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $assigned_audio_recorders, array $available_audio_recorders): string {
+    $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $back_url);
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Recorder Access', 'll-tools-text-domain'); ?></h2>
+
+            <div class="ll-wordset-settings-card__group">
+                <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Assigned Tutors / Recorders', 'll-tools-text-domain'); ?></h3>
+                <?php if (empty($assigned_audio_recorders)) : ?>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('No audio recorder users are currently assigned to this word set.', 'll-tools-text-domain'); ?>
+                    </p>
+                <?php else : ?>
+                    <div style="display:grid;gap:10px;">
+                        <?php foreach ($assigned_audio_recorders as $assigned_recorder_user) : ?>
+                            <?php
+                            if (!$assigned_recorder_user instanceof WP_User) {
+                                continue;
+                            }
+                            $assigned_user_id = (int) $assigned_recorder_user->ID;
+                            $assigned_label = (string) $assigned_recorder_user->display_name;
+                            if ($assigned_label === '') {
+                                $assigned_label = (string) $assigned_recorder_user->user_login;
+                            }
+                            ?>
+                            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
+                                <div>
+                                    <strong><?php echo esc_html($assigned_label); ?></strong>
+                                    <?php if (!empty($assigned_recorder_user->user_email)) : ?>
+                                        <div class="description" style="margin-top:2px;"><?php echo esc_html((string) $assigned_recorder_user->user_email); ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <form method="post" action="<?php echo esc_url($action_url); ?>" style="margin:0;">
+                                    <input type="hidden" name="ll_wordset_manager_recorder_action" value="unassign" />
+                                    <input type="hidden" name="ll_wordset_manager_recorder_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                                    <input type="hidden" name="ll_wordset_manager_recorder_user_id" value="<?php echo esc_attr($assigned_user_id); ?>" />
+                                    <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                                    <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                                    <input type="hidden" name="ll_wordset_view" value="settings" />
+                                    <input type="hidden" name="ll_wordset_tool" value="recorder" />
+                                    <?php wp_nonce_field('ll_wordset_manager_recorder_' . $wordset_id, 'll_wordset_manager_recorder_nonce'); ?>
+                                    <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Unassign', 'll-tools-text-domain'); ?></button>
+                                </form>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <form method="post" action="<?php echo esc_url($action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_recorder_action" value="assign" />
+                <input type="hidden" name="ll_wordset_manager_recorder_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                <input type="hidden" name="ll_wordset_view" value="settings" />
+                <input type="hidden" name="ll_wordset_tool" value="recorder" />
+                <?php wp_nonce_field('ll_wordset_manager_recorder_' . $wordset_id, 'll_wordset_manager_recorder_nonce'); ?>
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Assign Audio Recorder User', 'll-tools-text-domain'); ?></h3>
+                    <?php if (empty($available_audio_recorders)) : ?>
+                        <p class="description" style="margin-top:0;">
+                            <?php echo esc_html__('No users currently have the Audio Recorder role. Add the role to a user account first.', 'll-tools-text-domain'); ?>
+                        </p>
+                    <?php else : ?>
+                        <label for="ll-wordset-manager-recorder-user" class="screen-reader-text"><?php echo esc_html__('Audio recorder user', 'll-tools-text-domain'); ?></label>
+                        <select id="ll-wordset-manager-recorder-user" name="ll_wordset_manager_recorder_user_id" class="ll-tools-settings-select" style="max-width:420px;">
+                            <option value=""><?php echo esc_html__('Select a recorder user', 'll-tools-text-domain'); ?></option>
+                            <?php foreach ($available_audio_recorders as $audio_recorder_user) : ?>
+                                <?php
+                                if (!$audio_recorder_user instanceof WP_User) {
+                                    continue;
+                                }
+                                $audio_recorder_user_id = (int) $audio_recorder_user->ID;
+                                $audio_recorder_label = (string) $audio_recorder_user->display_name;
+                                if ($audio_recorder_label === '') {
+                                    $audio_recorder_label = (string) $audio_recorder_user->user_login;
+                                }
+                                if (!empty($audio_recorder_user->user_email)) {
+                                    $audio_recorder_label .= ' (' . (string) $audio_recorder_user->user_email . ')';
+                                }
+                                ?>
+                                <option value="<?php echo esc_attr($audio_recorder_user_id); ?>"><?php echo esc_html($audio_recorder_label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description" style="margin-top:8px;">
+                            <?php echo esc_html__('Assigning a recorder locks their recording interface to this word set (existing category filter is reset).', 'll-tools-text-domain'); ?>
+                        </p>
+                        <div style="margin-top:10px;">
+                            <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Assign Recorder', 'll-tools-text-domain'); ?></button>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </form>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_upload_tool(string $title, string $description, string $shortcode): string {
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html($title); ?></h2>
+            <div class="ll-wordset-settings-card__group">
+                <p class="description" style="margin-top:0;">
+                    <?php echo esc_html($description); ?>
+                </p>
+                <?php if ($shortcode !== '') : ?>
+                    <?php echo do_shortcode($shortcode); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <?php else : ?>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('This upload tool is unavailable right now.', 'll-tools-text-domain'); ?>
+                    </p>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_queue(array $enhanced_categories, array $recommendation_queue, array $mode_labels, array $mode_ui, array $mode_fallback_icons): string {
+    $queue_category_lookup = [];
+    foreach ((array) $enhanced_categories as $queue_cat) {
+        if (!is_array($queue_cat)) {
+            continue;
+        }
+        $queue_cid = isset($queue_cat['id']) ? (int) $queue_cat['id'] : 0;
+        if ($queue_cid <= 0) {
+            continue;
+        }
+        $queue_label = isset($queue_cat['translation']) && (string) $queue_cat['translation'] !== ''
+            ? (string) $queue_cat['translation']
+            : (string) ($queue_cat['name'] ?? '');
+        $queue_preview = [];
+        foreach (array_slice((array) ($queue_cat['preview'] ?? []), 0, 2) as $queue_preview_item) {
+            if (!is_array($queue_preview_item)) {
+                continue;
+            }
+            $queue_preview_type = ((string) ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url']))
+                ? 'image'
+                : 'text';
+            if ($queue_preview_type === 'image') {
+                $queue_preview[] = [
+                    'type' => 'image',
+                    'url' => (string) ($queue_preview_item['url'] ?? ''),
+                    'alt' => (string) ($queue_preview_item['alt'] ?? ''),
+                ];
+                continue;
+            }
+            $queue_preview_label = trim((string) ($queue_preview_item['label'] ?? ''));
+            if ($queue_preview_label === '') {
+                continue;
+            }
+            $queue_preview[] = [
+                'type' => 'text',
+                'label' => $queue_preview_label,
+            ];
+        }
+        $queue_category_lookup[$queue_cid] = [
+            'label' => $queue_label,
+            'preview' => $queue_preview,
+        ];
+    }
+
+    $priority_focus_labels = [
+        'new' => __('New words', 'll-tools-text-domain'),
+        'studied' => __('In progress words', 'll-tools-text-domain'),
+        'learned' => __('Learned words', 'll-tools-text-domain'),
+        'starred' => __('Starred words', 'll-tools-text-domain'),
+        'hard' => __('Hard words', 'll-tools-text-domain'),
+    ];
+
+    ob_start();
+    ?>
+    <div class="ll-wordset-settings-card">
+        <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Upcoming activities', 'll-tools-text-domain'); ?></h2>
+        <ul class="ll-wordset-queue-list" data-ll-wordset-queue-list>
+            <?php foreach ((array) $recommendation_queue as $queue_item) : ?>
+                <?php
+                if (!is_array($queue_item)) {
+                    continue;
+                }
+                $queue_mode = isset($queue_item['mode']) ? (string) $queue_item['mode'] : 'practice';
+                $queue_mode = in_array($queue_mode, ['learning', 'practice', 'listening', 'gender', 'self-check'], true) ? $queue_mode : 'practice';
+                $queue_mode_label = $mode_labels[$queue_mode] ?? ucfirst($queue_mode);
+                $queue_ids = array_values(array_filter(array_map('intval', (array) ($queue_item['category_ids'] ?? [])), static function ($id) {
+                    return $id > 0;
+                }));
+                $queue_category_labels = [];
+                $queue_preview_items = [];
+                $queue_preview_seen = [];
+                foreach ($queue_ids as $queue_cid) {
+                    if (!isset($queue_category_lookup[$queue_cid]) || !is_array($queue_category_lookup[$queue_cid])) {
+                        continue;
+                    }
+                    $queue_meta = $queue_category_lookup[$queue_cid];
+                    $queue_label = (string) ($queue_meta['label'] ?? '');
+                    if ($queue_label !== '') {
+                        $queue_category_labels[] = $queue_label;
+                    }
+                    foreach ((array) ($queue_meta['preview'] ?? []) as $queue_preview_item) {
+                        if (count($queue_preview_items) >= 2 || !is_array($queue_preview_item)) {
+                            continue;
+                        }
+                        $queue_preview_type = ((string) ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url']))
+                            ? 'image'
+                            : 'text';
+                        if ($queue_preview_type === 'image') {
+                            $queue_preview_url = (string) ($queue_preview_item['url'] ?? '');
+                            if ($queue_preview_url === '') {
+                                continue;
+                            }
+                            $queue_preview_key = 'img:' . $queue_preview_url;
+                            if (isset($queue_preview_seen[$queue_preview_key])) {
+                                continue;
+                            }
+                            $queue_preview_seen[$queue_preview_key] = true;
+                            $queue_preview_items[] = [
+                                'type' => 'image',
+                                'url' => $queue_preview_url,
+                                'alt' => (string) ($queue_preview_item['alt'] ?? ''),
+                            ];
+                            continue;
+                        }
+                        $queue_preview_label = trim((string) ($queue_preview_item['label'] ?? ''));
+                        if ($queue_preview_label === '') {
+                            continue;
+                        }
+                        $queue_preview_key = 'txt:' . $queue_preview_label;
+                        if (isset($queue_preview_seen[$queue_preview_key])) {
+                            continue;
+                        }
+                        $queue_preview_seen[$queue_preview_key] = true;
+                        $queue_preview_items[] = [
+                            'type' => 'text',
+                            'label' => $queue_preview_label,
+                        ];
+                    }
+                }
+                $queue_details = isset($queue_item['details']) && is_array($queue_item['details'])
+                    ? $queue_item['details']
+                    : [];
+                $queue_focus_key = sanitize_key((string) ($queue_details['priority_focus'] ?? ''));
+                if ($queue_focus_key !== '' && isset($priority_focus_labels[$queue_focus_key])) {
+                    $queue_category_text = (string) $priority_focus_labels[$queue_focus_key];
+                } else {
+                    $queue_category_text = !empty($queue_category_labels)
+                        ? implode(', ', $queue_category_labels)
+                        : esc_html__('Categories', 'll-tools-text-domain');
+                }
+                $queue_word_count = count(array_values(array_filter(array_map('intval', (array) ($queue_item['session_word_ids'] ?? [])), static function ($id) {
+                    return $id > 0;
+                })));
+                $queue_id = isset($queue_item['queue_id']) ? sanitize_key((string) $queue_item['queue_id']) : '';
+                if ($queue_id === '') {
+                    continue;
+                }
+                ?>
+                <li class="ll-wordset-queue-item" data-ll-wordset-queue-item data-queue-id="<?php echo esc_attr($queue_id); ?>">
+                    <span class="ll-wordset-queue-item__mode ll-wordset-card__quiz-btn">
+                        <?php echo ll_tools_wordset_page_render_mode_icon($queue_mode, $mode_ui, $mode_fallback_icons[$queue_mode] ?? '❓', 'll-wordset-card__quiz-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </span>
+                    <span class="ll-wordset-queue-item__preview" aria-hidden="true">
+                        <?php for ($queue_preview_idx = 0; $queue_preview_idx < 2; $queue_preview_idx++) : ?>
+                            <?php $queue_preview_item = isset($queue_preview_items[$queue_preview_idx]) && is_array($queue_preview_items[$queue_preview_idx]) ? $queue_preview_items[$queue_preview_idx] : null; ?>
+                            <?php if ($queue_preview_item && ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url'])) : ?>
+                                <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--image">
+                                    <img src="<?php echo esc_url($queue_preview_item['url']); ?>" alt="" loading="lazy" decoding="async" fetchpriority="low" />
+                                </span>
+                            <?php elseif ($queue_preview_item && ($queue_preview_item['type'] ?? '') === 'text' && !empty($queue_preview_item['label'])) : ?>
+                                <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--text">
+                                    <span class="ll-wordset-queue-thumb__text"><?php echo esc_html((string) $queue_preview_item['label']); ?></span>
+                                </span>
+                            <?php else : ?>
+                                <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--empty"></span>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                    </span>
+                    <span class="ll-wordset-queue-item__text">
+                        <span class="ll-wordset-queue-item__line"><?php echo esc_html($queue_mode_label); ?></span>
+                        <span class="ll-wordset-queue-item__line ll-wordset-queue-item__line--muted"><?php echo esc_html($queue_category_text); ?></span>
+                    </span>
+                    <?php if ($queue_word_count > 0) : ?>
+                        <span class="ll-wordset-queue-item__count"><?php echo (int) $queue_word_count; ?></span>
+                    <?php endif; ?>
+                    <button type="button" class="ll-wordset-queue-item__remove" data-ll-wordset-queue-remove data-queue-id="<?php echo esc_attr($queue_id); ?>" aria-label="<?php echo esc_attr__('Remove activity', 'll-tools-text-domain'); ?>">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+        <p class="ll-wordset-settings-empty" data-ll-wordset-queue-empty <?php if (!empty($recommendation_queue)) : ?>hidden<?php endif; ?>>
+            <?php echo esc_html__('No upcoming activities yet.', 'll-tools-text-domain'); ?>
+        </p>
+    </div>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
+    $mode_ui = (isset($args['mode_ui']) && is_array($args['mode_ui'])) ? $args['mode_ui'] : [];
+    $mode_fallback_icons = (isset($args['mode_fallback_icons']) && is_array($args['mode_fallback_icons'])) ? $args['mode_fallback_icons'] : [];
+    $mode_labels = (isset($args['mode_labels']) && is_array($args['mode_labels'])) ? $args['mode_labels'] : [];
+    $gender_mode_available = !empty($args['gender_mode_available']);
+    $enhanced_categories = (isset($args['enhanced_categories']) && is_array($args['enhanced_categories'])) ? $args['enhanced_categories'] : [];
+    $recommendation_queue = (isset($args['recommendation_queue']) && is_array($args['recommendation_queue'])) ? $args['recommendation_queue'] : [];
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Study priorities', 'll-tools-text-domain'); ?></h2>
+            <div class="ll-wordset-settings-card__group">
+                <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Select one focus (optional)', 'll-tools-text-domain'); ?></h3>
+                <div class="ll-wordset-settings-card__options ll-wordset-settings-card__options--priority" role="group" aria-label="<?php echo esc_attr__('Study priority focus', 'll-tools-text-domain'); ?>">
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--new" data-ll-wordset-priority-focus="new">
+                        <?php echo ll_tools_wordset_page_render_priority_focus_icon('new', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="ll-wordset-priority-option__label"><?php echo esc_html__('New words', 'll-tools-text-domain'); ?></span>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--studied" data-ll-wordset-priority-focus="studied">
+                        <?php echo ll_tools_wordset_page_render_priority_focus_icon('studied', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="ll-wordset-priority-option__label"><?php echo esc_html__('In progress words', 'll-tools-text-domain'); ?></span>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--learned" data-ll-wordset-priority-focus="learned">
+                        <?php echo ll_tools_wordset_page_render_priority_focus_icon('learned', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="ll-wordset-priority-option__label"><?php echo esc_html__('Learned words', 'll-tools-text-domain'); ?></span>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--starred" data-ll-wordset-priority-focus="starred">
+                        <?php echo ll_tools_wordset_page_render_priority_focus_icon('starred', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="ll-wordset-priority-option__label"><?php echo esc_html__('Starred words', 'll-tools-text-domain'); ?></span>
+                    </button>
+                    <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--hard" data-ll-wordset-priority-focus="hard">
+                        <?php echo ll_tools_wordset_page_render_priority_focus_icon('hard', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="ll-wordset-priority-option__label"><?php echo esc_html__('Hard words', 'll-tools-text-domain'); ?></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Transition speed', 'll-tools-text-domain'); ?></h2>
+            <div class="ll-wordset-settings-card__options" role="group" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-ll-wordset-transition="slow"><?php echo esc_html__('Standard', 'll-tools-text-domain'); ?></button>
+                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-ll-wordset-transition="fast"><?php echo esc_html__('Faster', 'll-tools-text-domain'); ?></button>
+            </div>
+        </div>
+
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Learning goals', 'll-tools-text-domain'); ?></h2>
+            <div class="ll-wordset-settings-card__options" role="group" aria-label="<?php echo esc_attr__('Enabled modes', 'll-tools-text-domain'); ?>">
+                <?php
+                $goal_modes = ['learning', 'practice', 'listening'];
+                if ($gender_mode_available) {
+                    $goal_modes[] = 'gender';
+                }
+                $goal_modes[] = 'self-check';
+                foreach ($goal_modes as $mode) :
+                ?>
+                    <button
+                        type="button"
+                        class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option"
+                        data-ll-wordset-goal-mode="<?php echo esc_attr($mode); ?>"
+                        aria-pressed="false">
+                        <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($mode_labels[$mode] ?? ucfirst($mode)); ?></span>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <?php echo ll_tools_wordset_page_render_settings_queue($enhanced_categories, $recommendation_queue, $mode_labels, $mode_ui, $mode_fallback_icons); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_render_wordset_page_content($wordset, array $args = []): string {
     $defaults = [
         'show_title' => true,
@@ -2738,11 +3507,32 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
         $subpage_return_url
     );
+    $settings_tool = ($view === 'settings') ? ll_tools_get_wordset_settings_tool() : '';
     $back_url = ll_tools_wordset_page_resolve_back_url($wordset_term);
+    $settings_url = ll_tools_get_wordset_settings_tool_url($wordset_term, '', $back_url);
     $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
     $can_manage_wordset_content = function_exists('ll_tools_current_user_can_manage_wordset_content')
         ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
         : current_user_can('manage_options');
+    $can_manage_wordset_uploads = $can_manage_wordset_content && current_user_can('upload_files');
+    if (!$can_manage_wordset_content && in_array($settings_tool, ['visibility', 'import', 'recorder', 'image-upload', 'audio-upload'], true)) {
+        $settings_tool = '';
+    }
+    if (!$can_manage_wordset_uploads && in_array($settings_tool, ['image-upload', 'audio-upload'], true)) {
+        $settings_tool = '';
+    }
+    if (!$is_study_user && $settings_tool === 'study') {
+        $settings_tool = '';
+    }
+    $settings_tool_urls = [
+        'hub' => $settings_url,
+        'study' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $back_url),
+        'visibility' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $back_url),
+        'import' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'import', $back_url),
+        'recorder' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $back_url),
+        'image-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'image-upload', $back_url),
+        'audio-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'audio-upload', $back_url),
+    ];
     $utility_current_url = function_exists('ll_tools_get_current_request_url')
         ? (string) ll_tools_get_current_request_url()
         : ll_tools_wordset_page_current_url();
@@ -2783,7 +3573,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
         if ($can_manage_wordset_content) {
             $utility_links[] = [
-                'label' => __('Manage Word Set', 'll-tools-text-domain'),
+                'label' => __('Word Set Tools', 'll-tools-text-domain'),
                 'url' => $settings_url,
                 'is_active' => ($view === 'settings'),
             ];
@@ -3144,24 +3934,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $manager_recorder_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_recorder_notice() : null;
     $manager_audio_upload_notice = ($view === 'settings') ? ll_tools_wordset_page_audio_upload_notice() : null;
     $manager_image_upload_notice = ($view === 'settings') ? ll_tools_wordset_page_image_upload_notice() : null;
-    $manager_settings_return_url = '';
     $manager_audio_upload_shortcode = '';
     $manager_image_upload_shortcode = '';
-    if ($view === 'settings' && $can_manage_wordset_content && current_user_can('upload_files')) {
-        $manager_settings_return_url = ll_tools_wordset_page_with_back_url(
-            ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
-            $back_url
-        );
-        $manager_settings_return_shortcode_url = str_replace('"', '&quot;', esc_url_raw($manager_settings_return_url));
+    if ($view === 'settings' && $can_manage_wordset_uploads) {
+        $manager_audio_return_shortcode_url = str_replace('"', '&quot;', esc_url_raw($settings_tool_urls['audio-upload']));
+        $manager_image_return_shortcode_url = str_replace('"', '&quot;', esc_url_raw($settings_tool_urls['image-upload']));
         $manager_audio_upload_shortcode = sprintf(
             '[audio_upload_form wordset_id="%1$d" lock_wordset="1" return_url="%2$s"]',
             (int) $wordset_id,
-            $manager_settings_return_shortcode_url
+            $manager_audio_return_shortcode_url
         );
         $manager_image_upload_shortcode = sprintf(
             '[image_upload_form wordset_id="%1$d" lock_wordset="1" return_url="%2$s"]',
             (int) $wordset_id,
-            $manager_settings_return_shortcode_url
+            $manager_image_return_shortcode_url
         );
     }
     $available_audio_recorders = [];
@@ -3187,6 +3973,99 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 $assigned_audio_recorders[] = $audio_recorder_user;
             }
         }
+    }
+    $settings_hub_cards = [];
+    if ($view === 'settings' && $is_study_user) {
+        $enabled_goal_modes = array_values(array_filter(array_map('sanitize_key', (array) ($goals['enabled_modes'] ?? [])), static function ($mode): bool {
+            return $mode !== '';
+        }));
+        $enabled_goal_mode_count = count(array_values(array_unique($enabled_goal_modes)));
+        $study_card_status = '';
+        if ($enabled_goal_mode_count > 0) {
+            $study_card_status = sprintf(
+                _n('%d mode enabled', '%d modes enabled', $enabled_goal_mode_count, 'll-tools-text-domain'),
+                $enabled_goal_mode_count
+            );
+        }
+        $queue_count = count($recommendation_queue);
+        if ($queue_count > 0) {
+            $queue_status = sprintf(
+                _n('%d activity queued', '%d activities queued', $queue_count, 'll-tools-text-domain'),
+                $queue_count
+            );
+            $study_card_status = $study_card_status !== ''
+                ? $study_card_status . ' · ' . $queue_status
+                : $queue_status;
+        }
+        $settings_hub_cards[] = [
+            'tool' => 'study',
+            'label' => ll_tools_wordset_settings_tool_label('study'),
+            'description' => ll_tools_wordset_settings_tool_description('study'),
+            'status' => $study_card_status,
+            'url' => $settings_tool_urls['study'],
+            'enabled' => true,
+        ];
+    }
+    if ($view === 'settings' && $can_manage_wordset_content) {
+        $settings_hub_cards[] = [
+            'tool' => 'visibility',
+            'label' => ll_tools_wordset_settings_tool_label('visibility'),
+            'description' => ll_tools_wordset_settings_tool_description('visibility'),
+            'status' => $wordset_is_private ? __('Private', 'll-tools-text-domain') : __('Public', 'll-tools-text-domain'),
+            'url' => $settings_tool_urls['visibility'],
+            'enabled' => true,
+        ];
+
+        $settings_hub_cards[] = [
+            'tool' => 'import',
+            'label' => ll_tools_wordset_settings_tool_label('import'),
+            'description' => ll_tools_wordset_settings_tool_description('import'),
+            'status' => !empty($enhanced_categories)
+                ? sprintf(
+                    _n('%d category ready', '%d categories ready', count($enhanced_categories), 'll-tools-text-domain'),
+                    count($enhanced_categories)
+                )
+                : __('No categories yet', 'll-tools-text-domain'),
+            'url' => $settings_tool_urls['import'],
+            'enabled' => true,
+        ];
+
+        $assigned_recorder_count = count($assigned_audio_recorders);
+        $settings_hub_cards[] = [
+            'tool' => 'recorder',
+            'label' => ll_tools_wordset_settings_tool_label('recorder'),
+            'description' => ll_tools_wordset_settings_tool_description('recorder'),
+            'status' => $assigned_recorder_count > 0
+                ? sprintf(
+                    _n('%d recorder assigned', '%d recorders assigned', $assigned_recorder_count, 'll-tools-text-domain'),
+                    $assigned_recorder_count
+                )
+                : __('No recorders assigned', 'll-tools-text-domain'),
+            'url' => $settings_tool_urls['recorder'],
+            'enabled' => true,
+        ];
+
+        $settings_hub_cards[] = [
+            'tool' => 'image-upload',
+            'label' => ll_tools_wordset_settings_tool_label('image-upload'),
+            'description' => ll_tools_wordset_settings_tool_description('image-upload'),
+            'status' => $can_manage_wordset_uploads
+                ? __('Ready', 'll-tools-text-domain')
+                : __('Upload permission required', 'll-tools-text-domain'),
+            'url' => $can_manage_wordset_uploads ? $settings_tool_urls['image-upload'] : '',
+            'enabled' => $can_manage_wordset_uploads,
+        ];
+
+        $settings_hub_cards[] = [
+            'tool' => 'audio-upload',
+            'label' => ll_tools_wordset_settings_tool_label('audio-upload'),
+            'description' => ll_tools_wordset_settings_tool_description('audio-upload'),
+            'status' => $can_manage_wordset_uploads
+                ? __('Ready', 'll-tools-text-domain')
+                : __('Upload permission required', 'll-tools-text-domain'),
+            'url' => $can_manage_wordset_uploads ? $settings_tool_urls['audio-upload'] : '',
+            'enabled' => $can_manage_wordset_uploads,
+        ];
     }
     $can_manage_vocab_lessons = $can_manage_wordset_content;
     $show_enable_lessons_button = false;
@@ -4009,522 +4888,75 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </section>
             <?php endif; ?>
         <?php elseif ($view === 'settings') : ?>
+            <?php
+            $settings_header_back_url = ($settings_tool !== '') ? $settings_tool_urls['hub'] : $back_url;
+            $settings_header_back_label = ($settings_tool !== '') ? __('Word Set Tools', 'll-tools-text-domain') : $wordset_term->name;
+            $settings_header_back_aria = ($settings_tool !== '')
+                ? __('Back to word set tools', 'll-tools-text-domain')
+                : sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name);
+            $settings_page_title = ll_tools_wordset_settings_tool_title($settings_tool);
+            $settings_notices = [];
+            if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && ($settings_tool === '' || $settings_tool === 'visibility')) {
+                $settings_notices[] = $manager_settings_notice;
+            }
+            if (is_array($manager_import_notice) && !empty($manager_import_notice['message']) && ($settings_tool === '' || $settings_tool === 'import')) {
+                $settings_notices[] = $manager_import_notice;
+            }
+            if (is_array($manager_recorder_notice) && !empty($manager_recorder_notice['message']) && ($settings_tool === '' || $settings_tool === 'recorder')) {
+                $settings_notices[] = $manager_recorder_notice;
+            }
+            if (is_array($manager_audio_upload_notice) && !empty($manager_audio_upload_notice['message']) && ($settings_tool === '' || $settings_tool === 'audio-upload')) {
+                $settings_notices[] = $manager_audio_upload_notice;
+            }
+            if (is_array($manager_image_upload_notice) && !empty($manager_image_upload_notice['message']) && ($settings_tool === '' || $settings_tool === 'image-upload')) {
+                $settings_notices[] = $manager_image_upload_notice;
+            }
+            ?>
             <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($settings_header_back_url); ?>" aria-label="<?php echo esc_attr($settings_header_back_aria); ?>">
                     <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+                    <span class="ll-wordset-back__label"><?php echo esc_html($settings_header_back_label); ?></span>
                 </a>
-                <h1 class="ll-wordset-title"><?php echo esc_html__('Study Settings', 'll-tools-text-domain'); ?></h1>
+                <h1 class="ll-wordset-title"><?php echo esc_html($settings_page_title); ?></h1>
             </header>
-            <?php if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message'])) : ?>
-                <div
-                    class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--<?php echo esc_attr(($manager_settings_notice['type'] ?? 'error') === 'success' ? 'success' : 'error'); ?>"
-                    role="<?php echo esc_attr(($manager_settings_notice['type'] ?? 'error') === 'success' ? 'status' : 'alert'); ?>">
-                    <?php echo esc_html((string) $manager_settings_notice['message']); ?>
-                </div>
-            <?php endif; ?>
-            <?php if (is_array($manager_import_notice) && !empty($manager_import_notice['message'])) : ?>
-                <div
-                    class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--<?php echo esc_attr(($manager_import_notice['type'] ?? 'error') === 'success' ? 'success' : 'error'); ?>"
-                    role="<?php echo esc_attr(($manager_import_notice['type'] ?? 'error') === 'success' ? 'status' : 'alert'); ?>">
-                    <?php echo esc_html((string) $manager_import_notice['message']); ?>
-                </div>
-            <?php endif; ?>
-            <?php if (is_array($manager_recorder_notice) && !empty($manager_recorder_notice['message'])) : ?>
-                <div
-                    class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--<?php echo esc_attr(($manager_recorder_notice['type'] ?? 'error') === 'success' ? 'success' : 'error'); ?>"
-                    role="<?php echo esc_attr(($manager_recorder_notice['type'] ?? 'error') === 'success' ? 'status' : 'alert'); ?>">
-                    <?php echo esc_html((string) $manager_recorder_notice['message']); ?>
-                </div>
-            <?php endif; ?>
-            <?php if (is_array($manager_audio_upload_notice) && !empty($manager_audio_upload_notice['message'])) : ?>
-                <div
-                    class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--<?php echo esc_attr(($manager_audio_upload_notice['type'] ?? 'error') === 'success' ? 'success' : 'error'); ?>"
-                    role="<?php echo esc_attr(($manager_audio_upload_notice['type'] ?? 'error') === 'success' ? 'status' : 'alert'); ?>">
-                    <?php echo esc_html((string) $manager_audio_upload_notice['message']); ?>
-                </div>
-            <?php endif; ?>
-            <?php if (is_array($manager_image_upload_notice) && !empty($manager_image_upload_notice['message'])) : ?>
-                <div
-                    class="ll-wordset-progress-reset-notice ll-wordset-progress-reset-notice--<?php echo esc_attr(($manager_image_upload_notice['type'] ?? 'error') === 'success' ? 'success' : 'error'); ?>"
-                    role="<?php echo esc_attr(($manager_image_upload_notice['type'] ?? 'error') === 'success' ? 'status' : 'alert'); ?>">
-                    <?php echo esc_html((string) $manager_image_upload_notice['message']); ?>
-                </div>
-            <?php endif; ?>
+            <?php foreach ($settings_notices as $settings_notice) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_notice($settings_notice); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php endforeach; ?>
             <?php if (!$is_study_user) : ?>
                 <div class="ll-wordset-empty">
-                    <?php echo esc_html__('Sign in to manage study settings.', 'll-tools-text-domain'); ?>
+                    <?php echo esc_html__('Sign in to open word set tools.', 'll-tools-text-domain'); ?>
                 </div>
+            <?php elseif ($settings_tool === 'study') : ?>
+                <?php
+                echo ll_tools_wordset_page_render_settings_study_tool([
+                    'mode_ui' => $mode_ui,
+                    'mode_fallback_icons' => $mode_fallback_icons,
+                    'mode_labels' => $mode_labels,
+                    'gender_mode_available' => $gender_mode_available,
+                    'enhanced_categories' => $enhanced_categories,
+                    'recommendation_queue' => $recommendation_queue,
+                ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                ?>
+            <?php elseif ($settings_tool === 'visibility' && $can_manage_wordset_content) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_visibility_tool($wordset_term, $wordset_id, $back_url, $wordset_visibility, $wordset_is_private); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'import' && $can_manage_wordset_content) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_import_tool($wordset_term, $wordset_id, $back_url, $enhanced_categories); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'recorder' && $can_manage_wordset_content) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_recorder_tool($wordset_term, $wordset_id, $back_url, $assigned_audio_recorders, $available_audio_recorders); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'image-upload' && $can_manage_wordset_uploads) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_upload_tool(__('Image Upload', 'll-tools-text-domain'), __('Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes.', 'll-tools-text-domain'), $manager_image_upload_shortcode); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'audio-upload' && $can_manage_wordset_uploads) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_upload_tool(__('Audio Upload', 'll-tools-text-domain'), __('Bulk upload audio files and create or match draft words in this word set.', 'll-tools-text-domain'), $manager_audio_upload_shortcode); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif (!empty($settings_hub_cards)) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_hub($settings_hub_cards); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php else : ?>
-                <section class="ll-wordset-settings-page" data-ll-wordset-settings-page>
-                    <?php if ($can_manage_wordset_content) : ?>
-                        <div class="ll-wordset-settings-card">
-                            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Word Set Manager', 'll-tools-text-domain'); ?></h2>
-                            <form method="post" action="<?php echo esc_url(ll_tools_wordset_page_with_back_url(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'), $back_url)); ?>">
-                                <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
-                                <input type="hidden" name="ll_wordset_manager_settings_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
-                                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
-                                <input type="hidden" name="ll_wordset_view" value="settings" />
-                                <?php wp_nonce_field('ll_wordset_manager_settings_' . $wordset_id, 'll_wordset_manager_settings_nonce'); ?>
-                                <div class="ll-wordset-settings-card__group">
-                                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Visibility', 'll-tools-text-domain'); ?></h3>
-                                    <label for="ll-wordset-settings-visibility" class="screen-reader-text"><?php echo esc_html__('Word set visibility', 'll-tools-text-domain'); ?></label>
-                                    <select id="ll-wordset-settings-visibility" name="ll_wordset_visibility" class="ll-tools-settings-select" style="max-width: 260px;">
-                                        <option value="public" <?php selected($wordset_visibility, 'public'); ?>><?php echo esc_html__('Public', 'll-tools-text-domain'); ?></option>
-                                        <option value="private" <?php selected($wordset_visibility, 'private'); ?>><?php echo esc_html__('Private', 'll-tools-text-domain'); ?></option>
-                                    </select>
-                                    <p class="description" style="margin-top:8px;">
-                                        <?php echo esc_html__('Private word sets are only visible to the assigned manager and administrators in this first pass.', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <p class="description" style="margin-top:0;">
-                                        <?php
-                                        echo esc_html(
-                                            $wordset_is_private
-                                                ? __('This word set is currently private.', 'll-tools-text-domain')
-                                                : __('This word set is currently public.', 'll-tools-text-domain')
-                                        );
-                                        ?>
-                                    </p>
-                                    <div style="margin-top:10px;">
-                                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Word Set Settings', 'll-tools-text-domain'); ?></button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-
-                        <div class="ll-wordset-settings-card">
-                            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Bulk Import', 'll-tools-text-domain'); ?></h2>
-                            <form method="post" action="<?php echo esc_url(ll_tools_wordset_page_with_back_url(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'), $back_url)); ?>">
-                                <input type="hidden" name="ll_wordset_manager_import_action" value="import_pairs" />
-                                <input type="hidden" name="ll_wordset_manager_import_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
-                                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
-                                <input type="hidden" name="ll_wordset_view" value="settings" />
-                                <?php wp_nonce_field('ll_wordset_manager_import_' . $wordset_id, 'll_wordset_manager_import_nonce'); ?>
-
-                                <div class="ll-wordset-settings-card__group">
-                                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Paste Prompt + Answer Pairs', 'll-tools-text-domain'); ?></h3>
-                                    <p class="description" style="margin-top:0;">
-                                        <?php echo esc_html__('Quizlet-style tab-separated lines work best. Supported separators: tab, =>, ::, |', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <label for="ll-wordset-manager-import-pairs" class="screen-reader-text"><?php echo esc_html__('Prompt and answer pairs', 'll-tools-text-domain'); ?></label>
-                                    <textarea
-                                        id="ll-wordset-manager-import-pairs"
-                                        name="ll_wordset_manager_import_pairs"
-                                        rows="10"
-                                        style="width:100%;min-height:180px;"
-                                        placeholder="<?php echo esc_attr__("merhaba[TAB]hello\nnasilsin[TAB]how are you", 'll-tools-text-domain'); ?>"></textarea>
-                                </div>
-
-                                <div class="ll-wordset-settings-card__group">
-                                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></h3>
-                                    <label for="ll-wordset-manager-import-existing-category" class="screen-reader-text"><?php echo esc_html__('Existing category', 'll-tools-text-domain'); ?></label>
-                                    <select id="ll-wordset-manager-import-existing-category" name="ll_wordset_manager_import_existing_category" class="ll-tools-settings-select" style="max-width: 420px;">
-                                        <option value="0"><?php echo esc_html__('No category (optional)', 'll-tools-text-domain'); ?></option>
-                                        <?php foreach ($enhanced_categories as $import_category) : ?>
-                                            <?php
-                                            if (!is_array($import_category)) {
-                                                continue;
-                                            }
-                                            $import_category_id = isset($import_category['id']) ? (int) $import_category['id'] : 0;
-                                            if ($import_category_id <= 0) {
-                                                continue;
-                                            }
-                                            $import_category_name = isset($import_category['translation']) && (string) $import_category['translation'] !== ''
-                                                ? (string) $import_category['translation']
-                                                : (string) ($import_category['name'] ?? '');
-                                            $import_category_hidden = !empty($import_category['hidden']);
-                                            $import_category_label = $import_category_name;
-                                            if ($import_category_hidden) {
-                                                $import_category_label .= ' (' . __('Hidden', 'll-tools-text-domain') . ')';
-                                            }
-                                            ?>
-                                            <option value="<?php echo esc_attr($import_category_id); ?>"><?php echo esc_html($import_category_label); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <p class="description" style="margin-top:8px;">
-                                        <?php echo esc_html__('Or create a new category (new name takes priority):', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <label for="ll-wordset-manager-import-new-category" class="screen-reader-text"><?php echo esc_html__('New category name', 'll-tools-text-domain'); ?></label>
-                                    <input
-                                        type="text"
-                                        id="ll-wordset-manager-import-new-category"
-                                        name="ll_wordset_manager_import_new_category"
-                                        class="regular-text"
-                                        style="max-width:420px;width:100%;"
-                                        placeholder="<?php echo esc_attr__('New category name', 'll-tools-text-domain'); ?>" />
-                                    <p class="description" style="margin-top:8px;">
-                                        <?php echo esc_html__('Bulk import assumes text-to-text (prompt -> translation, answer -> word title) and publishes items by default.', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <label for="ll-wordset-manager-import-allow-duplicates" style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-                                        <input
-                                            type="checkbox"
-                                            id="ll-wordset-manager-import-allow-duplicates"
-                                            name="ll_wordset_manager_import_allow_duplicates"
-                                            value="1" />
-                                        <span><?php echo esc_html__('Allow duplicate titles in this word set (do not skip matches)', 'll-tools-text-domain'); ?></span>
-                                    </label>
-                                    <p class="description" style="margin-top:8px;">
-                                        <?php echo esc_html__('Leave this off to skip duplicates and review the import count first.', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <div style="margin-top:10px;">
-                                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Import Words', 'll-tools-text-domain'); ?></button>
-                                    </div>
-                                </div>
-                            </form>
-                        </div>
-
-                        <div class="ll-wordset-settings-card">
-                            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Recorder Access', 'll-tools-text-domain'); ?></h2>
-
-                            <div class="ll-wordset-settings-card__group">
-                                <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Assigned Tutors / Recorders', 'll-tools-text-domain'); ?></h3>
-                                <?php if (empty($assigned_audio_recorders)) : ?>
-                                    <p class="description" style="margin-top:0;">
-                                        <?php echo esc_html__('No audio recorder users are currently assigned to this word set.', 'll-tools-text-domain'); ?>
-                                    </p>
-                                <?php else : ?>
-                                    <div style="display:grid;gap:10px;">
-                                        <?php foreach ($assigned_audio_recorders as $assigned_recorder_user) : ?>
-                                            <?php
-                                            if (!$assigned_recorder_user instanceof WP_User) {
-                                                continue;
-                                            }
-                                            $assigned_user_id = (int) $assigned_recorder_user->ID;
-                                            $assigned_label = (string) $assigned_recorder_user->display_name;
-                                            if ($assigned_label === '') {
-                                                $assigned_label = (string) $assigned_recorder_user->user_login;
-                                            }
-                                            ?>
-                                            <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;">
-                                                <div>
-                                                    <strong><?php echo esc_html($assigned_label); ?></strong>
-                                                    <?php if (!empty($assigned_recorder_user->user_email)) : ?>
-                                                        <div class="description" style="margin-top:2px;"><?php echo esc_html((string) $assigned_recorder_user->user_email); ?></div>
-                                                    <?php endif; ?>
-                                                </div>
-                                                <form method="post" action="<?php echo esc_url(ll_tools_wordset_page_with_back_url(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'), $back_url)); ?>" style="margin:0;">
-                                                    <input type="hidden" name="ll_wordset_manager_recorder_action" value="unassign" />
-                                                    <input type="hidden" name="ll_wordset_manager_recorder_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
-                                                    <input type="hidden" name="ll_wordset_manager_recorder_user_id" value="<?php echo esc_attr($assigned_user_id); ?>" />
-                                                    <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                                                    <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
-                                                    <input type="hidden" name="ll_wordset_view" value="settings" />
-                                                    <?php wp_nonce_field('ll_wordset_manager_recorder_' . $wordset_id, 'll_wordset_manager_recorder_nonce'); ?>
-                                                    <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Unassign', 'll-tools-text-domain'); ?></button>
-                                                </form>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-
-                            <form method="post" action="<?php echo esc_url(ll_tools_wordset_page_with_back_url(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'), $back_url)); ?>">
-                                <input type="hidden" name="ll_wordset_manager_recorder_action" value="assign" />
-                                <input type="hidden" name="ll_wordset_manager_recorder_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
-                                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
-                                <input type="hidden" name="ll_wordset_view" value="settings" />
-                                <?php wp_nonce_field('ll_wordset_manager_recorder_' . $wordset_id, 'll_wordset_manager_recorder_nonce'); ?>
-                                <div class="ll-wordset-settings-card__group">
-                                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Assign Audio Recorder User', 'll-tools-text-domain'); ?></h3>
-                                    <?php if (empty($available_audio_recorders)) : ?>
-                                        <p class="description" style="margin-top:0;">
-                                            <?php echo esc_html__('No users currently have the Audio Recorder role. Add the role to a user account first.', 'll-tools-text-domain'); ?>
-                                        </p>
-                                    <?php else : ?>
-                                        <label for="ll-wordset-manager-recorder-user" class="screen-reader-text"><?php echo esc_html__('Audio recorder user', 'll-tools-text-domain'); ?></label>
-                                        <select id="ll-wordset-manager-recorder-user" name="ll_wordset_manager_recorder_user_id" class="ll-tools-settings-select" style="max-width:420px;">
-                                            <option value=""><?php echo esc_html__('Select a recorder user', 'll-tools-text-domain'); ?></option>
-                                            <?php foreach ($available_audio_recorders as $audio_recorder_user) : ?>
-                                                <?php
-                                                if (!$audio_recorder_user instanceof WP_User) {
-                                                    continue;
-                                                }
-                                                $audio_recorder_user_id = (int) $audio_recorder_user->ID;
-                                                $audio_recorder_label = (string) $audio_recorder_user->display_name;
-                                                if ($audio_recorder_label === '') {
-                                                    $audio_recorder_label = (string) $audio_recorder_user->user_login;
-                                                }
-                                                if (!empty($audio_recorder_user->user_email)) {
-                                                    $audio_recorder_label .= ' (' . (string) $audio_recorder_user->user_email . ')';
-                                                }
-                                                ?>
-                                                <option value="<?php echo esc_attr($audio_recorder_user_id); ?>"><?php echo esc_html($audio_recorder_label); ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <p class="description" style="margin-top:8px;">
-                                            <?php echo esc_html__('Assigning a recorder locks their recording interface to this word set (existing category filter is reset).', 'll-tools-text-domain'); ?>
-                                        </p>
-                                        <div style="margin-top:10px;">
-                                            <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Assign Recorder', 'll-tools-text-domain'); ?></button>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            </form>
-                        </div>
-
-                        <?php if ($manager_image_upload_shortcode !== '') : ?>
-                            <div class="ll-wordset-settings-card">
-                                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Image Upload', 'll-tools-text-domain'); ?></h2>
-                                <div class="ll-wordset-settings-card__group">
-                                    <p class="description" style="margin-top:0;">
-                                        <?php echo esc_html__('Upload images and optionally auto-create draft words in this word set when the category supports image-to-text quizzes.', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <?php echo do_shortcode($manager_image_upload_shortcode); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($manager_audio_upload_shortcode !== '') : ?>
-                            <div class="ll-wordset-settings-card">
-                                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Audio Upload', 'll-tools-text-domain'); ?></h2>
-                                <div class="ll-wordset-settings-card__group">
-                                    <p class="description" style="margin-top:0;">
-                                        <?php echo esc_html__('Bulk upload audio files and create or match draft words in this word set.', 'll-tools-text-domain'); ?>
-                                    </p>
-                                    <?php echo do_shortcode($manager_audio_upload_shortcode); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                    <?php endif; ?>
-                    <div class="ll-wordset-settings-card">
-                        <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Study priorities', 'll-tools-text-domain'); ?></h2>
-                        <div class="ll-wordset-settings-card__group">
-                            <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Select one focus (optional)', 'll-tools-text-domain'); ?></h3>
-                            <div class="ll-wordset-settings-card__options ll-wordset-settings-card__options--priority" role="group" aria-label="<?php echo esc_attr__('Study priority focus', 'll-tools-text-domain'); ?>">
-                                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--new" data-ll-wordset-priority-focus="new">
-                                    <?php echo ll_tools_wordset_page_render_priority_focus_icon('new', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span class="ll-wordset-priority-option__label"><?php echo esc_html__('New words', 'll-tools-text-domain'); ?></span>
-                                </button>
-                                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--studied" data-ll-wordset-priority-focus="studied">
-                                    <?php echo ll_tools_wordset_page_render_priority_focus_icon('studied', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span class="ll-wordset-priority-option__label"><?php echo esc_html__('In progress words', 'll-tools-text-domain'); ?></span>
-                                </button>
-                                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--learned" data-ll-wordset-priority-focus="learned">
-                                    <?php echo ll_tools_wordset_page_render_priority_focus_icon('learned', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span class="ll-wordset-priority-option__label"><?php echo esc_html__('Learned words', 'll-tools-text-domain'); ?></span>
-                                </button>
-                                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--starred" data-ll-wordset-priority-focus="starred">
-                                    <?php echo ll_tools_wordset_page_render_priority_focus_icon('starred', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span class="ll-wordset-priority-option__label"><?php echo esc_html__('Starred words', 'll-tools-text-domain'); ?></span>
-                                </button>
-                                <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option ll-wordset-priority-option ll-wordset-priority-option--hard" data-ll-wordset-priority-focus="hard">
-                                    <?php echo ll_tools_wordset_page_render_priority_focus_icon('hard', 'll-wordset-priority-option__icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span class="ll-wordset-priority-option__label"><?php echo esc_html__('Hard words', 'll-tools-text-domain'); ?></span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="ll-wordset-settings-card">
-                        <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Transition speed', 'll-tools-text-domain'); ?></h2>
-                        <div class="ll-wordset-settings-card__options" role="group" aria-label="<?php echo esc_attr__('Transition speed', 'll-tools-text-domain'); ?>">
-                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-ll-wordset-transition="slow"><?php echo esc_html__('Standard', 'll-tools-text-domain'); ?></button>
-                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option" data-ll-wordset-transition="fast"><?php echo esc_html__('Faster', 'll-tools-text-domain'); ?></button>
-                        </div>
-                    </div>
-
-                    <div class="ll-wordset-settings-card">
-                        <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Learning goals', 'll-tools-text-domain'); ?></h2>
-                        <div class="ll-wordset-settings-card__options" role="group" aria-label="<?php echo esc_attr__('Enabled modes', 'll-tools-text-domain'); ?>">
-                            <?php
-                            $goal_modes = ['learning', 'practice', 'listening'];
-                            if ($gender_mode_available) {
-                                $goal_modes[] = 'gender';
-                            }
-                            $goal_modes[] = 'self-check';
-                            foreach ($goal_modes as $mode) :
-                            ?>
-                                <button
-                                    type="button"
-                                    class="ll-study-btn ll-vocab-lesson-mode-button ll-tools-settings-option"
-                                    data-ll-wordset-goal-mode="<?php echo esc_attr($mode); ?>"
-                                    aria-pressed="false">
-                                    <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span class="ll-vocab-lesson-mode-label"><?php echo esc_html($mode_labels[$mode] ?? ucfirst($mode)); ?></span>
-                                </button>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <div class="ll-wordset-settings-card">
-                        <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Upcoming activities', 'll-tools-text-domain'); ?></h2>
-                        <?php
-                        $queue_category_lookup = [];
-                        foreach ((array) $enhanced_categories as $queue_cat) {
-                            if (!is_array($queue_cat)) {
-                                continue;
-                            }
-                            $queue_cid = isset($queue_cat['id']) ? (int) $queue_cat['id'] : 0;
-                            if ($queue_cid <= 0) {
-                                continue;
-                            }
-                            $queue_label = isset($queue_cat['translation']) && (string) $queue_cat['translation'] !== ''
-                                ? (string) $queue_cat['translation']
-                                : (string) ($queue_cat['name'] ?? '');
-                            $queue_preview = [];
-                            foreach (array_slice((array) ($queue_cat['preview'] ?? []), 0, 2) as $queue_preview_item) {
-                                if (!is_array($queue_preview_item)) {
-                                    continue;
-                                }
-                                $queue_preview_type = ((string) ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url']))
-                                    ? 'image'
-                                    : 'text';
-                                if ($queue_preview_type === 'image') {
-                                    $queue_preview[] = [
-                                        'type' => 'image',
-                                        'url' => (string) ($queue_preview_item['url'] ?? ''),
-                                        'alt' => (string) ($queue_preview_item['alt'] ?? ''),
-                                    ];
-                                    continue;
-                                }
-                                $queue_preview_label = trim((string) ($queue_preview_item['label'] ?? ''));
-                                if ($queue_preview_label === '') {
-                                    continue;
-                                }
-                                $queue_preview[] = [
-                                    'type' => 'text',
-                                    'label' => $queue_preview_label,
-                                ];
-                            }
-                            $queue_category_lookup[$queue_cid] = [
-                                'label' => $queue_label,
-                                'preview' => $queue_preview,
-                            ];
-                        }
-                        $priority_focus_labels = [
-                            'new' => __('New words', 'll-tools-text-domain'),
-                            'studied' => __('In progress words', 'll-tools-text-domain'),
-                            'learned' => __('Learned words', 'll-tools-text-domain'),
-                            'starred' => __('Starred words', 'll-tools-text-domain'),
-                            'hard' => __('Hard words', 'll-tools-text-domain'),
-                        ];
-                        ?>
-                        <ul class="ll-wordset-queue-list" data-ll-wordset-queue-list>
-                            <?php foreach ((array) $recommendation_queue as $queue_item) : ?>
-                                <?php
-                                if (!is_array($queue_item)) {
-                                    continue;
-                                }
-                                $queue_mode = isset($queue_item['mode']) ? (string) $queue_item['mode'] : 'practice';
-                                $queue_mode = in_array($queue_mode, ['learning', 'practice', 'listening', 'gender', 'self-check'], true) ? $queue_mode : 'practice';
-                                $queue_mode_label = $mode_labels[$queue_mode] ?? ucfirst($queue_mode);
-                                $queue_ids = array_values(array_filter(array_map('intval', (array) ($queue_item['category_ids'] ?? [])), function ($id) {
-                                    return $id > 0;
-                                }));
-                                $queue_category_labels = [];
-                                $queue_preview_items = [];
-                                $queue_preview_seen = [];
-                                foreach ($queue_ids as $queue_cid) {
-                                    if (isset($queue_category_lookup[$queue_cid]) && is_array($queue_category_lookup[$queue_cid])) {
-                                        $queue_meta = $queue_category_lookup[$queue_cid];
-                                        $queue_label = (string) ($queue_meta['label'] ?? '');
-                                        if ($queue_label !== '') {
-                                            $queue_category_labels[] = $queue_label;
-                                        }
-                                        foreach ((array) ($queue_meta['preview'] ?? []) as $queue_preview_item) {
-                                            if (count($queue_preview_items) >= 2 || !is_array($queue_preview_item)) {
-                                                continue;
-                                            }
-                                            $queue_preview_type = ((string) ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url']))
-                                                ? 'image'
-                                                : 'text';
-                                            if ($queue_preview_type === 'image') {
-                                                $queue_preview_url = (string) ($queue_preview_item['url'] ?? '');
-                                                if ($queue_preview_url === '') {
-                                                    continue;
-                                                }
-                                                $queue_preview_key = 'img:' . $queue_preview_url;
-                                                if (isset($queue_preview_seen[$queue_preview_key])) {
-                                                    continue;
-                                                }
-                                                $queue_preview_seen[$queue_preview_key] = true;
-                                                $queue_preview_items[] = [
-                                                    'type' => 'image',
-                                                    'url' => $queue_preview_url,
-                                                    'alt' => (string) ($queue_preview_item['alt'] ?? ''),
-                                                ];
-                                                continue;
-                                            }
-                                            $queue_preview_label = trim((string) ($queue_preview_item['label'] ?? ''));
-                                            if ($queue_preview_label === '') {
-                                                continue;
-                                            }
-                                            $queue_preview_key = 'txt:' . $queue_preview_label;
-                                            if (isset($queue_preview_seen[$queue_preview_key])) {
-                                                continue;
-                                            }
-                                            $queue_preview_seen[$queue_preview_key] = true;
-                                            $queue_preview_items[] = [
-                                                'type' => 'text',
-                                                'label' => $queue_preview_label,
-                                            ];
-                                        }
-                                    }
-                                }
-                                $queue_details = isset($queue_item['details']) && is_array($queue_item['details'])
-                                    ? $queue_item['details']
-                                    : [];
-                                $queue_focus_key = sanitize_key((string) ($queue_details['priority_focus'] ?? ''));
-                                if ($queue_focus_key !== '' && isset($priority_focus_labels[$queue_focus_key])) {
-                                    $queue_category_text = (string) $priority_focus_labels[$queue_focus_key];
-                                } else {
-                                    $queue_category_text = !empty($queue_category_labels)
-                                        ? implode(', ', $queue_category_labels)
-                                        : esc_html__('Categories', 'll-tools-text-domain');
-                                }
-                                $queue_word_count = count(array_values(array_filter(array_map('intval', (array) ($queue_item['session_word_ids'] ?? [])), function ($id) {
-                                    return $id > 0;
-                                })));
-                                $queue_id = isset($queue_item['queue_id']) ? sanitize_key((string) $queue_item['queue_id']) : '';
-                                if ($queue_id === '') {
-                                    continue;
-                                }
-                                ?>
-                                <li class="ll-wordset-queue-item" data-ll-wordset-queue-item data-queue-id="<?php echo esc_attr($queue_id); ?>">
-                                    <span class="ll-wordset-queue-item__mode ll-wordset-card__quiz-btn">
-                                        <?php echo ll_tools_wordset_page_render_mode_icon($queue_mode, $mode_ui, $mode_fallback_icons[$queue_mode] ?? '❓', 'll-wordset-card__quiz-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    </span>
-                                    <span class="ll-wordset-queue-item__preview" aria-hidden="true">
-                                        <?php for ($queue_preview_idx = 0; $queue_preview_idx < 2; $queue_preview_idx++) : ?>
-                                            <?php $queue_preview_item = isset($queue_preview_items[$queue_preview_idx]) && is_array($queue_preview_items[$queue_preview_idx]) ? $queue_preview_items[$queue_preview_idx] : null; ?>
-                                            <?php if ($queue_preview_item && ($queue_preview_item['type'] ?? '') === 'image' && !empty($queue_preview_item['url'])) : ?>
-                                                <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--image">
-                                                    <img src="<?php echo esc_url($queue_preview_item['url']); ?>" alt="" loading="lazy" decoding="async" fetchpriority="low" />
-                                                </span>
-                                            <?php elseif ($queue_preview_item && ($queue_preview_item['type'] ?? '') === 'text' && !empty($queue_preview_item['label'])) : ?>
-                                                <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--text">
-                                                    <span class="ll-wordset-queue-thumb__text"><?php echo esc_html((string) $queue_preview_item['label']); ?></span>
-                                                </span>
-                                            <?php else : ?>
-                                                <span class="ll-wordset-queue-thumb ll-wordset-queue-thumb--empty"></span>
-                                            <?php endif; ?>
-                                        <?php endfor; ?>
-                                    </span>
-                                    <span class="ll-wordset-queue-item__text">
-                                        <span class="ll-wordset-queue-item__line"><?php echo esc_html($queue_mode_label); ?></span>
-                                        <span class="ll-wordset-queue-item__line ll-wordset-queue-item__line--muted"><?php echo esc_html($queue_category_text); ?></span>
-                                    </span>
-                                    <?php if ($queue_word_count > 0) : ?>
-                                        <span class="ll-wordset-queue-item__count"><?php echo (int) $queue_word_count; ?></span>
-                                    <?php endif; ?>
-                                    <button type="button" class="ll-wordset-queue-item__remove" data-ll-wordset-queue-remove data-queue-id="<?php echo esc_attr($queue_id); ?>" aria-label="<?php echo esc_attr__('Remove activity', 'll-tools-text-domain'); ?>">
-                                        <span aria-hidden="true">×</span>
-                                    </button>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
-                        <p class="ll-wordset-settings-empty" data-ll-wordset-queue-empty <?php if (!empty($recommendation_queue)) : ?>hidden<?php endif; ?>>
-                            <?php echo esc_html__('No upcoming activities yet.', 'll-tools-text-domain'); ?>
-                        </p>
-                    </div>
-                </section>
+                <div class="ll-wordset-empty">
+                    <?php echo esc_html__('No settings tools are available for this word set right now.', 'll-tools-text-domain'); ?>
+                </div>
             <?php endif; ?>
         <?php else : ?>
             <?php if ($show_title) : ?>
@@ -4614,7 +5046,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <?php /* Moved to the shared top user menu (admin only). */ ?>
                         <?php endif; ?>
                         <?php if ($is_study_user) : ?>
-                            <a class="ll-wordset-settings-link ll-tools-settings-button" href="<?php echo esc_url($settings_url); ?>" aria-label="<?php echo esc_attr__('Study settings', 'll-tools-text-domain'); ?>">
+                            <a class="ll-wordset-settings-link ll-tools-settings-button" href="<?php echo esc_url($settings_url); ?>" aria-label="<?php echo esc_attr__('Word set tools', 'll-tools-text-domain'); ?>">
                                 <span class="mode-icon" aria-hidden="true">
                                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                         <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
