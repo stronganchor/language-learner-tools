@@ -340,6 +340,10 @@
         e.stopPropagation();
         const $btn = $(this);
         const url = $btn.attr('data-audio-url') || '';
+        const $row = $btn.closest('.ll-word-recording-row--editable');
+        if ($row.length) {
+            revealRecordingRowEditTrigger($row);
+        }
         if (!url) { return; }
 
         if (currentAudio && currentAudioButton === this) {
