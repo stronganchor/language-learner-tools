@@ -158,7 +158,7 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
-Representative current E2E specs (`tests/e2e/specs/`, 33 files at the time of writing):
+Representative current E2E specs (`tests/e2e/specs/`, 34 files at the time of writing):
 
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
@@ -192,6 +192,8 @@ Representative current E2E specs (`tests/e2e/specs/`, 33 files at the time of wr
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
   - Verifies vocab lesson bulk editor controls stay within viewport on mobile layouts.
+- `tests/e2e/specs/vocab-lesson-word-editor-mobile.spec.js`
+  - Verifies the vocab lesson word editor keeps its save/cancel footer visible while the form body scrolls on mobile layouts.
 - `tests/e2e/specs/vocab-lesson-deferred-grid.spec.js`
   - Verifies deferred lesson shells hydrate the word-grid markup and keep hidden feedback hidden under theme overrides.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`

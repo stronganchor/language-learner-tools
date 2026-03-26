@@ -3406,6 +3406,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 $note_input_id = 'll-word-edit-note-' . $word_id;
                 echo '<div class="ll-word-edit-backdrop" data-ll-word-edit-backdrop aria-hidden="true" hidden></div>';
                 echo '<div class="ll-word-edit-panel" data-ll-word-edit-panel aria-hidden="true">';
+                echo '<div class="ll-word-edit-body" data-ll-word-edit-body>';
                 echo '<div class="ll-word-edit-fields">';
                 echo '<label class="ll-word-edit-label" for="' . esc_attr($word_input_id) . '">' . esc_html($edit_labels['word']) . '</label>';
                 echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($word_input_id) . '" data-ll-word-input="word" value="' . esc_attr($word_text) . '" />';
@@ -3647,6 +3648,8 @@ function ll_tools_word_grid_shortcode($atts) {
                     echo '</div>';
                 }
 
+                echo '</div>';
+                echo '<div class="ll-word-edit-footer">';
                 echo '<div class="ll-word-edit-actions">';
                 echo '<button type="button" class="ll-word-edit-action ll-word-edit-save" data-ll-word-edit-save aria-label="' . esc_attr($edit_labels['save']) . '" title="' . esc_attr($edit_labels['save']) . '">';
                 echo '<span aria-hidden="true">';
@@ -3660,6 +3663,7 @@ function ll_tools_word_grid_shortcode($atts) {
                 echo '</button>';
                 echo '</div>';
                 echo '<div class="ll-word-edit-status" data-ll-word-edit-status aria-live="polite"></div>';
+                echo '</div>';
                 echo '</div>';
             }
 
