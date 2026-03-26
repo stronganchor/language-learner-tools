@@ -1413,6 +1413,94 @@ test('selection shows hard-only only when at least five hard words are in select
   await expect(hardToggle).toBeVisible();
 });
 
+test('selection launch clears checked categories as soon as the flashcard popup opens', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: {
+      11: buildCategoryWordRows(11, 3, 'OpenA'),
+      22: buildCategoryWordRows(22, 3, 'OpenB'),
+      33: buildCategoryWordRows(33, 1, 'OpenC')
+    },
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 3,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 3,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 1,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ]
+    }
+  });
+
+  const selectionBar = page.locator('[data-ll-wordset-selection-bar]');
+  const catA = page.locator('[data-ll-wordset-select][value="11"]');
+  const catB = page.locator('[data-ll-wordset-select][value="22"]');
+
+  await catA.check();
+  await catB.check();
+  await expect(selectionBar).toBeVisible();
+
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-opened', [{
+      mode: 'practice',
+      categories: ['Cat A', 'Cat B']
+    }]);
+  });
+
+  await expect(selectionBar).toBeHidden();
+  await expect(catA).not.toBeChecked();
+  await expect(catB).not.toBeChecked();
+});
+
 test('learning starred selection mixes only compatible categories and fills to eight words', async ({ page }) => {
   const wordsByCategory = {
     11: [

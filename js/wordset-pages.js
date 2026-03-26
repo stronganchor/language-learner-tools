@@ -10577,6 +10577,12 @@
             pendingSummaryRefreshAfterClose = false;
             clearTimeout(analyticsTimer);
             analyticsTimer = null;
+            // Clear launch-time category selection immediately once the popup is
+            // confirmed open so a delayed/missed close cleanup cannot strand
+            // checked cards behind a hidden selection bar.
+            if (selectedCategoryIds.length || $root.find('[data-ll-wordset-select]:checked').length) {
+                clearCategorySelection({ refreshRecommendation: false });
+            }
             if (resultsFollowupPrefetchState) {
                 const info = (detail && typeof detail === 'object') ? detail : {};
                 const openedMode = normalizeMode(info.mode || '');
