@@ -1457,8 +1457,8 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 }
 
 .word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:hover,
-.word-grid.ll-word-grid .ll-word-recording-row--editable:focus-within,
-.word-grid.ll-word-grid .ll-word-recording-row--editable.is-edit-trigger-visible {
+.word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:focus-within,
+.word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable.is-edit-trigger-visible {
     width: var(--ll-recording-row-reveal-width, var(--ll-recording-row-collapsed-width, auto));
     padding-right: var(--ll-recording-row-trigger-space, 0px);
 }
@@ -1570,6 +1570,16 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     visibility: visible;
     pointer-events: auto;
     transition-delay: 0s;
+}
+
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable:focus-within,
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable.is-edit-trigger-visible {
+    z-index: 4;
+}
+
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable:focus-within .ll-word-recording-edit-trigger,
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable.is-edit-trigger-visible .ll-word-recording-edit-trigger {
+    right: -30px;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-edit-trigger:focus-visible {
