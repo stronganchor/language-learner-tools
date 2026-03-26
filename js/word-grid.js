@@ -2257,9 +2257,8 @@
             placeholder: recordingInlineMessages.addText,
             'aria-label': recordingInlineMessages.textLabel,
             dir: 'auto',
-            autocomplete: 'off',
             disabled: true
-        });
+        }).attr('autocomplete', 'off');
         const $subfields = $('<div>', { class: 'll-word-recording-inline-subfields' });
         const $translationInput = $('<input>', {
             type: 'text',
@@ -2268,19 +2267,17 @@
             placeholder: recordingInlineMessages.addTranslation,
             'aria-label': recordingInlineMessages.translationLabel,
             dir: 'auto',
-            autocomplete: 'off',
             disabled: true
-        });
+        }).attr('autocomplete', 'off');
         const $ipaInput = $('<input>', {
             type: 'text',
             class: 'll-word-inline-edit-input ll-word-recording-inline-input ll-word-recording-inline-input--ipa',
             'data-ll-inline-recording-input': 'ipa',
             placeholder: recordingInlineMessages.addIpa,
             'aria-label': recordingInlineMessages.ipaLabel,
-            autocomplete: 'off',
             spellcheck: 'false',
             disabled: true
-        });
+        }).attr('autocomplete', 'off');
         const $footer = $('<div>', { class: 'll-word-recording-inline-footer' });
         const $status = $('<span>', {
             class: 'll-word-recording-inline-status',
@@ -2335,7 +2332,7 @@
     }
 
     function syncInlineRecordingEditorValues($row, values) {
-        const $editor = ensureInlineRecordingEditor($row);
+        const $editor = getInlineRecordingEditor($row);
         if (!$editor.length) { return; }
 
         const safeValues = (values && typeof values === 'object') ? values : {};
@@ -2356,14 +2353,14 @@
     }
 
     function setInlineRecordingStatus($row, message, isError) {
-        const $status = ensureInlineRecordingEditor($row).find('[data-ll-inline-recording-status]').first();
+        const $status = getInlineRecordingEditor($row).find('[data-ll-inline-recording-status]').first();
         if (!$status.length) { return; }
         $status.text(message || '');
         $status.toggleClass('is-error', !!isError);
     }
 
     function setInlineRecordingFormDisabled($row, disabled) {
-        const $editor = ensureInlineRecordingEditor($row);
+        const $editor = getInlineRecordingEditor($row);
         if (!$editor.length) { return; }
         $editor
             .find('[data-ll-inline-recording-input], [data-ll-inline-recording-save], [data-ll-inline-recording-cancel]')
@@ -2387,7 +2384,7 @@
         let $trigger = $row.find('[data-ll-recording-edit-trigger]').first();
 
         if (!recId || editLabel === '') {
-            $row.removeClass('ll-word-recording-row--editable is-edit-trigger-visible is-inline-editing');
+            $row.removeClass('ll-word-recording-row--editable is-edit-trigger-visible is-edit-trigger-pinned is-inline-editing');
             if ($trigger.length) {
                 $trigger.remove();
             }
@@ -2422,22 +2419,55 @@
             title: editLabel
         });
 
-        ensureInlineRecordingEditor($row);
         syncInlineRecordingEditorValues($row, getRecordingRowCaptionValues($row));
     }
 
     function clearVisibleRecordingRowEditTriggers($scope) {
         const $context = ($scope && $scope.length) ? $scope : $grids;
-        $context.find('.ll-word-recording-row.is-edit-trigger-visible').not('.is-inline-editing').removeClass('is-edit-trigger-visible');
+        const $rows = $context.find('.ll-word-recording-row.is-edit-trigger-visible, .ll-word-recording-row.is-edit-trigger-pinned').not('.is-inline-editing');
+        if (!$rows.length) {
+            return;
+        }
+
+        $rows.removeClass('is-edit-trigger-visible is-edit-trigger-pinned');
+        updateRecordingRowWidths();
     }
 
-    function revealRecordingRowEditTrigger($row) {
+    function revealRecordingRowEditTrigger($row, options) {
         if (!$row || !$row.length || !$row.hasClass('ll-word-recording-row--editable')) {
             return;
         }
 
+        const revealOptions = (options && typeof options === 'object') ? options : {};
+        const shouldPin = Object.prototype.hasOwnProperty.call(revealOptions, 'pinned')
+            ? !!revealOptions.pinned
+            : $row.hasClass('is-edit-trigger-pinned');
+
         clearVisibleRecordingRowEditTriggers($row.closest('.word-item'));
         $row.addClass('is-edit-trigger-visible');
+        $row.toggleClass('is-edit-trigger-pinned', shouldPin);
+        updateRecordingRowWidths();
+    }
+
+    function concealRecordingRowEditTrigger($row, force) {
+        if (!$row || !$row.length || !$row.hasClass('ll-word-recording-row--editable')) {
+            return;
+        }
+
+        if ($row.hasClass('is-inline-editing')) {
+            return;
+        }
+
+        if (!force && $row.hasClass('is-edit-trigger-pinned')) {
+            return;
+        }
+
+        if (!$row.hasClass('is-edit-trigger-visible') && !$row.hasClass('is-edit-trigger-pinned')) {
+            return;
+        }
+
+        $row.removeClass('is-edit-trigger-visible is-edit-trigger-pinned');
+        updateRecordingRowWidths();
     }
 
     function closeInlineRecordingEditor($row, restoreValue, shouldFocusTrigger) {
@@ -2455,12 +2485,13 @@
             });
         }
 
-        $row.removeClass('is-inline-editing');
+        $row.removeClass('is-inline-editing is-edit-trigger-pinned');
         $editor.removeClass('is-saving');
         $editor.find('[data-ll-inline-recording-form]').attr('aria-hidden', 'true');
         setInlineRecordingFormDisabled($row, true);
         setInlineRecordingStatus($row, '', false);
         $row.removeClass('is-edit-trigger-visible');
+        $editor.remove();
         updateRecordingRowWidths();
 
         if (shouldFocusTrigger) {
@@ -5342,7 +5373,7 @@
                 return;
             }
             if ($(e.target).closest('.ll-study-recording-btn, .ll-word-recording-text').length) {
-                revealRecordingRowEditTrigger($row);
+                revealRecordingRowEditTrigger($row, { pinned: true });
             }
         });
 
@@ -5352,6 +5383,40 @@
 
             const $row = $(this).closest('.ll-word-recording-row');
             openInlineRecordingEditor($row);
+        });
+
+        $grids.on('mouseenter', '.ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable', function () {
+            const $row = $(this);
+            if ($row.hasClass('is-inline-editing')) {
+                return;
+            }
+
+            revealRecordingRowEditTrigger($row);
+        });
+
+        $grids.on('mouseleave', '.ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable', function () {
+            concealRecordingRowEditTrigger($(this), false);
+        });
+
+        $grids.on('focusin', '.ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable', function () {
+            const $row = $(this);
+            if ($row.hasClass('is-inline-editing')) {
+                return;
+            }
+
+            revealRecordingRowEditTrigger($row);
+        });
+
+        $grids.on('focusout', '.ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable', function () {
+            const $row = $(this);
+            window.requestAnimationFrame(function () {
+                const activeEl = document.activeElement;
+                if (activeEl && $row.has(activeEl).length) {
+                    return;
+                }
+
+                concealRecordingRowEditTrigger($row, false);
+            });
         });
 
         $(document).on('click.llWordGridRecordingEdit', function (event) {

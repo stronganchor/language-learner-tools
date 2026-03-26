@@ -1441,15 +1441,17 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
+    flex: 0 0 auto;
     gap: 10px !important;
     position: relative;
     box-sizing: border-box;
+    overflow: visible;
     width: var(--ll-recording-row-collapsed-width, auto);
     max-width: 100%;
     flex-wrap: nowrap !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    transition: width 0.2s ease, padding-right 0.2s ease, gap 0.2s ease;
+    transition: width 0.2s ease, padding-right 0.2s ease, gap 0.2s ease, flex-basis 0.2s ease;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-row--editable {
@@ -1459,6 +1461,12 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 .word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:hover,
 .word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:focus-within,
 .word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable.is-edit-trigger-visible {
+    width: var(--ll-recording-row-reveal-width, var(--ll-recording-row-collapsed-width, auto));
+    padding-right: var(--ll-recording-row-trigger-space, 0px);
+}
+
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable.is-edit-trigger-visible,
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable:focus-within {
     width: var(--ll-recording-row-reveal-width, var(--ll-recording-row-collapsed-width, auto));
     padding-right: var(--ll-recording-row-trigger-space, 0px);
 }
@@ -1555,7 +1563,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     visibility: hidden;
     pointer-events: none;
     transform: translateY(-50%);
-    transition: opacity 0.15s ease, visibility 0s linear 0.15s !important;
+    transition: opacity 0.15s ease !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-edit-trigger .ll-word-inline-edit-icon {
@@ -1565,12 +1573,11 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 
 .word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:hover .ll-word-recording-edit-trigger,
 .word-grid.ll-word-grid .ll-word-recordings--with-text .ll-word-recording-row--editable:focus-within .ll-word-recording-edit-trigger,
-.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable:hover .ll-word-recording-edit-trigger,
+.word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable:focus-within .ll-word-recording-edit-trigger,
 .word-grid.ll-word-grid .ll-word-recording-row--editable.is-edit-trigger-visible .ll-word-recording-edit-trigger {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transition-delay: 0s;
 }
 
 .word-grid.ll-word-grid .ll-word-recordings:not(.ll-word-recordings--with-text) .ll-word-recording-row--editable.is-edit-trigger-visible {
