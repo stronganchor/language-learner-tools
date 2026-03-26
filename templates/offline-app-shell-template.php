@@ -7,6 +7,8 @@ $styles = isset($styles) && is_array($styles) ? $styles : [];
 $scripts = isset($scripts) && is_array($scripts) ? $scripts : [];
 $warnings = isset($warnings) && is_array($warnings) ? array_values(array_filter(array_map('strval', $warnings))) : [];
 $startup_mode = isset($startup_mode) ? (string) $startup_mode : 'practice';
+$app_icon_url = isset($app_icon_url) ? (string) $app_icon_url : '';
+$app_icon_mime = isset($app_icon_mime) ? (string) $app_icon_mime : '';
 $mode_ui = isset($mode_ui) && is_array($mode_ui) ? $mode_ui : [];
 $practice_mode_ui = $mode_ui['practice'] ?? [];
 $learning_mode_ui = $mode_ui['learning'] ?? [];
@@ -54,6 +56,10 @@ $escape_asset_url = static function ($asset): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?php echo esc_html($app_title); ?></title>
+  <?php if ($app_icon_url !== '') : ?>
+    <link rel="icon" href="<?php echo $escape_asset_url($app_icon_url); ?>"<?php echo $app_icon_mime !== '' ? ' type="' . esc_attr($app_icon_mime) . '"' : ''; ?>>
+    <link rel="apple-touch-icon" href="<?php echo $escape_asset_url($app_icon_url); ?>">
+  <?php endif; ?>
   <?php foreach ($styles as $href) : ?>
     <link rel="stylesheet" href="<?php echo $escape_asset_url($href); ?>">
   <?php endforeach; ?>

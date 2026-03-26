@@ -4,6 +4,7 @@ import process from 'node:process';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { prepareBundle } from './prepare-bundle.mjs';
+import { applyBundledAppIcon } from './apply-app-icon.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT_DIR = path.resolve(path.dirname(SCRIPT_PATH), '..');
@@ -199,8 +200,9 @@ function printOutputHints(mode) {
   process.stdout.write(`APK output directory: ${outputDir}\n`);
 }
 
-function buildDebug() {
+async function buildDebug(preparedState) {
   runCapacitor(['sync', 'android']);
+  await applyBundledAppIcon(preparedState);
   const gradle = process.platform === 'win32'
     ? 'gradlew.bat'
     : './gradlew';
@@ -219,26 +221,25 @@ function buildRelease() {
   printOutputHints('release');
 }
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
   const mode = args.includes('--release') ? 'release' : 'debug';
   const explicitInput = args.find((arg) => !arg.startsWith('--')) || '';
 
-  ensureBundlePrepared(explicitInput);
+  const preparedState = ensureBundlePrepared(explicitInput);
   ensureAndroidPlatform();
+  await applyBundledAppIcon(preparedState);
 
   if (mode === 'release') {
     buildRelease();
   } else {
-    buildDebug();
+    await buildDebug(preparedState);
   }
 }
 
 if (path.resolve(process.argv[1] || '') === SCRIPT_PATH) {
-  try {
-    main();
-  } catch (error) {
+  main().catch((error) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.exit(1);
-  }
+  });
 }

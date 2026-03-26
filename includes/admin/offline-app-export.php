@@ -39,10 +39,89 @@ function ll_tools_prime_offline_app_export_admin_title(): void {
 
 add_action('admin_post_ll_tools_export_offline_app', 'll_tools_handle_export_offline_app');
 
+function ll_tools_offline_app_get_site_icon_attachment_id(): int {
+    $attachment_id = (int) get_option('site_icon');
+    if ($attachment_id <= 0 || !wp_attachment_is_image($attachment_id)) {
+        return 0;
+    }
+
+    $file_path = get_attached_file($attachment_id);
+    if (!is_string($file_path) || $file_path === '' || !is_file($file_path)) {
+        return 0;
+    }
+
+    return $attachment_id;
+}
+
+function ll_tools_offline_app_get_attachment_icon_payload(int $attachment_id): array {
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0 || !wp_attachment_is_image($attachment_id)) {
+        return [];
+    }
+
+    $attachment = get_post($attachment_id);
+    if (!($attachment instanceof WP_Post) || $attachment->post_type !== 'attachment') {
+        return [];
+    }
+
+    $source_path = wp_normalize_path((string) get_attached_file($attachment_id));
+    if ($source_path === '' || !is_file($source_path)) {
+        return [];
+    }
+
+    $preview_url = wp_get_attachment_image_url($attachment_id, [128, 128]);
+    if (!is_string($preview_url) || $preview_url === '') {
+        $preview_url = wp_get_attachment_url($attachment_id);
+    }
+
+    $label = trim((string) get_the_title($attachment_id));
+    if ($label === '') {
+        $label = wp_basename($source_path);
+    }
+
+    return [
+        'attachment_id' => $attachment_id,
+        'label'         => $label,
+        'filename'      => wp_basename($source_path),
+        'mime_type'     => (string) get_post_mime_type($attachment_id),
+        'preview_url'   => is_string($preview_url) ? $preview_url : '',
+        'source_path'   => $source_path,
+    ];
+}
+
+function ll_tools_offline_app_resolve_icon_payload(int $override_attachment_id = 0) {
+    $override_attachment_id = (int) $override_attachment_id;
+    if ($override_attachment_id > 0) {
+        $override_payload = ll_tools_offline_app_get_attachment_icon_payload($override_attachment_id);
+        if (empty($override_payload)) {
+            return new WP_Error(
+                'll_tools_offline_app_invalid_icon_override',
+                __('Choose a valid image for the offline app icon override.', 'll-tools-text-domain')
+            );
+        }
+
+        $override_payload['source'] = 'custom';
+        return $override_payload;
+    }
+
+    $site_icon_attachment_id = ll_tools_offline_app_get_site_icon_attachment_id();
+    if ($site_icon_attachment_id > 0) {
+        $site_icon_payload = ll_tools_offline_app_get_attachment_icon_payload($site_icon_attachment_id);
+        if (!empty($site_icon_payload)) {
+            $site_icon_payload['source'] = 'site_icon';
+            return $site_icon_payload;
+        }
+    }
+
+    return [];
+}
+
 function ll_tools_render_offline_app_export_page(): void {
     if (!ll_tools_current_user_can_offline_app_export()) {
         wp_die(__('You do not have permission to export offline app bundles.', 'll-tools-text-domain'));
     }
+
+    wp_enqueue_media();
 
     $wordsets = get_terms([
         'taxonomy'   => 'wordset',
@@ -64,6 +143,7 @@ function ll_tools_render_offline_app_export_page(): void {
 
     $plugin_version = ll_tools_get_plugin_version_string();
     $default_app_name = get_bloginfo('name');
+    $site_icon_payload = ll_tools_offline_app_get_attachment_icon_payload(ll_tools_offline_app_get_site_icon_attachment_id());
     ?>
     <div class="wrap">
         <h1><?php esc_html_e('LL Offline App Export', 'll-tools-text-domain'); ?></h1>
@@ -90,6 +170,62 @@ function ll_tools_render_offline_app_export_page(): void {
             }
             .ll-offline-category-choice:last-child {
                 margin-bottom: 0;
+            }
+            .ll-offline-app-icon-picker {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                max-width: 560px;
+            }
+            .ll-offline-app-icon-picker__preview {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .ll-offline-app-icon-picker__thumb {
+                width: 68px;
+                height: 68px;
+                border: 1px solid #ccd0d4;
+                border-radius: 16px;
+                background: #fff;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                box-sizing: border-box;
+                flex: 0 0 auto;
+            }
+            .ll-offline-app-icon-picker__thumb img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+            .ll-offline-app-icon-picker__thumb.is-empty {
+                background: #f6f7f7;
+                color: #50575e;
+                font-size: 0.75rem;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+            }
+            .ll-offline-app-icon-picker__meta {
+                min-width: 0;
+            }
+            .ll-offline-app-icon-picker__status {
+                margin: 0 0 4px;
+                font-weight: 600;
+            }
+            .ll-offline-app-icon-picker__name {
+                margin: 0;
+                color: #50575e;
+                word-break: break-word;
+            }
+            .ll-offline-app-icon-picker__actions {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 8px;
             }
         </style>
 
@@ -151,6 +287,64 @@ function ll_tools_render_offline_app_export_page(): void {
                         </td>
                     </tr>
                     <tr>
+                        <th scope="row"><?php esc_html_e('App Icon', 'll-tools-text-domain'); ?></th>
+                        <td>
+                            <div class="ll-offline-app-icon-picker">
+                                <div class="ll-offline-app-icon-picker__preview">
+                                    <div class="ll-offline-app-icon-picker__thumb<?php echo empty($site_icon_payload) ? ' is-empty' : ''; ?>" id="ll-offline-app-icon-thumb">
+                                        <img
+                                            id="ll-offline-app-icon-preview"
+                                            src="<?php echo !empty($site_icon_payload['preview_url']) ? esc_url((string) $site_icon_payload['preview_url']) : ''; ?>"
+                                            alt=""
+                                            <?php echo empty($site_icon_payload['preview_url']) ? 'hidden' : ''; ?>
+                                        >
+                                        <span id="ll-offline-app-icon-empty" <?php echo empty($site_icon_payload['preview_url']) ? '' : 'hidden'; ?>>
+                                            <?php esc_html_e('No icon', 'll-tools-text-domain'); ?>
+                                        </span>
+                                    </div>
+                                    <div class="ll-offline-app-icon-picker__meta">
+                                        <p class="ll-offline-app-icon-picker__status" id="ll-offline-app-icon-status">
+                                            <?php
+                                            if (!empty($site_icon_payload)) {
+                                                esc_html_e('Using the current site icon.', 'll-tools-text-domain');
+                                            } else {
+                                                esc_html_e('No app icon selected yet.', 'll-tools-text-domain');
+                                            }
+                                            ?>
+                                        </p>
+                                        <p class="ll-offline-app-icon-picker__name" id="ll-offline-app-icon-name">
+                                            <?php
+                                            if (!empty($site_icon_payload['label'])) {
+                                                echo esc_html((string) $site_icon_payload['label']);
+                                            } else {
+                                                esc_html_e('The Android builder will keep its default launcher icon unless you choose one here.', 'll-tools-text-domain');
+                                            }
+                                            ?>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="ll-offline-app-icon-picker__actions">
+                                    <input type="hidden" name="ll_offline_app_icon_attachment_id" id="ll-offline-app-icon-attachment-id" value="">
+                                    <button type="button" class="button" id="ll-offline-app-icon-choose">
+                                        <?php esc_html_e('Choose Custom Icon', 'll-tools-text-domain'); ?>
+                                    </button>
+                                    <button type="button" class="button-link" id="ll-offline-app-icon-reset" hidden>
+                                        <?php esc_html_e('Use Site Icon', 'll-tools-text-domain'); ?>
+                                    </button>
+                                </div>
+                                <p class="description">
+                                    <?php
+                                    if (!empty($site_icon_payload)) {
+                                        esc_html_e('The bundle uses this site\'s icon by default. Choose another image to override it for this export only. Square images around 512x512 work best.', 'll-tools-text-domain');
+                                    } else {
+                                        esc_html_e('No site icon is set for this WordPress site. Choose a square image if you want the Android build to use a custom launcher icon.', 'll-tools-text-domain');
+                                    }
+                                    ?>
+                                </p>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
                         <th scope="row">
                             <label for="ll-offline-app-id-suffix"><?php esc_html_e('Android App ID Suffix', 'll-tools-text-domain'); ?></label>
                         </th>
@@ -190,11 +384,25 @@ function ll_tools_render_offline_app_export_page(): void {
     <script>
         (function () {
             const categoriesByWordset = <?php echo wp_json_encode($wordset_category_map); ?>;
+            const siteIcon = <?php echo wp_json_encode(!empty($site_icon_payload) ? [
+                'attachmentId' => (int) ($site_icon_payload['attachment_id'] ?? 0),
+                'label'        => (string) ($site_icon_payload['label'] ?? ''),
+                'previewUrl'   => (string) ($site_icon_payload['preview_url'] ?? ''),
+            ] : null); ?>;
             const strings = <?php echo wp_json_encode([
                 'selectWordsetFirst' => __('Select a word set first. Then you can keep all categories selected or choose specific ones.', 'll-tools-text-domain'),
                 'allCategories'      => __('Every category with published words in the selected word set will be included.', 'll-tools-text-domain'),
                 'pickSpecific'       => __('Choose the specific categories to include from this word set.', 'll-tools-text-domain'),
                 'noCategories'       => __('No categories with published words were found for the selected word set.', 'll-tools-text-domain'),
+                'usingSiteIcon'      => __('Using the current site icon.', 'll-tools-text-domain'),
+                'usingCustomIcon'    => __('Using a custom icon for this export only.', 'll-tools-text-domain'),
+                'noIconSelected'     => __('No app icon selected yet.', 'll-tools-text-domain'),
+                'noIconHelp'         => __('The Android builder will keep its default launcher icon unless you choose one here.', 'll-tools-text-domain'),
+                'chooseIconTitle'    => __('Choose Offline App Icon', 'll-tools-text-domain'),
+                'chooseIconButton'   => __('Use This Icon', 'll-tools-text-domain'),
+                'useSiteIcon'        => __('Use Site Icon', 'll-tools-text-domain'),
+                'clearCustomIcon'    => __('Clear Custom Icon', 'll-tools-text-domain'),
+                'noIconLabel'        => __('No icon', 'll-tools-text-domain'),
             ]); ?>;
 
             const wordsetField = document.getElementById('ll-offline-wordset-id');
@@ -206,7 +414,17 @@ function ll_tools_render_offline_app_export_page(): void {
             const categoryListWrap = document.getElementById('ll-offline-category-list-wrap');
             const categoryList = document.getElementById('ll-offline-category-list');
             const submitButton = document.getElementById('ll-offline-export-submit');
+            const iconAttachmentField = document.getElementById('ll-offline-app-icon-attachment-id');
+            const iconChooseButton = document.getElementById('ll-offline-app-icon-choose');
+            const iconResetButton = document.getElementById('ll-offline-app-icon-reset');
+            const iconThumb = document.getElementById('ll-offline-app-icon-thumb');
+            const iconPreview = document.getElementById('ll-offline-app-icon-preview');
+            const iconEmpty = document.getElementById('ll-offline-app-icon-empty');
+            const iconStatus = document.getElementById('ll-offline-app-icon-status');
+            const iconName = document.getElementById('ll-offline-app-icon-name');
             const selectedByWordset = {};
+            let customIcon = null;
+            let mediaFrame = null;
 
             if (!wordsetField || !categoryFieldset || !categoryScopeField || !includeAllField || !categoryHelp || !categoryEmpty || !categoryListWrap || !categoryList || !submitButton) {
                 return;
@@ -285,6 +503,58 @@ function ll_tools_render_offline_app_export_page(): void {
                 submitButton.disabled = <?php echo empty($wordsets) ? 'true' : 'false'; ?> || !hasWordset || !hasCategories;
             }
 
+            function getEffectiveIcon() {
+                return customIcon || siteIcon || null;
+            }
+
+            function renderIconState() {
+                if (!iconAttachmentField || !iconResetButton || !iconThumb || !iconPreview || !iconEmpty || !iconStatus || !iconName) {
+                    return;
+                }
+
+                const effectiveIcon = getEffectiveIcon();
+                const hasSiteIcon = !!(siteIcon && siteIcon.attachmentId);
+                const isCustom = !!customIcon;
+
+                iconAttachmentField.value = isCustom ? String(customIcon.attachmentId || '') : '';
+                iconResetButton.hidden = !isCustom;
+                iconResetButton.textContent = hasSiteIcon ? strings.useSiteIcon : strings.clearCustomIcon;
+
+                if (effectiveIcon && effectiveIcon.previewUrl) {
+                    iconPreview.src = String(effectiveIcon.previewUrl);
+                    iconPreview.hidden = false;
+                    iconEmpty.hidden = true;
+                    iconThumb.classList.remove('is-empty');
+                    iconStatus.textContent = isCustom ? strings.usingCustomIcon : strings.usingSiteIcon;
+                    iconName.textContent = String(effectiveIcon.label || '');
+                    return;
+                }
+
+                iconPreview.hidden = true;
+                iconPreview.removeAttribute('src');
+                iconEmpty.hidden = false;
+                iconEmpty.textContent = strings.noIconLabel;
+                iconThumb.classList.add('is-empty');
+                iconStatus.textContent = strings.noIconSelected;
+                iconName.textContent = strings.noIconHelp;
+            }
+
+            function getAttachmentPreviewUrl(attachment) {
+                if (!attachment || typeof attachment !== 'object') {
+                    return '';
+                }
+
+                if (attachment.sizes && attachment.sizes.medium && attachment.sizes.medium.url) {
+                    return String(attachment.sizes.medium.url);
+                }
+
+                if (attachment.sizes && attachment.sizes.thumbnail && attachment.sizes.thumbnail.url) {
+                    return String(attachment.sizes.thumbnail.url);
+                }
+
+                return attachment.url ? String(attachment.url) : '';
+            }
+
             wordsetField.addEventListener('change', function () {
                 const previousWordsetId = categoryList.getAttribute('data-wordset-id') || '';
                 if (previousWordsetId !== '') {
@@ -303,8 +573,46 @@ function ll_tools_render_offline_app_export_page(): void {
                 updateCategoryUi();
             });
 
+            if (iconChooseButton && iconAttachmentField && window.wp && wp.media) {
+                iconChooseButton.addEventListener('click', function () {
+                    if (!mediaFrame) {
+                        mediaFrame = wp.media({
+                            title: strings.chooseIconTitle,
+                            button: { text: strings.chooseIconButton },
+                            multiple: false,
+                            library: { type: 'image' }
+                        });
+
+                        mediaFrame.on('select', function () {
+                            const selection = mediaFrame.state().get('selection');
+                            const attachment = selection && selection.first ? selection.first().toJSON() : null;
+                            if (!attachment || !attachment.id) {
+                                return;
+                            }
+
+                            customIcon = {
+                                attachmentId: Number(attachment.id) || 0,
+                                label: String(attachment.title || attachment.filename || ''),
+                                previewUrl: getAttachmentPreviewUrl(attachment)
+                            };
+                            renderIconState();
+                        });
+                    }
+
+                    mediaFrame.open();
+                });
+            }
+
+            if (iconResetButton) {
+                iconResetButton.addEventListener('click', function () {
+                    customIcon = null;
+                    renderIconState();
+                });
+            }
+
             categoryList.setAttribute('data-wordset-id', getCurrentWordsetId());
             updateCategoryUi();
+            renderIconState();
         })();
     </script>
     <?php
@@ -492,14 +800,18 @@ function ll_tools_handle_export_offline_app(): void {
     $app_id_suffix = isset($_POST['ll_offline_app_id_suffix'])
         ? sanitize_text_field(wp_unslash((string) $_POST['ll_offline_app_id_suffix']))
         : '';
+    $app_icon_attachment_id = isset($_POST['ll_offline_app_icon_attachment_id'])
+        ? (int) wp_unslash($_POST['ll_offline_app_icon_attachment_id'])
+        : 0;
 
     $bundle = ll_tools_build_offline_app_bundle([
-        'wordset_id'     => $wordset_id,
-        'category_ids'   => $selected_category_ids,
-        'app_name'       => $app_name,
-        'version_name'   => $version_name,
-        'version_code'   => $version_code,
-        'app_id_suffix'  => $app_id_suffix,
+        'wordset_id'             => $wordset_id,
+        'category_ids'           => $selected_category_ids,
+        'app_name'               => $app_name,
+        'version_name'           => $version_name,
+        'version_code'           => $version_code,
+        'app_id_suffix'          => $app_id_suffix,
+        'app_icon_attachment_id' => $app_icon_attachment_id,
     ]);
 
     if (is_wp_error($bundle)) {
@@ -555,6 +867,10 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     $version_code = max(1, (int) ($options['version_code'] ?? 1));
     $app_id_suffix = ll_tools_offline_app_sanitize_app_id_suffix((string) ($options['app_id_suffix'] ?? ''), $wordset);
     $app_id = 'com.lltools.offline.' . $app_id_suffix;
+    $app_icon_payload = ll_tools_offline_app_resolve_icon_payload((int) ($options['app_icon_attachment_id'] ?? 0));
+    if (is_wp_error($app_icon_payload)) {
+        return $app_icon_payload;
+    }
 
     $use_translations = ll_flashcards_should_use_translations();
     $categories = ll_tools_offline_app_build_categories($wordset_id, $category_ids, $use_translations);
@@ -611,6 +927,26 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     }
 
     $categories = $kept_categories;
+    $app_icon_manifest = [];
+    if (!empty($app_icon_payload)) {
+        $icon_extension = ll_tools_offline_app_get_image_extension(
+            (string) ($app_icon_payload['filename'] ?? ''),
+            (string) ($app_icon_payload['mime_type'] ?? '')
+        );
+        $icon_relative_path = 'app-assets/app-icon.' . $icon_extension;
+        $asset_entries[] = [
+            'source_path'   => (string) ($app_icon_payload['source_path'] ?? ''),
+            'relative_path' => $icon_relative_path,
+        ];
+        $app_icon_manifest = [
+            'attachmentId' => (int) ($app_icon_payload['attachment_id'] ?? 0),
+            'source'       => (string) ($app_icon_payload['source'] ?? ''),
+            'mimeType'     => (string) ($app_icon_payload['mime_type'] ?? ''),
+            'bundlePath'   => 'www/' . $icon_relative_path,
+            'webPath'      => './' . $icon_relative_path,
+            'label'        => (string) ($app_icon_payload['label'] ?? ''),
+        ];
+    }
     $launcher_categories = ll_tools_offline_app_build_launcher_categories($categories, $category_data);
     $first_category_name = '';
     $first_category_data = [];
@@ -632,6 +968,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'name'         => $app_name,
             'versionName'  => $version_name,
             'versionCode'  => $version_code,
+            'icon'         => !empty($app_icon_manifest) ? $app_icon_manifest : null,
         ],
         'android'       => [
             'appId' => $app_id,
@@ -732,6 +1069,10 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'versionName'  => $version_name,
             'versionCode'  => $version_code,
             'wordsetName'  => (string) $wordset->name,
+            'icon'         => !empty($app_icon_manifest) ? [
+                'url'      => (string) ($app_icon_manifest['webPath'] ?? ''),
+                'mimeType' => (string) ($app_icon_manifest['mimeType'] ?? ''),
+            ] : null,
             'launcher'     => [
                 'categories'   => $launcher_categories,
                 'previewLimit' => 2,
@@ -785,6 +1126,15 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             __('Android app id: %s', 'll-tools-text-domain'),
             $app_id
         ),
+        !empty($app_icon_manifest)
+            ? sprintf(
+                /* translators: %s: icon source */
+                __('App icon: %s', 'll-tools-text-domain'),
+                !empty($app_icon_payload['source']) && (string) $app_icon_payload['source'] === 'custom'
+                    ? __('Custom override image', 'll-tools-text-domain')
+                    : __('Current site icon', 'll-tools-text-domain')
+            )
+            : __('App icon: Builder default (no bundled icon)', 'll-tools-text-domain'),
         sprintf(
             /* translators: 1: version name, 2: version code */
             __('Version: %1$s (%2$d)', 'll-tools-text-domain'),
@@ -975,6 +1325,8 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
             './plugin/js/flashcard-widget/category-selection.js',
         ],
         'startup_mode'     => (string) ($flashcards['quiz_mode'] ?? 'practice'),
+        'app_icon_url'     => is_array($app_config['icon'] ?? null) ? (string) ($app_config['icon']['url'] ?? '') : '',
+        'app_icon_mime'    => is_array($app_config['icon'] ?? null) ? (string) ($app_config['icon']['mimeType'] ?? '') : '',
         'warnings'         => $warnings,
         'bundle_manifest'  => $bundle_manifest,
         'mode_ui'          => is_array($flashcards['modeUi'] ?? null) ? (array) $flashcards['modeUi'] : [],
@@ -1492,6 +1844,25 @@ function ll_tools_get_plugin_version_string(): string {
     ]);
     $version = isset($data['Version']) ? trim((string) $data['Version']) : '';
     return $version !== '' ? $version : '1.0.0';
+}
+
+function ll_tools_offline_app_get_image_extension(string $filename, string $mime_type = ''): string {
+    $extension = strtolower((string) pathinfo($filename, PATHINFO_EXTENSION));
+    $extension = preg_replace('/[^a-z0-9]+/', '', $extension);
+    if (is_string($extension) && $extension !== '') {
+        return $extension;
+    }
+
+    $mime_type = strtolower(trim($mime_type));
+    $extension_map = [
+        'image/jpeg'    => 'jpg',
+        'image/png'     => 'png',
+        'image/webp'    => 'webp',
+        'image/gif'     => 'gif',
+        'image/svg+xml' => 'svg',
+    ];
+
+    return $extension_map[$mime_type] ?? 'png';
 }
 
 function ll_tools_offline_app_get_gender_runtime_config(int $wordset_id): array {

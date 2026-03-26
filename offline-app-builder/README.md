@@ -23,6 +23,7 @@ npm run prepare:bundle -- /absolute/path/to/ll-tools-offline-app.zip
 
 This extracts the bundle into `workspace/bundle/` and writes `capacitor.config.json`.
 On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
+If the bundle includes an app icon, the build scripts use it for the Android launcher icon automatically.
 
 ## Build a debug APK
 
