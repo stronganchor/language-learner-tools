@@ -18,7 +18,7 @@ function buildPrintMenuMarkup() {
     <div class="ll-vocab-lesson-settings ll-vocab-lesson-print-settings">
       <button
         type="button"
-        class="ll-vocab-lesson-settings-button ll-tools-settings-button ll-vocab-lesson-print-trigger">
+        class="ll-tools-settings-button ll-vocab-lesson-print-trigger">
         <span class="ll-vocab-lesson-print-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
             <path d="M7 8V4h10v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -27,7 +27,7 @@ function buildPrintMenuMarkup() {
         <span class="ll-vocab-lesson-print-label">Print</span>
       </button>
       <form
-        class="ll-vocab-lesson-settings-panel ll-tools-settings-panel ll-vocab-lesson-print-panel"
+        class="ll-tools-settings-panel ll-vocab-lesson-print-panel"
         aria-hidden="false">
         <div class="ll-vocab-lesson-print-panel__title">Print options</div>
         <label class="ll-vocab-lesson-print-panel__option">
@@ -40,7 +40,7 @@ function buildPrintMenuMarkup() {
               <path d="M7 8V4h10v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
-          <span class="ll-vocab-lesson-print-label">Open</span>
+          <span class="ll-vocab-lesson-print-label">Open print view</span>
         </button>
       </form>
     </div>

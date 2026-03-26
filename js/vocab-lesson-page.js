@@ -79,6 +79,71 @@
         return fallback;
     }
 
+    function resetPanelPosition($panel) {
+        if (!$panel || !$panel.length) { return; }
+        $panel.each(function () {
+            if (!this || !this.style) { return; }
+            this.style.removeProperty('left');
+            this.style.removeProperty('right');
+        });
+    }
+
+    function clampPanelToViewport($panel) {
+        if (!$panel || !$panel.length) { return; }
+
+        const panel = $panel.get(0);
+        if (!panel || !panel.style || typeof panel.getBoundingClientRect !== 'function') {
+            return;
+        }
+
+        panel.style.setProperty('left', 'auto', 'important');
+        panel.style.setProperty('right', '0px', 'important');
+
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        if (viewportWidth <= 0) {
+            return;
+        }
+
+        const safePadding = 8;
+        const rect = panel.getBoundingClientRect();
+        if (!rect || rect.width <= 0) {
+            return;
+        }
+
+        const maxRight = viewportWidth - safePadding;
+        let rightOffset = 0;
+
+        if (rect.left < safePadding) {
+            rightOffset -= (safePadding - rect.left);
+        }
+
+        if (rect.right > maxRight) {
+            rightOffset += (rect.right - maxRight);
+        }
+
+        if (Math.abs(rightOffset) > 0.5) {
+            panel.style.setProperty('right', String(rightOffset) + 'px', 'important');
+        }
+    }
+
+    function queuePanelViewportClamp($panel) {
+        if (!$panel || !$panel.length) { return; }
+
+        const run = function () {
+            clampPanelToViewport($panel);
+        };
+
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(function () {
+                run();
+                window.requestAnimationFrame(run);
+            });
+            return;
+        }
+
+        window.setTimeout(run, 0);
+    }
+
     function syncElementAttributes(source, target) {
         Array.from(target.attributes).forEach(function (attr) {
             target.removeAttribute(attr.name);
@@ -152,6 +217,44 @@
             );
         }).always(function () {
             setLoading($shell, false);
+        });
+    }
+
+    function setPrintSettingsOpen($wrap, shouldOpen) {
+        if (!$wrap || !$wrap.length) {
+            return;
+        }
+
+        const $panel = $wrap.find('.ll-vocab-lesson-print-panel').first();
+        const $button = $wrap.find('.ll-vocab-lesson-print-trigger').first();
+        if (!$panel.length || !$button.length) {
+            return;
+        }
+
+        const open = !!shouldOpen;
+        $panel.attr('aria-hidden', open ? 'false' : 'true');
+        $button.attr('aria-expanded', open ? 'true' : 'false');
+        $wrap.toggleClass('is-open', open);
+
+        if (open) {
+            queuePanelViewportClamp($panel);
+        } else {
+            resetPanelPosition($panel);
+        }
+    }
+
+    function closePrintSettings(except) {
+        const $settings = $('.ll-vocab-lesson-print-settings');
+        if (!$settings.length) {
+            return;
+        }
+
+        $settings.each(function () {
+            const $wrap = $(this);
+            if (except && $wrap.is(except)) {
+                return;
+            }
+            setPrintSettingsOpen($wrap, false);
         });
     }
 
@@ -335,6 +438,7 @@
     }
 
     $(function () {
+        const $printSettings = $('.ll-vocab-lesson-print-settings');
         const $shells = $('[data-ll-vocab-lesson-grid-shell]');
         if ($shells.length) {
             $shells.each(function () {
@@ -346,6 +450,43 @@
                 const $shell = $(this).closest('[data-ll-vocab-lesson-grid-shell]');
                 if (!$shell.length) { return; }
                 loadLessonGrid($shell);
+            });
+        }
+
+        if ($printSettings.length) {
+            $printSettings.on('click', '.ll-vocab-lesson-print-trigger', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const $wrap = $(this).closest('.ll-vocab-lesson-print-settings');
+                const $panel = $wrap.find('.ll-vocab-lesson-print-panel').first();
+                const isOpen = $panel.attr('aria-hidden') === 'false';
+
+                closePrintSettings($wrap);
+                setPrintSettingsOpen($wrap, !isOpen);
+            });
+
+            $printSettings.on('click', '.ll-vocab-lesson-print-panel', function (event) {
+                event.stopPropagation();
+            });
+
+            $(document).on('pointerdown.llVocabLessonPrintSettings', function (event) {
+                if ($(event.target).closest('.ll-vocab-lesson-print-settings').length) {
+                    return;
+                }
+                closePrintSettings();
+            });
+
+            $(document).on('keydown.llVocabLessonPrintSettings', function (event) {
+                if (event.key === 'Escape') {
+                    closePrintSettings();
+                }
+            });
+
+            $(window).on('resize.llVocabLessonPrintSettings orientationchange.llVocabLessonPrintSettings', function () {
+                $('.ll-vocab-lesson-print-panel[aria-hidden="false"]').each(function () {
+                    clampPanelToViewport($(this));
+                });
             });
         }
 

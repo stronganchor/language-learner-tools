@@ -33,11 +33,13 @@
         return button;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function init() {
         var root = document.querySelector('[data-ll-vocab-lesson-print-root]');
-        if (!root) {
+        if (!root || root.getAttribute('data-ll-vocab-lesson-print-ready') === '1') {
             return;
         }
+
+        root.setAttribute('data-ll-vocab-lesson-print-ready', '1');
 
         var canvas = root.querySelector('[data-ll-vocab-lesson-print-canvas]');
         if (!canvas) {
@@ -85,7 +87,10 @@
 
         var state = {
             showText: root.getAttribute('data-show-text') === '1',
-            showTranslations: root.getAttribute('data-show-translations') === '1'
+            showTranslations: root.getAttribute('data-show-translations') === '1',
+            dragWordId: 0,
+            dropTargetWordId: 0,
+            dropAfter: false
         };
 
         function updateUrl() {
@@ -113,6 +118,12 @@
             window.history.replaceState({}, '', nextUrl.toString());
         }
 
+        function getVisibleItems() {
+            return items.filter(function (item) {
+                return !item.removed;
+            });
+        }
+
         function findItemIndex(wordId) {
             for (var index = 0; index < items.length; index += 1) {
                 if (items[index].wordId === wordId) {
@@ -122,38 +133,134 @@
             return -1;
         }
 
+        function findVisibleItemIndex(visibleItems, wordId) {
+            for (var index = 0; index < visibleItems.length; index += 1) {
+                if (visibleItems[index].wordId === wordId) {
+                    return index;
+                }
+            }
+            return -1;
+        }
+
+        function applyVisibleOrder(visibleItems) {
+            var reordered = [];
+            var visibleIndex = 0;
+
+            items.forEach(function (item) {
+                if (item.removed) {
+                    reordered.push(item);
+                    return;
+                }
+
+                reordered.push(visibleItems[visibleIndex] || item);
+                visibleIndex += 1;
+            });
+
+            items.splice(0, items.length);
+            Array.prototype.push.apply(items, reordered);
+        }
+
+        function reorderVisibleItems(draggedWordId, targetWordId, placeAfter) {
+            if (draggedWordId <= 0 || targetWordId <= 0 || draggedWordId === targetWordId) {
+                return;
+            }
+
+            var visibleItems = getVisibleItems();
+            if (visibleItems.length < 2) {
+                return;
+            }
+
+            var draggedIndex = findVisibleItemIndex(visibleItems, draggedWordId);
+            var targetIndex = findVisibleItemIndex(visibleItems, targetWordId);
+            if (draggedIndex === -1 || targetIndex === -1) {
+                return;
+            }
+
+            var draggedItem = visibleItems.splice(draggedIndex, 1)[0];
+            if (!draggedItem) {
+                return;
+            }
+
+            targetIndex = findVisibleItemIndex(visibleItems, targetWordId);
+            if (targetIndex === -1) {
+                visibleItems.push(draggedItem);
+            } else {
+                visibleItems.splice(placeAfter ? targetIndex + 1 : targetIndex, 0, draggedItem);
+            }
+
+            applyVisibleOrder(visibleItems);
+        }
+
         function moveVisibleItem(wordId, direction) {
-            var visibleItems = items.filter(function (item) {
-                return !item.removed;
+            var visibleItems = getVisibleItems();
+            var currentIndex = findVisibleItemIndex(visibleItems, wordId);
+            if (currentIndex === -1) {
+                return;
+            }
+
+            var nextIndex = currentIndex + direction;
+            if (nextIndex < 0 || nextIndex >= visibleItems.length) {
+                return;
+            }
+
+            reorderVisibleItems(wordId, visibleItems[nextIndex].wordId, direction > 0);
+        }
+
+        function clearDropIndicators() {
+            Array.prototype.slice.call(
+                canvas.querySelectorAll('.ll-vocab-lesson-print-card.is-drop-target-before, .ll-vocab-lesson-print-card.is-drop-target-after')
+            ).forEach(function (card) {
+                card.classList.remove('is-drop-target-before');
+                card.classList.remove('is-drop-target-after');
             });
-            var visibleIds = visibleItems.map(function (item) {
-                return item.wordId;
+        }
+
+        function clearDragState() {
+            state.dragWordId = 0;
+            state.dropTargetWordId = 0;
+            state.dropAfter = false;
+            root.classList.remove('ll-vocab-lesson-print-page--dragging');
+            clearDropIndicators();
+
+            Array.prototype.slice.call(canvas.querySelectorAll('.ll-vocab-lesson-print-card.is-dragging')).forEach(function (card) {
+                card.classList.remove('is-dragging');
             });
-            var currentVisibleIndex = visibleIds.indexOf(wordId);
-            if (currentVisibleIndex === -1) {
+        }
+
+        function shouldInsertAfter(card, event) {
+            if (!card || typeof card.getBoundingClientRect !== 'function') {
+                return false;
+            }
+
+            var rect = card.getBoundingClientRect();
+            if (!rect || rect.height <= 0) {
+                return false;
+            }
+
+            var pointerY = (event && typeof event.clientY === 'number') ? event.clientY : rect.top;
+            return pointerY >= (rect.top + (rect.height / 2));
+        }
+
+        function updateDropIndicator(card, event) {
+            clearDropIndicators();
+
+            var targetWordId = card ? toInt(card.getAttribute('data-word-id')) : 0;
+            if (targetWordId <= 0 || targetWordId === state.dragWordId) {
+                state.dropTargetWordId = 0;
+                state.dropAfter = false;
                 return;
             }
 
-            var nextVisibleIndex = currentVisibleIndex + direction;
-            if (nextVisibleIndex < 0 || nextVisibleIndex >= visibleIds.length) {
-                return;
-            }
-
-            var currentIndex = findItemIndex(wordId);
-            var swapIndex = findItemIndex(visibleIds[nextVisibleIndex]);
-            if (currentIndex === -1 || swapIndex === -1) {
-                return;
-            }
-
-            var currentItem = items[currentIndex];
-            items[currentIndex] = items[swapIndex];
-            items[swapIndex] = currentItem;
+            state.dropTargetWordId = targetWordId;
+            state.dropAfter = shouldInsertAfter(card, event);
+            card.classList.add(state.dropAfter ? 'is-drop-target-after' : 'is-drop-target-before');
         }
 
         function buildCard(item, visibleIndex, visibleCount) {
             var article = document.createElement('article');
             article.className = 'll-vocab-lesson-print-card ll-vocab-lesson-print-card--interactive';
             article.setAttribute('data-word-id', String(item.wordId));
+            article.setAttribute('draggable', visibleCount > 1 ? 'true' : 'false');
 
             var controls = document.createElement('div');
             controls.className = 'll-vocab-lesson-print-card__controls';
@@ -198,6 +305,9 @@
             var media = document.createElement('div');
             media.className = 'll-vocab-lesson-print-card__media';
             media.innerHTML = item.mediaHtml;
+            Array.prototype.slice.call(media.querySelectorAll('img')).forEach(function (image) {
+                image.setAttribute('draggable', 'false');
+            });
 
             article.appendChild(controls);
             article.appendChild(media);
@@ -263,12 +373,12 @@
         }
 
         function renderCanvas() {
+            clearDragState();
+
             root.setAttribute('data-show-text', state.showText ? '1' : '0');
             root.setAttribute('data-show-translations', state.showTranslations ? '1' : '0');
 
-            var visibleItems = items.filter(function (item) {
-                return !item.removed;
-            });
+            var visibleItems = getVisibleItems();
             canvas.innerHTML = '';
 
             if (!visibleItems.length) {
@@ -323,8 +433,11 @@
 
             var action = String(actionTarget.getAttribute('data-ll-vocab-lesson-print-action') || '');
             var wordId = toInt(actionTarget.getAttribute('data-word-id'));
+
             if (action === 'print') {
-                window.print();
+                if (typeof window.print === 'function') {
+                    window.print();
+                }
                 return;
             }
 
@@ -369,6 +482,73 @@
             }
         });
 
+        canvas.addEventListener('dragstart', function (event) {
+            var card = event.target.closest('.ll-vocab-lesson-print-card--interactive');
+            if (!card) {
+                return;
+            }
+
+            var wordId = toInt(card.getAttribute('data-word-id'));
+            if (wordId <= 0) {
+                return;
+            }
+
+            state.dragWordId = wordId;
+            root.classList.add('ll-vocab-lesson-print-page--dragging');
+            card.classList.add('is-dragging');
+
+            if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                try {
+                    event.dataTransfer.setData('text/plain', String(wordId));
+                } catch (_) {}
+            }
+        });
+
+        canvas.addEventListener('dragover', function (event) {
+            if (state.dragWordId <= 0) {
+                return;
+            }
+
+            var card = event.target.closest('.ll-vocab-lesson-print-card--interactive');
+            if (!card) {
+                return;
+            }
+
+            var targetWordId = toInt(card.getAttribute('data-word-id'));
+            if (targetWordId <= 0 || targetWordId === state.dragWordId) {
+                return;
+            }
+
+            event.preventDefault();
+            if (event.dataTransfer) {
+                event.dataTransfer.dropEffect = 'move';
+            }
+            updateDropIndicator(card, event);
+        });
+
+        canvas.addEventListener('drop', function (event) {
+            if (state.dragWordId <= 0) {
+                return;
+            }
+
+            var card = event.target.closest('.ll-vocab-lesson-print-card--interactive');
+            var targetWordId = card ? toInt(card.getAttribute('data-word-id')) : state.dropTargetWordId;
+            if (targetWordId <= 0 || targetWordId === state.dragWordId) {
+                clearDragState();
+                return;
+            }
+
+            event.preventDefault();
+            var placeAfter = card ? shouldInsertAfter(card, event) : state.dropAfter;
+            reorderVisibleItems(state.dragWordId, targetWordId, placeAfter);
+            renderCanvas();
+        });
+
+        canvas.addEventListener('dragend', function () {
+            clearDragState();
+        });
+
         if (textToggle) {
             textToggle.checked = state.showText;
             textToggle.addEventListener('change', function () {
@@ -402,5 +582,11 @@
         root.classList.add('ll-vocab-lesson-print-page--interactive');
         updateUrl();
         renderCanvas();
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
 })();

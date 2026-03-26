@@ -95,7 +95,6 @@ function buildInteractivePrintPage() {
       }
     };
   </script>
-  <script>${vocabLessonPrintJsSource}</script>
 </body>
 </html>`;
 }
@@ -103,6 +102,13 @@ function buildInteractivePrintPage() {
 test('print controls toggle captions and support remove/restore/reorder', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 960 });
   await page.setContent(buildInteractivePrintPage());
+  await page.evaluate(() => {
+    window.__llDidPrint = false;
+    window.print = () => {
+      window.__llDidPrint = true;
+    };
+  });
+  await page.addScriptTag({ content: vocabLessonPrintJsSource });
 
   const toolbar = page.locator('[data-ll-vocab-lesson-print-toolbar]');
   await expect(toolbar).toBeVisible();
@@ -131,4 +137,22 @@ test('print controls toggle captions and support remove/restore/reorder', async 
   });
 
   expect(wordOrder).toEqual(['2', '1', '3']);
+
+  await page.locator('.ll-vocab-lesson-print-card[data-word-id="3"]').dragTo(
+    page.locator('.ll-vocab-lesson-print-card[data-word-id="2"]'),
+    {
+      targetPosition: { x: 5, y: 5 }
+    }
+  );
+
+  const draggedWordOrder = await page.locator('.ll-vocab-lesson-print-card').evaluateAll((nodes) => {
+    return nodes.map((node) => node.getAttribute('data-word-id'));
+  });
+
+  expect(draggedWordOrder).toEqual(['3', '2', '1']);
+
+  await page.locator('[data-ll-vocab-lesson-print-trigger]').click();
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llDidPrint);
+  }).toBe(true);
 });

@@ -137,6 +137,7 @@ if (have_posts()) {
     $print_form_action = ($print_view_available && $post_id > 0)
         ? get_permalink($post_id)
         : '';
+    $has_print_settings = is_string($print_form_action) && $print_form_action !== '';
     $category_slug = ($category && !is_wp_error($category)) ? $category->slug : '';
     $category_name = ($category && !is_wp_error($category)) ? $category->name : $display_name;
     $embed_base = ($category_slug !== '') ? home_url('/embed/' . $category_slug) : '';
@@ -256,7 +257,7 @@ if (have_posts()) {
         }
         return implode(' ', $parts);
     };
-    if ($defer_grid || $can_edit_category_title) {
+    if ($defer_grid || $can_edit_category_title || $has_print_settings) {
         if ($defer_grid) {
             $grid_context = ll_tools_word_grid_resolve_context([
                 'category' => $category_slug,
@@ -814,11 +815,11 @@ if (have_posts()) {
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
-                <?php if (is_string($print_form_action) && $print_form_action !== '') : ?>
+                <?php if ($has_print_settings) : ?>
                     <div class="ll-vocab-lesson-settings ll-vocab-lesson-print-settings">
                         <button
                             type="button"
-                            class="ll-vocab-lesson-settings-button ll-tools-settings-button ll-vocab-lesson-print-trigger"
+                            class="ll-tools-settings-button ll-vocab-lesson-print-trigger"
                             aria-haspopup="true"
                             aria-expanded="false"
                             aria-label="<?php echo esc_attr__('Print lesson', 'll-tools-text-domain'); ?>">
@@ -833,7 +834,7 @@ if (have_posts()) {
                             <span class="ll-vocab-lesson-print-label"><?php echo esc_html__('Print', 'll-tools-text-domain'); ?></span>
                         </button>
                         <form
-                            class="ll-vocab-lesson-settings-panel ll-tools-settings-panel ll-vocab-lesson-print-panel"
+                            class="ll-tools-settings-panel ll-vocab-lesson-print-panel"
                             method="get"
                             action="<?php echo esc_url($print_form_action); ?>"
                             target="_blank"
@@ -850,7 +851,6 @@ if (have_posts()) {
                                 <input type="checkbox" name="ll_print_translations" value="1" />
                                 <span><?php echo esc_html__('Translations', 'll-tools-text-domain'); ?></span>
                             </label>
-                            <p class="ll-vocab-lesson-print-panel__hint"><?php echo esc_html__('Reorder or remove words in the print view.', 'll-tools-text-domain'); ?></p>
                             <button type="submit" class="ll-study-btn tiny ll-vocab-lesson-print-button ll-vocab-lesson-print-panel__submit">
                                 <span class="ll-vocab-lesson-print-icon" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -860,7 +860,7 @@ if (have_posts()) {
                                         <circle cx="17.5" cy="11.5" r="1" fill="currentColor"/>
                                     </svg>
                                 </span>
-                                <span class="ll-vocab-lesson-print-label"><?php echo esc_html__('Open', 'll-tools-text-domain'); ?></span>
+                                <span class="ll-vocab-lesson-print-label"><?php echo esc_html__('Open print view', 'll-tools-text-domain'); ?></span>
                             </button>
                         </form>
                     </div>
