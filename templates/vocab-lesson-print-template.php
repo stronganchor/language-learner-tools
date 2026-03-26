@@ -221,5 +221,6 @@ $render_print_card = static function (array $item) use ($print_image_size, $show
         })();
         </script>
     <?php endif; ?>
+    <?php wp_footer(); ?>
 </body>
 </html>
