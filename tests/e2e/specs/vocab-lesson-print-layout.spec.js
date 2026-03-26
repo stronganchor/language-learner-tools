@@ -12,7 +12,13 @@ const ONE_PIXEL_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQA
 function buildPrintMarkup() {
   const cards = Array.from({ length: 12 }, (_, index) => (
     '<article class="ll-vocab-lesson-print-card" data-word-id="' + (index + 1) + '">' +
-      '<img class="ll-vocab-lesson-print-image" src="' + ONE_PIXEL_GIF + '" alt="">' +
+      '<div class="ll-vocab-lesson-print-card__media">' +
+        '<img class="ll-vocab-lesson-print-image" src="' + ONE_PIXEL_GIF + '" alt="">' +
+      '</div>' +
+      '<div class="ll-vocab-lesson-print-card__captions">' +
+        '<div class="ll-vocab-lesson-print-card__text">Word ' + (index + 1) + '</div>' +
+        '<div class="ll-vocab-lesson-print-card__translation">Translation ' + (index + 1) + '</div>' +
+      '</div>' +
     '</article>'
   )).join('');
 
@@ -45,10 +51,21 @@ test('print sheet keeps a fixed three-column layout on narrow screens', async ({
   const objectFit = await page.locator('.ll-vocab-lesson-print-image').first().evaluate((node) => {
     return window.getComputedStyle(node).objectFit || '';
   });
+  const mediaStyles = await page.locator('.ll-vocab-lesson-print-card__media').first().evaluate((node) => {
+    const computed = window.getComputedStyle(node);
+    return {
+      alignItems: computed.alignItems,
+      justifyContent: computed.justifyContent,
+      paddingTop: computed.paddingTop
+    };
+  });
 
   expect(columnCount).toBe(3);
   expect(gapValue).toBe('0px');
-  expect(objectFit).toBe('cover');
+  expect(objectFit).toBe('contain');
+  expect(mediaStyles.alignItems).toBe('center');
+  expect(mediaStyles.justifyContent).toBe('center');
+  expect(mediaStyles.paddingTop).not.toBe('0px');
   await expect(page.locator('.ll-vocab-lesson-print-sheet__title')).toHaveText('Print Category');
   await expect(page.locator('.ll-vocab-lesson-print-card')).toHaveCount(12);
 });

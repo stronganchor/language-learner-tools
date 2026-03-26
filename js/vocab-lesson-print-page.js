@@ -57,8 +57,8 @@
         var itemsPerPage = Math.max(1, toInt(root.getAttribute('data-items-per-page')) || 12);
 
         var icons = {
-            moveEarlier: '<span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M10 4.5v11M5.5 9l4.5-4.5L14.5 9" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>',
-            moveLater: '<span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M10 4.5v11M5.5 11l4.5 4.5 4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>',
+            moveEarlier: '<span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M15.5 10h-11M9 5.5 4.5 10 9 14.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>',
+            moveLater: '<span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M4.5 10h11M11 5.5 15.5 10 11 14.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></span>',
             remove: '<span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M5.5 5.5 14.5 14.5M14.5 5.5 5.5 14.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>',
             restore: '<span aria-hidden="true"><svg viewBox="0 0 20 20" focusable="false"><path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>'
         };

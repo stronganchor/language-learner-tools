@@ -123,6 +123,16 @@ test('print controls toggle captions and support remove/restore/reorder', async 
   await expect(page.locator('.ll-vocab-lesson-print-card__translation')).toHaveCount(3);
   await expect(page.locator('.ll-vocab-lesson-print-card__translation').first()).toHaveText('One');
 
+  const moveEarlierPath = await page.locator('.ll-vocab-lesson-print-card__action--move-earlier path').first().evaluate((node) => {
+    return node.getAttribute('d');
+  });
+  const moveLaterPath = await page.locator('.ll-vocab-lesson-print-card__action--move-later path').first().evaluate((node) => {
+    return node.getAttribute('d');
+  });
+
+  expect(moveEarlierPath).toBe('M15.5 10h-11M9 5.5 4.5 10 9 14.5');
+  expect(moveLaterPath).toBe('M4.5 10h11M11 5.5 15.5 10 11 14.5');
+
   await page.locator('.ll-vocab-lesson-print-card__action--remove').first().click();
   await expect(page.locator('.ll-vocab-lesson-print-card')).toHaveCount(2);
   await expect(page.locator('[data-ll-vocab-lesson-print-removed]')).toBeVisible();
