@@ -665,6 +665,9 @@ test('mobile progress words table keeps the layout stable and renders audio cont
 
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).not.toContainText('Starred');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Learned');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('In progress');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('New');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Seen');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Wrong');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend-pos]')).toBeVisible();
@@ -828,6 +831,9 @@ test('mobile progress words table keeps the layout stable and renders audio cont
 test('very small progress layout hides the part-of-speech column and key', async ({ page }) => {
   await mountProgressPage(page, { width: 300, height: 844 });
 
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Learned');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('In progress');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('New');
   await expect(page.locator('th[data-ll-wordset-progress-sort-th="part_of_speech"]')).toBeHidden();
   await expect(page.locator('tr[data-word-id="101"] td').nth(3)).toBeHidden();
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend-pos]')).toBeHidden();
@@ -870,6 +876,42 @@ test('very small progress layout hides the part-of-speech column and key', async
   expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.starCellRight + 0.5);
   expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.wordCellLeft + 0.5);
+});
+
+test('progress key adapts to the current layout needs across breakpoints', async ({ page }) => {
+  const legend = page.locator('[data-ll-wordset-progress-mobile-legend]');
+  const masteredLegend = page.locator('.ll-wordset-progress-mobile-legend__item--mastered');
+  const studiedLegend = page.locator('.ll-wordset-progress-mobile-legend__item--studied');
+  const newLegend = page.locator('.ll-wordset-progress-mobile-legend__item--new');
+  const posLegend = page.locator('[data-ll-wordset-progress-mobile-legend-pos]');
+
+  await mountProgressPage(page, { width: 1280, height: 900 });
+
+  await expect(legend).toBeVisible();
+  await expect(legend).toContainText('Hard');
+  await expect(legend).toContainText('Seen');
+  await expect(legend).toContainText('Wrong');
+  await expect(masteredLegend).toBeHidden();
+  await expect(studiedLegend).toBeHidden();
+  await expect(newLegend).toBeHidden();
+  await expect(posLegend).toBeHidden();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await waitForLayoutFrame(page);
+
+  await expect(masteredLegend).toBeVisible();
+  await expect(studiedLegend).toBeVisible();
+  await expect(newLegend).toBeVisible();
+  await expect(posLegend).toBeVisible();
+  await expect(legend).toContainText('Part of speech');
+
+  await page.setViewportSize({ width: 300, height: 844 });
+  await waitForLayoutFrame(page);
+
+  await expect(masteredLegend).toBeVisible();
+  await expect(studiedLegend).toBeVisible();
+  await expect(newLegend).toBeVisible();
+  await expect(posLegend).toBeHidden();
 });
 
 test('progress view toggles the main tables into gender progress mode', async ({ page }) => {

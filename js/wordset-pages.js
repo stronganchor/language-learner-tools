@@ -326,6 +326,9 @@
     const $progressSelectionClear = $root.find('[data-ll-wordset-progress-selection-clear]');
     const $settingsQueueList = $root.find('[data-ll-wordset-queue-list]');
     const $settingsQueueEmpty = $root.find('[data-ll-wordset-queue-empty]');
+    const PROGRESS_STATUS_SYMBOLS_ONLY_MAX_WIDTH = 860;
+    const PROGRESS_POS_ABBREVIATIONS_MAX_WIDTH = 860;
+    const PROGRESS_POS_HIDDEN_MAX_WIDTH = 320;
     const WORDSET_THUMB_IMAGE_SELECTOR = [
         '.ll-wordset-preview-item--image img',
         '.ll-wordset-queue-thumb--image img',
@@ -1667,14 +1670,14 @@
         }
 
         if (!hasPartOfSpeech) {
-            $progressMobileLegendPos.prop('hidden', true);
+            $progressMobileLegendPos.prop('hidden', true).css('display', 'none');
             $progressMobileLegendPosText.text('');
             return;
         }
 
         const entries = getProgressPartOfSpeechLegendEntries();
         if (!entries.length) {
-            $progressMobileLegendPos.prop('hidden', true);
+            $progressMobileLegendPos.prop('hidden', true).css('display', 'none');
             $progressMobileLegendPosText.text('');
             return;
         }
@@ -1684,7 +1687,53 @@
             return entry.abbreviation + ' = ' + entry.label;
         }).join(', '));
         $progressMobileLegendPosText.prepend(legendLabel + ': ');
-        $progressMobileLegendPos.prop('hidden', false);
+        $progressMobileLegendPos.prop('hidden', false).css('display', '');
+    }
+
+    function progressLayoutMatchesMaxWidth(maxWidth) {
+        const width = parseInt(maxWidth, 10) || 0;
+        if (!width) {
+            return false;
+        }
+
+        if (window.matchMedia) {
+            return window.matchMedia('(max-width: ' + width + 'px)').matches;
+        }
+
+        return (window.innerWidth || 0) <= width;
+    }
+
+    function progressUsesStatusSymbolsOnlyLayout() {
+        return progressLayoutMatchesMaxWidth(PROGRESS_STATUS_SYMBOLS_ONLY_MAX_WIDTH);
+    }
+
+    function progressUsesPartOfSpeechAbbreviationsLayout() {
+        return progressLayoutMatchesMaxWidth(PROGRESS_POS_ABBREVIATIONS_MAX_WIDTH) &&
+            !progressLayoutMatchesMaxWidth(PROGRESS_POS_HIDDEN_MAX_WIDTH);
+    }
+
+    function setProgressLegendItemVisibility(key, visible) {
+        if (!$progressMobileLegend.length) {
+            return;
+        }
+
+        $progressMobileLegend
+            .find('.ll-wordset-progress-mobile-legend__item--' + key)
+            .prop('hidden', !visible)
+            .css('display', visible ? '' : 'none');
+    }
+
+    function renderProgressLegendState(hasPartOfSpeech) {
+        const showStatusLegend = progressUsesStatusSymbolsOnlyLayout();
+
+        setProgressLegendItemVisibility('mastered', showStatusLegend);
+        setProgressLegendItemVisibility('studied', showStatusLegend);
+        setProgressLegendItemVisibility('new', showStatusLegend);
+        setProgressLegendItemVisibility('hard', true);
+        setProgressLegendItemVisibility('seen', true);
+        setProgressLegendItemVisibility('wrong', true);
+
+        renderProgressPartOfSpeechLegend(hasPartOfSpeech && progressUsesPartOfSpeechAbbreviationsLayout());
     }
 
     function analyticsCategoryGenderProgress(row) {
@@ -3651,7 +3700,7 @@
 
         $progressRoot.toggleClass('is-gender-view', genderActive);
         $progressRoot.toggleClass('has-part-of-speech', hasPartOfSpeech);
-        renderProgressPartOfSpeechLegend(hasPartOfSpeech);
+        renderProgressLegendState(hasPartOfSpeech);
 
         if ($progressGenderToggle.length) {
             $progressGenderToggle
@@ -11072,6 +11121,12 @@
             .off('load.llWordsetProgressStickyHeader resize.llWordsetProgressStickyHeader scroll.llWordsetProgressStickyHeader orientationchange.llWordsetProgressStickyHeader')
             .on('load.llWordsetProgressStickyHeader resize.llWordsetProgressStickyHeader scroll.llWordsetProgressStickyHeader orientationchange.llWordsetProgressStickyHeader', function () {
                 scheduleProgressTableStickyHeaderOffsetUpdate();
+            });
+
+        $(window)
+            .off('resize.llWordsetProgressLegend orientationchange.llWordsetProgressLegend')
+            .on('resize.llWordsetProgressLegend orientationchange.llWordsetProgressLegend', function () {
+                renderProgressLegendState(hasProgressPartOfSpeechData());
             });
 
         if ($progressTableWraps.length) {
