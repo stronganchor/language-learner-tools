@@ -3987,6 +3987,34 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-width: 0;
 }
 
+.ll-wordset-progress-mobile-legend__item--part-of-speech {
+    grid-column: 1 / -1;
+    align-items: flex-start;
+}
+
+.ll-wordset-progress-mobile-legend__item--part-of-speech .ll-wordset-progress-mobile-legend__text {
+    line-height: 1.35;
+}
+
+.ll-wordset-progress-mobile-legend__pos-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 0 6px;
+    border: 1px solid #d7dee8;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
 .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-mobile-header-icon,
 .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort-difficulty-icon-wrap,
 .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort-difficulty-icon,
@@ -6790,6 +6818,53 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="wrong"]::before {
         content: none;
         display: none;
+    }
+}
+
+@media (max-width: 320px) {
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"],
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td.ll-wordset-progress-col--part-of-speech,
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-mobile-legend__item--part-of-speech {
+        display: none;
+    }
+
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(1),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(1) {
+        width: 11% !important;
+    }
+
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(2),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(2) {
+        width: 31% !important;
+    }
+
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(3),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(3) {
+        width: 19% !important;
+    }
+
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(5),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(5) {
+        width: 11% !important;
+    }
+
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(6),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(6),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(7),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(7),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(8),
+    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(8) {
+        width: 9% !important;
+    }
+
+    .ll-wordset-progress-mobile-legend__item--part-of-speech .ll-wordset-progress-mobile-legend__text {
+        font-size: 9px;
+    }
+
+    .ll-wordset-progress-mobile-legend__pos-badge {
+        min-height: 17px;
+        padding: 0 5px;
+        font-size: 9px;
     }
 }
 

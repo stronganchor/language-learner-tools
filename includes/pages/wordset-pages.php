@@ -2158,6 +2158,13 @@ function ll_tools_wordset_page_render_progress_mobile_legend(): string {
                     <span class="ll-wordset-progress-mobile-legend__text"><?php echo esc_html($item['label']); ?></span>
                 </li>
             <?php endforeach; ?>
+            <li
+                class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--part-of-speech"
+                data-ll-wordset-progress-mobile-legend-pos
+                hidden>
+                <span class="ll-wordset-progress-mobile-legend__pos-badge" aria-hidden="true"><?php echo esc_html__('POS', 'll-tools-text-domain'); ?></span>
+                <span class="ll-wordset-progress-mobile-legend__text" data-ll-wordset-progress-mobile-legend-pos-text></span>
+            </li>
         </ul>
     </div>
     <?php

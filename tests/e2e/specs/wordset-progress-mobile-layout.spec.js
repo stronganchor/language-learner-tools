@@ -451,6 +451,7 @@ function buildProgressPageMarkup() {
               <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--hard"><span class="ll-wordset-progress-mobile-legend__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><path d="M32 8 L58 52 H6 Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"></path><line x1="32" y1="23" x2="32" y2="37" stroke="currentColor" stroke-width="5" stroke-linecap="round"></line><circle cx="32" cy="45" r="3.2" fill="currentColor"></circle></svg></span><span class="ll-wordset-progress-mobile-legend__text">Hard</span></li>
               <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--seen"><span class="ll-wordset-progress-mobile-legend__icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/></svg></span><span class="ll-wordset-progress-mobile-legend__text">Seen</span></li>
               <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--wrong"><span class="ll-wordset-progress-mobile-legend__icon" aria-hidden="true"><svg viewBox="0 0 64 64"><line x1="16" y1="16" x2="48" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line><line x1="48" y1="16" x2="16" y2="48" stroke="currentColor" stroke-width="6" stroke-linecap="round"></line></svg></span><span class="ll-wordset-progress-mobile-legend__text">Wrong</span></li>
+              <li class="ll-wordset-progress-mobile-legend__item ll-wordset-progress-mobile-legend__item--part-of-speech" data-ll-wordset-progress-mobile-legend-pos hidden><span class="ll-wordset-progress-mobile-legend__pos-badge" aria-hidden="true">POS</span><span class="ll-wordset-progress-mobile-legend__text" data-ll-wordset-progress-mobile-legend-pos-text></span></li>
             </ul>
           </div>
 
@@ -666,6 +667,10 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).not.toContainText('Starred');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Seen');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Wrong');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend-pos]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('POS');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('adj = Adjective');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('n = Noun');
 
   const firstWordCell = page.locator('[data-word-id="101"] td').nth(1);
   await expect(firstWordCell.locator('.ll-wordset-progress-word-cell--text-only')).toHaveCount(1);
@@ -812,6 +817,14 @@ test('mobile progress words table keeps the layout stable and renders audio cont
 
   expect(resizedMetrics.wrapWidth).toBeGreaterThan(metrics.wrapWidth);
   expect(Math.abs(resizedMetrics.tableWidth - resizedMetrics.wrapWidth)).toBeLessThanOrEqual(2);
+});
+
+test('very small progress layout hides the part-of-speech column and key', async ({ page }) => {
+  await mountProgressPage(page, { width: 300, height: 844 });
+
+  await expect(page.locator('th[data-ll-wordset-progress-sort-th="part_of_speech"]')).toBeHidden();
+  await expect(page.locator('tr[data-word-id="101"] td').nth(3)).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend-pos]')).toBeHidden();
 });
 
 test('progress view toggles the main tables into gender progress mode', async ({ page }) => {

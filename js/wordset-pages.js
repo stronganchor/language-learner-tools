@@ -298,6 +298,8 @@
     const $progressGenderCategories = $root.find('[data-ll-wordset-progress-gender-categories]');
     const $progressGraph = $root.find('[data-ll-wordset-progress-graph]');
     const $progressMobileLegend = $root.find('[data-ll-wordset-progress-mobile-legend]').first();
+    const $progressMobileLegendPos = $root.find('[data-ll-wordset-progress-mobile-legend-pos]').first();
+    const $progressMobileLegendPosText = $root.find('[data-ll-wordset-progress-mobile-legend-pos-text]').first();
     const $progressTabButtons = $root.find('[data-ll-wordset-progress-tab]');
     const $progressPanels = $root.find('[data-ll-wordset-progress-panel]');
     const $progressCategoryRows = $root.find('[data-ll-wordset-progress-categories-body]');
@@ -1632,6 +1634,55 @@
         return rows.some(function (row) {
             return analyticsWordHasPartOfSpeech(row);
         });
+    }
+
+    function getProgressPartOfSpeechLegendEntries() {
+        const rows = Array.isArray(analytics.words) ? analytics.words : [];
+        const entriesByKey = {};
+
+        rows.forEach(function (row) {
+            const label = analyticsWordPartOfSpeechLabel(row);
+            const abbreviation = analyticsWordPartOfSpeechAbbreviation(row);
+            const key = analyticsWordPartOfSpeechSlug(row) || label.toLowerCase();
+            if (!label || !abbreviation || !key || entriesByKey[key]) {
+                return;
+            }
+
+            entriesByKey[key] = {
+                abbreviation: abbreviation,
+                label: label
+            };
+        });
+
+        return Object.keys(entriesByKey).sort(function (left, right) {
+            return localeTextCompare(entriesByKey[left].label, entriesByKey[right].label);
+        }).map(function (key) {
+            return entriesByKey[key];
+        });
+    }
+
+    function renderProgressPartOfSpeechLegend(hasPartOfSpeech) {
+        if (!$progressMobileLegendPos.length || !$progressMobileLegendPosText.length) {
+            return;
+        }
+
+        if (!hasPartOfSpeech) {
+            $progressMobileLegendPos.prop('hidden', true);
+            $progressMobileLegendPosText.text('');
+            return;
+        }
+
+        const entries = getProgressPartOfSpeechLegendEntries();
+        if (!entries.length) {
+            $progressMobileLegendPos.prop('hidden', true);
+            $progressMobileLegendPosText.text('');
+            return;
+        }
+
+        $progressMobileLegendPosText.text(entries.map(function (entry) {
+            return entry.abbreviation + ' = ' + entry.label;
+        }).join(', '));
+        $progressMobileLegendPos.prop('hidden', false);
     }
 
     function analyticsCategoryGenderProgress(row) {
@@ -3598,6 +3649,7 @@
 
         $progressRoot.toggleClass('is-gender-view', genderActive);
         $progressRoot.toggleClass('has-part-of-speech', hasPartOfSpeech);
+        renderProgressPartOfSpeechLegend(hasPartOfSpeech);
 
         if ($progressGenderToggle.length) {
             $progressGenderToggle
