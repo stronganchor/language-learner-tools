@@ -4018,6 +4018,23 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     flex: 0 0 auto;
 }
 
+@media (min-width: 861px) {
+    .ll-wordset-progress-mobile-legend {
+        gap: 6px;
+    }
+
+    .ll-wordset-progress-mobile-legend__items {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 18px;
+    }
+
+    .ll-wordset-progress-mobile-legend__item--part-of-speech {
+        grid-column: auto;
+    }
+}
+
 .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-mobile-header-icon,
 .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort-difficulty-icon-wrap,
 .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort-difficulty-icon,

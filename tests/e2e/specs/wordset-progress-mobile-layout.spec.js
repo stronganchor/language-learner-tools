@@ -1090,6 +1090,28 @@ test('desktop progress words table sticky header respects the visible admin bar 
   await expect(legend).toContainText('Seen');
   await expect(legend).toContainText('Wrong');
 
+  const legendLayout = await page.evaluate(() => {
+    const list = document.querySelector('[data-ll-wordset-progress-mobile-legend] .ll-wordset-progress-mobile-legend__items');
+    if (!list) {
+      return null;
+    }
+
+    const visibleItems = Array.from(list.querySelectorAll('.ll-wordset-progress-mobile-legend__item')).filter((item) => {
+      const computed = window.getComputedStyle(item);
+      return computed.display !== 'none' && computed.visibility !== 'hidden';
+    });
+    const tops = visibleItems.map((item) => Math.round(item.getBoundingClientRect().top));
+
+    return {
+      display: window.getComputedStyle(list).display,
+      topSpread: tops.length ? Math.max(...tops) - Math.min(...tops) : 0
+    };
+  });
+
+  expect(legendLayout).not.toBeNull();
+  expect(legendLayout.display).toBe('flex');
+  expect(legendLayout.topSpread).toBeLessThanOrEqual(2);
+
   await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-page]');
     if (!root || !root.parentNode) {
