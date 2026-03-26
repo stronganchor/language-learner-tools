@@ -3847,6 +3847,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     z-index: 16;
 }
 
+.ll-wordset-progress-view:not(.has-part-of-speech) .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"],
+.ll-wordset-progress-view:not(.has-part-of-speech) .ll-wordset-progress-table--words td.ll-wordset-progress-col--part-of-speech {
+    display: none;
+}
+
 .ll-wordset-progress-table tr.is-selected td {
     background: #f1f9ff;
 }
@@ -4293,11 +4298,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-progress-view.is-gender-view .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="wrong"],
 .ll-wordset-progress-view.is-gender-view .ll-wordset-progress-table--words td.ll-wordset-progress-col--wrong {
-    display: none;
-}
-
-.ll-wordset-progress-view:not(.has-part-of-speech) .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"],
-.ll-wordset-progress-view:not(.has-part-of-speech) .ll-wordset-progress-table--words td.ll-wordset-progress-col--part-of-speech {
     display: none;
 }
 
