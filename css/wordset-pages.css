@@ -6324,6 +6324,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         height: 9px;
     }
 
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"] .ll-wordset-progress-th-controls,
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="status"] .ll-wordset-progress-th-controls,
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-th-controls,
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="seen"] .ll-wordset-progress-th-controls,
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-th-controls {
@@ -6331,6 +6333,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         gap: 1px;
     }
 
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"] .ll-wordset-progress-filter-trigger,
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"] .ll-wordset-progress-sort,
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="status"] .ll-wordset-progress-filter-trigger,
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="status"] .ll-wordset-progress-sort,
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-filter-trigger,
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-sort,
     .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="seen"] .ll-wordset-progress-filter-trigger,
@@ -6825,39 +6831,100 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 @media (max-width: 320px) {
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"],
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td.ll-wordset-progress-col--part-of-speech,
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-mobile-legend__item--part-of-speech {
+    .ll-wordset-progress-table--words th[data-ll-wordset-progress-sort-th="part_of_speech"],
+    .ll-wordset-progress-table--words td.ll-wordset-progress-col--part-of-speech,
+    .ll-wordset-progress-mobile-legend__item--part-of-speech {
         display: none;
     }
 
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(1),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(1) {
-        width: 11% !important;
+    .ll-wordset-progress-table--words th,
+    .ll-wordset-progress-table--words td {
+        padding: 3px 1px;
     }
 
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(2),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(2) {
-        width: 31% !important;
+    .ll-wordset-progress-table--words th[data-mobile-label]::before {
+        margin-bottom: 2px;
+        font-size: 7px;
     }
 
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(3),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(3) {
-        width: 19% !important;
+    .ll-wordset-progress-table--words .ll-wordset-progress-filter-trigger,
+    .ll-wordset-progress-table--words .ll-wordset-progress-sort {
+        width: 15px;
+        min-width: 15px;
+        max-width: 15px;
+        min-height: 15px;
+        height: 15px;
+        border-radius: 4px;
     }
 
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(5),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(5) {
-        width: 11% !important;
+    .ll-wordset-progress-table--words .ll-wordset-progress-filter-trigger__icon {
+        width: 8px;
+        height: 8px;
     }
 
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(6),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(6),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(7),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(7),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words th:nth-child(8),
-    .ll-wordset-progress-view.has-part-of-speech .ll-wordset-progress-table--words td:nth-child(8) {
-        width: 9% !important;
+    .ll-wordset-progress-table--words .ll-wordset-progress-sort-indicator {
+        min-width: 7px;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-sort-indicator svg {
+        width: 7px;
+        height: 7px;
+    }
+
+    .ll-wordset-progress-table--words th:nth-child(1),
+    .ll-wordset-progress-table--words td:nth-child(1) {
+        width: 10% !important;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .ll-wordset-progress-table--words th:nth-child(2),
+    .ll-wordset-progress-table--words td:nth-child(2) {
+        width: 30% !important;
+    }
+
+    .ll-wordset-progress-table--words th:nth-child(3),
+    .ll-wordset-progress-table--words td:nth-child(3) {
+        width: 18% !important;
+    }
+
+    .ll-wordset-progress-table--words th:nth-child(5),
+    .ll-wordset-progress-table--words td:nth-child(5) {
+        width: 13% !important;
+    }
+
+    .ll-wordset-progress-table--words th:nth-child(6),
+    .ll-wordset-progress-table--words td:nth-child(6),
+    .ll-wordset-progress-table--words th:nth-child(7),
+    .ll-wordset-progress-table--words td:nth-child(7),
+    .ll-wordset-progress-table--words th:nth-child(8),
+    .ll-wordset-progress-table--words td:nth-child(8) {
+        width: 8% !important;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-star {
+        width: 17px !important;
+        height: 17px !important;
+        min-width: 17px !important;
+        min-height: 17px !important;
+        font-size: 9px !important;
+        border-radius: 4px !important;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-star::before {
+        width: 10px !important;
+        height: 10px !important;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-status-pill {
+        min-width: 15px;
+        min-height: 15px;
+        height: 15px;
+    }
+
+    .ll-wordset-progress-table--words .ll-wordset-progress-status-icon {
+        width: 8px;
+        height: 8px;
     }
 
     .ll-wordset-progress-mobile-legend__item--part-of-speech .ll-wordset-progress-mobile-legend__text {

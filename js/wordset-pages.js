@@ -1679,9 +1679,11 @@
             return;
         }
 
+        const legendLabel = String(i18n.analyticsPartOfSpeech || 'Part of speech').trim() || 'Part of speech';
         $progressMobileLegendPosText.text(entries.map(function (entry) {
             return entry.abbreviation + ' = ' + entry.label;
         }).join(', '));
+        $progressMobileLegendPosText.prepend(legendLabel + ': ');
         $progressMobileLegendPos.prop('hidden', false);
     }
 

@@ -668,7 +668,7 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Seen');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Wrong');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend-pos]')).toBeVisible();
-  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('POS');
+  await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('Part of speech');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('adj = Adjective');
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend]')).toContainText('n = Noun');
 
@@ -733,12 +733,14 @@ test('mobile progress words table keeps the layout stable and renders audio cont
     const legend = document.querySelector('[data-ll-wordset-progress-mobile-legend]');
     const legendTitle = legend ? legend.querySelector('.ll-wordset-progress-mobile-legend__title') : null;
     const legendItems = legend ? legend.querySelector('.ll-wordset-progress-mobile-legend__items') : null;
+    const posControls = document.querySelector('th[data-ll-wordset-progress-sort-th="part_of_speech"] .ll-wordset-progress-th-controls');
+    const statusControls = document.querySelector('th[data-ll-wordset-progress-sort-th="status"] .ll-wordset-progress-th-controls');
     const difficultyControls = document.querySelector('th[data-ll-wordset-progress-sort-th="difficulty"] .ll-wordset-progress-th-controls');
     const seenControls = document.querySelector('th[data-ll-wordset-progress-sort-th="seen"] .ll-wordset-progress-th-controls');
     const wrongControls = document.querySelector('th[data-ll-wordset-progress-sort-th="wrong"] .ll-wordset-progress-th-controls');
     const row = document.querySelector('tr[data-word-id="101"]');
     const imageAudioRow = document.querySelector('tr[data-word-id="102"]');
-    if (!row || !imageAudioRow || !legendTitle || !legendItems || !difficultyControls || !seenControls || !wrongControls) {
+    if (!row || !imageAudioRow || !legendTitle || !legendItems || !posControls || !statusControls || !difficultyControls || !seenControls || !wrongControls) {
       return null;
     }
 
@@ -768,6 +770,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
     const wordsTable = wordsWrap ? wordsWrap.querySelector('.ll-wordset-progress-table--words') : null;
 
     return {
+      posControlsDirection: window.getComputedStyle(posControls).flexDirection,
+      statusControlsDirection: window.getComputedStyle(statusControls).flexDirection,
       difficultyControlsDirection: window.getComputedStyle(difficultyControls).flexDirection,
       seenControlsDirection: window.getComputedStyle(seenControls).flexDirection,
       wrongControlsDirection: window.getComputedStyle(wrongControls).flexDirection,
@@ -789,6 +793,8 @@ test('mobile progress words table keeps the layout stable and renders audio cont
   });
 
   expect(metrics).not.toBeNull();
+  expect(metrics.posControlsDirection).toBe('column');
+  expect(metrics.statusControlsDirection).toBe('column');
   expect(metrics.difficultyControlsDirection).toBe('column');
   expect(metrics.seenControlsDirection).toBe('column');
   expect(metrics.wrongControlsDirection).toBe('column');
@@ -825,6 +831,45 @@ test('very small progress layout hides the part-of-speech column and key', async
   await expect(page.locator('th[data-ll-wordset-progress-sort-th="part_of_speech"]')).toBeHidden();
   await expect(page.locator('tr[data-word-id="101"] td').nth(3)).toBeHidden();
   await expect(page.locator('[data-ll-wordset-progress-mobile-legend-pos]')).toBeHidden();
+
+  const metrics = await page.evaluate(() => {
+    const row = document.querySelector('tr[data-word-id="101"]');
+    const statusControls = document.querySelector('th[data-ll-wordset-progress-sort-th="status"] .ll-wordset-progress-th-controls');
+    const wordsWrap = document.querySelector('[data-ll-wordset-progress-panel="words"] .ll-wordset-progress-table-wrap');
+    const wordsTable = wordsWrap ? wordsWrap.querySelector('.ll-wordset-progress-table--words') : null;
+    if (!row || !statusControls || !wordsWrap || !wordsTable) {
+      return null;
+    }
+
+    const starCell = row.children[0];
+    const wordCell = row.children[1];
+    const button = row.querySelector('[data-ll-wordset-progress-word-star]');
+    if (!starCell || !wordCell || !button) {
+      return null;
+    }
+
+    const starCellRect = starCell.getBoundingClientRect();
+    const wordCellRect = wordCell.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+
+    return {
+      statusControlsDirection: window.getComputedStyle(statusControls).flexDirection,
+      wrapWidth: wordsWrap.getBoundingClientRect().width,
+      tableWidth: wordsTable.getBoundingClientRect().width,
+      starCellLeft: starCellRect.left,
+      starCellRight: starCellRect.right,
+      wordCellLeft: wordCellRect.left,
+      buttonLeft: buttonRect.left,
+      buttonRight: buttonRect.right
+    };
+  });
+
+  expect(metrics).not.toBeNull();
+  expect(metrics.statusControlsDirection).toBe('column');
+  expect(Math.abs(metrics.tableWidth - metrics.wrapWidth)).toBeLessThanOrEqual(2);
+  expect(metrics.buttonLeft).toBeGreaterThanOrEqual(metrics.starCellLeft - 0.5);
+  expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.starCellRight + 0.5);
+  expect(metrics.buttonRight).toBeLessThanOrEqual(metrics.wordCellLeft + 0.5);
 });
 
 test('progress view toggles the main tables into gender progress mode', async ({ page }) => {
