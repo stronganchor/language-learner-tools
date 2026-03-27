@@ -105,7 +105,7 @@ function ll_tools_user_study_wordsets(): array {
  */
 function ll_tools_user_study_categories_for_wordset($wordset_id): array {
     $wordset_ids = $wordset_id ? [(int) $wordset_id] : [];
-    $use_translations = function_exists('ll_flashcards_should_use_translations') ? ll_flashcards_should_use_translations() : false;
+    $use_translations = function_exists('ll_flashcards_should_use_translations') ? ll_flashcards_should_use_translations($wordset_ids) : false;
     if (!function_exists('ll_flashcards_build_categories')) {
         return [];
     }

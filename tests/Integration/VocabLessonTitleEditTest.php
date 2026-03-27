@@ -59,12 +59,13 @@ final class VocabLessonTitleEditTest extends LL_Tools_TestCase
         if ($target_language === '') {
             $target_language = 'en';
         }
-        update_option('ll_enable_category_translation', 1, false);
-        update_option('ll_translation_language', $target_language, false);
 
         $lesson = $this->createLessonFixture('Raw Category Name', 'raw-category-name');
         $lesson_id = $lesson['lesson_id'];
         $category_id = $lesson['category_id'];
+        $wordset_id = $lesson['wordset_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_ENABLED_META_KEY, '1');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, $target_language);
         update_term_meta($category_id, 'term_translation', 'Visible Category Name');
 
         $_POST = [

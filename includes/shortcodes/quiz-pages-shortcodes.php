@@ -235,7 +235,6 @@ function ll_get_all_quiz_pages_data($opts = []) {
         $filtered_wordset_id = (int) ($ws_ids[0] ?? 0);
     }
 
-    $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $items = [];
     $gender_config_cache = [];
 
@@ -244,7 +243,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
     // Build the allowed categories list using the same helper as the widget for consistency
     $allowed_category_ids = [];
     $category_meta_map = [];
-    $use_translations = $enable_translation && (strpos(strtolower(get_locale()), strtolower(get_option('ll_translation_language', 'en'))) === 0);
+    $use_translations = function_exists('ll_flashcards_should_use_translations')
+        ? ll_flashcards_should_use_translations($ws_ids)
+        : false;
     if (function_exists('ll_flashcards_build_categories')) {
         [$processed] = ll_flashcards_build_categories('', $use_translations, $ws_ids);
         foreach ($processed as $cat) {
@@ -438,17 +439,15 @@ function ll_get_default_wordset_id_for_category(string $category_name, int $min_
  * @param string $wordset_spec Optional wordset filter (slug|name|id) to align popup categories/words.
  */
 function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
-    $enable_translation = get_option('ll_enable_category_translation', 0);
-    $target_language    = strtolower(get_option('ll_translation_language', 'en'));
-    $site_language      = strtolower(get_locale());
-    $use_translations   = $enable_translation && strpos($site_language, $target_language) === 0;
-
     $wordset_spec = sanitize_text_field((string) $wordset_spec);
     $wordset_ids  = function_exists('ll_flashcards_resolve_wordset_ids')
         ? ll_flashcards_resolve_wordset_ids($wordset_spec, false)
         : [];
     $wordset_ids = array_map('intval', (array) $wordset_ids);
     $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
+    $use_translations = function_exists('ll_flashcards_should_use_translations')
+        ? ll_flashcards_should_use_translations($wordset_ids)
+        : false;
 
     if (function_exists('ll_flashcards_build_categories')) {
         [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);

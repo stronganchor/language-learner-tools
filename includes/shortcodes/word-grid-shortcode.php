@@ -3099,13 +3099,15 @@ function ll_tools_word_grid_shortcode($atts) {
     ];
 
     $target_lang_raw = '';
-    if ($wordset_term && function_exists('ll_get_wordset_language')) {
-        $target_lang_raw = (string) ll_get_wordset_language((int) $wordset_term->term_id);
+    if ($wordset_term && function_exists('ll_tools_get_wordset_target_language')) {
+        $target_lang_raw = (string) ll_tools_get_wordset_target_language([(int) $wordset_term->term_id]);
     }
     if ($target_lang_raw === '') {
         $target_lang_raw = (string) get_option('ll_target_language', '');
     }
-    $translation_lang_raw = (string) get_option('ll_translation_language', '');
+    $translation_lang_raw = ($wordset_term && function_exists('ll_tools_get_wordset_translation_language'))
+        ? (string) ll_tools_get_wordset_translation_language([(int) $wordset_term->term_id])
+        : (string) get_option('ll_translation_language', '');
     $target_lang_code = ll_tools_word_grid_format_language_code($target_lang_raw);
     $translation_lang_code = ll_tools_word_grid_format_language_code($translation_lang_raw);
 

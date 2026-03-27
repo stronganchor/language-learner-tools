@@ -126,9 +126,11 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
         ? ll_tools_wordset_get_category_ordering_cache_signature($wordset_id)
         : 'none';
     $translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
-        ? (ll_tools_is_category_translation_enabled() ? '1' : '0')
+        ? (ll_tools_is_category_translation_enabled([$wordset_id]) ? '1' : '0')
         : ((bool) get_option('ll_enable_category_translation', 0) ? '1' : '0');
-    $translation_target = sanitize_key((string) get_option('ll_translation_language', ''));
+    $translation_target = function_exists('ll_tools_get_wordset_translation_language')
+        ? sanitize_key((string) ll_tools_get_wordset_translation_language([$wordset_id]))
+        : sanitize_key((string) get_option('ll_translation_language', ''));
     $label_locale_sig = sanitize_key((string) get_locale());
     $cache_context_sig = substr(md5($label_locale_sig . '|' . $translation_enabled . '|' . $translation_target), 0, 8);
     $cache_key = 'll_wordset_page_cats_' . $wordset_id . '_' . $min_words . '_' . $ordering_sig . '_' . $cache_context_sig;
@@ -662,7 +664,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         && function_exists('ll_flashcards_build_categories')
     ) {
         $use_translations = function_exists('ll_flashcards_should_use_translations')
-            ? ll_flashcards_should_use_translations()
+            ? ll_flashcards_should_use_translations([$wordset_id])
             : false;
         [$flashcard_categories] = ll_flashcards_build_categories('', $use_translations, [$wordset_id]);
         foreach ((array) $flashcard_categories as $flashcard_category) {
@@ -693,7 +695,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         }
 
         $display_name = function_exists('ll_tools_get_category_display_name')
-            ? ll_tools_get_category_display_name($category)
+            ? ll_tools_get_category_display_name($category, ['wordset_ids' => [$wordset_id]])
             : $category->name;
 
         $quiz_config = function_exists('ll_tools_get_category_quiz_config')
@@ -1585,7 +1587,7 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
         // prompt => word_translation, answer => post_title.
         $raw_title_text = $answer_text;
         $normalized_title = function_exists('ll_tools_import_capitalize_word')
-            ? ll_tools_import_capitalize_word($raw_title_text)
+            ? ll_tools_import_capitalize_word($raw_title_text, $wordset_id)
             : ucfirst($raw_title_text);
         if ($normalized_title === '') {
             $skipped_invalid++;

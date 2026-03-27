@@ -36,15 +36,15 @@ final class AudioProcessorWordEditTest extends LL_Tools_TestCase
 
     public function test_audio_processor_update_word_text_saves_word_and_translation_in_default_mode(): void
     {
-        update_option('ll_word_title_language_role', 'target');
-
         $editor_id = $this->create_audio_processor_editor();
+        $wordset_id = $this->create_wordset_with_title_role('target');
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'draft',
             'post_title' => 'Old Word',
             'post_author' => $editor_id,
         ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
         update_post_meta($word_id, 'word_translation', 'Old Translation');
         update_post_meta($word_id, 'word_english_meaning', 'Old Translation');
 
@@ -74,15 +74,15 @@ final class AudioProcessorWordEditTest extends LL_Tools_TestCase
 
     public function test_audio_processor_update_word_text_respects_translation_title_mode(): void
     {
-        update_option('ll_word_title_language_role', 'translation');
-
         $editor_id = $this->create_audio_processor_editor();
+        $wordset_id = $this->create_wordset_with_title_role('translation');
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'draft',
             'post_title' => 'Old Translation',
             'post_author' => $editor_id,
         ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
         update_post_meta($word_id, 'word_translation', 'Old Target');
         update_post_meta($word_id, 'word_english_meaning', 'Old Translation');
 
@@ -119,6 +119,18 @@ final class AudioProcessorWordEditTest extends LL_Tools_TestCase
         clean_user_cache($user_id);
 
         return $user_id;
+    }
+
+    private function create_wordset_with_title_role(string $title_role): int
+    {
+        $wordset = wp_insert_term('Audio Processor Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $this->assertGreaterThan(0, $wordset_id);
+
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, $title_role);
+
+        return $wordset_id;
     }
 
     /**

@@ -1242,7 +1242,7 @@ function ll_tools_wordset_get_admin_category_ordering_rows(int $wordset_id): arr
                         continue;
                     }
                     $label = function_exists('ll_tools_get_category_display_name')
-                        ? (string) ll_tools_get_category_display_name($term)
+                        ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
                         : (string) $term->name;
                     $rows[$cid] = [
                         'id' => $cid,
@@ -1948,7 +1948,22 @@ function ll_add_wordset_language_field($term) {
     $is_edit = ($term instanceof WP_Term);
     $term_id = $is_edit ? (int) $term->term_id : 0;
 
-    $language = '';
+    $wordset_context = $term_id > 0 ? [$term_id] : [];
+    $language = function_exists('ll_tools_get_wordset_target_language')
+        ? (string) ll_tools_get_wordset_target_language($wordset_context)
+        : '';
+    $translation_language = function_exists('ll_tools_get_wordset_translation_language')
+        ? (string) ll_tools_get_wordset_translation_language($wordset_context)
+        : '';
+    $category_translation_enabled = function_exists('ll_tools_is_wordset_category_translation_enabled')
+        ? (bool) ll_tools_is_wordset_category_translation_enabled($wordset_context)
+        : false;
+    $category_translation_source = function_exists('ll_tools_get_wordset_category_translation_source')
+        ? (string) ll_tools_get_wordset_category_translation_source($wordset_context)
+        : 'target';
+    $word_title_language_role = function_exists('ll_tools_get_wordset_title_language_role')
+        ? (string) ll_tools_get_wordset_title_language_role($wordset_context)
+        : 'target';
     $wordset_visibility = 'public';
     $hide_lesson_text_for_non_text_quiz = false;
     $has_gender = false;
@@ -1987,7 +2002,6 @@ function ll_add_wordset_language_field($term) {
         ];
 
     if ($term_id > 0) {
-        $language = (string) get_term_meta($term_id, 'll_language', true);
         $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
             ? ll_tools_get_wordset_visibility($term_id)
             : 'public';
@@ -2020,6 +2034,15 @@ function ll_add_wordset_language_field($term) {
         }
     }
 
+    $target_language_name = $language !== '' ? $language : __('target language', 'll-tools-text-domain');
+    $translation_language_name = $translation_language !== '' ? $translation_language : __('translation language', 'll-tools-text-domain');
+    $translation_source_labels = [
+        /* translators: 1: source language label, 2: destination language label */
+        'target' => sprintf(__('%1$s to %2$s', 'll-tools-text-domain'), $target_language_name, $translation_language_name),
+        /* translators: 1: source language label, 2: destination language label */
+        'translation' => sprintf(__('%1$s to %2$s', 'll-tools-text-domain'), $translation_language_name, $target_language_name),
+    ];
+
     $gender_options_display = implode("\n", array_map('strval', $gender_options));
     $plurality_options_display = implode("\n", array_map('strval', $plurality_options));
     $verb_tense_options_display = implode("\n", array_map('strval', $verb_tense_options));
@@ -2045,10 +2068,52 @@ function ll_add_wordset_language_field($term) {
     ll_tools_wordset_render_admin_field(
         $is_edit,
         'term-language-wrap',
-        __('Language', 'll-tools-text-domain'),
+        __('Target language', 'll-tools-text-domain'),
         '<input type="text" id="wordset-language" name="wordset_language" value="' . esc_attr($language) . '" required>',
         'wordset-language',
-        __('Enter the language for this word set.', 'll-tools-text-domain')
+        __('Enter the language being learned in this word set.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-translation-language-wrap',
+        __('Translation language', 'll-tools-text-domain'),
+        '<input type="text" id="ll-wordset-translation-language" name="ll_wordset_translation_language" value="' . esc_attr($translation_language) . '" />',
+        'll-wordset-translation-language',
+        __('Enter the helper/known language used for translations in this word set.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-word-title-language-role-wrap',
+        __('Word title language', 'll-tools-text-domain'),
+        '<select id="ll-wordset-word-title-language-role" name="ll_wordset_word_title_language_role">'
+            . '<option value="target" ' . selected($word_title_language_role, 'target', false) . '>' . esc_html__('Target (language being learned)', 'll-tools-text-domain') . '</option>'
+            . '<option value="translation" ' . selected($word_title_language_role, 'translation', false) . '>' . esc_html__('Translation (helper/known language)', 'll-tools-text-domain') . '</option>'
+            . '</select>',
+        'll-wordset-word-title-language-role',
+        __('Controls whether word post titles are stored in the target language or the translation/helper language for this word set.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-category-translation-enabled-wrap',
+        __('Category name translations', 'll-tools-text-domain'),
+        '<label><input type="checkbox" id="ll-wordset-enable-category-translation" name="ll_wordset_enable_category_translation" value="1" ' . checked($category_translation_enabled, true, false) . ' /> ' . esc_html__('Enable translated category names for this word set.', 'll-tools-text-domain') . '</label>',
+        'll-wordset-enable-category-translation',
+        __('When enabled, this word set can display category names from the translated category field.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-category-translation-source-wrap',
+        __('Translate category names from', 'll-tools-text-domain'),
+        '<select id="ll-wordset-category-translation-source" name="ll_wordset_category_translation_source">'
+            . '<option value="target" ' . selected($category_translation_source, 'target', false) . '>' . esc_html($translation_source_labels['target']) . '</option>'
+            . '<option value="translation" ' . selected($category_translation_source, 'translation', false) . '>' . esc_html($translation_source_labels['translation']) . '</option>'
+            . '</select>',
+        'll-wordset-category-translation-source',
+        __('Choose whether this word set’s category titles start in the target language or the translation language.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -2357,6 +2422,10 @@ function ll_tools_wordset_verify_core_term_form_nonce(array $request): bool {
 // Save the language when a new word set is created or edited
 function ll_save_wordset_language($term_id) {
     $has_meta_input = isset($_POST['wordset_language'])
+        || isset($_POST['ll_wordset_translation_language'])
+        || isset($_POST['ll_wordset_enable_category_translation'])
+        || isset($_POST['ll_wordset_category_translation_source'])
+        || isset($_POST['ll_wordset_word_title_language_role'])
         || isset($_POST['ll_wordset_visibility'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
         || isset($_POST['ll_wordset_answer_option_text_font_family'])
@@ -2399,12 +2468,42 @@ function ll_save_wordset_language($term_id) {
         }
     }
 
+    $previous_category_translation_enabled = function_exists('ll_tools_is_wordset_category_translation_enabled')
+        ? (bool) ll_tools_is_wordset_category_translation_enabled([$term_id])
+        : false;
+
     if (isset($_POST['wordset_language'])) {
-        $language = sanitize_text_field($_POST['wordset_language']);
+        $language = function_exists('ll_tools_sanitize_wordset_language_setting')
+            ? ll_tools_sanitize_wordset_language_setting(wp_unslash((string) $_POST['wordset_language']))
+            : sanitize_text_field(wp_unslash((string) $_POST['wordset_language']));
         update_term_meta($term_id, 'll_language', $language);
     }
 
     if ($has_meta_input) {
+        if (array_key_exists('ll_wordset_translation_language', $_POST)) {
+            $translation_language = function_exists('ll_tools_sanitize_wordset_language_setting')
+                ? ll_tools_sanitize_wordset_language_setting(wp_unslash((string) $_POST['ll_wordset_translation_language']))
+                : sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_translation_language']));
+            update_term_meta($term_id, LL_TOOLS_WORDSET_TRANSLATION_LANGUAGE_META_KEY, $translation_language);
+        }
+
+        $category_translation_enabled = isset($_POST['ll_wordset_enable_category_translation']) ? 1 : 0;
+        update_term_meta($term_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_ENABLED_META_KEY, $category_translation_enabled);
+
+        if (array_key_exists('ll_wordset_category_translation_source', $_POST)) {
+            $category_translation_source = function_exists('ll_tools_sanitize_wordset_category_translation_source')
+                ? ll_tools_sanitize_wordset_category_translation_source(wp_unslash((string) $_POST['ll_wordset_category_translation_source']))
+                : sanitize_key(wp_unslash((string) $_POST['ll_wordset_category_translation_source']));
+            update_term_meta($term_id, LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_SOURCE_META_KEY, $category_translation_source);
+        }
+
+        if (array_key_exists('ll_wordset_word_title_language_role', $_POST)) {
+            $word_title_language_role = function_exists('ll_tools_sanitize_wordset_title_language_role')
+                ? ll_tools_sanitize_wordset_title_language_role(wp_unslash((string) $_POST['ll_wordset_word_title_language_role']))
+                : sanitize_key(wp_unslash((string) $_POST['ll_wordset_word_title_language_role']));
+            update_term_meta($term_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, $word_title_language_role);
+        }
+
         $wordset_visibility = isset($_POST['ll_wordset_visibility'])
             ? ll_tools_normalize_wordset_visibility(wp_unslash((string) $_POST['ll_wordset_visibility']))
             : 'public';
@@ -2827,6 +2926,10 @@ function ll_save_wordset_language($term_id) {
         } else {
             update_term_meta($term_id, 'll_wordset_verb_mood_options', $verb_mood_options);
         }
+
+        if (!$previous_category_translation_enabled && $category_translation_enabled === 1 && function_exists('ll_tools_auto_translate_categories_for_wordset')) {
+            ll_tools_auto_translate_categories_for_wordset((int) $term_id);
+        }
     }
 
     // Preserve the assigned manager on edits; only seed a manager if none exists yet.
@@ -2843,6 +2946,10 @@ add_action('edited_wordset', 'll_save_wordset_language');
 
 // Get the language of a word set
 function ll_get_wordset_language($term_id) {
+    if (function_exists('ll_tools_get_wordset_target_language')) {
+        return ll_tools_get_wordset_target_language([(int) $term_id]);
+    }
+
     return get_term_meta($term_id, 'll_language', true);
 }
 

@@ -2236,7 +2236,9 @@ function ll_prepare_new_word_recording_handler() {
         wp_send_json_error(__('No recording types are available for this category.', 'll-tools-text-domain'));
     }
 
-    $store_in_title = (get_option('ll_word_title_language_role', 'target') === 'target');
+    $store_in_title = function_exists('ll_tools_get_wordset_title_language_role')
+        ? (ll_tools_get_wordset_title_language_role($posted_ids) === 'target')
+        : (get_option('ll_word_title_language_role', 'target') === 'target');
     if ($create_category) {
         $store_in_title = true;
     } elseif ($category_term && function_exists('ll_tools_get_category_quiz_config')) {
@@ -2446,15 +2448,8 @@ function ll_tools_resolve_language_code_from_label($raw, $case = 'lower') {
  * @return string
  */
 function ll_tools_get_wordset_language_label($wordset_ids) {
-    if (!is_array($wordset_ids)) {
-        return '';
-    }
-
-    foreach ($wordset_ids as $wsid) {
-        $lang = function_exists('ll_get_wordset_language') ? ll_get_wordset_language((int) $wsid) : '';
-        if (!empty($lang)) {
-            return $lang;
-        }
+    if (function_exists('ll_tools_get_wordset_target_language')) {
+        return (string) ll_tools_get_wordset_target_language($wordset_ids);
     }
 
     return '';
@@ -2468,9 +2463,6 @@ function ll_tools_get_wordset_language_label($wordset_ids) {
  */
 function ll_tools_get_assemblyai_language_code($wordset_ids) {
     $raw = ll_tools_get_wordset_language_label($wordset_ids);
-    if ($raw === '') {
-        $raw = (string) get_option('ll_target_language', '');
-    }
 
     $normalized = ll_tools_resolve_language_code_from_label($raw, 'lower');
     if ($normalized !== '' && $normalized !== 'auto' && strlen($normalized) !== 2) {
@@ -2492,9 +2484,11 @@ function ll_tools_get_assemblyai_language_code($wordset_ids) {
 function ll_tools_get_deepl_language_codes($wordset_ids) {
     $source_raw = ll_tools_get_wordset_language_label($wordset_ids);
     if ($source_raw === '') {
-        $source_raw = (string) get_option('ll_target_language', 'auto');
+        $source_raw = 'auto';
     }
-    $target_raw = (string) get_option('ll_translation_language', '');
+    $target_raw = function_exists('ll_tools_get_wordset_translation_language')
+        ? (string) ll_tools_get_wordset_translation_language($wordset_ids)
+        : (string) get_option('ll_translation_language', '');
 
     $source = ll_tools_resolve_language_code_from_label($source_raw, 'upper');
     if ($source === 'AUTO') {
@@ -2511,8 +2505,14 @@ function ll_tools_get_deepl_language_codes($wordset_ids) {
  * @param int $word_id
  * @return bool
  */
-function ll_tools_should_store_word_in_title($word_id) {
-    $store_in_title = (get_option('ll_word_title_language_role', 'target') === 'target');
+function ll_tools_should_store_word_in_title($word_id, ?array $wordset_ids = null) {
+    if ($wordset_ids === null && function_exists('ll_tools_get_post_wordset_ids')) {
+        $wordset_ids = ll_tools_get_post_wordset_ids((int) $word_id);
+    }
+
+    $store_in_title = function_exists('ll_tools_get_wordset_title_language_role')
+        ? (ll_tools_get_wordset_title_language_role((array) $wordset_ids) === 'target')
+        : (get_option('ll_word_title_language_role', 'target') === 'target');
     $terms = wp_get_post_terms($word_id, 'word-category');
     if (!empty($terms) && !is_wp_error($terms) && function_exists('ll_tools_get_category_quiz_config')) {
         $cat_cfg = ll_tools_get_category_quiz_config($terms[0]);
@@ -3140,7 +3140,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $is_uncategorized_request = ($category_slug === 'uncategorized');
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
     $current_uid = get_current_user_id();
-    $title_role = get_option('ll_word_title_language_role', 'target');
+    $title_role = function_exists('ll_tools_get_wordset_title_language_role')
+        ? ll_tools_get_wordset_title_language_role($wordset_term_ids)
+        : get_option('ll_word_title_language_role', 'target');
 
     $all_types = get_terms([
         'taxonomy'   => 'recording_type',
@@ -4823,10 +4825,13 @@ function ll_handle_recording_upload() {
     }
 
     if (function_exists('ll_remove_missing_audio_instance')) {
+        $title_wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
+            ? ll_tools_get_post_wordset_ids((int) $word_id)
+            : [];
         // Match the normalization pipeline used when populating the cache (normalize case, then sanitize)
         $normalized_for_cache = $title;
         if (function_exists('ll_normalize_case')) {
-            $normalized_for_cache = ll_normalize_case($normalized_for_cache);
+            $normalized_for_cache = ll_normalize_case($normalized_for_cache, $title_wordset_ids);
         }
         if (function_exists('ll_missing_audio_sanitize_word_text')) {
             $normalized_for_cache = ll_missing_audio_sanitize_word_text($normalized_for_cache);
@@ -4854,7 +4859,7 @@ function ll_handle_recording_upload() {
             $candidates[] = $canonicalize_apostrophes($title);
             $candidates[] = preg_replace("/['’ʼ`´]/u", '', $title);
             if (function_exists('ll_normalize_case')) {
-                $norm = ll_normalize_case($title);
+                $norm = ll_normalize_case($title, $title_wordset_ids);
                 $candidates[] = $norm;
                 $candidates[] = $canonicalize_apostrophes($norm);
                 $candidates[] = preg_replace("/['’ʼ`´]/u", '', $norm);

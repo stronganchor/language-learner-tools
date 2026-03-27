@@ -262,8 +262,13 @@ function ll_image_upload_form_shortcode($atts = []) {
         : ['isolation', 'question', 'introduction'];
 
     $can_create_categories = current_user_can('manage_categories');
+    $translation_context_ids = $preselected_wordset_id > 0 ? [$preselected_wordset_id] : [];
     $show_translation_field = function_exists('ll_tools_is_category_translation_enabled')
-        && ll_tools_is_category_translation_enabled();
+        ? ll_tools_is_category_translation_enabled($translation_context_ids)
+        : false;
+    if (!$show_translation_field && function_exists('ll_tools_should_show_category_translation_ui')) {
+        $show_translation_field = ll_tools_should_show_category_translation_ui();
+    }
 
     ob_start();
     ?>
@@ -671,7 +676,11 @@ function ll_image_upload_create_category_from_request() {
 
     $term_id = (int) $insert['term_id'];
 
-    if (function_exists('ll_tools_is_category_translation_enabled') && ll_tools_is_category_translation_enabled()) {
+    $translation_context_ids = [];
+    if (isset($_POST['ll_wordset_ids'])) {
+        $translation_context_ids = ll_image_upload_sanitize_wordset_ids(wp_unslash($_POST['ll_wordset_ids']));
+    }
+    if (function_exists('ll_tools_is_category_translation_enabled') && ll_tools_is_category_translation_enabled($translation_context_ids)) {
         $translation = isset($_POST['ll_new_category_translation'])
             ? sanitize_text_field(wp_unslash($_POST['ll_new_category_translation']))
             : '';

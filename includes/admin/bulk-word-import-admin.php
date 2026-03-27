@@ -38,9 +38,10 @@ add_action('admin_menu', 'll_tools_register_bulk_word_import_page');
  * Capitalize the first character of a word, respecting Turkish casing rules.
  *
  * @param string $word Raw word from the import list.
+ * @param int    $wordset_id Word set context for title-language casing rules.
  * @return string Normalized word title.
  */
-function ll_tools_import_capitalize_word($word) {
+function ll_tools_import_capitalize_word($word, int $wordset_id = 0) {
     $word = trim((string) $word);
     if ($word === '') {
         return '';
@@ -50,8 +51,18 @@ function ll_tools_import_capitalize_word($word) {
         $first = mb_substr($word, 0, 1, 'UTF-8');
         $rest  = mb_substr($word, 1, null, 'UTF-8');
 
-        $target_language = strtoupper((string) get_option('ll_target_language', ''));
-        if ($target_language === 'TR') {
+        $wordset_ids = $wordset_id > 0 ? [$wordset_id] : [];
+        $title_language_raw = function_exists('ll_tools_get_wordset_title_language_label')
+            ? (string) ll_tools_get_wordset_title_language_label($wordset_ids)
+            : '';
+        if ($title_language_raw === '') {
+            $title_language_raw = (string) get_option('ll_target_language', '');
+        }
+        $title_language = function_exists('ll_tools_resolve_language_code_from_label')
+            ? strtoupper((string) ll_tools_resolve_language_code_from_label($title_language_raw, 'upper'))
+            : strtoupper((string) $title_language_raw);
+
+        if ($title_language === 'TR') {
             // Handle dotted/dotless I specifically for Turkish.
             if ($first === 'i') {
                 $first = 'İ';
@@ -135,7 +146,7 @@ function ll_tools_render_bulk_word_import_page() {
 
         if (empty($errors)) {
             foreach ($words as $word) {
-                $normalized = ll_tools_import_capitalize_word($word);
+                $normalized = ll_tools_import_capitalize_word($word, $selected_wordset);
                 if ($normalized === '') {
                     $skipped_empty++;
                     continue;

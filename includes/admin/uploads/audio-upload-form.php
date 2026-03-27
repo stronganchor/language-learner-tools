@@ -262,7 +262,7 @@ function ll_handle_audio_file_uploads() {
         }
 
         $relative_upload_path = ll_get_relative_upload_path($upload_result);
-        $formatted_title      = ll_format_title($original_name);
+        $formatted_title      = ll_format_title($original_name, $selected_wordset_id > 0 ? [$selected_wordset_id] : []);
 
         if ($match_existing_posts) {
             $existing_post = null;
@@ -464,9 +464,10 @@ function ll_get_relative_upload_path($absolute_path) {
  * it falls back to the full filename (so mostly-numeric names keep their numbers).
  *
  * @param string $original_name Original file name (with extension).
+ * @param array  $wordset_ids Optional word set context for title-language casing rules.
  * @return string Formatted title for matching.
  */
-function ll_format_title( $original_name ) {
+function ll_format_title( $original_name, array $wordset_ids = [] ) {
     // 1) Get filename without its extension
     $filename = pathinfo( $original_name, PATHINFO_FILENAME );
 
@@ -482,7 +483,7 @@ function ll_format_title( $original_name ) {
     }
 
     // 4) Normalize case (e.g. Turkish “I”) and sanitize
-    return ll_normalize_case( sanitize_text_field( $to_use ) );
+    return ll_normalize_case( sanitize_text_field( $to_use ), $wordset_ids );
 }
 
 /**

@@ -872,7 +872,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         return $app_icon_payload;
     }
 
-    $use_translations = ll_flashcards_should_use_translations();
+    $use_translations = ll_flashcards_should_use_translations([$wordset_id]);
     $categories = ll_tools_offline_app_build_categories($wordset_id, $category_ids, $use_translations);
 
     if (empty($categories)) {

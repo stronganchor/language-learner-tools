@@ -424,7 +424,11 @@ add_action('admin_init', 'll_tools_seed_existing_categories_desired_types');
  * @param WP_Term $term Term object.
  */
 function ll_add_translation_field($term) {
-    if (!ll_tools_is_category_translation_enabled()) {
+    if (function_exists('ll_tools_should_show_category_translation_ui')) {
+        if (!ll_tools_should_show_category_translation_ui()) {
+            return;
+        }
+    } elseif (!ll_tools_is_category_translation_enabled()) {
         return;
     }
     ?>
@@ -442,7 +446,11 @@ function ll_add_translation_field($term) {
  * @param WP_Term $term Term object.
  */
 function ll_edit_translation_field($term) {
-    if (!ll_tools_is_category_translation_enabled()) {
+    if (function_exists('ll_tools_should_show_category_translation_ui')) {
+        if (!ll_tools_should_show_category_translation_ui()) {
+            return;
+        }
+    } elseif (!ll_tools_is_category_translation_enabled()) {
         return;
     }
 
@@ -568,10 +576,11 @@ function ll_save_translation_field($term_id, $taxonomy) {
  *
  * @param int|WP_Term $term  Term ID or object (taxonomy: word-category)
  * @param array $args {
- *   @type bool|null   $enable_translation  Default: get_option('ll_enable_category_translation', 0)
- *   @type string|null $target_language     Default: get_option('ll_translation_language', 'en') (e.g., 'en', 'tr')
+ *   @type bool|null   $enable_translation  Default: resolved from the provided word set IDs or legacy site option
+ *   @type string|null $target_language     Default: resolved from the provided word set IDs or legacy site option
  *   @type string|null $site_language       Default: get_locale() (e.g., 'en_US', 'tr_TR')
  *   @type string      $meta_key            Default: 'term_translation'
+ *   @type int[]|int|string|WP_Term $wordset_ids Optional word set context used to resolve language settings
  * }
  * @return string
  */
@@ -584,13 +593,24 @@ function ll_tools_get_category_display_name($term, array $args = []) {
         return '';
     }
 
+    $wordset_ids = isset($args['wordset_ids']) && function_exists('ll_tools_normalize_wordset_setting_ids')
+        ? ll_tools_normalize_wordset_setting_ids($args['wordset_ids'])
+        : [];
     $defaults = [
-        'enable_translation' => (bool) get_option('ll_enable_category_translation', 0),
-        'target_language'    => strtolower((string) get_option('ll_translation_language', 'en')),
+        'enable_translation' => function_exists('ll_tools_is_wordset_category_translation_enabled')
+            ? ll_tools_is_wordset_category_translation_enabled($wordset_ids)
+            : (bool) get_option('ll_enable_category_translation', 0),
+        'target_language'    => function_exists('ll_tools_get_wordset_translation_language')
+            ? strtolower((string) ll_tools_get_wordset_translation_language($wordset_ids))
+            : strtolower((string) get_option('ll_translation_language', 'en')),
         'site_language'      => strtolower((string) get_locale()),
         'meta_key'           => 'term_translation',
+        'wordset_ids'        => $wordset_ids,
     ];
     $opts = array_merge($defaults, $args);
+    if (isset($opts['wordset_ids']) && function_exists('ll_tools_normalize_wordset_setting_ids')) {
+        $opts['wordset_ids'] = ll_tools_normalize_wordset_setting_ids($opts['wordset_ids']);
+    }
     $cacheable = !has_filter('ll_tools_category_display_name');
 
     if ($cacheable) {
@@ -609,6 +629,7 @@ function ll_tools_get_category_display_name($term, array $args = []) {
             'target_language' => (string) ($opts['target_language'] ?? ''),
             'site_language' => (string) ($opts['site_language'] ?? ''),
             'meta_key' => (string) ($opts['meta_key'] ?? 'term_translation'),
+            'wordset_ids' => array_values(array_map('intval', (array) ($opts['wordset_ids'] ?? []))),
             'schema' => 1,
         ]));
         $cache_group = 'll_tools_quiz_category';
@@ -662,7 +683,11 @@ function ll_tools_get_category_display_name($term, array $args = []) {
  *
  * @return bool True if enabled, false otherwise.
  */
-function ll_tools_is_category_translation_enabled() {
+function ll_tools_is_category_translation_enabled($wordset_ids = []) {
+    if (function_exists('ll_tools_is_wordset_category_translation_enabled')) {
+        return (bool) ll_tools_is_wordset_category_translation_enabled($wordset_ids);
+    }
+
     return (bool) get_option('ll_enable_category_translation', 0);
 }
 
@@ -2615,7 +2640,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         return $count;
     }
 
-    $count_promptable_rows = static function (array $rows): int {
+    $count_promptable_rows = static function (array $rows) use ($require_audio, $option_requires_audio): int {
         $count = 0;
         foreach ($rows as $row) {
             if (!is_array($row)) {
@@ -2636,6 +2661,10 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
             }
 
             if ($is_wrong_only) {
+                $has_audio = !empty($row['has_audio']);
+                if ($require_audio && !$option_requires_audio && !$has_audio) {
+                    $count++;
+                }
                 continue;
             }
 
@@ -2784,12 +2813,13 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         $is_specific_wrong_answer_only = !empty($specific_wrong_answer_owner_ids)
             && empty($specific_wrong_answer_ids)
             && empty($specific_wrong_answer_texts);
-        if ($is_specific_wrong_answer_only) {
-            continue;
-        }
 
         $has_audio = !empty($has_audio_by_word[$word_id]);
         if ($require_audio && !$has_audio) {
+            if (!$is_specific_wrong_answer_only || $option_requires_audio) {
+                continue;
+            }
+        } elseif ($is_specific_wrong_answer_only) {
             continue;
         }
 
@@ -2832,7 +2862,12 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
                     $translation_label = html_entity_decode($translation_text, ENT_QUOTES, 'UTF-8');
                 }
             } else {
-                $word_title_role = sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
+                $wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
+                    ? ll_tools_get_post_wordset_ids((int) $word_id)
+                    : [];
+                $word_title_role = function_exists('ll_tools_get_wordset_title_language_role')
+                    ? ll_tools_get_wordset_title_language_role($wordset_ids)
+                    : sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
                 $candidate_keys = ($word_title_role === 'translation')
                     ? ['word_translation', 'translation', 'meaning', 'word_english_meaning']
                     : ['word_english_meaning', 'word_translation', 'translation', 'meaning'];
@@ -3185,7 +3220,12 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 $translation_label = html_entity_decode($translation_text, ENT_QUOTES, 'UTF-8');
             }
         } else {
-            $word_title_role = sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
+            $wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
+                ? ll_tools_get_post_wordset_ids((int) $word_id)
+                : [];
+            $word_title_role = function_exists('ll_tools_get_wordset_title_language_role')
+                ? ll_tools_get_wordset_title_language_role($wordset_ids)
+                : sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
             $candidate_keys = ($word_title_role === 'translation')
                 ? ['word_translation', 'translation', 'meaning', 'word_english_meaning']
                 : ['word_english_meaning', 'word_translation', 'translation', 'meaning'];

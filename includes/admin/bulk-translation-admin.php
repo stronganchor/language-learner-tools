@@ -9,24 +9,6 @@ if (!defined('ABSPATH')) exit;
  * - Migrate legacy 'word_english_meaning' → 'word_translation'
  */
 
-// Register translation language options in the DeepL settings group as well
-add_action('admin_init', function () {
-    $args = array(
-        'type' => 'string',
-        'sanitize_callback' => 'sanitize_text_field',
-        'show_in_rest' => false,
-        'default' => ''
-    );
-    // Allow saving these from this page's header form
-    register_setting('ll-deepl-api-key-group', 'll_translation_language', $args); // target
-    register_setting('ll-deepl-api-key-group', 'll_target_language', $args);      // source
-    register_setting('ll-deepl-api-key-group', 'll_word_title_language_role', array(
-        'type' => 'string',
-        'sanitize_callback' => function($v){ return in_array($v, array('target','translation'), true) ? $v : 'target'; },
-        'default' => 'target'
-    ));
-});
-
 // Add page under Tools
 add_action('admin_menu', function () {
     add_management_page(
@@ -53,10 +35,6 @@ function ll_render_bulk_translations_page() {
     $can_manage_settings = current_user_can('manage_options');
     $deepl_key   = $can_manage_settings ? get_option('ll_deepl_api_key') : '';
     $deepl_key_set = ((string) get_option('ll_deepl_api_key', '') !== '');
-    $src_lang    = get_option('ll_target_language', 'auto');       // DeepL source (auto allowed)
-    $tgt_lang    = get_option('ll_translation_language', 'EN');    // DeepL target
-
-    $title_lang_role = get_option('ll_word_title_language_role', 'target');
     $nonce = wp_create_nonce('ll-bulk-translations');
     ?>
     <div class="wrap">
@@ -72,24 +50,13 @@ function ll_render_bulk_translations_page() {
                         <td><input type="password" name="ll_deepl_api_key" value="<?php echo esc_attr($deepl_key); ?>" size="60" autocomplete="off" /></td>
                     </tr>
                     <tr>
-                        <th scope="row"><?php esc_html_e('Source language (DeepL source_lang)', 'll-tools-text-domain'); ?></th>
-                        <td><input type="text" name="ll_target_language" value="<?php echo esc_attr($src_lang); ?>" placeholder="auto" /></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><?php esc_html_e('Target language (DeepL target_lang)', 'll-tools-text-domain'); ?></th>
-                        <td><input type="text" name="ll_translation_language" value="<?php echo esc_attr($tgt_lang); ?>" placeholder="EN" /></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><?php esc_html_e('Word title language (affects dictionary)', 'll-tools-text-domain'); ?></th>
+                        <th scope="row"><?php esc_html_e('Language resolution', 'll-tools-text-domain'); ?></th>
                         <td>
-                            <select name="ll_word_title_language_role">
-                                <option value="target" <?php selected($title_lang_role, 'target'); ?>><?php esc_html_e('Target (language being learned)', 'll-tools-text-domain'); ?></option>
-                                <option value="translation" <?php selected($title_lang_role, 'translation'); ?>><?php esc_html_e('Translation (helper/known language)', 'll-tools-text-domain'); ?></option>
-                            </select>
+                            <p class="description"><?php esc_html_e('Source language, target language, and word-title language are resolved from each item’s assigned word set. Legacy site settings are used only as a fallback.', 'll-tools-text-domain'); ?></p>
                         </td>
                     </tr>
                 </table>
-                <?php submit_button(__('Save translation settings', 'll-tools-text-domain')); ?>
+                <?php submit_button(__('Save API key', 'll-tools-text-domain')); ?>
             </form>
         <?php else : ?>
             <div class="notice notice-info inline">
@@ -101,12 +68,8 @@ function ll_render_bulk_translations_page() {
                     <td><?php echo $deepl_key_set ? esc_html__('Configured', 'll-tools-text-domain') : esc_html__('Not configured', 'll-tools-text-domain'); ?></td>
                 </tr>
                 <tr>
-                    <th scope="row"><?php esc_html_e('Source language', 'll-tools-text-domain'); ?></th>
-                    <td><code><?php echo esc_html($src_lang); ?></code></td>
-                </tr>
-                <tr>
-                    <th scope="row"><?php esc_html_e('Target language', 'll-tools-text-domain'); ?></th>
-                    <td><code><?php echo esc_html($tgt_lang); ?></code></td>
+                    <th scope="row"><?php esc_html_e('Language resolution', 'll-tools-text-domain'); ?></th>
+                    <td><?php esc_html_e('Resolved from each item’s word set settings.', 'll-tools-text-domain'); ?></td>
                 </tr>
             </table>
         <?php endif; ?>
@@ -573,18 +536,37 @@ function ll_ajax_bulk_translations_fetch() {
         if (file_exists($deepl_file)) require_once $deepl_file;
     }
 
-    $src = get_option('ll_target_language', 'auto');        // source (target language code setting)
-    $tgt = get_option('ll_translation_language', 'EN');     // target (translation language code setting)
     $has_deepl = (string) get_option('ll_deepl_api_key') !== '';
-    $title_role = get_option('ll_word_title_language_role', 'target');
-    $reverse_dict = ($title_role === 'translation');
 
     $out = [];
     foreach ($ids as $id) {
         $title = get_the_title($id);
         $suggestion = null;
+        $wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
+            ? ll_tools_get_post_wordset_ids((int) $id)
+            : [];
+        $title_role = function_exists('ll_tools_get_wordset_title_language_role')
+            ? ll_tools_get_wordset_title_language_role($wordset_ids)
+            : 'target';
+        $source_raw = ($title_role === 'translation')
+            ? (function_exists('ll_tools_get_wordset_translation_language') ? ll_tools_get_wordset_translation_language($wordset_ids) : '')
+            : (function_exists('ll_tools_get_wordset_target_language') ? ll_tools_get_wordset_target_language($wordset_ids) : '');
+        $target_raw = ($title_role === 'translation')
+            ? (function_exists('ll_tools_get_wordset_target_language') ? ll_tools_get_wordset_target_language($wordset_ids) : '')
+            : (function_exists('ll_tools_get_wordset_translation_language') ? ll_tools_get_wordset_translation_language($wordset_ids) : '');
+        $source_code = function_exists('ll_tools_resolve_language_code_from_label')
+            ? (string) ll_tools_resolve_language_code_from_label((string) $source_raw, 'upper')
+            : '';
+        $target_code = function_exists('ll_tools_resolve_language_code_from_label')
+            ? (string) ll_tools_resolve_language_code_from_label((string) $target_raw, 'upper')
+            : '';
+        $src = ($source_code === 'AUTO')
+            ? 'auto'
+            : (($source_code !== '') ? $source_code : (((string) $source_raw !== '') ? (string) $source_raw : 'auto'));
+        $tgt = ($target_code !== '') ? $target_code : (string) $target_raw;
+        $reverse_dict = ($title_role === 'translation');
 
-        if ($has_deepl && function_exists('translate_with_deepl')) {
+        if ($has_deepl && $tgt !== '' && function_exists('translate_with_deepl')) {
             // DeepL first; if it returns null (or error), fall through to dictionary
             $try = translate_with_deepl($title, $tgt, $src);
             if ($try !== null) $suggestion = $try;

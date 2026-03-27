@@ -1428,7 +1428,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     $selected_wordset = $selected_wordset_id ? get_term($selected_wordset_id, 'wordset') : null;
     $default_dialect = ($selected_wordset && !is_wp_error($selected_wordset)) ? (string) $selected_wordset->name : '';
     $default_source = (string) get_bloginfo('name');
-    $default_gloss_languages = ll_tools_export_get_default_gloss_languages();
+    $default_gloss_languages = ll_tools_export_get_default_gloss_languages($selected_wordset_id);
     $has_wordsets = !empty($wordsets);
     $soft_export_limit_bytes = ll_tools_export_get_soft_limit_bytes();
     $hard_export_limit_bytes = ll_tools_export_get_hard_limit_bytes();
@@ -2230,7 +2230,7 @@ function ll_tools_handle_export_wordset_csv() {
 
     $gloss_languages = ll_tools_export_parse_gloss_languages(wp_unslash($_POST['ll_gloss_languages'] ?? ''));
     if (empty($gloss_languages)) {
-        $gloss_languages = ll_tools_export_get_default_gloss_language_codes();
+        $gloss_languages = ll_tools_export_get_default_gloss_language_codes($wordset_id);
     }
     if (empty($gloss_languages)) {
         $gloss_languages = ['en'];
@@ -5637,13 +5637,15 @@ function ll_tools_get_export_terms($root_category_ids = 0) {
     return $sorted;
 }
 
-function ll_tools_export_get_default_gloss_languages(): string {
-    $codes = ll_tools_export_get_default_gloss_language_codes();
+function ll_tools_export_get_default_gloss_languages(int $wordset_id = 0): string {
+    $codes = ll_tools_export_get_default_gloss_language_codes($wordset_id);
     return !empty($codes) ? implode(', ', $codes) : '';
 }
 
-function ll_tools_export_get_default_gloss_language_codes(): array {
-    $raw = (string) get_option('ll_translation_language', '');
+function ll_tools_export_get_default_gloss_language_codes(int $wordset_id = 0): array {
+    $raw = ($wordset_id > 0 && function_exists('ll_tools_get_wordset_translation_language'))
+        ? (string) ll_tools_get_wordset_translation_language([$wordset_id])
+        : (string) get_option('ll_translation_language', '');
     if ($raw === '') {
         return ['en'];
     }

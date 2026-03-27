@@ -289,14 +289,24 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
 }
 
 /**
- * Normalizes the case of a string based on target language settings.
+ * Normalizes the case of a string based on the effective word-title language.
  *
  * @param string $text The text to normalize.
+ * @param array  $wordset_ids Optional word set context.
  * @return string The normalized text.
  */
-function ll_normalize_case($text) {
-    $target_language = get_option('ll_target_language');
-	if ($target_language === 'TR' && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+function ll_normalize_case($text, array $wordset_ids = []) {
+    $title_language_raw = function_exists('ll_tools_get_wordset_title_language_label')
+        ? (string) ll_tools_get_wordset_title_language_label($wordset_ids)
+        : '';
+    if ($title_language_raw === '') {
+        $title_language_raw = (string) get_option('ll_target_language', '');
+    }
+    $title_language_code = function_exists('ll_tools_resolve_language_code_from_label')
+        ? strtoupper((string) ll_tools_resolve_language_code_from_label($title_language_raw, 'upper'))
+        : strtoupper((string) $title_language_raw);
+
+	if ($title_language_code === 'TR' && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
         // Normalize the encoding to UTF-8 if not already
         $text = mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
 		 
@@ -333,9 +343,6 @@ function ll_tools_normalize_transcript_case($text, array $wordset_ids = []) {
     $language_raw = '';
     if (!empty($wordset_ids) && function_exists('ll_tools_get_wordset_language_label')) {
         $language_raw = ll_tools_get_wordset_language_label($wordset_ids);
-    }
-    if ($language_raw === '') {
-        $language_raw = (string) get_option('ll_target_language', '');
     }
     $language_code = function_exists('ll_tools_resolve_language_code_from_label')
         ? ll_tools_resolve_language_code_from_label($language_raw, 'lower')

@@ -614,7 +614,7 @@ function ll_tools_render_duplicate_category_words_admin_page() {
     $enable_verb_tense_prefill = isset($_GET['ll_enable_verb_tense']) && (string) $_GET['ll_enable_verb_tense'] === '1';
     $enable_verb_mood_prefill = isset($_GET['ll_enable_verb_mood']) && (string) $_GET['ll_enable_verb_mood'] === '1';
     $category_translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
-        ? (bool) ll_tools_is_category_translation_enabled()
+        ? (bool) ll_tools_is_category_translation_enabled($selected_wordset_id > 0 ? [$selected_wordset_id] : [])
         : false;
     ?>
     <div class="wrap">
@@ -1119,7 +1119,7 @@ function ll_tools_handle_duplicate_category_words_save() {
         $redirect_base_args['ll_target_category_id'] = $target_category_id;
 
         $category_translation_enabled = function_exists('ll_tools_is_category_translation_enabled')
-            ? (bool) ll_tools_is_category_translation_enabled()
+            ? (bool) ll_tools_is_category_translation_enabled([$wordset_id])
             : false;
         if ($category_translation_enabled && $new_category_translation !== '') {
             update_term_meta($target_category_id, 'term_translation', $new_category_translation);

@@ -289,13 +289,7 @@ function ll_render_settings_page() {
         }
     }
 
-    $target_language = get_option('ll_target_language', '');
-    $translation_language = get_option('ll_translation_language', '');
-    $enable_translation = get_option('ll_enable_category_translation', 0);
-    $translation_source = get_option('ll_category_translation_source', 'target');
-    $word_title_role = get_option('ll_word_title_language_role', 'target');
     $update_branch = get_option('ll_update_branch', 'main');
-    $quiz_font = get_option('ll_quiz_font');
     $quiz_font_url = get_option('ll_quiz_font_url');
     $enable_browser_language_autoswitch = (int) get_option('ll_enable_browser_language_autoswitch', 1);
     $allow_learner_self_registration = (int) get_option('ll_allow_learner_self_registration', 1);
@@ -303,17 +297,10 @@ function ll_render_settings_page() {
         ? ll_tools_is_learner_self_registration_available()
         : ($allow_learner_self_registration === 1);
 
-    // Default to showing placeholders if languages are not set
-    $target_language_name = $target_language ? ucfirst($target_language) : __('Target Language', 'll-tools-text-domain');
-    $translation_language_name = $translation_language ? ucfirst($translation_language) : __('Translation Language', 'll-tools-text-domain');
-
-    // Options for dropdown
-    $options = array(
-        /* translators: 1: source language label, 2: destination language label */
-        'target' => sprintf(__('%1$s to %2$s', 'll-tools-text-domain'), $target_language_name, $translation_language_name),
-        /* translators: 1: source language label, 2: destination language label */
-        'translation' => sprintf(__('%1$s to %2$s', 'll-tools-text-domain'), $translation_language_name, $target_language_name),
-    );
+    $wordset_admin_url = add_query_arg([
+        'taxonomy' => 'wordset',
+        'post_type' => 'words',
+    ], admin_url('edit-tags.php'));
     ?>
     <div class="wrap">
         <h2><?php esc_html_e('Language Learning Tools Settings', 'll-tools-text-domain'); ?></h2>
@@ -330,32 +317,14 @@ function ll_render_settings_page() {
             
             <table class="form-table">
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Target Language (e.g., "TR" for Turkish):', 'll-tools-text-domain'); ?></th>
+                    <th scope="row"><?php esc_html_e('Word set language settings:', 'll-tools-text-domain'); ?></th>
                     <td>
-                        <input type="text" name="ll_target_language" id="ll_target_language" value="<?php echo esc_attr($target_language); ?>" />
-                    </td>
-                </tr>
-                <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Translation Language (e.g., "EN" for English):', 'll-tools-text-domain'); ?></th>
-                    <td>
-                        <input type="text" name="ll_translation_language" id="ll_translation_language" value="<?php echo esc_attr($translation_language); ?>" />
-                    </td>
-                </tr>
-                <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Word Title Language:', 'll-tools-text-domain'); ?></th>
-                    <td>
-                        <select name="ll_word_title_language_role" id="ll_word_title_language_role">
-                            <option value="target" <?php selected($word_title_role, 'target'); ?>><?php esc_html_e('Target (language being learned)', 'll-tools-text-domain'); ?></option>
-                            <option value="translation" <?php selected($word_title_role, 'translation'); ?>><?php esc_html_e('Translation (helper/known language)', 'll-tools-text-domain'); ?></option>
-                        </select>
-                        <p class="description"><?php esc_html_e('If set to Translation, tools and lookups treat post titles as being in the translation language and word_translation meta as the language being learned.', 'll-tools-text-domain'); ?></p>
-                    </td>
-                </tr>
-                <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Enable Category Name Translations:', 'll-tools-text-domain'); ?></th>
-                    <td>
-                        <input type="checkbox" name="ll_enable_category_translation" id="ll_enable_category_translation" value="1" <?php checked(1, $enable_translation, true); ?> />
-                        <p class="description"><?php esc_html_e('Check this box to enable automatic or manual translations of category names.', 'll-tools-text-domain'); ?></p>
+                        <p class="description">
+                            <?php esc_html_e('Target language, translation language, category-name translation settings, and word-title language now live on each word set.', 'll-tools-text-domain'); ?>
+                        </p>
+                        <p class="description">
+                            <a href="<?php echo esc_url($wordset_admin_url); ?>"><?php esc_html_e('Open Word Sets', 'll-tools-text-domain'); ?></a>
+                        </p>
                     </td>
                 </tr>
                 <tr valign="top">
@@ -450,29 +419,6 @@ function ll_render_settings_page() {
                     </td>
                 </tr>
                 <tr valign="top">
-                    <th scope="row"><?php esc_html_e('Translate Category Names From:', 'll-tools-text-domain'); ?></th>
-                    <td>
-                        <select name="ll_category_translation_source" id="ll_category_translation_source" <?php echo ($enable_translation && $target_language && $translation_language) ? '' : 'disabled'; ?>>
-                            <option value="target" <?php selected($translation_source, 'target'); ?>>
-                                <?php echo esc_html($options['target']); ?>
-                            </option>
-                            <option value="translation" <?php selected($translation_source, 'translation'); ?>>
-                                <?php echo esc_html($options['translation']); ?>
-                            </option>
-                        </select>
-                        <p class="description">
-                            <?php
-                            printf(
-                                /* translators: 1: target language name, 2: translation language name */
-                                esc_html__('Choose whether category names are originally written in %1$s or %2$s.', 'll-tools-text-domain'),
-                                esc_html($target_language_name),
-                                esc_html($translation_language_name)
-                            );
-                            ?>
-                        </p>
-                    </td>
-                </tr>
-                <tr valign="top">
                     <th scope="row"><?php esc_html_e('Update Branch:', 'll-tools-text-domain'); ?></th>
                     <td>
                         <select name="ll_update_branch" id="ll_update_branch">
@@ -535,92 +481,44 @@ function ll_render_settings_page() {
         <?php endif; ?>
     </div>
 
-    <script>
-        (function($) {
-            // Dynamically enable/disable the dropdown based on settings
-            const enableCheckbox = $('#ll_enable_category_translation');
-            const targetLangInput = $('#ll_target_language');
-            const translationLangInput = $('#ll_translation_language');
-            const dropdown = $('#ll_category_translation_source');
-
-            function updateDropdownState() {
-                const isEnabled = enableCheckbox.is(':checked');
-                const hasLanguages = targetLangInput.val().trim() !== '' && translationLangInput.val().trim() !== '';
-                dropdown.prop('disabled', !(isEnabled && hasLanguages));
-            }
-
-
-            // Initial state
-            updateDropdownState();
-
-            // Attach event listeners
-            enableCheckbox.on('change', updateDropdownState);
-            targetLangInput.on('input', updateDropdownState);
-            translationLangInput.on('input', updateDropdownState);
-        })(jQuery);
-    </script>
     <?php
 }
 
 function ll_auto_translate_existing_categories($old_value, $new_value, $option_name) {
     if (!$old_value && $new_value) { // Only run when the setting is enabled
-        // Fetch all categories in the taxonomy
-        $categories = get_terms(array(
-            'taxonomy' => 'word-category',
-            'hide_empty' => false,
-        ));
+        $translation_source = function_exists('ll_tools_get_legacy_category_translation_source_setting')
+            ? ll_tools_get_legacy_category_translation_source_setting()
+            : get_option('ll_category_translation_source', 'target');
+        $source_language = function_exists('ll_tools_get_legacy_target_language_setting')
+            ? ll_tools_get_legacy_target_language_setting()
+            : (string) get_option('ll_target_language', '');
+        $target_language = function_exists('ll_tools_get_legacy_translation_language_setting')
+            ? ll_tools_get_legacy_translation_language_setting()
+            : (string) get_option('ll_translation_language', '');
 
-        // Get translation settings
-		$translation_source = get_option('ll_category_translation_source', 'target'); // 'target' or 'translation'
-
-		// Determine source and target languages based on the setting
-		$source_language = get_option('ll_target_language');
-		$target_language = get_option('ll_translation_language');
-		
-		if ($translation_source === 'translation') {
-			// Translate from the translation language to the target language
-			$source_language = get_option('ll_translation_language');
-			$target_language = get_option('ll_target_language');
-		}
-
-        // Initialize result tracking
-        $results = [
-            'success' => [],
-            'errors' => [],
-			'source_language' => $source_language,
-            'target_language' => $target_language,
-        ];
-
-        // Loop through categories and translate them if necessary
-        foreach ($categories as $category) {
-            // Check if the category already has a translation
-            $translation = get_term_meta($category->term_id, 'term_translation', true);
-            if (empty($translation)) {
-                // Translate using DeepL
-                $translated_name = translate_with_deepl($category->name, $target_language, $source_language);
-
-                if ($translated_name) {
-                    update_term_meta($category->term_id, 'term_translation', $translated_name);
-                    $results['success'][] = [
-                        'original' => $category->name,
-                        'translated' => $translated_name,
-                    ];
-                } else {
-                    $results['errors'][] = [
-                        'original' => $category->name,
-                        'error' => sprintf(
-                            /* translators: 1: category ID, 2: category name */
-                            __('Translation failed for category ID %1$d (%2$s).', 'll-tools-text-domain'),
-                            (int) $category->term_id,
-                            (string) $category->name
-                        ),
-                    ];
-                }
-            }
+        if ($translation_source === 'translation') {
+            $source_language = function_exists('ll_tools_get_legacy_translation_language_setting')
+                ? ll_tools_get_legacy_translation_language_setting()
+                : (string) get_option('ll_translation_language', '');
+            $target_language = function_exists('ll_tools_get_legacy_target_language_setting')
+                ? ll_tools_get_legacy_target_language_setting()
+                : (string) get_option('ll_target_language', '');
         }
 
-        // Store results in a transient for displaying in admin notices
-        set_transient('ll_translation_results', $results, 60);
+        $results = function_exists('ll_tools_translate_missing_category_names')
+            ? ll_tools_translate_missing_category_names((string) $source_language, (string) $target_language)
+            : [
+                'success' => [],
+                'errors' => [],
+                'source_language' => (string) $source_language,
+                'target_language' => (string) $target_language,
+            ];
+
+        if (function_exists('ll_tools_store_category_translation_results_notice')) {
+            ll_tools_store_category_translation_results_notice($results);
+        } else {
+            set_transient('ll_translation_results', $results, 60);
+        }
     }
 }
 add_action('update_option_ll_enable_category_translation', 'll_auto_translate_existing_categories', 10, 3);

@@ -13,7 +13,11 @@ if (!defined('WPINC')) { die; }
  */
 
 /** Normalize and decide if translations should be used */
-function ll_flashcards_should_use_translations(): bool {
+function ll_flashcards_should_use_translations(array $wordset_ids = []): bool {
+    if (function_exists('ll_tools_should_use_category_translations')) {
+        return ll_tools_should_use_category_translations($wordset_ids, (string) get_locale());
+    }
+
     $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $target_language    = strtolower((string) get_option('ll_translation_language', 'en'));
     $site_language      = strtolower(get_locale());
@@ -302,13 +306,17 @@ function ll_flashcards_pick_initial_batch(array $categories, array $wordset_ids 
 }
 
 /** Compute the category label shown above the play button (non-embed only) */
-function ll_flashcards_category_label(?array $selected_category_data, string $firstCategoryName, bool $embed): string {
+function ll_flashcards_category_label(?array $selected_category_data, string $firstCategoryName, bool $embed, array $wordset_ids = []): string {
     if ($embed) return '';
     if (!empty($selected_category_data['id'])) {
-        return (string) ll_tools_get_category_display_name($selected_category_data['id']);
+        return (string) ll_tools_get_category_display_name($selected_category_data['id'], [
+            'wordset_ids' => $wordset_ids,
+        ]);
     }
     if ($firstCategoryName !== '') {
-        return (string) ll_tools_get_category_display_name($firstCategoryName);
+        return (string) ll_tools_get_category_display_name($firstCategoryName, [
+            'wordset_ids' => $wordset_ids,
+        ]);
     }
     return '';
 }
@@ -802,7 +810,7 @@ function ll_tools_flashcard_widget($atts) {
     $quiz_font = (string) get_option('ll_quiz_font');
 
     // 1) translations on/off
-    $use_translations = ll_flashcards_should_use_translations();
+    $use_translations = ll_flashcards_should_use_translations($wordset_ids);
 
     // 2) categories list (+ whether they were preselected)
     [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations, $wordset_ids);
@@ -811,7 +819,7 @@ function ll_tools_flashcard_widget($atts) {
     [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories, $wordset_ids, $atts['wordset'] !== '');
 
     // 4) label shown above play button
-    $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed);
+    $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed, $wordset_ids);
 
     // 5) assets + localized data for JS - NOW INCLUDES WORDSET
     $localized_data = ll_flashcards_enqueue_and_localize($atts, $categories, $preselected, $words_data, $firstCategoryName);
