@@ -302,15 +302,15 @@ function ll_normalize_case($text, array $wordset_ids = []) {
     if ($title_language_raw === '') {
         $title_language_raw = (string) get_option('ll_target_language', '');
     }
-    $title_language_code = function_exists('ll_tools_resolve_language_code_from_label')
-        ? strtoupper((string) ll_tools_resolve_language_code_from_label($title_language_raw, 'upper'))
-        : strtoupper((string) $title_language_raw);
+    $uses_turkish_casing = function_exists('ll_tools_language_uses_turkish_casing')
+        ? ll_tools_language_uses_turkish_casing($title_language_raw)
+        : false;
 
-	if ($title_language_code === 'TR' && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+	if ($uses_turkish_casing && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
         // Normalize the encoding to UTF-8 if not already
         $text = mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
-		 
-		// Special handling for Turkish dotless I and dotted İ
+
+		// Preserve Turkish-style dotted/dotless I casing for Turkish and Zazaki wordsets.
         $firstChar = mb_substr($text, 0, 1, 'UTF-8');
         if ($firstChar === 'i' || $firstChar === "\xC4\xB0" || $firstChar == 'İ') {
 			return 'İ' . mb_substr($text, 1, null, 'UTF-8');
@@ -344,15 +344,15 @@ function ll_tools_normalize_transcript_case($text, array $wordset_ids = []) {
     if (!empty($wordset_ids) && function_exists('ll_tools_get_wordset_language_label')) {
         $language_raw = ll_tools_get_wordset_language_label($wordset_ids);
     }
-    $language_code = function_exists('ll_tools_resolve_language_code_from_label')
-        ? ll_tools_resolve_language_code_from_label($language_raw, 'lower')
-        : '';
-    $is_turkish = ($language_code === 'tr');
+    $uses_turkish_casing = function_exists('ll_tools_language_uses_turkish_casing')
+        ? ll_tools_language_uses_turkish_casing($language_raw)
+        : false;
 
     if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
-        if ($is_turkish) {
-            $lower = str_replace(['I', 'İ'], ['ı', 'i'], $text);
-            $lower = mb_strtolower($lower, 'UTF-8');
+        if ($uses_turkish_casing) {
+            $lower = function_exists('ll_tools_lowercase_for_language')
+                ? ll_tools_lowercase_for_language($text, $language_raw)
+                : mb_strtolower(str_replace(['I', 'İ'], ['ı', 'i'], $text), 'UTF-8');
             $first = mb_substr($lower, 0, 1, 'UTF-8');
             $rest = mb_substr($lower, 1, null, 'UTF-8');
             if ($first === 'i') {

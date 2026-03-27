@@ -8,8 +8,8 @@ if (!defined('ABSPATH')) {
  *
  * Allows privileged users to paste a list of vocabulary words and quickly
  * generate draft "words" posts. Titles are normalized so the first
- * character is capitalized, respecting Turkish dotted/dotless I rules
- * when the plugin target language is set to TR.
+ * character is capitalized, respecting Turkish-style dotted/dotless I
+ * rules for Turkish and Zazaki wordsets.
  */
 
 /**
@@ -35,7 +35,7 @@ function ll_tools_register_bulk_word_import_page() {
 add_action('admin_menu', 'll_tools_register_bulk_word_import_page');
 
 /**
- * Capitalize the first character of a word, respecting Turkish casing rules.
+ * Capitalize the first character of a word, respecting Turkish-style casing rules.
  *
  * @param string $word Raw word from the import list.
  * @param int    $wordset_id Word set context for title-language casing rules.
@@ -58,19 +58,14 @@ function ll_tools_import_capitalize_word($word, int $wordset_id = 0) {
         if ($title_language_raw === '') {
             $title_language_raw = (string) get_option('ll_target_language', '');
         }
-        $title_language = function_exists('ll_tools_resolve_language_code_from_label')
-            ? strtoupper((string) ll_tools_resolve_language_code_from_label($title_language_raw, 'upper'))
-            : strtoupper((string) $title_language_raw);
+        $uses_turkish_casing = function_exists('ll_tools_language_uses_turkish_casing')
+            ? ll_tools_language_uses_turkish_casing($title_language_raw)
+            : false;
 
-        if ($title_language === 'TR') {
-            // Handle dotted/dotless I specifically for Turkish.
-            if ($first === 'i') {
-                $first = 'İ';
-            } elseif ($first === 'ı') {
-                $first = 'I';
-            } else {
-                $first = mb_strtoupper($first, 'UTF-8');
-            }
+        if ($uses_turkish_casing) {
+            $first = function_exists('ll_tools_uppercase_first_char_for_language')
+                ? ll_tools_uppercase_first_char_for_language($first, $title_language_raw)
+                : mb_strtoupper($first, 'UTF-8');
         } else {
             $first = mb_strtoupper($first, 'UTF-8');
         }

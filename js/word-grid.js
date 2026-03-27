@@ -19,6 +19,7 @@
         : 1200;
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
     const ipaLetterMap = (cfg.ipaLetterMap && typeof cfg.ipaLetterMap === 'object') ? cfg.ipaLetterMap : {};
+    const ipaTextLanguageCode = String(cfg.ipaTextLanguageCode || '').trim().toLowerCase();
     const ipaCommonChars = ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'];
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
@@ -2829,12 +2830,35 @@
         }).catch(function () {});
     }
 
+    function languageUsesTurkishCasing(code) {
+        return ['tr', 'tur', 'zza', 'diq', 'kiu'].indexOf(String(code || '').trim().toLowerCase()) !== -1;
+    }
+
+    function lowercaseIpaWordText(value) {
+        let text = String(value || '');
+        if (!text) { return ''; }
+        if (languageUsesTurkishCasing(ipaTextLanguageCode)) {
+            text = text.replace(/I/g, '\u0131').replace(/\u0130/g, 'i');
+            try {
+                return text.toLocaleLowerCase('tr');
+            } catch (_) {
+                return text.toLowerCase();
+            }
+        }
+        try {
+            return text.toLocaleLowerCase();
+        } catch (_) {
+            return text.toLowerCase();
+        }
+    }
+
     function normalizeTextSegment(segment) {
         if (!segment) { return ''; }
-        let text = segment.toString().toLocaleLowerCase();
+        let text = lowercaseIpaWordText(segment);
         if (text.normalize) {
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         }
+        text = text.replace(/\u0131/g, 'i');
         text = text.replace(/[^a-z]/g, '');
         return text;
     }
@@ -3077,7 +3101,7 @@
         const letters = [];
         for (const ch of raw) {
             if (/\p{L}/u.test(ch)) {
-                letters.push(ch.toLocaleLowerCase());
+                letters.push(lowercaseIpaWordText(ch));
             }
         }
         return letters;

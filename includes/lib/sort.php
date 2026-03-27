@@ -26,16 +26,74 @@ if (!function_exists('ll_tools_is_turkish_locale')) {
     }
 }
 
-if (!function_exists('ll_tools_turkish_lowercase')) {
-    function ll_tools_turkish_lowercase(string $value): string {
-        $value = strtr($value, [
-            'I' => 'ı',
-            'İ' => 'i',
-        ]);
+if (!function_exists('ll_tools_language_uses_turkish_casing')) {
+    function ll_tools_language_uses_turkish_casing($language = ''): bool {
+        $raw = trim((string) $language);
+        if ($raw === '') {
+            return false;
+        }
+
+        $normalized = '';
+        if (function_exists('ll_tools_resolve_language_code_from_label')) {
+            $normalized = (string) ll_tools_resolve_language_code_from_label($raw, 'lower');
+        }
+        if ($normalized === '') {
+            $normalized = strtolower($raw);
+        }
+
+        return in_array($normalized, ['tr', 'tur', 'zza', 'diq', 'kiu'], true);
+    }
+}
+
+if (!function_exists('ll_tools_lowercase_for_language')) {
+    function ll_tools_lowercase_for_language(string $value, $language = ''): string {
+        if (ll_tools_language_uses_turkish_casing($language)) {
+            $value = strtr($value, [
+                'I' => 'ı',
+                'İ' => 'i',
+            ]);
+        }
+
         if (function_exists('mb_strtolower')) {
             return mb_strtolower($value, 'UTF-8');
         }
+
         return strtolower($value);
+    }
+}
+
+if (!function_exists('ll_tools_uppercase_first_char_for_language')) {
+    function ll_tools_uppercase_first_char_for_language(string $value, $language = ''): string {
+        if ($value === '') {
+            return '';
+        }
+
+        if (!function_exists('mb_substr') || !function_exists('mb_strtoupper')) {
+            return ucfirst($value);
+        }
+
+        $first = mb_substr($value, 0, 1, 'UTF-8');
+        $rest = mb_substr($value, 1, null, 'UTF-8');
+
+        if (ll_tools_language_uses_turkish_casing($language)) {
+            if ($first === 'i') {
+                $first = 'İ';
+            } elseif ($first === 'ı') {
+                $first = 'I';
+            } else {
+                $first = mb_strtoupper($first, 'UTF-8');
+            }
+        } else {
+            $first = mb_strtoupper($first, 'UTF-8');
+        }
+
+        return $first . $rest;
+    }
+}
+
+if (!function_exists('ll_tools_turkish_lowercase')) {
+    function ll_tools_turkish_lowercase(string $value): string {
+        return ll_tools_lowercase_for_language($value, 'tr');
     }
 }
 
