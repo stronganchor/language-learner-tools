@@ -535,6 +535,11 @@ add_action('upgrader_process_complete', function ($upgrader, $options) {
 
     if (in_array(plugin_basename(LL_TOOLS_MAIN_FILE), $plugins, true)) {
         set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
+        if (function_exists('ll_tools_mark_vocab_lesson_recent_update')) {
+            ll_tools_mark_vocab_lesson_recent_update();
+        } else {
+            set_transient('ll_tools_vocab_lesson_recent_update', time(), 30 * MINUTE_IN_SECONDS);
+        }
     }
 }, 10, 2);
 
