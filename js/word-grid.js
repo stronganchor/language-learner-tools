@@ -17,6 +17,12 @@
     const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
         ? transcribePollIntervalRaw
         : 1200;
+    const transcribeProvider = String(cfg.transcribeProvider || '').trim();
+    const transcribeTargetField = String(cfg.transcribeTargetField || 'recording_text').trim() === 'recording_ipa'
+        ? 'recording_ipa'
+        : 'recording_text';
+    const transcribeLocalEndpoint = String(cfg.transcribeLocalEndpoint || '').trim();
+    const transcribeUsesLocalBrowser = !!cfg.transcribeUsesLocalBrowser && transcribeProvider === 'local_browser' && !!transcribeLocalEndpoint;
     const secondaryTextMode = ['ipa', 'transliteration', 'transcription'].indexOf(String(cfg.secondaryTextMode || '').trim()) >= 0
         ? String(cfg.secondaryTextMode || '').trim()
         : 'ipa';
@@ -5665,11 +5671,13 @@
             working: 'Transcribing...',
             progress: 'Transcribing %1$d of %2$d...',
             done: 'Transcription complete.',
-            none: 'No recordings need text.',
-            clearing: 'Clearing captions...',
-            cleared: 'Captions cleared.',
+            none: 'No recordings need transcription.',
+            clearing: 'Clearing transcription...',
+            cleared: 'Transcription cleared.',
             cancelled: 'Transcription cancelled.',
-            error: 'Unable to transcribe recordings.'
+            error: 'Unable to transcribe recordings.',
+            localServiceError: 'Unable to reach the local transcription service.',
+            localAudioError: 'Unable to fetch the recording audio in this browser.'
         }, transcribeI18n || {});
 
         function applyRecordingUpdate(rec) {
@@ -5737,6 +5745,7 @@
                     cancelled: false,
                     request: null,
                     pollTimer: null,
+                    localAbortController: null,
                     queue: [],
                     total: 0,
                     completed: 0,
@@ -5763,6 +5772,10 @@
                 window.clearTimeout(state.pollTimer);
                 state.pollTimer = null;
             }
+            if (state.localAbortController) {
+                state.localAbortController.abort();
+                state.localAbortController = null;
+            }
             state.request = null;
             state.queue = [];
             state.total = 0;
@@ -5780,8 +5793,12 @@
             const $rec = $grids.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]');
             if ($rec.length) {
                 const $item = $rec.closest('.word-item');
-                $rec.find('[data-ll-recording-input="text"]').val('');
-                $rec.find('[data-ll-recording-input="translation"]').val('');
+                if (transcribeTargetField === 'recording_ipa') {
+                    $rec.find('[data-ll-recording-input="ipa"]').val('');
+                } else {
+                    $rec.find('[data-ll-recording-input="text"]').val('');
+                    $rec.find('[data-ll-recording-input="translation"]').val('');
+                }
                 const recordings = collectRecordingInputs($item);
                 applyRecordingCaptions($item, recordings);
                 updateOriginalInputs($item);
@@ -5790,8 +5807,17 @@
             }
             const $row = $grids.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
             if ($row.length) {
+                const text = $row.find('.ll-word-recording-text-main').text() || '';
+                const translation = $row.find('.ll-word-recording-text-translation').text() || '';
                 const ipa = $row.find('.ll-word-recording-ipa').text() || '';
-                renderRecordingCaption($row, getRecordingCaptionParts('', '', ipa));
+                renderRecordingCaption(
+                    $row,
+                    getRecordingCaptionParts(
+                        transcribeTargetField === 'recording_text' ? '' : text,
+                        transcribeTargetField === 'recording_text' ? '' : translation,
+                        transcribeTargetField === 'recording_ipa' ? '' : ipa
+                    )
+                );
                 updateRecordingRowWidths();
             }
         }
@@ -5803,6 +5829,167 @@
                 if (!id) { return; }
                 clearRecordingMetaById(id);
             });
+        }
+
+        function extractLocalTranscriptValue(payload) {
+            if (!payload || typeof payload !== 'object') {
+                return '';
+            }
+
+            const targetKeys = transcribeTargetField === 'recording_ipa'
+                ? ['predicted_ipa', 'recording_ipa', 'ipa', 'secondary_text', 'transcript', 'text']
+                : ['transcript', 'text', 'recording_text', 'predicted_text', 'prediction'];
+
+            for (let i = 0; i < targetKeys.length; i += 1) {
+                const key = targetKeys[i];
+                if (typeof payload[key] === 'string' && payload[key].trim()) {
+                    return payload[key].trim();
+                }
+            }
+
+            return '';
+        }
+
+        async function transcribeRecordingWithLocalService(queueItem, signal) {
+            const audioUrl = typeof queueItem.audio_url === 'string' ? queueItem.audio_url : '';
+            if (!audioUrl || !transcribeLocalEndpoint) {
+                throw new Error('local_audio_missing');
+            }
+
+            let audioResponse;
+            try {
+                audioResponse = await window.fetch(audioUrl, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal
+                });
+            } catch (err) {
+                throw new Error('local_audio_fetch');
+            }
+
+            if (!audioResponse || !audioResponse.ok) {
+                throw new Error('local_audio_fetch');
+            }
+
+            const audioBlob = await audioResponse.blob();
+            const fileName = (typeof queueItem.audio_filename === 'string' && queueItem.audio_filename)
+                ? queueItem.audio_filename
+                : ('recording-' + (parseInt(queueItem.recording_id, 10) || 0) + '.wav');
+
+            const formData = new window.FormData();
+            formData.append('audio', audioBlob, fileName);
+            formData.append('target_field', transcribeTargetField);
+            if (queueItem.recording_id) {
+                formData.append('recording_id', String(queueItem.recording_id));
+            }
+            if (queueItem.word_id) {
+                formData.append('word_id', String(queueItem.word_id));
+            }
+            if (queueItem.word_title) {
+                formData.append('word_title', String(queueItem.word_title));
+            }
+            if (queueItem.recording_type) {
+                formData.append('recording_type', String(queueItem.recording_type));
+            }
+
+            let localResponse;
+            try {
+                localResponse = await window.fetch(transcribeLocalEndpoint, {
+                    method: 'POST',
+                    mode: 'cors',
+                    body: formData,
+                    signal
+                });
+            } catch (err) {
+                throw new Error('local_service');
+            }
+
+            if (!localResponse || !localResponse.ok) {
+                throw new Error('local_service');
+            }
+
+            const contentType = String(localResponse.headers.get('content-type') || '').toLowerCase();
+            let payload;
+            if (contentType.indexOf('application/json') >= 0) {
+                payload = await localResponse.json();
+            } else {
+                payload = {
+                    text: await localResponse.text()
+                };
+            }
+
+            const transcript = extractLocalTranscriptValue(payload);
+            if (!transcript) {
+                throw new Error('local_empty');
+            }
+
+            return transcript;
+        }
+
+        function processLocalTranscription($wrap, lessonId, state, next, recordingId, processNext) {
+            state.localAbortController = new window.AbortController();
+            transcribeRecordingWithLocalService(next, state.localAbortController.signal)
+                .then(function (localTranscript) {
+                    if (state.cancelled) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                        return;
+                    }
+
+                    state.request = $.post(ajaxUrl, {
+                        action: 'll_tools_transcribe_recording_by_id',
+                        nonce: editNonce,
+                        lesson_id: lessonId,
+                        recording_id: recordingId,
+                        force: state.force ? 1 : 0,
+                        local_transcript: localTranscript
+                    }).done(function (res) {
+                        if (state.cancelled) {
+                            finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                            return;
+                        }
+                        if (!res || res.success !== true) {
+                            state.hadError = true;
+                            processNext();
+                            return;
+                        }
+
+                        const data = res.data || {};
+                        const rec = data.recording ? data.recording : null;
+                        if (rec) {
+                            applyRecordingUpdate(rec);
+                        }
+                        const word = data.word ? data.word : null;
+                        if (word) {
+                            applyWordUpdate(word);
+                        }
+                        processNext();
+                    }).fail(function () {
+                        if (state.cancelled) {
+                            finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                            return;
+                        }
+                        state.hadError = true;
+                        processNext();
+                    }).always(function () {
+                        state.request = null;
+                    });
+                })
+                .catch(function (err) {
+                    if (state.cancelled || (err && err.name === 'AbortError')) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                        return;
+                    }
+                    state.hadError = true;
+                    const message = (err && err.message === 'local_audio_fetch')
+                        ? transcribeMessages.localAudioError
+                        : transcribeMessages.localServiceError;
+                    setTranscribeStatus($wrap, message, true);
+                    processNext();
+                })
+                .finally(function () {
+                    state.localAbortController = null;
+                });
         }
 
         function runLessonTranscription($wrap, lessonId, options) {
@@ -5941,6 +6128,11 @@
                         });
                     };
 
+                    if (transcribeUsesLocalBrowser) {
+                        processLocalTranscription($wrap, lessonId, state, next, recordingId, processNext);
+                        return;
+                    }
+
                     requestTranscription('', 0);
                 };
 
@@ -6002,6 +6194,9 @@
             const state = getTranscribeState($wrap);
             if (!state.active) { return; }
             state.cancelled = true;
+            if (state.localAbortController) {
+                state.localAbortController.abort();
+            }
             if (state.request && typeof state.request.abort === 'function') {
                 state.request.abort();
             } else {

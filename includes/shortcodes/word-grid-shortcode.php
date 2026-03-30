@@ -2448,6 +2448,15 @@ function ll_tools_word_grid_resolve_context($atts): array {
 function ll_tools_word_grid_build_base_frontend_config(array $context): array {
     $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
     $can_edit_words = !empty($context['can_edit_words']);
+    $transcription_service = function_exists('ll_tools_get_wordset_transcription_service_config')
+        ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
+        : [
+            'provider' => '',
+            'uses_local_browser' => false,
+            'target_field' => 'recording_text',
+            'local_endpoint' => '',
+            'enabled' => false,
+        ];
     $transcription_config = function_exists('ll_tools_get_wordset_recording_transcription_config')
         ? ll_tools_get_wordset_recording_transcription_config([$wordset_id], true)
         : [
@@ -2581,19 +2590,25 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         ],
         'transcribeI18n' => [
             'confirm'        => __('Transcribe missing recordings for this lesson?', 'll-tools-text-domain'),
-            'confirmReplace' => __('Replace captions for this lesson?', 'll-tools-text-domain'),
-            'confirmClear'   => __('Clear captions for this lesson?', 'll-tools-text-domain'),
+            'confirmReplace' => __('Replace transcription for this lesson?', 'll-tools-text-domain'),
+            'confirmClear'   => __('Clear transcription for this lesson?', 'll-tools-text-domain'),
             'working'        => __('Transcribing...', 'll-tools-text-domain'),
             'progress'       => __('Transcribing %1$d of %2$d...', 'll-tools-text-domain'),
             'done'           => __('Transcription complete.', 'll-tools-text-domain'),
-            'none'           => __('No recordings need text.', 'll-tools-text-domain'),
-            'clearing'       => __('Clearing captions...', 'll-tools-text-domain'),
-            'cleared'        => __('Captions cleared.', 'll-tools-text-domain'),
+            'none'           => __('No recordings need transcription.', 'll-tools-text-domain'),
+            'clearing'       => __('Clearing transcription...', 'll-tools-text-domain'),
+            'cleared'        => __('Transcription cleared.', 'll-tools-text-domain'),
             'cancelled'      => __('Transcription cancelled.', 'll-tools-text-domain'),
             'error'          => __('Unable to transcribe recordings.', 'll-tools-text-domain'),
+            'localServiceError' => __('Unable to reach the local transcription service.', 'll-tools-text-domain'),
+            'localAudioError' => __('Unable to fetch the recording audio in this browser.', 'll-tools-text-domain'),
         ],
         'transcribePollAttempts' => (int) apply_filters('ll_tools_word_grid_transcribe_poll_attempts', 20),
         'transcribePollIntervalMs' => (int) apply_filters('ll_tools_word_grid_transcribe_poll_interval_ms', 1200),
+        'transcribeProvider' => (string) ($transcription_service['provider'] ?? ''),
+        'transcribeTargetField' => (string) ($transcription_service['target_field'] ?? 'recording_text'),
+        'transcribeLocalEndpoint' => (string) ($transcription_service['local_endpoint'] ?? ''),
+        'transcribeUsesLocalBrowser' => !empty($transcription_service['uses_local_browser']),
         'ipaSpecialChars' => $ipa_special_chars,
         'ipaLetterMap' => $ipa_letter_map,
         'ipaTextLanguageCode' => $ipa_text_language_code,
@@ -4436,11 +4451,29 @@ function ll_tools_word_grid_user_can_manage_word(int $word_id, int $preferred_wo
     return false;
 }
 
-function ll_tools_can_transcribe_recordings(): bool {
+function ll_tools_can_transcribe_recordings($wordset_ids = []): bool {
+    if (function_exists('ll_tools_get_wordset_transcription_service_config')) {
+        $service = ll_tools_get_wordset_transcription_service_config($wordset_ids, true);
+        if (!empty($service['provider']) || !empty($wordset_ids)) {
+            return !empty($service['enabled']);
+        }
+    }
+
     if (!function_exists('ll_tools_assemblyai_transcribe_audio_file') || !function_exists('ll_get_assemblyai_api_key')) {
         return false;
     }
     return ll_get_assemblyai_api_key() !== '';
+}
+
+function ll_tools_word_grid_get_transcription_target_meta_key(int $wordset_id): string {
+    if ($wordset_id > 0 && function_exists('ll_tools_get_wordset_transcription_service_config')) {
+        $service = ll_tools_get_wordset_transcription_service_config([$wordset_id], true);
+        if (($service['target_meta_key'] ?? '') === 'recording_ipa') {
+            return 'recording_ipa';
+        }
+    }
+
+    return 'recording_text';
 }
 
 function ll_tools_recording_is_isolation(int $recording_id): bool {
@@ -4452,6 +4485,36 @@ function ll_tools_recording_is_isolation(int $recording_id): bool {
         return false;
     }
     return in_array('isolation', (array) $terms, true);
+}
+
+function ll_tools_word_grid_get_primary_recording_type_slug(int $recording_id): string {
+    if ($recording_id <= 0) {
+        return '';
+    }
+
+    $terms = wp_get_post_terms($recording_id, 'recording_type', ['fields' => 'slugs']);
+    if (is_wp_error($terms) || empty($terms)) {
+        return '';
+    }
+
+    return sanitize_key((string) reset($terms));
+}
+
+function ll_tools_word_grid_get_recording_audio_url(int $recording_id): string {
+    if ($recording_id <= 0) {
+        return '';
+    }
+
+    $audio_path = trim((string) get_post_meta($recording_id, 'audio_file_path', true));
+    if ($audio_path === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_resolve_audio_file_url')) {
+        return (string) ll_tools_resolve_audio_file_url($audio_path);
+    }
+
+    return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
 }
 
 function ll_tools_trim_isolation_transcript(string $text): string {
@@ -6255,9 +6318,6 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
     if (!ll_tools_user_can_edit_vocab_words()) {
         wp_send_json_error('Forbidden', 403);
     }
-    if (!ll_tools_can_transcribe_recordings()) {
-        wp_send_json_error('Transcription service not configured', 400);
-    }
 
     $mode = sanitize_text_field($_POST['mode'] ?? 'missing');
     $include_existing = in_array($mode, ['all', 'replace'], true);
@@ -6275,6 +6335,21 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
     if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
         wp_send_json_error('Forbidden', 403);
     }
+
+    $transcription_service = function_exists('ll_tools_get_wordset_transcription_service_config')
+        ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
+        : [
+            'uses_local_browser' => false,
+            'target_meta_key' => 'recording_text',
+            'enabled' => false,
+        ];
+    if (empty($transcription_service['enabled'])) {
+        wp_send_json_error('Transcription service not configured', 400);
+    }
+    $target_meta_key = (($transcription_service['target_meta_key'] ?? '') === 'recording_ipa')
+        ? 'recording_ipa'
+        : 'recording_text';
+    $uses_local_browser = !empty($transcription_service['uses_local_browser']);
 
     $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
     if (empty($word_ids)) {
@@ -6299,16 +6374,31 @@ function ll_tools_get_lesson_transcribe_queue_handler() {
         if ($recording_id <= 0) {
             continue;
         }
-        $text = trim((string) get_post_meta($recording_id, 'recording_text', true));
-        if (!$include_existing && $text !== '') {
+        $current_value = trim((string) get_post_meta($recording_id, $target_meta_key, true));
+        if (!$include_existing && $current_value !== '') {
             continue;
         }
         if (!ll_tools_lesson_recording_belongs_to($recording_id, $wordset_id, $category_id)) {
             continue;
         }
-        $queue[] = [
+
+        $queue_item = [
             'recording_id' => $recording_id,
         ];
+        if ($uses_local_browser) {
+            $audio_url = ll_tools_word_grid_get_recording_audio_url($recording_id);
+            if ($audio_url === '') {
+                continue;
+            }
+            $recording = get_post($recording_id);
+            $word_id = ($recording && $recording->post_type === 'word_audio') ? (int) $recording->post_parent : 0;
+            $queue_item['audio_url'] = $audio_url;
+            $queue_item['audio_filename'] = wp_basename((string) wp_parse_url($audio_url, PHP_URL_PATH));
+            $queue_item['recording_type'] = ll_tools_word_grid_get_primary_recording_type_slug($recording_id);
+            $queue_item['word_id'] = $word_id;
+            $queue_item['word_title'] = $word_id > 0 ? get_the_title($word_id) : '';
+        }
+        $queue[] = $queue_item;
     }
 
     wp_send_json_success([
@@ -6338,6 +6428,7 @@ function ll_tools_clear_lesson_transcriptions_handler() {
     if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
         wp_send_json_error('Forbidden', 403);
     }
+    $target_meta_key = ll_tools_word_grid_get_transcription_target_meta_key($wordset_id);
 
     $word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
     if (empty($word_ids)) {
@@ -6365,9 +6456,22 @@ function ll_tools_clear_lesson_transcriptions_handler() {
         if (!ll_tools_lesson_recording_belongs_to($recording_id, $wordset_id, $category_id)) {
             continue;
         }
-        delete_post_meta($recording_id, 'recording_text');
-        delete_post_meta($recording_id, 'recording_translation');
+        if ($target_meta_key === 'recording_ipa') {
+            delete_post_meta($recording_id, 'recording_ipa');
+        } else {
+            delete_post_meta($recording_id, 'recording_text');
+            delete_post_meta($recording_id, 'recording_translation');
+        }
         $cleared[] = $recording_id;
+    }
+
+    if ($target_meta_key === 'recording_ipa') {
+        if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
+            ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
+        }
+        if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_letter_map')) {
+            ll_tools_word_grid_rebuild_wordset_ipa_letter_map($wordset_id);
+        }
     }
 
     wp_send_json_success([
@@ -6485,6 +6589,41 @@ function ll_tools_word_grid_finalize_transcription($recording_id, $recording, $w
     return $response;
 }
 
+function ll_tools_word_grid_finalize_secondary_transcription($recording_id, $recording, $wordset_id, $raw_transcript) {
+    $word_id = (int) $recording->post_parent;
+    $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
+        ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
+        : 'ipa';
+
+    $clean = function_exists('ll_tools_word_grid_sanitize_ipa')
+        ? ll_tools_word_grid_sanitize_ipa((string) $raw_transcript, $transcription_mode)
+        : sanitize_text_field((string) $raw_transcript);
+    if ($clean === '') {
+        return new WP_Error('empty_transcript', __('Empty transcript', 'll-tools-text-domain'));
+    }
+
+    update_post_meta($recording_id, 'recording_ipa', $clean);
+
+    if ($wordset_id > 0) {
+        if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
+            ll_tools_word_grid_rebuild_wordset_ipa_special_chars($wordset_id);
+        }
+        if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_letter_map')) {
+            ll_tools_word_grid_rebuild_wordset_ipa_letter_map($wordset_id);
+        }
+    }
+
+    return [
+        'recording' => [
+            'id' => $recording_id,
+            'word_id' => $word_id,
+            'recording_text' => trim((string) get_post_meta($recording_id, 'recording_text', true)),
+            'recording_translation' => trim((string) get_post_meta($recording_id, 'recording_translation', true)),
+            'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode),
+        ],
+    ];
+}
+
 add_action('wp_ajax_ll_tools_transcribe_recording_by_id', 'll_tools_transcribe_recording_by_id_handler');
 function ll_tools_transcribe_recording_by_id_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
@@ -6492,17 +6631,12 @@ function ll_tools_transcribe_recording_by_id_handler() {
     if (!ll_tools_user_can_edit_vocab_words()) {
         wp_send_json_error('Forbidden', 403);
     }
-    if (!ll_tools_can_transcribe_recordings()) {
-        wp_send_json_error('Transcription service not configured', 400);
-    }
-    if (!function_exists('ll_tools_assemblyai_start_transcription') || !function_exists('ll_tools_assemblyai_get_transcript')) {
-        wp_send_json_error(__('AssemblyAI integration not available', 'll-tools-text-domain'), 400);
-    }
 
     $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
     $recording_id = (int) ($_POST['recording_id'] ?? 0);
     $force = !empty($_POST['force']);
     $posted_transcript_id = sanitize_text_field($_POST['transcript_id'] ?? '');
+    $local_transcript = isset($_POST['local_transcript']) ? wp_unslash((string) $_POST['local_transcript']) : '';
     if ($lesson_id <= 0 || $recording_id <= 0) {
         wp_send_json_error('Missing data', 400);
     }
@@ -6519,6 +6653,9 @@ function ll_tools_transcribe_recording_by_id_handler() {
     if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
         wp_send_json_error('Forbidden', 403);
     }
+    if (!ll_tools_can_transcribe_recordings([$wordset_id])) {
+        wp_send_json_error('Transcription service not configured', 400);
+    }
 
     if (!ll_tools_lesson_recording_belongs_to($recording_id, $wordset_id, $category_id)) {
         wp_send_json_error('Recording not in lesson', 403);
@@ -6529,7 +6666,46 @@ function ll_tools_transcribe_recording_by_id_handler() {
         wp_send_json_error('Invalid recording', 400);
     }
 
+    $transcription_service = function_exists('ll_tools_get_wordset_transcription_service_config')
+        ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
+        : [
+            'provider' => 'assemblyai',
+            'target_meta_key' => 'recording_text',
+            'uses_local_browser' => false,
+        ];
     $wordset_ids = [$wordset_id];
+    $target_meta_key = (($transcription_service['target_meta_key'] ?? '') === 'recording_ipa')
+        ? 'recording_ipa'
+        : 'recording_text';
+
+    $existing_target_value = trim((string) get_post_meta($recording_id, $target_meta_key, true));
+    if ($posted_transcript_id === '' && $local_transcript === '' && !$force && $existing_target_value !== '') {
+        delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
+        wp_send_json_success([
+            'skipped' => true,
+        ]);
+    }
+
+    if (!empty($transcription_service['uses_local_browser'])) {
+        if ($local_transcript === '') {
+            wp_send_json_error(__('Local transcript missing', 'll-tools-text-domain'), 400);
+        }
+
+        $response = ($target_meta_key === 'recording_ipa')
+            ? ll_tools_word_grid_finalize_secondary_transcription($recording_id, $recording, $wordset_id, $local_transcript)
+            : ll_tools_word_grid_finalize_transcription($recording_id, $recording, $wordset_ids, $force, $local_transcript);
+        if (is_wp_error($response)) {
+            wp_send_json_error($response->get_error_message(), 400);
+        }
+
+        delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
+        wp_send_json_success($response);
+    }
+
+    if (!function_exists('ll_tools_assemblyai_start_transcription') || !function_exists('ll_tools_assemblyai_get_transcript')) {
+        wp_send_json_error(__('AssemblyAI integration not available', 'll-tools-text-domain'), 400);
+    }
+
     $language_code = function_exists('ll_tools_get_assemblyai_language_code')
         ? ll_tools_get_assemblyai_language_code($wordset_ids)
         : '';

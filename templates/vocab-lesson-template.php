@@ -95,7 +95,7 @@ if (have_posts()) {
         : (is_user_logged_in() && current_user_can('view_ll_tools'));
     $can_transcribe = $can_edit_words
         && function_exists('ll_tools_can_transcribe_recordings')
-        && ll_tools_can_transcribe_recordings();
+        && ll_tools_can_transcribe_recordings([$wordset_id]);
 
     $display_name = '';
     if ($category && !is_wp_error($category)) {
@@ -321,7 +321,7 @@ if (have_posts()) {
                         <?php if ($can_transcribe) : ?>
                             <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>
                                 <div class="ll-vocab-lesson-transcribe-actions" role="group" aria-label="<?php echo esc_attr__('Captions', 'll-tools-text-domain'); ?>">
-                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--auto" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings', 'll-tools-text-domain'); ?>">
+                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--auto" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings for this lesson', 'll-tools-text-domain'); ?>">
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
                                                 <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -329,9 +329,9 @@ if (have_posts()) {
                                                 </svg>
                                             </span>
                                         </span>
-                                        <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Auto captions', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Auto transcription', 'll-tools-text-domain'); ?></span>
                                     </button>
-                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--replace" data-ll-transcribe-replace data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Replace captions for this lesson', 'll-tools-text-domain'); ?>">
+                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--replace" data-ll-transcribe-replace data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Replace transcription for this lesson', 'll-tools-text-domain'); ?>">
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--refresh">
                                                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -342,7 +342,7 @@ if (have_posts()) {
                                         </span>
                                         <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Replace', 'll-tools-text-domain'); ?></span>
                                     </button>
-                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--clear" data-ll-transcribe-clear data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Clear captions for this lesson', 'll-tools-text-domain'); ?>">
+                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--clear" data-ll-transcribe-clear data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Clear transcription for this lesson', 'll-tools-text-domain'); ?>">
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--clear">
                                                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">

@@ -18,6 +18,15 @@ if (!defined('LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY')) {
     define('LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY', 'll_wordset_recording_transcription_mode');
 }
+if (!defined('LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY')) {
+    define('LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY', 'll_wordset_transcription_provider');
+}
+if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY')) {
+    define('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY', 'll_wordset_local_transcription_endpoint');
+}
+if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY')) {
+    define('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY', 'll_wordset_local_transcription_target');
+}
 if (!defined('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION')) {
     define('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION', 'll_tools_wordset_language_settings_migrated_version');
 }
@@ -39,6 +48,39 @@ function ll_tools_sanitize_wordset_title_language_role($value): string {
 function ll_tools_sanitize_wordset_recording_transcription_mode($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['ipa', 'transliteration', 'transcription'], true) ? $value : 'ipa';
+}
+
+function ll_tools_sanitize_wordset_transcription_provider($value): string {
+    $value = sanitize_key((string) $value);
+    return in_array($value, ['assemblyai', 'local_browser'], true) ? $value : '';
+}
+
+function ll_tools_sanitize_wordset_local_transcription_target($value): string {
+    $value = sanitize_key((string) $value);
+    return in_array($value, ['recording_text', 'recording_ipa'], true) ? $value : 'recording_ipa';
+}
+
+function ll_tools_get_default_local_transcription_endpoint(): string {
+    $default = (string) apply_filters(
+        'll_tools_default_local_transcription_endpoint',
+        'http://127.0.0.1:8765/transcribe'
+    );
+
+    $default = trim($default);
+    if ($default === '') {
+        return '';
+    }
+
+    return esc_url_raw($default, ['http', 'https']);
+}
+
+function ll_tools_sanitize_wordset_local_transcription_endpoint($value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    return esc_url_raw($value, ['http', 'https']);
 }
 
 function ll_tools_normalize_wordset_boolean_setting($value): int {
@@ -132,6 +174,125 @@ function ll_tools_get_wordset_recording_transcription_mode($wordset_ids = [], bo
     }
 
     return $fallback_to_default ? 'ipa' : '';
+}
+
+function ll_tools_get_wordset_transcription_provider($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_transcription_provider(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, true)
+        );
+    }
+
+    if ($fallback_to_default && function_exists('ll_get_assemblyai_api_key') && ll_get_assemblyai_api_key() !== '') {
+        return 'assemblyai';
+    }
+
+    return '';
+}
+
+function ll_tools_get_wordset_local_transcription_endpoint($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_local_transcription_endpoint(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? ll_tools_get_default_local_transcription_endpoint() : '';
+}
+
+function ll_tools_get_wordset_local_transcription_target($wordset_ids = [], bool $fallback_to_default = true): string {
+    $provider = ll_tools_get_wordset_transcription_provider($wordset_ids, $fallback_to_default);
+    if ($provider !== 'local_browser') {
+        return 'recording_text';
+    }
+
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_local_transcription_target(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? 'recording_ipa' : '';
+}
+
+function ll_tools_get_wordset_transcription_provider_label(string $provider): string {
+    $provider = ll_tools_sanitize_wordset_transcription_provider($provider);
+
+    if ($provider === 'local_browser') {
+        return __('Local browser model', 'll-tools-text-domain');
+    }
+    if ($provider === 'assemblyai') {
+        return __('AssemblyAI', 'll-tools-text-domain');
+    }
+
+    return __('Disabled', 'll-tools-text-domain');
+}
+
+function ll_tools_get_wordset_local_transcription_target_label(string $target, $wordset_ids = []): string {
+    $target = ll_tools_sanitize_wordset_local_transcription_target($target);
+
+    if ($target === 'recording_ipa') {
+        $secondary_label = __('Secondary transcription field', 'll-tools-text-domain');
+        if (function_exists('ll_tools_get_wordset_recording_transcription_config')) {
+            $config = ll_tools_get_wordset_recording_transcription_config($wordset_ids, true);
+            $mode_label = trim((string) ($config['label'] ?? ''));
+            if ($mode_label !== '') {
+                return sprintf(
+                    /* translators: %s: transcription mode label, e.g. IPA */
+                    __('Secondary transcription field (%s)', 'll-tools-text-domain'),
+                    $mode_label
+                );
+            }
+        }
+
+        return $secondary_label;
+    }
+
+    return __('Recording text', 'll-tools-text-domain');
+}
+
+function ll_tools_get_wordset_transcription_service_config($wordset_ids = [], bool $fallback_to_default = true): array {
+    $provider = ll_tools_get_wordset_transcription_provider($wordset_ids, $fallback_to_default);
+    $uses_local_browser = ($provider === 'local_browser');
+    $target_field = $uses_local_browser
+        ? ll_tools_get_wordset_local_transcription_target($wordset_ids, $fallback_to_default)
+        : 'recording_text';
+    $local_endpoint = $uses_local_browser
+        ? ll_tools_get_wordset_local_transcription_endpoint($wordset_ids, $fallback_to_default)
+        : '';
+
+    $enabled = false;
+    if ($provider === 'assemblyai') {
+        $enabled = function_exists('ll_get_assemblyai_api_key') && ll_get_assemblyai_api_key() !== '';
+    } elseif ($uses_local_browser) {
+        $enabled = ($local_endpoint !== '');
+    }
+
+    return [
+        'provider' => $provider,
+        'provider_label' => ll_tools_get_wordset_transcription_provider_label($provider),
+        'uses_local_browser' => $uses_local_browser,
+        'target_field' => $target_field,
+        'target_meta_key' => $target_field,
+        'target_label' => ll_tools_get_wordset_local_transcription_target_label($target_field, $wordset_ids),
+        'local_endpoint' => $local_endpoint,
+        'enabled' => $enabled,
+    ];
 }
 
 function ll_tools_is_wordset_recording_transcription_ipa($wordset_ids = [], bool $fallback_to_default = true): bool {

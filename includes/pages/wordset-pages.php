@@ -1232,7 +1232,27 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $redirect_error('nonce');
     }
 
-    update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, $visibility);
+    if ($submitted_tool === 'transcription') {
+        $provider = isset($_POST['ll_wordset_transcription_provider'])
+            ? ll_tools_sanitize_wordset_transcription_provider(wp_unslash((string) $_POST['ll_wordset_transcription_provider']))
+            : '';
+        $target = isset($_POST['ll_wordset_local_transcription_target'])
+            ? ll_tools_sanitize_wordset_local_transcription_target(wp_unslash((string) $_POST['ll_wordset_local_transcription_target']))
+            : 'recording_ipa';
+        $endpoint = isset($_POST['ll_wordset_local_transcription_endpoint'])
+            ? ll_tools_sanitize_wordset_local_transcription_endpoint(wp_unslash((string) $_POST['ll_wordset_local_transcription_endpoint']))
+            : '';
+
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, $provider);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, $target);
+        if ($endpoint !== '') {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, $endpoint);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY);
+        }
+    } else {
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, $visibility);
+    }
 
     wp_safe_redirect(add_query_arg([
         'll_wordset_manager_settings' => 'ok',
@@ -2700,7 +2720,7 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
 }
 
 function ll_tools_get_wordset_settings_tool_keys(): array {
-    return ['study', 'visibility', 'import', 'recorder', 'image-upload', 'audio-upload'];
+    return ['study', 'visibility', 'import', 'recorder', 'transcription', 'image-upload', 'audio-upload'];
 }
 
 function ll_tools_get_wordset_settings_tool(): string {
@@ -2743,6 +2763,9 @@ function ll_tools_wordset_settings_tool_label(string $tool): string {
     if ($tool === 'recorder') {
         return __('Recorder', 'll-tools-text-domain');
     }
+    if ($tool === 'transcription') {
+        return __('Transcription', 'll-tools-text-domain');
+    }
     if ($tool === 'image-upload') {
         return __('Images', 'll-tools-text-domain');
     }
@@ -2767,6 +2790,9 @@ function ll_tools_wordset_settings_tool_title(string $tool): string {
     if ($tool === 'recorder') {
         return __('Recorder Access', 'll-tools-text-domain');
     }
+    if ($tool === 'transcription') {
+        return __('Transcription Settings', 'll-tools-text-domain');
+    }
     if ($tool === 'image-upload') {
         return __('Image Upload', 'll-tools-text-domain');
     }
@@ -2790,6 +2816,9 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
     }
     if ($tool === 'recorder') {
         return __('Assign and review audio recorder access for this word set.', 'll-tools-text-domain');
+    }
+    if ($tool === 'transcription') {
+        return __('Choose whether lesson transcription uses AssemblyAI or a localhost model in your browser.', 'll-tools-text-domain');
     }
     if ($tool === 'image-upload') {
         return __('Upload images and optionally create draft words here.', 'll-tools-text-domain');
@@ -2843,6 +2872,12 @@ function ll_tools_wordset_page_render_settings_tool_icon(string $tool, string $c
             . '<path d="M6.75 10.5a5.25 5.25 0 1 0 10.5 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
             . '<path d="M12 15.75V20.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
             . '<path d="M9 20.25h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'transcription') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M4.5 12.5h2.5M8.5 9.5h2.5M8.5 15.5h2.5M12.5 6.5h2.5M12.5 12.5h2.5M12.5 18.5h2.5M16.5 9.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+            . '<rect x="3.75" y="4.25" width="16.5" height="15.5" rx="3" stroke="currentColor" stroke-width="1.8"/>'
             . '</svg>';
     }
     if ($tool === 'image-upload') {
@@ -2972,6 +3007,88 @@ function ll_tools_wordset_page_render_settings_visibility_tool(WP_Term $wordset_
                     </p>
                     <div style="margin-top:10px;">
                         <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Word Set Settings', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $transcription_settings, array $secondary_transcription_config): string {
+    $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $back_url);
+    $provider = ll_tools_sanitize_wordset_transcription_provider((string) ($transcription_settings['provider'] ?? ''));
+    $local_endpoint = (string) ($transcription_settings['local_endpoint'] ?? ll_tools_get_default_local_transcription_endpoint());
+    $local_target = ll_tools_sanitize_wordset_local_transcription_target((string) ($transcription_settings['target_field'] ?? 'recording_ipa'));
+    $secondary_label = trim((string) ($secondary_transcription_config['label'] ?? ''));
+    if ($secondary_label === '') {
+        $secondary_label = __('Secondary transcription field', 'll-tools-text-domain');
+    }
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Transcription', 'll-tools-text-domain'); ?></h2>
+            <form method="post" action="<?php echo esc_url($action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
+                <input type="hidden" name="ll_wordset_manager_settings_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                <input type="hidden" name="ll_wordset_view" value="settings" />
+                <input type="hidden" name="ll_wordset_tool" value="transcription" />
+                <?php wp_nonce_field('ll_wordset_manager_settings_' . $wordset_id, 'll_wordset_manager_settings_nonce'); ?>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Lesson Transcription Provider', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-transcription-provider" class="screen-reader-text"><?php echo esc_html__('Lesson transcription provider', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-transcription-provider" name="ll_wordset_transcription_provider" class="ll-tools-settings-select" style="max-width: 320px;">
+                        <option value="" <?php selected($provider, ''); ?>><?php echo esc_html__('Disabled', 'll-tools-text-domain'); ?></option>
+                        <option value="assemblyai" <?php selected($provider, 'assemblyai'); ?>><?php echo esc_html__('AssemblyAI', 'll-tools-text-domain'); ?></option>
+                        <option value="local_browser" <?php selected($provider, 'local_browser'); ?>><?php echo esc_html__('Local browser model', 'll-tools-text-domain'); ?></option>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('AssemblyAI keeps the current server-side captions workflow. Local browser model sends lesson audio from this browser to a localhost service on the computer you are using right now.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Local Model Output', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-local-target" class="screen-reader-text"><?php echo esc_html__('Local model output field', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-local-target" name="ll_wordset_local_transcription_target" class="ll-tools-settings-select" style="max-width: 320px;">
+                        <option value="recording_ipa" <?php selected($local_target, 'recording_ipa'); ?>><?php echo esc_html(sprintf(__('Secondary transcription field (%s)', 'll-tools-text-domain'), $secondary_label)); ?></option>
+                        <option value="recording_text" <?php selected($local_target, 'recording_text'); ?>><?php echo esc_html__('Recording text', 'll-tools-text-domain'); ?></option>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Use the secondary field when your local model returns IPA, transliteration, or another alternate transcription instead of normal word text.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Local Endpoint', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-local-endpoint" class="screen-reader-text"><?php echo esc_html__('Local transcription endpoint URL', 'll-tools-text-domain'); ?></label>
+                    <input
+                        id="ll-wordset-settings-local-endpoint"
+                        type="url"
+                        name="ll_wordset_local_transcription_endpoint"
+                        class="regular-text ll-tools-settings-input"
+                        style="max-width: 420px;"
+                        value="<?php echo esc_attr($local_endpoint); ?>"
+                        placeholder="<?php echo esc_attr(ll_tools_get_default_local_transcription_endpoint()); ?>"
+                        inputmode="url"
+                        spellcheck="false"
+                        autocomplete="off"
+                    />
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Expected request: POST multipart/form-data with an "audio" file field. Expected response: JSON containing one of predicted_ipa, ipa, transcript, or text.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('If the site is served over HTTPS, your browser may require the localhost service to allow that origin and may require HTTPS there too, depending on browser policy.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Transcription Settings', 'll-tools-text-domain'); ?></button>
                     </div>
                 </div>
             </form>
@@ -3984,6 +4101,22 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $settings_hub_cards = [];
+    $transcription_settings = function_exists('ll_tools_get_wordset_transcription_service_config')
+        ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
+        : [
+            'provider' => '',
+            'provider_label' => __('Disabled', 'll-tools-text-domain'),
+            'uses_local_browser' => false,
+            'target_field' => 'recording_text',
+            'target_label' => __('Recording text', 'll-tools-text-domain'),
+            'local_endpoint' => '',
+            'enabled' => false,
+        ];
+    $secondary_transcription_config = function_exists('ll_tools_get_wordset_recording_transcription_config')
+        ? ll_tools_get_wordset_recording_transcription_config([$wordset_id], true)
+        : [
+            'label' => __('IPA', 'll-tools-text-domain'),
+        ];
     if ($view === 'settings' && $is_study_user) {
         $enabled_goal_modes = array_values(array_filter(array_map('sanitize_key', (array) ($goals['enabled_modes'] ?? [])), static function ($mode): bool {
             return $mode !== '';
@@ -4051,6 +4184,27 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 )
                 : __('No recorders assigned', 'll-tools-text-domain'),
             'url' => $settings_tool_urls['recorder'],
+            'enabled' => true,
+        ];
+
+        $transcription_card_status = trim((string) ($transcription_settings['provider_label'] ?? ''));
+        $transcription_target_label = trim((string) ($transcription_settings['target_label'] ?? ''));
+        if (!empty($transcription_settings['uses_local_browser']) && $transcription_target_label !== '') {
+            $transcription_card_status = $transcription_card_status !== ''
+                ? $transcription_card_status . ' · ' . $transcription_target_label
+                : $transcription_target_label;
+        }
+        if (empty($transcription_settings['enabled'])) {
+            $transcription_card_status = $transcription_card_status !== ''
+                ? $transcription_card_status . ' · ' . __('Not ready', 'll-tools-text-domain')
+                : __('Not ready', 'll-tools-text-domain');
+        }
+        $settings_hub_cards[] = [
+            'tool' => 'transcription',
+            'label' => ll_tools_wordset_settings_tool_label('transcription'),
+            'description' => ll_tools_wordset_settings_tool_description('transcription'),
+            'status' => $transcription_card_status,
+            'url' => $settings_tool_urls['transcription'],
             'enabled' => true,
         ];
 
@@ -4908,6 +5062,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && ($settings_tool === '' || $settings_tool === 'visibility')) {
                 $settings_notices[] = $manager_settings_notice;
             }
+            if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && $settings_tool === 'transcription') {
+                $settings_notices[] = $manager_settings_notice;
+            }
             if (is_array($manager_import_notice) && !empty($manager_import_notice['message']) && ($settings_tool === '' || $settings_tool === 'import')) {
                 $settings_notices[] = $manager_import_notice;
             }
@@ -4952,6 +5109,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 ?>
             <?php elseif ($settings_tool === 'visibility' && $can_manage_wordset_content) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_visibility_tool($wordset_term, $wordset_id, $back_url, $wordset_visibility, $wordset_is_private); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'transcription' && $can_manage_wordset_content) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_transcription_tool($wordset_term, $wordset_id, $back_url, $transcription_settings, $secondary_transcription_config); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'import' && $can_manage_wordset_content) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_import_tool($wordset_term, $wordset_id, $back_url, $enhanced_categories); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'recorder' && $can_manage_wordset_content) : ?>
