@@ -351,7 +351,7 @@
             html += '</div>';
 
             html += '<div class="ll-editor-hub-field' + ipaMissingClass + '">';
-            html += '<label>' + escapeHtml(t('recording_ipa', 'IPA')) + '</label>';
+            html += '<label>' + escapeHtml(t('recording_ipa', 'Pronunciation')) + '</label>';
             html += '<input type="text" data-recording-field="ipa" value="' + escapeHtml(ipaValue) + '" />';
             html += '</div>';
 

@@ -17,10 +17,16 @@
     const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
         ? transcribePollIntervalRaw
         : 1200;
+    const secondaryTextMode = ['ipa', 'transliteration', 'transcription'].indexOf(String(cfg.secondaryTextMode || '').trim()) >= 0
+        ? String(cfg.secondaryTextMode || '').trim()
+        : 'ipa';
+    const secondaryTextDisplayFormat = String(cfg.secondaryTextDisplayFormat || (secondaryTextMode === 'ipa' ? 'brackets' : 'plain')).trim();
+    const secondaryTextCommonChars = Array.isArray(cfg.secondaryTextCommonChars) ? cfg.secondaryTextCommonChars.slice() : [];
+    const secondaryTextUsesIpaFont = !!cfg.secondaryTextUsesIpaFont;
+    const secondaryTextSupportsSuperscript = !!cfg.secondaryTextSupportsSuperscript && secondaryTextMode === 'ipa';
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
     const ipaLetterMap = (cfg.ipaLetterMap && typeof cfg.ipaLetterMap === 'object') ? cfg.ipaLetterMap : {};
     const ipaTextLanguageCode = String(cfg.ipaTextLanguageCode || '').trim().toLowerCase();
-    const ipaCommonChars = ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'];
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
@@ -2082,7 +2088,7 @@
     function getRecordingCaptionParts(text, translation, ipa) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
-        const cleanIpa = (ipa || '').toString().trim();
+        const cleanIpa = normalizeIpaOutput(ipa);
         return {
             text: cleanText,
             translation: cleanTranslation,
@@ -2092,11 +2098,18 @@
     }
 
     function normalizeIpaOutput(value) {
-        return (value || '').toString().replace(/\u1D2E/g, '\u{10784}');
+        const raw = (value || '').toString();
+        if (secondaryTextMode !== 'ipa') {
+            return raw.replace(/[\r\n\t\u00A0]+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        return raw.replace(/\u1D2E/g, '\u{10784}').trim();
     }
 
     function normalizeIpaForStorage(value) {
-        const raw = (value || '').toString();
+        const raw = sanitizeIpaValue(value);
+        if (secondaryTextMode !== 'ipa') {
+            return raw;
+        }
         if (supportsIpaExtended) {
             return raw;
         }
@@ -2141,8 +2154,9 @@
         let $ipa = $textWrap.find('.ll-word-recording-ipa').first();
         if (parts.ipa) {
             if (!$ipa.length) {
-                $ipa = $('<span>', { class: 'll-word-recording-ipa ll-ipa' }).appendTo($textWrap);
+                $ipa = $('<span>', { class: 'll-word-recording-ipa' }).appendTo($textWrap);
             }
+            $ipa.toggleClass('ll-ipa', secondaryTextUsesIpaFont);
             $ipa.text(normalizeIpaOutput(parts.ipa));
         } else {
             $ipa.remove();
@@ -2253,6 +2267,7 @@
     }
 
     const ipaAllowedChar = /[a-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
+    const nonIpaAllowedChar = /[\p{L}\p{M}\p{N}\u02B0-\u02FF.\-'’\s]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
     const ipaPostModifier = /[\u02B0-\u02B8\u02D0\u02D1\u02E0-\u02E4\u1D2C-\u1D6A\u1D9B-\u1DBF\u2070-\u209F\u{10784}]/u;
     const ipaStressMarker = /[\u02C8\u02CC]/u;
@@ -2352,6 +2367,80 @@
         '\u0263': 'g',
         '\u028b': 'v'
     };
+    const transcriptionMatchMap = {
+        'ā': 'a',
+        'ă': 'a',
+        'â': 'a',
+        'á': 'a',
+        'à': 'a',
+        'ä': 'a',
+        'ã': 'a',
+        'ē': 'e',
+        'ĕ': 'e',
+        'ê': 'e',
+        'é': 'e',
+        'è': 'e',
+        'ë': 'e',
+        'ī': 'i',
+        'ĭ': 'i',
+        'î': 'i',
+        'í': 'i',
+        'ì': 'i',
+        'ï': 'i',
+        'ō': 'o',
+        'ŏ': 'o',
+        'ô': 'o',
+        'ó': 'o',
+        'ò': 'o',
+        'ö': 'o',
+        'õ': 'o',
+        'ū': 'u',
+        'ŭ': 'u',
+        'û': 'u',
+        'ú': 'u',
+        'ù': 'u',
+        'ü': 'u',
+        'ḥ': 'h',
+        'ḫ': 'h',
+        'ṭ': 't',
+        'ṣ': 's',
+        'š': 'sh',
+        'ś': 's',
+        'ḏ': 'd',
+        'ḇ': 'v',
+        'ʾ': 'a',
+        'ʿ': 'a',
+        "'": 'a',
+        '’': 'a',
+        'ʻ': 'a',
+        'א': 'a',
+        'ע': 'a',
+        'ב': 'b',
+        'ג': 'g',
+        'ד': 'd',
+        'ה': 'h',
+        'ו': 'w',
+        'ז': 'z',
+        'ח': 'h',
+        'ט': 't',
+        'י': 'y',
+        'כ': 'k',
+        'ך': 'k',
+        'ל': 'l',
+        'מ': 'm',
+        'ם': 'm',
+        'נ': 'n',
+        'ן': 'n',
+        'ס': 's',
+        'פ': 'p',
+        'ף': 'p',
+        'צ': 's',
+        'ץ': 's',
+        'ק': 'q',
+        'ר': 'r',
+        'ש': 'sh',
+        'ת': 't'
+    };
     let activeIpaInput = null;
     let activeIpaSelection = null;
     let lastIpaEdit = { input: null, type: null, time: 0 };
@@ -2359,7 +2448,20 @@
     const waveformCache = new Map();
     const waveformPending = new Map();
 
+    function applyTranscriptionMatchMap(segment) {
+        const value = (segment || '').toString();
+        if (!value) { return ''; }
+        let out = '';
+        for (const ch of value) {
+            out += transcriptionMatchMap[ch] || ch;
+        }
+        return out;
+    }
+
     function normalizeIpaChar(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return ch;
+        }
         if (ch === '\u1D2E') {
             return '\u{10784}';
         }
@@ -2378,7 +2480,8 @@
         let out = '';
         chars.forEach(function (ch) {
             const normalized = normalizeIpaChar(ch);
-            if (ipaAllowedChar.test(normalized)) {
+            const allowed = secondaryTextMode === 'ipa' ? ipaAllowedChar : nonIpaAllowedChar;
+            if (allowed.test(normalized)) {
                 out += normalized;
             }
         });
@@ -2557,6 +2660,9 @@
     }
 
     function isIpaSeparator(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return ch === '.' || ch === '-' || /\s/.test(ch);
+        }
         return ch === '.' || /\s/.test(ch);
     }
 
@@ -2565,19 +2671,28 @@
     }
 
     function isPostModifier(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return false;
+        }
         return ipaPostModifier.test(ch);
     }
 
     function isIpaStressMarker(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return false;
+        }
         return ipaStressMarker.test(ch);
     }
 
     function isTieBar(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return false;
+        }
         return ch === '\u0361' || ch === '\u035C';
     }
 
     function stripStressMarkersFromToken(token) {
-        if (!token) { return ''; }
+        if (secondaryTextMode !== 'ipa' || !token) { return token || ''; }
         return token.replace(/\u02C8|\u02CC/g, '');
     }
 
@@ -2598,6 +2713,42 @@
         const sanitized = sanitizeIpaValue(value);
         if (!sanitized) { return []; }
         const chars = Array.from(sanitized);
+
+        if (secondaryTextMode !== 'ipa') {
+            const tokens = [];
+            let buffer = '';
+
+            chars.forEach(function (ch) {
+                if (isIpaSeparator(ch)) {
+                    if (buffer) {
+                        tokens.push(buffer);
+                        buffer = '';
+                    }
+                    return;
+                }
+
+                if (isCombiningMark(ch)) {
+                    if (!buffer) {
+                        buffer = ch;
+                    } else {
+                        buffer += ch;
+                    }
+                    return;
+                }
+
+                if (buffer) {
+                    tokens.push(buffer);
+                }
+                buffer = ch;
+            });
+
+            if (buffer) {
+                tokens.push(buffer);
+            }
+
+            return tokens;
+        }
+
         const tokens = [];
         let buffer = '';
         let pending = '';
@@ -2859,6 +3010,7 @@
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         }
         text = text.replace(/\u0131/g, 'i');
+        text = applyTranscriptionMatchMap(text);
         text = text.replace(/[^a-z]/g, '');
         return text;
     }
@@ -2868,6 +3020,10 @@
         let text = segment.toString().toLocaleLowerCase().replace(/[\s\.]+/g, '');
         if (text.normalize) {
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        if (secondaryTextMode !== 'ipa') {
+            text = applyTranscriptionMatchMap(text);
+            return text.replace(/[^a-z]/g, '');
         }
         let out = '';
         for (const ch of text) {
@@ -2887,6 +3043,10 @@
         let text = segment.toString().toLocaleLowerCase().replace(/[\s\.]+/g, '');
         if (text.normalize) {
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        if (secondaryTextMode !== 'ipa') {
+            text = applyTranscriptionMatchMap(text);
+            return text.replace(/[^a-z]/g, '');
         }
         let out = '';
         let last = '';
@@ -3361,7 +3521,7 @@
             merged.push(ch);
         };
 
-        ipaCommonChars.forEach(pushUnique);
+        secondaryTextCommonChars.forEach(pushUnique);
         if (Array.isArray(chars)) {
             chars.forEach(pushUnique);
         }
@@ -3426,8 +3586,10 @@
             $suggestions.attr('aria-hidden', suggestionCount > 0 ? 'false' : 'true');
         }
         if (keyCount > 0 || suggestionCount > 0) {
-            $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
             activeIpaInput = $input.get(0);
+            if (secondaryTextSupportsSuperscript) {
+                $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
+            }
         } else {
             activeIpaInput = null;
         }

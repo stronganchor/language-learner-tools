@@ -2000,6 +2000,9 @@ function ll_add_wordset_language_field($term) {
             'lineHeightRatio' => 1.22,
             'lineHeightRatioWithDiacritics' => 1.4,
         ];
+    $recording_transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
+        ? ll_tools_get_wordset_recording_transcription_mode([], true)
+        : 'ipa';
 
     if ($term_id > 0) {
         $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
@@ -2031,6 +2034,9 @@ function ll_add_wordset_language_field($term) {
         }
         if (function_exists('ll_tools_wordset_get_answer_option_text_style_config')) {
             $answer_option_text_style = ll_tools_wordset_get_answer_option_text_style_config($term_id);
+        }
+        if (function_exists('ll_tools_get_wordset_recording_transcription_mode')) {
+            $recording_transcription_mode = ll_tools_get_wordset_recording_transcription_mode([$term_id], true);
         }
     }
 
@@ -2093,6 +2099,19 @@ function ll_add_wordset_language_field($term) {
             . '</select>',
         'll-wordset-word-title-language-role',
         __('Controls whether word post titles are stored in the target language or the translation/helper language for this word set.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-recording-transcription-mode-wrap',
+        __('Recording pronunciation text', 'll-tools-text-domain'),
+        '<select id="ll-wordset-recording-transcription-mode" name="ll_wordset_recording_transcription_mode">'
+            . '<option value="ipa" ' . selected($recording_transcription_mode, 'ipa', false) . '>' . esc_html__('IPA (phonetic)', 'll-tools-text-domain') . '</option>'
+            . '<option value="transliteration" ' . selected($recording_transcription_mode, 'transliteration', false) . '>' . esc_html__('Transliteration (romanized text)', 'll-tools-text-domain') . '</option>'
+            . '<option value="transcription" ' . selected($recording_transcription_mode, 'transcription', false) . '>' . esc_html__('Transcription (other notation)', 'll-tools-text-domain') . '</option>'
+            . '</select>',
+        'll-wordset-recording-transcription-mode',
+        __('Choose how the secondary recording text field should behave in this word set. IPA keeps phonetic formatting; transliteration removes IPA-specific formatting and is better for latinized Hebrew and similar systems.', 'll-tools-text-domain')
     );
 
     ll_tools_wordset_render_admin_field(
@@ -2426,6 +2445,7 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_enable_category_translation'])
         || isset($_POST['ll_wordset_category_translation_source'])
         || isset($_POST['ll_wordset_word_title_language_role'])
+        || isset($_POST['ll_wordset_recording_transcription_mode'])
         || isset($_POST['ll_wordset_visibility'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
         || isset($_POST['ll_wordset_answer_option_text_font_family'])
@@ -2502,6 +2522,13 @@ function ll_save_wordset_language($term_id) {
                 ? ll_tools_sanitize_wordset_title_language_role(wp_unslash((string) $_POST['ll_wordset_word_title_language_role']))
                 : sanitize_key(wp_unslash((string) $_POST['ll_wordset_word_title_language_role']));
             update_term_meta($term_id, LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY, $word_title_language_role);
+        }
+
+        if (array_key_exists('ll_wordset_recording_transcription_mode', $_POST)) {
+            $recording_transcription_mode = function_exists('ll_tools_sanitize_wordset_recording_transcription_mode')
+                ? ll_tools_sanitize_wordset_recording_transcription_mode(wp_unslash((string) $_POST['ll_wordset_recording_transcription_mode']))
+                : sanitize_key(wp_unslash((string) $_POST['ll_wordset_recording_transcription_mode']));
+            update_term_meta($term_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, $recording_transcription_mode);
         }
 
         $wordset_visibility = isset($_POST['ll_wordset_visibility'])

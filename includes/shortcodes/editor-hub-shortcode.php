@@ -277,6 +277,12 @@ function ll_tools_editor_hub_collect_recordings_for_word(int $word_id, array $au
     if ($word_id <= 0) {
         return [];
     }
+    $wordset_id = function_exists('ll_tools_word_grid_get_wordset_id_for_word')
+        ? ll_tools_word_grid_get_wordset_id_for_word($word_id)
+        : 0;
+    $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
+        ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
+        : 'ipa';
 
     $audio_files = isset($audio_by_word[$word_id]) && is_array($audio_by_word[$word_id])
         ? $audio_by_word[$word_id]
@@ -320,7 +326,7 @@ function ll_tools_editor_hub_collect_recordings_for_word(int $word_id, array $au
         $text = trim((string) ($entry['recording_text'] ?? ''));
         $translation = trim((string) ($entry['recording_translation'] ?? ''));
         $ipa = function_exists('ll_tools_word_grid_normalize_ipa_output')
-            ? ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''))
+            ? ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''), $transcription_mode)
             : trim((string) ($entry['recording_ipa'] ?? ''));
 
         $missing = [
@@ -614,6 +620,9 @@ function ll_tools_editor_hub_build_item(int $word_id, int $wordset_id, array $ui
 
     $missing_labels = [];
     $label_map = ll_tools_editor_hub_missing_field_label_map();
+    $recording_transcription_label = function_exists('ll_tools_get_wordset_recording_transcription_config')
+        ? (string) (ll_tools_get_wordset_recording_transcription_config([$wordset_id], true)['label'] ?? __('IPA', 'll-tools-text-domain'))
+        : __('IPA', 'll-tools-text-domain');
     foreach ($flags as $field => $is_missing) {
         if ($is_missing && isset($label_map[$field])) {
             $missing_labels[] = (string) $label_map[$field];
@@ -644,7 +653,7 @@ function ll_tools_editor_hub_build_item(int $word_id, int $wordset_id, array $ui
                 /* translators: 1: recording type label, 2: field label */
                 __('%1$s recording: %2$s', 'll-tools-text-domain'),
                 $recording_label,
-                __('IPA', 'll-tools-text-domain')
+                $recording_transcription_label
             );
         }
     }
@@ -993,6 +1002,9 @@ function ll_editor_hub_shortcode($atts) {
     ll_enqueue_asset_by_timestamp('/js/editor-hub.js', 'll-editor-hub', ['jquery', 'jquery-ui-autocomplete'], true);
 
     $current_user = wp_get_current_user();
+    $recording_transcription_label = function_exists('ll_tools_get_wordset_recording_transcription_config')
+        ? (string) (ll_tools_get_wordset_recording_transcription_config([$wordset_id], true)['label'] ?? __('IPA', 'll-tools-text-domain'))
+        : __('IPA', 'll-tools-text-domain');
 
     wp_localize_script('ll-editor-hub', 'll_editor_hub_data', [
         'ajax_url' => admin_url('admin-ajax.php'),
@@ -1033,7 +1045,7 @@ function ll_editor_hub_shortcode($atts) {
             'missing_fields' => __('Missing fields', 'll-tools-text-domain'),
             'recording_text' => __('Text', 'll-tools-text-domain'),
             'recording_translation' => __('Translation', 'll-tools-text-domain'),
-            'recording_ipa' => __('IPA', 'll-tools-text-domain'),
+            'recording_ipa' => $recording_transcription_label,
             'audio' => __('Audio', 'll-tools-text-domain'),
             'image' => __('Image', 'll-tools-text-domain'),
             'no_image' => __('No image available', 'll-tools-text-domain'),

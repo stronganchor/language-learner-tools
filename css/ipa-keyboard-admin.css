@@ -74,6 +74,9 @@
 .ll-ipa-symbol-text {
     font-size: 18px;
     font-weight: 600;
+}
+
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-symbol-text {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
@@ -104,6 +107,9 @@
 .ll-ipa-input {
     width: 100%;
     max-width: 280px;
+}
+
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-input {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
@@ -145,7 +151,7 @@
     border-radius: 6px;
 }
 
-.ll-ipa-map-add-symbols {
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-add-symbols {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
@@ -195,6 +201,9 @@
     background: #e2e8f0;
     color: #0f172a;
     font-size: 14px;
+}
+
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-token {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
@@ -285,7 +294,7 @@
     color: #64748b;
 }
 
-.ll-ipa-map-sample-ipa {
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-sample-ipa {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
@@ -330,7 +339,7 @@
     font-size: 13px;
 }
 
-.ll-ipa-map-blocked-symbol {
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-blocked-symbol {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
@@ -375,9 +384,22 @@
 .ll-ipa-map-input {
     min-width: 220px;
     max-width: 320px;
+}
+
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-input {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
+}
+
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-symbol-text,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-add-symbols,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-token,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-sample-ipa,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-blocked-symbol,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-input {
+    font-style: italic;
 }
 
 .ll-ipa-map-button {

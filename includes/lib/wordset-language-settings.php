@@ -15,6 +15,9 @@ if (!defined('LL_TOOLS_WORDSET_CATEGORY_TRANSLATION_SOURCE_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY')) {
     define('LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY', 'll_wordset_word_title_language_role');
 }
+if (!defined('LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY')) {
+    define('LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY', 'll_wordset_recording_transcription_mode');
+}
 if (!defined('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION')) {
     define('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION', 'll_tools_wordset_language_settings_migrated_version');
 }
@@ -31,6 +34,11 @@ function ll_tools_sanitize_wordset_category_translation_source($value): string {
 function ll_tools_sanitize_wordset_title_language_role($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['target', 'translation'], true) ? $value : 'target';
+}
+
+function ll_tools_sanitize_wordset_recording_transcription_mode($value): string {
+    $value = sanitize_key((string) $value);
+    return in_array($value, ['ipa', 'transliteration', 'transcription'], true) ? $value : 'ipa';
 }
 
 function ll_tools_normalize_wordset_boolean_setting($value): int {
@@ -110,6 +118,112 @@ function ll_tools_get_legacy_category_translation_source_setting(): string {
 
 function ll_tools_get_legacy_word_title_language_role_setting(): string {
     return ll_tools_sanitize_wordset_title_language_role(get_option('ll_word_title_language_role', 'target'));
+}
+
+function ll_tools_get_wordset_recording_transcription_mode($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY)) {
+            continue;
+        }
+        return ll_tools_sanitize_wordset_recording_transcription_mode(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_RECORDING_TRANSCRIPTION_MODE_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? 'ipa' : '';
+}
+
+function ll_tools_is_wordset_recording_transcription_ipa($wordset_ids = [], bool $fallback_to_default = true): bool {
+    return ll_tools_get_wordset_recording_transcription_mode($wordset_ids, $fallback_to_default) === 'ipa';
+}
+
+function ll_tools_get_wordset_recording_transcription_config($wordset_ids = [], bool $fallback_to_default = true): array {
+    $mode = ll_tools_get_wordset_recording_transcription_mode($wordset_ids, $fallback_to_default);
+
+    $configs = [
+        'ipa' => [
+            'mode' => 'ipa',
+            'label' => __('IPA', 'll-tools-text-domain'),
+            'label_with_colon' => __('IPA:', 'll-tools-text-domain'),
+            'display_format' => 'brackets',
+            'uses_ipa_font' => true,
+            'supports_superscript' => true,
+            'common_chars' => ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'],
+            'common_chars_label' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'wordset_chars_label' => __('Wordset IPA symbols', 'll-tools-text-domain'),
+            'special_chars_heading' => __('IPA Special Characters', 'll-tools-text-domain'),
+            'special_chars_empty' => __('No IPA symbols found for this word set.', 'll-tools-text-domain'),
+            'special_chars_add_label' => __('Add symbols', 'll-tools-text-domain'),
+            'special_chars_add_placeholder' => __('e.g. IPA symbols', 'll-tools-text-domain'),
+            'special_chars_description' => __('Symbols used in this word set. Update recordings or add new symbols to the keyboard.', 'll-tools-text-domain'),
+            'symbols_column_label' => __('IPA', 'll-tools-text-domain'),
+            'suggestions_aria_label' => __('IPA suggestions', 'll-tools-text-domain'),
+            'keyboard_aria_label' => __('IPA symbols', 'll-tools-text-domain'),
+            'map_heading' => __('Letter to IPA Map', 'll-tools-text-domain'),
+            'map_description' => __('Mappings inferred from transcriptions. Add manual overrides to fix suggestion mistakes.', 'll-tools-text-domain'),
+            'map_sample_value_label' => __('IPA:', 'll-tools-text-domain'),
+            'map_add_symbols_label' => __('IPA symbols', 'll-tools-text-domain'),
+            'map_add_symbols_placeholder' => __('IPA symbols (e.g. r)', 'll-tools-text-domain'),
+            'map_add_missing' => __('Enter letters and IPA symbols to add.', 'll-tools-text-domain'),
+        ],
+        'transliteration' => [
+            'mode' => 'transliteration',
+            'label' => __('Transliteration', 'll-tools-text-domain'),
+            'label_with_colon' => __('Transliteration:', 'll-tools-text-domain'),
+            'display_format' => 'italic',
+            'uses_ipa_font' => false,
+            'supports_superscript' => false,
+            'common_chars' => ['ʾ', 'ʿ', 'š', 'ś', 'ḥ', 'ṭ', 'ṣ', 'ā', 'ē', 'ī', 'ō', 'ū'],
+            'common_chars_label' => __('Common transliteration characters', 'll-tools-text-domain'),
+            'wordset_chars_label' => __('Wordset transliteration characters', 'll-tools-text-domain'),
+            'special_chars_heading' => __('Transliteration Characters', 'll-tools-text-domain'),
+            'special_chars_empty' => __('No transliteration characters found for this word set.', 'll-tools-text-domain'),
+            'special_chars_add_label' => __('Add characters', 'll-tools-text-domain'),
+            'special_chars_add_placeholder' => __('e.g. ḥ š ʾ ā', 'll-tools-text-domain'),
+            'special_chars_description' => __('Characters used in this word set’s transliterations. Update recordings or add new characters to the keyboard.', 'll-tools-text-domain'),
+            'symbols_column_label' => __('Transliteration', 'll-tools-text-domain'),
+            'suggestions_aria_label' => __('Transliteration suggestions', 'll-tools-text-domain'),
+            'keyboard_aria_label' => __('Transliteration characters', 'll-tools-text-domain'),
+            'map_heading' => __('Letter to Transliteration Map', 'll-tools-text-domain'),
+            'map_description' => __('Mappings inferred from this word set’s transliterations. Add manual overrides to fix suggestion mistakes.', 'll-tools-text-domain'),
+            'map_sample_value_label' => __('Transliteration:', 'll-tools-text-domain'),
+            'map_add_symbols_label' => __('Transliteration characters', 'll-tools-text-domain'),
+            'map_add_symbols_placeholder' => __('Characters (e.g. ḥ š)', 'll-tools-text-domain'),
+            'map_add_missing' => __('Enter letters and transliteration characters to add.', 'll-tools-text-domain'),
+        ],
+        'transcription' => [
+            'mode' => 'transcription',
+            'label' => __('Transcription', 'll-tools-text-domain'),
+            'label_with_colon' => __('Transcription:', 'll-tools-text-domain'),
+            'display_format' => 'plain',
+            'uses_ipa_font' => false,
+            'supports_superscript' => false,
+            'common_chars' => [],
+            'common_chars_label' => __('Common transcription characters', 'll-tools-text-domain'),
+            'wordset_chars_label' => __('Wordset transcription characters', 'll-tools-text-domain'),
+            'special_chars_heading' => __('Transcription Characters', 'll-tools-text-domain'),
+            'special_chars_empty' => __('No transcription characters found for this word set.', 'll-tools-text-domain'),
+            'special_chars_add_label' => __('Add characters', 'll-tools-text-domain'),
+            'special_chars_add_placeholder' => __('e.g. special characters', 'll-tools-text-domain'),
+            'special_chars_description' => __('Characters used in this word set’s transcription field. Update recordings or add new characters to the keyboard.', 'll-tools-text-domain'),
+            'symbols_column_label' => __('Transcription', 'll-tools-text-domain'),
+            'suggestions_aria_label' => __('Transcription suggestions', 'll-tools-text-domain'),
+            'keyboard_aria_label' => __('Transcription characters', 'll-tools-text-domain'),
+            'map_heading' => __('Letter to Transcription Map', 'll-tools-text-domain'),
+            'map_description' => __('Mappings inferred from this word set’s transcription field. Add manual overrides to fix suggestion mistakes.', 'll-tools-text-domain'),
+            'map_sample_value_label' => __('Transcription:', 'll-tools-text-domain'),
+            'map_add_symbols_label' => __('Transcription characters', 'll-tools-text-domain'),
+            'map_add_symbols_placeholder' => __('Characters (e.g. special characters)', 'll-tools-text-domain'),
+            'map_add_missing' => __('Enter letters and transcription characters to add.', 'll-tools-text-domain'),
+        ],
+    ];
+
+    if (!isset($configs[$mode])) {
+        $mode = 'ipa';
+    }
+
+    return $configs[$mode];
 }
 
 /**

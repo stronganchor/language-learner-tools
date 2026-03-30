@@ -877,24 +877,25 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     width: 100%;
 }
 
-.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::before,
-.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::after {
+.word-grid.ll-word-grid[data-ll-secondary-text-format="brackets"] .ll-word-edit-input-wrap--ipa::before,
+.word-grid.ll-word-grid[data-ll-secondary-text-format="brackets"] .ll-word-edit-input-wrap--ipa::after {
     color: #94a3b8;
     font-size: 14px;
     line-height: 1;
 }
 
-.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::before {
+.word-grid.ll-word-grid[data-ll-secondary-text-format="brackets"] .ll-word-edit-input-wrap--ipa::before {
     content: "[";
 }
 
-.word-grid.ll-word-grid .ll-word-edit-input-wrap--ipa::after {
+.word-grid.ll-word-grid[data-ll-secondary-text-format="brackets"] .ll-word-edit-input-wrap--ipa::after {
     content: "]";
 }
 
-.ll-ipa,
-.word-grid.ll-word-grid .ll-word-edit-input--ipa,
-.word-grid.ll-word-grid .ll-word-ipa-key {
+.word-grid.ll-word-grid[data-ll-secondary-text-uses-ipa-font="1"] .ll-word-edit-input--ipa,
+.word-grid.ll-word-grid[data-ll-secondary-text-uses-ipa-font="1"] .ll-word-ipa-key,
+.word-grid.ll-word-grid[data-ll-secondary-text-uses-ipa-font="1"] .ll-word-recording-ipa,
+.ll-ipa {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif !important;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1 !important;
     font-variant-ligatures: none !important;
@@ -902,6 +903,11 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 
 .word-grid.ll-word-grid .ll-word-edit-input--ipa {
     flex: 1 1 auto;
+}
+
+.word-grid.ll-word-grid[data-ll-secondary-text-format="italic"] .ll-word-edit-input--ipa,
+.word-grid.ll-word-grid[data-ll-secondary-text-format="italic"] .ll-word-recording-ipa {
+    font-style: italic;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-ipa-audio {
@@ -1503,11 +1509,11 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     line-height: 1.3 !important;
 }
 
-.word-grid.ll-word-grid .ll-word-recording-ipa::before {
+.word-grid.ll-word-grid[data-ll-secondary-text-format="brackets"] .ll-word-recording-ipa::before {
     content: "[";
 }
 
-.word-grid.ll-word-grid .ll-word-recording-ipa::after {
+.word-grid.ll-word-grid[data-ll-secondary-text-format="brackets"] .ll-word-recording-ipa::after {
     content: "]";
 }
 

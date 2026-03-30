@@ -6,14 +6,77 @@
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
 
+    const $admin = $('.ll-ipa-admin').first();
     const $wordset = $('#ll-ipa-wordset');
     const $symbols = $('#ll-ipa-symbols');
     const $letterMap = $('#ll-ipa-letter-map');
     const $status = $('#ll-ipa-admin-status');
     const $addInput = $('#ll-ipa-add-input');
     const $addBtn = $('#ll-ipa-add-btn');
+    const $addLabel = $('#ll-ipa-add-label');
+    const $symbolsHeading = $('#ll-ipa-symbols-heading');
+    const $symbolsDescription = $('#ll-ipa-symbols-description');
+    const $letterMapHeading = $('#ll-ipa-letter-map-heading');
+    const $letterMapDescription = $('#ll-ipa-letter-map-description');
 
     let currentWordsetId = 0;
+    let currentTranscription = null;
+
+    function buildDefaultTranscription() {
+        return {
+            mode: 'transcription',
+            uses_ipa_font: false,
+            special_chars_heading: ($symbolsHeading.text() || '').toString().trim(),
+            special_chars_description: ($symbolsDescription.text() || '').toString().trim(),
+            special_chars_add_label: ($addLabel.text() || '').toString().trim(),
+            special_chars_add_placeholder: ($addInput.attr('placeholder') || '').toString(),
+            special_chars_empty: i18n.empty || 'No special characters found for this word set.',
+            symbols_column_label: i18n.pronunciationLabel || 'Pronunciation',
+            map_heading: ($letterMapHeading.text() || '').toString().trim(),
+            map_description: ($letterMapDescription.text() || '').toString().trim(),
+            map_sample_value_label: ((i18n.pronunciationLabel || 'Pronunciation') + ':'),
+            map_add_symbols_label: i18n.pronunciationLabel || 'Pronunciation',
+            map_add_symbols_placeholder: ($addInput.attr('placeholder') || '').toString(),
+            map_add_missing: i18n.mapAddMissing || 'Enter letters and characters to add.'
+        };
+    }
+
+    function getTranscription() {
+        if (!currentTranscription) {
+            currentTranscription = buildDefaultTranscription();
+        }
+        return currentTranscription;
+    }
+
+    function applyTranscriptionConfig(config) {
+        currentTranscription = $.extend({}, buildDefaultTranscription(), config || {});
+        if ($admin.length) {
+            $admin.attr('data-ll-secondary-text-mode', currentTranscription.mode || 'transcription');
+        }
+        if ($addLabel.length) {
+            $addLabel.text(currentTranscription.special_chars_add_label || 'Add characters');
+        }
+        if ($addInput.length) {
+            $addInput.attr('placeholder', currentTranscription.special_chars_add_placeholder || 'e.g. special characters');
+        }
+        if ($symbolsHeading.length) {
+            $symbolsHeading.text(currentTranscription.special_chars_heading || 'Special Characters');
+        }
+        if ($symbolsDescription.length) {
+            $symbolsDescription.text(currentTranscription.special_chars_description || '');
+        }
+        if ($letterMapHeading.length) {
+            $letterMapHeading.text(currentTranscription.map_heading || 'Letter Map');
+        }
+        if ($letterMapDescription.length) {
+            $letterMapDescription.text(currentTranscription.map_description || '');
+        }
+    }
+
+    function formatCount(count, singularTemplate, pluralTemplate) {
+        const template = count === 1 ? singularTemplate : pluralTemplate;
+        return (template || '%1$d').replace('%1$d', String(count));
+    }
 
     function setStatus(message, isError) {
         $status.text(message || '');
@@ -25,11 +88,12 @@
 
     function renderSymbols(payload) {
         const list = (payload && Array.isArray(payload.symbols)) ? payload.symbols : [];
+        const transcription = getTranscription();
         $symbols.empty();
 
         if (!list.length) {
             $symbols.append(
-                $('<div>', { class: 'll-ipa-empty', text: i18n.empty || 'No IPA symbols found for this word set.' })
+                $('<div>', { class: 'll-ipa-empty', text: transcription.special_chars_empty || i18n.empty || 'No special characters found for this word set.' })
             );
             return;
         }
@@ -46,10 +110,18 @@
             const $summary = $('<summary>');
             $summary.append($('<span>', { class: 'll-ipa-symbol-text', text: symbol }));
 
-            const countLabel = recordingCount === 1
-                ? recordingCount + ' recording'
-                : recordingCount + ' recordings';
-            const totalLabel = count ? (' - ' + count + ' occurrences') : '';
+            const countLabel = formatCount(
+                recordingCount,
+                i18n.recordingCountSingular || '%1$d recording',
+                i18n.recordingCountPlural || '%1$d recordings'
+            );
+            const totalLabel = count
+                ? (' - ' + formatCount(
+                    count,
+                    i18n.occurrenceCountSingular || '%1$d occurrence',
+                    i18n.occurrenceCountPlural || '%1$d occurrences'
+                ))
+                : '';
             $summary.append($('<span>', { class: 'll-ipa-symbol-count', text: countLabel + totalLabel }));
 
             $details.append($summary);
@@ -59,10 +131,10 @@
                 const $table = $('<table>', { class: 'widefat striped ll-ipa-recordings' });
                 const $thead = $('<thead>').append(
                     $('<tr>')
-                        .append($('<th>', { text: 'Word' }))
-                        .append($('<th>', { text: 'Recording' }))
-                        .append($('<th>', { text: 'Text' }))
-                        .append($('<th>', { text: 'IPA' }))
+                        .append($('<th>', { text: i18n.wordColumnLabel || 'Word' }))
+                        .append($('<th>', { text: i18n.recordingColumnLabel || 'Recording' }))
+                        .append($('<th>', { text: i18n.textColumnLabel || 'Text' }))
+                        .append($('<th>', { text: transcription.symbols_column_label || 'Pronunciation' }))
                         .append($('<th>', { text: '' }))
                 );
                 $table.append($thead);
@@ -81,10 +153,10 @@
                     const $wordCell = $('<td>');
                     if (editLink) {
                         $wordCell.append(
-                            $('<a>', { href: editLink, text: wordText || '(Untitled)', target: '_blank' })
+                            $('<a>', { href: editLink, text: wordText || (i18n.untitled || '(Untitled)'), target: '_blank' })
                         );
                     } else {
-                        $wordCell.text(wordText || '(Untitled)');
+                        $wordCell.text(wordText || (i18n.untitled || '(Untitled)'));
                     }
                     if (wordTranslation) {
                         $wordCell.append(
@@ -130,7 +202,7 @@
                 $table.append($tbody);
                 $body.append($table);
             } else {
-                $body.append($('<div>', { class: 'll-ipa-empty', text: i18n.noRecordings || 'No recordings use this symbol yet.' }));
+                $body.append($('<div>', { class: 'll-ipa-empty', text: i18n.noRecordings || 'No recordings use this character yet.' }));
             }
 
             $details.append($body);
@@ -140,6 +212,7 @@
 
     function renderLetterMap(payload) {
         const list = (payload && Array.isArray(payload.letter_map)) ? payload.letter_map : [];
+        const transcription = getTranscription();
         $letterMap.empty();
 
         const $add = $('<div>', { class: 'll-ipa-map-add' });
@@ -156,8 +229,8 @@
         const $addSymbols = $('<input>', {
             type: 'text',
             class: 'll-ipa-map-add-symbols',
-            placeholder: i18n.mapAddSymbolsPlaceholder || 'IPA symbols (e.g. r)',
-            'aria-label': i18n.mapAddSymbolsLabel || 'IPA symbols'
+            placeholder: transcription.map_add_symbols_placeholder || 'Characters (e.g. special characters)',
+            'aria-label': transcription.map_add_symbols_label || 'Characters'
         });
         const $addBtn = $('<button>', {
             type: 'button',
@@ -243,13 +316,13 @@
                                 $title.append(
                                     $('<a>', {
                                         href: editLink,
-                                        text: wordText || '(Untitled)',
+                                        text: wordText || (i18n.untitled || '(Untitled)'),
                                         target: '_blank',
                                         class: 'll-ipa-map-sample-link'
                                     })
                                 );
                             } else {
-                                $title.text(wordText || '(Untitled)');
+                                $title.text(wordText || (i18n.untitled || '(Untitled)'));
                             }
                             if (wordTranslation) {
                                 $title.append(
@@ -271,7 +344,7 @@
                             }
                             if (recordingIpa) {
                                 const $ipaRow = $('<div>', { class: 'll-ipa-map-sample-row' });
-                                $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-label', text: (i18n.mapSampleIpaLabel || 'IPA:') }));
+                                $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-label', text: (transcription.map_sample_value_label || 'Pronunciation:') }));
                                 $ipaRow.append($('<span>', { class: 'll-ipa-map-sample-value ll-ipa-map-sample-ipa', text: recordingIpa }));
                                 $item.append($ipaRow);
                             }
@@ -302,7 +375,7 @@
                 type: 'text',
                 class: 'll-ipa-map-input',
                 value: manualValue,
-                placeholder: i18n.mapPlaceholder || 'e.g. r'
+                placeholder: transcription.map_add_symbols_placeholder || i18n.mapPlaceholder || 'e.g. r'
             });
 
             const $saveBtn = $('<button>', {
@@ -391,10 +464,11 @@
         $letterMap.empty();
         setStatus('');
         if (!wordsetId) {
+            applyTranscriptionConfig();
             return;
         }
 
-        setStatus(i18n.loading || 'Loading IPA symbols...', false);
+        setStatus(i18n.loading || 'Loading transcription data...', false);
         $.post(ajaxUrl, {
             action: 'll_tools_get_ipa_keyboard_data',
             nonce: nonce,
@@ -404,6 +478,7 @@
                 setStatus(i18n.error || 'Something went wrong. Please try again.', true);
                 return;
             }
+            applyTranscriptionConfig(response.data ? response.data.transcription : null);
             renderSymbols(response.data || {});
             renderLetterMap(response.data || {});
             setStatus('');
@@ -424,11 +499,11 @@
         }
         const symbols = ($addInput.val() || '').toString();
         if (!symbols.trim()) {
-            setStatus(i18n.enterSymbols || 'Enter one or more symbols to add.', true);
+            setStatus(i18n.enterSymbols || 'Enter one or more characters to add.', true);
             return;
         }
         $addBtn.prop('disabled', true);
-        setStatus(i18n.loading || 'Loading IPA symbols...', false);
+        setStatus(i18n.loading || 'Loading transcription data...', false);
         $.post(ajaxUrl, {
             action: 'll_tools_add_wordset_ipa_symbols',
             nonce: nonce,
@@ -440,7 +515,7 @@
                 return;
             }
             $addInput.val('');
-            setStatus(i18n.addSuccess || 'Symbols added.', false);
+            setStatus(i18n.addSuccess || 'Characters added.', false);
             loadWordset(currentWordsetId);
         }).fail(function () {
             setStatus(i18n.error || 'Something went wrong. Please try again.', true);
@@ -593,10 +668,11 @@
         const $wrap = $btn.closest('.ll-ipa-map-add');
         const $letter = $wrap.find('.ll-ipa-map-add-letter').first();
         const $symbols = $wrap.find('.ll-ipa-map-add-symbols').first();
+        const transcription = getTranscription();
         const letterValue = ($letter.val() || '').toString();
         const symbolsValue = ($symbols.val() || '').toString();
         if (!letterValue.trim() || !symbolsValue.trim()) {
-            setStatus(i18n.mapAddMissing || 'Enter letters and IPA symbols to add.', true);
+            setStatus(transcription.map_add_missing || i18n.mapAddMissing || 'Enter letters and characters to add.', true);
             return;
         }
 
@@ -656,4 +732,6 @@
             $saveBtn.prop('disabled', false);
         });
     });
+
+    applyTranscriptionConfig();
 })(jQuery);
