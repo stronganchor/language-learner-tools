@@ -3641,7 +3641,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
         : current_user_can('manage_options');
     $can_manage_wordset_uploads = $can_manage_wordset_content && current_user_can('upload_files');
-    if (!$can_manage_wordset_content && in_array($settings_tool, ['visibility', 'import', 'recorder', 'image-upload', 'audio-upload'], true)) {
+    if (!$can_manage_wordset_content && in_array($settings_tool, ['visibility', 'import', 'recorder', 'transcription', 'image-upload', 'audio-upload'], true)) {
         $settings_tool = '';
     }
     if (!$can_manage_wordset_uploads && in_array($settings_tool, ['image-upload', 'audio-upload'], true)) {
@@ -3656,6 +3656,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'visibility' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $back_url),
         'import' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'import', $back_url),
         'recorder' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $back_url),
+        'transcription' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $back_url),
         'image-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'image-upload', $back_url),
         'audio-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'audio-upload', $back_url),
     ];
