@@ -4529,7 +4529,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     ? ll_tools_wordset_games_speaking_practice_launch_word_cap()
                     : 60,
                 'autoStartDelayMs' => 280,
-                'maxRecordingMs' => 4200,
+                'maxRecordingMs' => 8000,
                 'silenceWindowMs' => 1050,
                 'silenceThreshold' => 0.034,
                 'speechStartThreshold' => 0.06,

@@ -5375,7 +5375,7 @@
                         processSpeakingAttempt(ctx, blob);
                     }
                 });
-            }, Math.max(1500, toInt(ctx.speakingPractice && ctx.speakingPractice.maxRecordingMs) || 4200));
+            }, Math.max(1500, toInt(ctx.speakingPractice && ctx.speakingPractice.maxRecordingMs) || 8000));
         });
     }
 
@@ -6338,7 +6338,7 @@
             wrongHitAudioSources: spaceShooter.wrongHitAudioSources || []
         }), {
             autoStartDelayMs: Math.max(0, toInt(speakingPractice.autoStartDelayMs) || 280),
-            maxRecordingMs: Math.max(1500, toInt(speakingPractice.maxRecordingMs) || 4200),
+            maxRecordingMs: Math.max(1500, toInt(speakingPractice.maxRecordingMs) || 8000),
             silenceWindowMs: Math.max(400, toInt(speakingPractice.silenceWindowMs) || 1050),
             silenceThreshold: clamp(Number(speakingPractice.silenceThreshold) || 0.034, 0.005, 0.2),
             speechStartThreshold: clamp(Number(speakingPractice.speechStartThreshold) || 0.06, 0.005, 0.3),
