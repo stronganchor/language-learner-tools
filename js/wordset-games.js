@@ -651,7 +651,11 @@
         run.shipX = clamp(run.shipX || (run.width / 2), run.metrics.shipWidth / 2, run.width - (run.metrics.shipWidth / 2));
         run.stars = createStageStars(run);
 
-        run.cards.forEach(function (card) {
+        const cards = Array.isArray(run.cards) ? run.cards : [];
+        const bullets = Array.isArray(run.bullets) ? run.bullets : [];
+        const explosions = Array.isArray(run.explosions) ? run.explosions : [];
+
+        cards.forEach(function (card) {
             applyCardDimensions(ctx, run, card);
         });
         if (isBubblePopRun(ctx, run)) {
@@ -659,11 +663,11 @@
             seedDecorativeBubbles(run);
             refreshBubblePromptCardPositions(run, currentTimestamp());
         }
-        run.bullets.forEach(function (bullet) {
+        bullets.forEach(function (bullet) {
             bullet.x = clamp(bullet.x, 0, run.width);
             bullet.y = clamp(bullet.y, -20, run.height + 20);
         });
-        run.explosions.forEach(function (explosion) {
+        explosions.forEach(function (explosion) {
             explosion.x = clamp(explosion.x, 0, run.width);
             explosion.y = clamp(explosion.y, 0, run.height);
         });
@@ -6165,6 +6169,7 @@
             if (!run) {
                 return null;
             }
+            const cards = Array.isArray(run.cards) ? run.cards : [];
             return {
                 slug: normalizeGameSlug(run.slug),
                 coins: run.coins,
@@ -6184,15 +6189,15 @@
                 promptSafeLineCrossDelayMs: Math.round(Number(run.prompt && run.prompt.safeLineCrossDelayMs) || 0),
                 promptAutoReplaySafeLineGated: !!(run.prompt && run.prompt.autoReplaySafeLineGated),
                 promptDistractorMode: run.prompt ? String(run.prompt.distractorMode || '') : '',
-                cardWordIds: run.cards.map(function (card) { return toInt(card.word && card.word.id); }),
+                cardWordIds: cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),
                 promptRecordingType: run.prompt ? String(run.prompt.recordingType || '') : '',
-                activeCardCount: run.cards.filter(function (card) {
+                activeCardCount: cards.filter(function (card) {
                     return isActivePromptCard(run, card) && !card.exploding;
                 }).length,
                 sameCategoryDistractorCount: run.prompt && run.prompt.target
-                    ? run.cards.filter(function (card) {
+                    ? cards.filter(function (card) {
                         return isActivePromptCard(run, card)
                             && !card.exploding
                             && !card.isTarget
@@ -6200,7 +6205,7 @@
                     }).length
                     : 0,
                 decorativeBubbleCount: Array.isArray(run.decorativeBubbles) ? run.decorativeBubbles.length : 0,
-                cardSnapshot: run.cards.map(function (card) {
+                cardSnapshot: cards.map(function (card) {
                     return {
                         wordId: toInt(card.word && card.word.id),
                         promptId: toInt(card.promptId),

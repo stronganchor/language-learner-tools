@@ -1096,7 +1096,7 @@ function ll_tools_apply_speaking_game_outcome_signal(array &$data, array $event,
     }
 
     $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
-    if (normalize_key((string) ($payload['game_slug'] ?? '')) !== 'speaking-practice') {
+    if (sanitize_key((string) ($payload['game_slug'] ?? '')) !== 'speaking-practice') {
         return false;
     }
 
