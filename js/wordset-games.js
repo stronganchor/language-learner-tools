@@ -195,6 +195,54 @@
         return copy;
     }
 
+    function buildSpeakingPromptDeck(words, recentWordIds) {
+        const shuffled = shuffle(words);
+        const recentIds = Array.isArray(recentWordIds) ? recentWordIds.map(toInt).filter(Boolean) : [];
+        if (shuffled.length <= 1 || !recentIds.length) {
+            return shuffled;
+        }
+
+        const recentLookup = {};
+        recentIds.forEach(function (wordId) {
+            if (wordId > 0) {
+                recentLookup[wordId] = true;
+            }
+        });
+
+        if (!recentLookup[toInt(shuffled[0] && shuffled[0].id)]) {
+            return shuffled;
+        }
+
+        const replacementIndex = shuffled.findIndex(function (word) {
+            return !recentLookup[toInt(word && word.id)];
+        });
+        if (replacementIndex <= 0) {
+            return shuffled;
+        }
+
+        const replacement = shuffled.splice(replacementIndex, 1)[0];
+        shuffled.unshift(replacement);
+        return shuffled;
+    }
+
+    function rememberRecentSpeakingLaunch(state, wordId) {
+        if (!state) {
+            return;
+        }
+
+        const normalizedId = toInt(wordId);
+        if (!normalizedId) {
+            return;
+        }
+
+        const prior = Array.isArray(state.recentLaunchWordIds) ? state.recentLaunchWordIds : [];
+        const nextRecent = prior.filter(function (entryId) {
+            return toInt(entryId) !== normalizedId;
+        });
+        nextRecent.unshift(normalizedId);
+        state.recentLaunchWordIds = nextRecent.slice(0, 4);
+    }
+
     function getWordCategoryKey(word) {
         const categoryId = toInt(word && word.category_id)
             || toInt(Array.isArray(word && word.category_ids) ? word.category_ids[0] : 0);
@@ -5527,6 +5575,7 @@
                 exposureTracked: false
             };
             run.promptIdCounter = run.prompt.promptId;
+            rememberRecentSpeakingLaunch(speakingState(ctx), toInt(run.prompt.target && run.prompt.target.id));
             queueExposureOnce(ctx, run.prompt, {
                 event_source: 'speaking_practice',
                 speaking_target_field: String(run.targetField || '')
@@ -5568,6 +5617,9 @@
 
     function startSpeakingRun(ctx, entry) {
         const keepModalOpen = isRunModalVisible(ctx);
+        const speaking = speakingState(ctx);
+        const shuffledWords = shuffle(entry.words.slice());
+        const promptDeck = buildSpeakingPromptDeck(shuffledWords, speaking && speaking.recentLaunchWordIds);
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
         });
@@ -5579,8 +5631,8 @@
         hideOverlay(ctx);
         ctx.run = {
             slug: SPEAKING_PRACTICE_GAME_SLUG,
-            words: entry.words.slice(),
-            promptDeck: shuffle(entry.words.slice()),
+            words: shuffledWords.slice(),
+            promptDeck: promptDeck,
             prompt: null,
             cards: [],
             bullets: [],
@@ -6300,7 +6352,8 @@
                 autoStartTimer: 0,
                 stopPromise: null,
                 currentBlob: null,
-                attemptAudioUrl: ''
+                attemptAudioUrl: '',
+                recentLaunchWordIds: []
             }
         };
     }
