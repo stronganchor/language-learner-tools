@@ -1243,6 +1243,9 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $endpoint = isset($_POST['ll_wordset_local_transcription_endpoint'])
             ? ll_tools_sanitize_wordset_local_transcription_endpoint(wp_unslash((string) $_POST['ll_wordset_local_transcription_endpoint']))
             : '';
+        $offline_stt_bundle_path = isset($_POST['ll_wordset_offline_stt_bundle_path'])
+            ? ll_tools_sanitize_wordset_offline_stt_bundle_path(wp_unslash((string) $_POST['ll_wordset_offline_stt_bundle_path']))
+            : '';
         $speaking_enabled = isset($_POST['ll_wordset_speaking_game_enabled']) ? 1 : 0;
         $speaking_provider = isset($_POST['ll_wordset_speaking_game_provider'])
             ? ll_tools_sanitize_wordset_transcription_provider(wp_unslash((string) $_POST['ll_wordset_speaking_game_provider']))
@@ -1257,6 +1260,11 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, $endpoint);
         } else {
             delete_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY);
+        }
+        if ($offline_stt_bundle_path !== '') {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY, $offline_stt_bundle_path);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY);
         }
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, $speaking_enabled);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, $speaking_provider);
@@ -2104,6 +2112,150 @@ function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-sp
     return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
         . '<circle cx="12" cy="12" r="8"/>'
         . '</svg>';
+}
+
+function ll_tools_get_wordset_games_frontend_config(): array {
+    return [
+        'bootstrapAction' => 'll_wordset_games_bootstrap',
+        'transcribeAttemptAction' => 'll_wordset_speaking_game_transcribe_attempt',
+        'scoreAttemptAction' => 'll_wordset_speaking_game_score_attempt',
+        'minimumWordCount' => function_exists('ll_tools_wordset_games_min_word_count')
+            ? ll_tools_wordset_games_min_word_count()
+            : 5,
+        'spaceShooter' => [
+            'slug' => 'space-shooter',
+            'lives' => 3,
+            'cardCount' => 4,
+            'maxLoadedWords' => function_exists('ll_tools_wordset_games_space_shooter_launch_word_cap')
+                ? ll_tools_wordset_games_space_shooter_launch_word_cap()
+                : 60,
+            'fireIntervalMs' => 165,
+            'correctCoinReward' => 1,
+            'wrongHitCoinPenalty' => 0,
+            'wrongHitLifePenalty' => 1,
+            'timeoutCoinPenalty' => 1,
+            'timeoutLifePenalty' => 1,
+            'audioSafeLineRatio' => 0.6,
+            'cardEntryRevealMs' => 560,
+            'promptAutoReplayGapMs' => 420,
+            'promptAudioVolume' => 1,
+            'correctHitVolume' => 0.28,
+            'wrongHitVolume' => 0.2,
+            'correctHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
+                LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
+            ],
+            'wrongHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
+                LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
+            ],
+        ],
+        'bubblePop' => [
+            'slug' => 'bubble-pop',
+            'lives' => 3,
+            'cardCount' => 4,
+            'maxLoadedWords' => function_exists('ll_tools_wordset_games_bubble_pop_launch_word_cap')
+                ? ll_tools_wordset_games_bubble_pop_launch_word_cap()
+                : 60,
+            'correctCoinReward' => 1,
+            'wrongHitLifePenalty' => 1,
+            'timeoutCoinPenalty' => 1,
+            'timeoutLifePenalty' => 1,
+            'audioSafeLineRatio' => 0.58,
+            'cardEntryRevealMs' => 520,
+            'promptAutoReplayGapMs' => 420,
+            'promptAudioVolume' => 1,
+            'correctHitVolume' => 0.28,
+            'wrongHitVolume' => 0.2,
+            'assetPreloadTimeoutMs' => 8000,
+            'correctHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/bubble-pop.mp3',
+            ],
+            'wrongHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
+                LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
+            ],
+        ],
+        'speakingPractice' => [
+            'slug' => 'speaking-practice',
+            'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_practice_launch_word_cap')
+                ? ll_tools_wordset_games_speaking_practice_launch_word_cap()
+                : 60,
+            'autoStartDelayMs' => 280,
+            'maxRecordingMs' => 8000,
+            'silenceWindowMs' => 1050,
+            'silenceThreshold' => 0.034,
+            'speechStartThreshold' => 0.06,
+            'minSpeechMs' => 160,
+            'apiCheckTimeoutMs' => 1500,
+            'correctHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/right-answer.mp3',
+            ],
+            'wrongHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/wrong-answer.mp3',
+            ],
+        ],
+    ];
+}
+
+function ll_tools_get_wordset_games_i18n_messages(): array {
+    return [
+        'gamesLoading' => __('Checking game availability...', 'll-tools-text-domain'),
+        'gamesPreparingRun' => __('Preparing game...', 'll-tools-text-domain'),
+        'gamesLoginRequired' => __('Sign in to play with your in-progress words.', 'll-tools-text-domain'),
+        'gamesLoadError' => __('Unable to load games right now.', 'll-tools-text-domain'),
+        'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),
+        'gamesNeedWords' => __('Need %1$d more words to unlock this game.', 'll-tools-text-domain'),
+        'gamesNeedCompatibleWords' => __('This word set does not have a playable mix of picture cards yet.', 'll-tools-text-domain'),
+        'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
+        'gamesLocked' => __('Locked', 'll-tools-text-domain'),
+        'gamesBack' => __('Games', 'll-tools-text-domain'),
+        'gamesReplayAudio' => __('Replay prompt', 'll-tools-text-domain'),
+        'gamesPauseRun' => __('Pause run', 'll-tools-text-domain'),
+        'gamesResumeRun' => __('Resume', 'll-tools-text-domain'),
+        'gamesPaused' => __('Paused', 'll-tools-text-domain'),
+        'gamesInactivePauseSummary' => __('Paused after %d rounds without input.', 'll-tools-text-domain'),
+        'gamesCoins' => __('Coins', 'll-tools-text-domain'),
+        'gamesLives' => __('Lives', 'll-tools-text-domain'),
+        'gamesControlLeft' => __('Move left', 'll-tools-text-domain'),
+        'gamesControlRight' => __('Move right', 'll-tools-text-domain'),
+        'gamesControlFire' => __('Fire', 'll-tools-text-domain'),
+        'gamesGameOver' => __('Run Complete', 'll-tools-text-domain'),
+        'gamesSummary' => __('Coins: %1$d · Prompts: %2$d', 'll-tools-text-domain'),
+        'gamesReplayRun' => __('Replay', 'll-tools-text-domain'),
+        'gamesBackToCatalog' => __('Back to games', 'll-tools-text-domain'),
+        'gamesCloseConfirm' => __('Leave this game? Your current run will be lost.', 'll-tools-text-domain'),
+        'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
+        'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
+        'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
+        'gamesBoardLabelSpeakingPractice' => __('Speaking practice panel', 'll-tools-text-domain'),
+        'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
+        'gamesSpeakingApiUnavailable' => __('Speaking practice is unavailable on this device right now.', 'll-tools-text-domain'),
+        'gamesSpeakingRound' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
+        'gamesSpeakingPromptImage' => __('Say the word for this picture.', 'll-tools-text-domain'),
+        'gamesSpeakingPromptText' => __('Say the word for this prompt.', 'll-tools-text-domain'),
+        'gamesSpeakingReady' => __('Get ready...', 'll-tools-text-domain'),
+        'gamesSpeakingListening' => __('Listening...', 'll-tools-text-domain'),
+        'gamesSpeakingProcessing' => __('Transcribing...', 'll-tools-text-domain'),
+        'gamesSpeakingStartButton' => __('Start', 'll-tools-text-domain'),
+        'gamesSpeakingResultRight' => __('Correct', 'll-tools-text-domain'),
+        'gamesSpeakingResultClose' => __('Close', 'll-tools-text-domain'),
+        'gamesSpeakingResultWrong' => __('Try again', 'll-tools-text-domain'),
+        'gamesSpeakingTranscriptLabel' => __('You said', 'll-tools-text-domain'),
+        'gamesSpeakingTargetLabel' => __('Target', 'll-tools-text-domain'),
+        'gamesSpeakingTitleLabel' => __('Word', 'll-tools-text-domain'),
+        'gamesSpeakingIpaLabel' => __('IPA', 'll-tools-text-domain'),
+        'gamesSpeakingScoreLabel' => __('Similarity', 'll-tools-text-domain'),
+        'gamesSpeakingRetry' => __('Retry', 'll-tools-text-domain'),
+        'gamesSpeakingNext' => __('Next', 'll-tools-text-domain'),
+        'gamesSpeakingPlayCorrect' => __('Hear correct audio', 'll-tools-text-domain'),
+        'gamesSpeakingMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
+        'gamesSpeakingSttError' => __('Transcription failed. Try again.', 'll-tools-text-domain'),
+        'gamesSpeakingTooQuiet' => __('That was too quiet. Try again.', 'll-tools-text-domain'),
+        'gamesSpeakingNotSupported' => __('This browser cannot record audio for speaking practice.', 'll-tools-text-domain'),
+        'gamesSpeakingDoneTitle' => __('Speaking round complete', 'll-tools-text-domain'),
+        'gamesSpeakingDoneSummary' => __('Right: %1$d · Close: %2$d · Wrong: %3$d', 'll-tools-text-domain'),
+    ];
 }
 
 function ll_tools_wordset_page_render_hard_words_icon(string $class = ''): string {
@@ -3041,6 +3193,9 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
     $provider = ll_tools_sanitize_wordset_transcription_provider((string) ($transcription_settings['provider'] ?? ''));
     $local_endpoint = (string) ($transcription_settings['local_endpoint'] ?? ll_tools_get_default_local_transcription_endpoint());
     $local_target = ll_tools_sanitize_wordset_local_transcription_target((string) ($transcription_settings['target_field'] ?? 'recording_ipa'));
+    $offline_stt_bundle_path = function_exists('ll_tools_get_wordset_offline_stt_bundle_path')
+        ? ll_tools_get_wordset_offline_stt_bundle_path([$wordset_id], true)
+        : '';
     $speaking_game_config = function_exists('ll_tools_get_wordset_speaking_game_config')
         ? ll_tools_get_wordset_speaking_game_config([$wordset_id], true)
         : [
@@ -3129,6 +3284,28 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                     <div style="margin-top:10px;">
                         <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Transcription Settings', 'll-tools-text-domain'); ?></button>
                     </div>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Offline App STT Bundle', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-offline-stt-bundle" class="screen-reader-text"><?php echo esc_html__('Offline app STT bundle path', 'll-tools-text-domain'); ?></label>
+                    <input
+                        id="ll-wordset-settings-offline-stt-bundle"
+                        type="text"
+                        name="ll_wordset_offline_stt_bundle_path"
+                        class="regular-text ll-tools-settings-input"
+                        style="max-width: 520px;"
+                        value="<?php echo esc_attr($offline_stt_bundle_path); ?>"
+                        placeholder="<?php echo esc_attr__('Absolute path to the mobile-ready STT model folder or file', 'll-tools-text-domain'); ?>"
+                        spellcheck="false"
+                        autocomplete="off"
+                    />
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Optional. When set, offline app exports will copy this model bundle into the Android app for this word set.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('Use a mobile-ready model bundle here. Desktop training checkpoints can still be stored elsewhere, but Android needs a runtime-compatible model format.', 'll-tools-text-domain'); ?>
+                    </p>
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
@@ -4419,6 +4596,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ];
     }, $enhanced_categories);
 
+    $games_frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
+        ? ll_tools_get_wordset_games_frontend_config()
+        : [];
+    $games_i18n = function_exists('ll_tools_get_wordset_games_i18n_messages')
+        ? ll_tools_get_wordset_games_i18n_messages()
+        : [];
+
     ll_tools_wordset_page_enqueue_styles();
     ll_tools_wordset_page_enqueue_scripts();
     wp_localize_script('ll-wordset-pages-js', 'llWordsetPageData', [
@@ -4461,88 +4645,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'visual_config' => is_array($gender_visual_config) ? $gender_visual_config : [],
             'min_count' => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         ],
-        'games' => [
-            'bootstrapAction' => 'll_wordset_games_bootstrap',
-            'transcribeAttemptAction' => 'll_wordset_speaking_game_transcribe_attempt',
-            'scoreAttemptAction' => 'll_wordset_speaking_game_score_attempt',
-            'minimumWordCount' => function_exists('ll_tools_wordset_games_min_word_count')
-                ? ll_tools_wordset_games_min_word_count()
-                : 5,
+        'games' => array_merge($games_frontend_config, [
             'catalog' => $games_catalog,
-            'spaceShooter' => [
-                'slug' => 'space-shooter',
-                'lives' => 3,
-                'cardCount' => 4,
-                'maxLoadedWords' => function_exists('ll_tools_wordset_games_space_shooter_launch_word_cap')
-                    ? ll_tools_wordset_games_space_shooter_launch_word_cap()
-                    : 60,
-                'fireIntervalMs' => 165,
-                'correctCoinReward' => 1,
-                'wrongHitCoinPenalty' => 0,
-                'wrongHitLifePenalty' => 1,
-                'timeoutCoinPenalty' => 1,
-                'timeoutLifePenalty' => 1,
-                'audioSafeLineRatio' => 0.6,
-                'cardEntryRevealMs' => 560,
-                'promptAutoReplayGapMs' => 420,
-                'promptAudioVolume' => 1,
-                'correctHitVolume' => 0.28,
-                'wrongHitVolume' => 0.2,
-                'correctHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
-                ],
-                'wrongHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
-                ],
-            ],
-            'bubblePop' => [
-                'slug' => 'bubble-pop',
-                'lives' => 3,
-                'cardCount' => 4,
-                'maxLoadedWords' => function_exists('ll_tools_wordset_games_bubble_pop_launch_word_cap')
-                    ? ll_tools_wordset_games_bubble_pop_launch_word_cap()
-                    : 60,
-                'correctCoinReward' => 1,
-                'wrongHitLifePenalty' => 1,
-                'timeoutCoinPenalty' => 1,
-                'timeoutLifePenalty' => 1,
-                'audioSafeLineRatio' => 0.58,
-                'cardEntryRevealMs' => 520,
-                'promptAutoReplayGapMs' => 420,
-                'promptAudioVolume' => 1,
-                'correctHitVolume' => 0.28,
-                'wrongHitVolume' => 0.2,
-                'assetPreloadTimeoutMs' => 8000,
-                'correctHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/bubble-pop.mp3',
-                ],
-                'wrongHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
-                    LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
-                ],
-            ],
-            'speakingPractice' => [
-                'slug' => 'speaking-practice',
-                'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_practice_launch_word_cap')
-                    ? ll_tools_wordset_games_speaking_practice_launch_word_cap()
-                    : 60,
-                'autoStartDelayMs' => 280,
-                'maxRecordingMs' => 8000,
-                'silenceWindowMs' => 1050,
-                'silenceThreshold' => 0.034,
-                'speechStartThreshold' => 0.06,
-                'minSpeechMs' => 160,
-                'apiCheckTimeoutMs' => 1500,
-                'correctHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/right-answer.mp3',
-                ],
-                'wrongHitAudioSources' => [
-                    LL_TOOLS_BASE_URL . 'media/wrong-answer.mp3',
-                ],
-            ],
-        ],
+        ]),
         'summaryCounts' => $summary_counts,
         'summaryCountsDeferred' => $summary_counts_deferred,
         'learningMinChunkSize' => 8,
@@ -4673,61 +4778,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'modeListening' => __('Listen', 'll-tools-text-domain'),
             'modeGender' => __('Gender', 'll-tools-text-domain'),
             'modeSelfCheck' => __('Self Check', 'll-tools-text-domain'),
-            'gamesLoading' => __('Checking game availability...', 'll-tools-text-domain'),
-            'gamesPreparingRun' => __('Preparing game...', 'll-tools-text-domain'),
-            'gamesLoginRequired' => __('Sign in to play with your in-progress words.', 'll-tools-text-domain'),
-            'gamesLoadError' => __('Unable to load games right now.', 'll-tools-text-domain'),
-            'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),
-            'gamesNeedWords' => __('Need %1$d more words to unlock this game.', 'll-tools-text-domain'),
-            'gamesNeedCompatibleWords' => __('This word set does not have a playable mix of picture cards yet.', 'll-tools-text-domain'),
-            'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
-            'gamesLocked' => __('Locked', 'll-tools-text-domain'),
-            'gamesBack' => __('Games', 'll-tools-text-domain'),
-            'gamesReplayAudio' => __('Replay prompt', 'll-tools-text-domain'),
-            'gamesPauseRun' => __('Pause run', 'll-tools-text-domain'),
-            'gamesResumeRun' => __('Resume', 'll-tools-text-domain'),
-            'gamesPaused' => __('Paused', 'll-tools-text-domain'),
-            'gamesInactivePauseSummary' => __('Paused after %d rounds without input.', 'll-tools-text-domain'),
-            'gamesCoins' => __('Coins', 'll-tools-text-domain'),
-            'gamesLives' => __('Lives', 'll-tools-text-domain'),
-            'gamesControlLeft' => __('Move left', 'll-tools-text-domain'),
-            'gamesControlRight' => __('Move right', 'll-tools-text-domain'),
-            'gamesControlFire' => __('Fire', 'll-tools-text-domain'),
-            'gamesGameOver' => __('Run Complete', 'll-tools-text-domain'),
-            'gamesSummary' => __('Coins: %1$d · Prompts: %2$d', 'll-tools-text-domain'),
-            'gamesReplayRun' => __('Replay', 'll-tools-text-domain'),
-            'gamesBackToCatalog' => __('Back to games', 'll-tools-text-domain'),
-            'gamesCloseConfirm' => __('Leave this game? Your current run will be lost.', 'll-tools-text-domain'),
-            'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
-            'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
-            'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
-            'gamesBoardLabelSpeakingPractice' => __('Speaking practice panel', 'll-tools-text-domain'),
-            'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
-            'gamesSpeakingApiUnavailable' => __('Speaking practice is unavailable on this device right now.', 'll-tools-text-domain'),
-            'gamesSpeakingRound' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
-            'gamesSpeakingPromptImage' => __('Say the word for this picture.', 'll-tools-text-domain'),
-            'gamesSpeakingPromptText' => __('Say the word for this prompt.', 'll-tools-text-domain'),
-            'gamesSpeakingReady' => __('Get ready...', 'll-tools-text-domain'),
-            'gamesSpeakingListening' => __('Listening...', 'll-tools-text-domain'),
-            'gamesSpeakingProcessing' => __('Transcribing...', 'll-tools-text-domain'),
-            'gamesSpeakingStartButton' => __('Start', 'll-tools-text-domain'),
-            'gamesSpeakingResultRight' => __('Correct', 'll-tools-text-domain'),
-            'gamesSpeakingResultClose' => __('Close', 'll-tools-text-domain'),
-            'gamesSpeakingResultWrong' => __('Try again', 'll-tools-text-domain'),
-            'gamesSpeakingTranscriptLabel' => __('You said', 'll-tools-text-domain'),
-            'gamesSpeakingTargetLabel' => __('Target', 'll-tools-text-domain'),
-            'gamesSpeakingTitleLabel' => __('Word', 'll-tools-text-domain'),
-            'gamesSpeakingIpaLabel' => __('IPA', 'll-tools-text-domain'),
-            'gamesSpeakingScoreLabel' => __('Similarity', 'll-tools-text-domain'),
-            'gamesSpeakingRetry' => __('Retry', 'll-tools-text-domain'),
-            'gamesSpeakingNext' => __('Next', 'll-tools-text-domain'),
-            'gamesSpeakingPlayCorrect' => __('Hear correct audio', 'll-tools-text-domain'),
-            'gamesSpeakingMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
-            'gamesSpeakingSttError' => __('Transcription failed. Try again.', 'll-tools-text-domain'),
-            'gamesSpeakingTooQuiet' => __('That was too quiet. Try again.', 'll-tools-text-domain'),
-            'gamesSpeakingNotSupported' => __('This browser cannot record audio for speaking practice.', 'll-tools-text-domain'),
-            'gamesSpeakingDoneTitle' => __('Speaking round complete', 'll-tools-text-domain'),
-            'gamesSpeakingDoneSummary' => __('Right: %1$d · Close: %2$d · Wrong: %3$d', 'll-tools-text-domain'),
+            ...$games_i18n,
             'progressResetCategoryConfirm' => $progress_reset_category_confirm_template,
             'progressResetCategoryAria' => $progress_reset_category_aria_template,
         ],

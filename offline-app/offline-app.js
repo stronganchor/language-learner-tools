@@ -13,6 +13,9 @@
     const app = (offlinePayload.app && typeof offlinePayload.app === 'object')
         ? offlinePayload.app
         : {};
+    const gamesPayload = (offlinePayload.games && typeof offlinePayload.games === 'object')
+        ? offlinePayload.games
+        : {};
     const launcherConfig = (app.launcher && typeof app.launcher === 'object')
         ? app.launcher
         : {};
@@ -41,6 +44,11 @@
         somethingWentWrong: String(messages.somethingWentWrong || 'Something went wrong')
     };
     const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+
+    function toInt(value) {
+        const parsed = parseInt(value, 10);
+        return parsed > 0 ? parsed : 0;
+    }
 
     root.llToolsFlashcardsData = Object.assign({
         runtimeMode: 'offline',
@@ -537,6 +545,620 @@
         }
     }
 
+    function getOfflineGamesViewToggleButtons() {
+        return documentRef
+            ? Array.prototype.slice.call(documentRef.querySelectorAll('[data-ll-offline-view-toggle]'))
+            : [];
+    }
+
+    function setOfflineActiveView(nextView) {
+        if (!documentRef) {
+            return;
+        }
+
+        const targetView = String(nextView || 'study');
+        Array.prototype.forEach.call(documentRef.querySelectorAll('[data-ll-offline-view]'), function (section) {
+            const viewName = String(section.getAttribute('data-ll-offline-view') || '');
+            section.hidden = viewName !== targetView;
+        });
+
+        getOfflineGamesViewToggleButtons().forEach(function (button) {
+            const viewName = String(button.getAttribute('data-target-view') || '');
+            button.setAttribute('aria-pressed', viewName === targetView ? 'true' : 'false');
+        });
+    }
+
+    function blobToBase64(blob) {
+        return new Promise(function (resolve, reject) {
+            if (!root.FileReader) {
+                reject(new Error('file_reader_unavailable'));
+                return;
+            }
+
+            const reader = new root.FileReader();
+            reader.onerror = function () {
+                reject(new Error('file_reader_failed'));
+            };
+            reader.onload = function () {
+                const result = String(reader.result || '');
+                const commaIndex = result.indexOf(',');
+                resolve(commaIndex === -1 ? result : result.slice(commaIndex + 1));
+            };
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    function normalizeSpeakingText(text, targetField) {
+        let value = String(text || '').trim();
+        if (!value) {
+            return '';
+        }
+
+        if (String(targetField || '') === 'recording_ipa') {
+            value = value
+                .replace(/[\u02C8\u02CC'’]/gu, '')
+                .replace(/\s+/gu, ' ')
+                .trim();
+            return value;
+        }
+
+        value = value
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/[\r\n\t\u00A0]+/gu, ' ')
+            .replace(/\s+/gu, ' ')
+            .trim()
+            .toLowerCase();
+
+        return value;
+    }
+
+    function tokenizeSpeakingText(text, targetField) {
+        const normalized = normalizeSpeakingText(text, targetField);
+        if (!normalized) {
+            return [];
+        }
+
+        if (String(targetField || '') === 'recording_ipa') {
+            const parts = normalized.split(/\s+/u).filter(Boolean);
+            return parts.length ? parts : [normalized];
+        }
+
+        const parts = normalized.split(/\s+/u).filter(Boolean);
+        if (parts.length > 1) {
+            return parts;
+        }
+
+        return Array.from(normalized);
+    }
+
+    function levenshteinArray(left, right) {
+        const a = Array.isArray(left) ? left.slice() : [];
+        const b = Array.isArray(right) ? right.slice() : [];
+        if (!a.length) {
+            return b.length;
+        }
+        if (!b.length) {
+            return a.length;
+        }
+
+        let previous = new Array(b.length + 1);
+        for (let index = 0; index <= b.length; index += 1) {
+            previous[index] = index;
+        }
+
+        for (let i = 1; i <= a.length; i += 1) {
+            const current = [i];
+            for (let j = 1; j <= b.length; j += 1) {
+                const substitutionCost = a[i - 1] === b[j - 1] ? 0 : 1;
+                current[j] = Math.min(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + substitutionCost
+                );
+            }
+            previous = current;
+        }
+
+        return previous[b.length] || 0;
+    }
+
+    function weightedLevenshteinArray(left, right, substitutionCost, insertDeleteCost) {
+        const a = Array.isArray(left) ? left.slice() : [];
+        const b = Array.isArray(right) ? right.slice() : [];
+        const stepCost = Math.max(0, Number(insertDeleteCost) || 1);
+        if (!a.length) {
+            return b.length * stepCost;
+        }
+        if (!b.length) {
+            return a.length * stepCost;
+        }
+
+        let previous = new Array(b.length + 1);
+        for (let index = 0; index <= b.length; index += 1) {
+            previous[index] = index * stepCost;
+        }
+
+        for (let i = 1; i <= a.length; i += 1) {
+            const current = [i * stepCost];
+            for (let j = 1; j <= b.length; j += 1) {
+                const substitution = Math.max(0, Math.min(1, Number(substitutionCost(a[i - 1], b[j - 1])) || 0));
+                current[j] = Math.min(
+                    previous[j] + stepCost,
+                    current[j - 1] + stepCost,
+                    previous[j - 1] + substitution
+                );
+            }
+            previous = current;
+        }
+
+        return Number(previous[b.length] || 0);
+    }
+
+    function getOfflineIpaFeatureMap() {
+        if (getOfflineIpaFeatureMap.cache) {
+            return getOfflineIpaFeatureMap.cache;
+        }
+
+        getOfflineIpaFeatureMap.cache = {
+            i: { type: 'vowel', height: 0, back: 0, round: 0 },
+            y: { type: 'vowel', height: 0, back: 0, round: 1 },
+            'ɨ': { type: 'vowel', height: 0, back: 2, round: 0 },
+            'ʉ': { type: 'vowel', height: 0, back: 2, round: 1 },
+            'ɯ': { type: 'vowel', height: 0, back: 4, round: 0 },
+            u: { type: 'vowel', height: 0, back: 4, round: 1 },
+            'ɪ': { type: 'vowel', height: 1, back: 0.5, round: 0 },
+            'ʏ': { type: 'vowel', height: 1, back: 0.5, round: 1 },
+            'ʊ': { type: 'vowel', height: 1, back: 3.5, round: 1 },
+            e: { type: 'vowel', height: 2, back: 0, round: 0 },
+            'ø': { type: 'vowel', height: 2, back: 0, round: 1 },
+            'ɘ': { type: 'vowel', height: 2, back: 2, round: 0 },
+            'ɵ': { type: 'vowel', height: 2, back: 2, round: 1 },
+            'ɤ': { type: 'vowel', height: 2, back: 4, round: 0 },
+            o: { type: 'vowel', height: 2, back: 4, round: 1 },
+            'ə': { type: 'vowel', height: 3, back: 2, round: 0 },
+            'ɛ': { type: 'vowel', height: 4, back: 0, round: 0 },
+            'œ': { type: 'vowel', height: 4, back: 0, round: 1 },
+            'ɜ': { type: 'vowel', height: 4, back: 2, round: 0 },
+            'ɞ': { type: 'vowel', height: 4, back: 2, round: 1 },
+            'ʌ': { type: 'vowel', height: 4, back: 3.5, round: 0 },
+            'ɔ': { type: 'vowel', height: 4, back: 4, round: 1 },
+            'æ': { type: 'vowel', height: 5, back: 0, round: 0 },
+            'ɐ': { type: 'vowel', height: 5, back: 2, round: 0 },
+            a: { type: 'vowel', height: 6, back: 1.5, round: 0 },
+            'ɶ': { type: 'vowel', height: 6, back: 0, round: 1 },
+            'ɑ': { type: 'vowel', height: 6, back: 4, round: 0 },
+            'ɒ': { type: 'vowel', height: 6, back: 4, round: 1 },
+            j: { type: 'glide', height: 0, back: 0, round: 0 },
+            'ɥ': { type: 'glide', height: 0, back: 0, round: 1 },
+            'ɰ': { type: 'glide', height: 0, back: 4, round: 0 },
+            w: { type: 'glide', height: 0, back: 4, round: 1 },
+            p: { type: 'consonant', place: 0, manner: 'stop', voice: 0, lateral: 0, rhotic: 0 },
+            b: { type: 'consonant', place: 0, manner: 'stop', voice: 1, lateral: 0, rhotic: 0 },
+            m: { type: 'consonant', place: 0, manner: 'nasal', voice: 1, lateral: 0, rhotic: 0 },
+            f: { type: 'consonant', place: 1, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            v: { type: 'consonant', place: 1, manner: 'fricative', voice: 1, lateral: 0, rhotic: 0 },
+            t: { type: 'consonant', place: 3, manner: 'stop', voice: 0, lateral: 0, rhotic: 0 },
+            d: { type: 'consonant', place: 3, manner: 'stop', voice: 1, lateral: 0, rhotic: 0 },
+            n: { type: 'consonant', place: 3, manner: 'nasal', voice: 1, lateral: 0, rhotic: 0 },
+            s: { type: 'consonant', place: 3, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            z: { type: 'consonant', place: 3, manner: 'fricative', voice: 1, lateral: 0, rhotic: 0 },
+            'ɾ': { type: 'consonant', place: 3, manner: 'tap', voice: 1, lateral: 0, rhotic: 1 },
+            r: { type: 'consonant', place: 3, manner: 'trill', voice: 1, lateral: 0, rhotic: 1 },
+            'ɹ': { type: 'consonant', place: 3, manner: 'approximant', voice: 1, lateral: 0, rhotic: 1 },
+            l: { type: 'consonant', place: 3, manner: 'approximant', voice: 1, lateral: 1, rhotic: 0 },
+            'ʃ': { type: 'consonant', place: 4, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            'ʒ': { type: 'consonant', place: 4, manner: 'fricative', voice: 1, lateral: 0, rhotic: 0 },
+            c: { type: 'consonant', place: 6, manner: 'stop', voice: 0, lateral: 0, rhotic: 0 },
+            'ɟ': { type: 'consonant', place: 6, manner: 'stop', voice: 1, lateral: 0, rhotic: 0 },
+            'ɲ': { type: 'consonant', place: 6, manner: 'nasal', voice: 1, lateral: 0, rhotic: 0 },
+            'ç': { type: 'consonant', place: 6, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            k: { type: 'consonant', place: 7, manner: 'stop', voice: 0, lateral: 0, rhotic: 0 },
+            g: { type: 'consonant', place: 7, manner: 'stop', voice: 1, lateral: 0, rhotic: 0 },
+            'ŋ': { type: 'consonant', place: 7, manner: 'nasal', voice: 1, lateral: 0, rhotic: 0 },
+            x: { type: 'consonant', place: 7, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            'ɣ': { type: 'consonant', place: 7, manner: 'fricative', voice: 1, lateral: 0, rhotic: 0 },
+            q: { type: 'consonant', place: 8, manner: 'stop', voice: 0, lateral: 0, rhotic: 0 },
+            'ɢ': { type: 'consonant', place: 8, manner: 'stop', voice: 1, lateral: 0, rhotic: 0 },
+            'χ': { type: 'consonant', place: 8, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            'ʁ': { type: 'consonant', place: 8, manner: 'fricative', voice: 1, lateral: 0, rhotic: 1 },
+            h: { type: 'consonant', place: 10, manner: 'fricative', voice: 0, lateral: 0, rhotic: 0 },
+            'ʔ': { type: 'consonant', place: 10, manner: 'stop', voice: 0, lateral: 0, rhotic: 0 }
+        };
+
+        return getOfflineIpaFeatureMap.cache;
+    }
+
+    function parseIpaSimilarityToken(token) {
+        const normalized = normalizeSpeakingText(token, 'recording_ipa');
+        if (!normalized) {
+            return { baseUnits: [], modifiers: [] };
+        }
+
+        const chars = Array.from(normalized);
+        const baseUnits = [];
+        const modifiers = [];
+        chars.forEach(function (char) {
+            if (/\s/u.test(char) || char === '.' || char === '·' || char === '‿' || char === '|' || char === '‖') {
+                return;
+            }
+            if (char === '͡' || char === '͜') {
+                return;
+            }
+            if (/[\u0300-\u036F]/u.test(char) || /[ʰʷʲˠˤʱːˑ]/u.test(char)) {
+                modifiers.push(char);
+                return;
+            }
+            baseUnits.push(char);
+        });
+
+        return {
+            baseUnits: baseUnits.length ? baseUnits : [normalized],
+            modifiers: Array.from(new Set(modifiers))
+        };
+    }
+
+    function ipaModifierWeight(modifier) {
+        const weights = {
+            'ʰ': 0.08,
+            'ʷ': 0.08,
+            'ʲ': 0.08,
+            'ˠ': 0.08,
+            'ˤ': 0.08,
+            'ʱ': 0.08,
+            '̪': 0.06,
+            '̥': 0.06,
+            '̬': 0.06,
+            '̟': 0.05,
+            '̠': 0.05,
+            '̃': 0.06,
+            'ː': 0.05,
+            'ˑ': 0.04
+        };
+        return Number(weights[String(modifier || '')]) || 0.06;
+    }
+
+    function ipaModifierPenalty(leftModifiers, rightModifiers) {
+        const left = Array.from(new Set(Array.isArray(leftModifiers) ? leftModifiers.map(String).filter(Boolean) : []));
+        const right = Array.from(new Set(Array.isArray(rightModifiers) ? rightModifiers.map(String).filter(Boolean) : []));
+        const difference = left.filter(function (modifier) {
+            return right.indexOf(modifier) === -1;
+        }).concat(right.filter(function (modifier) {
+            return left.indexOf(modifier) === -1;
+        }));
+
+        if (!difference.length) {
+            return 0;
+        }
+
+        return Math.min(0.32, difference.reduce(function (total, modifier) {
+            return total + ipaModifierWeight(modifier);
+        }, 0));
+    }
+
+    function ipaSymbolSimilarity(leftSymbol, rightSymbol) {
+        const left = String(leftSymbol || '').trim();
+        const right = String(rightSymbol || '').trim();
+        if (!left || !right) {
+            return 0;
+        }
+        if (left === right) {
+            return 1;
+        }
+
+        const featureMap = getOfflineIpaFeatureMap();
+        const leftFeatures = featureMap[left];
+        const rightFeatures = featureMap[right];
+        if (!leftFeatures || !rightFeatures) {
+            return 0;
+        }
+
+        const leftType = String(leftFeatures.type || '');
+        const rightType = String(rightFeatures.type || '');
+        const leftVowelLike = leftType === 'vowel' || leftType === 'glide';
+        const rightVowelLike = rightType === 'vowel' || rightType === 'glide';
+
+        if (leftVowelLike && rightVowelLike) {
+            const heightPenalty = Math.abs(Number(leftFeatures.height || 0) - Number(rightFeatures.height || 0)) / 6;
+            const backPenalty = Math.abs(Number(leftFeatures.back || 0) - Number(rightFeatures.back || 0)) / 4;
+            const roundPenalty = Math.abs(Number(leftFeatures.round || 0) - Number(rightFeatures.round || 0));
+            const typePenalty = leftType === rightType ? 0 : 0.12;
+            return Math.max(0, Math.min(1, 1 - ((heightPenalty * 0.45) + (backPenalty * 0.35) + (roundPenalty * 0.2) + typePenalty)));
+        }
+
+        if (leftType === 'consonant' && rightType === 'consonant') {
+            const leftManner = String(leftFeatures.manner || '');
+            const rightManner = String(rightFeatures.manner || '');
+            let mannerPenalty = 0.34;
+            if (leftManner === rightManner) {
+                mannerPenalty = 0;
+            } else if (['tap', 'trill', 'approximant'].indexOf(leftManner) !== -1 && ['tap', 'trill', 'approximant'].indexOf(rightManner) !== -1) {
+                mannerPenalty = 0.14;
+            } else if (['fricative', 'approximant'].indexOf(leftManner) !== -1 && ['fricative', 'approximant'].indexOf(rightManner) !== -1) {
+                mannerPenalty = 0.2;
+            } else if (['stop', 'fricative'].indexOf(leftManner) !== -1 && ['stop', 'fricative'].indexOf(rightManner) !== -1) {
+                mannerPenalty = 0.28;
+            } else if (['stop', 'nasal'].indexOf(leftManner) !== -1 && ['stop', 'nasal'].indexOf(rightManner) !== -1) {
+                mannerPenalty = 0.24;
+            }
+
+            const placePenalty = Math.min(0.36, Math.abs(Number(leftFeatures.place || 0) - Number(rightFeatures.place || 0)) * 0.075);
+            const voicePenalty = Number(leftFeatures.voice || 0) === Number(rightFeatures.voice || 0) ? 0 : 0.1;
+            const lateralPenalty = Number(leftFeatures.lateral || 0) === Number(rightFeatures.lateral || 0) ? 0 : 0.08;
+            const rhoticPenalty = Number(leftFeatures.rhotic || 0) === Number(rightFeatures.rhotic || 0) ? 0 : 0.06;
+            return Math.max(0, Math.min(1, 1 - (mannerPenalty + placePenalty + voicePenalty + lateralPenalty + rhoticPenalty)));
+        }
+
+        return 0;
+    }
+
+    function ipaTokenSimilarity(leftToken, rightToken) {
+        const left = String(leftToken || '').trim();
+        const right = String(rightToken || '').trim();
+        if (!left || !right) {
+            return 0;
+        }
+        if (left === right) {
+            return 1;
+        }
+
+        const leftParts = parseIpaSimilarityToken(left);
+        const rightParts = parseIpaSimilarityToken(right);
+        const leftUnits = leftParts.baseUnits || [];
+        const rightUnits = rightParts.baseUnits || [];
+        if (!leftUnits.length || !rightUnits.length) {
+            return 0;
+        }
+
+        const baseDistance = weightedLevenshteinArray(leftUnits, rightUnits, function (leftUnit, rightUnit) {
+            return 1 - ipaSymbolSimilarity(leftUnit, rightUnit);
+        }, 1);
+        const baseScore = Math.max(0, 1 - (baseDistance / Math.max(leftUnits.length, rightUnits.length, 1)));
+        const modifierPenalty = ipaModifierPenalty(leftParts.modifiers || [], rightParts.modifiers || []);
+
+        return Math.max(0, Math.min(1, baseScore - modifierPenalty));
+    }
+
+    function speakingSimilarityScore(expected, actual, targetField) {
+        const field = String(targetField || '');
+        const expectedTokens = tokenizeSpeakingText(expected, field);
+        const actualTokens = tokenizeSpeakingText(actual, field);
+        if (!expectedTokens.length || !actualTokens.length) {
+            return 0;
+        }
+        if (expectedTokens.join('\u0001') === actualTokens.join('\u0001')) {
+            return 100;
+        }
+
+        if (field === 'recording_ipa') {
+            const tokenDistance = weightedLevenshteinArray(expectedTokens, actualTokens, function (leftToken, rightToken) {
+                return 1 - ipaTokenSimilarity(leftToken, rightToken);
+            }, 1);
+            const maxTokens = Math.max(expectedTokens.length, actualTokens.length, 1);
+            const tokenScore = Math.max(0, (1 - (tokenDistance / maxTokens)) * 100);
+            const expectedUnits = expectedTokens.reduce(function (units, token) {
+                return units.concat(parseIpaSimilarityToken(token).baseUnits || []);
+            }, []);
+            const actualUnits = actualTokens.reduce(function (units, token) {
+                return units.concat(parseIpaSimilarityToken(token).baseUnits || []);
+            }, []);
+            if (!expectedUnits.length || !actualUnits.length) {
+                return Math.round(tokenScore * 100) / 100;
+            }
+            const unitDistance = weightedLevenshteinArray(expectedUnits, actualUnits, function (leftUnit, rightUnit) {
+                return 1 - ipaSymbolSimilarity(leftUnit, rightUnit);
+            }, 1);
+            const maxUnits = Math.max(expectedUnits.length, actualUnits.length, 1);
+            const unitScore = Math.max(0, (1 - (unitDistance / maxUnits)) * 100);
+            return Math.round((((tokenScore * 0.72) + (unitScore * 0.28)) * 100)) / 100;
+        }
+
+        const tokenDistance = levenshteinArray(expectedTokens, actualTokens);
+        const maxTokens = Math.max(expectedTokens.length, actualTokens.length, 1);
+        const tokenScore = Math.max(0, (1 - (tokenDistance / maxTokens)) * 100);
+        const expectedString = expectedTokens.join(' ');
+        const actualString = actualTokens.join(' ');
+        const charDistance = levenshteinArray(Array.from(expectedString), Array.from(actualString));
+        const maxChars = Math.max(expectedString.length, actualString.length, 1);
+        const charScore = Math.max(0, (1 - (charDistance / maxChars)) * 100);
+        return Math.round((((tokenScore + charScore) / 2) * 100)) / 100;
+    }
+
+    function speakingScoreBucket(score) {
+        const numericScore = Number(score) || 0;
+        if (numericScore >= 90) {
+            return 'right';
+        }
+        if (numericScore >= 65) {
+            return 'close';
+        }
+        return 'wrong';
+    }
+
+    function getEmbeddedSttRuntime() {
+        if (root.LLToolsOfflineEmbeddedStt && typeof root.LLToolsOfflineEmbeddedStt === 'object') {
+            return root.LLToolsOfflineEmbeddedStt;
+        }
+        if (root.Capacitor && root.Capacitor.Plugins && root.Capacitor.Plugins.LLToolsOfflineStt) {
+            return root.Capacitor.Plugins.LLToolsOfflineStt;
+        }
+        if (root.LLToolsOfflineAndroid && typeof root.LLToolsOfflineAndroid === 'object') {
+            return root.LLToolsOfflineAndroid;
+        }
+        return null;
+    }
+
+    function buildOfflineSpeakingBridge() {
+        function resolveEntryModel(entry) {
+            if (entry && entry.embedded_model && typeof entry.embedded_model === 'object') {
+                return entry.embedded_model;
+            }
+            if (entry && entry.offline_stt && typeof entry.offline_stt === 'object') {
+                return entry.offline_stt;
+            }
+            return null;
+        }
+
+        return {
+            checkSpeakingAvailability: function (entry) {
+                const model = resolveEntryModel(entry);
+                if (!model || !String(model.webPath || '').trim()) {
+                    return Promise.resolve(false);
+                }
+
+                const runtime = getEmbeddedSttRuntime();
+                if (!runtime) {
+                    return Promise.resolve(false);
+                }
+
+                if (typeof runtime.isEmbeddedSttAvailable === 'function') {
+                    try {
+                        const result = runtime.isEmbeddedSttAvailable(model);
+                        return Promise.resolve(!!result);
+                    } catch (_) {
+                        return Promise.resolve(false);
+                    }
+                }
+
+                return Promise.resolve(
+                    typeof runtime.transcribe === 'function'
+                    || typeof runtime.transcribeSpeakingAttempt === 'function'
+                    || typeof runtime.transcribeBase64 === 'function'
+                );
+            },
+            transcribeSpeakingAttempt: function (blob, run) {
+                const runtime = getEmbeddedSttRuntime();
+                const model = run && run.embeddedModel && typeof run.embeddedModel === 'object'
+                    ? run.embeddedModel
+                    : {};
+                if (!runtime) {
+                    return Promise.reject(new Error('embedded_stt_unavailable'));
+                }
+
+                if (typeof runtime.transcribe === 'function') {
+                    return Promise.resolve(runtime.transcribe({
+                        audioBlob: blob,
+                        mimeType: blob && blob.type ? String(blob.type) : '',
+                        model: model
+                    }));
+                }
+
+                return blobToBase64(blob).then(function (audioBase64) {
+                    if (typeof runtime.transcribeSpeakingAttempt === 'function') {
+                        return runtime.transcribeSpeakingAttempt(audioBase64, String(blob.type || ''), String(model.webPath || ''));
+                    }
+                    if (typeof runtime.transcribeBase64 === 'function') {
+                        return runtime.transcribeBase64({
+                            audioBase64: audioBase64,
+                            mimeType: String(blob.type || ''),
+                            model: model
+                        });
+                    }
+                    throw new Error('embedded_stt_unavailable');
+                });
+            },
+            scoreSpeakingAttempt: function (run, transcript) {
+                const target = (run && run.prompt && run.prompt.target && typeof run.prompt.target === 'object')
+                    ? run.prompt.target
+                    : {};
+                const targetField = String(run && run.targetField || target.speaking_target_field || '');
+                const displayTexts = (target.speaking_display_texts && typeof target.speaking_display_texts === 'object')
+                    ? {
+                        title: String(target.speaking_display_texts.title || ''),
+                        ipa: String(target.speaking_display_texts.ipa || ''),
+                        target_text: String(target.speaking_display_texts.target_text || ''),
+                        target_field: String(target.speaking_display_texts.target_field || targetField),
+                        target_label: String(target.speaking_display_texts.target_label || target.speaking_target_label || '')
+                    }
+                    : {
+                        title: String(target.title || ''),
+                        ipa: '',
+                        target_text: String(target.speaking_target_text || ''),
+                        target_field: targetField,
+                        target_label: String(target.speaking_target_label || '')
+                    };
+                const targetText = String(target.speaking_target_text || displayTexts.target_text || '');
+                const normalizedTarget = normalizeSpeakingText(targetText, targetField);
+                const normalizedTranscript = normalizeSpeakingText(transcript, targetField);
+                const score = speakingSimilarityScore(normalizedTarget, normalizedTranscript, targetField);
+                return Promise.resolve({
+                    word_id: toInt(target.id),
+                    target_field: targetField,
+                    target_label: String(target.speaking_target_label || displayTexts.target_label || ''),
+                    target_text: targetText,
+                    normalized_target_text: normalizedTarget,
+                    normalized_transcript_text: normalizedTranscript,
+                    score: score,
+                    bucket: speakingScoreBucket(score),
+                    display_texts: displayTexts,
+                    best_correct_audio_url: String(target.speaking_best_correct_audio_url || '')
+                });
+            }
+        };
+    }
+
+    function initOfflineGames() {
+        if (!documentRef || !gamesPayload || !Object.keys(gamesPayload).length) {
+            return;
+        }
+
+        const gamesView = documentRef.getElementById('ll-offline-games-view');
+        if (!gamesView) {
+            return;
+        }
+
+        const viewToggleButtons = getOfflineGamesViewToggleButtons();
+        const bridge = buildOfflineSpeakingBridge();
+        let gamesInitialized = false;
+
+        function ensureGamesInitialized() {
+            if (gamesInitialized || !root.LLWordsetGames || typeof root.LLWordsetGames.init !== 'function') {
+                return;
+            }
+
+            const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+                ? root.llToolsFlashcardsData
+                : {};
+            const categories = Array.isArray(flashData.categories) ? flashData.categories : [];
+            root.LLWordsetGames.init(gamesView, {
+                runtimeMode: 'offline',
+                ajaxUrl: '',
+                nonce: '',
+                isLoggedIn: true,
+                wordsetId: Array.isArray(flashData.wordsetIds) && flashData.wordsetIds.length ? toInt(flashData.wordsetIds[0]) : 0,
+                visibleCategoryIds: categories.map(function (category) {
+                    return toInt(category && category.id);
+                }).filter(Boolean),
+                i18n: Object.assign({}, messages, (gamesPayload.i18n && typeof gamesPayload.i18n === 'object') ? gamesPayload.i18n : {}),
+                games: gamesPayload,
+                offlineBridge: bridge
+            });
+            gamesInitialized = true;
+        }
+
+        viewToggleButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                const targetView = String(button.getAttribute('data-target-view') || 'study');
+                setOfflineActiveView(targetView);
+                if (targetView === 'games') {
+                    ensureGamesInitialized();
+                }
+            });
+        });
+
+        gamesView.addEventListener('click', function (event) {
+            const target = event.target;
+            if (!target || typeof target.closest !== 'function') {
+                return;
+            }
+
+            const backLink = target.closest('[data-ll-wordset-games-back]');
+            if (backLink) {
+                event.preventDefault();
+                setOfflineActiveView('study');
+            }
+        });
+    }
+
     function initOfflineLauncher() {
         if (!documentRef) {
             return;
@@ -802,5 +1424,7 @@
         }
 
         initOfflineLauncher();
+        initOfflineGames();
+        setOfflineActiveView('study');
     }
 })(window);

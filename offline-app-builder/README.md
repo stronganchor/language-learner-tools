@@ -24,6 +24,7 @@ npm run prepare:bundle -- /absolute/path/to/ll-tools-offline-app.zip
 This extracts the bundle into `workspace/bundle/` and writes `capacitor.config.json`.
 On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
 If the bundle includes an app icon, the build scripts use it for the Android launcher icon automatically.
+If the bundle includes a wordset-specific offline STT bundle, it is kept under `workspace/bundle/www/content/stt-models/...` and packaged into the APK with the rest of the web assets.
 
 ## Build a debug APK
 
@@ -79,3 +80,7 @@ npm run build:release -- /absolute/path/to/ll-tools-offline-app.zip
 - The exported web app is the source of truth for the APK build. Rebuild and reinstall the APK for content updates.
 - The builder keeps generated files out of git via `.gitignore`.
 - If you prefer Android Studio for release signing, run `npm run open:android` after preparing the bundle.
+- The offline app now carries the `Study` and `Games` views from the export bundle. `Speaking Practice` is only shown offline when the export includes a packaged STT bundle for that wordset.
+- The STT bundle must be a mobile-ready runtime bundle. A desktop Python training checkpoint by itself is not enough for Android inference.
+- The current offline web runtime expects an Android bridge exposing one of `Capacitor.Plugins.LLToolsOfflineStt.transcribe`, `transcribeSpeakingAttempt`, or `transcribeBase64`, plus optional `isEmbeddedSttAvailable`.
+- Until that Android inference bridge is present in the app build, the packaged model files are bundled correctly but the offline speaking game will stay unavailable on-device.

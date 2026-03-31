@@ -39,6 +39,242 @@ function ll_tools_prime_offline_app_export_admin_title(): void {
 
 add_action('admin_post_ll_tools_export_offline_app', 'll_tools_handle_export_offline_app');
 
+function ll_tools_offline_app_filter_game_entry_words_by_category_ids(array $words, array $allowed_category_ids): array {
+    $allowed_lookup = array_fill_keys(array_values(array_filter(array_map('intval', $allowed_category_ids), static function (int $id): bool {
+        return $id > 0;
+    })), true);
+    if (empty($allowed_lookup)) {
+        return [];
+    }
+
+    return array_values(array_filter($words, static function ($word) use ($allowed_lookup): bool {
+        if (!is_array($word)) {
+            return false;
+        }
+
+        $word_category_ids = isset($word['category_ids']) && is_array($word['category_ids'])
+            ? array_values(array_filter(array_map('intval', $word['category_ids']), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+        if (empty($word_category_ids) && !empty($word['category_id'])) {
+            $word_category_ids = [(int) $word['category_id']];
+        }
+
+        foreach ($word_category_ids as $category_id) {
+            if (!empty($allowed_lookup[$category_id])) {
+                return true;
+            }
+        }
+
+        return false;
+    }));
+}
+
+function ll_tools_offline_app_filter_games_catalog_to_categories(array $catalog, array $allowed_category_ids): array {
+    $filtered_catalog = [];
+    foreach ($catalog as $slug => $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $filtered_words = ll_tools_offline_app_filter_game_entry_words_by_category_ids(
+            isset($entry['words']) && is_array($entry['words']) ? $entry['words'] : [],
+            $allowed_category_ids
+        );
+        $minimum_word_count = max(1, (int) ($entry['minimum_word_count'] ?? 1));
+        $launch_word_cap = max($minimum_word_count, (int) ($entry['launch_word_cap'] ?? count($filtered_words)));
+        $available_word_count = count($filtered_words);
+
+        $filtered_catalog[(string) $slug] = array_merge($entry, [
+            'category_ids' => array_values(array_filter(array_map('intval', $allowed_category_ids), static function (int $id): bool {
+                return $id > 0;
+            })),
+            'words' => array_values($filtered_words),
+            'available_word_count' => $available_word_count,
+            'launch_word_count' => min($available_word_count, $launch_word_cap),
+            'launch_word_cap' => $launch_word_cap,
+            'launchable' => !empty($entry['launchable']) && $available_word_count >= $minimum_word_count,
+            'reason_code' => ($available_word_count >= $minimum_word_count)
+                ? (string) ($entry['reason_code'] ?? '')
+                : 'not_enough_words',
+        ]);
+    }
+
+    return $filtered_catalog;
+}
+
+function ll_tools_offline_app_rewrite_game_asset_url($value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $plugin_base = defined('LL_TOOLS_BASE_URL') ? (string) LL_TOOLS_BASE_URL : '';
+    if ($plugin_base !== '' && strpos($value, $plugin_base) === 0) {
+        return './plugin/' . ltrim(substr($value, strlen($plugin_base)), '/');
+    }
+
+    return $value;
+}
+
+function ll_tools_offline_app_rewrite_games_frontend_config(array $config): array {
+    foreach (['spaceShooter', 'bubblePop', 'speakingPractice'] as $game_key) {
+        if (empty($config[$game_key]) || !is_array($config[$game_key])) {
+            continue;
+        }
+
+        foreach (['correctHitAudioSources', 'wrongHitAudioSources'] as $audio_key) {
+            if (!isset($config[$game_key][$audio_key])) {
+                continue;
+            }
+            $config[$game_key][$audio_key] = array_values(array_filter(array_map(
+                static function ($value): string {
+                    return ll_tools_offline_app_rewrite_game_asset_url($value);
+                },
+                (array) $config[$game_key][$audio_key]
+            ), static function (string $value): bool {
+                return $value !== '';
+            }));
+        }
+    }
+
+    return $config;
+}
+
+function ll_tools_offline_app_build_games_word_lookup(array $offline_category_data): array {
+    $lookup = [];
+    foreach ($offline_category_data as $rows) {
+        foreach ((array) $rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $word_id = (int) ($row['id'] ?? 0);
+            if ($word_id <= 0) {
+                continue;
+            }
+            $lookup[$word_id] = $row;
+        }
+    }
+
+    return $lookup;
+}
+
+function ll_tools_offline_app_rewrite_games_entry_words(array $words, array $offline_word_lookup): array {
+    return array_values(array_map(static function ($word) use ($offline_word_lookup) {
+        if (!is_array($word)) {
+            return $word;
+        }
+
+        $word_id = (int) ($word['id'] ?? 0);
+        if ($word_id <= 0 || empty($offline_word_lookup[$word_id]) || !is_array($offline_word_lookup[$word_id])) {
+            return $word;
+        }
+
+        $offline_word = $offline_word_lookup[$word_id];
+        return array_merge($word, [
+            'image' => (string) ($offline_word['image'] ?? ($word['image'] ?? '')),
+            'audio' => (string) ($offline_word['audio'] ?? ($word['audio'] ?? '')),
+            'audio_files' => isset($offline_word['audio_files']) && is_array($offline_word['audio_files'])
+                ? $offline_word['audio_files']
+                : (isset($word['audio_files']) && is_array($word['audio_files']) ? $word['audio_files'] : []),
+        ]);
+    }, $words));
+}
+
+function ll_tools_offline_app_resolve_wordset_stt_bundle(int $wordset_id, WP_Term $wordset_term) {
+    $source_path = function_exists('ll_tools_get_wordset_offline_stt_bundle_path')
+        ? ll_tools_get_wordset_offline_stt_bundle_path([$wordset_id], true)
+        : '';
+    $source_path = ll_tools_sanitize_wordset_offline_stt_bundle_path($source_path);
+    if ($source_path === '') {
+        return [];
+    }
+
+    $normalized_source = ll_tools_offline_app_resolve_source_path($source_path);
+    $source_exists = is_dir($normalized_source) || is_file($normalized_source);
+    if (!$source_exists) {
+        return new WP_Error(
+            'll_tools_offline_app_missing_stt_bundle',
+            sprintf(
+                /* translators: %s: source path */
+                __('The configured offline STT bundle path does not exist: %s', 'll-tools-text-domain'),
+                $source_path
+            )
+        );
+    }
+
+    $bundle_slug = sanitize_title((string) $wordset_term->slug);
+    if ($bundle_slug === '') {
+        $bundle_slug = 'wordset-' . (int) $wordset_id;
+    }
+    $source_name = wp_basename($normalized_source);
+    $relative_path = 'content/stt-models/' . $bundle_slug . '/' . $source_name;
+    $manifest = [
+        'wordsetId' => (int) $wordset_id,
+        'wordsetSlug' => (string) $wordset_term->slug,
+        'sourceName' => $source_name,
+        'entryType' => is_dir($normalized_source) ? 'directory' : 'file',
+        'bundlePath' => 'www/' . $relative_path,
+        'webPath' => './' . $relative_path,
+    ];
+
+    return [
+        'source_path' => $normalized_source,
+        'relative_path' => $relative_path,
+        'is_directory' => is_dir($normalized_source),
+        'manifest' => $manifest,
+    ];
+}
+
+function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $wordset_term, array $allowed_category_ids, array $offline_category_data = [], array $stt_bundle_manifest = [], array &$warnings = []): array {
+    $frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
+        ? ll_tools_get_wordset_games_frontend_config()
+        : [];
+    $frontend_config = ll_tools_offline_app_rewrite_games_frontend_config($frontend_config);
+    $games_i18n = function_exists('ll_tools_get_wordset_games_i18n_messages')
+        ? ll_tools_get_wordset_games_i18n_messages()
+        : [];
+    $catalog = function_exists('ll_tools_wordset_games_build_catalog')
+        ? ll_tools_wordset_games_build_catalog($wordset_id, 0)
+        : [];
+    $catalog = ll_tools_offline_app_filter_games_catalog_to_categories($catalog, $allowed_category_ids);
+    $offline_word_lookup = ll_tools_offline_app_build_games_word_lookup($offline_category_data);
+    foreach ($catalog as $slug => $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $catalog[$slug]['words'] = ll_tools_offline_app_rewrite_games_entry_words(
+            isset($entry['words']) && is_array($entry['words']) ? $entry['words'] : [],
+            $offline_word_lookup
+        );
+    }
+
+    if (isset($catalog['speaking-practice']) && is_array($catalog['speaking-practice'])) {
+        if (!empty($stt_bundle_manifest)) {
+            $catalog['speaking-practice']['provider'] = 'embedded_model';
+            $catalog['speaking-practice']['provider_label'] = __('Bundled offline model', 'll-tools-text-domain');
+            $catalog['speaking-practice']['local_endpoint'] = '';
+            $catalog['speaking-practice']['embedded_model'] = $stt_bundle_manifest;
+            $catalog['speaking-practice']['offline_stt'] = $stt_bundle_manifest;
+        } else {
+            unset($catalog['speaking-practice']);
+            $warnings[] = __('Speaking Practice was not included in the offline app because this word set does not have an offline STT model bundle configured.', 'll-tools-text-domain');
+        }
+    }
+
+    return array_merge($frontend_config, [
+        'enabled' => !empty($catalog),
+        'runtimeMode' => 'offline',
+        'catalog' => $catalog,
+        'i18n' => $games_i18n,
+        'offlineBridge' => [
+            'androidInterface' => 'LLToolsOfflineAndroid',
+            'usesEmbeddedModel' => !empty($stt_bundle_manifest),
+        ],
+    ]);
+}
+
 function ll_tools_offline_app_get_site_icon_attachment_id(): int {
     $attachment_id = (int) get_option('site_icon');
     if ($attachment_id <= 0 || !wp_attachment_is_image($attachment_id)) {
@@ -114,6 +350,50 @@ function ll_tools_offline_app_resolve_icon_payload(int $override_attachment_id =
     }
 
     return [];
+}
+
+function ll_tools_offline_app_candidate_source_paths(string $path): array {
+    $path = ll_tools_sanitize_wordset_offline_stt_bundle_path($path);
+    if ($path === '') {
+        return [];
+    }
+
+    $candidates = [$path];
+    if (preg_match('/^([a-z]):[\\\\\\/](.+)$/i', $path, $matches)) {
+        $drive = strtolower((string) $matches[1]);
+        $tail = str_replace('\\', '/', (string) $matches[2]);
+        $candidates[] = '/mnt/' . $drive . '/' . ltrim($tail, '/');
+    } elseif (preg_match('#^/mnt/([a-z])/(.+)$#i', $path, $matches)) {
+        $drive = strtoupper((string) $matches[1]);
+        $tail = str_replace('/', '\\', (string) $matches[2]);
+        $candidates[] = $drive . ':\\' . ltrim($tail, '\\');
+    }
+
+    $normalized = [];
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string) $candidate);
+        if ($candidate === '') {
+            continue;
+        }
+        $normalized[$candidate] = true;
+    }
+
+    return array_keys($normalized);
+}
+
+function ll_tools_offline_app_resolve_source_path(string $path): string {
+    $candidates = ll_tools_offline_app_candidate_source_paths($path);
+    if (empty($candidates)) {
+        return '';
+    }
+
+    foreach ($candidates as $candidate) {
+        if (is_file($candidate) || is_dir($candidate)) {
+            return wp_normalize_path($candidate);
+        }
+    }
+
+    return wp_normalize_path((string) $candidates[0]);
 }
 
 function ll_tools_render_offline_app_export_page(): void {
@@ -927,6 +1207,11 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     }
 
     $categories = $kept_categories;
+    $exported_category_ids = array_values(array_filter(array_map(static function ($category): int {
+        return is_array($category) ? (int) ($category['id'] ?? 0) : 0;
+    }, $categories), static function (int $id): bool {
+        return $id > 0;
+    }));
     $app_icon_manifest = [];
     if (!empty($app_icon_payload)) {
         $icon_extension = ll_tools_offline_app_get_image_extension(
@@ -958,6 +1243,30 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             break;
         }
     }
+    $stt_bundle_source = ll_tools_offline_app_resolve_wordset_stt_bundle($wordset_id, $wordset);
+    if (is_wp_error($stt_bundle_source)) {
+        return $stt_bundle_source;
+    }
+    $external_asset_entries = [];
+    $stt_bundle_manifest = [];
+    if (!empty($stt_bundle_source)) {
+        $external_asset_entries[] = [
+            'source_path' => (string) ($stt_bundle_source['source_path'] ?? ''),
+            'relative_path' => (string) ($stt_bundle_source['relative_path'] ?? ''),
+            'is_directory' => !empty($stt_bundle_source['is_directory']),
+        ];
+        $stt_bundle_manifest = is_array($stt_bundle_source['manifest'] ?? null)
+            ? (array) $stt_bundle_source['manifest']
+            : [];
+    }
+    $offline_games_payload = ll_tools_offline_app_build_games_payload(
+        $wordset_id,
+        $wordset,
+        $exported_category_ids,
+        $category_data,
+        $stt_bundle_manifest,
+        $warnings
+    );
 
     $bundle_manifest = [
         'formatVersion' => 1,
@@ -977,6 +1286,9 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'id'   => (int) $wordset->term_id,
             'slug' => (string) $wordset->slug,
             'name' => (string) $wordset->name,
+        ],
+        'speechToText'  => [
+            'bundles' => !empty($stt_bundle_manifest) ? [$stt_bundle_manifest] : [],
         ],
         'categories'    => array_values(array_map(static function (array $category): array {
             return [
@@ -1064,6 +1376,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'offlineCategoryData' => $category_data,
         ],
         'messages'      => ll_flashcards_get_messages(),
+        'games'         => $offline_games_payload,
         'app'           => [
             'title'        => $app_name,
             'versionName'  => $version_name,
@@ -1076,6 +1389,17 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'launcher'     => [
                 'categories'   => $launcher_categories,
                 'previewLimit' => 2,
+            ],
+            'views'        => [
+                'study' => [
+                    'enabled' => true,
+                ],
+                'games' => [
+                    'enabled' => !empty($offline_games_payload['catalog']) && is_array($offline_games_payload['catalog']),
+                ],
+            ],
+            'speechToText' => [
+                'bundles' => !empty($stt_bundle_manifest) ? [$stt_bundle_manifest] : [],
             ],
         ],
     ];
@@ -1093,7 +1417,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         return new WP_Error('ll_tools_offline_app_staging_failed', __('Could not create the offline app staging directory.', 'll-tools-text-domain'));
     }
 
-    $stage_result = ll_tools_offline_app_stage_web_bundle($www_dir, $offline_payload, $asset_entries, $warnings, $bundle_manifest);
+    $stage_result = ll_tools_offline_app_stage_web_bundle($www_dir, $offline_payload, $asset_entries, $external_asset_entries, $warnings, $bundle_manifest);
     if (is_wp_error($stage_result)) {
         ll_tools_rrmdir($staging_dir);
         return $stage_result;
@@ -1145,6 +1469,13 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         __('To build an APK, extract this zip and run the scripts in offline-app-builder from this plugin repository against the bundle zip or extracted folder.', 'll-tools-text-domain'),
         __('This bundle includes the offline quiz shell, bundled media, and local-only quiz runtime data. User accounts and server-backed study syncing are not included.', 'll-tools-text-domain'),
     ];
+    if (!empty($stt_bundle_manifest)) {
+        $readme_lines[] = sprintf(
+            /* translators: %s: bundle path inside the offline app */
+            __('Bundled STT model: %s', 'll-tools-text-domain'),
+            (string) ($stt_bundle_manifest['bundlePath'] ?? '')
+        );
+    }
     if (!empty($warnings)) {
         $readme_lines[] = '';
         $readme_lines[] = __('Warnings:', 'll-tools-text-domain');
@@ -1168,10 +1499,11 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
     ];
 }
 
-function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_payload, array $asset_entries, array $warnings, array $bundle_manifest) {
+function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_payload, array $asset_entries, array $external_asset_entries, array $warnings, array $bundle_manifest) {
     $style_files = [
         'css/language-learner-tools.css',
         'css/wordset-pages.css',
+        'css/wordset-games.css',
         'css/ipa-fonts.css',
         'css/flashcard/base.css',
         'css/self-check-shared.css',
@@ -1181,11 +1513,13 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
         'css/flashcard/mode-gender.css',
     ];
     $script_files = [
+        'js/flashcard-widget/option-conflicts.js',
         'js/flashcard-widget/audio.js',
         'js/flashcard-widget/loader.js',
         'js/flashcard-widget/options.js',
         'js/flashcard-widget/util.js',
         'js/self-check-shared.js',
+        'js/wordset-games.js',
         'js/flashcard-widget/mode-config.js',
         'js/flashcard-widget/state.js',
         'js/flashcard-widget/progress-tracker.js',
@@ -1206,6 +1540,11 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
     $media_files = [
         'media/right-answer.mp3',
         'media/wrong-answer.mp3',
+        'media/space-shooter-correct-hit.mp3',
+        'media/space-shooter-correct-hit.ogg',
+        'media/space-shooter-wrong-hit.mp3',
+        'media/space-shooter-wrong-hit.ogg',
+        'media/bubble-pop.mp3',
     ];
 
     foreach ($style_files as $relative_path) {
@@ -1283,14 +1622,43 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
         }
     }
 
+    foreach ($external_asset_entries as $asset_entry) {
+        $copy_external = ll_tools_offline_app_copy_external_source(
+            (string) ($asset_entry['source_path'] ?? ''),
+            (string) ($asset_entry['relative_path'] ?? ''),
+            $www_dir
+        );
+        if (is_wp_error($copy_external)) {
+            return $copy_external;
+        }
+    }
+
     $app_config = (array) ($offline_payload['app'] ?? []);
     $flashcards = (array) ($offline_payload['flashcards'] ?? []);
+    $games_payload = (array) ($offline_payload['games'] ?? []);
+    $games_catalog = is_array($games_payload['catalog'] ?? null) ? (array) $games_payload['catalog'] : [];
+    $games_shell_html = '';
+    $games_wordset_id = (int) ($bundle_manifest['wordset']['id'] ?? 0);
+    if ($games_wordset_id > 0 && !empty($games_catalog) && function_exists('ll_tools_render_wordset_games_shell')) {
+        $games_wordset_term = get_term($games_wordset_id, 'wordset');
+        if ($games_wordset_term instanceof WP_Term && !is_wp_error($games_wordset_term)) {
+            $games_shell_html = ll_tools_render_wordset_games_shell([
+                'wordset_term' => $games_wordset_term,
+                'games_catalog' => $games_catalog,
+                'is_study_user' => true,
+                'back_url' => '#ll-offline-study-view',
+                'as_modal' => false,
+                'is_open' => true,
+            ]);
+        }
+    }
     $html = ll_tools_capture_template('offline-app-shell-template.php', [
         'app_title'        => (string) ($app_config['title'] ?? get_bloginfo('name')),
         'wordset_name'     => (string) ($app_config['wordsetName'] ?? ''),
         'styles'           => [
             './plugin/css/language-learner-tools.css',
             './plugin/css/wordset-pages.css',
+            './plugin/css/wordset-games.css',
             './plugin/css/flashcard/base.css',
             './plugin/css/self-check-shared.css',
             './plugin/css/flashcard/mode-practice.css',
@@ -1301,7 +1669,7 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
         'scripts'          => [
             './vendor/jquery/jquery.min.js',
             './data/offline-data.js',
-            './app/offline-app.js',
+            './plugin/js/flashcard-widget/option-conflicts.js',
             './plugin/js/flashcard-widget/audio.js',
             './plugin/js/flashcard-widget/loader.js',
             './plugin/js/flashcard-widget/options.js',
@@ -1310,6 +1678,7 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
             './plugin/js/flashcard-widget/mode-config.js',
             './plugin/js/flashcard-widget/state.js',
             './plugin/js/flashcard-widget/progress-tracker.js',
+            './plugin/js/wordset-games.js',
             './plugin/js/flashcard-widget/dom.js',
             './plugin/js/flashcard-widget/audio-visualizer.js',
             './plugin/js/flashcard-widget/effects.js',
@@ -1323,6 +1692,7 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
             './plugin/js/flashcard-widget/modes/gender.js',
             './plugin/js/flashcard-widget/main.js',
             './plugin/js/flashcard-widget/category-selection.js',
+            './app/offline-app.js',
         ],
         'startup_mode'     => (string) ($flashcards['quiz_mode'] ?? 'practice'),
         'app_icon_url'     => is_array($app_config['icon'] ?? null) ? (string) ($app_config['icon']['url'] ?? '') : '',
@@ -1330,6 +1700,8 @@ function ll_tools_offline_app_stage_web_bundle(string $www_dir, array $offline_p
         'warnings'         => $warnings,
         'bundle_manifest'  => $bundle_manifest,
         'mode_ui'          => is_array($flashcards['modeUi'] ?? null) ? (array) $flashcards['modeUi'] : [],
+        'games_enabled'    => !empty($games_catalog),
+        'games_shell_html' => $games_shell_html,
         'll_config'        => [
             'wordset'         => (string) ($flashcards['wordset'] ?? ''),
             'wordsetFallback' => !empty($flashcards['wordsetFallback']),
@@ -1697,6 +2069,58 @@ function ll_tools_offline_app_copy_plugin_asset(string $relative_path, string $w
                 $relative_path
             )
         );
+    }
+
+    return true;
+}
+
+function ll_tools_offline_app_copy_external_source(string $source_path, string $relative_path, string $www_dir) {
+    $source_path = wp_normalize_path(trim((string) $source_path));
+    $relative_path = ltrim((string) $relative_path, '/');
+    if ($source_path === '' || $relative_path === '') {
+        return true;
+    }
+
+    $destination = trailingslashit($www_dir) . $relative_path;
+    if (is_file($source_path)) {
+        $destination_dir = dirname($destination);
+        if (!wp_mkdir_p($destination_dir)) {
+            return new WP_Error('ll_tools_offline_app_copy_dir_failed', __('Could not create the offline app model directory.', 'll-tools-text-domain'));
+        }
+        if (!copy($source_path, $destination)) {
+            return new WP_Error('ll_tools_offline_app_copy_failed', __('Could not copy the offline STT model file into the app bundle.', 'll-tools-text-domain'));
+        }
+        return true;
+    }
+
+    if (!is_dir($source_path)) {
+        return new WP_Error('ll_tools_offline_app_missing_external_source', __('The offline STT bundle source could not be found.', 'll-tools-text-domain'));
+    }
+
+    if (!wp_mkdir_p($destination)) {
+        return new WP_Error('ll_tools_offline_app_copy_dir_failed', __('Could not create the offline STT bundle directory.', 'll-tools-text-domain'));
+    }
+
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source_path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($iterator as $file) {
+        /** @var SplFileInfo $file */
+        $src = wp_normalize_path($file->getPathname());
+        $relative = ltrim(substr($src, strlen($source_path)), '/');
+        $dest = trailingslashit($destination) . $relative;
+        if ($file->isDir()) {
+            if (!wp_mkdir_p($dest)) {
+                return new WP_Error('ll_tools_offline_app_copy_dir_failed', __('Could not create a nested offline STT directory.', 'll-tools-text-domain'));
+            }
+            continue;
+        }
+        $dest_dir = dirname($dest);
+        if (!wp_mkdir_p($dest_dir) || !copy($src, $dest)) {
+            return new WP_Error('ll_tools_offline_app_copy_failed', __('Could not copy the offline STT bundle into the app.', 'll-tools-text-domain'));
+        }
     }
 
     return true;

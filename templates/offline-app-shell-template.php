@@ -16,6 +16,8 @@ $self_check_mode_ui = $mode_ui['self-check'] ?? [];
 $listening_mode_ui = $mode_ui['listening'] ?? [];
 $gender_mode_ui = $mode_ui['gender'] ?? [];
 $ll_config = isset($ll_config) && is_array($ll_config) ? $ll_config : [];
+$games_enabled = !empty($games_enabled);
+$games_shell_html = isset($games_shell_html) ? (string) $games_shell_html : '';
 $ll_config_json = wp_json_encode($ll_config);
 $gender_options = isset($ll_config['genderOptions']) && is_array($ll_config['genderOptions'])
   ? array_values(array_filter(array_map('strval', $ll_config['genderOptions']), static function ($option): bool {
@@ -167,8 +169,53 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
       padding-left: 18px;
     }
     .ll-offline-app-shell #ll-tools-flashcard-container {
-      max-width: 960px;
+      max-width: 1180px;
       margin: 0 auto;
+    }
+    .ll-offline-app-nav {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 0 auto 18px;
+      max-width: 960px;
+    }
+    .ll-offline-app-nav__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid rgba(23,32,43,0.12);
+      background: rgba(255,255,255,0.72);
+      color: var(--ll-offline-ink);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .ll-offline-app-nav__button[aria-pressed="true"] {
+      background: var(--ll-offline-accent);
+      border-color: var(--ll-offline-accent);
+      color: #fff;
+      box-shadow: 0 12px 24px rgba(31,95,74,0.18);
+    }
+    .ll-offline-app-view[hidden] {
+      display: none !important;
+    }
+    .ll-offline-games-view {
+      padding-bottom: 16px;
+    }
+    .ll-offline-games-view .ll-wordset-subpage-head,
+    .ll-offline-games-view .ll-wordset-games-page {
+      max-width: 1180px;
+      margin-inline: auto;
+    }
+    .ll-offline-games-view .ll-wordset-games-page {
+      padding-top: 0;
+    }
+    .ll-offline-games-view .ll-wordset-games-login-window {
+      display: none !important;
     }
     .ll-offline-launcher {
       display: flex;
@@ -466,11 +513,23 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
       </section>
     <?php endif; ?>
 
+    <nav class="ll-offline-app-nav" aria-label="<?php echo esc_attr__('Offline app sections', 'll-tools-text-domain'); ?>">
+      <button type="button" class="ll-offline-app-nav__button" data-ll-offline-view-toggle data-target-view="study" aria-pressed="true">
+        <?php esc_html_e('Study', 'll-tools-text-domain'); ?>
+      </button>
+      <?php if ($games_enabled && $games_shell_html !== '') : ?>
+        <button type="button" class="ll-offline-app-nav__button" data-ll-offline-view-toggle data-target-view="games" aria-pressed="false">
+          <?php esc_html_e('Games', 'll-tools-text-domain'); ?>
+        </button>
+      <?php endif; ?>
+    </nav>
+
     <div id="ll-tools-flashcard-container"
          class="ll-tools-flashcard-container"
          data-wordset="<?php echo esc_attr((string) ($ll_config['wordset'] ?? '')); ?>"
          data-wordset-fallback="<?php echo !empty($ll_config['wordsetFallback']) ? '1' : '0'; ?>"
          data-ll-config="<?php echo esc_attr(is_string($ll_config_json) ? $ll_config_json : '{}'); ?>">
+      <section id="ll-offline-study-view" class="ll-offline-app-view" data-ll-offline-view="study">
       <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
         <div class="ll-wordset-grid-tools">
           <button id="ll-offline-select-all" class="ll-wordset-select-all ll-wordset-progress-select-all" type="button">
@@ -503,6 +562,13 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
         </div>
         <div id="ll-offline-category-empty" class="ll-wordset-empty" hidden><?php esc_html_e('No categories are available in this offline app.', 'll-tools-text-domain'); ?></div>
       </section>
+      </section>
+
+      <?php if ($games_enabled && $games_shell_html !== '') : ?>
+        <section id="ll-offline-games-view" class="ll-offline-app-view ll-offline-games-view" data-ll-offline-view="games" hidden>
+          <?php echo $games_shell_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        </section>
+      <?php endif; ?>
 
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-category-selection-popup" style="display:none;">

@@ -27,6 +27,9 @@ if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY')) {
     define('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY', 'll_wordset_local_transcription_target');
 }
+if (!defined('LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY')) {
+    define('LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY', 'll_wordset_offline_stt_bundle_path');
+}
 if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY')) {
     define('LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY', 'll_wordset_speaking_game_enabled');
 }
@@ -95,6 +98,25 @@ function ll_tools_sanitize_wordset_local_transcription_endpoint($value): string 
     }
 
     return esc_url_raw($value, ['http', 'https']);
+}
+
+function ll_tools_sanitize_wordset_offline_stt_bundle_path($value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $quote_chars = ["'", '"'];
+    $first_char = substr($value, 0, 1);
+    $last_char = substr($value, -1);
+    if ($first_char !== '' && $first_char === $last_char && in_array($first_char, $quote_chars, true)) {
+        $value = substr($value, 1, -1);
+    }
+
+    $value = preg_replace('/[\r\n\t]+/', '', $value);
+    $value = str_replace('\\', '/', (string) $value);
+
+    return trim((string) $value);
 }
 
 function ll_tools_normalize_wordset_boolean_setting($value): int {
@@ -239,6 +261,21 @@ function ll_tools_get_wordset_local_transcription_target($wordset_ids = [], bool
     return $fallback_to_default ? 'recording_ipa' : '';
 }
 
+function ll_tools_get_wordset_offline_stt_bundle_path($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_offline_stt_bundle_path(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? '' : '';
+}
+
 function ll_tools_get_wordset_speaking_game_enabled($wordset_ids = [], bool $fallback_to_default = true): bool {
     $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
     foreach ($ids as $wordset_id) {
@@ -282,6 +319,27 @@ function ll_tools_get_wordset_speaking_game_target($wordset_ids = [], bool $fall
     }
 
     return $fallback_to_default ? 'word_title' : '';
+}
+
+function ll_tools_get_wordset_offline_stt_bundle_config($wordset_ids = [], bool $fallback_to_default = true): array {
+    $path = ll_tools_get_wordset_offline_stt_bundle_path($wordset_ids, $fallback_to_default);
+    $resolved_path = $path;
+    if ($path !== '' && function_exists('ll_tools_offline_app_resolve_source_path')) {
+        $resolved_path = ll_tools_offline_app_resolve_source_path($path);
+    }
+    $exists = ($resolved_path !== '' && (is_file($resolved_path) || is_dir($resolved_path)));
+    $type = '';
+    if ($exists) {
+        $type = is_dir($resolved_path) ? 'directory' : 'file';
+    }
+
+    return [
+        'path' => $path,
+        'configured' => ($path !== ''),
+        'exists' => $exists,
+        'type' => $type,
+        'label' => $exists ? wp_basename($resolved_path) : ($path !== '' ? wp_basename($path) : ''),
+    ];
 }
 
 function ll_tools_get_wordset_speaking_game_target_label(string $target, $wordset_ids = []): string {

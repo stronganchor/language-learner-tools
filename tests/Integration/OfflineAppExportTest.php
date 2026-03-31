@@ -117,7 +117,6 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         $min_words_filter = static function (): int {
             return 1;
         };
-
         add_filter('ll_tools_quiz_min_words', $min_words_filter);
 
         try {
@@ -128,6 +127,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             $this->assertFalse(is_wp_error($wordset_term));
             $this->assertIsArray($wordset_term);
             $wordset_id = (int) $wordset_term['term_id'];
+            $wordset_slug = (string) get_term_field('slug', $wordset_id, 'wordset');
             update_term_meta($wordset_id, 'll_wordset_has_gender', '1');
 
             $category_term = wp_insert_term('Offline Bundle Category ' . wp_generate_password(6, false), 'word-category');
@@ -181,12 +181,48 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             ]);
             update_post_meta($audio_post_id, 'audio_file_path', $audio_path);
             update_post_meta($audio_post_id, 'recording_text', 'Offline Export Word');
+            update_post_meta($audio_post_id, 'recording_ipa', 'ɔflaɪn');
             wp_set_post_terms($audio_post_id, [$recording_type_id], 'recording_type', false);
+
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, '1');
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'local_browser');
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_ipa');
+            $offline_stt_bundle_path = $this->create_offline_stt_bundle_dir('offline-stt-bundle');
+            $offline_stt_bundle_dir_name = wp_basename($offline_stt_bundle_path);
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY, $offline_stt_bundle_path);
 
             wp_update_post([
                 'ID'          => $word_id,
                 'post_status' => 'publish',
             ]);
+
+            for ($index = 2; $index <= 5; $index += 1) {
+                $extra_word_id = $this->createPublishedOfflineBundleWord(
+                    'Offline Export Word ' . $index,
+                    'Offline Export Translation ' . $index,
+                    $category_id,
+                    $wordset_id,
+                    $recording_type_id,
+                    'offline-export-word-image-' . $index . '.png',
+                    'offline-export-word-' . $index . '.mp3'
+                );
+                $extra_audio_posts = get_posts([
+                    'post_type' => 'word_audio',
+                    'post_status' => 'publish',
+                    'post_parent' => $extra_word_id,
+                    'posts_per_page' => 1,
+                    'orderby' => 'ID',
+                    'order' => 'DESC',
+                    'suppress_filters' => true,
+                    'no_found_rows' => true,
+                ]);
+                $this->assertNotEmpty($extra_audio_posts);
+                $extra_audio_post = $extra_audio_posts[0] ?? null;
+                $this->assertInstanceOf(WP_Post::class, $extra_audio_post);
+                update_post_meta((int) $extra_audio_post->ID, 'recording_ipa', 'ɔflaɪn' . $index);
+            }
 
             $term = get_term($category_id, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
@@ -208,7 +244,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             );
 
             $this->assertSame(
-                1,
+                5,
                 ll_get_words_by_category_count(
                     (string) $term->name,
                     'text_translation',
@@ -221,11 +257,11 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 'Expected the wordset-scoped category count helper to find the test word.'
             );
             $this->assertCount(
-                1,
+                5,
                 $rows_with_wordset_scope,
                 'Expected the wordset-scoped quiz rows to include the test word.'
             );
-            $this->assertCount(1, $rows_with_resolved_config, 'Expected the resolved category config to preserve the test word.');
+            $this->assertCount(5, $rows_with_resolved_config, 'Expected the resolved category config to preserve the test word.');
 
             $bundle = ll_tools_build_offline_app_bundle([
                 'wordset_id'    => $wordset_id,
@@ -255,14 +291,19 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertNotFalse($zip->locateName('www/app/offline-app.js'));
                 $this->assertNotFalse($zip->locateName('www/vendor/jquery/jquery.min.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/loader.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/js/wordset-games.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/audio-visualizer.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/modes/listening.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/modes/self-check.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/flashcard-widget/modes/gender.js'));
                 $this->assertNotFalse($zip->locateName('www/plugin/js/self-check-shared.js'));
+                $this->assertNotFalse($zip->locateName('www/plugin/css/wordset-games.css'));
                 $this->assertNotFalse($zip->locateName('www/plugin/css/flashcard/mode-listening.css'));
                 $this->assertNotFalse($zip->locateName('www/plugin/css/flashcard/mode-gender.css'));
                 $this->assertNotFalse($zip->locateName('www/plugin/css/self-check-shared.css'));
+                $this->assertNotFalse($zip->locateName('www/plugin/media/space-shooter-correct-hit.mp3'));
+                $this->assertNotFalse($zip->locateName('www/plugin/media/space-shooter-wrong-hit.mp3'));
+                $this->assertNotFalse($zip->locateName('www/plugin/media/bubble-pop.mp3'));
 
                 $entry_names = [];
                 for ($index = 0; $index < $zip->numFiles; $index++) {
@@ -280,30 +321,47 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('./content/images/', $offline_data);
                 $this->assertStringContainsString('./content/audio/', $offline_data);
                 $this->assertStringContainsString('"launcher":{"categories":[', $offline_data);
-                $this->assertStringContainsString('"preview":[{"type":"text","label":"Offline Export Translation"}]', $offline_data);
+                $this->assertStringContainsString('"preview":[', $offline_data);
+                $this->assertStringContainsString('"label":"Offline Export Translation', $offline_data);
                 $this->assertStringContainsString('"preview_limit":4', $offline_data);
                 $this->assertStringContainsString('"preview_aspect_ratio":"', $offline_data);
                 $this->assertStringContainsString('"genderEnabled":true', $offline_data);
                 $this->assertStringContainsString('"gender_supported":true', $offline_data);
                 $this->assertStringContainsString('"genderOptions":["', $offline_data);
+                $this->assertStringContainsString('"games":{', $offline_data);
+                $this->assertStringContainsString('"runtimeMode":"offline"', $offline_data);
+                $this->assertStringContainsString('"provider":"embedded_model"', $offline_data);
+                $this->assertStringContainsString('"embedded_model":{"wordsetId":', $offline_data);
+                $this->assertStringContainsString('"offline_stt":{"wordsetId":', $offline_data);
+                $this->assertStringContainsString('"./plugin/media/space-shooter-correct-hit.mp3"', $offline_data);
+                $this->assertStringContainsString('"./plugin/media/bubble-pop.mp3"', $offline_data);
 
                 $index_html = $zip->getFromName('www/index.html');
                 $this->assertIsString($index_html);
                 $offline_app_js = $zip->getFromName('www/app/offline-app.js');
                 $this->assertIsString($offline_app_js);
+                $manifest_json = $zip->getFromName('bundle-manifest.json');
+                $this->assertIsString($manifest_json);
+                $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/manifest.json'));
+                $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/encoder.onnx'));
                 $this->assertStringContainsString('id="ll-offline-category-grid"', $index_html);
                 $this->assertStringContainsString('class="ll-wordset-grid"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-selection-bar"', $index_html);
+                $this->assertStringContainsString('data-ll-offline-view-toggle', $index_html);
+                $this->assertStringContainsString('data-ll-offline-view="games"', $index_html);
+                $this->assertStringContainsString('data-ll-wordset-games-root', $index_html);
                 $this->assertStringContainsString('data-ll-offline-launch-selected', $index_html);
                 $this->assertStringContainsString('src="./app/offline-app.js"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/language-learner-tools.css"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/wordset-pages.css"', $index_html);
+                $this->assertStringContainsString('href="./plugin/css/wordset-games.css"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/flashcard/mode-listening.css"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/flashcard/mode-gender.css"', $index_html);
                 $this->assertStringNotContainsString('http://./', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);
+                $this->assertStringContainsString('buildOfflineSpeakingBridge', $offline_app_js);
                 $this->assertStringContainsString('id="restart-self-check-mode"', $index_html);
                 $this->assertStringContainsString('id="restart-listening-mode"', $index_html);
                 $this->assertStringContainsString('id="restart-gender-mode"', $index_html);
@@ -312,9 +370,12 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('data-mode="listening"', $index_html);
                 $this->assertStringContainsString('data-mode="self-check"', $index_html);
                 $this->assertStringContainsString('data-mode="gender"', $index_html);
+                $this->assertStringContainsString('"speechToText"', $manifest_json);
+                $this->assertStringContainsString('"wordsetId": ' . $wordset_id, $manifest_json);
 
                 $has_image_asset = false;
                 $has_audio_asset = false;
+                $has_model_asset = false;
                 foreach ($entry_names as $entry_name) {
                     if (strpos($entry_name, 'www/content/images/') === 0) {
                         $has_image_asset = true;
@@ -322,15 +383,22 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                     if (strpos($entry_name, 'www/content/audio/') === 0) {
                         $has_audio_asset = true;
                     }
+                    if (strpos($entry_name, 'www/content/stt-models/') === 0) {
+                        $has_model_asset = true;
+                    }
                 }
 
                 $this->assertTrue($has_image_asset, 'Expected bundled offline image assets.');
                 $this->assertTrue($has_audio_asset, 'Expected bundled offline audio assets.');
+                $this->assertTrue($has_model_asset, 'Expected bundled offline STT model assets.');
                 $zip->close();
             } finally {
                 @unlink($zip_path);
                 if ($staging_dir !== '' && is_dir($staging_dir)) {
                     ll_tools_rrmdir($staging_dir);
+                }
+                if (is_dir($offline_stt_bundle_path)) {
+                    ll_tools_rrmdir($offline_stt_bundle_path);
                 }
             }
         } finally {
@@ -563,6 +631,18 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         }
 
         return '/' . ltrim(trailingslashit($base_url_path) . $relative_path, '/');
+    }
+
+    private function create_offline_stt_bundle_dir(string $prefix): string
+    {
+        $upload_dir = wp_upload_dir();
+        $base_dir = trailingslashit((string) ($upload_dir['basedir'] ?? ''));
+        $bundle_dir = $base_dir . $prefix . '-' . wp_generate_password(6, false, false);
+        $this->assertTrue(wp_mkdir_p($bundle_dir));
+        $this->assertNotFalse(file_put_contents(trailingslashit($bundle_dir) . 'manifest.json', '{"model":"offline-test","format":"embedded"}'));
+        $this->assertNotFalse(file_put_contents(trailingslashit($bundle_dir) . 'encoder.onnx', "offline-stt\n"));
+
+        return wp_normalize_path($bundle_dir);
     }
 
     private function createPublishedOfflineTextWord(string $title, string $translation, int $category_id, int $wordset_id): int

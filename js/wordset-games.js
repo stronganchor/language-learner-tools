@@ -2472,7 +2472,7 @@
     }
 
     function getCardStatusText(ctx, entry) {
-        if (!ctx.isLoggedIn) {
+        if (!(ctx && (ctx.isLoggedIn || ctx.offlineMode))) {
             return String(ctx.i18n.gamesLoginRequired || 'Sign in to play with your in-progress words.');
         }
         if (!entry) {
@@ -2515,8 +2515,8 @@
             : String(ctx.i18n.gamesLoading || 'Checking game availability...');
         card.$status.text(isLoading ? loadingText : getCardStatusText(ctx, entry));
         card.$count.text(entry ? String(entry.available_word_count || 0) : '\u2014');
-        card.$launchButton.text(ctx.isLoggedIn ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
-        card.$launchButton.prop('disabled', isLoading || !ctx.isLoggedIn || !(entry && entry.launchable));
+        card.$launchButton.text((ctx.isLoggedIn || ctx.offlineMode) ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
+        card.$launchButton.prop('disabled', isLoading || !(ctx.isLoggedIn || ctx.offlineMode) || !(entry && entry.launchable));
         card.$card.toggleClass('is-launchable', !!(entry && entry.launchable));
         card.$card.toggleClass('is-loading', !!isLoading);
     }
@@ -2598,10 +2598,53 @@
         return request;
     }
 
+    function getOfflineSpeakingBridge(ctx) {
+        return (ctx && ctx.offlineBridge && typeof ctx.offlineBridge === 'object')
+            ? ctx.offlineBridge
+            : null;
+    }
+
     function resolveCatalogEntryAvailability(ctx, slug, entry) {
         const normalizedSlug = normalizeGameSlug(slug);
         if (!entry || normalizedSlug !== SPEAKING_PRACTICE_GAME_SLUG) {
             return Promise.resolve(entry);
+        }
+
+        if (ctx && ctx.offlineMode) {
+            if (['embedded_model', 'offline_packaged'].indexOf(String(entry.provider || '')) === -1) {
+                return Promise.resolve($.extend({}, entry, {
+                    hidden: true,
+                    launchable: false,
+                    reason_code: 'speaking_api_unavailable'
+                }));
+            }
+
+            const bridge = getOfflineSpeakingBridge(ctx);
+            if (!bridge || typeof bridge.checkSpeakingAvailability !== 'function') {
+                return Promise.resolve($.extend({}, entry, {
+                    hidden: true,
+                    launchable: false,
+                    reason_code: 'speaking_api_unavailable'
+                }));
+            }
+
+            return Promise.resolve(bridge.checkSpeakingAvailability(entry, ctx)).then(function (isAvailable) {
+                if (isAvailable) {
+                    return entry;
+                }
+
+                return $.extend({}, entry, {
+                    hidden: true,
+                    launchable: false,
+                    reason_code: 'speaking_api_unavailable'
+                });
+            }).catch(function () {
+                return $.extend({}, entry, {
+                    hidden: true,
+                    launchable: false,
+                    reason_code: 'speaking_api_unavailable'
+                });
+            });
         }
 
         if (String(entry.provider || '') !== 'local_browser') {
@@ -4811,7 +4854,41 @@
 
     function bootstrapCatalog(ctx) {
         renderAllCatalogCards(ctx, null, true);
-        if (!ctx.isLoggedIn || !ctx.ajaxUrl || !ctx.wordsetId || !ctx.bootstrapAction) {
+        if (ctx.staticCatalog && typeof ctx.staticCatalog === 'object') {
+            const entryPromises = Object.keys(ctx.catalogCards || {}).map(function (slug) {
+                if (!ctx.staticCatalog[slug] && normalizeGameSlug(slug) === SPEAKING_PRACTICE_GAME_SLUG) {
+                    return Promise.resolve({
+                        slug: slug,
+                        entry: null
+                    });
+                }
+                const prepared = buildPreparedEntry(ctx, slug, ctx.staticCatalog[slug] || {});
+                return resolveCatalogEntryAvailability(ctx, slug, prepared).then(function (resolvedEntry) {
+                    return {
+                        slug: slug,
+                        entry: resolvedEntry
+                    };
+                });
+            });
+
+            Promise.all(entryPromises).then(function (results) {
+                const nextEntries = {};
+                results.forEach(function (item) {
+                    if (!item || !item.entry) {
+                        return;
+                    }
+                    nextEntries[item.slug] = item.entry;
+                });
+                ctx.catalogEntries = nextEntries;
+                ctx.catalogEntry = nextEntries[getDefaultCatalogSlug(ctx)] || null;
+                renderAllCatalogCards(ctx, nextEntries, false);
+            }).catch(function () {
+                renderAllCatalogCards(ctx, null, false);
+            });
+            return;
+        }
+
+        if (!(ctx.isLoggedIn || ctx.offlineMode) || !ctx.ajaxUrl || !ctx.wordsetId || !ctx.bootstrapAction) {
             renderAllCatalogCards(ctx, null, false);
             return;
         }
@@ -5415,6 +5492,22 @@
             return Promise.reject(new Error('missing_blob'));
         }
 
+        if (ctx && ctx.offlineMode) {
+            const bridge = getOfflineSpeakingBridge(ctx);
+            if (!bridge || typeof bridge.transcribeSpeakingAttempt !== 'function') {
+                return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.')));
+            }
+            return Promise.resolve(bridge.transcribeSpeakingAttempt(blob, run, ctx)).then(function (payload) {
+                const transcript = typeof payload === 'string'
+                    ? String(payload).trim()
+                    : extractTranscriptFromLocalPayload(payload);
+                if (!transcript) {
+                    throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                }
+                return transcript;
+            });
+        }
+
         if (String(run.provider || '') === 'assemblyai') {
             const formData = new FormData();
             formData.append('action', ctx.transcribeAttemptAction);
@@ -5444,6 +5537,14 @@
     }
 
     function scoreSpeakingTranscript(ctx, run, transcript) {
+        if (ctx && ctx.offlineMode) {
+            const bridge = getOfflineSpeakingBridge(ctx);
+            if (!bridge || typeof bridge.scoreSpeakingAttempt !== 'function') {
+                return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.')));
+            }
+            return Promise.resolve(bridge.scoreSpeakingAttempt(run, transcript, ctx));
+        }
+
         const formData = new FormData();
         formData.append('action', ctx.scoreAttemptAction);
         formData.append('nonce', ctx.nonce);
@@ -5764,6 +5865,9 @@
             ended: false,
             provider: String(entry.provider || ''),
             localEndpoint: String(entry.local_endpoint || ''),
+            embeddedModel: ((entry.embedded_model && typeof entry.embedded_model === 'object')
+                ? $.extend({}, entry.embedded_model)
+                : ((entry.offline_stt && typeof entry.offline_stt === 'object') ? $.extend({}, entry.offline_stt) : null)),
             targetField: String(entry.target_field || ''),
             summary: {
                 right: 0,
@@ -6254,6 +6358,8 @@
         const speakingPractice = (gamesCfg.speakingPractice && typeof gamesCfg.speakingPractice === 'object')
             ? gamesCfg.speakingPractice
             : {};
+        const runtimeMode = String(cfg.runtimeMode || gamesCfg.runtimeMode || '').trim().toLowerCase();
+        const offlineMode = runtimeMode === 'offline';
         const catalogCards = {};
         const catalogOrder = [];
         const $allCards = $gamesRoot.find('[data-ll-wordset-game-card]');
@@ -6422,7 +6528,7 @@
             $pauseIcon: $gamesRoot.find('[data-ll-wordset-game-pause-icon]').first(),
             ajaxUrl: String(cfg.ajaxUrl || ''),
             nonce: String(cfg.nonce || ''),
-            isLoggedIn: !!cfg.isLoggedIn,
+            isLoggedIn: !!cfg.isLoggedIn || offlineMode,
             wordsetId: toInt(cfg.wordsetId),
             visibleCategoryIds: uniqueIntList(cfg.visibleCategoryIds || []),
             i18n: (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {},
@@ -6430,6 +6536,12 @@
             transcribeAttemptAction: String(gamesCfg.transcribeAttemptAction || ''),
             scoreAttemptAction: String(gamesCfg.scoreAttemptAction || ''),
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
+            runtimeMode: runtimeMode,
+            offlineMode: offlineMode,
+            staticCatalog: (gamesCfg.catalog && typeof gamesCfg.catalog === 'object') ? gamesCfg.catalog : null,
+            offlineBridge: (cfg.offlineBridge && typeof cfg.offlineBridge === 'object')
+                ? cfg.offlineBridge
+                : ((gamesCfg.offlineBridge && typeof gamesCfg.offlineBridge === 'object') ? gamesCfg.offlineBridge : null),
             catalogEntry: null,
             imageCache: {},
             audioPreloadCache: {},
@@ -6497,9 +6609,9 @@
         setGameGuardPageClass(false);
         syncCanvasSize(ctx);
         updateStageGameUi(ctx, '');
-        renderAllCatalogCards(ctx, null, !!ctx.isLoggedIn);
+        renderAllCatalogCards(ctx, null, !!(ctx.isLoggedIn || ctx.offlineMode));
 
-        if (ctx.isLoggedIn) {
+        if (ctx.isLoggedIn || ctx.offlineMode || ctx.staticCatalog) {
             bootstrapCatalog(ctx);
         } else {
             renderAllCatalogCards(ctx, null, false);
