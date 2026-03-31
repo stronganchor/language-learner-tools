@@ -369,6 +369,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'display_name' => ($translation !== '' ? $translation : $name),
             'wordset_slug' => $wordset_slug,  // Added key
             'wordset_id'   => $wordset_id_for_item,
+            'autoplay_text_audio_answer_options' => ($wordset_id_for_item > 0 && function_exists('ll_tools_should_autoplay_text_audio_answer_options'))
+                ? ll_tools_should_autoplay_text_audio_answer_options([$wordset_id_for_item])
+                : false,
             'display_mode' => $option_type,
             'option_type'  => $option_type,
             'prompt_type'  => $prompt_type,
@@ -493,12 +496,14 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             var displayModeHint = a.getAttribute('data-display-mode') || '';
             var promptTypeHint = a.getAttribute('data-prompt-type') || '';
             var optionTypeHint = a.getAttribute('data-option-type') || '';
+            var autoplayTextAudioAnswerOptionsAttr = a.getAttribute('data-autoplay-text-audio-answer-options');
             var genderEnabledAttr = a.getAttribute('data-gender-enabled');
             var genderSupportedAttr = a.getAttribute('data-gender-supported');
             var genderOptionsAttr = a.getAttribute('data-gender-options') || '';
             var genderVisualConfigAttr = a.getAttribute('data-gender-visual-config') || '';
             if (!cat) return;
 
+            var autoplayTextAudioAnswerOptions = (autoplayTextAudioAnswerOptionsAttr === '1' || autoplayTextAudioAnswerOptionsAttr === 'true');
             var genderEnabled = (genderEnabledAttr === '1' || genderEnabledAttr === 'true');
             var genderSupported = (genderSupportedAttr === '1' || genderSupportedAttr === 'true');
             var genderOptions = [];
@@ -556,6 +561,7 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
                     genderSupported: genderSupported,
                     genderOptions: genderOptions,
                     genderVisualConfig: genderVisualConfig,
+                    autoplayTextAudioAnswerOptions: autoplayTextAudioAnswerOptions,
                     triggerEl: a
                 };
                 if (wordsetId) {
@@ -841,6 +847,10 @@ function ll_qpg_print_flashcard_shell_once() {
                 window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
                 window.llToolsFlashcardsData.launchContext = launchContext;
                 window.llToolsFlashcardsData.launch_context = launchContext;
+                if (opts && typeof opts.autoplayTextAudioAnswerOptions !== 'undefined') {
+                    window.llToolsFlashcardsData.autoplayTextAudioAnswerOptions = !!opts.autoplayTextAudioAnswerOptions;
+                    window.llToolsFlashcardsData.autoplay_text_audio_answer_options = !!opts.autoplayTextAudioAnswerOptions;
+                }
                 if (mode === 'gender') {
                     delete window.llToolsFlashcardsData.genderSessionPlan;
                     delete window.llToolsFlashcardsData.genderSessionPlanArmed;
@@ -855,7 +865,16 @@ function ll_qpg_print_flashcard_shell_once() {
             var genderVisualConfig = (opts && opts.genderVisualConfig && typeof opts.genderVisualConfig === 'object')
                 ? opts.genderVisualConfig
                 : null;
+            var autoplayTextAudioAnswerOptions = (opts && typeof opts.autoplayTextAudioAnswerOptions !== 'undefined')
+                ? !!opts.autoplayTextAudioAnswerOptions
+                : null;
             if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
+                if (autoplayTextAudioAnswerOptions === null) {
+                    var ataAttr = opts.triggerEl.getAttribute('data-autoplay-text-audio-answer-options');
+                    if (ataAttr !== null) {
+                        autoplayTextAudioAnswerOptions = (ataAttr === '1' || ataAttr === 'true');
+                    }
+                }
                 if (genderEnabled === null) {
                     var geAttr = opts.triggerEl.getAttribute('data-gender-enabled');
                     if (geAttr !== null) {
@@ -896,6 +915,10 @@ function ll_qpg_print_flashcard_shell_once() {
             }
 
             if (window.llToolsFlashcardsData) {
+                if (autoplayTextAudioAnswerOptions !== null) {
+                    window.llToolsFlashcardsData.autoplayTextAudioAnswerOptions = autoplayTextAudioAnswerOptions;
+                    window.llToolsFlashcardsData.autoplay_text_audio_answer_options = autoplayTextAudioAnswerOptions;
+                }
                 if (genderEnabled !== null) {
                     window.llToolsFlashcardsData.genderEnabled = genderEnabled;
                     window.llToolsFlashcardsData.genderWordsetId = parsedWordsetIds.length ? parsedWordsetIds[0] : 0;
@@ -1022,6 +1045,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             // For popup, add wordset and mode data attributes if set
             $ws_attr = (!empty($it['wordset_slug'])) ? ' data-wordset="' . esc_attr($it['wordset_slug']) . '"' : '';
             $ws_id_attr = (!empty($it['wordset_id'])) ? ' data-wordset-id="' . (int) $it['wordset_id'] . '"' : '';
+            $autoplay_text_audio_attr = ' data-autoplay-text-audio-answer-options="' . (!empty($it['autoplay_text_audio_answer_options']) ? '1' : '0') . '"';
             $mode_hint = (!empty($it['display_mode'])) ? ' data-display-mode="' . esc_attr($it['display_mode']) . '"' : '';
             $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             $prompt_attr = (!empty($it['prompt_type'])) ? ' data-prompt-type="' . esc_attr($it['prompt_type']) . '"' : '';
@@ -1039,6 +1063,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             . ' data-url="' . esc_url($permalink) . '"'
             . $ws_attr
             . $ws_id_attr
+            . $autoplay_text_audio_attr
             . $mode_hint
             . $mode_attr
             . $prompt_attr

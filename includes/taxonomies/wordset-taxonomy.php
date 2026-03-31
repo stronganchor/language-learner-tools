@@ -2,6 +2,9 @@
 if (!defined('LL_TOOLS_WORDSET_VISIBILITY_META_KEY')) {
     define('LL_TOOLS_WORDSET_VISIBILITY_META_KEY', 'll_wordset_visibility');
 }
+if (!defined('LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY')) {
+    define('LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY', 'll_wordset_autoplay_text_audio_answer_options');
+}
 if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY')) {
     define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_FAMILY_META_KEY', 'll_wordset_answer_option_text_font_family');
 }
@@ -65,6 +68,31 @@ function ll_tools_get_wordset_visibility($wordset): string {
 
 function ll_tools_is_wordset_private($wordset): bool {
     return ll_tools_get_wordset_visibility($wordset) === 'private';
+}
+
+function ll_tools_should_autoplay_text_audio_answer_options($wordset_ids = []): bool {
+    $ids = function_exists('ll_tools_normalize_wordset_setting_ids')
+        ? ll_tools_normalize_wordset_setting_ids($wordset_ids)
+        : array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($id): bool {
+            return $id > 0;
+        }));
+
+    if (count($ids) !== 1) {
+        return false;
+    }
+
+    $wordset_id = (int) ($ids[0] ?? 0);
+    if ($wordset_id <= 0 || !metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY)) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_normalize_wordset_boolean_setting')) {
+        return ll_tools_normalize_wordset_boolean_setting(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, true)
+        ) === 1;
+    }
+
+    return (bool) get_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, true);
 }
 
 function ll_tools_wordset_get_answer_option_text_style_defaults(): array {
@@ -1965,6 +1993,7 @@ function ll_add_wordset_language_field($term) {
         ? (string) ll_tools_get_wordset_title_language_role($wordset_context)
         : 'target';
     $wordset_visibility = 'public';
+    $autoplay_text_audio_answer_options = false;
     $hide_lesson_text_for_non_text_quiz = false;
     $has_gender = false;
     $has_plurality = false;
@@ -2008,6 +2037,9 @@ function ll_add_wordset_language_field($term) {
         $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
             ? ll_tools_get_wordset_visibility($term_id)
             : 'public';
+        $autoplay_text_audio_answer_options = function_exists('ll_tools_should_autoplay_text_audio_answer_options')
+            ? ll_tools_should_autoplay_text_audio_answer_options([$term_id])
+            : false;
         $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
         $has_gender = (bool) get_term_meta($term_id, 'll_wordset_has_gender', true);
         $has_plurality = (bool) get_term_meta($term_id, 'll_wordset_has_plurality', true);
@@ -2154,6 +2186,15 @@ function ll_add_wordset_language_field($term) {
         '<label><input type="checkbox" id="ll-wordset-hide-lesson-text" name="ll_wordset_hide_lesson_text_for_non_text_quiz" value="1" ' . checked($hide_lesson_text_for_non_text_quiz, true, false) . ' /> ' . esc_html__('Hide word text on lesson pages/word grids when the category quiz shows only images/audio.', 'll-tools-text-domain') . '</label>',
         'll-wordset-hide-lesson-text',
         __('Categories can override this in their quiz settings.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-autoplay-text-audio-options-wrap',
+        __('Text + audio option autoplay', 'll-tools-text-domain'),
+        '<label><input type="checkbox" id="ll-wordset-autoplay-text-audio-options" name="ll_wordset_autoplay_text_audio_answer_options" value="1" ' . checked($autoplay_text_audio_answer_options, true, false) . ' /> ' . esc_html__('Automatically play the audio for text + audio answer options during quizzes.', 'll-tools-text-domain') . '</label>',
+        'll-wordset-autoplay-text-audio-options',
+        __('When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play.', 'll-tools-text-domain')
     );
 
     $answer_option_font_family_field_html = '<select id="ll-wordset-answer-option-font-family" name="ll_wordset_answer_option_text_font_family"';
@@ -2447,6 +2488,7 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_word_title_language_role'])
         || isset($_POST['ll_wordset_recording_transcription_mode'])
         || isset($_POST['ll_wordset_visibility'])
+        || isset($_POST['ll_wordset_autoplay_text_audio_answer_options'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
         || isset($_POST['ll_wordset_answer_option_text_font_family'])
         || isset($_POST['ll_wordset_answer_option_text_font_weight'])
@@ -2535,6 +2577,9 @@ function ll_save_wordset_language($term_id) {
             ? ll_tools_normalize_wordset_visibility(wp_unslash((string) $_POST['ll_wordset_visibility']))
             : 'public';
         update_term_meta($term_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, $wordset_visibility);
+
+        $autoplay_text_audio_answer_options = isset($_POST['ll_wordset_autoplay_text_audio_answer_options']) ? 1 : 0;
+        update_term_meta($term_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
 
         $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);

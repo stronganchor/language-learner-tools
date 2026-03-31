@@ -815,9 +815,18 @@
         const opt = State.currentOptionType;
         const prompt = State.currentPromptType;
         if (prompt !== 'image') return false;
-        if (opt !== 'audio' && opt !== 'text_audio') return false;
         if (typeof State.is === 'function' && !State.is(State.STATES.SHOWING_QUESTION)) return false;
-        return $('#ll-tools-flashcard .flashcard-container.audio-option').length > 0;
+
+        const hasAudioOptions = $('#ll-tools-flashcard .flashcard-container.audio-option').length > 0;
+        if (!hasAudioOptions) return false;
+        if (opt === 'audio') return true;
+        if (opt !== 'text_audio') return false;
+
+        const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+
+        return !!(flashData.autoplayTextAudioAnswerOptions || flashData.autoplay_text_audio_answer_options);
     }
 
     function autoplayOptionAudioSequence(initialDelayMs = 700, gapMs = 200) {

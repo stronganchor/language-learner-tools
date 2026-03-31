@@ -1204,6 +1204,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
     $visibility = isset($_POST['ll_wordset_visibility'])
         ? ll_tools_normalize_wordset_visibility(wp_unslash((string) $_POST['ll_wordset_visibility']))
         : 'public';
+    $autoplay_text_audio_answer_options = isset($_POST['ll_wordset_autoplay_text_audio_answer_options']) ? 1 : 0;
     $submitted_tool = ll_tools_get_wordset_settings_tool();
 
     $base_redirect = ll_tools_get_wordset_settings_tool_url(
@@ -1250,6 +1251,8 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         } else {
             delete_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY);
         }
+    } elseif ($submitted_tool === 'study') {
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
     } else {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, $visibility);
     }
@@ -3508,6 +3511,14 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
     $gender_mode_available = !empty($args['gender_mode_available']);
     $enhanced_categories = (isset($args['enhanced_categories']) && is_array($args['enhanced_categories'])) ? $args['enhanced_categories'] : [];
     $recommendation_queue = (isset($args['recommendation_queue']) && is_array($args['recommendation_queue'])) ? $args['recommendation_queue'] : [];
+    $wordset_term = (isset($args['wordset_term']) && $args['wordset_term'] instanceof WP_Term) ? $args['wordset_term'] : null;
+    $wordset_id = isset($args['wordset_id']) ? (int) $args['wordset_id'] : 0;
+    $back_url = isset($args['back_url']) ? (string) $args['back_url'] : '';
+    $can_manage_wordset_content = !empty($args['can_manage_wordset_content']);
+    $autoplay_text_audio_answer_options = !empty($args['autoplay_text_audio_answer_options']);
+    $study_settings_action_url = ($can_manage_wordset_content && $wordset_term instanceof WP_Term && $wordset_id > 0)
+        ? ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $back_url)
+        : '';
 
     ob_start();
     ?>
@@ -3571,6 +3582,40 @@ function ll_tools_wordset_page_render_settings_study_tool(array $args): string {
                 <?php endforeach; ?>
             </div>
         </div>
+
+        <?php if ($study_settings_action_url !== '') : ?>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Audio answer options', 'll-tools-text-domain'); ?></h2>
+            <form method="post" action="<?php echo esc_url($study_settings_action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
+                <input type="hidden" name="ll_wordset_manager_settings_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                <input type="hidden" name="ll_wordset_view" value="settings" />
+                <input type="hidden" name="ll_wordset_tool" value="study" />
+                <?php wp_nonce_field('ll_wordset_manager_settings_' . $wordset_id, 'll_wordset_manager_settings_nonce'); ?>
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Text + audio pairs', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-autoplay-text-audio-options">
+                        <input
+                            type="checkbox"
+                            id="ll-wordset-settings-autoplay-text-audio-options"
+                            name="ll_wordset_autoplay_text_audio_answer_options"
+                            value="1"
+                            <?php checked($autoplay_text_audio_answer_options, true); ?>
+                        />
+                        <?php echo esc_html__('Automatically play the audio for text + audio answer options during quizzes.', 'll-tools-text-domain'); ?>
+                    </label>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Study Settings', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <?php endif; ?>
 
         <?php echo ll_tools_wordset_page_render_settings_queue($enhanced_categories, $recommendation_queue, $mode_labels, $mode_ui, $mode_fallback_icons); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     </section>
@@ -3714,6 +3759,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $wordset_visibility = function_exists('ll_tools_get_wordset_visibility')
         ? ll_tools_get_wordset_visibility($wordset_id)
         : 'public';
+    $autoplay_text_audio_answer_options = function_exists('ll_tools_should_autoplay_text_audio_answer_options')
+        ? ll_tools_should_autoplay_text_audio_answer_options([$wordset_id])
+        : false;
     $wordset_is_private = ($wordset_visibility === 'private');
     $plugin_update_status = function_exists('ll_tools_get_plugin_update_status_details')
         ? ll_tools_get_plugin_update_status_details()
@@ -5106,6 +5154,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     'gender_mode_available' => $gender_mode_available,
                     'enhanced_categories' => $enhanced_categories,
                     'recommendation_queue' => $recommendation_queue,
+                    'wordset_term' => $wordset_term,
+                    'wordset_id' => $wordset_id,
+                    'back_url' => $back_url,
+                    'can_manage_wordset_content' => $can_manage_wordset_content,
+                    'autoplay_text_audio_answer_options' => $autoplay_text_audio_answer_options,
                 ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 ?>
             <?php elseif ($settings_tool === 'visibility' && $can_manage_wordset_content) : ?>
