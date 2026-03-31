@@ -2341,7 +2341,11 @@
             return;
         }
         const shouldHide = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG && (isLoading || !entry || entry.hidden);
-        card.$card.prop('hidden', shouldHide);
+        if (shouldHide) {
+            card.$card.attr('hidden', 'hidden');
+        } else {
+            card.$card.removeAttr('hidden');
+        }
         if (shouldHide) {
             return;
         }
@@ -2399,7 +2403,6 @@
         const requestOptions = {
             mode: 'cors',
             cache: 'no-store',
-            signal: controller ? controller.signal : undefined
         };
         const performGetProbe = function () {
             return root.fetch(url, $.extend({}, requestOptions, {
@@ -2412,6 +2415,7 @@
         };
         const request = root.fetch(url, $.extend({}, requestOptions, {
             method: 'HEAD',
+            signal: controller ? controller.signal : undefined
         })).then(function (response) {
             if (response && response.ok) {
                 return true;
