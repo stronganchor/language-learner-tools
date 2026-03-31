@@ -2340,7 +2340,7 @@
         if (!card) {
             return;
         }
-        const shouldHide = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG && !isLoading && (!entry || entry.hidden);
+        const shouldHide = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG && (isLoading || !entry || entry.hidden);
         card.$card.prop('hidden', shouldHide);
         if (shouldHide) {
             return;
@@ -2349,7 +2349,10 @@
             ? String(ctx.i18n.gamesPlay || 'Play')
             : String(ctx.i18n.gamesLocked || 'Locked');
 
-        card.$status.text(isLoading ? String(ctx.i18n.gamesLoading || 'Checking game availability...') : getCardStatusText(ctx, entry));
+        const loadingText = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG
+            ? String(ctx.i18n.gamesSpeakingCheckingApi || ctx.i18n.gamesLoading || 'Checking game availability...')
+            : String(ctx.i18n.gamesLoading || 'Checking game availability...');
+        card.$status.text(isLoading ? loadingText : getCardStatusText(ctx, entry));
         card.$count.text(entry ? String(entry.available_word_count || 0) : '\u2014');
         card.$launchButton.text(ctx.isLoggedIn ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
         card.$launchButton.prop('disabled', isLoading || !ctx.isLoggedIn || !(entry && entry.launchable));
