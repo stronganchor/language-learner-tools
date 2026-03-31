@@ -4529,6 +4529,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'speechStartThreshold' => 0.06,
                 'minSpeechMs' => 160,
                 'apiCheckTimeoutMs' => 1500,
+                'correctHitAudioSources' => [
+                    LL_TOOLS_BASE_URL . 'media/right-answer.mp3',
+                ],
+                'wrongHitAudioSources' => [
+                    LL_TOOLS_BASE_URL . 'media/wrong-answer.mp3',
+                ],
             ],
         ],
         'summaryCounts' => $summary_counts,
@@ -5981,7 +5987,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 <?php endfor; ?>
                             </div>
 
-                            <div class="ll-wordset-speaking-stage__actions">
+                            <div class="ll-wordset-speaking-stage__actions" data-ll-wordset-speaking-actions>
                                 <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--record" data-ll-wordset-speaking-record><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
                             </div>
 
@@ -5993,11 +5999,17 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 <div class="ll-wordset-speaking-stage__bar-track" aria-hidden="true">
                                     <span class="ll-wordset-speaking-stage__bar-fill" data-ll-wordset-speaking-bar></span>
                                 </div>
-                                <dl class="ll-wordset-speaking-stage__details">
-                                    <div class="ll-wordset-speaking-stage__detail">
-                                        <dt><?php echo esc_html__('Heard', 'll-tools-text-domain'); ?></dt>
-                                        <dd data-ll-wordset-speaking-transcript></dd>
+                                <div class="ll-wordset-speaking-stage__comparison">
+                                    <div class="ll-wordset-speaking-stage__comparison-card">
+                                        <p class="ll-wordset-speaking-stage__comparison-label"><?php echo esc_html__('Heard', 'll-tools-text-domain'); ?></p>
+                                        <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-transcript></p>
                                     </div>
+                                    <div class="ll-wordset-speaking-stage__comparison-card" data-ll-wordset-speaking-target-row hidden>
+                                        <p class="ll-wordset-speaking-stage__comparison-label" data-ll-wordset-speaking-target-label><?php echo esc_html__('Target', 'll-tools-text-domain'); ?></p>
+                                        <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-target></p>
+                                    </div>
+                                </div>
+                                <dl class="ll-wordset-speaking-stage__details">
                                     <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-title-row hidden>
                                         <dt><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></dt>
                                         <dd data-ll-wordset-speaking-title></dd>
@@ -6008,7 +6020,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                     </div>
                                 </dl>
                                 <audio data-ll-wordset-speaking-correct-audio preload="none"></audio>
-                                <div class="ll-wordset-speaking-stage__result-actions">
+                                <div class="ll-wordset-speaking-stage__result-actions" data-ll-wordset-speaking-result-actions>
                                     <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--ghost" data-ll-wordset-speaking-play-correct hidden><?php echo esc_html__('Hear correct audio', 'll-tools-text-domain'); ?></button>
                                     <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--ghost" data-ll-wordset-speaking-retry><?php echo esc_html__('Retry', 'll-tools-text-domain'); ?></button>
                                     <button type="button" class="ll-wordset-speaking-stage__action" data-ll-wordset-speaking-next><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></button>

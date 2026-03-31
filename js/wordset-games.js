@@ -3114,6 +3114,9 @@
     }
 
     function resetRunControls(run) {
+        if (!run || !run.controls || typeof run.controls !== 'object') {
+            return;
+        }
         run.controls.left = false;
         run.controls.right = false;
         run.controls.fire = false;
@@ -3194,7 +3197,7 @@
             ctx.$canvasWrap.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$replayAudioButton && ctx.$replayAudioButton.length) {
-            ctx.$replayAudioButton.prop('hidden', isSpeaking);
+            ctx.$replayAudioButton.prop('hidden', false);
         }
         if (ctx && ctx.$pauseButton && ctx.$pauseButton.length) {
             ctx.$pauseButton.prop('hidden', isSpeaking);
@@ -4748,12 +4751,49 @@
             return;
         }
         ctx.$speakingResult.prop('hidden', !isVisible);
+        if (ctx.$speakingActions && ctx.$speakingActions.length) {
+            ctx.$speakingActions.prop('hidden', !!isVisible);
+        }
+    }
+
+    function scrollSpeakingElementIntoView(ctx, $element) {
+        const element = $element && $element.length ? $element.get(0) : null;
+        if (!element || typeof element.scrollIntoView !== 'function') {
+            return;
+        }
+        root.requestAnimationFrame(function () {
+            try {
+                element.scrollIntoView({
+                    block: 'nearest',
+                    inline: 'nearest',
+                    behavior: 'smooth'
+                });
+            } catch (_) {
+                element.scrollIntoView(false);
+            }
+        });
+    }
+
+    function setSpeakingReferenceAudioSource(ctx, audioUrl) {
+        if (!ctx || !ctx.speakingCorrectAudio) {
+            return;
+        }
+        const source = String(audioUrl || '').trim();
+        try {
+            ctx.speakingCorrectAudio.pause();
+            ctx.speakingCorrectAudio.currentTime = 0;
+            if (source) {
+                ctx.speakingCorrectAudio.src = source;
+            } else {
+                ctx.speakingCorrectAudio.removeAttribute('src');
+            }
+        } catch (_) { /* no-op */ }
     }
 
     function resetSpeakingResultUi(ctx) {
         showSpeakingResult(ctx, false);
         if (ctx && ctx.$speakingPromptCard && ctx.$speakingPromptCard.length) {
-            ctx.$speakingPromptCard.removeAttr('data-speaking-result');
+            ctx.$speakingPromptCard.removeAttr('data-speaking-result').removeClass('has-image has-text');
         }
         if (ctx && ctx.$speakingBucket && ctx.$speakingBucket.length) {
             ctx.$speakingBucket.text('');
@@ -4766,6 +4806,15 @@
         }
         if (ctx && ctx.$speakingTranscript && ctx.$speakingTranscript.length) {
             ctx.$speakingTranscript.text('');
+        }
+        if (ctx && ctx.$speakingTargetRow && ctx.$speakingTargetRow.length) {
+            ctx.$speakingTargetRow.prop('hidden', true);
+        }
+        if (ctx && ctx.$speakingTargetLabel && ctx.$speakingTargetLabel.length) {
+            ctx.$speakingTargetLabel.text(String(ctx.i18n.gamesSpeakingTargetLabel || 'Target'));
+        }
+        if (ctx && ctx.$speakingTarget && ctx.$speakingTarget.length) {
+            ctx.$speakingTarget.text('');
         }
         if (ctx && ctx.$speakingTitle && ctx.$speakingTitle.length) {
             ctx.$speakingTitle.text('');
@@ -4782,13 +4831,7 @@
         if (ctx && ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
             ctx.$speakingPlayCorrect.prop('hidden', true);
         }
-        if (ctx && ctx.speakingCorrectAudio) {
-            try {
-                ctx.speakingCorrectAudio.pause();
-                ctx.speakingCorrectAudio.currentTime = 0;
-                ctx.speakingCorrectAudio.removeAttribute('src');
-            } catch (_) { /* no-op */ }
-        }
+        setSpeakingReferenceAudioSource(ctx, '');
     }
 
     function getSpeakingPromptText(word) {
@@ -4824,11 +4867,20 @@
             ctx.$speakingText.text(promptText);
         }
         if (ctx.$speakingPromptCard && ctx.$speakingPromptCard.length) {
-            ctx.$speakingPromptCard.removeClass('is-entering');
+            const promptCard = ctx.$speakingPromptCard.get(0);
+            ctx.$speakingPromptCard
+                .removeClass('is-entering')
+                .toggleClass('has-image', hasImage)
+                .toggleClass('has-text', !hasImage);
+            if (promptCard) {
+                void promptCard.offsetWidth;
+            }
             root.requestAnimationFrame(function () {
                 ctx.$speakingPromptCard.addClass('is-entering');
             });
         }
+        setSpeakingReferenceAudioSource(ctx, String(word && word.speaking_best_correct_audio_url || ''));
+        scrollSpeakingElementIntoView(ctx, ctx.$speakingPromptCard);
     }
 
     function stopSpeakingMeterMonitoring(ctx) {
@@ -5195,7 +5247,10 @@
             : {};
         const title = String(displayTexts.title || '');
         const ipa = String(displayTexts.ipa || '');
+        const targetLabel = String(result && result.target_label || displayTexts.target_label || ctx.i18n.gamesSpeakingTargetLabel || 'Target');
+        const targetText = String(result && result.target_text || displayTexts.target_text || '');
         const correctAudioUrl = String(result && result.best_correct_audio_url || '');
+        const transcriptText = String(transcript || result && result.normalized_transcript_text || '');
         const bucketLabelMap = {
             right: String(ctx.i18n.gamesSpeakingResultRight || 'Correct'),
             close: String(ctx.i18n.gamesSpeakingResultClose || 'Close'),
@@ -5219,7 +5274,16 @@
                 .toggleClass('is-wrong', bucket === 'wrong');
         }
         if (ctx.$speakingTranscript && ctx.$speakingTranscript.length) {
-            ctx.$speakingTranscript.text(String(transcript || ''));
+            ctx.$speakingTranscript.text(transcriptText);
+        }
+        if (ctx.$speakingTargetRow && ctx.$speakingTargetRow.length) {
+            ctx.$speakingTargetRow.prop('hidden', targetText === '');
+        }
+        if (ctx.$speakingTargetLabel && ctx.$speakingTargetLabel.length) {
+            ctx.$speakingTargetLabel.text(targetLabel);
+        }
+        if (ctx.$speakingTarget && ctx.$speakingTarget.length) {
+            ctx.$speakingTarget.text(targetText);
         }
         if (ctx.$speakingTitleRow && ctx.$speakingTitleRow.length) {
             ctx.$speakingTitleRow.prop('hidden', title === '');
@@ -5233,20 +5297,11 @@
         if (ctx.$speakingIpa && ctx.$speakingIpa.length) {
             ctx.$speakingIpa.text(ipa);
         }
-        if (ctx.speakingCorrectAudio) {
-            try {
-                ctx.speakingCorrectAudio.pause();
-                ctx.speakingCorrectAudio.currentTime = 0;
-                if (correctAudioUrl) {
-                    ctx.speakingCorrectAudio.src = correctAudioUrl;
-                } else {
-                    ctx.speakingCorrectAudio.removeAttribute('src');
-                }
-            } catch (_) { /* no-op */ }
-        }
+        setSpeakingReferenceAudioSource(ctx, correctAudioUrl);
         if (ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
             ctx.$speakingPlayCorrect.prop('hidden', correctAudioUrl === '');
         }
+        scrollSpeakingElementIntoView(ctx, ctx.$speakingResult);
     }
 
     function handleSpeakingScoredAttempt(ctx, result, transcript) {
@@ -5361,6 +5416,7 @@
                 target: nextWord,
                 promptId: toInt(run.promptIdCounter) + 1,
                 recordingType: 'isolation',
+                audioUrl: String(nextWord && nextWord.speaking_best_correct_audio_url || ''),
                 gameSlug: SPEAKING_PRACTICE_GAME_SLUG,
                 hadWrongBefore: false,
                 exposureTracked: false
@@ -5421,6 +5477,15 @@
             words: entry.words.slice(),
             promptDeck: shuffle(entry.words.slice()),
             prompt: null,
+            cards: [],
+            bullets: [],
+            explosions: [],
+            decorativeBubbles: [],
+            controls: {
+                left: false,
+                right: false,
+                fire: false
+            },
             promptIdCounter: 0,
             promptsResolved: 0,
             coins: 0,
@@ -5751,6 +5816,13 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-replay-audio]', function (event) {
             event.preventDefault();
+            if (ctx.run && isSpeakingPracticeRun(ctx, ctx.run)) {
+                playPromptAudio(ctx, {
+                    allowAutoReplay: false,
+                    ignoreFeedbackQueue: true
+                });
+                return;
+            }
             if (ctx.run && !ctx.run.paused) {
                 markRunActivity(ctx);
             }
@@ -5762,6 +5834,10 @@
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-pause-toggle]', function (event) {
             event.preventDefault();
             if (!ctx.run) {
+                return;
+            }
+            if (isSpeakingPracticeRun(ctx, ctx.run)) {
+                showCatalog(ctx);
                 return;
             }
             if (ctx.run.paused) {
@@ -6033,12 +6109,16 @@
             $speakingText: $gamesRoot.find('[data-ll-wordset-speaking-text]').first(),
             $speakingMeter: $gamesRoot.find('[data-ll-wordset-speaking-meter]').first(),
             $speakingMeterBars: $gamesRoot.find('.ll-wordset-speaking-stage__meter-bar'),
+            $speakingActions: $gamesRoot.find('[data-ll-wordset-speaking-actions]').first(),
             $speakingRecord: $gamesRoot.find('[data-ll-wordset-speaking-record]').first(),
             $speakingResult: $gamesRoot.find('[data-ll-wordset-speaking-result]').first(),
             $speakingBucket: $gamesRoot.find('[data-ll-wordset-speaking-bucket]').first(),
             $speakingScore: $gamesRoot.find('[data-ll-wordset-speaking-score]').first(),
             $speakingBar: $gamesRoot.find('[data-ll-wordset-speaking-bar]').first(),
             $speakingTranscript: $gamesRoot.find('[data-ll-wordset-speaking-transcript]').first(),
+            $speakingTargetRow: $gamesRoot.find('[data-ll-wordset-speaking-target-row]').first(),
+            $speakingTargetLabel: $gamesRoot.find('[data-ll-wordset-speaking-target-label]').first(),
+            $speakingTarget: $gamesRoot.find('[data-ll-wordset-speaking-target]').first(),
             $speakingTitleRow: $gamesRoot.find('[data-ll-wordset-speaking-title-row]').first(),
             $speakingTitle: $gamesRoot.find('[data-ll-wordset-speaking-title]').first(),
             $speakingIpaRow: $gamesRoot.find('[data-ll-wordset-speaking-ipa-row]').first(),
