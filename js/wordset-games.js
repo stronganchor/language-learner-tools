@@ -195,6 +195,111 @@
         return copy;
     }
 
+    function escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function segmentDiffGraphemes(text) {
+        const source = String(text || '');
+        if (source === '') {
+            return [];
+        }
+        if (root.Intl && typeof root.Intl.Segmenter === 'function') {
+            const segmenter = new root.Intl.Segmenter(undefined, { granularity: 'grapheme' });
+            return Array.from(segmenter.segment(source), function (part) {
+                return String(part && part.segment || '');
+            });
+        }
+        return Array.from(source);
+    }
+
+    function buildSpeakingDiffMarkup(sourceText, targetText, variant) {
+        const sourceSegments = segmentDiffGraphemes(sourceText);
+        const targetSegments = segmentDiffGraphemes(targetText);
+        if (!sourceSegments.length) {
+            return '';
+        }
+
+        const rows = sourceSegments.length + 1;
+        const cols = targetSegments.length + 1;
+        const matrix = new Array(rows);
+        for (let rowIndex = 0; rowIndex < rows; rowIndex += 1) {
+            matrix[rowIndex] = new Array(cols).fill(0);
+        }
+
+        for (let sourceIndex = sourceSegments.length - 1; sourceIndex >= 0; sourceIndex -= 1) {
+            for (let targetIndex = targetSegments.length - 1; targetIndex >= 0; targetIndex -= 1) {
+                matrix[sourceIndex][targetIndex] = sourceSegments[sourceIndex] === targetSegments[targetIndex]
+                    ? matrix[sourceIndex + 1][targetIndex + 1] + 1
+                    : Math.max(matrix[sourceIndex + 1][targetIndex], matrix[sourceIndex][targetIndex + 1]);
+            }
+        }
+
+        const changed = new Array(sourceSegments.length).fill(false);
+        let sourceCursor = 0;
+        let targetCursor = 0;
+        while (sourceCursor < sourceSegments.length && targetCursor < targetSegments.length) {
+            if (sourceSegments[sourceCursor] === targetSegments[targetCursor]) {
+                sourceCursor += 1;
+                targetCursor += 1;
+                continue;
+            }
+
+            if (matrix[sourceCursor + 1][targetCursor] >= matrix[sourceCursor][targetCursor + 1]) {
+                changed[sourceCursor] = true;
+                sourceCursor += 1;
+            } else {
+                targetCursor += 1;
+            }
+        }
+        while (sourceCursor < sourceSegments.length) {
+            changed[sourceCursor] = true;
+            sourceCursor += 1;
+        }
+
+        let html = '';
+        let buffer = '';
+        let isDifferent = false;
+        function flush() {
+            if (buffer === '') {
+                return;
+            }
+            const escaped = escapeHtml(buffer);
+            html += isDifferent
+                ? '<span class="ll-wordset-speaking-stage__diff-fragment ll-wordset-speaking-stage__diff-fragment--' + escapeHtml(variant) + '">' + escaped + '</span>'
+                : escaped;
+            buffer = '';
+        }
+
+        sourceSegments.forEach(function (segment, index) {
+            const nextDifferent = !!changed[index];
+            if (buffer !== '' && nextDifferent !== isDifferent) {
+                flush();
+            }
+            isDifferent = nextDifferent;
+            buffer += segment;
+        });
+        flush();
+
+        return html;
+    }
+
+    function renderSpeakingComparedText(sourceText, targetText, score, variant) {
+        const displayText = String(sourceText || '');
+        if (displayText === '') {
+            return '';
+        }
+        if (Math.round(clamp(Number(score) || 0, 0, 100)) >= 100 || String(targetText || '') === '') {
+            return escapeHtml(displayText);
+        }
+        return buildSpeakingDiffMarkup(displayText, targetText, variant);
+    }
+
     function buildSpeakingPromptDeck(words, recentWordIds) {
         const shuffled = shuffle(words);
         const recentIds = Array.isArray(recentWordIds) ? recentWordIds.map(toInt).filter(Boolean) : [];
@@ -5427,7 +5532,7 @@
                 .toggleClass('is-wrong', bucket === 'wrong');
         }
         if (ctx.$speakingTranscript && ctx.$speakingTranscript.length) {
-            ctx.$speakingTranscript.text(transcriptText);
+            ctx.$speakingTranscript.html(renderSpeakingComparedText(transcriptText, targetText, score, 'heard'));
         }
         if (ctx.$speakingTargetRow && ctx.$speakingTargetRow.length) {
             ctx.$speakingTargetRow.prop('hidden', targetText === '' && title === '' && ipa === '');
@@ -5436,7 +5541,7 @@
             ctx.$speakingTargetLabel.text(targetLabel);
         }
         if (ctx.$speakingTarget && ctx.$speakingTarget.length) {
-            ctx.$speakingTarget.text(targetText);
+            ctx.$speakingTarget.html(renderSpeakingComparedText(targetText, transcriptText, score, 'target'));
         }
         if (ctx.$speakingTitleRow && ctx.$speakingTitleRow.length) {
             ctx.$speakingTitleRow.prop('hidden', !showTitle);
