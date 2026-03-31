@@ -977,7 +977,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         radial-gradient(circle at top left, rgba(251, 191, 36, 0.24), transparent 26%),
         linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 247, 237, 0.96));
     overflow-y: auto;
-    max-width: min(100%, 1080px);
+    max-width: min(100%, 1160px);
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-practice"] .ll-wordset-game-stage__nav--pause {
@@ -986,14 +986,14 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage {
     display: grid;
-    grid-template-columns: minmax(0, clamp(250px, 36vw, 420px)) minmax(240px, 1fr);
+    grid-template-columns: minmax(0, clamp(220px, 24vw, 290px)) minmax(320px, 1fr);
     grid-template-areas:
         "topline topline"
         "prompt meter"
         "prompt actions"
-        "result result";
-    gap: clamp(12px, 1.8vw, 18px);
-    padding: clamp(8px, 1.4vw, 12px);
+        "prompt result";
+    gap: clamp(10px, 1.4vw, 14px);
+    padding: clamp(6px, 1vw, 10px);
     align-content: start;
     align-items: start;
 }
@@ -1022,17 +1022,17 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__prompt-shell {
     grid-area: prompt;
-    width: min(100%, clamp(250px, 36vw, 420px));
+    width: min(100%, clamp(220px, 24vw, 290px));
     justify-self: start;
     perspective: 1200px;
 }
 
 .ll-wordset-speaking-stage__prompt-card {
-    min-height: clamp(180px, 26vh, 260px);
+    min-height: clamp(150px, 20vh, 210px);
     display: grid;
     place-items: center;
-    padding: clamp(14px, 2.4vw, 22px);
-    border-radius: 26px;
+    padding: clamp(12px, 1.8vw, 18px);
+    border-radius: 22px;
     border: 1px solid rgba(194, 65, 12, 0.12);
     background:
         radial-gradient(circle at top right, rgba(251, 191, 36, 0.22), transparent 30%),
@@ -1108,10 +1108,10 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     align-items: end;
-    gap: 8px;
-    min-height: 72px;
-    padding: 18px 20px;
-    border-radius: 22px;
+    gap: 6px;
+    min-height: 60px;
+    padding: 14px 16px;
+    border-radius: 18px;
     background: rgba(255, 255, 255, 0.82);
     border: 1px solid rgba(194, 65, 12, 0.12);
     box-shadow: 0 16px 34px rgba(124, 45, 18, 0.08);
@@ -1169,29 +1169,30 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-speaking-stage__result {
     grid-area: result;
     display: grid;
-    gap: 12px;
-    padding: 16px 18px 14px;
-    border-radius: 22px;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 18px;
     background: rgba(255, 255, 255, 0.84);
     border: 1px solid rgba(194, 65, 12, 0.12);
     box-shadow: 0 18px 40px rgba(124, 45, 18, 0.08);
+    align-self: start;
 }
 
 .ll-wordset-speaking-stage__comparison {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px;
 }
 
 .ll-wordset-speaking-stage__comparison-card {
     min-height: 0;
-    padding: 12px 14px;
-    border-radius: 18px;
+    padding: 10px 12px;
+    border-radius: 16px;
     background: rgba(255, 251, 235, 0.9);
     border: 1px solid rgba(194, 65, 12, 0.12);
     display: grid;
     align-content: start;
-    gap: 10px;
+    gap: 8px;
 }
 
 .ll-wordset-speaking-stage__comparison-head {
@@ -1220,9 +1221,9 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-speaking-stage__comparison-value {
     margin: 0;
     color: #431407;
-    font-size: 1.06rem;
+    font-size: 0.98rem;
     font-weight: 800;
-    line-height: 1.25;
+    line-height: 1.2;
     word-break: break-word;
 }
 
@@ -1233,23 +1234,24 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    min-height: 44px;
-    padding: 7px 10px;
-    border-radius: 16px;
+    min-height: 40px;
+    padding: 6px 9px;
+    border-radius: 14px;
     background: rgba(255, 255, 255, 0.96) !important;
     background-image: none !important;
-    box-shadow: 0 8px 18px rgba(194, 65, 12, 0.1) !important;
+    box-shadow: 0 8px 18px rgba(29, 77, 153, 0.1) !important;
     -webkit-tap-highlight-color: transparent;
 }
 
 .ll-wordset-speaking-stage__audio-button .ll-repeat-icon-wrap {
-    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%) !important;
-    color: #fff7ed !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 6px 14px rgba(194, 65, 12, 0.18);
+    border: 1px solid rgba(29, 77, 153, 0.14);
+    background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%) !important;
+    color: #1d4d99 !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74), 0 6px 14px rgba(29, 77, 153, 0.12);
 }
 
 .ll-wordset-speaking-stage__audio-button .ll-audio-mini-visualizer .bar {
-    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%);
+    background: #1d4d99;
 }
 
 .ll-wordset-speaking-stage__audio-button:hover,
@@ -1265,8 +1267,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__audio-button:hover,
 .ll-wordset-speaking-stage__audio-button:focus-visible {
-    border-color: rgba(194, 65, 12, 0.28) !important;
-    box-shadow: 0 10px 22px rgba(194, 65, 12, 0.14) !important;
+    border-color: rgba(29, 77, 153, 0.28) !important;
+    box-shadow: 0 10px 22px rgba(29, 77, 153, 0.14) !important;
 }
 
 .ll-wordset-speaking-stage__icon-action:hover,
@@ -1290,7 +1292,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__bar-track {
     width: 100%;
-    height: 14px;
+    height: 12px;
     border-radius: 999px;
     background: rgba(124, 45, 18, 0.08);
     overflow: hidden;
@@ -1319,7 +1321,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     margin: 0;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 8px 12px;
 }
 
 .ll-wordset-speaking-stage__detail {
@@ -1329,14 +1331,14 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__detail dt {
     color: rgba(124, 45, 18, 0.68);
-    font-size: 0.84rem;
+    font-size: 0.78rem;
     font-weight: 700;
 }
 
 .ll-wordset-speaking-stage__detail dd {
     margin: 0;
     color: #431407;
-    font-size: 1rem;
+    font-size: 0.94rem;
     font-weight: 700;
 }
 
@@ -1347,36 +1349,50 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__icon-action {
     appearance: none;
-    width: 52px;
-    height: 52px;
+    width: 48px;
+    height: 48px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid transparent;
+    padding: 0;
+    border: 1px solid rgba(29, 77, 153, 0.18);
     box-sizing: border-box;
-    border-radius: 16px;
-    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%);
-    color: #fff7ed;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #2563eb 0%, #1d4d99 100%) !important;
+    background-color: #1d4d99 !important;
+    background-image: linear-gradient(180deg, #2563eb 0%, #1d4d99 100%) !important;
+    color: #eff6ff !important;
     cursor: pointer;
-    box-shadow: 0 14px 24px rgba(194, 65, 12, 0.2);
+    box-shadow: 0 14px 24px rgba(29, 77, 153, 0.18);
     -webkit-tap-highlight-color: transparent;
 }
 
 .ll-wordset-speaking-stage__icon-action--ghost {
-    background: rgba(255, 255, 255, 0.88);
-    color: #9a3412;
-    border-color: rgba(194, 65, 12, 0.16);
+    background: rgba(255, 255, 255, 0.92) !important;
+    background-color: rgba(255, 255, 255, 0.92) !important;
+    background-image: none !important;
+    color: #1d4d99 !important;
+    border-color: rgba(29, 77, 153, 0.18) !important;
     box-shadow: none;
 }
 
 .ll-wordset-speaking-stage__icon-action-svg {
     width: 24px;
     height: 24px;
-    stroke: currentColor;
+    display: block;
+    stroke: currentColor !important;
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
-    fill: none;
+    fill: none !important;
+}
+
+.ll-wordset-speaking-stage__icon-action-svg path,
+.ll-wordset-speaking-stage__icon-action-svg circle,
+.ll-wordset-speaking-stage__icon-action-svg line,
+.ll-wordset-speaking-stage__icon-action-svg polyline {
+    stroke: currentColor !important;
+    fill: none !important;
 }
 
 @keyframes ll-speaking-prompt-enter {
@@ -1416,7 +1432,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-speaking-stage__prompt-shell {
-        width: min(100%, 380px);
+        width: min(100%, 260px);
         justify-self: center;
     }
 
@@ -1521,12 +1537,12 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-speaking-stage__prompt-shell {
-        width: min(100%, 300px);
+        width: min(100%, 220px);
     }
 
     .ll-wordset-speaking-stage__prompt-card {
-        min-height: 190px;
-        padding: 14px;
+        min-height: 150px;
+        padding: 12px;
     }
 
     .ll-wordset-speaking-stage__meter {
