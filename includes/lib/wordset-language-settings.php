@@ -27,6 +27,15 @@ if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY')) {
     define('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY', 'll_wordset_local_transcription_target');
 }
+if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY', 'll_wordset_speaking_game_enabled');
+}
+if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY', 'll_wordset_speaking_game_provider');
+}
+if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY', 'll_wordset_speaking_game_target');
+}
 if (!defined('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION')) {
     define('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION', 'll_tools_wordset_language_settings_migrated_version');
 }
@@ -58,6 +67,11 @@ function ll_tools_sanitize_wordset_transcription_provider($value): string {
 function ll_tools_sanitize_wordset_local_transcription_target($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['recording_text', 'recording_ipa'], true) ? $value : 'recording_ipa';
+}
+
+function ll_tools_sanitize_wordset_speaking_game_target($value): string {
+    $value = sanitize_key((string) $value);
+    return in_array($value, ['word_title', 'recording_ipa'], true) ? $value : 'word_title';
 }
 
 function ll_tools_get_default_local_transcription_endpoint(): string {
@@ -211,11 +225,6 @@ function ll_tools_get_wordset_local_transcription_endpoint($wordset_ids = [], bo
 }
 
 function ll_tools_get_wordset_local_transcription_target($wordset_ids = [], bool $fallback_to_default = true): string {
-    $provider = ll_tools_get_wordset_transcription_provider($wordset_ids, $fallback_to_default);
-    if ($provider !== 'local_browser') {
-        return 'recording_text';
-    }
-
     $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
     foreach ($ids as $wordset_id) {
         if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY)) {
@@ -228,6 +237,194 @@ function ll_tools_get_wordset_local_transcription_target($wordset_ids = [], bool
     }
 
     return $fallback_to_default ? 'recording_ipa' : '';
+}
+
+function ll_tools_get_wordset_speaking_game_enabled($wordset_ids = [], bool $fallback_to_default = true): bool {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_normalize_wordset_boolean_setting(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, true)
+        ) === 1;
+    }
+
+    return $fallback_to_default ? false : false;
+}
+
+function ll_tools_get_wordset_speaking_game_provider($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_transcription_provider(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, true)
+        );
+    }
+
+    return ll_tools_get_wordset_transcription_provider($wordset_ids, $fallback_to_default);
+}
+
+function ll_tools_get_wordset_speaking_game_target($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_speaking_game_target(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? 'word_title' : '';
+}
+
+function ll_tools_get_wordset_speaking_game_target_label(string $target, $wordset_ids = []): string {
+    $target = ll_tools_sanitize_wordset_speaking_game_target($target);
+
+    if ($target === 'recording_ipa') {
+        return __('IPA', 'll-tools-text-domain');
+    }
+
+    return __('Word title', 'll-tools-text-domain');
+}
+
+function ll_tools_get_wordset_speaking_game_target_options(): array {
+    return [
+        'word_title' => [
+            'label' => __('Word title', 'll-tools-text-domain'),
+        ],
+        'recording_ipa' => [
+            'label' => __('IPA', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fallback_to_default = true): array {
+    $provider = ll_tools_get_wordset_speaking_game_provider($wordset_ids, $fallback_to_default);
+    $enabled_flag = ll_tools_get_wordset_speaking_game_enabled($wordset_ids, $fallback_to_default);
+    $target = ll_tools_get_wordset_speaking_game_target($wordset_ids, $fallback_to_default);
+    $local_endpoint = $provider === 'local_browser'
+        ? ll_tools_get_wordset_local_transcription_endpoint($wordset_ids, $fallback_to_default)
+        : '';
+    $local_result_field = $provider === 'local_browser'
+        ? ll_tools_get_wordset_local_transcription_target($wordset_ids, $fallback_to_default)
+        : 'recording_text';
+    $service_enabled = false;
+    if ($provider === 'assemblyai') {
+        $service_enabled = function_exists('ll_get_assemblyai_api_key') && ll_get_assemblyai_api_key() !== '';
+    } elseif ($provider === 'local_browser') {
+        $service_enabled = $local_endpoint !== '';
+    }
+    $enabled = $enabled_flag && $service_enabled && $target !== '';
+    $compatible = true;
+    $compatibility_message = '';
+    if ($provider === 'assemblyai' && $target === 'recording_ipa') {
+        $compatible = false;
+        $compatibility_message = __('AssemblyAI returns normal text for this game, so the target must use word title text.', 'll-tools-text-domain');
+    } elseif ($provider === 'local_browser') {
+        if ($local_result_field === 'recording_ipa' && $target !== 'recording_ipa') {
+            $compatible = false;
+            $compatibility_message = __('The local STT model is configured to return IPA, so the speaking game target must use the IPA field.', 'll-tools-text-domain');
+        } elseif ($local_result_field !== 'recording_ipa' && $target === 'recording_ipa') {
+            $compatible = false;
+            $compatibility_message = __('The local STT model is configured to return normal text, so the speaking game target must use word title text.', 'll-tools-text-domain');
+        }
+    }
+    $enabled = $enabled && $compatible;
+
+    return [
+        'enabled_flag' => $enabled_flag,
+        'enabled' => $enabled,
+        'provider' => $provider,
+        'provider_label' => ll_tools_get_wordset_transcription_provider_label($provider),
+        'uses_local_browser' => ($provider === 'local_browser'),
+        'local_endpoint' => $local_endpoint,
+        'local_result_field' => $provider === 'local_browser' ? $local_result_field : 'recording_text',
+        'service_enabled' => $service_enabled,
+        'compatible' => $compatible,
+        'compatibility_message' => $compatibility_message,
+        'target' => $target,
+        'target_label' => ll_tools_get_wordset_speaking_game_target_label($target, $wordset_ids),
+        'target_options' => ll_tools_get_wordset_speaking_game_target_options(),
+    ];
+}
+
+function ll_tools_is_wordset_speaking_game_available($wordset_ids = [], bool $fallback_to_default = true): bool {
+    $config = ll_tools_get_wordset_speaking_game_config($wordset_ids, $fallback_to_default);
+    return !empty($config['enabled']);
+}
+
+function ll_tools_get_wordset_speaking_game_target_value(int $word_id, string $target = 'word_title', array $word_data = []): string {
+    $word_id = (int) $word_id;
+    $target = ll_tools_sanitize_wordset_speaking_game_target($target);
+
+    if ($target === 'recording_ipa') {
+        $raw = trim((string) ($word_data['recording_ipa'] ?? ''));
+        if ($raw !== '') {
+            return $raw;
+        }
+
+        if ($word_id <= 0 || !function_exists('ll_get_prioritized_audio')) {
+            return '';
+        }
+
+        $audio_posts = get_posts([
+            'post_type' => 'word_audio',
+            'post_parent' => $word_id,
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'orderby' => 'date',
+            'order' => 'DESC',
+            'suppress_filters' => true,
+            'no_found_rows' => true,
+        ]);
+        if (empty($audio_posts)) {
+            return '';
+        }
+
+        $preferred_speaker = function_exists('ll_tools_get_preferred_speaker_from_audio_posts')
+            ? ll_tools_get_preferred_speaker_from_audio_posts($audio_posts)
+            : 0;
+        $prioritized = ll_get_prioritized_audio($audio_posts, $preferred_speaker);
+        $candidate_posts = [];
+        if ($prioritized instanceof WP_Post) {
+            $candidate_posts[] = $prioritized;
+        }
+        foreach ($audio_posts as $audio_post) {
+            if (!($audio_post instanceof WP_Post)) {
+                continue;
+            }
+            if ($prioritized instanceof WP_Post && (int) $audio_post->ID === (int) $prioritized->ID) {
+                continue;
+            }
+            $candidate_posts[] = $audio_post;
+        }
+        foreach ($candidate_posts as $audio_post) {
+            $ipa = trim((string) get_post_meta($audio_post->ID, 'recording_ipa', true));
+            if ($ipa !== '') {
+                return $ipa;
+            }
+        }
+
+        return '';
+    }
+
+    $title = trim((string) ($word_data['title'] ?? ''));
+    if ($title !== '') {
+        return $title;
+    }
+
+    if ($word_id > 0) {
+        $title = html_entity_decode((string) get_the_title($word_id), ENT_QUOTES, 'UTF-8');
+    }
+
+    return trim((string) $title);
 }
 
 function ll_tools_get_wordset_transcription_provider_label(string $provider): string {

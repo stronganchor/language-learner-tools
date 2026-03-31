@@ -4,6 +4,7 @@
     const api = root.LLWordsetGames = root.LLWordsetGames || {};
     const DEFAULT_GAME_SLUG = 'space-shooter';
     const BUBBLE_POP_GAME_SLUG = 'bubble-pop';
+    const SPEAKING_PRACTICE_GAME_SLUG = 'speaking-practice';
     const MODULE_NS = '.llWordsetGames';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
     const CARD_RATIO_MIN = 0.55;
@@ -360,7 +361,22 @@
             practice_exposure_count: toInt(word.practice_exposure_count),
             game_prompt_recording_types: Array.isArray(word.game_prompt_recording_types)
                 ? uniqueStringList(word.game_prompt_recording_types)
-                : []
+                : [],
+            speaking_target_field: String(word.speaking_target_field || ''),
+            speaking_target_label: String(word.speaking_target_label || ''),
+            speaking_target_text: String(word.speaking_target_text || ''),
+            speaking_prompt_text: String(word.speaking_prompt_text || ''),
+            speaking_prompt_type: String(word.speaking_prompt_type || ''),
+            speaking_display_texts: (word.speaking_display_texts && typeof word.speaking_display_texts === 'object')
+                ? {
+                    title: String(word.speaking_display_texts.title || ''),
+                    ipa: String(word.speaking_display_texts.ipa || ''),
+                    target_text: String(word.speaking_display_texts.target_text || ''),
+                    target_field: String(word.speaking_display_texts.target_field || ''),
+                    target_label: String(word.speaking_display_texts.target_label || '')
+                }
+                : null,
+            speaking_best_correct_audio_url: String(word.speaking_best_correct_audio_url || '')
         };
     }
 
@@ -396,8 +412,12 @@
         return normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG;
     }
 
+    function isSpeakingPracticeRun(ctx, run) {
+        return normalizeGameSlug(run && run.slug) === SPEAKING_PRACTICE_GAME_SLUG;
+    }
+
     function isSpaceShooterRun(ctx, run) {
-        return !isBubblePopRun(ctx, run);
+        return normalizeGameSlug(run && run.slug) === DEFAULT_GAME_SLUG;
     }
 
     function getAssetPreloadTimeoutMs(ctx, runOrSlug) {
@@ -423,6 +443,9 @@
         );
         if (requestedSlug === BUBBLE_POP_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelBubblePop || 'Bubble Pop game board');
+        }
+        if (requestedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingPractice || 'Speaking practice panel');
         }
         if (requestedSlug === DEFAULT_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpaceShooter || 'Space Shooter game board');
@@ -2246,6 +2269,7 @@
 
     function buildPreparedEntry(ctx, slug, rawEntry) {
         const entry = $.extend({}, rawEntry || {});
+        const normalizedSlug = normalizeGameSlug(entry.slug || slug);
         const gameConfig = getGameConfig(ctx, slug);
         const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
         const maxLoadedWords = Math.max(
@@ -2257,13 +2281,21 @@
         const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
             .map(normalizeWord)
             .filter(function (word) {
+                if (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
+                    return word.id > 0
+                        && String(word.speaking_target_text || '').trim() !== ''
+                        && String(word.speaking_best_correct_audio_url || '').trim() !== '';
+                }
+
                 const audio = selectPromptAudio(word);
                 return word.id > 0 && word.image !== '' && audio.url !== '';
             });
         const words = limitLaunchWords(eligibleWords, maxLoadedWords);
-        const playableTargets = findPlayableTargets(words, Math.max(2, toInt(gameConfig && gameConfig.cardCount) || 4));
+        const playableTargets = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG
+            ? words.slice()
+            : findPlayableTargets(words, Math.max(2, toInt(gameConfig && gameConfig.cardCount) || 4));
         const prepared = $.extend({}, entry, {
-            slug: normalizeGameSlug(entry.slug || slug),
+            slug: normalizedSlug,
             words: words,
             playableTargets: playableTargets,
             available_word_count: toInt(entry.available_word_count) || eligibleWords.length,
@@ -2289,6 +2321,9 @@
         if (!entry) {
             return String(ctx.i18n.gamesLoadError || 'Unable to load games right now.');
         }
+        if (normalizeGameSlug(entry.slug) === SPEAKING_PRACTICE_GAME_SLUG && String(entry.reason_code || '') === 'speaking_api_unavailable') {
+            return String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.');
+        }
         if (entry.launchable) {
             return formatMessage(ctx.i18n.gamesReadyCount || '%d words ready', [entry.available_word_count || 0]);
         }
@@ -2303,6 +2338,11 @@
         const normalizedSlug = normalizeGameSlug(slug);
         const card = ctx && ctx.catalogCards ? ctx.catalogCards[normalizedSlug] : null;
         if (!card) {
+            return;
+        }
+        const shouldHide = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG && !isLoading && (!entry || entry.hidden);
+        card.$card.prop('hidden', shouldHide);
+        if (shouldHide) {
             return;
         }
         const buttonLabel = (entry && entry.launchable)
@@ -2321,6 +2361,68 @@
         const catalogEntries = (entries && typeof entries === 'object') ? entries : {};
         (Array.isArray(ctx.catalogOrder) ? ctx.catalogOrder : []).forEach(function (slug) {
             renderCatalogCard(ctx, slug, catalogEntries[slug] || null, !!isLoading);
+        });
+    }
+
+    function checkSpeakingGameEndpoint(ctx, endpoint) {
+        const url = String(endpoint || '').trim();
+        if (!url || typeof root.fetch !== 'function') {
+            return Promise.resolve(false);
+        }
+        if (Object.prototype.hasOwnProperty.call(ctx.speaking.availabilityChecks, url)) {
+            return ctx.speaking.availabilityChecks[url];
+        }
+
+        const timeoutMs = Math.max(500, toInt(ctx.speakingPractice && ctx.speakingPractice.apiCheckTimeoutMs) || 1500);
+        const controller = (typeof root.AbortController === 'function') ? new root.AbortController() : null;
+        let timeoutId = 0;
+        const request = root.fetch(url, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-store',
+            signal: controller ? controller.signal : undefined
+        }).then(function () {
+            return true;
+        }).catch(function () {
+            return false;
+        }).finally(function () {
+            if (timeoutId) {
+                root.clearTimeout(timeoutId);
+            }
+        });
+
+        if (controller) {
+            timeoutId = root.setTimeout(function () {
+                try {
+                    controller.abort();
+                } catch (_) { /* no-op */ }
+            }, timeoutMs);
+        }
+
+        ctx.speaking.availabilityChecks[url] = request;
+        return request;
+    }
+
+    function resolveCatalogEntryAvailability(ctx, slug, entry) {
+        const normalizedSlug = normalizeGameSlug(slug);
+        if (!entry || normalizedSlug !== SPEAKING_PRACTICE_GAME_SLUG) {
+            return Promise.resolve(entry);
+        }
+
+        if (String(entry.provider || '') !== 'local_browser') {
+            return Promise.resolve(entry);
+        }
+
+        return checkSpeakingGameEndpoint(ctx, entry.local_endpoint).then(function (isAvailable) {
+            if (isAvailable) {
+                return entry;
+            }
+
+            return $.extend({}, entry, {
+                hidden: true,
+                launchable: false,
+                reason_code: 'speaking_api_unavailable'
+            });
         });
     }
 
@@ -3037,12 +3139,32 @@
         const gameSlug = String(rawSlug || '').trim() === ''
             ? ''
             : normalizeGameSlug(rawSlug);
+        const isSpeaking = gameSlug === SPEAKING_PRACTICE_GAME_SLUG;
+        const isBubble = gameSlug === BUBBLE_POP_GAME_SLUG;
 
         if (ctx && ctx.$stage && ctx.$stage.length) {
             ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
         }
         if (ctx && ctx.$controlsWrap && ctx.$controlsWrap.length) {
-            ctx.$controlsWrap.prop('hidden', gameSlug === BUBBLE_POP_GAME_SLUG);
+            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking);
+        }
+        if (ctx && ctx.$canvasWrap && ctx.$canvasWrap.length) {
+            ctx.$canvasWrap.prop('hidden', isSpeaking);
+        }
+        if (ctx && ctx.$replayAudioButton && ctx.$replayAudioButton.length) {
+            ctx.$replayAudioButton.prop('hidden', isSpeaking);
+        }
+        if (ctx && ctx.$pauseButton && ctx.$pauseButton.length) {
+            ctx.$pauseButton.prop('hidden', isSpeaking);
+        }
+        if (ctx && ctx.$coins && ctx.$coins.length) {
+            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking);
+        }
+        if (ctx && ctx.$lives && ctx.$lives.length) {
+            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking);
+        }
+        if (ctx && ctx.$speakingStage && ctx.$speakingStage.length) {
+            ctx.$speakingStage.prop('hidden', !isSpeaking);
         }
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
             ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
@@ -4339,6 +4461,7 @@
     function stopRun(ctx, options) {
         const opts = options || {};
         const run = ctx.run;
+        teardownSpeaking(ctx);
         if (!run) {
             return;
         }
@@ -4373,6 +4496,10 @@
 
     function startRun(ctx, entry) {
         const gameSlug = normalizeGameSlug(entry && entry.slug);
+        if (gameSlug === SPEAKING_PRACTICE_GAME_SLUG) {
+            startSpeakingRun(ctx, entry);
+            return;
+        }
         const gameConfig = getGameConfig(ctx, gameSlug);
         if (!gameConfig) {
             return;
@@ -4480,16 +4607,795 @@
                 return;
             }
 
-            const nextEntries = {};
-            Object.keys(ctx.catalogCards || {}).forEach(function (slug) {
-                nextEntries[slug] = buildPreparedEntry(ctx, slug, payload.games[slug] || {});
+            const entryPromises = Object.keys(ctx.catalogCards || {}).map(function (slug) {
+                if (!payload.games[slug] && normalizeGameSlug(slug) === SPEAKING_PRACTICE_GAME_SLUG) {
+                    return Promise.resolve({
+                        slug: slug,
+                        entry: null
+                    });
+                }
+                const prepared = buildPreparedEntry(ctx, slug, payload.games[slug] || {});
+                return resolveCatalogEntryAvailability(ctx, slug, prepared).then(function (resolvedEntry) {
+                    return {
+                        slug: slug,
+                        entry: resolvedEntry
+                    };
+                });
             });
-            ctx.catalogEntries = nextEntries;
-            ctx.catalogEntry = nextEntries[getDefaultCatalogSlug(ctx)] || null;
-            renderAllCatalogCards(ctx, nextEntries, false);
+
+            Promise.all(entryPromises).then(function (results) {
+                const nextEntries = {};
+                results.forEach(function (item) {
+                    if (!item || !item.entry) {
+                        return;
+                    }
+                    nextEntries[item.slug] = item.entry;
+                });
+                ctx.catalogEntries = nextEntries;
+                ctx.catalogEntry = nextEntries[getDefaultCatalogSlug(ctx)] || null;
+                renderAllCatalogCards(ctx, nextEntries, false);
+            }).catch(function () {
+                renderAllCatalogCards(ctx, null, false);
+            });
         }).fail(function () {
             renderAllCatalogCards(ctx, null, false);
         });
+    }
+
+    function speakingState(ctx) {
+        return (ctx && ctx.speaking && typeof ctx.speaking === 'object') ? ctx.speaking : null;
+    }
+
+    function clearSpeakingTimeout(state, key) {
+        if (!state || !key || !state[key]) {
+            return;
+        }
+        root.clearTimeout(state[key]);
+        state[key] = 0;
+    }
+
+    function clearSpeakingInterval(state, key) {
+        if (!state || !key || !state[key]) {
+            return;
+        }
+        root.clearInterval(state[key]);
+        state[key] = 0;
+    }
+
+    function setSpeakingStatus(ctx, text) {
+        if (ctx && ctx.$speakingStatus && ctx.$speakingStatus.length) {
+            ctx.$speakingStatus.text(String(text || ''));
+        }
+    }
+
+    function resetSpeakingMeter(ctx) {
+        if (!ctx || !ctx.$speakingMeterBars || !ctx.$speakingMeterBars.length) {
+            return;
+        }
+        ctx.$speakingMeterBars.each(function (index, element) {
+            $(element).css('--ll-speaking-meter-level', '0.08');
+        });
+    }
+
+    function updateSpeakingMeter(ctx, level) {
+        const bars = ctx && ctx.$speakingMeterBars ? ctx.$speakingMeterBars : $();
+        if (!bars.length) {
+            return;
+        }
+
+        const normalized = clamp(Number(level) || 0, 0, 1);
+        const activeBars = Math.max(1, Math.round(normalized * bars.length));
+        bars.each(function (index, element) {
+            const isActive = index < activeBars;
+            const baseLevel = isActive
+                ? clamp(0.28 + (normalized * 0.9) - (index * 0.025), 0.2, 1)
+                : 0.08;
+            $(element).css('--ll-speaking-meter-level', String(baseLevel));
+        });
+    }
+
+    function setSpeakingRecordButton(ctx, label, disabled) {
+        if (!ctx || !ctx.$speakingRecord || !ctx.$speakingRecord.length) {
+            return;
+        }
+        ctx.$speakingRecord.text(String(label || ctx.i18n.gamesSpeakingStartButton || 'Start')).prop('disabled', !!disabled);
+    }
+
+    function showSpeakingResult(ctx, isVisible) {
+        if (!ctx || !ctx.$speakingResult || !ctx.$speakingResult.length) {
+            return;
+        }
+        ctx.$speakingResult.prop('hidden', !isVisible);
+    }
+
+    function resetSpeakingResultUi(ctx) {
+        showSpeakingResult(ctx, false);
+        if (ctx && ctx.$speakingPromptCard && ctx.$speakingPromptCard.length) {
+            ctx.$speakingPromptCard.removeAttr('data-speaking-result');
+        }
+        if (ctx && ctx.$speakingBucket && ctx.$speakingBucket.length) {
+            ctx.$speakingBucket.text('');
+        }
+        if (ctx && ctx.$speakingScore && ctx.$speakingScore.length) {
+            ctx.$speakingScore.text('');
+        }
+        if (ctx && ctx.$speakingBar && ctx.$speakingBar.length) {
+            ctx.$speakingBar.css('width', '0%').removeClass('is-right is-wrong');
+        }
+        if (ctx && ctx.$speakingTranscript && ctx.$speakingTranscript.length) {
+            ctx.$speakingTranscript.text('');
+        }
+        if (ctx && ctx.$speakingTitle && ctx.$speakingTitle.length) {
+            ctx.$speakingTitle.text('');
+        }
+        if (ctx && ctx.$speakingIpa && ctx.$speakingIpa.length) {
+            ctx.$speakingIpa.text('');
+        }
+        if (ctx && ctx.$speakingTitleRow && ctx.$speakingTitleRow.length) {
+            ctx.$speakingTitleRow.prop('hidden', true);
+        }
+        if (ctx && ctx.$speakingIpaRow && ctx.$speakingIpaRow.length) {
+            ctx.$speakingIpaRow.prop('hidden', true);
+        }
+        if (ctx && ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
+            ctx.$speakingPlayCorrect.prop('hidden', true);
+        }
+        if (ctx && ctx.speakingCorrectAudio) {
+            try {
+                ctx.speakingCorrectAudio.pause();
+                ctx.speakingCorrectAudio.currentTime = 0;
+                ctx.speakingCorrectAudio.removeAttribute('src');
+            } catch (_) { /* no-op */ }
+        }
+    }
+
+    function getSpeakingPromptText(word) {
+        const source = (word && typeof word === 'object') ? word : {};
+        if (String(source.image || '').trim() === '') {
+            const translation = String(source.translation || '').trim();
+            if (translation) {
+                return translation;
+            }
+        }
+        return String(source.speaking_prompt_text || source.translation || source.prompt_label || source.label || source.title || '').trim();
+    }
+
+    function renderSpeakingPrompt(ctx, run, word) {
+        const promptText = getSpeakingPromptText(word);
+        const hasImage = String(word && word.image || '').trim() !== '';
+        if (ctx.$speakingRound && ctx.$speakingRound.length) {
+            ctx.$speakingRound.text(formatMessage(
+                ctx.i18n.gamesSpeakingRound || 'Word %1$d of %2$d',
+                [Math.min(run.promptsResolved + 1, run.words.length), run.words.length]
+            ));
+        }
+        if (ctx.$speakingImageWrap && ctx.$speakingImageWrap.length) {
+            ctx.$speakingImageWrap.prop('hidden', !hasImage);
+        }
+        if (ctx.$speakingTextWrap && ctx.$speakingTextWrap.length) {
+            ctx.$speakingTextWrap.prop('hidden', hasImage);
+        }
+        if (ctx.$speakingImage && ctx.$speakingImage.length) {
+            ctx.$speakingImage.attr('src', hasImage ? String(word.image || '') : '').attr('alt', promptText);
+        }
+        if (ctx.$speakingText && ctx.$speakingText.length) {
+            ctx.$speakingText.text(promptText);
+        }
+        if (ctx.$speakingPromptCard && ctx.$speakingPromptCard.length) {
+            ctx.$speakingPromptCard.removeClass('is-entering');
+            root.requestAnimationFrame(function () {
+                ctx.$speakingPromptCard.addClass('is-entering');
+            });
+        }
+    }
+
+    function stopSpeakingMeterMonitoring(ctx) {
+        const state = speakingState(ctx);
+        if (!state) {
+            return;
+        }
+        clearSpeakingInterval(state, 'meterTimer');
+        if (state.micSource && typeof state.micSource.disconnect === 'function') {
+            try {
+                state.micSource.disconnect();
+            } catch (_) { /* no-op */ }
+        }
+        state.micSource = null;
+        state.analyser = null;
+    }
+
+    function stopSpeakingAudioContext(ctx) {
+        const state = speakingState(ctx);
+        if (!state || !state.audioContext) {
+            return;
+        }
+        try {
+            state.audioContext.close();
+        } catch (_) { /* no-op */ }
+        state.audioContext = null;
+    }
+
+    function stopSpeakingStream(ctx) {
+        const state = speakingState(ctx);
+        if (!state || !state.mediaStream) {
+            return;
+        }
+        try {
+            state.mediaStream.getTracks().forEach(function (track) {
+                if (track && typeof track.stop === 'function') {
+                    track.stop();
+                }
+            });
+        } catch (_) { /* no-op */ }
+        state.mediaStream = null;
+    }
+
+    function clearSpeakingAutoStart(ctx) {
+        clearSpeakingTimeout(speakingState(ctx), 'autoStartTimer');
+    }
+
+    function teardownSpeaking(ctx) {
+        const state = speakingState(ctx);
+        if (!state) {
+            return;
+        }
+        clearSpeakingAutoStart(ctx);
+        clearSpeakingTimeout(state, 'maxStopTimer');
+        stopSpeakingMeterMonitoring(ctx);
+        if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+            try {
+                state.mediaRecorder.stop();
+            } catch (_) { /* no-op */ }
+        }
+        state.mediaRecorder = null;
+        state.audioChunks = [];
+        state.currentBlob = null;
+        state.stopPromise = null;
+        state.speechDetected = false;
+        state.speechStartedAt = 0;
+        state.silenceStartedAt = 0;
+        stopSpeakingStream(ctx);
+        stopSpeakingAudioContext(ctx);
+        resetSpeakingMeter(ctx);
+    }
+
+    function ensureSpeakingSupported() {
+        return !!(
+            root.navigator
+            && root.navigator.mediaDevices
+            && typeof root.navigator.mediaDevices.getUserMedia === 'function'
+            && typeof root.MediaRecorder === 'function'
+        );
+    }
+
+    function ensureSpeakingStream(ctx) {
+        const state = speakingState(ctx);
+        if (!state) {
+            return Promise.reject(new Error('missing_state'));
+        }
+        if (state.mediaStream) {
+            return Promise.resolve(state.mediaStream);
+        }
+        return root.navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            state.mediaStream = stream;
+            return stream;
+        });
+    }
+
+    function chooseRecordingMimeType() {
+        if (!root.MediaRecorder || typeof root.MediaRecorder.isTypeSupported !== 'function') {
+            return '';
+        }
+        const preferred = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/mp4',
+            'audio/ogg;codecs=opus'
+        ];
+        for (let index = 0; index < preferred.length; index += 1) {
+            if (root.MediaRecorder.isTypeSupported(preferred[index])) {
+                return preferred[index];
+            }
+        }
+        return '';
+    }
+
+    function stopSpeakingCapture(ctx) {
+        const state = speakingState(ctx);
+        if (!state) {
+            return Promise.resolve(null);
+        }
+        clearSpeakingTimeout(state, 'maxStopTimer');
+        clearSpeakingAutoStart(ctx);
+
+        if (!state.mediaRecorder) {
+            return Promise.resolve(state.currentBlob);
+        }
+        if (state.mediaRecorder.state === 'inactive') {
+            return Promise.resolve(state.currentBlob);
+        }
+        if (state.stopPromise) {
+            return state.stopPromise;
+        }
+
+        state.stopPromise = new Promise(function (resolve) {
+            const recorder = state.mediaRecorder;
+            const finalize = function () {
+                stopSpeakingMeterMonitoring(ctx);
+                const blob = state.audioChunks.length
+                    ? new Blob(state.audioChunks.slice(), { type: recorder.mimeType || 'audio/webm' })
+                    : null;
+                state.currentBlob = blob;
+                state.stopPromise = null;
+                state.mediaRecorder = null;
+                resolve(blob);
+            };
+
+            recorder.addEventListener('stop', finalize, { once: true });
+            try {
+                recorder.stop();
+            } catch (_) {
+                finalize();
+            }
+        });
+
+        return state.stopPromise;
+    }
+
+    function startSpeakingMeterMonitoring(ctx) {
+        const state = speakingState(ctx);
+        if (!state || !state.mediaStream) {
+            return;
+        }
+
+        stopSpeakingMeterMonitoring(ctx);
+        try {
+            state.audioContext = state.audioContext || new (root.AudioContext || root.webkitAudioContext)();
+            state.analyser = state.audioContext.createAnalyser();
+            state.analyser.fftSize = 2048;
+            state.micSource = state.audioContext.createMediaStreamSource(state.mediaStream);
+            state.micSource.connect(state.analyser);
+        } catch (_) {
+            state.analyser = null;
+            state.micSource = null;
+            return;
+        }
+
+        const run = ctx.run;
+        const gameConfig = ctx.speakingPractice || {};
+        const dataArray = new Uint8Array(state.analyser.fftSize);
+        state.meterTimer = root.setInterval(function () {
+            if (!ctx.run || ctx.run !== run || !state.analyser) {
+                stopSpeakingMeterMonitoring(ctx);
+                return;
+            }
+
+            state.analyser.getByteTimeDomainData(dataArray);
+            let sumSquares = 0;
+            for (let index = 0; index < dataArray.length; index += 1) {
+                const normalized = (dataArray[index] - 128) / 128;
+                sumSquares += normalized * normalized;
+            }
+            const rms = Math.sqrt(sumSquares / dataArray.length);
+            const now = currentTimestamp();
+            updateSpeakingMeter(ctx, rms * 12);
+
+            if (!state.speechDetected && rms >= Number(gameConfig.speechStartThreshold || 0.06)) {
+                state.speechDetected = true;
+                state.speechStartedAt = now;
+                state.silenceStartedAt = 0;
+            } else if (state.speechDetected) {
+                if (rms >= Number(gameConfig.silenceThreshold || 0.034)) {
+                    state.silenceStartedAt = 0;
+                } else if (!state.silenceStartedAt) {
+                    state.silenceStartedAt = now;
+                } else if (
+                    (now - state.silenceStartedAt) >= Math.max(400, toInt(gameConfig.silenceWindowMs) || 1050)
+                    && (now - state.speechStartedAt) >= Math.max(100, toInt(gameConfig.minSpeechMs) || 160)
+                ) {
+                    stopSpeakingCapture(ctx).then(function (blob) {
+                        if (blob) {
+                            processSpeakingAttempt(ctx, blob);
+                        }
+                    });
+                }
+            }
+        }, 70);
+    }
+
+    function startSpeakingCapture(ctx) {
+        const run = ctx.run;
+        const state = speakingState(ctx);
+        if (!run || !state || !ensureSpeakingSupported()) {
+            return Promise.reject(new Error('unsupported'));
+        }
+        if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
+            return Promise.resolve();
+        }
+
+        resetSpeakingResultUi(ctx);
+        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'));
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true);
+
+        return ensureSpeakingStream(ctx).then(function (stream) {
+            state.audioChunks = [];
+            state.currentBlob = null;
+            state.stopPromise = null;
+            state.speechDetected = false;
+            state.speechStartedAt = 0;
+            state.silenceStartedAt = 0;
+
+            const mimeType = chooseRecordingMimeType();
+            state.mediaRecorder = mimeType
+                ? new root.MediaRecorder(stream, { mimeType: mimeType })
+                : new root.MediaRecorder(stream);
+            state.mediaRecorder.addEventListener('dataavailable', function (event) {
+                if (event && event.data && event.data.size > 0) {
+                    state.audioChunks.push(event.data);
+                }
+            });
+            state.mediaRecorder.start();
+            startSpeakingMeterMonitoring(ctx);
+            clearSpeakingTimeout(state, 'maxStopTimer');
+            state.maxStopTimer = root.setTimeout(function () {
+                stopSpeakingCapture(ctx).then(function (blob) {
+                    if (blob) {
+                        processSpeakingAttempt(ctx, blob);
+                    }
+                });
+            }, Math.max(1500, toInt(ctx.speakingPractice && ctx.speakingPractice.maxRecordingMs) || 4200));
+        });
+    }
+
+    function fetchJsonForm(url, formData, options) {
+        return root.fetch(url, $.extend({
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        }, (options && typeof options === 'object') ? options : {})).then(function (response) {
+            return response.json().catch(function () {
+                return {};
+            }).then(function (payload) {
+                if (!response.ok) {
+                    throw new Error(String(payload && payload.data && payload.data.message || payload && payload.message || response.statusText || 'request_failed'));
+                }
+                return payload;
+            });
+        });
+    }
+
+    function extractTranscriptFromLocalPayload(payload) {
+        const source = (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object')
+            ? payload.data
+            : payload;
+        const keys = ['predicted_ipa', 'ipa', 'transcript', 'text'];
+        for (let index = 0; index < keys.length; index += 1) {
+            const value = String(source && source[keys[index]] || '').trim();
+            if (value) {
+                return value;
+            }
+        }
+        return '';
+    }
+
+    function transcribeSpeakingBlob(ctx, run, blob) {
+        if (!blob || !run) {
+            return Promise.reject(new Error('missing_blob'));
+        }
+
+        if (String(run.provider || '') === 'assemblyai') {
+            const formData = new FormData();
+            formData.append('action', ctx.transcribeAttemptAction);
+            formData.append('nonce', ctx.nonce);
+            formData.append('wordset_id', String(ctx.wordsetId));
+            formData.append('audio', blob, 'speaking-attempt.webm');
+            return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
+                if (!payload || !payload.success || !payload.data) {
+                    throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+                }
+                return String(payload.data.transcript || payload.data.text || '').trim();
+            });
+        }
+
+        const localFormData = new FormData();
+        localFormData.append('audio', blob, 'speaking-attempt.webm');
+        return fetchJsonForm(String(run.localEndpoint || ''), localFormData, {
+            credentials: 'omit',
+            mode: 'cors'
+        }).then(function (payload) {
+            const transcript = extractTranscriptFromLocalPayload(payload);
+            if (!transcript) {
+                throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+            }
+            return transcript;
+        });
+    }
+
+    function scoreSpeakingTranscript(ctx, run, transcript) {
+        const formData = new FormData();
+        formData.append('action', ctx.scoreAttemptAction);
+        formData.append('nonce', ctx.nonce);
+        formData.append('wordset_id', String(ctx.wordsetId));
+        formData.append('word_id', String(toInt(run && run.prompt && run.prompt.target && run.prompt.target.id)));
+        formData.append('target_field', String(run && run.targetField || ''));
+        formData.append('transcript', String(transcript || ''));
+        return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
+            if (!payload || !payload.success || !payload.data) {
+                throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+            }
+            return payload.data;
+        });
+    }
+
+    function playSpeakingCorrectAudio(ctx) {
+        if (!ctx || !ctx.speakingCorrectAudio || !ctx.speakingCorrectAudio.getAttribute('src')) {
+            return Promise.resolve(false);
+        }
+        try {
+            ctx.speakingCorrectAudio.currentTime = 0;
+        } catch (_) { /* no-op */ }
+        const playAttempt = ctx.speakingCorrectAudio.play();
+        if (playAttempt && typeof playAttempt.then === 'function') {
+            return playAttempt.then(function () {
+                return true;
+            }).catch(function () {
+                return false;
+            });
+        }
+        return Promise.resolve(true);
+    }
+
+    function applySpeakingResultUi(ctx, result, transcript) {
+        const bucket = String(result && result.bucket || 'wrong');
+        const score = clamp(Number(result && result.score) || 0, 0, 100);
+        const displayTexts = (result && result.display_texts && typeof result.display_texts === 'object')
+            ? result.display_texts
+            : {};
+        const title = String(displayTexts.title || '');
+        const ipa = String(displayTexts.ipa || '');
+        const correctAudioUrl = String(result && result.best_correct_audio_url || '');
+        const bucketLabelMap = {
+            right: String(ctx.i18n.gamesSpeakingResultRight || 'Correct'),
+            close: String(ctx.i18n.gamesSpeakingResultClose || 'Close'),
+            wrong: String(ctx.i18n.gamesSpeakingResultWrong || 'Try again')
+        };
+
+        showSpeakingResult(ctx, true);
+        if (ctx.$speakingPromptCard && ctx.$speakingPromptCard.length) {
+            ctx.$speakingPromptCard.attr('data-speaking-result', bucket);
+        }
+        if (ctx.$speakingBucket && ctx.$speakingBucket.length) {
+            ctx.$speakingBucket.text(bucketLabelMap[bucket] || bucketLabelMap.wrong);
+        }
+        if (ctx.$speakingScore && ctx.$speakingScore.length) {
+            ctx.$speakingScore.text(formatMessage(ctx.i18n.gamesSpeakingScoreLabel || 'Similarity', []) + ' ' + Math.round(score) + '%');
+        }
+        if (ctx.$speakingBar && ctx.$speakingBar.length) {
+            ctx.$speakingBar
+                .css('width', score + '%')
+                .toggleClass('is-right', bucket === 'right')
+                .toggleClass('is-wrong', bucket === 'wrong');
+        }
+        if (ctx.$speakingTranscript && ctx.$speakingTranscript.length) {
+            ctx.$speakingTranscript.text(String(transcript || ''));
+        }
+        if (ctx.$speakingTitleRow && ctx.$speakingTitleRow.length) {
+            ctx.$speakingTitleRow.prop('hidden', title === '');
+        }
+        if (ctx.$speakingTitle && ctx.$speakingTitle.length) {
+            ctx.$speakingTitle.text(title);
+        }
+        if (ctx.$speakingIpaRow && ctx.$speakingIpaRow.length) {
+            ctx.$speakingIpaRow.prop('hidden', ipa === '');
+        }
+        if (ctx.$speakingIpa && ctx.$speakingIpa.length) {
+            ctx.$speakingIpa.text(ipa);
+        }
+        if (ctx.speakingCorrectAudio) {
+            try {
+                ctx.speakingCorrectAudio.pause();
+                ctx.speakingCorrectAudio.currentTime = 0;
+                if (correctAudioUrl) {
+                    ctx.speakingCorrectAudio.src = correctAudioUrl;
+                } else {
+                    ctx.speakingCorrectAudio.removeAttribute('src');
+                }
+            } catch (_) { /* no-op */ }
+        }
+        if (ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
+            ctx.$speakingPlayCorrect.prop('hidden', correctAudioUrl === '');
+        }
+    }
+
+    function handleSpeakingScoredAttempt(ctx, result, transcript) {
+        const run = ctx.run;
+        if (!run || !run.prompt) {
+            return;
+        }
+
+        const bucket = String(result && result.bucket || 'wrong');
+        run.summary[bucket] = (run.summary[bucket] || 0) + 1;
+        queueOutcome(ctx, run.prompt, bucket !== 'wrong', bucket === 'close' || !!run.prompt.hadWrongBefore, {
+            event_source: 'speaking_practice',
+            speaking_game_bucket: bucket,
+            speaking_score: clamp(Number(result && result.score) || 0, 0, 100),
+            stt_provider: String(run.provider || ''),
+            speaking_target_field: String(run.targetField || '')
+        });
+        if (bucket !== 'right') {
+            run.prompt.hadWrongBefore = true;
+        }
+        applySpeakingResultUi(ctx, result, transcript);
+        setSpeakingStatus(ctx, String({
+            right: ctx.i18n.gamesSpeakingResultRight || 'Correct',
+            close: ctx.i18n.gamesSpeakingResultClose || 'Close',
+            wrong: ctx.i18n.gamesSpeakingResultWrong || 'Try again'
+        }[bucket] || ctx.i18n.gamesSpeakingResultWrong || 'Try again'));
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+
+        const feedbackPromise = bucket === 'close'
+            ? Promise.resolve()
+            : playFeedbackSound(ctx, bucket === 'right' ? 'correct' : 'wrong');
+        feedbackPromise.finally(function () {
+            if (String(result && result.best_correct_audio_url || '') !== '') {
+                playSpeakingCorrectAudio(ctx);
+            }
+        });
+    }
+
+    function processSpeakingAttempt(ctx, blob) {
+        const run = ctx.run;
+        const state = speakingState(ctx);
+        if (!run || !run.prompt || !blob || !state) {
+            return;
+        }
+        if (!state.speechDetected) {
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingTooQuiet || 'That was too quiet. Try again.'));
+            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+            return;
+        }
+
+        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'));
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'), true);
+        transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return null;
+            }
+            if (!String(transcript || '').trim()) {
+                throw new Error(String(ctx.i18n.gamesSpeakingTooQuiet || 'That was too quiet. Try again.'));
+            }
+            return scoreSpeakingTranscript(ctx, run, transcript).then(function (result) {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
+                handleSpeakingScoredAttempt(ctx, result, transcript);
+            });
+        }).catch(function (error) {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+        });
+    }
+
+    function queueSpeakingPromptAutoStart(ctx) {
+        const run = ctx.run;
+        const state = speakingState(ctx);
+        if (!run || !state) {
+            return;
+        }
+        clearSpeakingAutoStart(ctx);
+        state.autoStartTimer = root.setTimeout(function () {
+            startSpeakingCapture(ctx).catch(function (error) {
+                setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingMicError || 'Microphone access failed.'));
+                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+            });
+        }, Math.max(0, toInt(ctx.speakingPractice && ctx.speakingPractice.autoStartDelayMs) || 280));
+    }
+
+    function advanceSpeakingPrompt(ctx, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const run = ctx.run;
+        if (!run || run.ended) {
+            return;
+        }
+
+        resetSpeakingResultUi(ctx);
+        clearSpeakingAutoStart(ctx);
+        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingReady || 'Get ready...'));
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingStartButton || 'Start'), false);
+
+        if (!opts.retryCurrent) {
+            if (run.prompt && run.prompt.target) {
+                run.promptsResolved += 1;
+            }
+            const nextWord = run.promptDeck.shift();
+            if (!nextWord) {
+                endSpeakingRun(ctx);
+                return;
+            }
+            run.prompt = {
+                target: nextWord,
+                promptId: toInt(run.promptIdCounter) + 1,
+                recordingType: 'isolation',
+                gameSlug: SPEAKING_PRACTICE_GAME_SLUG,
+                hadWrongBefore: false,
+                exposureTracked: false
+            };
+            run.promptIdCounter = run.prompt.promptId;
+            queueExposureOnce(ctx, run.prompt, {
+                event_source: 'speaking_practice',
+                speaking_target_field: String(run.targetField || '')
+            });
+        }
+
+        renderSpeakingPrompt(ctx, run, run.prompt.target);
+        setSpeakingStatus(ctx, String(
+            run.prompt.target && run.prompt.target.image
+                ? (ctx.i18n.gamesSpeakingPromptImage || 'Say the word for this picture.')
+                : (ctx.i18n.gamesSpeakingPromptText || 'Say the word for this prompt.')
+        ));
+        queueSpeakingPromptAutoStart(ctx);
+    }
+
+    function endSpeakingRun(ctx) {
+        const run = ctx.run;
+        if (!run) {
+            return;
+        }
+        run.ended = true;
+        teardownSpeaking(ctx);
+        flushProgress(ctx);
+        showOverlay(
+            ctx,
+            String(ctx.i18n.gamesSpeakingDoneTitle || 'Speaking round complete'),
+            formatMessage(ctx.i18n.gamesSpeakingDoneSummary || 'Right: %1$d · Close: %2$d · Wrong: %3$d', [
+                toInt(run.summary.right),
+                toInt(run.summary.close),
+                toInt(run.summary.wrong)
+            ]),
+            {
+                mode: 'game-over',
+                primaryLabel: String(ctx.i18n.gamesReplayRun || 'Replay'),
+                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+            }
+        );
+    }
+
+    function startSpeakingRun(ctx, entry) {
+        const keepModalOpen = isRunModalVisible(ctx);
+        resetGamesSurface(ctx, {
+            keepModalOpen: keepModalOpen
+        });
+        ctx.$stage.prop('hidden', false);
+        ctx.activeGameSlug = SPEAKING_PRACTICE_GAME_SLUG;
+        updateStageGameUi(ctx, entry);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
+        hideOverlay(ctx);
+        ctx.run = {
+            slug: SPEAKING_PRACTICE_GAME_SLUG,
+            words: entry.words.slice(),
+            promptDeck: shuffle(entry.words.slice()),
+            prompt: null,
+            promptIdCounter: 0,
+            promptsResolved: 0,
+            coins: 0,
+            lives: 1,
+            paused: false,
+            ended: false,
+            provider: String(entry.provider || ''),
+            localEndpoint: String(entry.local_endpoint || ''),
+            targetField: String(entry.target_field || ''),
+            summary: {
+                right: 0,
+                close: 0,
+                wrong: 0
+            }
+        };
+        scrollStageIntoView(ctx);
+        advanceSpeakingPrompt(ctx);
     }
 
     function bindLifecycle(ctx) {
@@ -4823,6 +5729,40 @@
             pauseRun(ctx);
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-record]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isSpeakingPracticeRun(ctx, ctx.run) || ctx.run.ended) {
+                return;
+            }
+            startSpeakingCapture(ctx).catch(function (error) {
+                setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingMicError || 'Microphone access failed.'));
+                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+            });
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-retry]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isSpeakingPracticeRun(ctx, ctx.run) || ctx.run.ended) {
+                return;
+            }
+            advanceSpeakingPrompt(ctx, {
+                retryCurrent: true
+            });
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-next]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isSpeakingPracticeRun(ctx, ctx.run) || ctx.run.ended) {
+                return;
+            }
+            advanceSpeakingPrompt(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-play-correct]', function (event) {
+            event.preventDefault();
+            playSpeakingCorrectAudio(ctx);
+        });
+
         const pointerControls = getPrimaryPressStartEvents();
         const pointerRelease = getPrimaryPressReleaseEvents();
         const documentPointerRelease = getDocumentPressReleaseEvents();
@@ -4918,6 +5858,9 @@
         const bubblePop = (gamesCfg.bubblePop && typeof gamesCfg.bubblePop === 'object')
             ? gamesCfg.bubblePop
             : {};
+        const speakingPractice = (gamesCfg.speakingPractice && typeof gamesCfg.speakingPractice === 'object')
+            ? gamesCfg.speakingPractice
+            : {};
         const catalogCards = {};
         const catalogOrder = [];
         const $allCards = $gamesRoot.find('[data-ll-wordset-game-card]');
@@ -4986,6 +5929,29 @@
             correctHitVolume: 0.28,
             wrongHitVolume: 0.2
         });
+        gameConfigs[SPEAKING_PRACTICE_GAME_SLUG] = $.extend({}, buildGameConfig(speakingPractice, {
+            slug: SPEAKING_PRACTICE_GAME_SLUG,
+            lives: 1,
+            cardCount: 1,
+            maxLoadedWords: 60,
+            correctCoinReward: 0,
+            wrongHitLifePenalty: 0,
+            timeoutCoinPenalty: 0,
+            timeoutLifePenalty: 0,
+            promptAudioVolume: 1,
+            correctHitVolume: 0.28,
+            wrongHitVolume: 0.2,
+            correctHitAudioSources: spaceShooter.correctHitAudioSources || [],
+            wrongHitAudioSources: spaceShooter.wrongHitAudioSources || []
+        }), {
+            autoStartDelayMs: Math.max(0, toInt(speakingPractice.autoStartDelayMs) || 280),
+            maxRecordingMs: Math.max(1500, toInt(speakingPractice.maxRecordingMs) || 4200),
+            silenceWindowMs: Math.max(400, toInt(speakingPractice.silenceWindowMs) || 1050),
+            silenceThreshold: clamp(Number(speakingPractice.silenceThreshold) || 0.034, 0.005, 0.2),
+            speechStartThreshold: clamp(Number(speakingPractice.speechStartThreshold) || 0.06, 0.005, 0.3),
+            minSpeechMs: Math.max(100, toInt(speakingPractice.minSpeechMs) || 160),
+            apiCheckTimeoutMs: Math.max(500, toInt(speakingPractice.apiCheckTimeoutMs) || 1500)
+        });
 
         return {
             rootEl: rootEl,
@@ -5015,6 +5981,30 @@
             $canvas: $canvas,
             canvas: $canvas.get(0) || null,
             canvasContext: null,
+            $speakingStage: $gamesRoot.find('[data-ll-wordset-speaking-stage]').first(),
+            $speakingRound: $gamesRoot.find('[data-ll-wordset-speaking-round]').first(),
+            $speakingStatus: $gamesRoot.find('[data-ll-wordset-speaking-status]').first(),
+            $speakingPromptCard: $gamesRoot.find('[data-ll-wordset-speaking-prompt-card]').first(),
+            $speakingImageWrap: $gamesRoot.find('[data-ll-wordset-speaking-image-wrap]').first(),
+            $speakingImage: $gamesRoot.find('[data-ll-wordset-speaking-image]').first(),
+            $speakingTextWrap: $gamesRoot.find('[data-ll-wordset-speaking-text-wrap]').first(),
+            $speakingText: $gamesRoot.find('[data-ll-wordset-speaking-text]').first(),
+            $speakingMeter: $gamesRoot.find('[data-ll-wordset-speaking-meter]').first(),
+            $speakingMeterBars: $gamesRoot.find('.ll-wordset-speaking-stage__meter-bar'),
+            $speakingRecord: $gamesRoot.find('[data-ll-wordset-speaking-record]').first(),
+            $speakingResult: $gamesRoot.find('[data-ll-wordset-speaking-result]').first(),
+            $speakingBucket: $gamesRoot.find('[data-ll-wordset-speaking-bucket]').first(),
+            $speakingScore: $gamesRoot.find('[data-ll-wordset-speaking-score]').first(),
+            $speakingBar: $gamesRoot.find('[data-ll-wordset-speaking-bar]').first(),
+            $speakingTranscript: $gamesRoot.find('[data-ll-wordset-speaking-transcript]').first(),
+            $speakingTitleRow: $gamesRoot.find('[data-ll-wordset-speaking-title-row]').first(),
+            $speakingTitle: $gamesRoot.find('[data-ll-wordset-speaking-title]').first(),
+            $speakingIpaRow: $gamesRoot.find('[data-ll-wordset-speaking-ipa-row]').first(),
+            $speakingIpa: $gamesRoot.find('[data-ll-wordset-speaking-ipa]').first(),
+            $speakingPlayCorrect: $gamesRoot.find('[data-ll-wordset-speaking-play-correct]').first(),
+            $speakingRetry: $gamesRoot.find('[data-ll-wordset-speaking-retry]').first(),
+            $speakingNext: $gamesRoot.find('[data-ll-wordset-speaking-next]').first(),
+            speakingCorrectAudio: $gamesRoot.find('[data-ll-wordset-speaking-correct-audio]').get(0) || null,
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
             $overlayCard: $gamesRoot.find('[data-ll-wordset-game-overlay-card]').first(),
             $overlayLoading: $gamesRoot.find('[data-ll-wordset-game-loading]').first(),
@@ -5036,6 +6026,8 @@
             visibleCategoryIds: uniqueIntList(cfg.visibleCategoryIds || []),
             i18n: (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {},
             bootstrapAction: String(gamesCfg.bootstrapAction || ''),
+            transcribeAttemptAction: String(gamesCfg.transcribeAttemptAction || ''),
+            scoreAttemptAction: String(gamesCfg.scoreAttemptAction || ''),
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
             catalogEntry: null,
             imageCache: {},
@@ -5055,7 +6047,25 @@
             boundLifecycle: false,
             gameConfigs: gameConfigs,
             spaceShooter: gameConfigs[DEFAULT_GAME_SLUG],
-            bubblePop: gameConfigs[BUBBLE_POP_GAME_SLUG]
+            bubblePop: gameConfigs[BUBBLE_POP_GAME_SLUG],
+            speakingPractice: gameConfigs[SPEAKING_PRACTICE_GAME_SLUG],
+            speaking: {
+                availabilityChecks: {},
+                mediaStream: null,
+                mediaRecorder: null,
+                audioChunks: [],
+                audioContext: null,
+                analyser: null,
+                micSource: null,
+                meterTimer: 0,
+                speechDetected: false,
+                speechStartedAt: 0,
+                silenceStartedAt: 0,
+                maxStopTimer: 0,
+                autoStartTimer: 0,
+                stopPromise: null,
+                currentBlob: null
+            }
         };
     }
 

@@ -1243,6 +1243,13 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $endpoint = isset($_POST['ll_wordset_local_transcription_endpoint'])
             ? ll_tools_sanitize_wordset_local_transcription_endpoint(wp_unslash((string) $_POST['ll_wordset_local_transcription_endpoint']))
             : '';
+        $speaking_enabled = isset($_POST['ll_wordset_speaking_game_enabled']) ? 1 : 0;
+        $speaking_provider = isset($_POST['ll_wordset_speaking_game_provider'])
+            ? ll_tools_sanitize_wordset_transcription_provider(wp_unslash((string) $_POST['ll_wordset_speaking_game_provider']))
+            : '';
+        $speaking_target = isset($_POST['ll_wordset_speaking_game_target'])
+            ? ll_tools_sanitize_wordset_speaking_game_target(wp_unslash((string) $_POST['ll_wordset_speaking_game_target']))
+            : 'word_title';
 
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, $provider);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, $target);
@@ -1251,6 +1258,9 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         } else {
             delete_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY);
         }
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, $speaking_enabled);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, $speaking_provider);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, $speaking_target);
     } elseif ($submitted_tool === 'study') {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
     } else {
@@ -3025,6 +3035,26 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
     $provider = ll_tools_sanitize_wordset_transcription_provider((string) ($transcription_settings['provider'] ?? ''));
     $local_endpoint = (string) ($transcription_settings['local_endpoint'] ?? ll_tools_get_default_local_transcription_endpoint());
     $local_target = ll_tools_sanitize_wordset_local_transcription_target((string) ($transcription_settings['target_field'] ?? 'recording_ipa'));
+    $speaking_game_config = function_exists('ll_tools_get_wordset_speaking_game_config')
+        ? ll_tools_get_wordset_speaking_game_config([$wordset_id], true)
+        : [
+            'enabled_flag' => false,
+            'provider' => '',
+            'target' => 'word_title',
+            'target_options' => [
+                'word_title' => ['label' => __('Word title', 'll-tools-text-domain')],
+            ],
+            'compatible' => true,
+            'compatibility_message' => '',
+        ];
+    $speaking_enabled = !empty($speaking_game_config['enabled_flag']);
+    $speaking_provider = ll_tools_sanitize_wordset_transcription_provider((string) ($speaking_game_config['provider'] ?? ''));
+    $speaking_target = ll_tools_sanitize_wordset_speaking_game_target((string) ($speaking_game_config['target'] ?? 'word_title'));
+    $speaking_target_options = is_array($speaking_game_config['target_options'] ?? null)
+        ? $speaking_game_config['target_options']
+        : [];
+    $speaking_is_compatible = !isset($speaking_game_config['compatible']) || !empty($speaking_game_config['compatible']);
+    $speaking_compatibility_message = trim((string) ($speaking_game_config['compatibility_message'] ?? ''));
     $secondary_label = trim((string) ($secondary_transcription_config['label'] ?? ''));
     if ($secondary_label === '') {
         $secondary_label = __('Secondary transcription field', 'll-tools-text-domain');
@@ -3090,6 +3120,52 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                     <p class="description" style="margin-top:0;">
                         <?php echo esc_html__('If the site is served over HTTPS, your browser may require the localhost service to allow that origin and may require HTTPS there too, depending on browser policy.', 'll-tools-text-domain'); ?>
                     </p>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Transcription Settings', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Speaking Practice Game', 'll-tools-text-domain'); ?></h3>
+                    <label style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                        <input type="checkbox" name="ll_wordset_speaking_game_enabled" value="1" <?php checked($speaking_enabled); ?> />
+                        <span><?php echo esc_html__('Enable speaking practice in Games', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('This game shows a picture or prompt text, listens for the learner to say the word, runs STT, and compares the result to the chosen target.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Speaking Game STT Provider', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-speaking-provider" class="screen-reader-text"><?php echo esc_html__('Speaking game STT provider', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-speaking-provider" name="ll_wordset_speaking_game_provider" class="ll-tools-settings-select" style="max-width: 320px;">
+                        <option value="" <?php selected($speaking_provider, ''); ?>><?php echo esc_html__('Disabled', 'll-tools-text-domain'); ?></option>
+                        <option value="assemblyai" <?php selected($speaking_provider, 'assemblyai'); ?>><?php echo esc_html__('AssemblyAI', 'll-tools-text-domain'); ?></option>
+                        <option value="local_browser" <?php selected($speaking_provider, 'local_browser'); ?>><?php echo esc_html__('Local browser model', 'll-tools-text-domain'); ?></option>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('AssemblyAI reuses the saved AssemblyAI API key. Local browser model reuses the local endpoint and output format configured above.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Speaking Game Comparison Target', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-speaking-target" class="screen-reader-text"><?php echo esc_html__('Speaking game comparison target', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-speaking-target" name="ll_wordset_speaking_game_target" class="ll-tools-settings-select" style="max-width: 320px;">
+                        <?php foreach ($speaking_target_options as $target_key => $target_row) : ?>
+                            <?php $target_label = is_array($target_row) ? (string) ($target_row['label'] ?? $target_key) : (string) $target_row; ?>
+                            <option value="<?php echo esc_attr((string) $target_key); ?>" <?php selected($speaking_target, (string) $target_key); ?>><?php echo esc_html($target_label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Word title works with text STT. IPA works with a local model that is configured to return the secondary transcription field.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <?php if ($speaking_enabled && !$speaking_is_compatible && $speaking_compatibility_message !== '') : ?>
+                        <p class="description" style="margin-top:0; color:#a12622;">
+                            <?php echo esc_html($speaking_compatibility_message); ?>
+                        </p>
+                    <?php endif; ?>
                     <div style="margin-top:10px;">
                         <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Transcription Settings', 'll-tools-text-domain'); ?></button>
                     </div>
@@ -4381,6 +4457,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ],
         'games' => [
             'bootstrapAction' => 'll_wordset_games_bootstrap',
+            'transcribeAttemptAction' => 'll_wordset_speaking_game_transcribe_attempt',
+            'scoreAttemptAction' => 'll_wordset_speaking_game_score_attempt',
             'minimumWordCount' => function_exists('ll_tools_wordset_games_min_word_count')
                 ? ll_tools_wordset_games_min_word_count()
                 : 5,
@@ -4438,6 +4516,19 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
                     LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
                 ],
+            ],
+            'speakingPractice' => [
+                'slug' => 'speaking-practice',
+                'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_practice_launch_word_cap')
+                    ? ll_tools_wordset_games_speaking_practice_launch_word_cap()
+                    : 60,
+                'autoStartDelayMs' => 280,
+                'maxRecordingMs' => 4200,
+                'silenceWindowMs' => 1050,
+                'silenceThreshold' => 0.034,
+                'speechStartThreshold' => 0.06,
+                'minSpeechMs' => 160,
+                'apiCheckTimeoutMs' => 1500,
             ],
         ],
         'summaryCounts' => $summary_counts,
@@ -4598,6 +4689,33 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
             'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
             'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
+            'gamesBoardLabelSpeakingPractice' => __('Speaking practice panel', 'll-tools-text-domain'),
+            'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
+            'gamesSpeakingApiUnavailable' => __('Speaking practice is unavailable on this device right now.', 'll-tools-text-domain'),
+            'gamesSpeakingRound' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
+            'gamesSpeakingPromptImage' => __('Say the word for this picture.', 'll-tools-text-domain'),
+            'gamesSpeakingPromptText' => __('Say the word for this prompt.', 'll-tools-text-domain'),
+            'gamesSpeakingReady' => __('Get ready...', 'll-tools-text-domain'),
+            'gamesSpeakingListening' => __('Listening...', 'll-tools-text-domain'),
+            'gamesSpeakingProcessing' => __('Transcribing...', 'll-tools-text-domain'),
+            'gamesSpeakingStartButton' => __('Start', 'll-tools-text-domain'),
+            'gamesSpeakingResultRight' => __('Correct', 'll-tools-text-domain'),
+            'gamesSpeakingResultClose' => __('Close', 'll-tools-text-domain'),
+            'gamesSpeakingResultWrong' => __('Try again', 'll-tools-text-domain'),
+            'gamesSpeakingTranscriptLabel' => __('Heard', 'll-tools-text-domain'),
+            'gamesSpeakingTargetLabel' => __('Target', 'll-tools-text-domain'),
+            'gamesSpeakingTitleLabel' => __('Word', 'll-tools-text-domain'),
+            'gamesSpeakingIpaLabel' => __('IPA', 'll-tools-text-domain'),
+            'gamesSpeakingScoreLabel' => __('Similarity', 'll-tools-text-domain'),
+            'gamesSpeakingRetry' => __('Retry', 'll-tools-text-domain'),
+            'gamesSpeakingNext' => __('Next', 'll-tools-text-domain'),
+            'gamesSpeakingPlayCorrect' => __('Hear correct audio', 'll-tools-text-domain'),
+            'gamesSpeakingMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
+            'gamesSpeakingSttError' => __('Transcription failed. Try again.', 'll-tools-text-domain'),
+            'gamesSpeakingTooQuiet' => __('That was too quiet. Try again.', 'll-tools-text-domain'),
+            'gamesSpeakingNotSupported' => __('This browser cannot record audio for speaking practice.', 'll-tools-text-domain'),
+            'gamesSpeakingDoneTitle' => __('Speaking round complete', 'll-tools-text-domain'),
+            'gamesSpeakingDoneSummary' => __('Right: %1$d · Close: %2$d · Wrong: %3$d', 'll-tools-text-domain'),
             'progressResetCategoryConfirm' => $progress_reset_category_confirm_template,
             'progressResetCategoryAria' => $progress_reset_category_aria_template,
         ],
@@ -5838,6 +5956,64 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 height="960"
                                 aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
                         </div>
+
+                        <section class="ll-wordset-speaking-stage" data-ll-wordset-speaking-stage hidden aria-live="polite">
+                            <div class="ll-wordset-speaking-stage__topline">
+                                <span class="ll-wordset-speaking-stage__round" data-ll-wordset-speaking-round></span>
+                                <span class="ll-wordset-speaking-stage__status" data-ll-wordset-speaking-status><?php echo esc_html__('Get ready...', 'll-tools-text-domain'); ?></span>
+                            </div>
+
+                            <div class="ll-wordset-speaking-stage__prompt-shell">
+                                <div class="ll-wordset-speaking-stage__prompt-card" data-ll-wordset-speaking-prompt-card>
+                                    <figure class="ll-wordset-speaking-stage__image-frame" data-ll-wordset-speaking-image-wrap hidden>
+                                        <img class="ll-wordset-speaking-stage__image" data-ll-wordset-speaking-image alt="" />
+                                    </figure>
+                                    <div class="ll-wordset-speaking-stage__text-prompt" data-ll-wordset-speaking-text-wrap hidden>
+                                        <p class="ll-wordset-speaking-stage__text" data-ll-wordset-speaking-text></p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="ll-wordset-speaking-stage__meter" data-ll-wordset-speaking-meter aria-hidden="true">
+                                <?php for ($meter_index = 0; $meter_index < 12; $meter_index++) : ?>
+                                    <span class="ll-wordset-speaking-stage__meter-bar"></span>
+                                <?php endfor; ?>
+                            </div>
+
+                            <div class="ll-wordset-speaking-stage__actions">
+                                <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--record" data-ll-wordset-speaking-record><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
+                            </div>
+
+                            <section class="ll-wordset-speaking-stage__result" data-ll-wordset-speaking-result hidden>
+                                <div class="ll-wordset-speaking-stage__scoreline">
+                                    <span class="ll-wordset-speaking-stage__bucket" data-ll-wordset-speaking-bucket></span>
+                                    <span class="ll-wordset-speaking-stage__score" data-ll-wordset-speaking-score></span>
+                                </div>
+                                <div class="ll-wordset-speaking-stage__bar-track" aria-hidden="true">
+                                    <span class="ll-wordset-speaking-stage__bar-fill" data-ll-wordset-speaking-bar></span>
+                                </div>
+                                <dl class="ll-wordset-speaking-stage__details">
+                                    <div class="ll-wordset-speaking-stage__detail">
+                                        <dt><?php echo esc_html__('Heard', 'll-tools-text-domain'); ?></dt>
+                                        <dd data-ll-wordset-speaking-transcript></dd>
+                                    </div>
+                                    <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-title-row hidden>
+                                        <dt><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></dt>
+                                        <dd data-ll-wordset-speaking-title></dd>
+                                    </div>
+                                    <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-ipa-row hidden>
+                                        <dt><?php echo esc_html__('IPA', 'll-tools-text-domain'); ?></dt>
+                                        <dd data-ll-wordset-speaking-ipa></dd>
+                                    </div>
+                                </dl>
+                                <audio data-ll-wordset-speaking-correct-audio preload="none"></audio>
+                                <div class="ll-wordset-speaking-stage__result-actions">
+                                    <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--ghost" data-ll-wordset-speaking-play-correct hidden><?php echo esc_html__('Hear correct audio', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--ghost" data-ll-wordset-speaking-retry><?php echo esc_html__('Retry', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="ll-wordset-speaking-stage__action" data-ll-wordset-speaking-next><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></button>
+                                </div>
+                            </section>
+                        </section>
 
                         <div class="ll-wordset-game-stage__controls" data-ll-wordset-game-controls>
                             <button type="button" class="ll-wordset-game-stage__control" data-ll-wordset-game-control="left" aria-label="<?php echo esc_attr__('Move left', 'll-tools-text-domain'); ?>">

@@ -1089,6 +1089,43 @@ function ll_tools_apply_self_check_outcome_signal(array &$data, array $event, in
     return true;
 }
 
+function ll_tools_apply_speaking_game_outcome_signal(array &$data, array $event, int $base_ts): bool {
+    $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
+    if ($mode !== 'practice') {
+        return false;
+    }
+
+    $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+    if (normalize_key((string) ($payload['game_slug'] ?? '')) !== 'speaking-practice') {
+        return false;
+    }
+
+    $bucket = strtolower(trim((string) ($payload['speaking_game_bucket'] ?? '')));
+    if (!in_array($bucket, ['right', 'close', 'wrong'], true)) {
+        return false;
+    }
+
+    $stage = max(0, min(6, (int) ($data['stage'] ?? 0)));
+
+    if ($bucket === 'wrong') {
+        $data['incorrect'] = max(0, (int) $data['incorrect']) + 1;
+        $data['due_at'] = gmdate('Y-m-d H:i:s', $base_ts + (8 * HOUR_IN_SECONDS));
+        return true;
+    }
+
+    if ($bucket === 'close') {
+        $data['correct_after_retry'] = max(0, (int) $data['correct_after_retry']) + 1;
+        $data['stage'] = max(1, min(6, max($stage, 1)));
+        $data['due_at'] = ll_tools_progress_due_at_for_stage((int) $data['stage'], $base_ts);
+        return true;
+    }
+
+    $data['correct_clean'] = max(0, (int) $data['correct_clean']) + 1;
+    $data['stage'] = max(0, min(6, max($stage + 2, 3)));
+    $data['due_at'] = ll_tools_progress_due_at_for_stage((int) $data['stage'], $base_ts);
+    return true;
+}
+
 function ll_tools_resolve_wordset_id_for_word(int $word_id): int {
     if ($word_id <= 0) {
         return 0;
@@ -1364,7 +1401,10 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
         }
 
         $handled_self_check = ll_tools_apply_self_check_outcome_signal($data, $event, $base_ts);
-        if (!$handled_self_check) {
+        $handled_speaking_game = !$handled_self_check
+            ? ll_tools_apply_speaking_game_outcome_signal($data, $event, $base_ts)
+            : false;
+        if (!$handled_self_check && !$handled_speaking_game) {
             $is_correct = $event['is_correct'];
             $had_wrong_before = !empty($event['had_wrong_before']);
             if ($is_correct === true) {
