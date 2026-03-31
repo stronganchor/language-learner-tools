@@ -857,7 +857,7 @@ function ll_tools_wordset_games_collect_speaking_ipa_map(array $word_ids, string
                     return false;
                 }
 
-                $entry_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post->ID, 'recording_type', true));
+                $entry_type = ll_tools_wordset_games_get_audio_recording_type($audio_post);
 
                 return $entry_type === $target_type;
             }));
@@ -967,7 +967,9 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         ];
     }
 
-    $collected = ll_tools_wordset_games_collect_visible_words($wordset_id, $uid);
+    $collected = function_exists('ll_tools_wordset_games_collect_visible_speaking_words')
+        ? ll_tools_wordset_games_collect_visible_speaking_words($wordset_id, $uid)
+        : ll_tools_wordset_games_collect_visible_words($wordset_id, $uid);
     $categories = isset($collected['categories']) && is_array($collected['categories']) ? $collected['categories'] : [];
     $words = isset($collected['words']) && is_array($collected['words']) ? $collected['words'] : [];
     $word_ids = array_values(array_filter(array_map(static function ($row): int {
@@ -1042,6 +1044,38 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         'service_enabled' => !empty($config['service_enabled']),
         'local_endpoint' => (string) ($config['local_endpoint'] ?? ''),
     ];
+}
+
+function ll_tools_wordset_games_get_audio_recording_type($audio_post): string {
+    $audio_post_id = $audio_post instanceof WP_Post
+        ? (int) $audio_post->ID
+        : (int) $audio_post;
+    if ($audio_post_id <= 0) {
+        return '';
+    }
+
+    $meta_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post_id, 'recording_type', true));
+    if ($meta_type !== '') {
+        return $meta_type;
+    }
+
+    $terms = get_the_terms($audio_post_id, 'recording_type');
+    if (!is_array($terms)) {
+        return '';
+    }
+
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term)) {
+            continue;
+        }
+
+        $slug = ll_tools_normalize_practice_recording_type_slug((string) $term->slug);
+        if ($slug !== '') {
+            return $slug;
+        }
+    }
+
+    return '';
 }
 
 function ll_tools_wordset_games_finalize_pool(array $source_pool, string $slug, int $launch_word_cap): array {
@@ -1350,7 +1384,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
                 return false;
             }
 
-            $entry_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post->ID, 'recording_type', true));
+            $entry_type = ll_tools_wordset_games_get_audio_recording_type($audio_post);
 
             return $entry_type === $target_type;
         }));
@@ -1400,7 +1434,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             continue;
         }
 
-        $resolved_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post->ID, 'recording_type', true));
+        $resolved_type = ll_tools_wordset_games_get_audio_recording_type($audio_post);
 
         return [
             'audio_post_id' => (int) $audio_post->ID,

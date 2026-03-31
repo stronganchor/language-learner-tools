@@ -2176,6 +2176,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     line-height: 1 !important;
     font-size: 0 !important;
     vertical-align: middle !important;
+    position: relative !important;
+    z-index: 2 !important;
+    pointer-events: auto !important;
     transform: none !important;
 }
 
