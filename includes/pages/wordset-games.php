@@ -1270,6 +1270,43 @@ function ll_tools_wordset_games_tokenize_speaking_text(string $text, string $tar
     })) : [];
 }
 
+function ll_tools_wordset_games_array_weighted_levenshtein(array $left, array $right, callable $substitution_cost, float $insert_delete_cost = 1.0): float {
+    $left = array_values($left);
+    $right = array_values($right);
+    $left_count = count($left);
+    $right_count = count($right);
+    $insert_delete_cost = max(0.0, $insert_delete_cost);
+
+    if ($left_count === 0) {
+        return (float) $right_count * $insert_delete_cost;
+    }
+    if ($right_count === 0) {
+        return (float) $left_count * $insert_delete_cost;
+    }
+
+    $previous = [];
+    for ($index = 0; $index <= $right_count; $index++) {
+        $previous[$index] = $index * $insert_delete_cost;
+    }
+
+    for ($i = 1; $i <= $left_count; $i++) {
+        $current = [$i * $insert_delete_cost];
+        $left_token = $left[$i - 1] ?? '';
+        for ($j = 1; $j <= $right_count; $j++) {
+            $right_token = $right[$j - 1] ?? '';
+            $substitution = max(0.0, min(1.0, (float) $substitution_cost($left_token, $right_token)));
+            $current[] = min(
+                $previous[$j] + $insert_delete_cost,
+                $current[$j - 1] + $insert_delete_cost,
+                $previous[$j - 1] + $substitution
+            );
+        }
+        $previous = $current;
+    }
+
+    return (float) ($previous[$right_count] ?? 0.0);
+}
+
 function ll_tools_wordset_games_array_levenshtein(array $left, array $right): int {
     $left = array_values($left);
     $right = array_values($right);
@@ -1302,8 +1339,334 @@ function ll_tools_wordset_games_array_levenshtein(array $left, array $right): in
     return (int) $previous[$right_count];
 }
 
+function ll_tools_wordset_games_ipa_similarity_feature_map(): array {
+    static $map = null;
+    if (is_array($map)) {
+        return $map;
+    }
+
+    $map = [
+        'i' => ['type' => 'vowel', 'height' => 0.0, 'back' => 0.0, 'round' => 0.0],
+        'y' => ['type' => 'vowel', 'height' => 0.0, 'back' => 0.0, 'round' => 1.0],
+        'ɨ' => ['type' => 'vowel', 'height' => 0.0, 'back' => 2.0, 'round' => 0.0],
+        'ʉ' => ['type' => 'vowel', 'height' => 0.0, 'back' => 2.0, 'round' => 1.0],
+        'ɯ' => ['type' => 'vowel', 'height' => 0.0, 'back' => 4.0, 'round' => 0.0],
+        'u' => ['type' => 'vowel', 'height' => 0.0, 'back' => 4.0, 'round' => 1.0],
+        'ɪ' => ['type' => 'vowel', 'height' => 1.0, 'back' => 0.5, 'round' => 0.0],
+        'ʏ' => ['type' => 'vowel', 'height' => 1.0, 'back' => 0.5, 'round' => 1.0],
+        'ʊ' => ['type' => 'vowel', 'height' => 1.0, 'back' => 3.5, 'round' => 1.0],
+        'e' => ['type' => 'vowel', 'height' => 2.0, 'back' => 0.0, 'round' => 0.0],
+        'ø' => ['type' => 'vowel', 'height' => 2.0, 'back' => 0.0, 'round' => 1.0],
+        'ɘ' => ['type' => 'vowel', 'height' => 2.0, 'back' => 2.0, 'round' => 0.0],
+        'ɵ' => ['type' => 'vowel', 'height' => 2.0, 'back' => 2.0, 'round' => 1.0],
+        'ɤ' => ['type' => 'vowel', 'height' => 2.0, 'back' => 4.0, 'round' => 0.0],
+        'o' => ['type' => 'vowel', 'height' => 2.0, 'back' => 4.0, 'round' => 1.0],
+        'ə' => ['type' => 'vowel', 'height' => 3.0, 'back' => 2.0, 'round' => 0.0],
+        'ɛ' => ['type' => 'vowel', 'height' => 4.0, 'back' => 0.0, 'round' => 0.0],
+        'œ' => ['type' => 'vowel', 'height' => 4.0, 'back' => 0.0, 'round' => 1.0],
+        'ɜ' => ['type' => 'vowel', 'height' => 4.0, 'back' => 2.0, 'round' => 0.0],
+        'ɞ' => ['type' => 'vowel', 'height' => 4.0, 'back' => 2.0, 'round' => 1.0],
+        'ʌ' => ['type' => 'vowel', 'height' => 4.0, 'back' => 3.5, 'round' => 0.0],
+        'ɔ' => ['type' => 'vowel', 'height' => 4.0, 'back' => 4.0, 'round' => 1.0],
+        'æ' => ['type' => 'vowel', 'height' => 5.0, 'back' => 0.0, 'round' => 0.0],
+        'ɐ' => ['type' => 'vowel', 'height' => 5.0, 'back' => 2.0, 'round' => 0.0],
+        'a' => ['type' => 'vowel', 'height' => 6.0, 'back' => 1.5, 'round' => 0.0],
+        'ɶ' => ['type' => 'vowel', 'height' => 6.0, 'back' => 0.0, 'round' => 1.0],
+        'ɑ' => ['type' => 'vowel', 'height' => 6.0, 'back' => 4.0, 'round' => 0.0],
+        'ɒ' => ['type' => 'vowel', 'height' => 6.0, 'back' => 4.0, 'round' => 1.0],
+        'j' => ['type' => 'glide', 'height' => 0.0, 'back' => 0.0, 'round' => 0.0],
+        'ɥ' => ['type' => 'glide', 'height' => 0.0, 'back' => 0.0, 'round' => 1.0],
+        'ɰ' => ['type' => 'glide', 'height' => 0.0, 'back' => 4.0, 'round' => 0.0],
+        'w' => ['type' => 'glide', 'height' => 0.0, 'back' => 4.0, 'round' => 1.0],
+        'p' => ['type' => 'consonant', 'place' => 0.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'b' => ['type' => 'consonant', 'place' => 0.0, 'manner' => 'stop', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'm' => ['type' => 'consonant', 'place' => 0.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɸ' => ['type' => 'consonant', 'place' => 0.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'β' => ['type' => 'consonant', 'place' => 0.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'f' => ['type' => 'consonant', 'place' => 1.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'v' => ['type' => 'consonant', 'place' => 1.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɱ' => ['type' => 'consonant', 'place' => 1.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'θ' => ['type' => 'consonant', 'place' => 2.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ð' => ['type' => 'consonant', 'place' => 2.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        't' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'd' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'stop', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'n' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        's' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'z' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɾ' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'tap', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 1.0],
+        'r' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'trill', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 1.0],
+        'ɹ' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'approximant', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 1.0],
+        'l' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'approximant', 'voice' => 1.0, 'lateral' => 1.0, 'rhotic' => 0.0],
+        'ɫ' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'approximant', 'voice' => 1.0, 'lateral' => 1.0, 'rhotic' => 0.0],
+        'ɬ' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 1.0, 'rhotic' => 0.0],
+        'ɮ' => ['type' => 'consonant', 'place' => 3.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 1.0, 'rhotic' => 0.0],
+        'ʃ' => ['type' => 'consonant', 'place' => 4.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʒ' => ['type' => 'consonant', 'place' => 4.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʈ' => ['type' => 'consonant', 'place' => 5.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɖ' => ['type' => 'consonant', 'place' => 5.0, 'manner' => 'stop', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɳ' => ['type' => 'consonant', 'place' => 5.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʂ' => ['type' => 'consonant', 'place' => 5.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʐ' => ['type' => 'consonant', 'place' => 5.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɻ' => ['type' => 'consonant', 'place' => 5.0, 'manner' => 'approximant', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 1.0],
+        'c' => ['type' => 'consonant', 'place' => 6.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɟ' => ['type' => 'consonant', 'place' => 6.0, 'manner' => 'stop', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɲ' => ['type' => 'consonant', 'place' => 6.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ç' => ['type' => 'consonant', 'place' => 6.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʝ' => ['type' => 'consonant', 'place' => 6.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʎ' => ['type' => 'consonant', 'place' => 6.0, 'manner' => 'approximant', 'voice' => 1.0, 'lateral' => 1.0, 'rhotic' => 0.0],
+        'k' => ['type' => 'consonant', 'place' => 7.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'g' => ['type' => 'consonant', 'place' => 7.0, 'manner' => 'stop', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ŋ' => ['type' => 'consonant', 'place' => 7.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'x' => ['type' => 'consonant', 'place' => 7.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɣ' => ['type' => 'consonant', 'place' => 7.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'q' => ['type' => 'consonant', 'place' => 8.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɢ' => ['type' => 'consonant', 'place' => 8.0, 'manner' => 'stop', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɴ' => ['type' => 'consonant', 'place' => 8.0, 'manner' => 'nasal', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'χ' => ['type' => 'consonant', 'place' => 8.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʁ' => ['type' => 'consonant', 'place' => 8.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 1.0],
+        'ʀ' => ['type' => 'consonant', 'place' => 8.0, 'manner' => 'trill', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 1.0],
+        'ħ' => ['type' => 'consonant', 'place' => 9.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʕ' => ['type' => 'consonant', 'place' => 9.0, 'manner' => 'approximant', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'h' => ['type' => 'consonant', 'place' => 10.0, 'manner' => 'fricative', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ɦ' => ['type' => 'consonant', 'place' => 10.0, 'manner' => 'fricative', 'voice' => 1.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+        'ʔ' => ['type' => 'consonant', 'place' => 10.0, 'manner' => 'stop', 'voice' => 0.0, 'lateral' => 0.0, 'rhotic' => 0.0],
+    ];
+
+    return $map;
+}
+
+function ll_tools_wordset_games_parse_ipa_similarity_token(string $token): array {
+    $token = ll_tools_wordset_games_normalize_speaking_text($token, 'recording_ipa');
+    if ($token === '') {
+        return [
+            'base_units' => [],
+            'modifiers' => [],
+        ];
+    }
+
+    $chars = preg_split('//u', $token, -1, PREG_SPLIT_NO_EMPTY);
+    if (!$chars) {
+        return [
+            'base_units' => [$token],
+            'modifiers' => [],
+        ];
+    }
+
+    $base_units = [];
+    $modifiers = [];
+    foreach ($chars as $char) {
+        if (function_exists('ll_tools_word_grid_is_ipa_separator') && ll_tools_word_grid_is_ipa_separator($char, 'ipa')) {
+            continue;
+        }
+        if (function_exists('ll_tools_word_grid_is_ipa_tie_bar') && ll_tools_word_grid_is_ipa_tie_bar($char, 'ipa')) {
+            continue;
+        }
+        if ((function_exists('ll_tools_word_grid_is_ipa_combining_mark') && ll_tools_word_grid_is_ipa_combining_mark($char))
+            || (function_exists('ll_tools_word_grid_is_ipa_post_modifier') && ll_tools_word_grid_is_ipa_post_modifier($char, 'ipa'))) {
+            $modifiers[] = $char;
+            continue;
+        }
+        $base_units[] = $char;
+    }
+
+    if (empty($base_units)) {
+        $base_units[] = $token;
+    }
+
+    return [
+        'base_units' => array_values($base_units),
+        'modifiers' => array_values(array_unique($modifiers)),
+    ];
+}
+
+function ll_tools_wordset_games_ipa_modifier_weight(string $modifier): float {
+    static $weights = [
+        'ʰ' => 0.08,
+        'ʷ' => 0.08,
+        'ʲ' => 0.08,
+        'ˠ' => 0.08,
+        'ˤ' => 0.08,
+        'ʱ' => 0.08,
+        '̪' => 0.06,
+        '̥' => 0.06,
+        '̬' => 0.06,
+        '̟' => 0.05,
+        '̠' => 0.05,
+        '̃' => 0.06,
+        'ː' => 0.05,
+        'ˑ' => 0.04,
+    ];
+
+    return (float) ($weights[$modifier] ?? 0.06);
+}
+
+function ll_tools_wordset_games_ipa_modifier_penalty(array $left_modifiers, array $right_modifiers): float {
+    $left_lookup = array_fill_keys(array_values(array_filter(array_map('strval', $left_modifiers))), true);
+    $right_lookup = array_fill_keys(array_values(array_filter(array_map('strval', $right_modifiers))), true);
+    $difference = array_unique(array_merge(
+        array_diff(array_keys($left_lookup), array_keys($right_lookup)),
+        array_diff(array_keys($right_lookup), array_keys($left_lookup))
+    ));
+
+    if (empty($difference)) {
+        return 0.0;
+    }
+
+    $penalty = 0.0;
+    foreach ($difference as $modifier) {
+        $penalty += ll_tools_wordset_games_ipa_modifier_weight((string) $modifier);
+    }
+
+    return min(0.32, $penalty);
+}
+
+function ll_tools_wordset_games_ipa_symbol_similarity(string $left_symbol, string $right_symbol): float {
+    $left_symbol = trim((string) $left_symbol);
+    $right_symbol = trim((string) $right_symbol);
+    if ($left_symbol === '' || $right_symbol === '') {
+        return 0.0;
+    }
+    if ($left_symbol === $right_symbol) {
+        return 1.0;
+    }
+
+    $feature_map = ll_tools_wordset_games_ipa_similarity_feature_map();
+    $left = $feature_map[$left_symbol] ?? null;
+    $right = $feature_map[$right_symbol] ?? null;
+    if (!is_array($left) || !is_array($right)) {
+        return 0.0;
+    }
+
+    $left_type = (string) ($left['type'] ?? '');
+    $right_type = (string) ($right['type'] ?? '');
+    $left_vowel_like = in_array($left_type, ['vowel', 'glide'], true);
+    $right_vowel_like = in_array($right_type, ['vowel', 'glide'], true);
+
+    if ($left_vowel_like && $right_vowel_like) {
+        $height_penalty = abs((float) ($left['height'] ?? 0.0) - (float) ($right['height'] ?? 0.0)) / 6.0;
+        $back_penalty = abs((float) ($left['back'] ?? 0.0) - (float) ($right['back'] ?? 0.0)) / 4.0;
+        $round_penalty = abs((float) ($left['round'] ?? 0.0) - (float) ($right['round'] ?? 0.0));
+        $type_penalty = ($left_type === $right_type) ? 0.0 : 0.12;
+        $score = 1.0 - (($height_penalty * 0.45) + ($back_penalty * 0.35) + ($round_penalty * 0.20) + $type_penalty);
+        return max(0.0, min(1.0, $score));
+    }
+
+    if ($left_type === 'consonant' && $right_type === 'consonant') {
+        $left_manner = (string) ($left['manner'] ?? '');
+        $right_manner = (string) ($right['manner'] ?? '');
+        if ($left_manner === $right_manner) {
+            $manner_penalty = 0.0;
+        } elseif (in_array($left_manner, ['tap', 'trill', 'approximant'], true) && in_array($right_manner, ['tap', 'trill', 'approximant'], true)) {
+            $manner_penalty = 0.14;
+        } elseif (in_array($left_manner, ['fricative', 'approximant'], true) && in_array($right_manner, ['fricative', 'approximant'], true)) {
+            $manner_penalty = 0.20;
+        } elseif (in_array($left_manner, ['stop', 'fricative'], true) && in_array($right_manner, ['stop', 'fricative'], true)) {
+            $manner_penalty = 0.28;
+        } elseif (in_array($left_manner, ['stop', 'nasal'], true) && in_array($right_manner, ['stop', 'nasal'], true)) {
+            $manner_penalty = 0.24;
+        } else {
+            $manner_penalty = 0.34;
+        }
+
+        $place_penalty = min(0.36, abs((float) ($left['place'] ?? 0.0) - (float) ($right['place'] ?? 0.0)) * 0.075);
+        $voice_penalty = ((float) ($left['voice'] ?? 0.0) === (float) ($right['voice'] ?? 0.0)) ? 0.0 : 0.10;
+        $lateral_penalty = ((float) ($left['lateral'] ?? 0.0) === (float) ($right['lateral'] ?? 0.0)) ? 0.0 : 0.08;
+        $rhotic_penalty = ((float) ($left['rhotic'] ?? 0.0) === (float) ($right['rhotic'] ?? 0.0)) ? 0.0 : 0.06;
+
+        $score = 1.0 - ($manner_penalty + $place_penalty + $voice_penalty + $lateral_penalty + $rhotic_penalty);
+        return max(0.0, min(1.0, $score));
+    }
+
+    return 0.0;
+}
+
+function ll_tools_wordset_games_ipa_token_similarity(string $left_token, string $right_token): float {
+    $left_token = trim((string) $left_token);
+    $right_token = trim((string) $right_token);
+    if ($left_token === '' || $right_token === '') {
+        return 0.0;
+    }
+    if ($left_token === $right_token) {
+        return 1.0;
+    }
+
+    $left_parts = ll_tools_wordset_games_parse_ipa_similarity_token($left_token);
+    $right_parts = ll_tools_wordset_games_parse_ipa_similarity_token($right_token);
+    $left_units = (array) ($left_parts['base_units'] ?? []);
+    $right_units = (array) ($right_parts['base_units'] ?? []);
+
+    if (empty($left_units) || empty($right_units)) {
+        return 0.0;
+    }
+
+    $base_distance = ll_tools_wordset_games_array_weighted_levenshtein(
+        $left_units,
+        $right_units,
+        static function ($left_unit, $right_unit): float {
+            return 1.0 - ll_tools_wordset_games_ipa_symbol_similarity((string) $left_unit, (string) $right_unit);
+        }
+    );
+    $base_score = max(0.0, 1.0 - ($base_distance / max(count($left_units), count($right_units), 1)));
+    $modifier_penalty = ll_tools_wordset_games_ipa_modifier_penalty(
+        (array) ($left_parts['modifiers'] ?? []),
+        (array) ($right_parts['modifiers'] ?? [])
+    );
+
+    return max(0.0, min(1.0, $base_score - $modifier_penalty));
+}
+
+function ll_tools_wordset_games_similarity_score_ipa(string $expected, string $actual): float {
+    $expected_tokens = ll_tools_wordset_games_tokenize_speaking_text($expected, 'recording_ipa');
+    $actual_tokens = ll_tools_wordset_games_tokenize_speaking_text($actual, 'recording_ipa');
+    if (empty($expected_tokens) || empty($actual_tokens)) {
+        return 0.0;
+    }
+    if ($expected_tokens === $actual_tokens) {
+        return 100.0;
+    }
+
+    $token_distance = ll_tools_wordset_games_array_weighted_levenshtein(
+        $expected_tokens,
+        $actual_tokens,
+        static function ($left_token, $right_token): float {
+            return 1.0 - ll_tools_wordset_games_ipa_token_similarity((string) $left_token, (string) $right_token);
+        }
+    );
+    $max_tokens = max(count($expected_tokens), count($actual_tokens), 1);
+    $token_score = max(0.0, (1.0 - ($token_distance / $max_tokens)) * 100.0);
+
+    $expected_units = [];
+    foreach ($expected_tokens as $token) {
+        $expected_units = array_merge($expected_units, (array) (ll_tools_wordset_games_parse_ipa_similarity_token((string) $token)['base_units'] ?? []));
+    }
+    $actual_units = [];
+    foreach ($actual_tokens as $token) {
+        $actual_units = array_merge($actual_units, (array) (ll_tools_wordset_games_parse_ipa_similarity_token((string) $token)['base_units'] ?? []));
+    }
+
+    if (empty($expected_units) || empty($actual_units)) {
+        return round($token_score, 2);
+    }
+
+    $unit_distance = ll_tools_wordset_games_array_weighted_levenshtein(
+        $expected_units,
+        $actual_units,
+        static function ($left_unit, $right_unit): float {
+            return 1.0 - ll_tools_wordset_games_ipa_symbol_similarity((string) $left_unit, (string) $right_unit);
+        }
+    );
+    $max_units = max(count($expected_units), count($actual_units), 1);
+    $unit_score = max(0.0, (1.0 - ($unit_distance / $max_units)) * 100.0);
+
+    return round(($token_score * 0.72) + ($unit_score * 0.28), 2);
+}
+
 function ll_tools_wordset_games_similarity_score(string $expected, string $actual, string $target_field): float {
     $target_field = sanitize_key($target_field);
+    if ($target_field === 'recording_ipa') {
+        return ll_tools_wordset_games_similarity_score_ipa($expected, $actual);
+    }
+
     $expected_tokens = ll_tools_wordset_games_tokenize_speaking_text($expected, $target_field);
     $actual_tokens = ll_tools_wordset_games_tokenize_speaking_text($actual, $target_field);
 

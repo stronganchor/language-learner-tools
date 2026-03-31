@@ -568,6 +568,22 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('text', (string) ($catalog['speaking-practice']['words'][0]['speaking_prompt_type'] ?? ''));
     }
 
+    public function test_ipa_similarity_score_gives_partial_credit_to_nearby_sounds(): void
+    {
+        $nearVowelScore = ll_tools_wordset_games_similarity_score('rʉɛ', 'rwɨ', 'recording_ipa');
+        $farVowelScore = ll_tools_wordset_games_similarity_score('rʉɛ', 'saq', 'recording_ipa');
+        $nearPlaceScore = ll_tools_wordset_games_similarity_score('aqa', 'aka', 'recording_ipa');
+        $farPlaceScore = ll_tools_wordset_games_similarity_score('aqa', 'ata', 'recording_ipa');
+
+        $this->assertGreaterThan(65.0, $nearVowelScore);
+        $this->assertGreaterThan($farVowelScore, $nearVowelScore);
+        $this->assertSame('close', ll_tools_wordset_games_score_bucket($nearVowelScore));
+
+        $this->assertGreaterThan(80.0, $nearPlaceScore);
+        $this->assertGreaterThan($farPlaceScore, $nearPlaceScore);
+        $this->assertSame('right', ll_tools_wordset_games_score_bucket($nearPlaceScore));
+    }
+
     /**
      * @return array{
      *   user_id:int,
