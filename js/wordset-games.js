@@ -4815,11 +4815,20 @@
         });
     }
 
-    function setSpeakingRecordButton(ctx, label, disabled) {
+    function setSpeakingRecordButton(ctx, label, disabled, state) {
         if (!ctx || !ctx.$speakingRecord || !ctx.$speakingRecord.length) {
             return;
         }
-        ctx.$speakingRecord.text(String(label || ctx.i18n.gamesSpeakingStartButton || 'Start')).prop('disabled', !!disabled);
+        const text = String(label || ctx.i18n.gamesSpeakingStartButton || 'Start');
+        const visualState = String(state || '').trim() || (!!disabled ? 'processing' : 'idle');
+        ctx.$speakingRecord
+            .prop('disabled', !!disabled)
+            .attr('aria-label', text)
+            .attr('title', text)
+            .attr('data-speaking-state', visualState);
+        if (ctx.$speakingRecordLabel && ctx.$speakingRecordLabel.length) {
+            ctx.$speakingRecordLabel.text(text);
+        }
     }
 
     function showSpeakingResult(ctx, isVisible) {
@@ -5233,8 +5242,7 @@
         }
 
         resetSpeakingResultUi(ctx);
-        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true);
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true, 'listening');
 
         return ensureSpeakingStream(ctx).then(function (stream) {
             state.audioChunks = [];
@@ -5480,7 +5488,7 @@
             close: ctx.i18n.gamesSpeakingResultClose || 'Close',
             wrong: ctx.i18n.gamesSpeakingResultWrong || 'Try again'
         }[bucket] || ctx.i18n.gamesSpeakingResultWrong || 'Try again'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
 
         const feedbackPromise = bucket === 'close'
             ? Promise.resolve()
@@ -5500,12 +5508,12 @@
         }
         if (!state.speechDetected) {
             setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingTooQuiet || 'That was too quiet. Try again.'));
-            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
             return;
         }
 
         setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'), true);
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'), true, 'processing');
         setSpeakingAttemptAudioSource(ctx, blob);
         transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
             if (!ctx.run || ctx.run !== run || run.ended) {
@@ -5525,7 +5533,7 @@
                 return;
             }
             setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
-            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
         });
     }
 
@@ -5539,7 +5547,7 @@
         state.autoStartTimer = root.setTimeout(function () {
             startSpeakingCapture(ctx).catch(function (error) {
                 setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingMicError || 'Microphone access failed.'));
-                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
             });
         }, Math.max(0, toInt(ctx.speakingPractice && ctx.speakingPractice.autoStartDelayMs) || 280));
     }
@@ -5554,7 +5562,7 @@
         resetSpeakingResultUi(ctx);
         clearSpeakingAutoStart(ctx);
         setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingReady || 'Get ready...'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingStartButton || 'Start'), false);
+        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingStartButton || 'Start'), false, 'idle');
 
         if (!opts.retryCurrent) {
             if (run.prompt && run.prompt.target) {
@@ -6011,7 +6019,7 @@
             }
             startSpeakingCapture(ctx).catch(function (error) {
                 setSpeakingStatus(ctx, String(error && error.message || ctx.i18n.gamesSpeakingMicError || 'Microphone access failed.'));
-                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false);
+                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
             });
         });
 
@@ -6274,6 +6282,7 @@
             $speakingMeterBars: $gamesRoot.find('.ll-wordset-speaking-stage__meter-bar'),
             $speakingActions: $gamesRoot.find('[data-ll-wordset-speaking-actions]').first(),
             $speakingRecord: $gamesRoot.find('[data-ll-wordset-speaking-record]').first(),
+            $speakingRecordLabel: $gamesRoot.find('[data-ll-wordset-speaking-record-label]').first(),
             $speakingResult: $gamesRoot.find('[data-ll-wordset-speaking-result]').first(),
             $speakingBucket: $gamesRoot.find('[data-ll-wordset-speaking-bucket]').first(),
             $speakingScore: $gamesRoot.find('[data-ll-wordset-speaking-score]').first(),

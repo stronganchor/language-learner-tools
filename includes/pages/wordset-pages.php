@@ -2100,6 +2100,12 @@ function ll_tools_wordset_page_render_reset_icon(string $class = 'll-wordset-pro
         . '</svg>';
 }
 
+function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-speaking-stage__record-icon-svg'): string {
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
+        . '<circle cx="12" cy="12" r="8"/>'
+        . '</svg>';
+}
+
 function ll_tools_wordset_page_render_hard_words_icon(string $class = ''): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="16" height="16" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
@@ -5988,7 +5994,17 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                             </div>
 
                             <div class="ll-wordset-speaking-stage__actions" data-ll-wordset-speaking-actions>
-                                <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--record" data-ll-wordset-speaking-record><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
+                                <button
+                                    type="button"
+                                    class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--record"
+                                    data-ll-wordset-speaking-record
+                                    data-speaking-state="idle"
+                                    aria-label="<?php echo esc_attr__('Start recording', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-wordset-speaking-stage__record-icon" aria-hidden="true">
+                                        <?php echo ll_tools_wordset_page_render_record_icon(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </span>
+                                    <span class="screen-reader-text" data-ll-wordset-speaking-record-label><?php echo esc_html__('Start recording', 'll-tools-text-domain'); ?></span>
+                                </button>
                             </div>
 
                             <section class="ll-wordset-speaking-stage__result" data-ll-wordset-speaking-result hidden>

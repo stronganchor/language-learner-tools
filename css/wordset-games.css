@@ -1141,6 +1141,9 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stage__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 48px;
     padding: 0 18px;
     border: 1px solid transparent;
@@ -1153,10 +1156,78 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     box-shadow: 0 14px 24px rgba(194, 65, 12, 0.2);
 }
 
+.ll-wordset-speaking-stage__action--record {
+    width: 52px;
+    min-width: 52px;
+    height: 52px;
+    min-height: 52px;
+    padding: 0;
+    border-radius: 999px;
+    background: #e74c3c;
+    background-image: none;
+    box-shadow: 0 10px 24px rgba(231, 76, 60, 0.28);
+}
+
+.ll-wordset-speaking-stage__record-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: #ffffff;
+}
+
+.ll-wordset-speaking-stage__record-icon-svg {
+    display: block;
+    width: 24px;
+    height: 24px;
+    fill: currentColor !important;
+}
+
+.ll-wordset-speaking-stage__action--record:hover:not([disabled]),
+.ll-wordset-speaking-stage__action--record:focus-visible {
+    background: #c0392b;
+    background-image: none;
+    transform: scale(1.05);
+}
+
+.ll-wordset-speaking-stage__action--record[data-speaking-state="listening"] {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    background-image: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    animation: ll-speaking-record-pulse 1.5s infinite;
+    opacity: 1;
+}
+
+.ll-wordset-speaking-stage__action--record[data-speaking-state="processing"] {
+    background: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+    background-image: linear-gradient(135deg, #2271b1 0%, #135e96 100%);
+    box-shadow: 0 10px 22px rgba(19, 94, 150, 0.24);
+    opacity: 1;
+}
+
+.ll-wordset-speaking-stage__action--record[data-speaking-state="retry"] {
+    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%);
+    background-image: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%);
+    box-shadow: 0 14px 24px rgba(194, 65, 12, 0.2);
+}
+
 .ll-wordset-speaking-stage__action[disabled] {
     cursor: wait;
     opacity: 0.7;
     box-shadow: none;
+}
+
+.ll-wordset-speaking-stage__action--record[data-speaking-state="listening"][disabled],
+.ll-wordset-speaking-stage__action--record[data-speaking-state="processing"][disabled] {
+    opacity: 1;
+}
+
+.ll-wordset-speaking-stage__action--record[data-speaking-state="listening"][disabled] {
+    box-shadow: 0 10px 24px rgba(231, 76, 60, 0.28);
+}
+
+.ll-wordset-speaking-stage__action--record[data-speaking-state="processing"][disabled] {
+    box-shadow: 0 10px 22px rgba(19, 94, 150, 0.24);
 }
 
 .ll-wordset-speaking-stage__action--ghost {
@@ -1395,6 +1466,18 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     fill: none !important;
 }
 
+@keyframes ll-speaking-record-pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 10px 24px rgba(231, 76, 60, 0.28);
+    }
+    50% {
+        transform: scale(1.06);
+        box-shadow: 0 14px 28px rgba(220, 38, 38, 0.34);
+    }
+}
+
 @keyframes ll-speaking-prompt-enter {
     from {
         opacity: 0;
@@ -1553,6 +1636,10 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     .ll-wordset-speaking-stage__action {
         width: 100%;
         justify-content: center;
+    }
+
+    .ll-wordset-speaking-stage__action--record {
+        width: 52px;
     }
 
     .ll-wordset-speaking-stage__result {
