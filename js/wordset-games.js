@@ -2367,8 +2367,25 @@
         });
     }
 
-    function checkSpeakingGameEndpoint(ctx, endpoint) {
+    function getSpeakingGameProbeUrl(endpoint) {
         const url = String(endpoint || '').trim();
+        if (!url) {
+            return '';
+        }
+
+        try {
+            const parsed = new root.URL(url, root.location && root.location.href ? root.location.href : undefined);
+            if (/\/transcribe\/?$/i.test(parsed.pathname)) {
+                parsed.pathname = parsed.pathname.replace(/\/transcribe\/?$/i, '/health');
+            }
+            return parsed.toString();
+        } catch (_) {
+            return url.replace(/\/transcribe\/?$/i, '/health');
+        }
+    }
+
+    function checkSpeakingGameEndpoint(ctx, endpoint) {
+        const url = getSpeakingGameProbeUrl(endpoint);
         if (!url || typeof root.fetch !== 'function') {
             return Promise.resolve(false);
         }
@@ -2379,15 +2396,29 @@
         const timeoutMs = Math.max(500, toInt(ctx.speakingPractice && ctx.speakingPractice.apiCheckTimeoutMs) || 1500);
         const controller = (typeof root.AbortController === 'function') ? new root.AbortController() : null;
         let timeoutId = 0;
-        const request = root.fetch(url, {
-            method: 'GET',
+        const requestOptions = {
             mode: 'cors',
             cache: 'no-store',
             signal: controller ? controller.signal : undefined
-        }).then(function () {
-            return true;
+        };
+        const performGetProbe = function () {
+            return root.fetch(url, $.extend({}, requestOptions, {
+                method: 'GET',
+            })).then(function (response) {
+                return !!(response && response.ok);
+            }).catch(function () {
+                return false;
+            });
+        };
+        const request = root.fetch(url, $.extend({}, requestOptions, {
+            method: 'HEAD',
+        })).then(function (response) {
+            if (response && response.ok) {
+                return true;
+            }
+            return performGetProbe();
         }).catch(function () {
-            return false;
+            return performGetProbe();
         }).finally(function () {
             if (timeoutId) {
                 root.clearTimeout(timeoutId);
