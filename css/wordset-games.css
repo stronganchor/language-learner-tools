@@ -44,7 +44,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-game-run-modal__dialog {
     position: relative;
     z-index: 1;
-    width: min(100%, 960px);
+    width: min(100%, 1220px);
     height: 100%;
     overflow: hidden;
     box-sizing: border-box;
@@ -58,6 +58,11 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     max-width: 100%;
     max-height: calc(100dvh - (var(--ll-wordset-game-run-pad) * 2));
     margin: 0 auto;
+}
+
+.ll-wordset-game-run-modal__dialog .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-practice"] {
+    width: min(100%, 1080px);
+    max-width: min(100%, 1080px);
 }
 
 .ll-wordset-games-page {
@@ -972,6 +977,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         radial-gradient(circle at top left, rgba(251, 191, 36, 0.24), transparent 26%),
         linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 247, 237, 0.96));
     overflow-y: auto;
+    max-width: min(100%, 1080px);
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-practice"] .ll-wordset-game-stage__nav--pause {
@@ -980,12 +986,20 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage {
     display: grid;
-    gap: 14px;
-    padding: clamp(6px, 1.5vw, 10px);
+    grid-template-columns: minmax(0, clamp(250px, 36vw, 420px)) minmax(240px, 1fr);
+    grid-template-areas:
+        "topline topline"
+        "prompt meter"
+        "prompt actions"
+        "result result";
+    gap: clamp(12px, 1.8vw, 18px);
+    padding: clamp(8px, 1.4vw, 12px);
     align-content: start;
+    align-items: start;
 }
 
 .ll-wordset-speaking-stage__topline {
+    grid-area: topline;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1007,15 +1021,18 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stage__prompt-shell {
+    grid-area: prompt;
+    width: min(100%, clamp(250px, 36vw, 420px));
+    justify-self: start;
     perspective: 1200px;
 }
 
 .ll-wordset-speaking-stage__prompt-card {
-    min-height: clamp(200px, 34vh, 320px);
+    min-height: clamp(180px, 26vh, 260px);
     display: grid;
     place-items: center;
     padding: clamp(14px, 2.4vw, 22px);
-    border-radius: 30px;
+    border-radius: 26px;
     border: 1px solid rgba(194, 65, 12, 0.12);
     background:
         radial-gradient(circle at top right, rgba(251, 191, 36, 0.22), transparent 30%),
@@ -1032,6 +1049,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__prompt-card.has-image {
     padding: 0;
+    aspect-ratio: 1 / 1;
     background: rgba(255, 255, 255, 0.55);
 }
 
@@ -1056,7 +1074,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-speaking-stage__image-frame {
     width: 100%;
-    height: clamp(220px, 34vh, 320px);
+    height: 100%;
     margin: 0;
     display: grid;
     place-items: stretch;
@@ -1086,11 +1104,17 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stage__meter {
+    grid-area: meter;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     align-items: end;
     gap: 8px;
-    min-height: 52px;
+    min-height: 72px;
+    padding: 18px 20px;
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(194, 65, 12, 0.12);
+    box-shadow: 0 16px 34px rgba(124, 45, 18, 0.08);
 }
 
 .ll-wordset-speaking-stage__meter-bar {
@@ -1107,8 +1131,13 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-speaking-stage__actions,
 .ll-wordset-speaking-stage__result-actions {
     display: flex;
-    flex-wrap: wrap;
     gap: 12px;
+}
+
+.ll-wordset-speaking-stage__actions {
+    grid-area: actions;
+    align-items: center;
+    justify-content: flex-start;
 }
 
 .ll-wordset-speaking-stage__action {
@@ -1138,12 +1167,14 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stage__result {
+    grid-area: result;
     display: grid;
     gap: 12px;
-    padding: 16px 18px 10px;
+    padding: 16px 18px 14px;
     border-radius: 22px;
     background: rgba(255, 255, 255, 0.84);
     border: 1px solid rgba(194, 65, 12, 0.12);
+    box-shadow: 0 18px 40px rgba(124, 45, 18, 0.08);
 }
 
 .ll-wordset-speaking-stage__comparison {
@@ -1153,14 +1184,21 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stage__comparison-card {
-    min-height: 92px;
+    min-height: 0;
     padding: 12px 14px;
     border-radius: 18px;
     background: rgba(255, 251, 235, 0.9);
     border: 1px solid rgba(194, 65, 12, 0.12);
     display: grid;
     align-content: start;
-    gap: 6px;
+    gap: 10px;
+}
+
+.ll-wordset-speaking-stage__comparison-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
 }
 
 .ll-wordset-speaking-stage__comparison-label {
@@ -1170,13 +1208,70 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     font-weight: 700;
 }
 
+.ll-wordset-speaking-stage__comparison-meta {
+    margin: 0;
+    color: rgba(124, 45, 18, 0.62);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
 .ll-wordset-speaking-stage__comparison-value {
     margin: 0;
     color: #431407;
-    font-size: 1.02rem;
+    font-size: 1.06rem;
     font-weight: 800;
     line-height: 1.25;
     word-break: break-word;
+}
+
+.ll-wordset-speaking-stage__audio-button {
+    appearance: none;
+    border: 1px solid rgba(194, 65, 12, 0.16) !important;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 7px 10px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.96) !important;
+    background-image: none !important;
+    box-shadow: 0 8px 18px rgba(194, 65, 12, 0.1) !important;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ll-wordset-speaking-stage__audio-button .ll-repeat-icon-wrap {
+    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%) !important;
+    color: #fff7ed !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 6px 14px rgba(194, 65, 12, 0.18);
+}
+
+.ll-wordset-speaking-stage__audio-button .ll-audio-mini-visualizer .bar {
+    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%);
+}
+
+.ll-wordset-speaking-stage__audio-button:hover,
+.ll-wordset-speaking-stage__audio-button:focus,
+.ll-wordset-speaking-stage__audio-button:focus-visible,
+.ll-wordset-speaking-stage__audio-button:active,
+.ll-wordset-speaking-stage__icon-action:hover,
+.ll-wordset-speaking-stage__icon-action:focus,
+.ll-wordset-speaking-stage__icon-action:focus-visible,
+.ll-wordset-speaking-stage__icon-action:active {
+    outline: none;
+}
+
+.ll-wordset-speaking-stage__audio-button:hover,
+.ll-wordset-speaking-stage__audio-button:focus-visible {
+    border-color: rgba(194, 65, 12, 0.28) !important;
+    box-shadow: 0 10px 22px rgba(194, 65, 12, 0.14) !important;
+}
+
+.ll-wordset-speaking-stage__icon-action:hover,
+.ll-wordset-speaking-stage__icon-action:focus-visible {
+    transform: translateY(-1px);
 }
 
 .ll-wordset-speaking-stage__scoreline {
@@ -1223,6 +1318,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-speaking-stage__details {
     margin: 0;
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -1242,6 +1338,45 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     color: #431407;
     font-size: 1rem;
     font-weight: 700;
+}
+
+.ll-wordset-speaking-stage__result-actions {
+    align-items: center;
+    justify-content: flex-end;
+}
+
+.ll-wordset-speaking-stage__icon-action {
+    appearance: none;
+    width: 52px;
+    height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    box-sizing: border-box;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #f59e0b 0%, #c2410c 100%);
+    color: #fff7ed;
+    cursor: pointer;
+    box-shadow: 0 14px 24px rgba(194, 65, 12, 0.2);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.ll-wordset-speaking-stage__icon-action--ghost {
+    background: rgba(255, 255, 255, 0.88);
+    color: #9a3412;
+    border-color: rgba(194, 65, 12, 0.16);
+    box-shadow: none;
+}
+
+.ll-wordset-speaking-stage__icon-action-svg {
+    width: 24px;
+    height: 24px;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
 }
 
 @keyframes ll-speaking-prompt-enter {
@@ -1270,6 +1405,21 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         align-items: center;
     }
 
+    .ll-wordset-speaking-stage {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "topline"
+            "prompt"
+            "meter"
+            "actions"
+            "result";
+    }
+
+    .ll-wordset-speaking-stage__prompt-shell {
+        width: min(100%, 380px);
+        justify-self: center;
+    }
+
     .ll-wordset-speaking-stage__topline,
     .ll-wordset-speaking-stage__scoreline {
         flex-direction: column;
@@ -1277,6 +1427,10 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-speaking-stage__comparison {
+        grid-template-columns: 1fr;
+    }
+
+    .ll-wordset-speaking-stage__details {
         grid-template-columns: 1fr;
     }
 }
@@ -1366,6 +1520,10 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         padding: 2px;
     }
 
+    .ll-wordset-speaking-stage__prompt-shell {
+        width: min(100%, 300px);
+    }
+
     .ll-wordset-speaking-stage__prompt-card {
         min-height: 190px;
         padding: 14px;
@@ -1373,16 +1531,20 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
     .ll-wordset-speaking-stage__meter {
         gap: 5px;
-    }
-
-    .ll-wordset-speaking-stage__result-actions,
-    .ll-wordset-speaking-stage__actions {
-        flex-direction: column;
+        padding: 14px 16px;
     }
 
     .ll-wordset-speaking-stage__action {
         width: 100%;
         justify-content: center;
+    }
+
+    .ll-wordset-speaking-stage__result {
+        padding: 14px;
+    }
+
+    .ll-wordset-speaking-stage__result-actions {
+        justify-content: space-between;
     }
 
     .ll-wordset-speaking-stage__comparison-card {

@@ -803,10 +803,11 @@ function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int 
     ];
 }
 
-function ll_tools_wordset_games_collect_speaking_ipa_map(array $word_ids): array {
+function ll_tools_wordset_games_collect_speaking_ipa_map(array $word_ids, string $recording_type = ''): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
         return $word_id > 0;
     }));
+    $target_type = ll_tools_normalize_practice_recording_type_slug($recording_type);
     if (empty($word_ids)) {
         return [];
     }
@@ -850,6 +851,21 @@ function ll_tools_wordset_games_collect_speaking_ipa_map(array $word_ids): array
 
     $map = [];
     foreach ($audio_posts_by_word as $word_id => $word_audio_posts) {
+        if ($target_type !== '') {
+            $word_audio_posts = array_values(array_filter($word_audio_posts, static function ($audio_post) use ($target_type): bool {
+                if (!($audio_post instanceof WP_Post)) {
+                    return false;
+                }
+
+                $entry_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post->ID, 'recording_type', true));
+
+                return $entry_type === $target_type;
+            }));
+        }
+        if (empty($word_audio_posts)) {
+            continue;
+        }
+
         $preferred_speaker = function_exists('ll_tools_get_preferred_speaker_from_audio_posts')
             ? ll_tools_get_preferred_speaker_from_audio_posts($word_audio_posts)
             : 0;
@@ -961,7 +977,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
     }));
 
     $ipa_map = ($target_field === 'recording_ipa')
-        ? ll_tools_wordset_games_collect_speaking_ipa_map($word_ids)
+        ? ll_tools_wordset_games_collect_speaking_ipa_map($word_ids, 'isolation')
         : [];
 
     $eligible_words = [];
@@ -975,23 +991,28 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
             continue;
         }
 
-        $target_text = ll_tools_get_wordset_speaking_game_target_value($word_id, $target_field, $word);
-        if ($target_field === 'recording_ipa' && $target_text === '' && isset($ipa_map[$word_id])) {
-            $target_text = trim((string) $ipa_map[$word_id]);
-        }
-        if ($target_text === '') {
-            continue;
-        }
-
         $prompt_text = ll_tools_wordset_games_get_speaking_prompt_text($word);
         if ($prompt_text === '') {
             $prompt_text = trim((string) ($word['title'] ?? ''));
         }
-        $display_texts = ll_tools_wordset_games_get_speaking_display_texts($word_id, $target_field, $word);
-        $best_correct_audio_url = ll_tools_wordset_games_get_best_correct_audio_url($word_id, $word);
+        $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation');
+        $best_correct_audio_url = trim((string) ($isolation_audio['url'] ?? ''));
         if ($best_correct_audio_url === '') {
             continue;
         }
+
+        if ($target_field === 'recording_ipa') {
+            $word['recording_ipa'] = trim((string) ($ipa_map[$word_id] ?? ($isolation_audio['recording_ipa'] ?? '')));
+        }
+
+        $target_text = ($target_field === 'recording_ipa')
+            ? trim((string) ($word['recording_ipa'] ?? ''))
+            : ll_tools_get_wordset_speaking_game_target_value($word_id, $target_field, $word);
+        if ($target_text === '') {
+            continue;
+        }
+
+        $display_texts = ll_tools_wordset_games_get_speaking_display_texts($word_id, $target_field, $word);
 
         $word['speaking_target_field'] = $target_field;
         $word['speaking_target_label'] = $target_label;
@@ -1310,15 +1331,37 @@ function ll_tools_wordset_games_get_word_audio_posts(int $word_id): array {
     }));
 }
 
-function ll_tools_wordset_games_get_best_correct_audio_url(int $word_id, array $word_data = []): string {
+function ll_tools_wordset_games_get_audio_details(int $word_id, string $recording_type = ''): array {
     $word_id = (int) $word_id;
+    $target_type = ll_tools_normalize_practice_recording_type_slug($recording_type);
     if ($word_id <= 0) {
-        return '';
+        return [
+            'audio_post_id' => 0,
+            'recording_type' => $target_type,
+            'url' => '',
+            'recording_ipa' => '',
+        ];
     }
 
     $word_audio_posts = ll_tools_wordset_games_get_word_audio_posts($word_id);
+    if ($target_type !== '') {
+        $word_audio_posts = array_values(array_filter($word_audio_posts, static function ($audio_post) use ($target_type): bool {
+            if (!($audio_post instanceof WP_Post)) {
+                return false;
+            }
+
+            $entry_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post->ID, 'recording_type', true));
+
+            return $entry_type === $target_type;
+        }));
+    }
     if (empty($word_audio_posts)) {
-        return '';
+        return [
+            'audio_post_id' => 0,
+            'recording_type' => $target_type,
+            'url' => '',
+            'recording_ipa' => '',
+        ];
     }
 
     $preferred_speaker = function_exists('ll_tools_get_preferred_speaker_from_audio_posts')
@@ -1353,12 +1396,30 @@ function ll_tools_wordset_games_get_best_correct_audio_url(int $word_id, array $
         } else {
             $audio_url = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
         }
-        if ($audio_url !== '') {
-            return $audio_url;
+        if ($audio_url === '') {
+            continue;
         }
+
+        $resolved_type = ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($audio_post->ID, 'recording_type', true));
+
+        return [
+            'audio_post_id' => (int) $audio_post->ID,
+            'recording_type' => $resolved_type !== '' ? $resolved_type : $target_type,
+            'url' => $audio_url,
+            'recording_ipa' => trim((string) get_post_meta($audio_post->ID, 'recording_ipa', true)),
+        ];
     }
 
-    return '';
+    return [
+        'audio_post_id' => 0,
+        'recording_type' => $target_type,
+        'url' => '',
+        'recording_ipa' => '',
+    ];
+}
+
+function ll_tools_wordset_games_get_best_correct_audio_url(int $word_id, array $word_data = []): string {
+    return (string) (ll_tools_wordset_games_get_audio_details((int) $word_id, '')['url'] ?? '');
 }
 
 function ll_tools_wordset_games_get_speaking_display_texts(int $word_id, string $target_field, array $word_data = []): array {
@@ -1429,8 +1490,21 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
         return new WP_Error('target_mismatch', __('Invalid speaking target.', 'll-tools-text-domain'));
     }
 
-    $display_texts = ll_tools_wordset_games_get_speaking_display_texts($word_id, $target_field, ['title' => $word->post_title]);
-    $expected = trim((string) ($display_texts['target_text'] ?? ''));
+    $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation');
+    $display_word_data = ['title' => $word->post_title];
+    if ($target_field === 'recording_ipa') {
+        $display_word_data['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
+    }
+
+    $isolation_ipa = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
+    $display_texts = ll_tools_wordset_games_get_speaking_display_texts($word_id, $target_field, $display_word_data);
+    if ($target_field === 'recording_ipa') {
+        $display_texts['ipa'] = $isolation_ipa;
+        $display_texts['target_text'] = $isolation_ipa;
+    }
+    $expected = ($target_field === 'recording_ipa')
+        ? $isolation_ipa
+        : trim((string) ($display_texts['target_text'] ?? ''));
     if ($expected === '') {
         return new WP_Error('missing_target', __('Target text is missing for this word.', 'll-tools-text-domain'));
     }
@@ -1444,7 +1518,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
     $score = ll_tools_wordset_games_similarity_score($normalized_expected, $normalized_transcript, $target_field);
     $bucket = ll_tools_wordset_games_score_bucket($score);
 
-    $best_audio_url = ll_tools_wordset_games_get_best_correct_audio_url($word_id, ['title' => $word->post_title]);
+    $best_audio_url = trim((string) ($isolation_audio['url'] ?? ''));
 
     return [
         'wordset_id' => $wordset_id,

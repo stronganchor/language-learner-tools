@@ -4708,7 +4708,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gamesSpeakingResultRight' => __('Correct', 'll-tools-text-domain'),
             'gamesSpeakingResultClose' => __('Close', 'll-tools-text-domain'),
             'gamesSpeakingResultWrong' => __('Try again', 'll-tools-text-domain'),
-            'gamesSpeakingTranscriptLabel' => __('Heard', 'll-tools-text-domain'),
+            'gamesSpeakingTranscriptLabel' => __('You said', 'll-tools-text-domain'),
             'gamesSpeakingTargetLabel' => __('Target', 'll-tools-text-domain'),
             'gamesSpeakingTitleLabel' => __('Word', 'll-tools-text-domain'),
             'gamesSpeakingIpaLabel' => __('IPA', 'll-tools-text-domain'),
@@ -5964,11 +5964,11 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
                         </div>
 
-                        <section class="ll-wordset-speaking-stage" data-ll-wordset-speaking-stage hidden aria-live="polite">
-                            <div class="ll-wordset-speaking-stage__topline">
-                                <span class="ll-wordset-speaking-stage__round" data-ll-wordset-speaking-round></span>
-                                <span class="ll-wordset-speaking-stage__status" data-ll-wordset-speaking-status><?php echo esc_html__('Get ready...', 'll-tools-text-domain'); ?></span>
-                            </div>
+                            <section class="ll-wordset-speaking-stage" data-ll-wordset-speaking-stage hidden aria-live="polite">
+                                <div class="ll-wordset-speaking-stage__topline">
+                                    <span class="ll-wordset-speaking-stage__round" data-ll-wordset-speaking-round></span>
+                                    <span class="ll-wordset-speaking-stage__status" data-ll-wordset-speaking-status><?php echo esc_html__('Get ready...', 'll-tools-text-domain'); ?></span>
+                                </div>
 
                             <div class="ll-wordset-speaking-stage__prompt-shell">
                                 <div class="ll-wordset-speaking-stage__prompt-card" data-ll-wordset-speaking-prompt-card>
@@ -5992,6 +5992,79 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                             </div>
 
                             <section class="ll-wordset-speaking-stage__result" data-ll-wordset-speaking-result hidden>
+                                <div class="ll-wordset-speaking-stage__comparison">
+                                    <div class="ll-wordset-speaking-stage__comparison-card">
+                                        <div class="ll-wordset-speaking-stage__comparison-head">
+                                            <p class="ll-wordset-speaking-stage__comparison-label"><?php echo esc_html__('You said', 'll-tools-text-domain'); ?></p>
+                                            <button
+                                                type="button"
+                                                class="ll-wordset-speaking-stage__audio-button ll-prompt-audio-button"
+                                                data-ll-wordset-speaking-play-attempt
+                                                aria-label="<?php echo esc_attr__('Play your recording', 'll-tools-text-domain'); ?>"
+                                                hidden>
+                                                <span class="ll-repeat-audio-ui">
+                                                    <span class="ll-repeat-icon-wrap" aria-hidden="true">
+                                                        <span class="ll-audio-play-icon" aria-hidden="true">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
+                                                                <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/>
+                                                            </svg>
+                                                        </span>
+                                                    </span>
+                                                    <span class="ll-audio-mini-visualizer" aria-hidden="true">
+                                                        <span class="bar" data-bar="1"></span>
+                                                        <span class="bar" data-bar="2"></span>
+                                                        <span class="bar" data-bar="3"></span>
+                                                        <span class="bar" data-bar="4"></span>
+                                                        <span class="bar" data-bar="5"></span>
+                                                        <span class="bar" data-bar="6"></span>
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                        <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-transcript></p>
+                                    </div>
+                                    <div class="ll-wordset-speaking-stage__comparison-card" data-ll-wordset-speaking-target-row hidden>
+                                        <div class="ll-wordset-speaking-stage__comparison-head">
+                                            <p class="ll-wordset-speaking-stage__comparison-label"><?php echo esc_html__('Correct audio', 'll-tools-text-domain'); ?></p>
+                                            <button
+                                                type="button"
+                                                class="ll-wordset-speaking-stage__audio-button ll-prompt-audio-button"
+                                                data-ll-wordset-speaking-play-correct
+                                                aria-label="<?php echo esc_attr__('Play correct audio', 'll-tools-text-domain'); ?>"
+                                                hidden>
+                                                <span class="ll-repeat-audio-ui">
+                                                    <span class="ll-repeat-icon-wrap" aria-hidden="true">
+                                                        <span class="ll-audio-play-icon" aria-hidden="true">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">
+                                                                <path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/>
+                                                            </svg>
+                                                        </span>
+                                                    </span>
+                                                    <span class="ll-audio-mini-visualizer" aria-hidden="true">
+                                                        <span class="bar" data-bar="1"></span>
+                                                        <span class="bar" data-bar="2"></span>
+                                                        <span class="bar" data-bar="3"></span>
+                                                        <span class="bar" data-bar="4"></span>
+                                                        <span class="bar" data-bar="5"></span>
+                                                        <span class="bar" data-bar="6"></span>
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                        <p class="ll-wordset-speaking-stage__comparison-meta" data-ll-wordset-speaking-target-label><?php echo esc_html__('Target', 'll-tools-text-domain'); ?></p>
+                                        <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-target></p>
+                                        <dl class="ll-wordset-speaking-stage__details">
+                                            <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-title-row hidden>
+                                                <dt><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></dt>
+                                                <dd data-ll-wordset-speaking-title></dd>
+                                            </div>
+                                            <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-ipa-row hidden>
+                                                <dt><?php echo esc_html__('IPA', 'll-tools-text-domain'); ?></dt>
+                                                <dd data-ll-wordset-speaking-ipa></dd>
+                                            </div>
+                                        </dl>
+                                    </div>
+                                </div>
                                 <div class="ll-wordset-speaking-stage__scoreline">
                                     <span class="ll-wordset-speaking-stage__bucket" data-ll-wordset-speaking-bucket></span>
                                     <span class="ll-wordset-speaking-stage__score" data-ll-wordset-speaking-score></span>
@@ -5999,31 +6072,18 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 <div class="ll-wordset-speaking-stage__bar-track" aria-hidden="true">
                                     <span class="ll-wordset-speaking-stage__bar-fill" data-ll-wordset-speaking-bar></span>
                                 </div>
-                                <div class="ll-wordset-speaking-stage__comparison">
-                                    <div class="ll-wordset-speaking-stage__comparison-card">
-                                        <p class="ll-wordset-speaking-stage__comparison-label"><?php echo esc_html__('Heard', 'll-tools-text-domain'); ?></p>
-                                        <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-transcript></p>
-                                    </div>
-                                    <div class="ll-wordset-speaking-stage__comparison-card" data-ll-wordset-speaking-target-row hidden>
-                                        <p class="ll-wordset-speaking-stage__comparison-label" data-ll-wordset-speaking-target-label><?php echo esc_html__('Target', 'll-tools-text-domain'); ?></p>
-                                        <p class="ll-wordset-speaking-stage__comparison-value" data-ll-wordset-speaking-target></p>
-                                    </div>
-                                </div>
-                                <dl class="ll-wordset-speaking-stage__details">
-                                    <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-title-row hidden>
-                                        <dt><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></dt>
-                                        <dd data-ll-wordset-speaking-title></dd>
-                                    </div>
-                                    <div class="ll-wordset-speaking-stage__detail" data-ll-wordset-speaking-ipa-row hidden>
-                                        <dt><?php echo esc_html__('IPA', 'll-tools-text-domain'); ?></dt>
-                                        <dd data-ll-wordset-speaking-ipa></dd>
-                                    </div>
-                                </dl>
+                                <audio data-ll-wordset-speaking-attempt-audio preload="none"></audio>
                                 <audio data-ll-wordset-speaking-correct-audio preload="none"></audio>
                                 <div class="ll-wordset-speaking-stage__result-actions" data-ll-wordset-speaking-result-actions>
-                                    <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--ghost" data-ll-wordset-speaking-play-correct hidden><?php echo esc_html__('Hear correct audio', 'll-tools-text-domain'); ?></button>
-                                    <button type="button" class="ll-wordset-speaking-stage__action ll-wordset-speaking-stage__action--ghost" data-ll-wordset-speaking-retry><?php echo esc_html__('Retry', 'll-tools-text-domain'); ?></button>
-                                    <button type="button" class="ll-wordset-speaking-stage__action" data-ll-wordset-speaking-next><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="ll-wordset-speaking-stage__icon-action ll-wordset-speaking-stage__icon-action--ghost" data-ll-wordset-speaking-retry aria-label="<?php echo esc_attr__('Retry', 'll-tools-text-domain'); ?>">
+                                        <?php echo ll_tools_wordset_page_render_reset_icon('ll-wordset-speaking-stage__icon-action-svg'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </button>
+                                    <button type="button" class="ll-wordset-speaking-stage__icon-action" data-ll-wordset-speaking-next aria-label="<?php echo esc_attr__('Next', 'll-tools-text-domain'); ?>">
+                                        <svg class="ll-wordset-speaking-stage__icon-action-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                                            <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
+                                            <path d="M15.5 12H4.5"></path>
+                                        </svg>
+                                    </button>
                                 </div>
                             </section>
                         </section>

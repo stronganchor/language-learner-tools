@@ -2468,12 +2468,19 @@
         });
     }
 
+    function updateAudioButtonUi($button, isPlaying) {
+        if (!$button || !$button.length) {
+            return;
+        }
+        $button.toggleClass('playing', !!isPlaying);
+        $button.find('.ll-audio-mini-visualizer').toggleClass('active', !!isPlaying);
+    }
+
     function updateReplayAudioUi(ctx, isPlaying) {
         if (!ctx || !ctx.$replayAudioButton || !ctx.$replayAudioButton.length) {
             return;
         }
-        ctx.$replayAudioButton.toggleClass('playing', !!isPlaying);
-        ctx.$replayAudioButton.find('.ll-audio-mini-visualizer').toggleClass('active', !!isPlaying);
+        updateAudioButtonUi(ctx.$replayAudioButton, isPlaying);
     }
 
     function ensurePromptAudio(ctx) {
@@ -2496,6 +2503,24 @@
         });
 
         return ctx.promptAudio;
+    }
+
+    function bindAudioElementButtonUi(audioEl, $button) {
+        if (!audioEl || !$button || !$button.length || audioEl.__llWordsetButtonUiBound) {
+            return;
+        }
+
+        ['playing', 'play'].forEach(function (eventName) {
+            audioEl.addEventListener(eventName, function () {
+                updateAudioButtonUi($button, true);
+            });
+        });
+        ['pause', 'ended', 'error'].forEach(function (eventName) {
+            audioEl.addEventListener(eventName, function () {
+                updateAudioButtonUi($button, false);
+            });
+        });
+        audioEl.__llWordsetButtonUiBound = true;
     }
 
     function clearPromptReplayTimer(ctx) {
@@ -3190,6 +3215,9 @@
         if (ctx && ctx.$stage && ctx.$stage.length) {
             ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
         }
+        if (ctx && ctx.$hud && ctx.$hud.length) {
+            ctx.$hud.prop('hidden', isSpeaking);
+        }
         if (ctx && ctx.$controlsWrap && ctx.$controlsWrap.length) {
             ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking);
         }
@@ -3197,7 +3225,7 @@
             ctx.$canvasWrap.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$replayAudioButton && ctx.$replayAudioButton.length) {
-            ctx.$replayAudioButton.prop('hidden', false);
+            ctx.$replayAudioButton.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$pauseButton && ctx.$pauseButton.length) {
             ctx.$pauseButton.prop('hidden', isSpeaking);
@@ -4790,6 +4818,48 @@
         } catch (_) { /* no-op */ }
     }
 
+    function clearSpeakingAttemptAudioSource(ctx) {
+        const state = speakingState(ctx);
+        if (state && state.attemptAudioUrl) {
+            try {
+                root.URL.revokeObjectURL(state.attemptAudioUrl);
+            } catch (_) { /* no-op */ }
+            state.attemptAudioUrl = '';
+        }
+        if (!ctx || !ctx.speakingAttemptAudio) {
+            return;
+        }
+        try {
+            ctx.speakingAttemptAudio.pause();
+            ctx.speakingAttemptAudio.currentTime = 0;
+            ctx.speakingAttemptAudio.removeAttribute('src');
+        } catch (_) { /* no-op */ }
+        if (ctx.$speakingPlayAttempt && ctx.$speakingPlayAttempt.length) {
+            ctx.$speakingPlayAttempt.prop('hidden', true);
+            updateAudioButtonUi(ctx.$speakingPlayAttempt, false);
+        }
+    }
+
+    function setSpeakingAttemptAudioSource(ctx, blob) {
+        clearSpeakingAttemptAudioSource(ctx);
+        const state = speakingState(ctx);
+        if (!ctx || !ctx.speakingAttemptAudio || !state || !blob || !root.URL || typeof root.URL.createObjectURL !== 'function') {
+            return '';
+        }
+
+        try {
+            state.attemptAudioUrl = root.URL.createObjectURL(blob);
+            ctx.speakingAttemptAudio.src = state.attemptAudioUrl;
+            if (ctx.$speakingPlayAttempt && ctx.$speakingPlayAttempt.length) {
+                ctx.$speakingPlayAttempt.prop('hidden', false);
+            }
+            return state.attemptAudioUrl;
+        } catch (_) {
+            state.attemptAudioUrl = '';
+            return '';
+        }
+    }
+
     function resetSpeakingResultUi(ctx) {
         showSpeakingResult(ctx, false);
         if (ctx && ctx.$speakingPromptCard && ctx.$speakingPromptCard.length) {
@@ -4830,8 +4900,14 @@
         }
         if (ctx && ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
             ctx.$speakingPlayCorrect.prop('hidden', true);
+            updateAudioButtonUi(ctx.$speakingPlayCorrect, false);
+        }
+        if (ctx && ctx.$speakingPlayAttempt && ctx.$speakingPlayAttempt.length) {
+            ctx.$speakingPlayAttempt.prop('hidden', true);
+            updateAudioButtonUi(ctx.$speakingPlayAttempt, false);
         }
         setSpeakingReferenceAudioSource(ctx, '');
+        clearSpeakingAttemptAudioSource(ctx);
     }
 
     function getSpeakingPromptText(word) {
@@ -4944,6 +5020,7 @@
         state.mediaRecorder = null;
         state.audioChunks = [];
         state.currentBlob = null;
+        clearSpeakingAttemptAudioSource(ctx);
         state.stopPromise = null;
         state.speechDetected = false;
         state.speechStartedAt = 0;
@@ -5239,6 +5316,24 @@
         return Promise.resolve(true);
     }
 
+    function playSpeakingAttemptAudio(ctx) {
+        if (!ctx || !ctx.speakingAttemptAudio || !ctx.speakingAttemptAudio.getAttribute('src')) {
+            return Promise.resolve(false);
+        }
+        try {
+            ctx.speakingAttemptAudio.currentTime = 0;
+        } catch (_) { /* no-op */ }
+        const playAttempt = ctx.speakingAttemptAudio.play();
+        if (playAttempt && typeof playAttempt.then === 'function') {
+            return playAttempt.then(function () {
+                return true;
+            }).catch(function () {
+                return false;
+            });
+        }
+        return Promise.resolve(true);
+    }
+
     function applySpeakingResultUi(ctx, result, transcript) {
         const bucket = String(result && result.bucket || 'wrong');
         const score = clamp(Number(result && result.score) || 0, 0, 100);
@@ -5251,6 +5346,8 @@
         const targetText = String(result && result.target_text || displayTexts.target_text || '');
         const correctAudioUrl = String(result && result.best_correct_audio_url || '');
         const transcriptText = String(transcript || result && result.normalized_transcript_text || '');
+        const showTitle = title !== '' && title !== targetText;
+        const showIpa = ipa !== '' && ipa !== targetText;
         const bucketLabelMap = {
             right: String(ctx.i18n.gamesSpeakingResultRight || 'Correct'),
             close: String(ctx.i18n.gamesSpeakingResultClose || 'Close'),
@@ -5277,7 +5374,7 @@
             ctx.$speakingTranscript.text(transcriptText);
         }
         if (ctx.$speakingTargetRow && ctx.$speakingTargetRow.length) {
-            ctx.$speakingTargetRow.prop('hidden', targetText === '');
+            ctx.$speakingTargetRow.prop('hidden', targetText === '' && title === '' && ipa === '');
         }
         if (ctx.$speakingTargetLabel && ctx.$speakingTargetLabel.length) {
             ctx.$speakingTargetLabel.text(targetLabel);
@@ -5286,13 +5383,13 @@
             ctx.$speakingTarget.text(targetText);
         }
         if (ctx.$speakingTitleRow && ctx.$speakingTitleRow.length) {
-            ctx.$speakingTitleRow.prop('hidden', title === '');
+            ctx.$speakingTitleRow.prop('hidden', !showTitle);
         }
         if (ctx.$speakingTitle && ctx.$speakingTitle.length) {
             ctx.$speakingTitle.text(title);
         }
         if (ctx.$speakingIpaRow && ctx.$speakingIpaRow.length) {
-            ctx.$speakingIpaRow.prop('hidden', ipa === '');
+            ctx.$speakingIpaRow.prop('hidden', !showIpa);
         }
         if (ctx.$speakingIpa && ctx.$speakingIpa.length) {
             ctx.$speakingIpa.text(ipa);
@@ -5300,6 +5397,13 @@
         setSpeakingReferenceAudioSource(ctx, correctAudioUrl);
         if (ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
             ctx.$speakingPlayCorrect.prop('hidden', correctAudioUrl === '');
+        }
+        if (ctx.$speakingPlayCorrect && ctx.$speakingPlayCorrect.length) {
+            updateAudioButtonUi(ctx.$speakingPlayCorrect, false);
+        }
+        if (ctx.$speakingPlayAttempt && ctx.$speakingPlayAttempt.length) {
+            ctx.$speakingPlayAttempt.prop('hidden', !ctx.speakingAttemptAudio || !ctx.speakingAttemptAudio.getAttribute('src'));
+            updateAudioButtonUi(ctx.$speakingPlayAttempt, false);
         }
         scrollSpeakingElementIntoView(ctx, ctx.$speakingResult);
     }
@@ -5354,6 +5458,7 @@
 
         setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'));
         setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'), true);
+        setSpeakingAttemptAudioSource(ctx, blob);
         transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return null;
@@ -5876,6 +5981,11 @@
             advanceSpeakingPrompt(ctx);
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-play-attempt]', function (event) {
+            event.preventDefault();
+            playSpeakingAttemptAudio(ctx);
+        });
+
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-speaking-play-correct]', function (event) {
             event.preventDefault();
             playSpeakingCorrectAudio(ctx);
@@ -6094,6 +6204,7 @@
             $cardCount: defaultCard ? defaultCard.$count : $(),
             $launchButton: defaultCard ? defaultCard.$launchButton : $(),
             $stage: $gamesRoot.find('[data-ll-wordset-game-stage]').first(),
+            $hud: $gamesRoot.find('.ll-wordset-game-stage__hud').first(),
             $canvasWrap: $gamesRoot.find('.ll-wordset-game-stage__canvas-wrap').first(),
             $controlsWrap: $gamesRoot.find('[data-ll-wordset-game-controls]').first(),
             $canvas: $canvas,
@@ -6123,9 +6234,11 @@
             $speakingTitle: $gamesRoot.find('[data-ll-wordset-speaking-title]').first(),
             $speakingIpaRow: $gamesRoot.find('[data-ll-wordset-speaking-ipa-row]').first(),
             $speakingIpa: $gamesRoot.find('[data-ll-wordset-speaking-ipa]').first(),
+            $speakingPlayAttempt: $gamesRoot.find('[data-ll-wordset-speaking-play-attempt]').first(),
             $speakingPlayCorrect: $gamesRoot.find('[data-ll-wordset-speaking-play-correct]').first(),
             $speakingRetry: $gamesRoot.find('[data-ll-wordset-speaking-retry]').first(),
             $speakingNext: $gamesRoot.find('[data-ll-wordset-speaking-next]').first(),
+            speakingAttemptAudio: $gamesRoot.find('[data-ll-wordset-speaking-attempt-audio]').get(0) || null,
             speakingCorrectAudio: $gamesRoot.find('[data-ll-wordset-speaking-correct-audio]').get(0) || null,
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
             $overlayCard: $gamesRoot.find('[data-ll-wordset-game-overlay-card]').first(),
@@ -6186,7 +6299,8 @@
                 maxStopTimer: 0,
                 autoStartTimer: 0,
                 stopPromise: null,
-                currentBlob: null
+                currentBlob: null,
+                attemptAudioUrl: ''
             }
         };
     }
@@ -6208,6 +6322,8 @@
 
         api.__ctx = ctx;
         updateProgressGlobals(ctx);
+        bindAudioElementButtonUi(ctx.speakingAttemptAudio, ctx.$speakingPlayAttempt);
+        bindAudioElementButtonUi(ctx.speakingCorrectAudio, ctx.$speakingPlayCorrect);
         bindLifecycle(ctx);
         bindDom(ctx);
         toggleRunModalPageLock(false);
