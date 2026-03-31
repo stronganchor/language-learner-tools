@@ -5847,7 +5847,8 @@ function ll_tools_render_wordset_games_shell(array $args): string {
             <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
                 <?php foreach ($games_catalog as $game_slug => $game_row) : ?>
                     <?php if (!is_array($game_row)) { continue; } ?>
-                    <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="<?php echo esc_attr((string) $game_slug); ?>">
+                    <?php $initially_hidden = ((string) $game_slug === 'speaking-practice'); ?>
+                    <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="<?php echo esc_attr((string) $game_slug); ?>"<?php if ($initially_hidden) : ?> hidden<?php endif; ?>>
                         <div class="ll-wordset-game-card__icon" aria-hidden="true">
                             <?php
                             echo function_exists('ll_tools_wordset_games_render_game_icon')
