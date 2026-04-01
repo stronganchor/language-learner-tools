@@ -70,6 +70,11 @@ function ll_tools_sanitize_wordset_transcription_provider($value): string {
     return in_array($value, ['assemblyai', 'local_browser', 'hosted_api'], true) ? $value : '';
 }
 
+function ll_tools_sanitize_wordset_speaking_game_provider($value): string {
+    $value = sanitize_key((string) $value);
+    return in_array($value, ['assemblyai', 'local_browser', 'hosted_api', 'audio_matcher'], true) ? $value : '';
+}
+
 function ll_tools_sanitize_wordset_local_transcription_target($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['recording_text', 'recording_ipa'], true) ? $value : 'recording_ipa';
@@ -334,7 +339,7 @@ function ll_tools_get_wordset_speaking_game_provider($wordset_ids = [], bool $fa
             continue;
         }
 
-        return ll_tools_sanitize_wordset_transcription_provider(
+        return ll_tools_sanitize_wordset_speaking_game_provider(
             get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, true)
         );
     }
@@ -400,8 +405,12 @@ function ll_tools_get_wordset_speaking_game_target_options(): array {
 }
 
 function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fallback_to_default = true): array {
-    $provider = ll_tools_get_wordset_speaking_game_provider($wordset_ids, $fallback_to_default);
     $enabled_flag = ll_tools_get_wordset_speaking_game_enabled($wordset_ids, $fallback_to_default);
+    $provider = ll_tools_get_wordset_speaking_game_provider($wordset_ids, $fallback_to_default);
+    if ($enabled_flag && $provider === '') {
+        $provider = 'audio_matcher';
+    }
+
     $target = ll_tools_get_wordset_speaking_game_target($wordset_ids, $fallback_to_default);
     $local_endpoint = in_array($provider, ['local_browser', 'hosted_api'], true)
         ? ll_tools_get_wordset_local_transcription_endpoint($wordset_ids, $fallback_to_default)
@@ -419,6 +428,8 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
         $service_enabled = $local_endpoint !== '';
     } elseif ($provider === 'hosted_api') {
         $service_enabled = $local_endpoint !== '';
+    } elseif ($provider === 'audio_matcher') {
+        $service_enabled = true;
     }
     $enabled = $enabled_flag && $service_enabled && $target !== '';
     $compatible = true;
@@ -442,6 +453,7 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
         'enabled' => $enabled,
         'provider' => $provider,
         'provider_label' => ll_tools_get_wordset_transcription_provider_label($provider),
+        'uses_audio_matcher' => ($provider === 'audio_matcher'),
         'uses_local_browser' => ($provider === 'local_browser'),
         'uses_hosted_api' => ($provider === 'hosted_api'),
         'local_endpoint' => $local_endpoint,
@@ -529,7 +541,7 @@ function ll_tools_get_wordset_speaking_game_target_value(int $word_id, string $t
 }
 
 function ll_tools_get_wordset_transcription_provider_label(string $provider): string {
-    $provider = ll_tools_sanitize_wordset_transcription_provider($provider);
+    $provider = sanitize_key($provider);
 
     if ($provider === 'local_browser') {
         return __('Local browser model', 'll-tools-text-domain');
@@ -539,6 +551,9 @@ function ll_tools_get_wordset_transcription_provider_label(string $provider): st
     }
     if ($provider === 'assemblyai') {
         return __('AssemblyAI', 'll-tools-text-domain');
+    }
+    if ($provider === 'audio_matcher') {
+        return __('Built-in audio matcher', 'll-tools-text-domain');
     }
 
     return __('Disabled', 'll-tools-text-domain');

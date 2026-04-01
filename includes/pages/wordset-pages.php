@@ -1251,7 +1251,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
             : '';
         $speaking_enabled = isset($_POST['ll_wordset_speaking_game_enabled']) ? 1 : 0;
         $speaking_provider = isset($_POST['ll_wordset_speaking_game_provider'])
-            ? ll_tools_sanitize_wordset_transcription_provider(wp_unslash((string) $_POST['ll_wordset_speaking_game_provider']))
+            ? ll_tools_sanitize_wordset_speaking_game_provider(wp_unslash((string) $_POST['ll_wordset_speaking_game_provider']))
             : '';
         $speaking_target = isset($_POST['ll_wordset_speaking_game_target'])
             ? ll_tools_sanitize_wordset_speaking_game_target(wp_unslash((string) $_POST['ll_wordset_speaking_game_target']))
@@ -2279,6 +2279,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesSpeakingReady' => __('Get ready...', 'll-tools-text-domain'),
         'gamesSpeakingListening' => __('Listening...', 'll-tools-text-domain'),
         'gamesSpeakingProcessing' => __('Transcribing...', 'll-tools-text-domain'),
+        'gamesSpeakingMatching' => __('Matching your audio...', 'll-tools-text-domain'),
         'gamesSpeakingStartButton' => __('Start', 'll-tools-text-domain'),
         'gamesSpeakingResultRight' => __('Correct', 'll-tools-text-domain'),
         'gamesSpeakingResultClose' => __('Close', 'll-tools-text-domain'),
@@ -2301,6 +2302,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesSpeakingStackReady' => __('Mic ready', 'll-tools-text-domain'),
         'gamesSpeakingStackListening' => __('Listening for the next word...', 'll-tools-text-domain'),
         'gamesSpeakingStackProcessing' => __('Checking your word...', 'll-tools-text-domain'),
+        'gamesSpeakingStackMatching' => __('Matching your audio...', 'll-tools-text-domain'),
         'gamesSpeakingStackTooQuiet' => __('No clear word detected.', 'll-tools-text-domain'),
         'gamesSpeakingStackNoMatch' => __('No match yet.', 'll-tools-text-domain'),
         'gamesSpeakingStackMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
@@ -3266,7 +3268,7 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
             'compatibility_message' => '',
         ];
     $speaking_enabled = !empty($speaking_game_config['enabled_flag']);
-    $speaking_provider = ll_tools_sanitize_wordset_transcription_provider((string) ($speaking_game_config['provider'] ?? ''));
+    $speaking_provider = ll_tools_sanitize_wordset_speaking_game_provider((string) ($speaking_game_config['provider'] ?? ''));
     $speaking_target = ll_tools_sanitize_wordset_speaking_game_target((string) ($speaking_game_config['target'] ?? 'word_title'));
     $speaking_target_options = is_array($speaking_game_config['target_options'] ?? null)
         ? $speaking_game_config['target_options']
@@ -3401,12 +3403,16 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                     <label for="ll-wordset-settings-speaking-provider" class="screen-reader-text"><?php echo esc_html__('Speaking game STT provider', 'll-tools-text-domain'); ?></label>
                     <select id="ll-wordset-settings-speaking-provider" name="ll_wordset_speaking_game_provider" class="ll-tools-settings-select" style="max-width: 320px;">
                         <option value="" <?php selected($speaking_provider, ''); ?>><?php echo esc_html__('Disabled', 'll-tools-text-domain'); ?></option>
+                        <option value="audio_matcher" <?php selected($speaking_provider, 'audio_matcher'); ?>><?php echo esc_html__('Built-in audio matcher', 'll-tools-text-domain'); ?></option>
                         <option value="assemblyai" <?php selected($speaking_provider, 'assemblyai'); ?>><?php echo esc_html__('AssemblyAI', 'll-tools-text-domain'); ?></option>
                         <option value="local_browser" <?php selected($speaking_provider, 'local_browser'); ?>><?php echo esc_html__('Local browser model', 'll-tools-text-domain'); ?></option>
                         <option value="hosted_api" <?php selected($speaking_provider, 'hosted_api'); ?>><?php echo esc_html__('Hosted STT API', 'll-tools-text-domain'); ?></option>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('AssemblyAI reuses the saved AssemblyAI API key. Local browser model reuses the endpoint and output format above. Hosted STT API reuses the same endpoint, output format, and token, but routes the audio through WordPress server-side.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Built-in audio matcher compares learner audio directly to each word\'s isolation recording (no STT transcript required). AssemblyAI reuses the saved AssemblyAI API key. Local browser model reuses the endpoint and output format above. Hosted STT API reuses the same endpoint, output format, and token, but routes the audio through WordPress server-side.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('If speaking practice is enabled and no provider is selected, LL Tools now defaults to the built-in audio matcher.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 

@@ -6429,6 +6429,549 @@
         return '';
     }
 
+    function isAudioMatcherProvider(provider) {
+        return String(provider || '') === 'audio_matcher';
+    }
+
+    function speakingScoreBucket(score) {
+        const normalized = clamp(Number(score) || 0, 0, 100);
+        if (normalized >= 90) {
+            return 'right';
+        }
+        if (normalized >= 65) {
+            return 'close';
+        }
+        return 'wrong';
+    }
+
+    function getSpeakingMatcherState(ctx) {
+        const state = speakingState(ctx);
+        if (!state) {
+            return null;
+        }
+        if (!state.matcher || typeof state.matcher !== 'object') {
+            state.matcher = {
+                audioContext: null,
+                referenceFeatureCache: {},
+                referenceFeaturePromises: {}
+            };
+        }
+        return state.matcher;
+    }
+
+    function getSpeakingMatcherAudioContext(ctx) {
+        const matcher = getSpeakingMatcherState(ctx);
+        if (!matcher) {
+            return null;
+        }
+
+        if (!matcher.audioContext) {
+            const AudioContextCtor = root.AudioContext || root.webkitAudioContext;
+            if (!AudioContextCtor) {
+                return null;
+            }
+            matcher.audioContext = new AudioContextCtor();
+        }
+
+        if (matcher.audioContext && matcher.audioContext.state === 'suspended') {
+            matcher.audioContext.resume().catch(function () {});
+        }
+
+        return matcher.audioContext;
+    }
+
+    function decodeAudioArrayBuffer(ctx, arrayBuffer) {
+        const audioContext = getSpeakingMatcherAudioContext(ctx);
+        if (!audioContext) {
+            return Promise.reject(new Error('audio_context_unavailable'));
+        }
+        const bufferCopy = arrayBuffer.slice(0);
+
+        try {
+            const decoded = audioContext.decodeAudioData(bufferCopy);
+            if (decoded && typeof decoded.then === 'function') {
+                return decoded;
+            }
+        } catch (_) {
+            // Fall through to callback style.
+        }
+
+        return new Promise(function (resolve, reject) {
+            try {
+                audioContext.decodeAudioData(
+                    bufferCopy,
+                    function (result) {
+                        resolve(result);
+                    },
+                    function (error) {
+                        reject(error || new Error('decode_failed'));
+                    }
+                );
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    function audioBufferToMonoSamples(audioBuffer) {
+        if (!audioBuffer || !audioBuffer.numberOfChannels || !audioBuffer.length) {
+            return new Float32Array(0);
+        }
+
+        const channels = Math.max(1, toInt(audioBuffer.numberOfChannels));
+        const length = toInt(audioBuffer.length);
+        if (channels === 1) {
+            const source = audioBuffer.getChannelData(0);
+            return source ? new Float32Array(source) : new Float32Array(0);
+        }
+
+        const mono = new Float32Array(length);
+        for (let channelIndex = 0; channelIndex < channels; channelIndex += 1) {
+            const channelData = audioBuffer.getChannelData(channelIndex);
+            if (!channelData) {
+                continue;
+            }
+            for (let sampleIndex = 0; sampleIndex < length; sampleIndex += 1) {
+                mono[sampleIndex] += channelData[sampleIndex];
+            }
+        }
+        for (let sampleIndex = 0; sampleIndex < length; sampleIndex += 1) {
+            mono[sampleIndex] /= channels;
+        }
+        return mono;
+    }
+
+    function trimMatcherSilence(samples, sampleRate) {
+        if (!(samples instanceof Float32Array) || samples.length <= 0) {
+            return new Float32Array(0);
+        }
+
+        let peak = 0;
+        for (let index = 0; index < samples.length; index += 1) {
+            const value = Math.abs(samples[index]);
+            if (value > peak) {
+                peak = value;
+            }
+        }
+        if (peak <= 0) {
+            return new Float32Array(0);
+        }
+
+        const threshold = Math.max(0.008, peak * 0.06);
+        let start = -1;
+        let end = -1;
+        for (let index = 0; index < samples.length; index += 1) {
+            if (Math.abs(samples[index]) >= threshold) {
+                start = index;
+                break;
+            }
+        }
+        for (let index = samples.length - 1; index >= 0; index -= 1) {
+            if (Math.abs(samples[index]) >= threshold) {
+                end = index;
+                break;
+            }
+        }
+
+        if (start < 0 || end < start) {
+            return new Float32Array(0);
+        }
+
+        const pad = Math.max(0, Math.round(Math.max(8000, sampleRate || 0) * 0.012));
+        const from = Math.max(0, start - pad);
+        const to = Math.min(samples.length, end + pad + 1);
+
+        return samples.slice(from, to);
+    }
+
+    function normalizeSamplesByPeak(samples) {
+        if (!(samples instanceof Float32Array) || samples.length <= 0) {
+            return new Float32Array(0);
+        }
+
+        let peak = 0;
+        for (let index = 0; index < samples.length; index += 1) {
+            const value = Math.abs(samples[index]);
+            if (value > peak) {
+                peak = value;
+            }
+        }
+        if (peak <= 0) {
+            return new Float32Array(samples.length);
+        }
+
+        const normalized = new Float32Array(samples.length);
+        for (let index = 0; index < samples.length; index += 1) {
+            normalized[index] = samples[index] / peak;
+        }
+        return normalized;
+    }
+
+    function resampleSeries(values, targetLength) {
+        const target = Math.max(1, toInt(targetLength));
+        const source = Array.isArray(values)
+            ? values
+            : (values instanceof Float32Array || values instanceof Uint8Array ? Array.from(values) : []);
+        if (!source.length) {
+            return new Array(target).fill(0);
+        }
+        if (source.length === target) {
+            return source.slice();
+        }
+        if (source.length === 1) {
+            return new Array(target).fill(Number(source[0]) || 0);
+        }
+
+        const result = new Array(target);
+        const maxSourceIndex = source.length - 1;
+        for (let targetIndex = 0; targetIndex < target; targetIndex += 1) {
+            const position = (targetIndex / Math.max(1, target - 1)) * maxSourceIndex;
+            const left = Math.floor(position);
+            const right = Math.min(maxSourceIndex, left + 1);
+            const ratio = position - left;
+            const leftValue = Number(source[left]) || 0;
+            const rightValue = Number(source[right]) || 0;
+            result[targetIndex] = leftValue + ((rightValue - leftValue) * ratio);
+        }
+        return result;
+    }
+
+    function normalizeSeriesToUnit(values) {
+        const source = Array.isArray(values) ? values : [];
+        if (!source.length) {
+            return [];
+        }
+        let min = source[0];
+        let max = source[0];
+        source.forEach(function (value) {
+            const numeric = Number(value) || 0;
+            if (numeric < min) {
+                min = numeric;
+            }
+            if (numeric > max) {
+                max = numeric;
+            }
+        });
+        const range = max - min;
+        if (range <= 1e-6) {
+            return source.map(function () {
+                return 0;
+            });
+        }
+        return source.map(function (value) {
+            return clamp(((Number(value) || 0) - min) / range, 0, 1);
+        });
+    }
+
+    function cosineSimilarity(left, right) {
+        if (!Array.isArray(left) || !Array.isArray(right) || !left.length || !right.length) {
+            return 0;
+        }
+        const length = Math.min(left.length, right.length);
+        let dot = 0;
+        let leftNorm = 0;
+        let rightNorm = 0;
+        for (let index = 0; index < length; index += 1) {
+            const a = Number(left[index]) || 0;
+            const b = Number(right[index]) || 0;
+            dot += a * b;
+            leftNorm += a * a;
+            rightNorm += b * b;
+        }
+        if (leftNorm <= 0 || rightNorm <= 0) {
+            return 0;
+        }
+        return clamp(dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm)), -1, 1);
+    }
+
+    function meanAbsoluteDifference(left, right) {
+        if (!Array.isArray(left) || !Array.isArray(right) || !left.length || !right.length) {
+            return 1;
+        }
+        const length = Math.min(left.length, right.length);
+        let total = 0;
+        for (let index = 0; index < length; index += 1) {
+            const delta = (Number(left[index]) || 0) - (Number(right[index]) || 0);
+            total += Math.abs(delta);
+        }
+        return total / Math.max(1, length);
+    }
+
+    function extractMatcherFeatures(samples, sampleRate) {
+        const trimmed = trimMatcherSilence(samples, sampleRate);
+        if (!(trimmed instanceof Float32Array) || trimmed.length <= 0) {
+            return null;
+        }
+        const normalized = normalizeSamplesByPeak(trimmed);
+        const effectiveSampleRate = Math.max(8000, toInt(sampleRate) || 16000);
+        const minSamples = Math.max(240, Math.round(effectiveSampleRate * 0.08));
+        if (normalized.length < minSamples) {
+            return null;
+        }
+
+        const frameSize = Math.max(64, Math.round(effectiveSampleRate * 0.012));
+        const hopSize = Math.max(32, Math.round(frameSize * 0.5));
+        const envelopeFrames = [];
+        const zcrFrames = [];
+        let cursor = 0;
+        while (cursor < normalized.length) {
+            const end = Math.min(normalized.length, cursor + frameSize);
+            const count = Math.max(1, end - cursor);
+            let rmsSum = 0;
+            let zeroCrossings = 0;
+            let previous = normalized[cursor] || 0;
+            for (let index = cursor; index < end; index += 1) {
+                const value = normalized[index] || 0;
+                rmsSum += value * value;
+                if (index > cursor) {
+                    const currentSign = value >= 0;
+                    const previousSign = previous >= 0;
+                    if (currentSign !== previousSign) {
+                        zeroCrossings += 1;
+                    }
+                }
+                previous = value;
+            }
+            envelopeFrames.push(Math.sqrt(rmsSum / count));
+            zcrFrames.push(zeroCrossings / count);
+            cursor += hopSize;
+        }
+
+        const envelope = resampleSeries(normalizeSeriesToUnit(envelopeFrames), 96);
+        const zcr = resampleSeries(normalizeSeriesToUnit(zcrFrames), 96);
+        const waveform = resampleSeries(Array.from(normalized), 512);
+        const absoluteEnergy = normalized.reduce(function (sum, value) {
+            return sum + Math.abs(value || 0);
+        }, 0) / Math.max(1, normalized.length);
+
+        return {
+            durationSec: normalized.length / effectiveSampleRate,
+            envelope: envelope,
+            zcr: zcr,
+            waveform: waveform,
+            absoluteEnergy: absoluteEnergy
+        };
+    }
+
+    function matcherSimilarityScore(leftFeatures, rightFeatures) {
+        if (!leftFeatures || !rightFeatures) {
+            return 0;
+        }
+
+        const durationRatio = (leftFeatures.durationSec > 0 && rightFeatures.durationSec > 0)
+            ? Math.min(leftFeatures.durationSec, rightFeatures.durationSec) / Math.max(leftFeatures.durationSec, rightFeatures.durationSec)
+            : 0;
+        const energyRatio = (leftFeatures.absoluteEnergy > 0 && rightFeatures.absoluteEnergy > 0)
+            ? Math.min(leftFeatures.absoluteEnergy, rightFeatures.absoluteEnergy) / Math.max(leftFeatures.absoluteEnergy, rightFeatures.absoluteEnergy)
+            : 0;
+        const envelopeCosine = (cosineSimilarity(leftFeatures.envelope, rightFeatures.envelope) + 1) * 0.5;
+        const envelopeMae = 1 - meanAbsoluteDifference(leftFeatures.envelope, rightFeatures.envelope);
+        const waveformCosine = (cosineSimilarity(leftFeatures.waveform, rightFeatures.waveform) + 1) * 0.5;
+        const waveformMae = 1 - (meanAbsoluteDifference(leftFeatures.waveform, rightFeatures.waveform) * 0.5);
+        const zcrCosine = (cosineSimilarity(leftFeatures.zcr, rightFeatures.zcr) + 1) * 0.5;
+
+        const envelopeScore = clamp((envelopeCosine * 0.6) + (clamp(envelopeMae, 0, 1) * 0.4), 0, 1);
+        const waveformScore = clamp((waveformCosine * 0.5) + (clamp(waveformMae, 0, 1) * 0.5), 0, 1);
+        const zcrScore = clamp(zcrCosine, 0, 1);
+
+        const blended = (
+            (envelopeScore * 0.45)
+            + (waveformScore * 0.25)
+            + (zcrScore * 0.14)
+            + (clamp(durationRatio, 0, 1) * 0.10)
+            + (clamp(energyRatio, 0, 1) * 0.06)
+        );
+
+        return Math.round(clamp(blended, 0, 1) * 10000) / 100;
+    }
+
+    function loadSourceArrayBuffer(source, options) {
+        if (source instanceof Blob) {
+            return source.arrayBuffer();
+        }
+        const url = String(source || '').trim();
+        if (!url) {
+            return Promise.reject(new Error('missing_audio_source'));
+        }
+        return root.fetch(url, $.extend({
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'force-cache'
+        }, (options && typeof options === 'object') ? options : {})).then(function (response) {
+            if (!response || !response.ok) {
+                throw new Error('audio_fetch_failed');
+            }
+            return response.arrayBuffer();
+        });
+    }
+
+    function getMatcherFeaturesFromSource(ctx, source, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const cacheKey = opts.cacheKey ? String(opts.cacheKey) : '';
+        const matcher = getSpeakingMatcherState(ctx);
+        if (!matcher) {
+            return Promise.reject(new Error('missing_matcher_state'));
+        }
+
+        if (cacheKey && Object.prototype.hasOwnProperty.call(matcher.referenceFeatureCache, cacheKey)) {
+            return Promise.resolve(matcher.referenceFeatureCache[cacheKey]);
+        }
+        if (cacheKey && Object.prototype.hasOwnProperty.call(matcher.referenceFeaturePromises, cacheKey)) {
+            return matcher.referenceFeaturePromises[cacheKey];
+        }
+
+        const request = loadSourceArrayBuffer(source, opts.fetchOptions).then(function (arrayBuffer) {
+            return decodeAudioArrayBuffer(ctx, arrayBuffer);
+        }).then(function (audioBuffer) {
+            const samples = audioBufferToMonoSamples(audioBuffer);
+            const features = extractMatcherFeatures(samples, Number(audioBuffer && audioBuffer.sampleRate) || 16000);
+            if (!features) {
+                throw new Error('audio_too_short');
+            }
+            if (cacheKey) {
+                matcher.referenceFeatureCache[cacheKey] = features;
+            }
+            return features;
+        }).finally(function () {
+            if (cacheKey) {
+                delete matcher.referenceFeaturePromises[cacheKey];
+            }
+        });
+
+        if (cacheKey) {
+            matcher.referenceFeaturePromises[cacheKey] = request;
+        }
+        return request;
+    }
+
+    function getWordSpeakingDisplayData(word, run) {
+        const displayTexts = (word && word.speaking_display_texts && typeof word.speaking_display_texts === 'object')
+            ? $.extend({}, word.speaking_display_texts)
+            : {};
+        const targetText = String(
+            word && word.speaking_target_text
+            || displayTexts.target_text
+            || word && word.title
+            || ''
+        ).trim();
+        const targetLabel = String(
+            word && word.speaking_target_label
+            || displayTexts.target_label
+            || ''
+        ).trim();
+        const targetField = String(
+            run && run.targetField
+            || word && word.speaking_target_field
+            || displayTexts.target_field
+            || ''
+        ).trim();
+
+        if (!displayTexts.target_text) {
+            displayTexts.target_text = targetText;
+        }
+        if (!displayTexts.target_label) {
+            displayTexts.target_label = targetLabel;
+        }
+        if (!displayTexts.target_field) {
+            displayTexts.target_field = targetField;
+        }
+        if (!displayTexts.title) {
+            displayTexts.title = String(word && word.title || '');
+        }
+        if (!displayTexts.ipa) {
+            displayTexts.ipa = String(word && word.recording_ipa || '');
+        }
+
+        return {
+            targetText: targetText,
+            targetLabel: targetLabel,
+            targetField: targetField,
+            displayTexts: displayTexts
+        };
+    }
+
+    function buildAudioMatcherResult(ctx, run, word, score, transcriptText) {
+        const roundedScore = Math.round(clamp(Number(score) || 0, 0, 100) * 100) / 100;
+        const bucket = speakingScoreBucket(roundedScore);
+        const displayData = getWordSpeakingDisplayData(word, run);
+        const transcript = String(transcriptText || '').trim();
+
+        return {
+            wordset_id: toInt(ctx && ctx.wordsetId),
+            word_id: toInt(word && word.id),
+            target_field: displayData.targetField,
+            target_label: displayData.targetLabel,
+            target_text: displayData.targetText,
+            normalized_target_text: displayData.targetText,
+            normalized_transcript_text: transcript,
+            score: roundedScore,
+            bucket: bucket,
+            display_texts: displayData.displayTexts,
+            best_correct_audio_url: String(word && word.speaking_best_correct_audio_url || ''),
+            transcript_text: transcript
+        };
+    }
+
+    function scoreSpeakingAudioMatcher(ctx, run, blob, candidateWords, options) {
+        const words = (Array.isArray(candidateWords) ? candidateWords : []).filter(function (word) {
+            return !!word && String(word.speaking_best_correct_audio_url || '').trim() !== '';
+        });
+        if (!words.length) {
+            return Promise.reject(new Error('no_match_candidates'));
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        return getMatcherFeaturesFromSource(ctx, blob).then(function (attemptFeatures) {
+            return Promise.all(words.map(function (word) {
+                const audioUrl = String(word && word.speaking_best_correct_audio_url || '').trim();
+                if (!audioUrl) {
+                    return null;
+                }
+
+                return getMatcherFeaturesFromSource(ctx, audioUrl, {
+                    cacheKey: audioUrl
+                }).then(function (referenceFeatures) {
+                    return {
+                        word: word,
+                        score: matcherSimilarityScore(referenceFeatures, attemptFeatures)
+                    };
+                }).catch(function () {
+                    return null;
+                });
+            })).then(function (rows) {
+                const ranked = rows.filter(function (row) {
+                    return !!row && !!row.word;
+                }).sort(function (left, right) {
+                    return (Number(right.score) || 0) - (Number(left.score) || 0);
+                });
+                if (!ranked.length) {
+                    throw new Error('no_match_candidates');
+                }
+
+                const best = ranked[0];
+                const bestResult = buildAudioMatcherResult(
+                    ctx,
+                    run,
+                    best.word,
+                    best.score,
+                    (opts.fallbackTranscriptText !== undefined)
+                        ? String(opts.fallbackTranscriptText || '')
+                        : ''
+                );
+                bestResult.matched = bestResult.bucket !== 'wrong';
+                return bestResult;
+            });
+        });
+    }
+
+    function resolveSpeakingMatcherErrorMessage(ctx, error, fallbackMessage) {
+        const rawMessage = String(error && error.message || '').trim();
+        if (rawMessage !== '' && rawMessage.indexOf('_') === -1 && rawMessage.length <= 140) {
+            return rawMessage;
+        }
+        return String(fallbackMessage || ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.');
+    }
+
     function transcribeSpeakingBlob(ctx, run, blob) {
         if (!blob || !run) {
             return Promise.reject(new Error('missing_blob'));
@@ -6908,7 +7451,62 @@
             return;
         }
 
-        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackProcessing || 'Checking your word...'));
+        const stackProcessingLabel = isAudioMatcherProvider(run.provider)
+            ? String(ctx.i18n.gamesSpeakingStackMatching || 'Matching your audio...')
+            : String(ctx.i18n.gamesSpeakingStackProcessing || 'Checking your word...');
+        setSpeakingStatus(ctx, stackProcessingLabel);
+        if (isAudioMatcherProvider(run.provider)) {
+            const activeCards = getSpeakingStackActiveCards(run);
+            const candidateWords = activeCards.map(function (card) {
+                return card && card.word ? card.word : null;
+            }).filter(Boolean);
+
+            scoreSpeakingAudioMatcher(ctx, run, blob, candidateWords).then(function (result) {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
+                run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
+
+                setSpeakingStackHeard(ctx, String(result && result.transcript_text || ''), {
+                    targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
+                    score: clamp(Number(result && result.score) || 0, 0, 100)
+                });
+                const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
+                if (!matched) {
+                    setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
+                    return;
+                }
+                handleSpeakingStackMatch(ctx, run, result, String(result && result.transcript_text || ''));
+            }).catch(function (error) {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
+                run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
+                setSpeakingStatus(
+                    ctx,
+                    resolveSpeakingMatcherErrorMessage(
+                        ctx,
+                        error,
+                        String(ctx.i18n.gamesSpeakingStackMicError || ctx.i18n.gamesSpeakingSttError || 'Microphone access failed.')
+                    )
+                );
+            }).finally(function () {
+                const completedAt = currentTimestamp();
+                const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
+                const restartDelayMs = Math.max(120, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
+                run.lastSpeechAt = completedAt;
+                run.spawnHoldUntil = Math.max(
+                    Number(run.spawnHoldUntil) || 0,
+                    completedAt + getSpeakingStackThinkPaddingMs(ctx, run) + playbackCooldownMs
+                );
+                state.transcribing = false;
+                if (ctx.run === run && !run.ended && !run.paused) {
+                    queueSpeakingStackCaptureRestart(ctx, restartDelayMs);
+                }
+            });
+            return;
+        }
+
         transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return null;
@@ -6981,9 +7579,31 @@
             return;
         }
 
-        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'));
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...'), true, 'processing');
+        const speakingProcessingLabel = isAudioMatcherProvider(run.provider)
+            ? String(ctx.i18n.gamesSpeakingMatching || 'Matching your audio...')
+            : String(ctx.i18n.gamesSpeakingProcessing || 'Transcribing...');
+        setSpeakingStatus(ctx, speakingProcessingLabel);
+        setSpeakingRecordButton(ctx, speakingProcessingLabel, true, 'processing');
         setSpeakingAttemptAudioSource(ctx, blob);
+        if (isAudioMatcherProvider(run.provider)) {
+            scoreSpeakingAudioMatcher(ctx, run, blob, [run.prompt.target]).then(function (result) {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
+                handleSpeakingScoredAttempt(ctx, result, String(result && result.transcript_text || ''));
+            }).catch(function (error) {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
+                setSpeakingStatus(
+                    ctx,
+                    resolveSpeakingMatcherErrorMessage(ctx, error, String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'))
+                );
+                setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingRetry || 'Retry'), false, 'retry');
+            });
+            return;
+        }
+
         transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return null;
