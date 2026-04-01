@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "prepare:bundle": "node scripts/prepare-bundle.mjs",
+    "inject:stt": "node scripts/inject-stt-bundle.mjs",
     "build:debug": "node scripts/build-apk.mjs --debug",
     "build:release": "node scripts/build-apk.mjs --release",
     "open:android": "npx cap open android"

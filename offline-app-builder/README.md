@@ -27,6 +27,14 @@ On WSL, `/mnt/c/...` and `C:\...` bundle paths are both supported.
 If the bundle includes an app icon, the build scripts use it for the Android launcher icon automatically.
 If the bundle includes a wordset-specific offline STT bundle, it is kept under `workspace/bundle/www/content/stt-models/...` and packaged into the APK with the rest of the web assets.
 
+If you already have an offline app export zip and want to inject a mobile-ready STT bundle plus offline `Speaking Practice` metadata after the fact, run:
+
+```bash
+npm run inject:stt -- --bundle /absolute/path/to/ll-tools-offline-app.zip --stt-source /absolute/path/to/mobile-stt-bundle --ipa-zips-dir /absolute/path/to/ipa-training-zips
+```
+
+This updates the prepared bundle in `workspace/bundle/`, copies the STT model under `www/content/stt-models/...`, rebuilds the offline speaking-game catalog from the supplied IPA training zips, and writes a new `-with-stt.zip` next to the original export.
+
 ## Build a debug APK
 
 ```bash
