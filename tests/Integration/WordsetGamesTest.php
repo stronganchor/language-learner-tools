@@ -568,6 +568,153 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('text', (string) ($catalog['speaking-practice']['words'][0]['speaking_prompt_type'] ?? ''));
     }
 
+    public function test_speaking_stack_catalog_requires_stt_enabled_image_words(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Speaking Stack Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Speaking Stack Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'local_browser');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_ipa');
+
+        for ($index = 1; $index <= 5; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Speaking Stack Word ' . $index,
+                'Stack Prompt ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Stack isolation ' . $index]
+            );
+            $audioPosts = get_posts([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $wordId,
+                'posts_per_page' => -1,
+            ]);
+            $this->assertNotEmpty($audioPosts);
+            foreach ($audioPosts as $audioPost) {
+                $this->assertInstanceOf(WP_Post::class, $audioPost);
+                update_post_meta((int) $audioPost->ID, 'recording_ipa', 'stack ipa ' . $index);
+            }
+        }
+
+        $imageLessWordId = $this->createWordWithGameMedia(
+            'Speaking Stack No Image',
+            'Stack Prompt No Image',
+            $categoryId,
+            $wordsetId,
+            false,
+            ['isolation' => 'Stack isolation no image']
+        );
+        $audioPosts = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $imageLessWordId,
+            'posts_per_page' => -1,
+        ]);
+        $this->assertNotEmpty($audioPosts);
+        foreach ($audioPosts as $audioPost) {
+            $this->assertInstanceOf(WP_Post::class, $audioPost);
+            update_post_meta((int) $audioPost->ID, 'recording_ipa', 'stack ipa no image');
+        }
+
+        wp_set_current_user($userId);
+
+        $catalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId);
+        $this->assertArrayHasKey('speaking-stack', $catalog);
+        $this->assertSame(5, (int) ($catalog['speaking-stack']['available_word_count'] ?? 0));
+        $this->assertTrue((bool) ($catalog['speaking-stack']['launchable'] ?? false));
+        $this->assertCount(5, (array) ($catalog['speaking-stack']['words'] ?? []));
+        $this->assertSame('recording_ipa', (string) ($catalog['speaking-stack']['target_field'] ?? ''));
+
+        foreach ((array) ($catalog['speaking-stack']['words'] ?? []) as $wordRow) {
+            $this->assertIsArray($wordRow);
+            $this->assertNotSame('', trim((string) ($wordRow['image'] ?? '')));
+        }
+    }
+
+    public function test_best_speaking_match_scores_active_words_and_returns_no_match_for_distant_transcripts(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Speaking Match Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Speaking Match Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'local_browser');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_ipa');
+
+        $targetWordId = $this->createWordWithGameMedia(
+            'Speaking Match Target',
+            'Target Prompt',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'Target isolation']
+        );
+        $distractorWordId = $this->createWordWithGameMedia(
+            'Speaking Match Distractor',
+            'Distractor Prompt',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'Distractor isolation']
+        );
+
+        foreach ([
+            $targetWordId => 'aqa',
+            $distractorWordId => 'rʉɛ',
+        ] as $wordId => $ipa) {
+            $audioPosts = get_posts([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $wordId,
+                'posts_per_page' => -1,
+            ]);
+            $this->assertNotEmpty($audioPosts);
+            foreach ($audioPosts as $audioPost) {
+                $this->assertInstanceOf(WP_Post::class, $audioPost);
+                update_post_meta((int) $audioPost->ID, 'recording_ipa', $ipa);
+            }
+        }
+
+        wp_set_current_user($userId);
+
+        $match = ll_tools_wordset_games_score_best_speaking_match($wordsetId, [$targetWordId, $distractorWordId], 'aka', 'recording_ipa');
+        $this->assertIsArray($match);
+        $this->assertTrue((bool) ($match['matched'] ?? false));
+        $this->assertSame($targetWordId, (int) ($match['word_id'] ?? 0));
+        $this->assertSame('right', (string) ($match['bucket'] ?? ''));
+
+        $noMatch = ll_tools_wordset_games_score_best_speaking_match($wordsetId, [$targetWordId, $distractorWordId], 'zzz', 'recording_ipa');
+        $this->assertIsArray($noMatch);
+        $this->assertFalse((bool) ($noMatch['matched'] ?? true));
+        $this->assertSame('wrong', (string) ($noMatch['bucket'] ?? ''));
+    }
+
     public function test_ipa_similarity_score_gives_partial_credit_to_nearby_sounds(): void
     {
         $nearVowelScore = ll_tools_wordset_games_similarity_score('rʉɛ', 'rwɨ', 'recording_ipa');

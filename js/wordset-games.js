@@ -14,6 +14,7 @@
     const ASSET_PRELOAD_TIMEOUT_MS = 8000;
     const SHORT_PROMPT_AUTO_REPLAY_MIN_MS = 1400;
     const POST_SAFE_LINE_REPLAY_BUFFER_MS = 80;
+    const INITIAL_LOADING_OVERLAY_MIN_MS = 600;
     const INACTIVITY_ROUND_PAUSE_LIMIT = 3;
     const RESUME_ACTION_NEXT_PROMPT = 'next-prompt';
     const PAUSE_REASON_INACTIVITY = 'inactivity';
@@ -306,6 +307,42 @@
             $catalog.append(buildCatalogCardMarkup(normalizedSlug, catalog[slug], options));
             existing[normalizedSlug] = true;
         });
+    }
+
+    function catalogEntryHasStaticData(entry) {
+        if (!entry || typeof entry !== 'object') {
+            return false;
+        }
+
+        return Array.isArray(entry.words)
+            || Array.isArray(entry.playableTargets)
+            || Object.prototype.hasOwnProperty.call(entry, 'available_word_count')
+            || Object.prototype.hasOwnProperty.call(entry, 'launchable')
+            || Object.prototype.hasOwnProperty.call(entry, 'provider')
+            || Object.prototype.hasOwnProperty.call(entry, 'offline_stt');
+    }
+
+    function resolveStaticCatalog(gamesCfg, offlineMode) {
+        const catalog = (gamesCfg && gamesCfg.catalog && typeof gamesCfg.catalog === 'object')
+            ? gamesCfg.catalog
+            : null;
+        if (!catalog) {
+            return null;
+        }
+        if (offlineMode) {
+            return catalog;
+        }
+
+        const slugs = Object.keys(catalog);
+        if (!slugs.length) {
+            return null;
+        }
+
+        const hasStaticData = slugs.some(function (slug) {
+            return catalogEntryHasStaticData(catalog[slug]);
+        });
+
+        return hasStaticData ? catalog : null;
     }
 
     function segmentDiffGraphemes(text) {
@@ -4139,15 +4176,28 @@
                 return;
             }
 
-            run.awaitingPrompt = false;
-            run.nextPreparedPrompt = null;
+            const applyCandidate = function () {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
 
-            if (applyPreparedPrompt(ctx, run, candidate)) {
-                hideOverlay(ctx);
+                run.awaitingPrompt = false;
+                run.nextPreparedPrompt = null;
+
+                if (applyPreparedPrompt(ctx, run, candidate)) {
+                    hideOverlay(ctx);
+                    return;
+                }
+
+                endRun(ctx);
+            };
+
+            if (!run.prompt && run.promptsResolved <= 0 && !isBubblePopRun(ctx, run)) {
+                applyInitialPromptWhenReady(ctx, run, applyCandidate);
                 return;
             }
 
-            endRun(ctx);
+            applyCandidate();
         }).catch(function () {
             if (!ctx.run || ctx.run !== run) {
                 return;
@@ -4238,16 +4288,16 @@
                 if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
                     const halfWidth = Math.max(1, Number(card.width) || 0) / 2;
                     const halfHeight = Math.max(1, Number(card.height) || 0) / 2;
-                    if ((card.x + halfWidth) < -Number(card.width || 0)) {
+                    if ((card.x + halfWidth) < 0) {
                         return false;
                     }
-                    if ((card.x - halfWidth) > (run.width + Number(card.width || 0))) {
+                    if ((card.x - halfWidth) > run.width) {
                         return false;
                     }
-                    if ((card.y + halfHeight) < -Number(card.height || 0)) {
+                    if ((card.y + halfHeight) < 0) {
                         return false;
                     }
-                    if ((card.y - halfHeight) > (run.height + Number(card.height || 0))) {
+                    if ((card.y - halfHeight) > run.height) {
                         return false;
                     }
                 } else if ((card.y - (card.height / 2)) > (run.height + card.height)) {
@@ -5055,6 +5105,32 @@
             .prop('hidden', true);
     }
 
+    function applyInitialPromptWhenReady(ctx, run, onReady) {
+        if (!ctx || !run || !ctx.run || ctx.run !== run) {
+            return;
+        }
+
+        if (run.loadingHideTimer) {
+            root.clearTimeout(run.loadingHideTimer);
+            run.loadingHideTimer = 0;
+        }
+
+        const shownAt = Number(run.loadingShownAt) || 0;
+        const remainingMs = Math.max(0, INITIAL_LOADING_OVERLAY_MIN_MS - Math.max(0, currentTimestamp() - shownAt));
+        if (remainingMs <= 0) {
+            onReady();
+            return;
+        }
+
+        run.loadingHideTimer = root.setTimeout(function () {
+            run.loadingHideTimer = 0;
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            onReady();
+        }, remainingMs);
+    }
+
     function pauseRun(ctx, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const run = ctx.run;
@@ -5148,6 +5224,10 @@
         if (run.rafId) {
             root.cancelAnimationFrame(run.rafId);
             run.rafId = 0;
+        }
+        if (run.loadingHideTimer) {
+            root.clearTimeout(run.loadingHideTimer);
+            run.loadingHideTimer = 0;
         }
         run.paused = false;
         run.resumeAction = '';
@@ -5276,6 +5356,8 @@
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
             decorativeBubbleIdCounter: 0,
+            loadingShownAt: currentTimestamp(),
+            loadingHideTimer: 0,
             speedRampTurns: gameConfig.introRampTurns,
             speedRampStartFactor: gameConfig.introRampStartFactor,
             useSameCategoryDistractorsNext: false,
@@ -7276,6 +7358,7 @@
             : {};
         const runtimeMode = String(cfg.runtimeMode || gamesCfg.runtimeMode || '').trim().toLowerCase();
         const offlineMode = runtimeMode === 'offline';
+        const staticCatalog = resolveStaticCatalog(gamesCfg, offlineMode);
         ensureCatalogCardsExist($gamesRoot, gamesCfg, {
             statusText: (cfg.isLoggedIn || offlineMode)
                 ? String(((cfg.i18n && cfg.i18n.gamesLoading) || 'Checking game availability...'))
@@ -7501,7 +7584,7 @@
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
             runtimeMode: runtimeMode,
             offlineMode: offlineMode,
-            staticCatalog: (gamesCfg.catalog && typeof gamesCfg.catalog === 'object') ? gamesCfg.catalog : null,
+            staticCatalog: staticCatalog,
             offlineBridge: (cfg.offlineBridge && typeof cfg.offlineBridge === 'object')
                 ? cfg.offlineBridge
                 : ((gamesCfg.offlineBridge && typeof gamesCfg.offlineBridge === 'object') ? gamesCfg.offlineBridge : null),

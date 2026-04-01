@@ -432,6 +432,19 @@ function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $word
         }
     }
 
+    if (isset($catalog['speaking-stack']) && is_array($catalog['speaking-stack'])) {
+        if (!empty($stt_bundle_manifest)) {
+            $catalog['speaking-stack']['provider'] = 'embedded_model';
+            $catalog['speaking-stack']['provider_label'] = __('Bundled offline model', 'll-tools-text-domain');
+            $catalog['speaking-stack']['local_endpoint'] = '';
+            $catalog['speaking-stack']['embedded_model'] = $stt_bundle_manifest;
+            $catalog['speaking-stack']['offline_stt'] = $stt_bundle_manifest;
+        } else {
+            unset($catalog['speaking-stack']);
+            $warnings[] = __('Word Stack was not included in the offline app because this word set does not have an offline STT model bundle configured.', 'll-tools-text-domain');
+        }
+    }
+
     return array_merge($frontend_config, [
         'enabled' => !empty($catalog),
         'runtimeMode' => 'offline',
