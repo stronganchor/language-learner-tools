@@ -743,6 +743,9 @@ function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int 
     $progress_rows = (!empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows'))
         ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
         : [];
+    $progress_rows = (!empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows'))
+        ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
+        : [];
 
     $eligible_words = [];
     $studied_words = [];
@@ -755,6 +758,16 @@ function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int 
 
         $word_id = (int) ($word['id'] ?? 0);
         if ($word_id <= 0) {
+            continue;
+        }
+
+        $progress = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
+            ? $progress_rows[$word_id]
+            : [];
+        $status = function_exists('ll_tools_user_progress_word_status')
+            ? ll_tools_user_progress_word_status($progress)
+            : 'new';
+        if ($status !== 'mastered') {
             continue;
         }
 
@@ -1041,6 +1054,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         $word['speaking_prompt_type'] = !empty($word['image']) ? 'image' : 'text';
         $word['speaking_display_texts'] = $display_texts;
         $word['speaking_best_correct_audio_url'] = $best_correct_audio_url;
+        $word['progress_status'] = $status;
         $eligible_words[] = $word;
     }
 
@@ -1056,7 +1070,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         'target_field' => $target_field,
         'target_label' => $target_label,
         'enabled' => true,
-        'reason_code' => '',
+        'reason_code' => count($eligible_words) >= $minimum_word_count ? '' : 'not_enough_learned_words',
         'provider' => (string) ($config['provider'] ?? ''),
         'provider_label' => (string) ($config['provider_label'] ?? ''),
         'service_enabled' => !empty($config['service_enabled']),
@@ -1080,7 +1094,9 @@ function ll_tools_wordset_games_build_speaking_stack_pool(int $wordset_id, int $
         'target_field' => (string) ($speaking_pool['target_field'] ?? ''),
         'target_label' => (string) ($speaking_pool['target_label'] ?? ''),
         'enabled' => !empty($speaking_pool['enabled']),
-        'reason_code' => !empty($speaking_pool['reason_code']) ? (string) $speaking_pool['reason_code'] : '',
+        'reason_code' => count($eligible_words) >= (int) ($speaking_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count())
+            ? ''
+            : (!empty($speaking_pool['reason_code']) ? (string) $speaking_pool['reason_code'] : 'not_enough_learned_words'),
         'provider' => (string) ($speaking_pool['provider'] ?? ''),
         'provider_label' => (string) ($speaking_pool['provider_label'] ?? ''),
         'service_enabled' => !empty($speaking_pool['service_enabled']),
@@ -1210,7 +1226,7 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
         ll_tools_wordset_games_speaking_practice_launch_word_cap()
     );
     $speaking_enabled = !empty($speaking_pool['enabled']) && !empty($speaking_pool['service_enabled']);
-    if ($speaking_enabled && $speaking_available >= $speaking_minimum) {
+    if ($speaking_enabled) {
         $catalog['speaking-practice'] = [
             'slug' => 'speaking-practice',
             'title' => __('Speaking Practice', 'll-tools-text-domain'),
@@ -1219,8 +1235,10 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
             'available_word_count' => $speaking_available,
             'launch_word_cap' => ll_tools_wordset_games_speaking_practice_launch_word_cap(),
             'launch_word_count' => count($speaking_launch_words),
-            'launchable' => true,
-            'reason_code' => '',
+            'launchable' => $speaking_available >= $speaking_minimum,
+            'reason_code' => $speaking_available >= $speaking_minimum
+                ? ''
+                : (!empty($speaking_pool['reason_code']) ? (string) ($speaking_pool['reason_code']) : 'not_enough_learned_words'),
             'category_ids' => isset($speaking_pool['category_ids']) && is_array($speaking_pool['category_ids']) ? $speaking_pool['category_ids'] : [],
             'words' => $speaking_launch_words,
             'target_field' => (string) ($speaking_pool['target_field'] ?? ''),
@@ -1239,7 +1257,7 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
         ll_tools_wordset_games_speaking_stack_launch_word_cap()
     );
     $speaking_stack_enabled = !empty($speaking_stack_pool['enabled']) && !empty($speaking_stack_pool['service_enabled']);
-    if ($speaking_stack_enabled && $speaking_stack_available >= $speaking_stack_minimum) {
+    if ($speaking_stack_enabled) {
         $catalog['speaking-stack'] = [
             'slug' => 'speaking-stack',
             'title' => __('Word Stack', 'll-tools-text-domain'),
@@ -1248,8 +1266,10 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
             'available_word_count' => $speaking_stack_available,
             'launch_word_cap' => ll_tools_wordset_games_speaking_stack_launch_word_cap(),
             'launch_word_count' => count($speaking_stack_launch_words),
-            'launchable' => true,
-            'reason_code' => '',
+            'launchable' => $speaking_stack_available >= $speaking_stack_minimum,
+            'reason_code' => $speaking_stack_available >= $speaking_stack_minimum
+                ? ''
+                : (!empty($speaking_stack_pool['reason_code']) ? (string) ($speaking_stack_pool['reason_code']) : 'not_enough_learned_words'),
             'category_ids' => isset($speaking_stack_pool['category_ids']) && is_array($speaking_stack_pool['category_ids']) ? $speaking_stack_pool['category_ids'] : [],
             'words' => $speaking_stack_launch_words,
             'target_field' => (string) ($speaking_stack_pool['target_field'] ?? ''),

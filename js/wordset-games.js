@@ -3085,6 +3085,10 @@
         if (String(entry.reason_code || '') === 'not_enough_compatible_words') {
             return String(ctx.i18n.gamesNeedCompatibleWords || 'This word set does not have a playable mix of picture cards yet.');
         }
+        if (String(entry.reason_code || '') === 'not_enough_learned_words') {
+            const missingLearned = Math.max(0, (entry.minimum_word_count || ctx.minimumWordCount) - (entry.available_word_count || 0));
+            return formatMessage(ctx.i18n.gamesNeedLearnedWords || 'Need %d more learned words to unlock this game.', [missingLearned]);
+        }
         const missing = Math.max(0, (entry.minimum_word_count || ctx.minimumWordCount) - (entry.available_word_count || 0));
         return formatMessage(ctx.i18n.gamesNeedWords || 'Need %d more words to unlock this game.', [missing]);
     }

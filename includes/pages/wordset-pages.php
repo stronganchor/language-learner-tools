@@ -2251,6 +2251,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesLoadError' => __('Unable to load games right now.', 'll-tools-text-domain'),
         'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),
         'gamesNeedWords' => __('Need %1$d more words to unlock this game.', 'll-tools-text-domain'),
+        'gamesNeedLearnedWords' => __('Need %1$d more learned words to unlock this game.', 'll-tools-text-domain'),
         'gamesNeedCompatibleWords' => __('This word set does not have a playable mix of picture cards yet.', 'll-tools-text-domain'),
         'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
         'gamesLocked' => __('Locked', 'll-tools-text-domain'),
