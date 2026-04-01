@@ -2509,6 +2509,64 @@
         return toInt(candidates[Math.floor(Math.random() * candidates.length)].laneIndex);
     }
 
+    function getSpeakingStackProgressRatio(run) {
+        if (!run) {
+            return 0;
+        }
+
+        return clamp(
+            toInt(run.clearedCount) / Math.max(1, toInt(run.totalWordCount) || 1),
+            0,
+            1
+        );
+    }
+
+    function getSpeakingStackThinkPaddingMs(ctx, run) {
+        const gameConfig = getGameConfig(ctx, run) || {};
+        return Math.round(lerp(
+            Math.max(900, toInt(gameConfig.thinkPaddingStartMs) || 1900),
+            Math.max(700, toInt(gameConfig.thinkPaddingEndMs) || 1200),
+            getSpeakingStackProgressRatio(run)
+        ));
+    }
+
+    function getSpeakingStackSpawnGapMs(ctx, run, options) {
+        const gameConfig = getGameConfig(ctx, run) || {};
+        const opts = (options && typeof options === 'object') ? options : {};
+        const baseGapMs = Math.max(4000, toInt(gameConfig.spawnGapMs) || 4500);
+        if (opts.initial) {
+            return Math.max(baseGapMs, Math.max(0, toInt(gameConfig.initialSpawnDelayMs) || 5200));
+        }
+        return baseGapMs;
+    }
+
+    function isSpeakingStackSpawnBlocked(ctx, run, now) {
+        const state = speakingState(ctx);
+        if (Number(run && run.spawnHoldUntil) > Number(now || 0)) {
+            return true;
+        }
+        if (!state) {
+            return false;
+        }
+
+        return !!(
+            state.transcribing
+            || (
+                state.mediaRecorder
+                && state.mediaRecorder.state !== 'inactive'
+                && state.speechDetected
+            )
+        );
+    }
+
+    function scheduleNextSpeakingStackSpawn(ctx, run, now, options) {
+        if (!run || run.allWordsQueued) {
+            return;
+        }
+
+        run.nextSpawnAt = Number(now || currentTimestamp()) + getSpeakingStackSpawnGapMs(ctx, run, options);
+    }
+
     function spawnSpeakingStackCard(ctx, run, now) {
         if (!run || run.allWordsQueued || !Array.isArray(run.wordQueue) || !run.wordQueue.length) {
             if (run && (!Array.isArray(run.wordQueue) || !run.wordQueue.length)) {
@@ -4802,9 +4860,9 @@
         }
 
         const dt = Math.min(40, Math.max(0, dtMs || 0)) / 1000;
-        if (!run.allWordsQueued && now >= Number(run.nextSpawnAt || 0)) {
+        if (!run.allWordsQueued && now >= Number(run.nextSpawnAt || 0) && !isSpeakingStackSpawnBlocked(ctx, run, now)) {
             spawnSpeakingStackCard(ctx, run, now);
-            run.nextSpawnAt = now + Math.max(900, toInt((getGameConfig(ctx, run) || {}).spawnGapMs) || 2600);
+            scheduleNextSpeakingStackSpawn(ctx, run, now);
             setSpeakingStackProgressFromRun(ctx, run);
         }
 
@@ -6548,6 +6606,14 @@
             return;
         }
 
+        const processingStartedAt = currentTimestamp();
+        const transcribeStartedAt = processingStartedAt;
+        if (state.speechDetected) {
+            run.lastRecordingDurationMs = Math.max(
+                0,
+                processingStartedAt - Math.max(0, Number(state.speechStartedAt) || processingStartedAt)
+            );
+        }
         state.transcribing = true;
         setSpeakingStackHeard(ctx, '');
 
@@ -6563,6 +6629,7 @@
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return null;
             }
+            run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
 
             const transcriptText = String(transcript || '').trim();
             if (!transcriptText) {
@@ -6585,6 +6652,7 @@
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
             }
+            run.lastTranscribeDurationMs = Math.max(0, currentTimestamp() - transcribeStartedAt);
             setSpeakingStatus(ctx, String(
                 error && error.message
                     || ctx.i18n.gamesSpeakingStackMicError
@@ -6592,6 +6660,12 @@
                     || 'Microphone access failed.'
             ));
         }).finally(function () {
+            const completedAt = currentTimestamp();
+            run.lastSpeechAt = completedAt;
+            run.spawnHoldUntil = Math.max(
+                Number(run.spawnHoldUntil) || 0,
+                completedAt + getSpeakingStackThinkPaddingMs(ctx, run)
+            );
             state.transcribing = false;
             if (ctx.run === run && !run.ended && !run.paused) {
                 queueSpeakingStackCaptureRestart(ctx, 120);
@@ -6733,6 +6807,8 @@
         const keepModalOpen = isRunModalVisible(ctx);
         const shuffledWords = shuffle(entry.words.slice());
         const launchedAt = currentTimestamp();
+        const speakingStackConfig = getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG) || {};
+        const initialSpawnCount = Math.max(1, toInt(speakingStackConfig.initialSpawnCount) || 3);
 
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
@@ -6800,17 +6876,30 @@
                 ? $.extend({}, entry.embedded_model)
                 : ((entry.offline_stt && typeof entry.offline_stt === 'object') ? $.extend({}, entry.offline_stt) : null)),
             targetField: String(entry.target_field || ''),
+            initialSpawnCount: initialSpawnCount,
             lastSpeechAt: launchedAt,
             lastSpawnedAt: 0,
+            lastRecordingDurationMs: 0,
+            lastTranscribeDurationMs: 0,
             finalSpawnedAt: 0,
             allWordsQueued: false,
-            nextSpawnAt: launchedAt + Math.max(0, toInt((getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG) || {}).initialSpawnDelayMs) || 680)
+            nextSpawnAt: launchedAt,
+            spawnHoldUntil: launchedAt
         };
 
         syncCanvasSize(ctx);
         ctx.run.shipX = ctx.run.width / 2;
         ctx.run.shipY = ctx.run.metrics.shipY;
         ctx.run.stars = createStageStars(ctx.run);
+        for (let spawnIndex = 0; spawnIndex < initialSpawnCount; spawnIndex += 1) {
+            if (ctx.run.allWordsQueued) {
+                break;
+            }
+            spawnSpeakingStackCard(ctx, ctx.run, launchedAt);
+        }
+        scheduleNextSpeakingStackSpawn(ctx, ctx.run, launchedAt, {
+            initial: true
+        });
         updateHud(ctx);
         updatePauseUi(ctx);
         setTrackerContext(ctx);
@@ -7474,8 +7563,9 @@
             correctHitAudioSources: spaceShooter.correctHitAudioSources || [],
             wrongHitAudioSources: spaceShooter.wrongHitAudioSources || []
         }), {
-            initialSpawnDelayMs: Math.max(0, toInt(speakingStack.initialSpawnDelayMs) || 680),
-            spawnGapMs: Math.max(900, toInt(speakingStack.spawnGapMs) || 2600),
+            initialSpawnCount: Math.max(1, toInt(speakingStack.initialSpawnCount) || 3),
+            initialSpawnDelayMs: Math.max(3500, toInt(speakingStack.initialSpawnDelayMs) || 5200),
+            spawnGapMs: Math.max(4000, toInt(speakingStack.spawnGapMs) || 4500),
             fallSpeed: Math.max(80, toInt(speakingStack.fallSpeed) || 176),
             stackGapPx: Math.max(0, toInt(speakingStack.stackGapPx) || 12),
             groundPaddingPx: Math.max(12, toInt(speakingStack.groundPaddingPx) || 34),
@@ -7487,7 +7577,9 @@
             silenceThreshold: clamp(Number(speakingStack.silenceThreshold) || 0.03, 0.005, 0.2),
             speechStartThreshold: clamp(Number(speakingStack.speechStartThreshold) || 0.055, 0.005, 0.3),
             minSpeechMs: Math.max(100, toInt(speakingStack.minSpeechMs) || 120),
-            apiCheckTimeoutMs: Math.max(500, toInt(speakingStack.apiCheckTimeoutMs) || 1500)
+            apiCheckTimeoutMs: Math.max(500, toInt(speakingStack.apiCheckTimeoutMs) || 1500),
+            thinkPaddingStartMs: Math.max(900, toInt(speakingStack.thinkPaddingStartMs) || 1900),
+            thinkPaddingEndMs: Math.max(700, toInt(speakingStack.thinkPaddingEndMs) || 1200)
         });
 
         return {

@@ -2210,8 +2210,9 @@ function ll_tools_get_wordset_games_frontend_config(): array {
             'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_stack_launch_word_cap')
                 ? ll_tools_wordset_games_speaking_stack_launch_word_cap()
                 : 60,
-            'initialSpawnDelayMs' => 680,
-            'spawnGapMs' => 2600,
+            'initialSpawnCount' => 3,
+            'initialSpawnDelayMs' => 5200,
+            'spawnGapMs' => 4500,
             'fallSpeed' => 176,
             'stackGapPx' => 12,
             'groundPaddingPx' => 34,
@@ -2224,6 +2225,8 @@ function ll_tools_get_wordset_games_frontend_config(): array {
             'speechStartThreshold' => 0.055,
             'minSpeechMs' => 120,
             'apiCheckTimeoutMs' => 1500,
+            'thinkPaddingStartMs' => 1900,
+            'thinkPaddingEndMs' => 1200,
             'correctHitAudioSources' => [
                 LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
                 LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
