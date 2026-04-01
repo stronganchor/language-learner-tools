@@ -3469,7 +3469,7 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         <?php endforeach; ?>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Word title works with text STT. IPA works with a local model that is configured to return the secondary transcription field.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Word title works with text STT. IPA works with a model that returns the secondary transcription field. Cached reference STT compares the learner transcript to a cached transcript generated from the saved isolation audio with the same server-side STT provider.', 'll-tools-text-domain'); ?>
                     </p>
                     <?php if ($speaking_enabled && !$speaking_is_compatible && $speaking_compatibility_message !== '') : ?>
                         <p class="description" style="margin-top:0; color:#a12622;">

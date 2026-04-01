@@ -85,7 +85,7 @@ function ll_tools_sanitize_wordset_local_transcription_target($value): string {
 
 function ll_tools_sanitize_wordset_speaking_game_target($value): string {
     $value = sanitize_key((string) $value);
-    return in_array($value, ['word_title', 'recording_ipa'], true) ? $value : 'word_title';
+    return in_array($value, ['word_title', 'recording_ipa', 'reference_stt'], true) ? $value : 'word_title';
 }
 
 function ll_tools_get_wordset_speaking_game_assemblyai_profile_options(): array {
@@ -530,6 +530,9 @@ function ll_tools_get_wordset_offline_stt_bundle_config($wordset_ids = [], bool 
 function ll_tools_get_wordset_speaking_game_target_label(string $target, $wordset_ids = []): string {
     $target = ll_tools_sanitize_wordset_speaking_game_target($target);
 
+    if ($target === 'reference_stt') {
+        return __('Cached reference STT', 'll-tools-text-domain');
+    }
     if ($target === 'recording_ipa') {
         return __('IPA', 'll-tools-text-domain');
     }
@@ -544,6 +547,9 @@ function ll_tools_get_wordset_speaking_game_target_options(): array {
         ],
         'recording_ipa' => [
             'label' => __('IPA', 'll-tools-text-domain'),
+        ],
+        'reference_stt' => [
+            'label' => __('Cached reference STT', 'll-tools-text-domain'),
         ],
     ];
 }
@@ -653,7 +659,15 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     $enabled = $enabled_flag && $service_enabled && $target !== '';
     $compatible = true;
     $compatibility_message = '';
-    if (in_array($provider, ['local_browser', 'hosted_api'], true)) {
+    if ($target === 'reference_stt') {
+        if (!in_array($provider, ['assemblyai', 'hosted_api'], true)) {
+            $compatible = false;
+            $compatibility_message = __('Cached reference STT requires a server-side speaking provider such as AssemblyAI or Hosted STT API.', 'll-tools-text-domain');
+        }
+    } elseif ($provider === 'assemblyai' && $target === 'recording_ipa') {
+        $compatible = false;
+        $compatibility_message = __('AssemblyAI returns normal text for this game, so use word title or cached reference STT instead of IPA.', 'll-tools-text-domain');
+    } elseif (in_array($provider, ['local_browser', 'hosted_api'], true)) {
         if ($local_result_field === 'recording_ipa' && $target !== 'recording_ipa') {
             $compatible = false;
             $compatibility_message = __('This STT model is configured to return IPA, so the speaking game target must use the IPA field.', 'll-tools-text-domain');
@@ -696,6 +710,10 @@ function ll_tools_is_wordset_speaking_game_available($wordset_ids = [], bool $fa
 function ll_tools_get_wordset_speaking_game_target_value(int $word_id, string $target = 'word_title', array $word_data = []): string {
     $word_id = (int) $word_id;
     $target = ll_tools_sanitize_wordset_speaking_game_target($target);
+
+    if ($target === 'reference_stt') {
+        $target = 'word_title';
+    }
 
     if ($target === 'recording_ipa') {
         $raw = trim((string) ($word_data['recording_ipa'] ?? ''));

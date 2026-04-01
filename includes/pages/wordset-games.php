@@ -1918,7 +1918,9 @@ function ll_tools_wordset_games_get_speaking_display_texts(int $word_id, string 
         'target_field' => $target_field,
         'target_label' => $target_field === 'recording_ipa'
             ? __('IPA', 'll-tools-text-domain')
-            : __('Word title', 'll-tools-text-domain'),
+            : ($target_field === 'reference_stt'
+                ? __('Cached reference STT', 'll-tools-text-domain')
+                : __('Word title', 'll-tools-text-domain')),
     ];
 }
 
@@ -2046,6 +2048,100 @@ function ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(int $
     return $cache_row;
 }
 
+function ll_tools_wordset_games_get_hosted_reference_cache_key(string $endpoint, string $target_field): string {
+    $endpoint = function_exists('ll_tools_sanitize_wordset_local_transcription_endpoint')
+        ? ll_tools_sanitize_wordset_local_transcription_endpoint($endpoint)
+        : trim($endpoint);
+    $target_field = (($target_field === 'recording_ipa') ? 'recording_ipa' : 'recording_text');
+
+    return md5($endpoint . '|' . $target_field);
+}
+
+function ll_tools_wordset_games_get_cached_hosted_reference_transcript(
+    int $wordset_id,
+    int $word_id,
+    string $word_title,
+    int $audio_post_id,
+    string $stored_audio_path,
+    array $service_config
+) {
+    $audio_post_id = (int) $audio_post_id;
+    if ($audio_post_id <= 0) {
+        return new WP_Error('missing_reference_audio', __('This word does not have a saved isolation recording for speaking practice.', 'll-tools-text-domain'));
+    }
+
+    $endpoint = trim((string) ($service_config['local_endpoint'] ?? ''));
+    if ($endpoint === '' || !function_exists('ll_tools_remote_stt_transcribe_audio_file')) {
+        return new WP_Error('stt_missing_endpoint', __('Hosted STT API is not configured for reference transcript scoring.', 'll-tools-text-domain'));
+    }
+
+    $absolute_path = ll_tools_wordset_games_resolve_audio_absolute_path($stored_audio_path);
+    if ($absolute_path === '') {
+        return new WP_Error('missing_reference_audio_file', __('The saved isolation recording could not be found on disk.', 'll-tools-text-domain'));
+    }
+
+    $target_field = (($service_config['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'recording_text';
+    $cache_key = ll_tools_wordset_games_get_hosted_reference_cache_key($endpoint, $target_field);
+    $signature = ll_tools_wordset_games_get_audio_signature($absolute_path, $stored_audio_path);
+    $meta_key = '_ll_speaking_game_hosted_reference_cache';
+
+    static $runtime_cache = [];
+    if (isset($runtime_cache[$audio_post_id][$cache_key]) && is_array($runtime_cache[$audio_post_id][$cache_key])) {
+        $cached_row = $runtime_cache[$audio_post_id][$cache_key];
+        if (($cached_row['signature'] ?? '') === $signature && trim((string) ($cached_row['text'] ?? '')) !== '') {
+            return $cached_row;
+        }
+    }
+
+    $cache_rows = get_post_meta($audio_post_id, $meta_key, true);
+    if (!is_array($cache_rows)) {
+        $cache_rows = [];
+    }
+    if (isset($cache_rows[$cache_key]) && is_array($cache_rows[$cache_key])) {
+        $cached_row = $cache_rows[$cache_key];
+        if (($cached_row['signature'] ?? '') === $signature && trim((string) ($cached_row['text'] ?? '')) !== '') {
+            $runtime_cache[$audio_post_id][$cache_key] = $cached_row;
+            return $cached_row;
+        }
+    }
+
+    $token = function_exists('ll_tools_get_wordset_transcription_api_token')
+        ? ll_tools_get_wordset_transcription_api_token([$wordset_id], true)
+        : '';
+    $result = ll_tools_remote_stt_transcribe_audio_file($endpoint, $absolute_path, [
+        'token' => $token,
+        'filename' => sanitize_file_name(wp_basename($absolute_path)),
+        'fields' => [
+            'wordset_id' => (string) $wordset_id,
+            'word_id' => $word_id > 0 ? (string) $word_id : '',
+            'word_title' => $word_title,
+            'recording_type' => 'speaking_reference',
+            'target_field' => $target_field,
+        ],
+    ]);
+    if (is_wp_error($result)) {
+        return $result;
+    }
+
+    $text = trim((string) ($result['transcript'] ?? ''));
+    if ($text === '') {
+        return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
+    }
+
+    $cache_row = [
+        'text' => $text,
+        'signature' => $signature,
+        'endpoint' => $endpoint,
+        'target_field' => $target_field,
+        'cached_at' => time(),
+    ];
+    $cache_rows[$cache_key] = $cache_row;
+    update_post_meta($audio_post_id, $meta_key, $cache_rows);
+    $runtime_cache[$audio_post_id][$cache_key] = $cache_row;
+
+    return $cache_row;
+}
+
 function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $word_id, string $transcript, string $target_field = ''): array {
     $wordset_id = (int) $wordset_id;
     $word_id = (int) $word_id;
@@ -2109,24 +2205,51 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
     $comparison_target = $display_target;
     $comparison_mode = $target_field;
     $reference_transcript = '';
-    if ($provider === 'assemblyai') {
-        $request_config = is_array($config['assemblyai_request'] ?? null) ? $config['assemblyai_request'] : [];
-        $cached_reference = ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(
-            (int) ($isolation_audio['audio_post_id'] ?? 0),
-            (string) ($isolation_audio['stored_path'] ?? ''),
-            $request_config
-        );
-        if (is_wp_error($cached_reference)) {
-            return $cached_reference;
-        }
+    if ($target_field === 'reference_stt') {
+        if ($provider === 'assemblyai') {
+            $request_config = is_array($config['assemblyai_request'] ?? null) ? $config['assemblyai_request'] : [];
+            $cached_reference = ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(
+                (int) ($isolation_audio['audio_post_id'] ?? 0),
+                (string) ($isolation_audio['stored_path'] ?? ''),
+                $request_config
+            );
+            if (is_wp_error($cached_reference)) {
+                return $cached_reference;
+            }
 
-        $reference_transcript = trim((string) ($cached_reference['text'] ?? ''));
-        if ($reference_transcript === '') {
-            return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
-        }
+            $reference_transcript = trim((string) ($cached_reference['text'] ?? ''));
+            if ($reference_transcript === '') {
+                return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
+            }
 
-        $comparison_target = $reference_transcript;
-        $comparison_mode = 'word_title';
+            $comparison_target = $reference_transcript;
+            $comparison_mode = 'word_title';
+        } elseif ($provider === 'hosted_api') {
+            $service = function_exists('ll_tools_get_wordset_transcription_service_config')
+                ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
+                : [];
+            $cached_reference = ll_tools_wordset_games_get_cached_hosted_reference_transcript(
+                $wordset_id,
+                $word_id,
+                trim((string) $word->post_title),
+                (int) ($isolation_audio['audio_post_id'] ?? 0),
+                (string) ($isolation_audio['stored_path'] ?? ''),
+                $service
+            );
+            if (is_wp_error($cached_reference)) {
+                return $cached_reference;
+            }
+
+            $reference_transcript = trim((string) ($cached_reference['text'] ?? ''));
+            if ($reference_transcript === '') {
+                return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
+            }
+
+            $comparison_target = $reference_transcript;
+            $comparison_mode = (($service['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'word_title';
+        } else {
+            return new WP_Error('reference_stt_unavailable', __('Cached reference STT is only available with server-side speaking providers.', 'll-tools-text-domain'));
+        }
     }
 
     $normalized_expected = ll_tools_wordset_games_normalize_speaking_text($comparison_target, $comparison_mode);
@@ -2145,7 +2268,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
         'word_id' => $word_id,
         'target_field' => $target_field,
         'target_label' => (string) ($display_texts['target_label'] ?? ''),
-        'target_text' => $display_target,
+        'target_text' => ($target_field === 'reference_stt' && $reference_transcript !== '') ? $reference_transcript : $display_target,
         'normalized_target_text' => $normalized_expected,
         'normalized_transcript_text' => $normalized_transcript,
         'score' => $score,
