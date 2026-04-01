@@ -22,6 +22,8 @@
     const BUBBLE_RELEASE_MAX_SPEED = 116;
     const BUBBLE_CORRECT_RELEASE_MAX_SPEED = 1040;
     const BUBBLE_DECORATIVE_MAX_SPEED = 52;
+    const MATCHER_COMPETITION_DISTRACTOR_LIMIT = 10;
+    const MATCHER_VOWEL_CHAR_PATTERN = /[aeiouyıöüâêîôûáàäãåæéèëíìïóòôöõøœúùüəɛɜɞɐɑɒʌɨɯʉʊɪɔɤ]/i;
     const matcherWindowCache = {};
     const gameInteractionGuard = {
         active: false,
@@ -7234,7 +7236,192 @@
         };
     }
 
-    function buildAudioMatcherResult(ctx, run, word, score, transcriptText) {
+    function normalizeMatcherText(text) {
+        return String(text || '')
+            .toLowerCase()
+            .replace(/[\s'’`ˈˌ.\-_/\\]+/g, '')
+            .trim();
+    }
+
+    function extractMatcherTextProfile(word, run) {
+        const displayData = getWordSpeakingDisplayData(word, run);
+        const normalizedText = normalizeMatcherText(displayData.targetText || word && word.title || '');
+        const graphemes = segmentDiffGraphemes(normalizedText);
+        let vowelCount = 0;
+        let priorWasVowel = false;
+
+        graphemes.forEach(function (grapheme) {
+            const isVowel = MATCHER_VOWEL_CHAR_PATTERN.test(String(grapheme || ''));
+            if (isVowel && !priorWasVowel) {
+                vowelCount += 1;
+            }
+            priorWasVowel = isVowel;
+        });
+
+        return {
+            normalizedText: normalizedText,
+            graphemeCount: graphemes.length,
+            vowelCount: vowelCount,
+            leadingChar: graphemes.length ? String(graphemes[0] || '') : '',
+            trailingChar: graphemes.length ? String(graphemes[graphemes.length - 1] || '') : ''
+        };
+    }
+
+    function buildMatcherPracticeCandidatePool(run, targetWord, options) {
+        const sourceWords = Array.isArray(run && run.words) ? run.words : [];
+        const targetId = toInt(targetWord && targetWord.id);
+        const opts = (options && typeof options === 'object') ? options : {};
+        const limit = Math.max(0, toInt(opts.limit) || MATCHER_COMPETITION_DISTRACTOR_LIMIT);
+        if (!targetId || !limit) {
+            return targetWord ? [targetWord] : [];
+        }
+
+        const targetProfile = extractMatcherTextProfile(targetWord, run);
+        const candidates = sourceWords.filter(function (word) {
+            return !!word
+                && toInt(word.id) !== targetId
+                && String(word.speaking_best_correct_audio_url || '').trim() !== '';
+        }).map(function (word, index) {
+            const profile = extractMatcherTextProfile(word, run);
+            const graphemeDelta = Math.abs(profile.graphemeCount - targetProfile.graphemeCount);
+            const vowelDelta = Math.abs(profile.vowelCount - targetProfile.vowelCount);
+            const sameStart = targetProfile.leadingChar !== '' && profile.leadingChar === targetProfile.leadingChar;
+            const sameEnd = targetProfile.trailingChar !== '' && profile.trailingChar === targetProfile.trailingChar;
+            const overlap = targetProfile.normalizedText !== '' && profile.normalizedText !== ''
+                ? (targetProfile.normalizedText.indexOf(profile.leadingChar) !== -1 ? 1 : 0)
+                    + (targetProfile.normalizedText.indexOf(profile.trailingChar) !== -1 ? 1 : 0)
+                : 0;
+
+            return {
+                word: word,
+                index: index,
+                hardScore: (graphemeDelta * 1.3) + (vowelDelta * 2.2) - (sameStart ? 0.8 : 0) - (sameEnd ? 0.55 : 0) - (overlap * 0.18)
+            };
+        });
+
+        if (!candidates.length) {
+            return [targetWord];
+        }
+
+        const hardCount = Math.min(limit, Math.max(4, Math.ceil(limit * 0.6)));
+        const easyCount = Math.max(0, limit - hardCount);
+        const hardMatches = candidates
+            .slice()
+            .sort(function (left, right) {
+                if (left.hardScore === right.hardScore) {
+                    return left.index - right.index;
+                }
+                return left.hardScore - right.hardScore;
+            })
+            .slice(0, hardCount)
+            .map(function (row) {
+                return row.word;
+            });
+
+        const selectedIds = {};
+        selectedIds[targetId] = true;
+        hardMatches.forEach(function (word) {
+            selectedIds[toInt(word && word.id)] = true;
+        });
+
+        const easyMatches = candidates
+            .slice()
+            .sort(function (left, right) {
+                if (left.hardScore === right.hardScore) {
+                    return left.index - right.index;
+                }
+                return right.hardScore - left.hardScore;
+            })
+            .map(function (row) {
+                return row.word;
+            })
+            .filter(function (word) {
+                return !selectedIds[toInt(word && word.id)];
+            })
+            .slice(0, easyCount);
+
+        return [targetWord].concat(hardMatches, easyMatches);
+    }
+
+    function applyMatcherCompetitionAdjustments(rankedRows, options) {
+        const rows = (Array.isArray(rankedRows) ? rankedRows : []).filter(function (row) {
+            return !!row && !!row.word;
+        });
+        if (!rows.length) {
+            return null;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const expectedWordId = toInt(opts.expectedWordId);
+        const focusRow = expectedWordId
+            ? (rows.find(function (row) {
+                return toInt(row.word && row.word.id) === expectedWordId;
+            }) || null)
+            : rows[0];
+        if (!focusRow) {
+            return null;
+        }
+
+        const competitors = rows.filter(function (row) {
+            return toInt(row.word && row.word.id) !== toInt(focusRow.word && focusRow.word.id);
+        });
+        const sortedCompetitors = competitors
+            .slice()
+            .sort(function (left, right) {
+                return (Number(right.score) || 0) - (Number(left.score) || 0);
+            });
+        const topCompetitorScore = Number(sortedCompetitors[0] && sortedCompetitors[0].score) || 0;
+        const topThree = sortedCompetitors.slice(0, 3);
+        const meanTopCompetitorScore = topThree.length
+            ? topThree.reduce(function (sum, row) {
+                return sum + (Number(row && row.score) || 0);
+            }, 0) / topThree.length
+            : 0;
+        const closeCompetitorCount = sortedCompetitors.filter(function (row) {
+            const competitorScore = Number(row && row.score) || 0;
+            return competitorScore >= Math.max(34, (Number(focusRow.score) || 0) - 12);
+        }).length;
+        const margin = (Number(focusRow.score) || 0) - topCompetitorScore;
+
+        let adjustedScore = Number(focusRow.score) || 0;
+        if (expectedWordId) {
+            if (margin < 0) {
+                adjustedScore -= 36 + Math.min(24, Math.abs(margin) * 1.35);
+            } else if (margin < 4) {
+                adjustedScore -= 20 + ((4 - margin) * 2.8);
+            } else if (margin < 9) {
+                adjustedScore -= (9 - margin) * 1.65;
+            }
+        } else {
+            if (margin < 2.5) {
+                adjustedScore -= 18 + ((2.5 - margin) * 4.2);
+            } else if (margin < 6) {
+                adjustedScore -= (6 - margin) * 1.8;
+            }
+        }
+
+        const genericPenalty = Math.max(0, meanTopCompetitorScore - 20) * 0.82;
+        const crowdPenalty = Math.max(0, closeCompetitorCount - 1) * 4.6;
+        adjustedScore -= genericPenalty + crowdPenalty;
+
+        if (margin > 14 && meanTopCompetitorScore < 26) {
+            adjustedScore += Math.min(5, (margin - 14) * 0.28);
+        }
+
+        return {
+            focusRow: focusRow,
+            adjustedScore: clamp(adjustedScore, 0, 100),
+            rawScore: clamp(Number(focusRow.score) || 0, 0, 100),
+            margin: margin,
+            topCompetitorScore: topCompetitorScore,
+            meanTopCompetitorScore: meanTopCompetitorScore,
+            closeCompetitorCount: closeCompetitorCount,
+            matchedWordIsExpected: expectedWordId > 0 ? toInt(rows[0] && rows[0].word && rows[0].word.id) === expectedWordId : true
+        };
+    }
+
+    function buildAudioMatcherResult(ctx, run, word, score, transcriptText, meta) {
+        const resultMeta = (meta && typeof meta === 'object') ? meta : {};
         const roundedScore = Math.round(clamp(Number(score) || 0, 0, 100) * 100) / 100;
         const bucket = speakingScoreBucket(roundedScore, String(run && run.provider || ''));
         const displayData = getWordSpeakingDisplayData(word, run);
@@ -7249,7 +7436,12 @@
             normalized_target_text: displayData.targetText,
             normalized_transcript_text: transcript,
             score: roundedScore,
+            raw_score: Math.round(clamp(Number(resultMeta.rawScore) || roundedScore, 0, 100) * 100) / 100,
             bucket: bucket,
+            competition_margin: Math.round((Number(resultMeta.margin) || 0) * 100) / 100,
+            top_competitor_score: Math.round((Number(resultMeta.topCompetitorScore) || 0) * 100) / 100,
+            mean_top_competitor_score: Math.round((Number(resultMeta.meanTopCompetitorScore) || 0) * 100) / 100,
+            close_competitor_count: toInt(resultMeta.closeCompetitorCount),
             display_texts: displayData.displayTexts,
             best_correct_audio_url: String(word && word.speaking_best_correct_audio_url || ''),
             transcript_text: transcript
@@ -7292,17 +7484,26 @@
                     throw new Error('no_match_candidates');
                 }
 
-                const best = ranked[0];
+                const competition = applyMatcherCompetitionAdjustments(ranked, {
+                    expectedWordId: toInt(opts.expectedWordId)
+                });
+                if (!competition || !competition.focusRow || !competition.focusRow.word) {
+                    throw new Error('no_match_candidates');
+                }
+
+                const best = competition.focusRow;
                 const bestResult = buildAudioMatcherResult(
                     ctx,
                     run,
                     best.word,
-                    best.score,
+                    competition.adjustedScore,
                     (opts.fallbackTranscriptText !== undefined)
                         ? String(opts.fallbackTranscriptText || '')
-                        : ''
+                        : '',
+                    competition
                 );
-                bestResult.matched = bestResult.bucket !== 'wrong';
+                bestResult.matched = bestResult.bucket !== 'wrong'
+                    && (!opts.expectedWordId || !!competition.matchedWordIsExpected);
                 return bestResult;
             });
         });
@@ -7930,7 +8131,12 @@
         setSpeakingRecordButton(ctx, speakingProcessingLabel, true, 'processing');
         setSpeakingAttemptAudioSource(ctx, blob);
         if (isAudioMatcherProvider(run.provider)) {
-            scoreSpeakingAudioMatcher(ctx, run, blob, [run.prompt.target]).then(function (result) {
+            const practiceCandidates = buildMatcherPracticeCandidatePool(run, run.prompt.target, {
+                limit: MATCHER_COMPETITION_DISTRACTOR_LIMIT
+            });
+            scoreSpeakingAudioMatcher(ctx, run, blob, practiceCandidates, {
+                expectedWordId: toInt(run.prompt && run.prompt.target && run.prompt.target.id)
+            }).then(function (result) {
                 if (!ctx.run || ctx.run !== run || run.ended) {
                     return;
                 }
