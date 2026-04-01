@@ -1013,6 +1013,9 @@
             refreshBubblePromptCardPositions(run, currentTimestamp());
         } else if (isSpeakingStackRun(ctx, run)) {
             scaleSpeakingStackRunLayout(run, run.width / previousWidth, run.height / previousHeight);
+            relayoutSpeakingStackCards(ctx, run, {
+                instant: true
+            });
         }
         bullets.forEach(function (bullet) {
             bullet.x = clamp(bullet.x, 0, run.width);
@@ -2535,11 +2538,31 @@
         };
     }
 
-    function getSpeakingStackOverlapThreshold(card, existingCard) {
+    function getSpeakingStackReferenceY(card) {
+        if (isFinite(Number(card && card.stackTargetY))) {
+            return Number(card.stackTargetY);
+        }
+        if (isFinite(Number(card && card.lastSettledY))) {
+            return Number(card.lastSettledY);
+        }
+        return Number(card && card.y) || 0;
+    }
+
+    function getSpeakingStackHorizontalOverlapPx(card, targetX, supportCard) {
         const cardWidth = Math.max(1, Number(card && card.width) || 1);
-        const existingWidth = Math.max(1, Number(existingCard && existingCard.width) || 1);
-        const combinedHalfWidth = (cardWidth + existingWidth) / 2;
-        return Math.max(18, combinedHalfWidth - (Math.min(cardWidth, existingWidth) * 0.14));
+        const supportWidth = Math.max(1, Number(supportCard && supportCard.width) || 1);
+        const supportX = isFinite(Number(supportCard && supportCard.stackTargetX))
+            ? Number(supportCard.stackTargetX)
+            : (Number(supportCard && supportCard.x) || 0);
+
+        const left = Math.max(targetX - (cardWidth / 2), supportX - (supportWidth / 2));
+        const right = Math.min(targetX + (cardWidth / 2), supportX + (supportWidth / 2));
+        return Math.max(0, right - left);
+    }
+
+    function isSpeakingStackSupportingCard(card, targetX, supportCard) {
+        const minimumSupportPx = (Math.max(1, Number(card && card.width) || 1) * 0.5) + 0.5;
+        return getSpeakingStackHorizontalOverlapPx(card, targetX, supportCard) >= minimumSupportPx;
     }
 
     function getSpeakingStackPlacementY(ctx, run, card, targetX, placedCards) {
@@ -2547,35 +2570,68 @@
         const gap = Math.max(0, toInt(gameConfig.stackGapPx) || 12);
         const cardHeight = Math.max(1, Number(card && card.height) || 1);
         let settledY = getSpeakingStackGroundTop(ctx, run) - (cardHeight / 2);
-        let didAdjust = true;
-        let attempts = 0;
         const supports = Array.isArray(placedCards) ? placedCards : [];
 
-        while (didAdjust && attempts < (supports.length + 2)) {
-            didAdjust = false;
-            attempts += 1;
+        supports.forEach(function (existingCard) {
+            if (!existingCard || !isSpeakingStackSupportingCard(card, targetX, existingCard)) {
+                return;
+            }
 
-            supports.forEach(function (existingCard) {
-                if (!existingCard) {
-                    return;
-                }
-
-                if (Math.abs(Number(existingCard.stackTargetX) - targetX) > getSpeakingStackOverlapThreshold(card, existingCard)) {
-                    return;
-                }
-
-                const requiredGap = (Math.max(1, Number(existingCard.height) || 1) / 2) + (cardHeight / 2) + gap;
-                if (settledY >= (Number(existingCard.stackTargetY) - requiredGap - 0.5)) {
-                    const liftedY = Number(existingCard.stackTargetY) - requiredGap;
-                    if (liftedY < settledY) {
-                        settledY = liftedY;
-                        didAdjust = true;
-                    }
-                }
-            });
-        }
+            const supportY = getSpeakingStackReferenceY(existingCard);
+            const requiredGap = (Math.max(1, Number(existingCard.height) || 1) / 2) + (cardHeight / 2) + gap;
+            settledY = Math.min(settledY, supportY - requiredGap);
+        });
 
         return settledY;
+    }
+
+    function relayoutSpeakingStackCards(ctx, run, options) {
+        if (!run) {
+            return;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const activeCards = getSpeakingStackActiveCards(run).slice().sort(function (left, right) {
+            const rightY = getSpeakingStackReferenceY(right);
+            const leftY = getSpeakingStackReferenceY(left);
+            if (Math.abs(rightY - leftY) > 0.5) {
+                return rightY - leftY;
+            }
+            return toInt(left && left.promptId) - toInt(right && right.promptId);
+        });
+        const settledCards = [];
+
+        activeCards.forEach(function (card) {
+            if (!card) {
+                return;
+            }
+
+            const bounds = getSpeakingStackHorizontalBounds(run, Number(card.width) || 0);
+            const targetX = clamp(
+                isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : (Number(card.x) || 0),
+                bounds.minX,
+                bounds.maxX
+            );
+            const nextTargetY = getSpeakingStackPlacementY(ctx, run, card, targetX, settledCards);
+            const previousTargetY = isFinite(Number(card.stackTargetY))
+                ? Number(card.stackTargetY)
+                : getSpeakingStackReferenceY(card);
+
+            card.stackTargetX = targetX;
+            card.stackTargetY = nextTargetY;
+
+            if (opts.instant) {
+                card.x = targetX;
+                card.y = nextTargetY;
+                card.lastSettledX = targetX;
+                card.lastSettledY = nextTargetY;
+            } else if (Math.abs(nextTargetY - previousTargetY) > 0.5) {
+                card.entryStartX = Number(card.x) || targetX;
+                card.entryStartY = Number(card.y) || previousTargetY;
+            }
+
+            settledCards.push(card);
+        });
     }
 
     function chooseSpeakingStackPlacement(ctx, run, card) {
@@ -6793,6 +6849,7 @@
             duration: 300,
             style: 'ring'
         });
+        relayoutSpeakingStackCards(ctx, run);
         setSpeakingStackProgressFromRun(ctx, run);
         setSpeakingStatus(ctx, String({
             right: ctx.i18n.gamesSpeakingResultRight || 'Correct',
