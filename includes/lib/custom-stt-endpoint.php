@@ -119,6 +119,7 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         $mime = 'application/octet-stream';
     }
 
+    $boundary = '';
     $body = ll_tools_remote_stt_build_multipart_body(
         $fields,
         [
