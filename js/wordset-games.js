@@ -6816,8 +6816,155 @@
         return {
             bands: flattenedBands,
             centroid: resampleSeries(normalizeSeriesToUnit(centroidFrames), resampledFrameCount),
-            rolloff: resampleSeries(normalizeSeriesToUnit(rolloffFrames), resampledFrameCount)
+            rolloff: resampleSeries(normalizeSeriesToUnit(rolloffFrames), resampledFrameCount),
+            rawBandFrames: bandFrames,
+            rawCentroidFrames: centroidFrames,
+            rawRolloffFrames: rolloffFrames
         };
+    }
+
+    function averageFrameVectors(frames, indices) {
+        const rows = Array.isArray(frames) ? frames : [];
+        const selectedIndices = Array.isArray(indices) ? indices : [];
+        if (!rows.length || !selectedIndices.length || !Array.isArray(rows[0])) {
+            return [];
+        }
+
+        const vectorLength = rows[0].length;
+        const sums = new Array(vectorLength).fill(0);
+        let count = 0;
+        selectedIndices.forEach(function (frameIndex) {
+            const row = rows[toInt(frameIndex)];
+            if (!Array.isArray(row) || row.length !== vectorLength) {
+                return;
+            }
+            for (let index = 0; index < vectorLength; index += 1) {
+                sums[index] += Number(row[index]) || 0;
+            }
+            count += 1;
+        });
+
+        if (!count) {
+            return [];
+        }
+
+        return sums.map(function (value) {
+            return value / count;
+        });
+    }
+
+    function buildFrameWindowIndices(frameCount, startRatio, endRatio) {
+        const totalFrames = Math.max(0, toInt(frameCount));
+        if (!totalFrames) {
+            return [];
+        }
+
+        const start = clamp(startRatio, 0, 1);
+        const end = clamp(endRatio, start, 1);
+        const from = Math.max(0, Math.floor(totalFrames * start));
+        const to = Math.min(totalFrames, Math.ceil(totalFrames * end));
+        const indices = [];
+        for (let index = from; index < to; index += 1) {
+            indices.push(index);
+        }
+        return indices;
+    }
+
+    function sampleSequenceIndices(indices, maxItems) {
+        const source = Array.isArray(indices) ? indices.slice() : [];
+        const limit = Math.max(1, toInt(maxItems));
+        if (source.length <= limit) {
+            return source;
+        }
+
+        const sampled = [];
+        for (let index = 0; index < limit; index += 1) {
+            const sourcePosition = Math.round((index / Math.max(1, limit - 1)) * (source.length - 1));
+            sampled.push(source[sourcePosition]);
+        }
+        return sampled;
+    }
+
+    function detectNucleusFrames(envelopeFrames, zcrFrames, frameDurationSec) {
+        const envelope = normalizeSeriesToUnit(envelopeFrames);
+        const zcr = normalizeSeriesToUnit(zcrFrames);
+        if (!envelope.length) {
+            return [];
+        }
+
+        const minGapFrames = Math.max(1, Math.round(0.09 / Math.max(0.004, Number(frameDurationSec) || 0.01)));
+        const peaks = [];
+        let lastAcceptedIndex = -minGapFrames;
+
+        for (let index = 1; index < envelope.length - 1; index += 1) {
+            const energy = Number(envelope[index]) || 0;
+            const voicedPenalty = (Number(zcr[index]) || 0) * 0.52;
+            const score = energy * (1 - voicedPenalty);
+            const isLocalPeak = energy >= (Number(envelope[index - 1]) || 0) && energy >= (Number(envelope[index + 1]) || 0);
+            if (!isLocalPeak || energy < 0.22 || score < 0.3) {
+                continue;
+            }
+
+            if ((index - lastAcceptedIndex) < minGapFrames && peaks.length) {
+                if (score > peaks[peaks.length - 1].score) {
+                    peaks[peaks.length - 1] = {
+                        index: index,
+                        score: score
+                    };
+                    lastAcceptedIndex = index;
+                }
+                continue;
+            }
+
+            peaks.push({
+                index: index,
+                score: score
+            });
+            lastAcceptedIndex = index;
+        }
+
+        if (!peaks.length) {
+            let bestIndex = 0;
+            let bestScore = 0;
+            envelope.forEach(function (value, index) {
+                const score = (Number(value) || 0) * (1 - ((Number(zcr[index]) || 0) * 0.45));
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestIndex = index;
+                }
+            });
+            if (bestScore >= 0.14) {
+                return [bestIndex];
+            }
+            return [];
+        }
+
+        return peaks.map(function (peak) {
+            return peak.index;
+        });
+    }
+
+    function buildNucleusSequence(frames, centroidFrames, rolloffFrames, nucleusIndices, maxItems) {
+        const rows = Array.isArray(frames) ? frames : [];
+        const indices = sampleSequenceIndices(nucleusIndices, maxItems);
+        if (!rows.length || !indices.length || !Array.isArray(rows[0])) {
+            return [];
+        }
+
+        const flattened = [];
+        indices.forEach(function (frameIndex) {
+            const row = rows[toInt(frameIndex)];
+            if (!Array.isArray(row)) {
+                return;
+            }
+            row.forEach(function (value) {
+                flattened.push(Number(value) || 0);
+            });
+            flattened.push(Number((Array.isArray(centroidFrames) ? centroidFrames[frameIndex] : 0)) || 0);
+            flattened.push(Number((Array.isArray(rolloffFrames) ? rolloffFrames[frameIndex] : 0)) || 0);
+        });
+
+        return flattened;
     }
 
     function extractMatcherFeatures(samples, sampleRate) {
@@ -6866,10 +7013,16 @@
         const spectral = buildSpectralProfile(
             normalized,
             effectiveSampleRate,
-            Math.max(96, Math.round(effectiveSampleRate * 0.016)),
-            Math.max(48, Math.round(effectiveSampleRate * 0.008)),
+            frameSize,
+            hopSize,
             8
         );
+        const frameDurationSec = hopSize / effectiveSampleRate;
+        const nucleusIndices = spectral
+            ? detectNucleusFrames(envelopeFrames, zcrFrames, frameDurationSec)
+            : [];
+        const onsetIndices = spectral ? buildFrameWindowIndices(spectral.rawBandFrames.length, 0, 0.18) : [];
+        const codaIndices = spectral ? buildFrameWindowIndices(spectral.rawBandFrames.length, 0.82, 1) : [];
         const absoluteEnergy = normalized.reduce(function (sum, value) {
             return sum + Math.abs(value || 0);
         }, 0) / Math.max(1, normalized.length);
@@ -6882,6 +7035,19 @@
             spectralBands: spectral ? spectral.bands : [],
             spectralCentroid: spectral ? spectral.centroid : [],
             spectralRolloff: spectral ? spectral.rolloff : [],
+            nucleusCount: nucleusIndices.length,
+            nucleusBandProfile: spectral ? averageFrameVectors(spectral.rawBandFrames, nucleusIndices) : [],
+            nucleusSequence: spectral
+                ? buildNucleusSequence(
+                    spectral.rawBandFrames,
+                    spectral.rawCentroidFrames,
+                    spectral.rawRolloffFrames,
+                    nucleusIndices,
+                    4
+                )
+                : [],
+            onsetBandProfile: spectral ? averageFrameVectors(spectral.rawBandFrames, onsetIndices) : [],
+            codaBandProfile: spectral ? averageFrameVectors(spectral.rawBandFrames, codaIndices) : [],
             absoluteEnergy: absoluteEnergy
         };
     }
@@ -6906,11 +7072,27 @@
         const spectralBandMae = 1 - meanAbsoluteDifference(leftFeatures.spectralBands, rightFeatures.spectralBands);
         const spectralCentroidScore = 1 - meanAbsoluteDifference(leftFeatures.spectralCentroid, rightFeatures.spectralCentroid);
         const spectralRolloffScore = 1 - meanAbsoluteDifference(leftFeatures.spectralRolloff, rightFeatures.spectralRolloff);
+        const nucleusCountRatio = (Number(leftFeatures.nucleusCount) > 0 && Number(rightFeatures.nucleusCount) > 0)
+            ? Math.min(Number(leftFeatures.nucleusCount), Number(rightFeatures.nucleusCount))
+                / Math.max(Number(leftFeatures.nucleusCount), Number(rightFeatures.nucleusCount))
+            : 0;
+        const nucleusProfileCosine = (cosineSimilarity(leftFeatures.nucleusBandProfile, rightFeatures.nucleusBandProfile) + 1) * 0.5;
+        const nucleusProfileMae = 1 - meanAbsoluteDifference(leftFeatures.nucleusBandProfile, rightFeatures.nucleusBandProfile);
+        const nucleusSequenceCosine = (cosineSimilarity(leftFeatures.nucleusSequence, rightFeatures.nucleusSequence) + 1) * 0.5;
+        const nucleusSequenceMae = 1 - meanAbsoluteDifference(leftFeatures.nucleusSequence, rightFeatures.nucleusSequence);
+        const onsetCosine = (cosineSimilarity(leftFeatures.onsetBandProfile, rightFeatures.onsetBandProfile) + 1) * 0.5;
+        const onsetMae = 1 - meanAbsoluteDifference(leftFeatures.onsetBandProfile, rightFeatures.onsetBandProfile);
+        const codaCosine = (cosineSimilarity(leftFeatures.codaBandProfile, rightFeatures.codaBandProfile) + 1) * 0.5;
+        const codaMae = 1 - meanAbsoluteDifference(leftFeatures.codaBandProfile, rightFeatures.codaBandProfile);
 
         const envelopeScore = clamp((envelopeCosine * 0.6) + (clamp(envelopeMae, 0, 1) * 0.4), 0, 1);
         const waveformScore = clamp((waveformCosine * 0.5) + (clamp(waveformMae, 0, 1) * 0.5), 0, 1);
         const zcrScore = clamp(zcrCosine, 0, 1);
         const spectralBandScore = clamp((spectralBandCosine * 0.62) + (clamp(spectralBandMae, 0, 1) * 0.38), 0, 1);
+        const nucleusProfileScore = clamp((nucleusProfileCosine * 0.62) + (clamp(nucleusProfileMae, 0, 1) * 0.38), 0, 1);
+        const nucleusSequenceScore = clamp((nucleusSequenceCosine * 0.58) + (clamp(nucleusSequenceMae, 0, 1) * 0.42), 0, 1);
+        const onsetScore = clamp((onsetCosine * 0.56) + (clamp(onsetMae, 0, 1) * 0.44), 0, 1);
+        const codaScore = clamp((codaCosine * 0.56) + (clamp(codaMae, 0, 1) * 0.44), 0, 1);
         const spectralShapeScore = clamp(
             (spectralBandScore * 0.7)
             + (clamp(spectralCentroidScore, 0, 1) * 0.18)
@@ -6918,12 +7100,16 @@
             0,
             1
         );
+        const vowelCoreScore = clamp((nucleusProfileScore * 0.52) + (nucleusSequenceScore * 0.48), 0, 1);
+        const edgeScore = clamp((onsetScore * 0.54) + (codaScore * 0.46), 0, 1);
 
         const baseScore = (
-            (envelopeScore * 0.24)
-            + (waveformScore * 0.14)
+            (envelopeScore * 0.14)
+            + (waveformScore * 0.08)
             + (zcrScore * 0.08)
-            + (spectralShapeScore * 0.42)
+            + (spectralShapeScore * 0.24)
+            + (vowelCoreScore * 0.25)
+            + (edgeScore * 0.09)
             + (clamp(durationRatio, 0, 1) * 0.07)
             + (clamp(energyRatio, 0, 1) * 0.05)
         ) * 100;
@@ -6931,7 +7117,14 @@
         const durationPenalty = Math.pow(1 - clamp(durationRatio, 0, 1), 1.18) * 42;
         const spectralPenalty = Math.pow(1 - spectralShapeScore, 1.24) * 22;
         const envelopePenalty = Math.pow(1 - envelopeScore, 1.1) * 8;
-        const calibrated = clamp(baseScore - durationPenalty - spectralPenalty - envelopePenalty, 0, 100);
+        const vowelPenalty = Math.pow(1 - vowelCoreScore, 1.18) * 16;
+        const edgePenalty = Math.pow(1 - edgeScore, 1.1) * 9;
+        const nucleusCountPenalty = Math.pow(1 - clamp(nucleusCountRatio, 0, 1), 1.12) * 28;
+        const calibrated = clamp(
+            baseScore - durationPenalty - spectralPenalty - envelopePenalty - vowelPenalty - edgePenalty - nucleusCountPenalty,
+            0,
+            100
+        );
 
         return Math.round(calibrated * 100) / 100;
     }
