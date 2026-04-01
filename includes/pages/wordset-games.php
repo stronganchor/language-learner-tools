@@ -26,6 +26,14 @@ function ll_tools_wordset_games_speaking_stack_launch_word_cap(): int {
     return max($minimum, (int) apply_filters('ll_tools_wordset_games_speaking_stack_launch_word_cap', 60));
 }
 
+function ll_tools_wordset_games_speaking_isolation_max_duration_seconds(): float {
+    return max(0.5, (float) apply_filters('ll_tools_wordset_games_speaking_isolation_max_duration_seconds', 3.25));
+}
+
+function ll_tools_wordset_games_speaking_isolation_max_word_count(): int {
+    return max(1, (int) apply_filters('ll_tools_wordset_games_speaking_isolation_max_word_count', 2));
+}
+
 function ll_tools_wordset_games_render_page_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 256 256" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'
@@ -1009,10 +1017,6 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         return $id > 0;
     }));
 
-    $ipa_map = ($target_field === 'recording_ipa')
-        ? ll_tools_wordset_games_collect_speaking_ipa_map($word_ids, 'isolation')
-        : [];
-
     $eligible_words = [];
     foreach ($words as $word) {
         if (!is_array($word)) {
@@ -1028,14 +1032,16 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         if ($prompt_text === '') {
             $prompt_text = trim((string) ($word['title'] ?? ''));
         }
-        $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation');
+        $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation', [
+            'speaking_short_only' => true,
+        ]);
         $best_correct_audio_url = trim((string) ($isolation_audio['url'] ?? ''));
         if ($best_correct_audio_url === '') {
             continue;
         }
 
         if ($target_field === 'recording_ipa') {
-            $word['recording_ipa'] = trim((string) ($ipa_map[$word_id] ?? ($isolation_audio['recording_ipa'] ?? '')));
+            $word['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
         }
 
         $target_text = ($target_field === 'recording_ipa')
@@ -1054,7 +1060,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         $word['speaking_prompt_type'] = !empty($word['image']) ? 'image' : 'text';
         $word['speaking_display_texts'] = $display_texts;
         $word['speaking_best_correct_audio_url'] = $best_correct_audio_url;
-        $word['progress_status'] = $status;
+        $word['progress_status'] = sanitize_key((string) ($word['progress_status'] ?? ''));
         $eligible_words[] = $word;
     }
 
@@ -1895,16 +1901,139 @@ function ll_tools_wordset_games_get_word_audio_posts(int $word_id): array {
     }));
 }
 
-function ll_tools_wordset_games_get_audio_details(int $word_id, string $recording_type = ''): array {
+function ll_tools_wordset_games_get_audio_duration_cache_meta_key(): string {
+    return '_ll_wordset_games_audio_duration_seconds';
+}
+
+function ll_tools_wordset_games_get_audio_duration_signature_meta_key(): string {
+    return '_ll_wordset_games_audio_duration_signature';
+}
+
+function ll_tools_wordset_games_count_isolation_words(string $text): int {
+    $text = trim($text);
+    if ($text === '') {
+        return 0;
+    }
+
+    if (function_exists('ll_tools_trim_isolation_transcript')) {
+        $text = ll_tools_trim_isolation_transcript($text);
+    }
+
+    $text = preg_replace('/[.,!?;:()\[\]{}"“”«»…]+/u', ' ', $text);
+    $tokens = preg_split('/\s+/u', trim((string) $text), -1, PREG_SPLIT_NO_EMPTY);
+
+    return is_array($tokens) ? count($tokens) : 0;
+}
+
+function ll_tools_wordset_games_build_audio_duration_signature(string $stored_audio_path): string {
+    $stored_audio_path = trim((string) $stored_audio_path);
+    if ($stored_audio_path === '') {
+        return '';
+    }
+
+    $absolute_path = ll_tools_wordset_games_resolve_audio_absolute_path($stored_audio_path);
+    if ($absolute_path === '') {
+        return md5($stored_audio_path);
+    }
+
+    $size = @filesize($absolute_path);
+    $mtime = @filemtime($absolute_path);
+
+    return md5(wp_normalize_path($absolute_path) . '|' . (string) $size . '|' . (string) $mtime . '|' . $stored_audio_path);
+}
+
+function ll_tools_wordset_games_get_audio_duration_seconds(int $audio_post_id, string $stored_audio_path = ''): ?float {
+    $audio_post_id = (int) $audio_post_id;
+    if ($audio_post_id <= 0) {
+        return null;
+    }
+
+    if ($stored_audio_path === '') {
+        $stored_audio_path = trim((string) get_post_meta($audio_post_id, 'audio_file_path', true));
+    }
+    if ($stored_audio_path === '') {
+        return null;
+    }
+
+    $signature = ll_tools_wordset_games_build_audio_duration_signature($stored_audio_path);
+    $duration_meta_key = ll_tools_wordset_games_get_audio_duration_cache_meta_key();
+    $signature_meta_key = ll_tools_wordset_games_get_audio_duration_signature_meta_key();
+    $cached_signature = (string) get_post_meta($audio_post_id, $signature_meta_key, true);
+    $cached_duration = get_post_meta($audio_post_id, $duration_meta_key, true);
+
+    if ($signature !== '' && $cached_signature === $signature && $cached_duration !== '') {
+        return round((float) $cached_duration, 3);
+    }
+
+    $absolute_path = ll_tools_wordset_games_resolve_audio_absolute_path($stored_audio_path);
+    if ($absolute_path === '') {
+        return null;
+    }
+
+    $getid3_path = LL_TOOLS_BASE_PATH . 'vendor/getid3/getid3.php';
+    if (!class_exists('getID3')) {
+        if (!is_readable($getid3_path)) {
+            return null;
+        }
+        require_once $getid3_path;
+    }
+    if (!class_exists('getID3')) {
+        return null;
+    }
+
+    $analyzer = new getID3();
+    $info = $analyzer->analyze($absolute_path);
+    $seconds = null;
+    if (isset($info['playtime_seconds']) && is_numeric($info['playtime_seconds'])) {
+        $seconds = (float) $info['playtime_seconds'];
+    } elseif (isset($info['audio']['playtime_seconds']) && is_numeric($info['audio']['playtime_seconds'])) {
+        $seconds = (float) $info['audio']['playtime_seconds'];
+    }
+
+    if ($seconds === null || $seconds <= 0) {
+        return null;
+    }
+
+    $seconds = round($seconds, 3);
+    update_post_meta($audio_post_id, $duration_meta_key, $seconds);
+    if ($signature !== '') {
+        update_post_meta($audio_post_id, $signature_meta_key, $signature);
+    }
+
+    return $seconds;
+}
+
+function ll_tools_wordset_games_is_speaking_suitable_isolation_audio(int $audio_post_id, string $stored_audio_path = '', string $recording_text = ''): bool {
+    $max_word_count = ll_tools_wordset_games_speaking_isolation_max_word_count();
+    $recording_text = trim((string) $recording_text);
+    if ($recording_text !== '' && ll_tools_wordset_games_count_isolation_words($recording_text) > $max_word_count) {
+        return false;
+    }
+
+    $duration_seconds = ll_tools_wordset_games_get_audio_duration_seconds($audio_post_id, $stored_audio_path);
+    if ($duration_seconds !== null && $duration_seconds > ll_tools_wordset_games_speaking_isolation_max_duration_seconds()) {
+        return false;
+    }
+
+    return true;
+}
+
+function ll_tools_wordset_games_get_audio_details(int $word_id, string $recording_type = '', array $args = []): array {
     $word_id = (int) $word_id;
     $target_type = ll_tools_normalize_practice_recording_type_slug($recording_type);
+    $args = wp_parse_args($args, [
+        'speaking_short_only' => false,
+    ]);
+    $speaking_short_only = !empty($args['speaking_short_only']);
     if ($word_id <= 0) {
         return [
             'audio_post_id' => 0,
             'recording_type' => $target_type,
             'url' => '',
             'recording_ipa' => '',
+            'recording_text' => '',
             'stored_path' => '',
+            'duration_seconds' => null,
         ];
     }
 
@@ -1926,7 +2055,9 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             'recording_type' => $target_type,
             'url' => '',
             'recording_ipa' => '',
+            'recording_text' => '',
             'stored_path' => '',
+            'duration_seconds' => null,
         ];
     }
 
@@ -1957,6 +2088,20 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             continue;
         }
 
+        $recording_text = trim((string) get_post_meta($audio_post->ID, 'recording_text', true));
+        if ($target_type === 'isolation' && $recording_text !== '' && function_exists('ll_tools_trim_isolation_transcript')) {
+            $recording_text = ll_tools_trim_isolation_transcript($recording_text);
+        }
+
+        if ($speaking_short_only && $target_type === 'isolation'
+            && !ll_tools_wordset_games_is_speaking_suitable_isolation_audio((int) $audio_post->ID, $audio_path, $recording_text)) {
+            continue;
+        }
+
+        $duration_seconds = ($speaking_short_only && $target_type === 'isolation')
+            ? ll_tools_wordset_games_get_audio_duration_seconds((int) $audio_post->ID, $audio_path)
+            : null;
+
         if (function_exists('ll_tools_resolve_audio_file_url')) {
             $audio_url = (string) ll_tools_resolve_audio_file_url($audio_path);
         } else {
@@ -1973,7 +2118,9 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             'recording_type' => $resolved_type !== '' ? $resolved_type : $target_type,
             'url' => $audio_url,
             'recording_ipa' => trim((string) get_post_meta($audio_post->ID, 'recording_ipa', true)),
+            'recording_text' => $recording_text,
             'stored_path' => $audio_path,
+            'duration_seconds' => $duration_seconds,
         ];
     }
 
@@ -1982,7 +2129,9 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
         'recording_type' => $target_type,
         'url' => '',
         'recording_ipa' => '',
+        'recording_text' => '',
         'stored_path' => '',
+        'duration_seconds' => null,
     ];
 }
 
@@ -2285,7 +2434,9 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
         return new WP_Error('target_mismatch', __('Invalid speaking target.', 'll-tools-text-domain'));
     }
 
-    $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation');
+    $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation', [
+        'speaking_short_only' => true,
+    ]);
     $display_word_data = ['title' => $word->post_title];
     if ($target_field === 'recording_ipa') {
         $display_word_data['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
