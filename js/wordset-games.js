@@ -5734,6 +5734,23 @@
         state[key] = 0;
     }
 
+    function scheduleSpeakingAttemptUrlRevoke(state, url) {
+        if (!state || !url || !root.URL || typeof root.URL.revokeObjectURL !== 'function') {
+            return;
+        }
+
+        clearSpeakingTimeout(state, 'attemptAudioRevokeTimer');
+        state.attemptAudioRevokeTimer = root.setTimeout(function () {
+            state.attemptAudioRevokeTimer = 0;
+            if (state.attemptAudioUrl === url) {
+                return;
+            }
+            try {
+                root.URL.revokeObjectURL(url);
+            } catch (_) { /* no-op */ }
+        }, 800);
+    }
+
     function getActiveSpeakingMeterBars(ctx) {
         const run = ctx && ctx.run;
         if (isSpeakingStackRun(ctx, run)) {
@@ -5885,20 +5902,26 @@
 
     function clearSpeakingAttemptAudioSource(ctx) {
         const state = speakingState(ctx);
-        if (state && state.attemptAudioUrl) {
-            try {
-                root.URL.revokeObjectURL(state.attemptAudioUrl);
-            } catch (_) { /* no-op */ }
-            state.attemptAudioUrl = '';
-        }
+        const previousAttemptUrl = state && state.attemptAudioUrl ? String(state.attemptAudioUrl) : '';
         if (!ctx || !ctx.speakingAttemptAudio) {
+            if (state) {
+                state.attemptAudioUrl = '';
+                scheduleSpeakingAttemptUrlRevoke(state, previousAttemptUrl);
+            }
             return;
         }
         try {
             ctx.speakingAttemptAudio.pause();
             ctx.speakingAttemptAudio.currentTime = 0;
             ctx.speakingAttemptAudio.removeAttribute('src');
+            if (typeof ctx.speakingAttemptAudio.load === 'function') {
+                ctx.speakingAttemptAudio.load();
+            }
         } catch (_) { /* no-op */ }
+        if (state) {
+            state.attemptAudioUrl = '';
+            scheduleSpeakingAttemptUrlRevoke(state, previousAttemptUrl);
+        }
         if (ctx.$speakingPlayAttempt && ctx.$speakingPlayAttempt.length) {
             ctx.$speakingPlayAttempt.prop('hidden', true);
             updateAudioButtonUi(ctx.$speakingPlayAttempt, false);
@@ -7930,6 +7953,7 @@
                 stopPromise: null,
                 currentBlob: null,
                 attemptAudioUrl: '',
+                attemptAudioRevokeTimer: 0,
                 recentLaunchWordIds: [],
                 transcribing: false
             }
