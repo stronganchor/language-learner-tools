@@ -11,6 +11,7 @@ const ROOT_DIR = path.resolve(path.dirname(SCRIPT_PATH), '..');
 const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
 const ANDROID_DIR = path.join(ROOT_DIR, 'android');
+const ANDROID_OVERRIDES_DIR = path.join(ROOT_DIR, 'android-overrides');
 const LINUX_TOOLCHAIN_DIR = path.join(WORKSPACE_DIR, 'linux-toolchain');
 const LINUX_JDK_DIR = path.join(LINUX_TOOLCHAIN_DIR, 'jdk');
 const LINUX_ANDROID_SDK_DIR = path.join(LINUX_TOOLCHAIN_DIR, 'android-sdk');
@@ -177,6 +178,17 @@ function ensureAndroidPlatform() {
   runCapacitor(['add', 'android']);
 }
 
+function applyAndroidOverrides() {
+  if (!fs.existsSync(ANDROID_OVERRIDES_DIR)) {
+    return;
+  }
+
+  fs.copySync(ANDROID_OVERRIDES_DIR, ANDROID_DIR, {
+    overwrite: true,
+    errorOnExist: false
+  });
+}
+
 function ensureBundlePrepared(explicitInput) {
   if (explicitInput) {
     return prepareBundle(explicitInput);
@@ -228,6 +240,7 @@ async function main() {
 
   const preparedState = ensureBundlePrepared(explicitInput);
   ensureAndroidPlatform();
+  applyAndroidOverrides();
   await applyBundledAppIcon(preparedState);
 
   if (mode === 'release') {

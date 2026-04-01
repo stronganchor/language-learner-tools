@@ -588,6 +588,150 @@
         });
     }
 
+    function bytesToBase64(bytes) {
+        if (!bytes || typeof bytes.length !== 'number') {
+            return '';
+        }
+
+        let binary = '';
+        const chunkSize = 0x2000;
+        for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+            const chunk = bytes.subarray(offset, Math.min(bytes.length, offset + chunkSize));
+            binary += String.fromCharCode.apply(null, Array.prototype.slice.call(chunk));
+        }
+
+        if (typeof root.btoa === 'function') {
+            return root.btoa(binary);
+        }
+
+        throw new Error('base64_encoding_unavailable');
+    }
+
+    function decodeAudioDataCompat(audioContext, arrayBuffer) {
+        return new Promise(function (resolve, reject) {
+            let settled = false;
+            function resolveOnce(value) {
+                if (!settled) {
+                    settled = true;
+                    resolve(value);
+                }
+            }
+            function rejectOnce(error) {
+                if (!settled) {
+                    settled = true;
+                    reject(error);
+                }
+            }
+
+            try {
+                const promise = audioContext.decodeAudioData(
+                    arrayBuffer,
+                    resolveOnce,
+                    rejectOnce
+                );
+                if (promise && typeof promise.then === 'function') {
+                    promise.then(resolveOnce).catch(rejectOnce);
+                }
+            } catch (error) {
+                rejectOnce(error);
+            }
+        });
+    }
+
+    function mixAudioBufferToMono(audioBuffer) {
+        const frameCount = Math.max(0, Number(audioBuffer && audioBuffer.length) || 0);
+        const channelCount = Math.max(1, Number(audioBuffer && audioBuffer.numberOfChannels) || 1);
+        const mono = new Float32Array(frameCount);
+        if (!frameCount) {
+            return mono;
+        }
+
+        for (let channelIndex = 0; channelIndex < channelCount; channelIndex += 1) {
+            const channelData = audioBuffer.getChannelData(channelIndex);
+            for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+                mono[frameIndex] += channelData[frameIndex] || 0;
+            }
+        }
+
+        if (channelCount > 1) {
+            for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+                mono[frameIndex] /= channelCount;
+            }
+        }
+
+        return mono;
+    }
+
+    function resampleFloat32Linear(samples, sourceSampleRate, targetSampleRate) {
+        const sourceRate = Math.max(1, Number(sourceSampleRate) || 1);
+        const targetRate = Math.max(1, Number(targetSampleRate) || 1);
+        if (!(samples instanceof Float32Array) || !samples.length || sourceRate === targetRate) {
+            return samples instanceof Float32Array ? samples : new Float32Array(0);
+        }
+
+        const targetLength = Math.max(1, Math.round(samples.length * (targetRate / sourceRate)));
+        const output = new Float32Array(targetLength);
+        const ratio = sourceRate / targetRate;
+
+        for (let index = 0; index < targetLength; index += 1) {
+            const sourcePosition = index * ratio;
+            const leftIndex = Math.floor(sourcePosition);
+            const rightIndex = Math.min(samples.length - 1, leftIndex + 1);
+            const interpolation = sourcePosition - leftIndex;
+            const leftSample = samples[leftIndex] || 0;
+            const rightSample = samples[rightIndex] || 0;
+            output[index] = (leftSample * (1 - interpolation)) + (rightSample * interpolation);
+        }
+
+        return output;
+    }
+
+    function float32ToPcm16Base64(samples) {
+        const source = samples instanceof Float32Array ? samples : new Float32Array(0);
+        const bytes = new Uint8Array(source.length * 2);
+        const view = new DataView(bytes.buffer);
+
+        for (let index = 0; index < source.length; index += 1) {
+            const value = Math.max(-1, Math.min(1, Number(source[index]) || 0));
+            const int16 = value < 0 ? Math.round(value * 0x8000) : Math.round(value * 0x7FFF);
+            view.setInt16(index * 2, int16, true);
+        }
+
+        return bytesToBase64(bytes);
+    }
+
+    function blobToPcmPayload(blob, targetSampleRate) {
+        const AudioContextCtor = root.AudioContext || root.webkitAudioContext;
+        const desiredSampleRate = Math.max(8000, Number(targetSampleRate) || 16000);
+        if (!AudioContextCtor || !blob || typeof blob.arrayBuffer !== 'function') {
+            return Promise.reject(new Error('audio_decode_unavailable'));
+        }
+
+        const audioContext = new AudioContextCtor();
+        return blob.arrayBuffer()
+            .then(function (arrayBuffer) {
+                return decodeAudioDataCompat(audioContext, arrayBuffer.slice(0));
+            })
+            .then(function (audioBuffer) {
+                const monoSamples = mixAudioBufferToMono(audioBuffer);
+                const pcmSamples = resampleFloat32Linear(monoSamples, audioBuffer.sampleRate || desiredSampleRate, desiredSampleRate);
+                return {
+                    pcm16Base64: float32ToPcm16Base64(pcmSamples),
+                    sampleRate: desiredSampleRate,
+                    channels: 1
+                };
+            })
+            .finally(function () {
+                if (audioContext && typeof audioContext.close === 'function') {
+                    try {
+                        audioContext.close();
+                    } catch (_) {
+                        // ignore
+                    }
+                }
+            });
+    }
+
     function normalizeSpeakingText(text, targetField) {
         let value = String(text || '').trim();
         if (!value) {
@@ -1013,14 +1157,22 @@
                 if (typeof runtime.isEmbeddedSttAvailable === 'function') {
                     try {
                         const result = runtime.isEmbeddedSttAvailable(model);
-                        return Promise.resolve(!!result);
+                        return Promise.resolve(result).then(function (payload) {
+                            if (payload && typeof payload === 'object' && Object.prototype.hasOwnProperty.call(payload, 'available')) {
+                                return !!payload.available;
+                            }
+                            return !!payload;
+                        }).catch(function () {
+                            return false;
+                        });
                     } catch (_) {
                         return Promise.resolve(false);
                     }
                 }
 
                 return Promise.resolve(
-                    typeof runtime.transcribe === 'function'
+                    typeof runtime.transcribePcm === 'function'
+                    || typeof runtime.transcribe === 'function'
                     || typeof runtime.transcribeSpeakingAttempt === 'function'
                     || typeof runtime.transcribeBase64 === 'function'
                 );
@@ -1032,6 +1184,17 @@
                     : {};
                 if (!runtime) {
                     return Promise.reject(new Error('embedded_stt_unavailable'));
+                }
+
+                if (typeof runtime.transcribePcm === 'function') {
+                    return blobToPcmPayload(blob, 16000).then(function (pcmPayload) {
+                        return runtime.transcribePcm({
+                            pcm16Base64: pcmPayload.pcm16Base64,
+                            sampleRate: pcmPayload.sampleRate,
+                            channels: pcmPayload.channels,
+                            model: model
+                        });
+                    });
                 }
 
                 if (typeof runtime.transcribe === 'function') {

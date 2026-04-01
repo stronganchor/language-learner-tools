@@ -182,6 +182,151 @@ function ll_tools_offline_app_rewrite_games_entry_words(array $words, array $off
     }, $words));
 }
 
+function ll_tools_offline_app_read_json_file(string $path): array {
+    $path = wp_normalize_path(trim((string) $path));
+    if ($path === '' || !is_file($path) || !is_readable($path)) {
+        return [];
+    }
+
+    $raw = file_get_contents($path);
+    if (!is_string($raw) || trim($raw) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function ll_tools_offline_app_normalize_relative_bundle_path($value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $value = str_replace('\\', '/', $value);
+    $segments = array_values(array_filter(explode('/', $value), static function ($segment): bool {
+        return $segment !== '' && $segment !== '.' && $segment !== '..';
+    }));
+
+    return implode('/', $segments);
+}
+
+function ll_tools_offline_app_normalize_stt_engine($value): string {
+    $engine = strtolower(trim((string) $value));
+    $engine = str_replace([' ', '_'], ['.', '.'], $engine);
+
+    if (in_array($engine, ['whisper.cpp', 'whispercpp', 'ggml', 'gguf'], true)) {
+        return 'whisper.cpp';
+    }
+
+    if ($engine === 'onnx') {
+        return 'onnx';
+    }
+
+    if ($engine === 'tflite') {
+        return 'tflite';
+    }
+
+    return $engine;
+}
+
+function ll_tools_offline_app_guess_stt_model_file_from_directory(string $source_path): string {
+    $source_path = wp_normalize_path(trim((string) $source_path));
+    if ($source_path === '' || !is_dir($source_path)) {
+        return '';
+    }
+
+    $candidates = [];
+    foreach (new DirectoryIterator($source_path) as $file_info) {
+        if (!$file_info->isFile()) {
+            continue;
+        }
+
+        $extension = strtolower((string) $file_info->getExtension());
+        if (!in_array($extension, ['bin', 'gguf'], true)) {
+            continue;
+        }
+
+        $candidates[] = (string) $file_info->getFilename();
+    }
+
+    if (empty($candidates)) {
+        return '';
+    }
+
+    sort($candidates, SORT_NATURAL | SORT_FLAG_CASE);
+    return ll_tools_offline_app_normalize_relative_bundle_path($candidates[0]);
+}
+
+function ll_tools_offline_app_build_stt_runtime_manifest(string $source_path, bool $is_directory): array {
+    $runtime = [
+        'engine' => '',
+        'task' => 'transcribe',
+        'language' => 'auto',
+        'model_path' => '',
+        'manifest_path' => '',
+        'manifest' => [],
+        'android_supported' => false,
+    ];
+
+    $source_path = wp_normalize_path(trim((string) $source_path));
+    if ($source_path === '') {
+        return $runtime;
+    }
+
+    if ($is_directory) {
+        $manifest_path = trailingslashit($source_path) . 'manifest.json';
+        $manifest = ll_tools_offline_app_read_json_file($manifest_path);
+        if (!empty($manifest)) {
+            $runtime['manifest'] = $manifest;
+            $runtime['manifest_path'] = 'manifest.json';
+            $runtime['engine'] = ll_tools_offline_app_normalize_stt_engine(
+                $manifest['engine']
+                ?? $manifest['runtime']
+                ?? $manifest['backend']
+                ?? $manifest['format']
+                ?? ''
+            );
+            $runtime['task'] = sanitize_key((string) ($manifest['task'] ?? $manifest['mode'] ?? 'transcribe'));
+            if (!in_array($runtime['task'], ['transcribe', 'translate'], true)) {
+                $runtime['task'] = 'transcribe';
+            }
+
+            $runtime['language'] = sanitize_text_field((string) ($manifest['language'] ?? 'auto'));
+            if ($runtime['language'] === '') {
+                $runtime['language'] = 'auto';
+            }
+
+            $runtime['model_path'] = ll_tools_offline_app_normalize_relative_bundle_path(
+                $manifest['modelPath']
+                ?? $manifest['model_path']
+                ?? $manifest['model']
+                ?? $manifest['modelFile']
+                ?? $manifest['model_file']
+                ?? $manifest['file']
+                ?? ''
+            );
+        }
+
+        if ($runtime['model_path'] === '') {
+            $runtime['model_path'] = ll_tools_offline_app_guess_stt_model_file_from_directory($source_path);
+        }
+    } else {
+        $runtime['model_path'] = ll_tools_offline_app_normalize_relative_bundle_path(wp_basename($source_path));
+    }
+
+    if ($runtime['engine'] === '' && $runtime['model_path'] !== '') {
+        $extension = strtolower((string) pathinfo($runtime['model_path'], PATHINFO_EXTENSION));
+        if (in_array($extension, ['bin', 'gguf'], true)) {
+            $runtime['engine'] = 'whisper.cpp';
+        }
+    }
+
+    $runtime['android_supported'] = ($runtime['engine'] === 'whisper.cpp' && $runtime['model_path'] !== '');
+
+    return $runtime;
+}
+
 function ll_tools_offline_app_resolve_wordset_stt_bundle(int $wordset_id, WP_Term $wordset_term) {
     $source_path = function_exists('ll_tools_get_wordset_offline_stt_bundle_path')
         ? ll_tools_get_wordset_offline_stt_bundle_path([$wordset_id], true)
@@ -210,6 +355,8 @@ function ll_tools_offline_app_resolve_wordset_stt_bundle(int $wordset_id, WP_Ter
     }
     $source_name = wp_basename($normalized_source);
     $relative_path = 'content/stt-models/' . $bundle_slug . '/' . $source_name;
+    $runtime_manifest = ll_tools_offline_app_build_stt_runtime_manifest($normalized_source, is_dir($normalized_source));
+    $android_asset_path = 'public/' . $relative_path;
     $manifest = [
         'wordsetId' => (int) $wordset_id,
         'wordsetSlug' => (string) $wordset_term->slug,
@@ -217,7 +364,29 @@ function ll_tools_offline_app_resolve_wordset_stt_bundle(int $wordset_id, WP_Ter
         'entryType' => is_dir($normalized_source) ? 'directory' : 'file',
         'bundlePath' => 'www/' . $relative_path,
         'webPath' => './' . $relative_path,
+        'androidAssetPath' => $android_asset_path,
+        'androidSupported' => !empty($runtime_manifest['android_supported']),
+        'engine' => (string) ($runtime_manifest['engine'] ?? ''),
+        'task' => (string) ($runtime_manifest['task'] ?? 'transcribe'),
+        'language' => (string) ($runtime_manifest['language'] ?? 'auto'),
     ];
+
+    if (!empty($runtime_manifest['manifest_path'])) {
+        $manifest_relative_path = trim($relative_path, '/') . '/' . ltrim((string) $runtime_manifest['manifest_path'], '/');
+        $manifest['manifestPath'] = 'www/' . $manifest_relative_path;
+        $manifest['webManifestPath'] = './' . $manifest_relative_path;
+        $manifest['androidAssetManifestPath'] = 'public/' . $manifest_relative_path;
+    }
+
+    if (!empty($runtime_manifest['model_path'])) {
+        $model_relative_path = is_dir($normalized_source)
+            ? trim($relative_path, '/') . '/' . ltrim((string) $runtime_manifest['model_path'], '/')
+            : trim($relative_path, '/');
+        $manifest['modelPath'] = (string) $runtime_manifest['model_path'];
+        $manifest['modelBundlePath'] = 'www/' . $model_relative_path;
+        $manifest['webModelPath'] = './' . $model_relative_path;
+        $manifest['androidAssetModelPath'] = 'public/' . $model_relative_path;
+    }
 
     return [
         'source_path' => $normalized_source,

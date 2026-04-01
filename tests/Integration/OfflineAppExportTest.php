@@ -343,7 +343,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $manifest_json = $zip->getFromName('bundle-manifest.json');
                 $this->assertIsString($manifest_json);
                 $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/manifest.json'));
-                $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/encoder.onnx'));
+                $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/model.bin'));
                 $this->assertStringContainsString('id="ll-offline-category-grid"', $index_html);
                 $this->assertStringContainsString('class="ll-wordset-grid"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
@@ -372,6 +372,8 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('data-mode="gender"', $index_html);
                 $this->assertStringContainsString('"speechToText"', $manifest_json);
                 $this->assertStringContainsString('"wordsetId": ' . $wordset_id, $manifest_json);
+                $this->assertStringContainsString('"androidAssetModelPath"', $offline_data);
+                $this->assertStringContainsString('"engine":"whisper.cpp"', $offline_data);
 
                 $has_image_asset = false;
                 $has_audio_asset = false;
@@ -639,8 +641,15 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         $base_dir = trailingslashit((string) ($upload_dir['basedir'] ?? ''));
         $bundle_dir = $base_dir . $prefix . '-' . wp_generate_password(6, false, false);
         $this->assertTrue(wp_mkdir_p($bundle_dir));
-        $this->assertNotFalse(file_put_contents(trailingslashit($bundle_dir) . 'manifest.json', '{"model":"offline-test","format":"embedded"}'));
-        $this->assertNotFalse(file_put_contents(trailingslashit($bundle_dir) . 'encoder.onnx', "offline-stt\n"));
+        $manifest = wp_json_encode([
+            'engine' => 'whisper.cpp',
+            'modelPath' => 'model.bin',
+            'language' => 'auto',
+            'task' => 'transcribe',
+        ]);
+        $this->assertIsString($manifest);
+        $this->assertNotFalse(file_put_contents(trailingslashit($bundle_dir) . 'manifest.json', $manifest));
+        $this->assertNotFalse(file_put_contents(trailingslashit($bundle_dir) . 'model.bin', "offline-stt\n"));
 
         return wp_normalize_path($bundle_dir);
     }

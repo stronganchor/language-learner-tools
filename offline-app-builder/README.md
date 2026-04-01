@@ -7,6 +7,7 @@ This folder turns an `LL Offline App Export` bundle into an Android APK.
 - Node.js
 - Android Studio + Android SDK
 - Java/Gradle tooling required by Capacitor
+- Android NDK + CMake (required for the packaged offline STT runtime)
 
 ## Install
 
@@ -78,9 +79,23 @@ npm run build:release -- /absolute/path/to/ll-tools-offline-app.zip
 ## Notes
 
 - The exported web app is the source of truth for the APK build. Rebuild and reinstall the APK for content updates.
+- Native Android overrides for the offline STT bridge live under `offline-app-builder/android-overrides/` and are copied into the generated Capacitor Android project during the build.
 - The builder keeps generated files out of git via `.gitignore`.
 - If you prefer Android Studio for release signing, run `npm run open:android` after preparing the bundle.
 - The offline app now carries the `Study` and `Games` views from the export bundle. `Speaking Practice` is only shown offline when the export includes a packaged STT bundle for that wordset.
-- The STT bundle must be a mobile-ready runtime bundle. A desktop Python training checkpoint by itself is not enough for Android inference.
-- The current offline web runtime expects an Android bridge exposing one of `Capacitor.Plugins.LLToolsOfflineStt.transcribe`, `transcribeSpeakingAttempt`, or `transcribeBase64`, plus optional `isEmbeddedSttAvailable`.
-- Until that Android inference bridge is present in the app build, the packaged model files are bundled correctly but the offline speaking game will stay unavailable on-device.
+- Android offline STT now uses a bundled native `whisper.cpp` runtime exposed through `Capacitor.Plugins.LLToolsOfflineStt`.
+- The STT bundle must be a mobile-ready `whisper.cpp` bundle. A desktop Python training checkpoint by itself is not enough for Android inference.
+- The simplest supported bundle is either:
+  - a single `.bin` or `.gguf` Whisper model file, or
+  - a directory with a `manifest.json` like:
+
+```json
+{
+  "engine": "whisper.cpp",
+  "modelPath": "model.bin",
+  "language": "auto",
+  "task": "transcribe"
+}
+```
+
+- The runtime currently expects 16kHz mono PCM from the offline web app and resolves the model from the exported `embedded_model` metadata.
