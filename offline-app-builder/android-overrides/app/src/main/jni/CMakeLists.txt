@@ -37,7 +37,12 @@ add_library(
 find_library(ANDROID_LIB android)
 find_library(LOG_LIB log)
 
-target_compile_definitions(lltools_whisper PRIVATE GGML_USE_CPU)
+target_compile_definitions(
+    lltools_whisper
+    PRIVATE
+    GGML_USE_CPU
+    WHISPER_VERSION="android-bundled"
+)
 
 target_include_directories(
     lltools_whisper
