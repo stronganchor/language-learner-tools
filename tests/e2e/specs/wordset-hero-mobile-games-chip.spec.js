@@ -91,24 +91,34 @@ function buildMarkup({
           <h1 class="ll-wordset-title">Test Wordset</h1>
         </div>
         <div class="ll-wordset-hero__tools">
-          <a
-            class="ll-wordset-link-chip ll-wordset-link-chip--hidden"
-            data-ll-wordset-hidden-link
-            href="#"
-            aria-label="Hidden categories: 0"
-            hidden
-          >
-            <span class="ll-wordset-link-chip__icon" aria-hidden="true"></span>
-            <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count>0</span>
-          </a>
-          <a
-            class="ll-wordset-link-chip ll-wordset-link-chip--games"
-            href="#"
-            aria-label="Open games"
-          >
-            <span class="ll-wordset-link-chip__icon" aria-hidden="true"></span>
-            <span class="ll-wordset-link-chip__label">Games</span>
-          </a>
+          <div class="ll-wordset-hero__action-links">
+            <a
+              class="ll-wordset-link-chip ll-wordset-link-chip--hidden"
+              data-ll-wordset-hidden-link
+              href="#hidden"
+              aria-label="Hidden categories: 0"
+              hidden
+            >
+              <span class="ll-wordset-link-chip__icon" aria-hidden="true"></span>
+              <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count>0</span>
+            </a>
+            <a
+              class="ll-wordset-link-chip ll-wordset-link-chip--games"
+              href="#games"
+              aria-label="Open games"
+            >
+              <span class="ll-wordset-link-chip__icon" aria-hidden="true"></span>
+              <span class="ll-wordset-link-chip__label">Games</span>
+            </a>
+            <a class="ll-wordset-settings-link ll-tools-settings-button" href="#settings" aria-label="Word set tools">
+              <span class="mode-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+            </a>
+          </div>
           <a
             class="ll-wordset-progress-mini${summaryCountsDeferred ? ' is-loading' : ''}"
             data-ll-wordset-progress-mini-root
@@ -388,10 +398,24 @@ async function measureHeroTools(page) {
       };
     };
 
+    const readAnchorHref = (selector) => {
+      const el = document.querySelector(selector);
+      if (!el) {
+        return null;
+      }
+      const rect = el.getBoundingClientRect();
+      const target = document.elementFromPoint(rect.left + (rect.width / 2), rect.top + (rect.height / 2));
+      const anchor = target ? target.closest('a') : null;
+      return anchor ? anchor.getAttribute('href') : null;
+    };
+
     return {
       toolsDisplay: window.getComputedStyle(document.querySelector('.ll-wordset-hero__tools')).display,
       games: readRect('.ll-wordset-link-chip--games'),
-      progress: readRect('[data-ll-wordset-progress-mini-root]')
+      settings: readRect('.ll-wordset-settings-link'),
+      progress: readRect('[data-ll-wordset-progress-mini-root]'),
+      gamesHref: readAnchorHref('.ll-wordset-link-chip--games'),
+      settingsHref: readAnchorHref('.ll-wordset-settings-link')
     };
   });
 }
@@ -405,10 +429,15 @@ test('mobile hero keeps the games chip anchored while progress metrics hydrate',
 
   const initial = await measureHeroTools(page);
 
-  expect(initial.toolsDisplay).toBe('grid');
+  expect(initial.toolsDisplay).toBe('flex');
   expect(initial.games).not.toBeNull();
+  expect(initial.settings).not.toBeNull();
   expect(initial.progress).not.toBeNull();
   expect(initial.progress.top - initial.games.top).toBeGreaterThan(30);
+  expect(initial.settings.top).toBe(initial.games.top);
+  expect(initial.settings.left - initial.games.right).toBeGreaterThanOrEqual(8);
+  expect(initial.gamesHref).toBe('#games');
+  expect(initial.settingsHref).toBe('#settings');
 
   await page.evaluate((payload) => {
     window.__resolveAnalyticsRequest(0, payload);
@@ -422,6 +451,10 @@ test('mobile hero keeps the games chip anchored while progress metrics hydrate',
   expect(duringAnimation.progress.top - duringAnimation.games.top).toBeGreaterThan(30);
   expect(Math.abs(duringAnimation.games.top - initial.games.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(duringAnimation.games.left - initial.games.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(duringAnimation.settings.top - initial.settings.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(duringAnimation.settings.left - initial.settings.left)).toBeLessThanOrEqual(1);
+  expect(duringAnimation.gamesHref).toBe('#games');
+  expect(duringAnimation.settingsHref).toBe('#settings');
 
   await page.waitForTimeout(1400);
   const settled = await measureHeroTools(page);
@@ -429,4 +462,8 @@ test('mobile hero keeps the games chip anchored while progress metrics hydrate',
   expect(settled.progress.top - settled.games.top).toBeGreaterThan(30);
   expect(Math.abs(settled.games.top - initial.games.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.games.left - initial.games.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(settled.settings.top - initial.settings.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(settled.settings.left - initial.settings.left)).toBeLessThanOrEqual(1);
+  expect(settled.gamesHref).toBe('#games');
+  expect(settled.settingsHref).toBe('#settings');
 });

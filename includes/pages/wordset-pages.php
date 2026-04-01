@@ -5452,26 +5452,65 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         <h1 class="ll-wordset-title"><?php echo esc_html($wordset_term->name); ?></h1>
                     </div>
                     <div class="ll-wordset-hero__tools">
-                        <a
-                            class="ll-wordset-link-chip ll-wordset-link-chip--hidden"
-                            data-ll-wordset-hidden-link
-                            href="<?php echo esc_url($hidden_categories_url); ?>"
-                            aria-label="<?php echo esc_attr(sprintf(__('Hidden categories: %d', 'll-tools-text-domain'), $hidden_category_count)); ?>"
-                            <?php if ($hidden_category_count < 1) : ?>hidden<?php endif; ?>>
-                            <span class="ll-wordset-link-chip__icon" aria-hidden="true">
-                                <?php echo ll_tools_wordset_page_render_hide_icon('ll-wordset-hidden-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                            </span>
-                            <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count><?php echo (int) $hidden_category_count; ?></span>
-                        </a>
-                        <a
-                            class="ll-wordset-link-chip ll-wordset-link-chip--games"
-                            href="<?php echo esc_url($games_url); ?>"
-                            aria-label="<?php echo esc_attr__('Open games', 'll-tools-text-domain'); ?>">
-                            <span class="ll-wordset-link-chip__icon" aria-hidden="true">
-                                <?php echo function_exists('ll_tools_wordset_games_render_page_icon') ? ll_tools_wordset_games_render_page_icon('ll-wordset-games-link-icon') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                            </span>
-                            <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
-                        </a>
+                        <div class="ll-wordset-hero__action-links">
+                            <a
+                                class="ll-wordset-link-chip ll-wordset-link-chip--hidden"
+                                data-ll-wordset-hidden-link
+                                href="<?php echo esc_url($hidden_categories_url); ?>"
+                                aria-label="<?php echo esc_attr(sprintf(__('Hidden categories: %d', 'll-tools-text-domain'), $hidden_category_count)); ?>"
+                                <?php if ($hidden_category_count < 1) : ?>hidden<?php endif; ?>>
+                                <span class="ll-wordset-link-chip__icon" aria-hidden="true">
+                                    <?php echo ll_tools_wordset_page_render_hide_icon('ll-wordset-hidden-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                </span>
+                                <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count><?php echo (int) $hidden_category_count; ?></span>
+                            </a>
+                            <a
+                                class="ll-wordset-link-chip ll-wordset-link-chip--games"
+                                href="<?php echo esc_url($games_url); ?>"
+                                aria-label="<?php echo esc_attr__('Open games', 'll-tools-text-domain'); ?>">
+                                <span class="ll-wordset-link-chip__icon" aria-hidden="true">
+                                    <?php echo function_exists('ll_tools_wordset_games_render_page_icon') ? ll_tools_wordset_games_render_page_icon('ll-wordset-games-link-icon') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                </span>
+                                <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
+                            </a>
+                            <?php if ($show_plugin_update_link) : ?>
+                                <a
+                                    class="ll-wordset-link-chip ll-wordset-update-link"
+                                    href="<?php echo esc_url($plugin_update_url); ?>"
+                                    aria-label="<?php echo esc_attr(sprintf(__('Update Language Learner Tools to version %s', 'll-tools-text-domain'), $plugin_update_version)); ?>">
+                                    <span class="ll-wordset-update-link__dot" aria-hidden="true"></span>
+                                    <span class="ll-wordset-update-link__label">
+                                        <?php echo esc_html(sprintf(__('Update to %s', 'll-tools-text-domain'), $plugin_update_version)); ?>
+                                    </span>
+                                </a>
+                            <?php elseif ($show_plugin_up_to_date_hero_flash) : ?>
+                                <span
+                                    class="ll-wordset-link-chip ll-wordset-check-updates-link ll-wordset-check-updates-link--success"
+                                    role="status"
+                                    aria-label="<?php echo esc_attr__('Plugin is up to date', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-wordset-check-updates-link__check" aria-hidden="true">
+                                        <svg viewBox="0 0 16 16" width="10" height="10" focusable="false" aria-hidden="true">
+                                            <path d="M3.5 8.25 6.4 11.1 12.5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+                                        </svg>
+                                    </span>
+                                    <span class="ll-wordset-check-updates-link__label">
+                                        <?php echo esc_html__('Up to date', 'll-tools-text-domain'); ?>
+                                    </span>
+                                </span>
+                            <?php elseif ($show_plugin_update_check_link) : ?>
+                                <?php /* Moved to the shared top user menu (admin only). */ ?>
+                            <?php endif; ?>
+                            <?php if ($is_study_user) : ?>
+                                <a class="ll-wordset-settings-link ll-tools-settings-button" href="<?php echo esc_url($settings_url); ?>" aria-label="<?php echo esc_attr__('Word set tools', 'll-tools-text-domain'); ?>">
+                                    <span class="mode-icon" aria-hidden="true">
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </span>
+                                </a>
+                            <?php endif; ?>
+                        </div>
                         <a
                             class="ll-wordset-progress-mini<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>"
                             data-ll-wordset-progress-mini-root
@@ -5499,43 +5538,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 <span class="ll-wordset-progress-pill__value" data-ll-progress-mini-hard><?php echo (int) $summary_counts['hard']; ?></span>
                             </span>
                         </a>
-                        <?php if ($show_plugin_update_link) : ?>
-                            <a
-                                class="ll-wordset-link-chip ll-wordset-update-link"
-                                href="<?php echo esc_url($plugin_update_url); ?>"
-                                aria-label="<?php echo esc_attr(sprintf(__('Update Language Learner Tools to version %s', 'll-tools-text-domain'), $plugin_update_version)); ?>">
-                                <span class="ll-wordset-update-link__dot" aria-hidden="true"></span>
-                                <span class="ll-wordset-update-link__label">
-                                    <?php echo esc_html(sprintf(__('Update to %s', 'll-tools-text-domain'), $plugin_update_version)); ?>
-                                </span>
-                            </a>
-                        <?php elseif ($show_plugin_up_to_date_hero_flash) : ?>
-                            <span
-                                class="ll-wordset-link-chip ll-wordset-check-updates-link ll-wordset-check-updates-link--success"
-                                role="status"
-                                aria-label="<?php echo esc_attr__('Plugin is up to date', 'll-tools-text-domain'); ?>">
-                                <span class="ll-wordset-check-updates-link__check" aria-hidden="true">
-                                    <svg viewBox="0 0 16 16" width="10" height="10" focusable="false" aria-hidden="true">
-                                        <path d="M3.5 8.25 6.4 11.1 12.5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
-                                    </svg>
-                                </span>
-                                <span class="ll-wordset-check-updates-link__label">
-                                    <?php echo esc_html__('Up to date', 'll-tools-text-domain'); ?>
-                                </span>
-                            </span>
-                        <?php elseif ($show_plugin_update_check_link) : ?>
-                            <?php /* Moved to the shared top user menu (admin only). */ ?>
-                        <?php endif; ?>
-                        <?php if ($is_study_user) : ?>
-                            <a class="ll-wordset-settings-link ll-tools-settings-button" href="<?php echo esc_url($settings_url); ?>" aria-label="<?php echo esc_attr__('Word set tools', 'll-tools-text-domain'); ?>">
-                                <span class="mode-icon" aria-hidden="true">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    </svg>
-                                </span>
-                            </a>
-                        <?php endif; ?>
                     </div>
                 </header>
             <?php endif; ?>

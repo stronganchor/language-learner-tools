@@ -52,6 +52,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         set_query_var('ll_wordset_view', '');
         $mainHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $this->assertStringContainsString('ll-wordset-hero__action-links', $mainHtml);
         $this->assertStringContainsString('ll-wordset-link-chip--games', $mainHtml);
         $this->assertStringContainsString('ll_wordset_view=games', $mainHtml);
 

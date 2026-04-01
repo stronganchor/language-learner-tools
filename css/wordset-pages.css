@@ -413,6 +413,20 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     padding-right: var(--ll-wordset-grid-right-offset, 0px);
 }
 
+.ll-wordset-hero__action-links {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.ll-wordset-hero__action-links:empty {
+    display: none;
+}
+
 @media (max-width: 800px) {
     .ll-wordset-utility-bar {
         align-items: stretch;
@@ -1599,6 +1613,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-page.ll-wordset-page--single-category .ll-wordset-hero__tools {
     width: 100%;
+    justify-content: flex-start;
+}
+
+.ll-wordset-page.ll-wordset-page--single-category .ll-wordset-hero__action-links {
     justify-content: flex-start;
 }
 
@@ -5743,6 +5761,16 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-hero__tools {
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+        align-items: start;
+        width: 100%;
+        gap: 10px;
+        padding-right: 0;
+    }
+
+    .ll-wordset-hero__action-links {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, max-content));
         justify-content: start;
@@ -5750,21 +5778,14 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         width: 100%;
         row-gap: 10px;
         column-gap: 8px;
-        padding-right: 0;
     }
 
-    .ll-wordset-hero__tools .ll-wordset-link-chip--games {
+    .ll-wordset-hero__action-links .ll-wordset-link-chip--games {
         order: -2;
     }
 
-    .ll-wordset-hero__tools .ll-wordset-link-chip--hidden {
+    .ll-wordset-hero__action-links .ll-wordset-link-chip--hidden {
         order: -1;
-    }
-
-    .ll-wordset-hero__tools .ll-wordset-progress-mini {
-        order: 99;
-        grid-column: 1 / -1;
-        justify-self: start;
     }
 
     .ll-wordset-progress-mini {
