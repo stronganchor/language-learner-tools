@@ -467,6 +467,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-decoration: none !important;
     font-weight: 600;
     font-size: 13px;
+    touch-action: manipulation;
 }
 
 .ll-wordset-link-chip__icon {
@@ -2198,6 +2199,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     z-index: 2 !important;
     pointer-events: auto !important;
     transform: none !important;
+    touch-action: manipulation !important;
 }
 
 .ll-wordset-settings-link.ll-tools-settings-button:hover,
@@ -5772,7 +5774,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-hero__action-links {
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, max-content));
+        grid-template-columns: minmax(0, 1fr) auto;
         justify-content: start;
         align-items: start;
         width: 100%;
@@ -5781,11 +5783,36 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-hero__action-links .ll-wordset-link-chip--games {
-        order: -2;
+        order: -3;
+        grid-column: 1 / -1;
+        justify-content: center;
+        width: 100%;
+        min-height: 44px;
+        height: 44px;
     }
 
     .ll-wordset-hero__action-links .ll-wordset-link-chip--hidden {
+        order: -2;
+        min-height: 44px;
+        height: 44px;
+    }
+
+    .ll-wordset-hero__action-links .ll-wordset-settings-link.ll-tools-settings-button {
         order: -1;
+        grid-column: 2;
+        justify-self: end;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        flex: 0 0 44px !important;
+    }
+
+    .ll-wordset-hero__action-links .ll-wordset-update-link,
+    .ll-wordset-hero__action-links .ll-wordset-check-updates-link {
+        grid-column: 1 / -1;
+        min-height: 44px;
+        height: 44px;
     }
 
     .ll-wordset-progress-mini {
