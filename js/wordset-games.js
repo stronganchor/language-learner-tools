@@ -204,6 +204,95 @@
             .replace(/'/g, '&#39;');
     }
 
+    function getCatalogCardIconMarkup(slug) {
+        const normalizedSlug = normalizeGameSlug(slug);
+        if (normalizedSlug === BUBBLE_POP_GAME_SLUG) {
+            return '' +
+                '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
+                    '<circle cx="10.8" cy="12" r="5.8" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.5"></circle>' +
+                    '<circle cx="8.8" cy="9.9" r="1.4" fill="currentColor" fill-opacity="0.72"></circle>' +
+                    '<circle cx="17.2" cy="7" r="2.6" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.3"></circle>' +
+                    '<circle cx="16.1" cy="6.1" r="0.8" fill="currentColor" fill-opacity="0.64"></circle>' +
+                    '<circle cx="6.5" cy="6.4" r="1.8" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.1"></circle>' +
+                '</svg>';
+        }
+        if (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
+            return '' +
+                '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
+                    '<path d="M12 3.5c-1.93 0-3.5 1.57-3.5 3.5v4.15c0 1.93 1.57 3.5 3.5 3.5s3.5-1.57 3.5-3.5V7c0-1.93-1.57-3.5-3.5-3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path>' +
+                    '<path d="M8.4 11.3c0 1.96 1.64 3.55 3.6 3.55s3.6-1.59 3.6-3.55" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
+                    '<path d="M12 15.1v3.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
+                    '<path d="M9.1 18.5h5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
+                '</svg>';
+        }
+
+        return '' +
+            '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
+                '<path d="M12 3.2L17.95 17.9L12 14.65L6.05 17.9L12 3.2Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>' +
+                '<path d="M12 6.55L14.15 11.9H9.85L12 6.55Z" fill="currentColor"></path>' +
+                '<path d="M9.65 15.1C9.86 16.44 10.74 17.45 12 17.45C13.26 17.45 14.14 16.44 14.35 15.1H9.65Z" fill="currentColor"></path>' +
+                '<path d="M9.25 14.1H14.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
+                '<path d="M8.15 18.05L6.35 20.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
+                '<path d="M15.85 18.05L17.65 20.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
+            '</svg>';
+    }
+
+    function buildCatalogCardMarkup(slug, entry, cfg) {
+        const normalizedSlug = normalizeGameSlug(slug);
+        const data = (entry && typeof entry === 'object') ? entry : {};
+        const options = (cfg && typeof cfg === 'object') ? cfg : {};
+        const hiddenAttr = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG ? ' hidden' : '';
+        const title = escapeHtml(String(data.title || ''));
+        const description = escapeHtml(String(data.description || ''));
+        const statusText = escapeHtml(String(options.statusText || ''));
+        const buttonText = escapeHtml(String(options.buttonText || ''));
+        const countLabel = escapeHtml(String(options.countLabel || 'Eligible words'));
+
+        return '' +
+            '<article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="' + escapeHtml(normalizedSlug) + '"' + hiddenAttr + '>' +
+                '<div class="ll-wordset-game-card__icon" aria-hidden="true">' +
+                    getCatalogCardIconMarkup(normalizedSlug) +
+                '</div>' +
+                '<div class="ll-wordset-game-card__body">' +
+                    '<h2 class="ll-wordset-game-card__title">' + title + '</h2>' +
+                    '<p class="ll-wordset-game-card__description">' + description + '</p>' +
+                    '<p class="ll-wordset-game-card__status" data-ll-wordset-game-status>' + statusText + '</p>' +
+                '</div>' +
+                '<div class="ll-wordset-game-card__actions">' +
+                    '<span class="ll-wordset-game-card__count" data-ll-wordset-game-count aria-label="' + countLabel + '">&#8212;</span>' +
+                    '<button type="button" class="ll-wordset-game-card__launch" data-ll-wordset-game-launch disabled>' + buttonText + '</button>' +
+                '</div>' +
+            '</article>';
+    }
+
+    function ensureCatalogCardsExist($gamesRoot, gamesCfg, options) {
+        const $catalog = $gamesRoot.find('[data-ll-wordset-games-catalog]').first();
+        if (!$catalog.length) {
+            return;
+        }
+
+        const catalog = (gamesCfg && gamesCfg.catalog && typeof gamesCfg.catalog === 'object')
+            ? gamesCfg.catalog
+            : {};
+        const existing = {};
+        $catalog.find('[data-ll-wordset-game-card]').each(function () {
+            const slug = normalizeGameSlug($(this).attr('data-game-slug') || '');
+            if (slug) {
+                existing[slug] = true;
+            }
+        });
+
+        Object.keys(catalog).forEach(function (slug) {
+            const normalizedSlug = normalizeGameSlug(slug);
+            if (!normalizedSlug || existing[normalizedSlug]) {
+                return;
+            }
+
+            $catalog.append(buildCatalogCardMarkup(normalizedSlug, catalog[slug], options));
+            existing[normalizedSlug] = true;
+        });
+    }
+
     function segmentDiffGraphemes(text) {
         const source = String(text || '');
         if (source === '') {
@@ -6360,6 +6449,15 @@
             : {};
         const runtimeMode = String(cfg.runtimeMode || gamesCfg.runtimeMode || '').trim().toLowerCase();
         const offlineMode = runtimeMode === 'offline';
+        ensureCatalogCardsExist($gamesRoot, gamesCfg, {
+            statusText: (cfg.isLoggedIn || offlineMode)
+                ? String(((cfg.i18n && cfg.i18n.gamesLoading) || 'Checking game availability...'))
+                : String(((cfg.i18n && cfg.i18n.gamesLoginRequired) || 'Sign in to play with your in-progress words.')),
+            buttonText: (cfg.isLoggedIn || offlineMode)
+                ? String(((cfg.i18n && cfg.i18n.gamesPlay) || 'Play'))
+                : String(((cfg.i18n && cfg.i18n.gamesLocked) || 'Locked')),
+            countLabel: String(((cfg.i18n && cfg.i18n.gamesEligibleWords) || 'Eligible words'))
+        });
         const catalogCards = {};
         const catalogOrder = [];
         const $allCards = $gamesRoot.find('[data-ll-wordset-game-card]');

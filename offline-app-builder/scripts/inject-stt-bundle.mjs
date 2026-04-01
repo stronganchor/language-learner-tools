@@ -7,6 +7,7 @@ import { prepareBundle } from './prepare-bundle.mjs';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const ROOT_DIR = path.resolve(path.dirname(SCRIPT_PATH), '..');
+const PLUGIN_ROOT_DIR = path.resolve(ROOT_DIR, '..');
 const WORKSPACE_DIR = path.join(ROOT_DIR, 'workspace');
 const BUNDLE_DIR = path.join(WORKSPACE_DIR, 'bundle');
 const STATE_PATH = path.join(WORKSPACE_DIR, 'bundle-state.json');
@@ -623,6 +624,22 @@ function defaultOutputZip(bundleInputPath) {
   return path.join(parsed.dir, `${parsed.name}-with-stt.zip`);
 }
 
+function syncPluginAssetIntoPreparedBundle(sourceRelativePath, bundleRelativePath) {
+  const sourcePath = path.join(PLUGIN_ROOT_DIR, sourceRelativePath);
+  const targetPath = path.join(BUNDLE_DIR, bundleRelativePath);
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  fs.ensureDirSync(path.dirname(targetPath));
+  fs.copyFileSync(sourcePath, targetPath);
+}
+
+function syncCurrentPluginAssetsIntoPreparedBundle() {
+  syncPluginAssetIntoPreparedBundle(path.join('js', 'wordset-games.js'), path.join('www', 'plugin', 'js', 'wordset-games.js'));
+  syncPluginAssetIntoPreparedBundle(path.join('css', 'wordset-games.css'), path.join('www', 'plugin', 'css', 'wordset-games.css'));
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const bundleInputPath = resolveExistingPath(args.bundle);
@@ -653,6 +670,7 @@ function main() {
   updatePreparedBundle(bundleManifest, offlineData, embeddedModelManifest, speakingWords);
   writeJsonFile(bundleManifestPath, bundleManifest);
   writeOfflineData(offlineDataPath, offlineData);
+  syncCurrentPluginAssetsIntoPreparedBundle();
 
   const state = {
     preparedAt: new Date().toISOString(),
