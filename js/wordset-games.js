@@ -22,6 +22,7 @@
     const BUBBLE_RELEASE_MAX_SPEED = 116;
     const BUBBLE_CORRECT_RELEASE_MAX_SPEED = 1040;
     const BUBBLE_DECORATIVE_MAX_SPEED = 52;
+    const matcherWindowCache = {};
     const gameInteractionGuard = {
         active: false,
         historyActive: false,
@@ -6433,12 +6434,15 @@
         return String(provider || '') === 'audio_matcher';
     }
 
-    function speakingScoreBucket(score) {
+    function speakingScoreBucket(score, provider) {
         const normalized = clamp(Number(score) || 0, 0, 100);
-        if (normalized >= 90) {
+        const isMatcher = isAudioMatcherProvider(provider);
+        const rightThreshold = isMatcher ? 78 : 90;
+        const closeThreshold = isMatcher ? 52 : 65;
+        if (normalized >= rightThreshold) {
             return 'right';
         }
-        if (normalized >= 65) {
+        if (normalized >= closeThreshold) {
             return 'close';
         }
         return 'wrong';
@@ -6697,6 +6701,125 @@
         return total / Math.max(1, length);
     }
 
+    function getMatcherWindow(size) {
+        const key = Math.max(1, toInt(size));
+        if (matcherWindowCache[key]) {
+            return matcherWindowCache[key];
+        }
+
+        const windowValues = new Float32Array(key);
+        for (let index = 0; index < key; index += 1) {
+            windowValues[index] = 0.5 - (0.5 * Math.cos((2 * Math.PI * index) / Math.max(1, key - 1)));
+        }
+        matcherWindowCache[key] = windowValues;
+        return windowValues;
+    }
+
+    function buildSpectralProfile(samples, sampleRate, frameSize, hopSize, bandCount) {
+        if (!(samples instanceof Float32Array) || samples.length < frameSize) {
+            return null;
+        }
+
+        const fftSize = Math.max(64, toInt(frameSize));
+        const hop = Math.max(32, toInt(hopSize));
+        const bands = Math.max(4, toInt(bandCount));
+        const windowValues = getMatcherWindow(fftSize);
+        const halfBins = Math.floor(fftSize / 2);
+        const bandFrames = [];
+        const centroidFrames = [];
+        const rolloffFrames = [];
+
+        for (let frameStart = 0; frameStart + fftSize <= samples.length; frameStart += hop) {
+            const windowed = new Float32Array(fftSize);
+            for (let index = 0; index < fftSize; index += 1) {
+                windowed[index] = (samples[frameStart + index] || 0) * windowValues[index];
+            }
+
+            const magnitudes = new Array(halfBins).fill(0);
+            let totalMagnitude = 0;
+            for (let bin = 0; bin < halfBins; bin += 1) {
+                let real = 0;
+                let imag = 0;
+                const angularStep = (2 * Math.PI * bin) / fftSize;
+                for (let sampleIndex = 0; sampleIndex < fftSize; sampleIndex += 1) {
+                    const phase = angularStep * sampleIndex;
+                    const sample = windowed[sampleIndex] || 0;
+                    real += sample * Math.cos(phase);
+                    imag -= sample * Math.sin(phase);
+                }
+                const magnitude = Math.sqrt((real * real) + (imag * imag));
+                magnitudes[bin] = magnitude;
+                totalMagnitude += magnitude;
+            }
+
+            if (totalMagnitude <= 1e-6) {
+                continue;
+            }
+
+            const bandEnergies = new Array(bands).fill(0);
+            let centroidNumerator = 0;
+            let cumulativeMagnitude = 0;
+            let rolloffFrequency = 0;
+            const rolloffTarget = totalMagnitude * 0.85;
+            for (let bin = 0; bin < halfBins; bin += 1) {
+                const magnitude = magnitudes[bin];
+                const normalizedBin = bin / Math.max(1, halfBins - 1);
+                const bandIndex = Math.min(
+                    bands - 1,
+                    Math.floor(Math.pow(normalizedBin, 0.7) * bands)
+                );
+                const safeBandIndex = isFinite(bandIndex) ? Math.max(0, bandIndex) : 0;
+                bandEnergies[safeBandIndex] += magnitude;
+                centroidNumerator += normalizedBin * magnitude;
+                cumulativeMagnitude += magnitude;
+                if (!rolloffFrequency && cumulativeMagnitude >= rolloffTarget) {
+                    rolloffFrequency = normalizedBin;
+                }
+            }
+
+            const loggedBands = bandEnergies.map(function (value) {
+                return Math.log(1 + Math.max(0, value));
+            });
+            const bandTotal = loggedBands.reduce(function (sum, value) {
+                return sum + value;
+            }, 0);
+            const normalizedBands = bandTotal > 0
+                ? loggedBands.map(function (value) {
+                    return value / bandTotal;
+                })
+                : loggedBands.map(function () {
+                    return 0;
+                });
+
+            bandFrames.push(normalizedBands);
+            centroidFrames.push(centroidNumerator / totalMagnitude);
+            rolloffFrames.push(rolloffFrequency || 0);
+        }
+
+        if (!bandFrames.length) {
+            return null;
+        }
+
+        const resampledFrameCount = 40;
+        const flattenedBands = [];
+        for (let bandIndex = 0; bandIndex < bands; bandIndex += 1) {
+            const series = bandFrames.map(function (frame) {
+                return Number(frame[bandIndex]) || 0;
+            });
+            const normalizedSeries = normalizeSeriesToUnit(series);
+            const resampled = resampleSeries(normalizedSeries, resampledFrameCount);
+            for (let sampleIndex = 0; sampleIndex < resampled.length; sampleIndex += 1) {
+                flattenedBands.push(Number(resampled[sampleIndex]) || 0);
+            }
+        }
+
+        return {
+            bands: flattenedBands,
+            centroid: resampleSeries(normalizeSeriesToUnit(centroidFrames), resampledFrameCount),
+            rolloff: resampleSeries(normalizeSeriesToUnit(rolloffFrames), resampledFrameCount)
+        };
+    }
+
     function extractMatcherFeatures(samples, sampleRate) {
         const trimmed = trimMatcherSilence(samples, sampleRate);
         if (!(trimmed instanceof Float32Array) || trimmed.length <= 0) {
@@ -6740,6 +6863,13 @@
         const envelope = resampleSeries(normalizeSeriesToUnit(envelopeFrames), 96);
         const zcr = resampleSeries(normalizeSeriesToUnit(zcrFrames), 96);
         const waveform = resampleSeries(Array.from(normalized), 512);
+        const spectral = buildSpectralProfile(
+            normalized,
+            effectiveSampleRate,
+            Math.max(96, Math.round(effectiveSampleRate * 0.016)),
+            Math.max(48, Math.round(effectiveSampleRate * 0.008)),
+            8
+        );
         const absoluteEnergy = normalized.reduce(function (sum, value) {
             return sum + Math.abs(value || 0);
         }, 0) / Math.max(1, normalized.length);
@@ -6749,6 +6879,9 @@
             envelope: envelope,
             zcr: zcr,
             waveform: waveform,
+            spectralBands: spectral ? spectral.bands : [],
+            spectralCentroid: spectral ? spectral.centroid : [],
+            spectralRolloff: spectral ? spectral.rolloff : [],
             absoluteEnergy: absoluteEnergy
         };
     }
@@ -6769,20 +6902,38 @@
         const waveformCosine = (cosineSimilarity(leftFeatures.waveform, rightFeatures.waveform) + 1) * 0.5;
         const waveformMae = 1 - (meanAbsoluteDifference(leftFeatures.waveform, rightFeatures.waveform) * 0.5);
         const zcrCosine = (cosineSimilarity(leftFeatures.zcr, rightFeatures.zcr) + 1) * 0.5;
+        const spectralBandCosine = (cosineSimilarity(leftFeatures.spectralBands, rightFeatures.spectralBands) + 1) * 0.5;
+        const spectralBandMae = 1 - meanAbsoluteDifference(leftFeatures.spectralBands, rightFeatures.spectralBands);
+        const spectralCentroidScore = 1 - meanAbsoluteDifference(leftFeatures.spectralCentroid, rightFeatures.spectralCentroid);
+        const spectralRolloffScore = 1 - meanAbsoluteDifference(leftFeatures.spectralRolloff, rightFeatures.spectralRolloff);
 
         const envelopeScore = clamp((envelopeCosine * 0.6) + (clamp(envelopeMae, 0, 1) * 0.4), 0, 1);
         const waveformScore = clamp((waveformCosine * 0.5) + (clamp(waveformMae, 0, 1) * 0.5), 0, 1);
         const zcrScore = clamp(zcrCosine, 0, 1);
-
-        const blended = (
-            (envelopeScore * 0.45)
-            + (waveformScore * 0.25)
-            + (zcrScore * 0.14)
-            + (clamp(durationRatio, 0, 1) * 0.10)
-            + (clamp(energyRatio, 0, 1) * 0.06)
+        const spectralBandScore = clamp((spectralBandCosine * 0.62) + (clamp(spectralBandMae, 0, 1) * 0.38), 0, 1);
+        const spectralShapeScore = clamp(
+            (spectralBandScore * 0.7)
+            + (clamp(spectralCentroidScore, 0, 1) * 0.18)
+            + (clamp(spectralRolloffScore, 0, 1) * 0.12),
+            0,
+            1
         );
 
-        return Math.round(clamp(blended, 0, 1) * 10000) / 100;
+        const baseScore = (
+            (envelopeScore * 0.24)
+            + (waveformScore * 0.14)
+            + (zcrScore * 0.08)
+            + (spectralShapeScore * 0.42)
+            + (clamp(durationRatio, 0, 1) * 0.07)
+            + (clamp(energyRatio, 0, 1) * 0.05)
+        ) * 100;
+
+        const durationPenalty = Math.pow(1 - clamp(durationRatio, 0, 1), 1.18) * 42;
+        const spectralPenalty = Math.pow(1 - spectralShapeScore, 1.24) * 22;
+        const envelopePenalty = Math.pow(1 - envelopeScore, 1.1) * 8;
+        const calibrated = clamp(baseScore - durationPenalty - spectralPenalty - envelopePenalty, 0, 100);
+
+        return Math.round(calibrated * 100) / 100;
     }
 
     function loadSourceArrayBuffer(source, options) {
@@ -6892,7 +7043,7 @@
 
     function buildAudioMatcherResult(ctx, run, word, score, transcriptText) {
         const roundedScore = Math.round(clamp(Number(score) || 0, 0, 100) * 100) / 100;
-        const bucket = speakingScoreBucket(roundedScore);
+        const bucket = speakingScoreBucket(roundedScore, String(run && run.provider || ''));
         const displayData = getWordSpeakingDisplayData(word, run);
         const transcript = String(transcriptText || '').trim();
 
