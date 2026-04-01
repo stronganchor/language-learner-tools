@@ -973,19 +973,19 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-game-card[data-game-slug="speaking-stack"] .ll-wordset-game-card__icon {
-    background: linear-gradient(180deg, #14b8a6 0%, #0f766e 100%);
-    color: #ecfeff;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 14px 24px rgba(15, 118, 110, 0.24);
+    background: linear-gradient(180deg, #83c643 0%, #4c8e28 100%);
+    color: #f7fde8;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 14px 24px rgba(76, 142, 40, 0.24);
 }
 
 .ll-wordset-game-card[data-game-slug="speaking-stack"] .ll-wordset-game-card__launch {
-    background: linear-gradient(180deg, #14b8a6 0%, #0f766e 100%);
-    box-shadow: 0 12px 20px rgba(15, 118, 110, 0.24);
+    background: linear-gradient(180deg, #83c643 0%, #4c8e28 100%);
+    box-shadow: 0 12px 20px rgba(76, 142, 40, 0.24);
 }
 
 .ll-wordset-game-card[data-game-slug="speaking-stack"] .ll-wordset-game-card__launch:hover,
 .ll-wordset-game-card[data-game-slug="speaking-stack"] .ll-wordset-game-card__launch:focus-visible {
-    background: linear-gradient(180deg, #1fc9b6 0%, #115e59 100%);
+    background: linear-gradient(180deg, #91d850 0%, #3f7d1f 100%);
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-practice"] {
@@ -1002,14 +1002,14 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-stack"] {
     background:
-        radial-gradient(circle at top left, rgba(45, 212, 191, 0.18), transparent 24%),
-        linear-gradient(180deg, rgba(240, 253, 250, 0.98), rgba(236, 254, 255, 0.96));
+        radial-gradient(circle at top left, rgba(134, 239, 172, 0.18), transparent 24%),
+        linear-gradient(180deg, rgba(247, 252, 255, 0.98), rgba(242, 250, 235, 0.96));
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-stack"] .ll-wordset-game-stage__canvas-wrap {
     box-shadow:
-        inset 0 0 0 1px rgba(45, 212, 191, 0.18),
-        0 20px 42px rgba(15, 118, 110, 0.16);
+        inset 0 0 0 1px rgba(134, 239, 172, 0.18),
+        0 20px 42px rgba(76, 142, 40, 0.16);
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-stack"] .ll-wordset-game-stage__controls {
@@ -1040,9 +1040,9 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     padding: 8px 14px;
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(15, 118, 110, 0.14);
-    color: #134e4a;
-    box-shadow: 0 10px 24px rgba(15, 118, 110, 0.14);
+    border: 1px solid rgba(76, 142, 40, 0.16);
+    color: #335f1b;
+    box-shadow: 0 10px 24px rgba(76, 142, 40, 0.14);
     backdrop-filter: blur(10px);
 }
 
@@ -1059,7 +1059,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stack-stage__heard-label {
-    color: rgba(19, 78, 74, 0.66);
+    color: rgba(51, 95, 27, 0.68);
     font-size: 0.76rem;
     font-weight: 800;
     letter-spacing: 0.08em;
@@ -1067,8 +1067,9 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-speaking-stack-stage__heard {
-    color: #0f172a;
+    color: #163300;
     font-weight: 800;
+    line-height: 1.3;
     word-break: break-word;
 }
 
@@ -1092,10 +1093,37 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     height: 100%;
     min-height: 10px;
     border-radius: 999px;
-    background: linear-gradient(180deg, #99f6e4 0%, #14b8a6 54%, #0f766e 100%);
+    background: linear-gradient(180deg, #d9f99d 0%, #84cc16 54%, #4d7c0f 100%);
     transform-origin: center bottom;
     transform: scaleY(var(--ll-speaking-meter-level));
     transition: transform 80ms linear;
+}
+
+.ll-wordset-speaking-stack-stage__status[data-speaking-stack-status-kind="record"] {
+    min-width: 42px;
+    justify-content: center;
+    padding-inline: 10px;
+}
+
+.ll-wordset-speaking-stack-stage__status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: #3f7d1f;
+    filter: drop-shadow(0 2px 4px rgba(76, 142, 40, 0.18));
+}
+
+.ll-wordset-speaking-stack-stage__status-icon-svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.ll-wordset-speaking-stack-stage__heard .ll-wordset-speaking-stage__diff-fragment--heard {
+    background: rgba(239, 68, 68, 0.22);
+    box-shadow: inset 0 -0.08em 0 rgba(220, 38, 38, 0.32);
 }
 
 .ll-wordset-speaking-stage {

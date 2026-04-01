@@ -206,6 +206,26 @@
             .replace(/'/g, '&#39;');
     }
 
+    function getRecordIconSvgMarkup(className) {
+        const svgClass = String(className || '').trim();
+        const classAttr = svgClass ? ' class="' + escapeHtml(svgClass) + '"' : '';
+        return '' +
+            '<svg' + classAttr + ' viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">' +
+                '<circle cx="12" cy="12" r="8"></circle>' +
+            '</svg>';
+    }
+
+    function getSpeakingStackListeningStatusMarkup(label) {
+        const accessibleLabel = String(label || '').trim();
+        return '' +
+            '<span class="ll-wordset-speaking-stack-stage__status-icon" aria-hidden="true">' +
+                getRecordIconSvgMarkup('ll-wordset-speaking-stack-stage__status-icon-svg') +
+            '</span>' +
+            (accessibleLabel
+                ? ('<span class="screen-reader-text">' + escapeHtml(accessibleLabel) + '</span>')
+                : '');
+    }
+
     function getCatalogCardIconMarkup(slug) {
         const normalizedSlug = normalizeGameSlug(slug);
         if (normalizedSlug === BUBBLE_POP_GAME_SLUG) {
@@ -230,15 +250,10 @@
         if (normalizedSlug === SPEAKING_STACK_GAME_SLUG) {
             return '' +
                 '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
-                    '<rect x="4.2" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"></rect>' +
-                    '<rect x="13.6" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"></rect>' +
-                    '<path d="M12 3.6c-1.41 0-2.55 1.14-2.55 2.55v2.7c0 1.41 1.14 2.55 2.55 2.55s2.55-1.14 2.55-2.55v-2.7c0-1.41-1.14-2.55-2.55-2.55Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>' +
-                    '<path d="M9.8 8.95c0 1.22.99 2.2 2.2 2.2s2.2-.98 2.2-2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
-                    '<path d="M12 11.35v1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
-                    '<path d="M9.9 12.95h4.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
-                    '<path d="M12 14.2v-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
-                    '<path d="M12 14.2l-1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
-                    '<path d="M12 14.2l1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<rect x="4.1" y="4.4" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.5"></rect>' +
+                    '<rect x="13.5" y="4.4" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5"></rect>' +
+                    '<rect x="4.1" y="13.6" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5"></rect>' +
+                    '<rect x="13.5" y="13.6" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.5"></rect>' +
                 '</svg>';
         }
 
@@ -911,6 +926,39 @@
         });
     }
 
+    function scaleSpeakingStackRunLayout(run, widthRatio, heightRatio) {
+        if (!run || !isFinite(widthRatio) || !isFinite(heightRatio)) {
+            return;
+        }
+
+        run.cards.forEach(function (card) {
+            [
+                'x',
+                'stackTargetX',
+                'entryStartX',
+                'lastSettledX'
+            ].forEach(function (key) {
+                if (isFinite(Number(card && card[key]))) {
+                    card[key] = Number(card[key]) * widthRatio;
+                }
+            });
+            [
+                'y',
+                'stackTargetY',
+                'entryStartY',
+                'lastSettledY'
+            ].forEach(function (key) {
+                if (isFinite(Number(card && card[key]))) {
+                    card[key] = Number(card[key]) * heightRatio;
+                }
+            });
+        });
+
+        if (isFinite(Number(run.lastPlacementX)) && Number(run.lastPlacementX) > 0) {
+            run.lastPlacementX = Number(run.lastPlacementX) * widthRatio;
+        }
+    }
+
     function syncCanvasSize(ctx) {
         if (!ctx || !ctx.canvas || !ctx.canvas.getContext) {
             return;
@@ -963,6 +1011,8 @@
             scaleBubbleRunLayout(run, run.width / previousWidth, run.height / previousHeight);
             seedDecorativeBubbles(run);
             refreshBubblePromptCardPositions(run, currentTimestamp());
+        } else if (isSpeakingStackRun(ctx, run)) {
+            scaleSpeakingStackRunLayout(run, run.width / previousWidth, run.height / previousHeight);
         }
         bullets.forEach(function (bullet) {
             bullet.x = clamp(bullet.x, 0, run.width);
@@ -1326,56 +1376,69 @@
 
         if (isSpeakingStackRun(ctx, run)) {
             const sky = context.createLinearGradient(0, 0, 0, run.height);
-            sky.addColorStop(0, '#0B2740');
-            sky.addColorStop(0.55, '#1D4967');
-            sky.addColorStop(1, '#2C6A67');
+            sky.addColorStop(0, '#7BC9FF');
+            sky.addColorStop(0.58, '#AEE2FF');
+            sky.addColorStop(1, '#DFF4FF');
             context.fillStyle = sky;
             context.fillRect(0, 0, run.width, run.height);
 
-            const glow = context.createRadialGradient(run.width * 0.24, run.height * 0.16, 0, run.width * 0.24, run.height * 0.16, run.width * 0.48);
-            glow.addColorStop(0, 'rgba(153, 246, 228, 0.22)');
-            glow.addColorStop(1, 'rgba(153, 246, 228, 0)');
-            context.fillStyle = glow;
+            const sunGlow = context.createRadialGradient(run.width * 0.82, run.height * 0.14, 0, run.width * 0.82, run.height * 0.14, run.width * 0.24);
+            sunGlow.addColorStop(0, 'rgba(255, 243, 176, 0.92)');
+            sunGlow.addColorStop(0.34, 'rgba(255, 230, 128, 0.34)');
+            sunGlow.addColorStop(1, 'rgba(255, 230, 128, 0)');
+            context.fillStyle = sunGlow;
             context.fillRect(0, 0, run.width, run.height);
 
-            context.strokeStyle = 'rgba(255,255,255,0.07)';
-            context.lineWidth = 1;
-            for (let laneIndex = 1; laneIndex < run.cardCount; laneIndex += 1) {
-                const x = laneCenterX(run, laneIndex) - (run.metrics.laneWidth / 2);
-                context.beginPath();
-                context.moveTo(x, 0);
-                context.lineTo(x, run.height);
-                context.stroke();
-            }
-
-            const dangerY = getSpeakingStackTopDangerY(ctx, run);
-            context.strokeStyle = 'rgba(251, 191, 36, 0.55)';
-            context.lineWidth = 2;
-            context.setLineDash([8, 8]);
+            context.save();
+            context.translate(run.width * 0.82, run.height * 0.14);
+            context.fillStyle = '#FFF6B4';
             context.beginPath();
-            context.moveTo(0, dangerY);
-            context.lineTo(run.width, dangerY);
-            context.stroke();
-            context.setLineDash([]);
+            context.arc(0, 0, Math.max(26, run.width * 0.035), 0, Math.PI * 2);
+            context.fill();
+            context.restore();
+
+            run.stars.slice(0, 10).forEach(function (star, index) {
+                const cloudX = Number(star.x || 0);
+                const cloudY = clamp((Number(star.y || 0) * 0.38) + (index % 2 === 0 ? 6 : 0), 30, run.height * 0.48);
+                const cloudWidth = 46 + (index % 4) * 14;
+                const cloudHeight = 18 + (index % 3) * 6;
+
+                context.save();
+                context.globalAlpha = 0.12 + ((Number(star.alpha) || 0.2) * 0.46);
+                context.fillStyle = '#FFFFFF';
+                [
+                    { x: -cloudWidth * 0.18, y: cloudHeight * 0.08, r: cloudHeight * 0.7 },
+                    { x: cloudWidth * 0.08, y: -cloudHeight * 0.12, r: cloudHeight * 0.88 },
+                    { x: cloudWidth * 0.34, y: cloudHeight * 0.1, r: cloudHeight * 0.66 }
+                ].forEach(function (puff) {
+                    context.beginPath();
+                    context.arc(cloudX + puff.x, cloudY + puff.y, puff.r, 0, Math.PI * 2);
+                    context.fill();
+                });
+                context.restore();
+            });
 
             const groundTop = getSpeakingStackGroundTop(ctx, run);
             const ground = context.createLinearGradient(0, groundTop, 0, run.height);
-            ground.addColorStop(0, '#1F8A70');
-            ground.addColorStop(1, '#155E63');
+            ground.addColorStop(0, '#76BE3A');
+            ground.addColorStop(0.52, '#5EA52E');
+            ground.addColorStop(1, '#417B1F');
             context.fillStyle = ground;
             context.fillRect(0, groundTop, run.width, run.height - groundTop);
 
-            context.fillStyle = 'rgba(255,255,255,0.16)';
-            context.fillRect(0, groundTop, run.width, 4);
+            context.fillStyle = 'rgba(247, 255, 214, 0.44)';
+            context.fillRect(0, groundTop, run.width, 5);
 
-            run.stars.forEach(function (star) {
-                context.globalAlpha = Math.min(0.28, star.alpha * 0.88);
-                context.fillStyle = '#F8FAFC';
-                context.beginPath();
-                context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-                context.fill();
-            });
-            context.globalAlpha = 1;
+            context.fillStyle = 'rgba(102, 166, 44, 0.26)';
+            context.beginPath();
+            context.moveTo(0, groundTop + 6);
+            context.quadraticCurveTo(run.width * 0.18, groundTop - 18, run.width * 0.38, groundTop + 8);
+            context.quadraticCurveTo(run.width * 0.58, groundTop + 24, run.width * 0.82, groundTop - 10);
+            context.quadraticCurveTo(run.width * 0.92, groundTop - 18, run.width, groundTop + 2);
+            context.lineTo(run.width, run.height);
+            context.lineTo(0, run.height);
+            context.closePath();
+            context.fill();
             return;
         }
 
@@ -2135,7 +2198,8 @@
         }
         const context = ctx.canvasContext;
         run.cards.forEach(function (card) {
-            const ambientMotion = (!card.exploding && !card.resolvedFalling)
+            const isSpeakingStackCard = isSpeakingStackRun(ctx, run);
+            const ambientMotion = (!isSpeakingStackCard && !card.exploding && !card.resolvedFalling)
                 ? getCardAmbientMotion(card, now)
                 : { bobY: 0, tilt: 0 };
             const renderX = card.x;
@@ -2157,6 +2221,10 @@
                 context.rotate((Math.sin(progress * 28) * 0.08) + (progress * 0.28));
                 context.scale(1 + (progress * 0.42), 1 + (progress * 0.36));
                 context.translate(-renderX + wobble, -renderY);
+            } else if (isSpeakingStackCard) {
+                context.translate(renderX, renderY);
+                context.rotate(Number(card.stackRotation) || 0);
+                context.translate(-renderX, -renderY);
             } else if (!card.resolvedFalling) {
                 context.translate(renderX, renderY);
                 context.rotate(ambientMotion.tilt);
@@ -2446,67 +2514,123 @@
         return Math.max(0, toInt(gameConfig.topDangerPaddingPx) || 14);
     }
 
-    function getSpeakingStackLaneCards(run, laneIndex) {
+    function getSpeakingStackPlacedCards(run) {
         return (Array.isArray(run && run.cards) ? run.cards : [])
             .filter(function (card) {
                 return !!card
                     && !card.removedFromStack
                     && !card.exploding
-                    && toInt(card.stackLaneIndex) === toInt(laneIndex);
-            })
-            .sort(function (left, right) {
-                return toInt(left && left.stackIndex) - toInt(right && right.stackIndex);
+                    && isFinite(Number(card.stackTargetX))
+                    && isFinite(Number(card.stackTargetY));
             });
     }
 
-    function refreshSpeakingStackLaneTargets(ctx, run, laneIndex) {
-        const laneCards = getSpeakingStackLaneCards(run, laneIndex);
+    function getSpeakingStackHorizontalBounds(run, cardWidth) {
+        const width = Math.max(1, Number(cardWidth) || Number(run && run.metrics && run.metrics.cardWidth) || 96);
+        const halfWidth = width / 2;
+        const margin = Math.max(18, (Number(run && run.width) || 0) * 0.045);
+        return {
+            minX: margin + halfWidth,
+            maxX: Math.max(margin + halfWidth, (Number(run && run.width) || 0) - margin - halfWidth)
+        };
+    }
+
+    function getSpeakingStackOverlapThreshold(card, existingCard) {
+        const cardWidth = Math.max(1, Number(card && card.width) || 1);
+        const existingWidth = Math.max(1, Number(existingCard && existingCard.width) || 1);
+        const combinedHalfWidth = (cardWidth + existingWidth) / 2;
+        return Math.max(18, combinedHalfWidth - (Math.min(cardWidth, existingWidth) * 0.14));
+    }
+
+    function getSpeakingStackPlacementY(ctx, run, card, targetX, placedCards) {
         const gameConfig = getGameConfig(ctx, run) || {};
         const gap = Math.max(0, toInt(gameConfig.stackGapPx) || 12);
-        let cursor = getSpeakingStackGroundTop(ctx, run);
+        const cardHeight = Math.max(1, Number(card && card.height) || 1);
+        let settledY = getSpeakingStackGroundTop(ctx, run) - (cardHeight / 2);
+        let didAdjust = true;
+        let attempts = 0;
+        const supports = Array.isArray(placedCards) ? placedCards : [];
 
-        laneCards.forEach(function (card, index) {
-            card.stackLaneIndex = toInt(laneIndex);
-            card.stackIndex = index;
-            card.stackTargetX = laneCenterX(run, laneIndex);
-            cursor -= Number(card.height || 0) / 2;
-            card.stackTargetY = cursor;
-            cursor -= (Number(card.height || 0) / 2) + gap;
-        });
+        while (didAdjust && attempts < (supports.length + 2)) {
+            didAdjust = false;
+            attempts += 1;
 
-        return laneCards;
-    }
+            supports.forEach(function (existingCard) {
+                if (!existingCard) {
+                    return;
+                }
 
-    function refreshSpeakingStackTargets(ctx, run) {
-        if (!run) {
-            return;
-        }
-        for (let laneIndex = 0; laneIndex < Math.max(1, toInt(run.cardCount) || 4); laneIndex += 1) {
-            refreshSpeakingStackLaneTargets(ctx, run, laneIndex);
-        }
-    }
+                if (Math.abs(Number(existingCard.stackTargetX) - targetX) > getSpeakingStackOverlapThreshold(card, existingCard)) {
+                    return;
+                }
 
-    function chooseSpeakingStackLane(run) {
-        const laneCount = Math.max(1, toInt(run && run.cardCount) || 4);
-        const laneCounts = [];
-        let minimumCount = Infinity;
-
-        for (let laneIndex = 0; laneIndex < laneCount; laneIndex += 1) {
-            const count = getSpeakingStackLaneCards(run, laneIndex).length;
-            laneCounts.push({
-                laneIndex: laneIndex,
-                count: count
+                const requiredGap = (Math.max(1, Number(existingCard.height) || 1) / 2) + (cardHeight / 2) + gap;
+                if (settledY >= (Number(existingCard.stackTargetY) - requiredGap - 0.5)) {
+                    const liftedY = Number(existingCard.stackTargetY) - requiredGap;
+                    if (liftedY < settledY) {
+                        settledY = liftedY;
+                        didAdjust = true;
+                    }
+                }
             });
-            minimumCount = Math.min(minimumCount, count);
         }
 
-        const candidates = laneCounts.filter(function (entry) {
-            return entry.count === minimumCount;
-        });
-        if (!candidates.length) {
-            return 0;
+        return settledY;
+    }
+
+    function chooseSpeakingStackPlacement(ctx, run, card) {
+        const placedCards = getSpeakingStackPlacedCards(run);
+        const bounds = getSpeakingStackHorizontalBounds(run, Number(card && card.width) || 0);
+        const groundTop = getSpeakingStackGroundTop(ctx, run);
+        const previousPlacementX = Number(run && run.lastPlacementX);
+        const anchorX = (isFinite(previousPlacementX) && previousPlacementX > 0)
+            ? clamp(previousPlacementX, bounds.minX, bounds.maxX)
+            : ((bounds.minX + bounds.maxX) / 2);
+        const candidateXs = [];
+
+        for (let index = 0; index < 8; index += 1) {
+            candidateXs.push(clamp(
+                anchorX + randomBetween(-(Number(card.width) || 96) * 1.8, (Number(card.width) || 96) * 1.8),
+                bounds.minX,
+                bounds.maxX
+            ));
         }
-        return toInt(candidates[Math.floor(Math.random() * candidates.length)].laneIndex);
+        for (let index = 0; index < 6; index += 1) {
+            candidateXs.push(randomBetween(bounds.minX, bounds.maxX));
+        }
+        candidateXs.push(anchorX, (bounds.minX + bounds.maxX) / 2);
+
+        let best = null;
+        candidateXs.forEach(function (candidateX) {
+            const candidateY = getSpeakingStackPlacementY(ctx, run, card, candidateX, placedCards);
+            const edgeRatio = clamp(Math.abs(candidateX - (run.width / 2)) / Math.max(1, run.width / 2), 0, 1);
+            const heightPenalty = Math.max(0, groundTop - candidateY);
+            const repeatPenalty = Math.abs(candidateX - anchorX) < Math.max(20, (Number(card.width) || 96) * 0.3) ? 18 : 0;
+            const variationBonus = Math.min((Number(card.width) || 96) * 0.72, Math.abs(candidateX - anchorX));
+            const score = heightPenalty + (edgeRatio * 22) + repeatPenalty - (variationBonus * 0.12) + randomBetween(0, 14);
+
+            if (!best || score < best.score) {
+                best = {
+                    x: candidateX,
+                    y: candidateY,
+                    score: score
+                };
+            }
+        });
+
+        if (!best) {
+            return {
+                x: (bounds.minX + bounds.maxX) / 2,
+                y: groundTop - ((Number(card.height) || 0) / 2),
+                rotation: 0
+            };
+        }
+
+        return {
+            x: best.x,
+            y: best.y,
+            rotation: randomBetween(-0.06, 0.06)
+        };
     }
 
     function getSpeakingStackProgressRatio(run) {
@@ -2534,10 +2658,17 @@
         const gameConfig = getGameConfig(ctx, run) || {};
         const opts = (options && typeof options === 'object') ? options : {};
         const baseGapMs = Math.max(4000, toInt(gameConfig.spawnGapMs) || 4500);
+        const cycleGapMs = Math.max(
+            baseGapMs,
+            Math.max(0, Number(run && run.lastRecordingDurationMs) || 0)
+                + Math.max(0, Number(run && run.lastTranscribeDurationMs) || 0)
+                + Math.max(0, Number(run && run.lastCorrectAudioDurationMs) || 0)
+                + getSpeakingStackThinkPaddingMs(ctx, run)
+        );
         if (opts.initial) {
-            return Math.max(baseGapMs, Math.max(0, toInt(gameConfig.initialSpawnDelayMs) || 5200));
+            return Math.max(cycleGapMs, Math.max(0, toInt(gameConfig.initialSpawnDelayMs) || 5200));
         }
-        return baseGapMs;
+        return cycleGapMs;
     }
 
     function isSpeakingStackSpawnBlocked(ctx, run, now) {
@@ -2585,23 +2716,35 @@
             return null;
         }
 
-        const laneIndex = chooseSpeakingStackLane(run);
-        const card = createCard(run, nextWord, laneIndex, true, 0, 0);
+        const card = createCard(run, nextWord, 0, true, 0, 0);
         const fallSpeed = Math.max(80, toInt((getGameConfig(ctx, run) || {}).fallSpeed) || 176);
+        const placement = chooseSpeakingStackPlacement(ctx, run, card);
+        const bounds = getSpeakingStackHorizontalBounds(run, Number(card && card.width) || 0);
+        const startX = clamp(
+            placement.x + randomBetween(-(Number(card.width) || 96) * 1.15, (Number(card.width) || 96) * 1.15),
+            bounds.minX,
+            bounds.maxX
+        );
+        const startY = -Math.max(card.height, run.metrics && run.metrics.cardHeight ? run.metrics.cardHeight : card.height);
         card.promptId = toInt(run.spawnedWordCount) + 1;
-        card.stackLaneIndex = laneIndex;
-        card.stackIndex = getSpeakingStackLaneCards(run, laneIndex).length;
-        card.stackTargetX = laneCenterX(run, laneIndex);
-        card.stackTargetY = -Math.max(card.height, run.metrics && run.metrics.cardHeight ? run.metrics.cardHeight : card.height);
+        card.stackTargetX = placement.x;
+        card.stackTargetY = placement.y;
+        card.stackRotation = placement.rotation;
         card.removedFromStack = false;
-        card.speed = fallSpeed;
-        card.x = laneCenterX(run, laneIndex);
-        card.y = -Math.max(card.height, run.metrics && run.metrics.cardHeight ? run.metrics.cardHeight : card.height);
+        card.speed = fallSpeed * randomBetween(0.94, 1.07);
+        card.entryStartX = startX;
+        card.entryStartY = startY;
+        card.x = startX;
+        card.y = startY;
+        card.lastSettledX = placement.x;
+        card.lastSettledY = placement.y;
 
         run.cards.push(card);
         run.spawnedWordCount += 1;
         run.lastSpawnedAt = Number(now) || currentTimestamp();
-        refreshSpeakingStackLaneTargets(ctx, run, laneIndex);
+        run.lastPlacementX = placement.x;
+
+        ensureAudioLoaded(ctx, String(nextWord && nextWord.speaking_best_correct_audio_url || '')).catch(function () {});
 
         queueExposureOnce(ctx, {
             target: nextWord,
@@ -3171,6 +3314,11 @@
         return clamp(configured, 0.05, 1);
     }
 
+    function getPromptAudioVolume(ctx, slugOrRun) {
+        const gameConfig = getGameConfig(ctx, slugOrRun || (ctx && ctx.run));
+        return clamp(Number(gameConfig && gameConfig.promptAudioVolume) || 1, 0.05, 1);
+    }
+
     function getFeedbackAudioCacheKey(ctx, type, slugOrRun) {
         const soundType = (type === 'correct') ? 'correct' : 'wrong';
         const gameConfig = getGameConfig(ctx, slugOrRun || (ctx && ctx.run));
@@ -3369,15 +3517,20 @@
         });
     }
 
-    function playFeedbackSound(ctx, type) {
-        const soundType = (type === 'correct') ? 'correct' : 'wrong';
-        const sources = getFeedbackAudioSources(ctx, soundType);
-        const cacheKey = getFeedbackAudioCacheKey(ctx, soundType);
-        if (!sources.length) {
+    function playQueuedAudioSources(ctx, sources, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const sourceList = normalizeUrlList(sources);
+        const cacheKey = String(opts.cacheKey || '');
+        const volume = clamp(Number(opts.volume), 0.05, 1);
+        const shouldPausePrompt = opts.pausePrompt !== false;
+
+        if (!sourceList.length || !cacheKey) {
             return waitForFeedbackQueue(ctx);
         }
 
-        pausePromptAudio(ctx);
+        if (shouldPausePrompt) {
+            pausePromptAudio(ctx);
+        }
 
         const sequenceVersion = toInt(ctx.feedbackQueueVersion);
         const queue = waitForFeedbackQueue(ctx);
@@ -3386,7 +3539,7 @@
                 return;
             }
 
-            return resolveReadyAudioSource(ctx, sources, cacheKey).then(function (source) {
+            return resolveReadyAudioSource(ctx, sourceList, cacheKey).then(function (source) {
                 if (!source || (ctx.feedbackQueueVersion || 0) !== sequenceVersion) {
                     return;
                 }
@@ -3401,7 +3554,7 @@
                     feedbackAudio.currentTime = 0;
                 } catch (_) { /* no-op */ }
 
-                feedbackAudio.volume = getFeedbackAudioVolume(ctx, soundType);
+                feedbackAudio.volume = volume;
                 if (feedbackAudio.src !== source) {
                     feedbackAudio.src = source;
                 }
@@ -3420,6 +3573,21 @@
         }).catch(function () {});
 
         return ctx.feedbackQueue;
+    }
+
+    function playFeedbackSound(ctx, type) {
+        const soundType = (type === 'correct') ? 'correct' : 'wrong';
+        const sources = getFeedbackAudioSources(ctx, soundType);
+        const cacheKey = getFeedbackAudioCacheKey(ctx, soundType);
+        if (!sources.length) {
+            return waitForFeedbackQueue(ctx);
+        }
+
+        return playQueuedAudioSources(ctx, sources, {
+            cacheKey: cacheKey,
+            volume: getFeedbackAudioVolume(ctx, soundType),
+            pausePrompt: true
+        });
     }
 
     function schedulePromptAutoReplay(ctx, run, source, requestId) {
@@ -4340,7 +4508,6 @@
     }
 
     function removeResolvedObjects(run, now) {
-        const removedSpeakingStackLanes = {};
         run.cards = run.cards.filter(function (card) {
             if (card.resolvedFalling) {
                 if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
@@ -4363,9 +4530,6 @@
                 }
             }
             if (card.exploding && now >= card.removeAt) {
-                if (normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG) {
-                    removedSpeakingStackLanes[toInt(card.stackLaneIndex)] = true;
-                }
                 return false;
             }
             return true;
@@ -4373,13 +4537,6 @@
         run.explosions = run.explosions.filter(function (explosion) {
             return now < (explosion.startedAt + explosion.duration);
         });
-        if (normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG && api.__ctx && api.__ctx.run === run) {
-            Object.keys(removedSpeakingStackLanes).forEach(function (laneIndex) {
-                if (toInt(laneIndex) >= 0) {
-                    refreshSpeakingStackLaneTargets(api.__ctx, run, toInt(laneIndex));
-                }
-            });
-        }
     }
 
     function fireBullet(run) {
@@ -4871,12 +5028,21 @@
                 return;
             }
 
-            card.x = isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : laneCenterX(run, card.laneIndex);
+            const targetX = isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : Number(card.x || 0);
             const targetY = isFinite(Number(card.stackTargetY)) ? Number(card.stackTargetY) : Number(card.y || 0);
             if (Number(card.y) < targetY) {
-                card.y = Math.min(targetY, Number(card.y || 0) + ((Number(card.speed) || 0) * dt));
+                const nextY = Math.min(targetY, Number(card.y || 0) + ((Number(card.speed) || 0) * dt));
+                const startY = isFinite(Number(card.entryStartY)) ? Number(card.entryStartY) : nextY;
+                const startX = isFinite(Number(card.entryStartX)) ? Number(card.entryStartX) : targetX;
+                const fallProgress = clamp((nextY - startY) / Math.max(1, targetY - startY), 0, 1);
+
+                card.y = nextY;
+                card.x = lerp(startX, targetX, easeOutCubic(fallProgress));
             } else {
                 card.y = targetY;
+                card.x = targetX;
+                card.lastSettledX = targetX;
+                card.lastSettledY = targetY;
             }
         });
 
@@ -4888,7 +5054,10 @@
 
         const topDangerY = getSpeakingStackTopDangerY(ctx, run);
         const reachedTop = getSpeakingStackActiveCards(run).some(function (card) {
-            return (Number(card.stackTargetY || card.y) - (Number(card.height || 0) / 2)) <= topDangerY;
+            const occupiedY = Number(card.y || 0);
+            const targetY = Number(card.stackTargetY || occupiedY);
+            const hasLanded = Math.abs(occupiedY - targetY) <= 0.5;
+            return hasLanded && (occupiedY - (Number(card.height || 0) / 2)) <= topDangerY;
         });
         if (reachedTop) {
             finishSpeakingStackRun(ctx, 'stacked');
@@ -5573,11 +5742,22 @@
         return ctx && ctx.$speakingMeterBars ? ctx.$speakingMeterBars : $();
     }
 
-    function setSpeakingStatus(ctx, text) {
+    function setSpeakingStatus(ctx, text, options) {
         const run = ctx && ctx.run;
+        const opts = (options && typeof options === 'object') ? options : {};
         if (isSpeakingStackRun(ctx, run)) {
             if (ctx && ctx.$speakingStackStatus && ctx.$speakingStackStatus.length) {
-                ctx.$speakingStackStatus.text(String(text || ''));
+                if (opts.icon === 'record') {
+                    ctx.$speakingStackStatus
+                        .attr('data-speaking-stack-status-kind', 'record')
+                        .attr('aria-label', String(text || ''))
+                        .html(getSpeakingStackListeningStatusMarkup(text));
+                } else {
+                    ctx.$speakingStackStatus
+                        .attr('data-speaking-stack-status-kind', 'text')
+                        .removeAttr('aria-label')
+                        .text(String(text || ''));
+                }
             }
             return;
         }
@@ -5593,16 +5773,27 @@
         ctx.$speakingStackProgress.text(String(text || ''));
     }
 
-    function setSpeakingStackHeard(ctx, text) {
+    function setSpeakingStackHeard(ctx, text, options) {
         if (!ctx || !ctx.$speakingStackHeard || !ctx.$speakingStackHeard.length) {
             return;
         }
 
+        const opts = (options && typeof options === 'object') ? options : {};
         const heardText = String(text || '').trim();
         if (ctx.$speakingStackHeardRow && ctx.$speakingStackHeardRow.length) {
             ctx.$speakingStackHeardRow.prop('hidden', heardText === '');
         }
-        ctx.$speakingStackHeard.text(heardText);
+        if (!heardText) {
+            ctx.$speakingStackHeard.empty();
+            return;
+        }
+
+        ctx.$speakingStackHeard.html(renderSpeakingComparedText(
+            heardText,
+            String(opts.targetText || ''),
+            clamp(Number(opts.score) || 0, 0, 100),
+            'heard'
+        ));
     }
 
     function resetSpeakingMeter(ctx) {
@@ -6093,7 +6284,9 @@
             resetSpeakingResultUi(ctx);
             setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true, 'listening');
         } else if (isSpeakingStackRun(ctx, run)) {
-            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackListening || 'Listening for the next word...'));
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackListening || 'Listening for the next word...'), {
+                icon: 'record'
+            });
         }
 
         return ensureSpeakingStream(ctx).then(function (stream) {
@@ -6559,7 +6752,9 @@
         const bucket = String(result && result.bucket || 'right');
         const score = clamp(Number(result && result.score) || 0, 0, 100);
         const now = currentTimestamp();
+        const correctAudioUrl = String(result && result.best_correct_audio_url || card.word && card.word.speaking_best_correct_audio_url || '');
         run.clearedCount += 1;
+        run.lastCorrectAudioDurationMs = correctAudioUrl ? getLoadedAudioDurationMs(ctx, correctAudioUrl) : 0;
         card.removedFromStack = true;
         card.exploding = true;
         card.explosionStyle = 'correct';
@@ -6575,13 +6770,15 @@
             duration: 300,
             style: 'ring'
         });
-        refreshSpeakingStackLaneTargets(ctx, run, toInt(card.stackLaneIndex));
         setSpeakingStackProgressFromRun(ctx, run);
         setSpeakingStatus(ctx, String({
             right: ctx.i18n.gamesSpeakingResultRight || 'Correct',
             close: ctx.i18n.gamesSpeakingResultClose || 'Close'
         }[bucket] || ctx.i18n.gamesSpeakingResultRight || 'Correct'));
-        setSpeakingStackHeard(ctx, String(transcript || ''));
+        setSpeakingStackHeard(ctx, String(transcript || ''), {
+            targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
+            score: score
+        });
 
         queueOutcome(ctx, {
             target: card.word,
@@ -6595,7 +6792,13 @@
             speaking_target_field: String(run.targetField || '')
         });
 
-        playFeedbackSound(ctx, 'correct');
+        if (correctAudioUrl) {
+            playQueuedAudioSources(ctx, [correctAudioUrl], {
+                cacheKey: 'speaking-stack-word:' + String(toInt(card.word && card.word.id)),
+                volume: getPromptAudioVolume(ctx, run),
+                pausePrompt: false
+            });
+        }
         return true;
     }
 
@@ -6608,6 +6811,7 @@
 
         const processingStartedAt = currentTimestamp();
         const transcribeStartedAt = processingStartedAt;
+        run.lastCorrectAudioDurationMs = 0;
         if (state.speechDetected) {
             run.lastRecordingDurationMs = Math.max(
                 0,
@@ -6635,12 +6839,15 @@
             if (!transcriptText) {
                 throw new Error(String(ctx.i18n.gamesSpeakingStackTooQuiet || 'No clear word detected.'));
             }
-            setSpeakingStackHeard(ctx, transcriptText);
             return scoreSpeakingStackTranscript(ctx, run, transcriptText).then(function (result) {
                 if (!ctx.run || ctx.run !== run || run.ended) {
                     return;
                 }
 
+                setSpeakingStackHeard(ctx, transcriptText, {
+                    targetText: String(result && result.target_text || result && result.normalized_target_text || ''),
+                    score: clamp(Number(result && result.score) || 0, 0, 100)
+                });
                 const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
                 if (!matched) {
                     setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
@@ -6661,14 +6868,16 @@
             ));
         }).finally(function () {
             const completedAt = currentTimestamp();
+            const playbackCooldownMs = Math.max(0, Number(run.lastCorrectAudioDurationMs) || 0);
+            const restartDelayMs = Math.max(120, playbackCooldownMs + (playbackCooldownMs > 0 ? 180 : 120));
             run.lastSpeechAt = completedAt;
             run.spawnHoldUntil = Math.max(
                 Number(run.spawnHoldUntil) || 0,
-                completedAt + getSpeakingStackThinkPaddingMs(ctx, run)
+                completedAt + getSpeakingStackThinkPaddingMs(ctx, run) + playbackCooldownMs
             );
             state.transcribing = false;
             if (ctx.run === run && !run.ended && !run.paused) {
-                queueSpeakingStackCaptureRestart(ctx, 120);
+                queueSpeakingStackCaptureRestart(ctx, restartDelayMs);
             }
         });
     }
@@ -6881,10 +7090,12 @@
             lastSpawnedAt: 0,
             lastRecordingDurationMs: 0,
             lastTranscribeDurationMs: 0,
+            lastCorrectAudioDurationMs: 0,
             finalSpawnedAt: 0,
             allWordsQueued: false,
             nextSpawnAt: launchedAt,
-            spawnHoldUntil: launchedAt
+            spawnHoldUntil: launchedAt,
+            lastPlacementX: null
         };
 
         syncCanvasSize(ctx);

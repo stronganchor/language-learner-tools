@@ -77,15 +77,10 @@ function ll_tools_wordset_games_render_speaking_icon(string $class = 'll-wordset
 function ll_tools_wordset_games_render_speaking_stack_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
-        . '<rect x="4.2" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"/>'
-        . '<rect x="13.6" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"/>'
-        . '<path d="M12 3.6c-1.41 0-2.55 1.14-2.55 2.55v2.7c0 1.41 1.14 2.55 2.55 2.55s2.55-1.14 2.55-2.55v-2.7c0-1.41-1.14-2.55-2.55-2.55Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'
-        . '<path d="M9.8 8.95c0 1.22.99 2.2 2.2 2.2s2.2-.98 2.2-2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-        . '<path d="M12 11.35v1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-        . '<path d="M9.9 12.95h4.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-        . '<path d="M12 14.2v-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-        . '<path d="M12 14.2l-1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
-        . '<path d="M12 14.2l1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '<rect x="4.1" y="4.4" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.5"/>'
+        . '<rect x="13.5" y="4.4" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5"/>'
+        . '<rect x="4.1" y="13.6" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.2" stroke="currentColor" stroke-width="1.5"/>'
+        . '<rect x="13.5" y="13.6" width="6.4" height="6" rx="1.35" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.5"/>'
         . '</svg>';
 }
 
