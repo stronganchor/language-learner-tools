@@ -42,6 +42,9 @@ if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY')) {
     define('LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY', 'll_wordset_speaking_game_target');
 }
+if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY', 'll_wordset_speaking_game_assemblyai_profile');
+}
 if (!defined('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION')) {
     define('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION', 'll_tools_wordset_language_settings_migrated_version');
 }
@@ -83,6 +86,132 @@ function ll_tools_sanitize_wordset_local_transcription_target($value): string {
 function ll_tools_sanitize_wordset_speaking_game_target($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['word_title', 'recording_ipa'], true) ? $value : 'word_title';
+}
+
+function ll_tools_get_wordset_speaking_game_assemblyai_profile_options(): array {
+    static $options = null;
+    if (is_array($options)) {
+        /**
+         * Filter speaking-game AssemblyAI profile options.
+         *
+         * @param array $options
+         */
+        return (array) apply_filters('ll_tools_wordset_speaking_game_assemblyai_profile_options', $options);
+    }
+
+    $recommended_group = __('Recommended', 'll-tools-text-domain');
+    $multilingual_group = __('Multilingual models', 'll-tools-text-domain');
+    $language_group = __('Specific languages', 'll-tools-text-domain');
+
+    $options = [
+        'wordset_language' => [
+            'label' => __('Word set language (recommended)', 'll-tools-text-domain'),
+            'group' => $recommended_group,
+            'language_code' => 'wordset',
+            'speech_models' => ['universal-3-pro', 'universal-2'],
+            'language_detection' => false,
+        ],
+        'multilingual_best' => [
+            'label' => __('Multilingual auto (Universal-3 Pro + Universal-2 fallback)', 'll-tools-text-domain'),
+            'group' => $multilingual_group,
+            'language_code' => '',
+            'speech_models' => ['universal-3-pro', 'universal-2'],
+            'language_detection' => true,
+        ],
+        'multilingual_universal2' => [
+            'label' => __('Multilingual auto (Universal-2 only)', 'll-tools-text-domain'),
+            'group' => $multilingual_group,
+            'language_code' => '',
+            'speech_models' => ['universal-2'],
+            'language_detection' => true,
+        ],
+    ];
+
+    $universal_3_languages = [
+        'en' => __('English', 'll-tools-text-domain'),
+        'fr' => __('French', 'll-tools-text-domain'),
+        'de' => __('German', 'll-tools-text-domain'),
+        'it' => __('Italian', 'll-tools-text-domain'),
+        'pt' => __('Portuguese', 'll-tools-text-domain'),
+        'es' => __('Spanish', 'll-tools-text-domain'),
+    ];
+
+    $universal_2_languages = [
+        'ar' => __('Arabic', 'll-tools-text-domain'),
+        'az' => __('Azerbaijani', 'll-tools-text-domain'),
+        'bg' => __('Bulgarian', 'll-tools-text-domain'),
+        'bs' => __('Bosnian', 'll-tools-text-domain'),
+        'ca' => __('Catalan', 'll-tools-text-domain'),
+        'cs' => __('Czech', 'll-tools-text-domain'),
+        'da' => __('Danish', 'll-tools-text-domain'),
+        'el' => __('Greek', 'll-tools-text-domain'),
+        'et' => __('Estonian', 'll-tools-text-domain'),
+        'he' => __('Hebrew', 'll-tools-text-domain'),
+        'hi' => __('Hindi', 'll-tools-text-domain'),
+        'hr' => __('Croatian', 'll-tools-text-domain'),
+        'hu' => __('Hungarian', 'll-tools-text-domain'),
+        'id' => __('Indonesian', 'll-tools-text-domain'),
+        'ja' => __('Japanese', 'll-tools-text-domain'),
+        'ko' => __('Korean', 'll-tools-text-domain'),
+        'ms' => __('Malay', 'll-tools-text-domain'),
+        'nl' => __('Dutch', 'll-tools-text-domain'),
+        'no' => __('Norwegian', 'll-tools-text-domain'),
+        'pl' => __('Polish', 'll-tools-text-domain'),
+        'ro' => __('Romanian', 'll-tools-text-domain'),
+        'ru' => __('Russian', 'll-tools-text-domain'),
+        'sk' => __('Slovak', 'll-tools-text-domain'),
+        'sv' => __('Swedish', 'll-tools-text-domain'),
+        'th' => __('Thai', 'll-tools-text-domain'),
+        'tl' => __('Tagalog', 'll-tools-text-domain'),
+        'tr' => __('Turkish', 'll-tools-text-domain'),
+        'uk' => __('Ukrainian', 'll-tools-text-domain'),
+        'ur' => __('Urdu', 'll-tools-text-domain'),
+        'vi' => __('Vietnamese', 'll-tools-text-domain'),
+        'zh' => __('Chinese (Mandarin)', 'll-tools-text-domain'),
+    ];
+
+    foreach ($universal_3_languages as $code => $label) {
+        $options['lang_' . $code] = [
+            'label' => sprintf(
+                /* translators: %s: language name */
+                __('%s (Universal-3 Pro)', 'll-tools-text-domain'),
+                $label
+            ),
+            'group' => $language_group,
+            'language_code' => $code,
+            'speech_models' => ['universal-3-pro', 'universal-2'],
+            'language_detection' => false,
+        ];
+    }
+
+    foreach ($universal_2_languages as $code => $label) {
+        $options['lang_' . $code] = [
+            'label' => sprintf(
+                /* translators: %s: language name */
+                __('%s (Universal-2)', 'll-tools-text-domain'),
+                $label
+            ),
+            'group' => $language_group,
+            'language_code' => $code,
+            'speech_models' => ['universal-2'],
+            'language_detection' => false,
+        ];
+    }
+
+    /**
+     * Filter speaking-game AssemblyAI profile options.
+     *
+     * @param array $options
+     */
+    $options = (array) apply_filters('ll_tools_wordset_speaking_game_assemblyai_profile_options', $options);
+
+    return $options;
+}
+
+function ll_tools_sanitize_wordset_speaking_game_assemblyai_profile($value): string {
+    $value = sanitize_key((string) $value);
+    $options = ll_tools_get_wordset_speaking_game_assemblyai_profile_options();
+    return isset($options[$value]) ? $value : 'wordset_language';
 }
 
 function ll_tools_get_default_local_transcription_endpoint(): string {
@@ -362,6 +491,21 @@ function ll_tools_get_wordset_speaking_game_target($wordset_ids = [], bool $fall
     return $fallback_to_default ? 'word_title' : '';
 }
 
+function ll_tools_get_wordset_speaking_game_assemblyai_profile($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_speaking_game_assemblyai_profile(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? 'wordset_language' : '';
+}
+
 function ll_tools_get_wordset_offline_stt_bundle_config($wordset_ids = [], bool $fallback_to_default = true): array {
     $path = ll_tools_get_wordset_offline_stt_bundle_path($wordset_ids, $fallback_to_default);
     $resolved_path = $path;
@@ -404,6 +548,68 @@ function ll_tools_get_wordset_speaking_game_target_options(): array {
     ];
 }
 
+function ll_tools_get_wordset_speaking_game_assemblyai_profile_label(string $profile): string {
+    $profile = ll_tools_sanitize_wordset_speaking_game_assemblyai_profile($profile);
+    $options = ll_tools_get_wordset_speaking_game_assemblyai_profile_options();
+    $row = isset($options[$profile]) && is_array($options[$profile]) ? $options[$profile] : [];
+    $label = trim((string) ($row['label'] ?? ''));
+
+    if ($label !== '') {
+        return $label;
+    }
+
+    return __('Word set language (recommended)', 'll-tools-text-domain');
+}
+
+function ll_tools_get_wordset_speaking_game_assemblyai_request_config($wordset_ids = [], bool $fallback_to_default = true): array {
+    $profile = ll_tools_get_wordset_speaking_game_assemblyai_profile($wordset_ids, $fallback_to_default);
+    $options = ll_tools_get_wordset_speaking_game_assemblyai_profile_options();
+    $row = isset($options[$profile]) && is_array($options[$profile]) ? $options[$profile] : [];
+    if (empty($row)) {
+        $profile = 'wordset_language';
+        $row = isset($options[$profile]) && is_array($options[$profile]) ? $options[$profile] : [];
+    }
+
+    $language_code = trim((string) ($row['language_code'] ?? ''));
+    if ($language_code === 'wordset') {
+        $language_code = function_exists('ll_tools_get_assemblyai_language_code')
+            ? (string) ll_tools_get_assemblyai_language_code($wordset_ids)
+            : '';
+    }
+    $language_code = function_exists('ll_tools_normalize_language_code')
+        ? (string) ll_tools_normalize_language_code($language_code, 'lower')
+        : strtolower($language_code);
+    if ($language_code === 'auto') {
+        $language_code = '';
+    }
+
+    $speech_models = [];
+    foreach ((array) ($row['speech_models'] ?? []) as $speech_model) {
+        $speech_model = sanitize_key((string) $speech_model);
+        if ($speech_model !== '') {
+            $speech_models[$speech_model] = $speech_model;
+        }
+    }
+    $speech_models = array_values($speech_models);
+    if (empty($speech_models)) {
+        $speech_models = ['universal-3-pro', 'universal-2'];
+    }
+
+    $language_detection = !empty($row['language_detection']);
+    if ($language_code !== '') {
+        $language_detection = false;
+    }
+
+    return [
+        'profile' => $profile,
+        'profile_label' => ll_tools_get_wordset_speaking_game_assemblyai_profile_label($profile),
+        'language_code' => $language_code,
+        'speech_models' => $speech_models,
+        'language_detection' => $language_detection,
+        'language_detection_options' => [],
+    ];
+}
+
 function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fallback_to_default = true): array {
     $enabled_flag = ll_tools_get_wordset_speaking_game_enabled($wordset_ids, $fallback_to_default);
     $provider = ll_tools_get_wordset_speaking_game_provider($wordset_ids, $fallback_to_default);
@@ -412,6 +618,9 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     }
 
     $target = ll_tools_get_wordset_speaking_game_target($wordset_ids, $fallback_to_default);
+    $assemblyai_request = $provider === 'assemblyai'
+        ? ll_tools_get_wordset_speaking_game_assemblyai_request_config($wordset_ids, $fallback_to_default)
+        : [];
     $local_endpoint = in_array($provider, ['local_browser', 'hosted_api'], true)
         ? ll_tools_get_wordset_local_transcription_endpoint($wordset_ids, $fallback_to_default)
         : '';
@@ -444,10 +653,7 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     $enabled = $enabled_flag && $service_enabled && $target !== '';
     $compatible = true;
     $compatibility_message = '';
-    if ($provider === 'assemblyai' && $target === 'recording_ipa') {
-        $compatible = false;
-        $compatibility_message = __('AssemblyAI returns normal text for this game, so the target must use word title text.', 'll-tools-text-domain');
-    } elseif (in_array($provider, ['local_browser', 'hosted_api'], true)) {
+    if (in_array($provider, ['local_browser', 'hosted_api'], true)) {
         if ($local_result_field === 'recording_ipa' && $target !== 'recording_ipa') {
             $compatible = false;
             $compatibility_message = __('This STT model is configured to return IPA, so the speaking game target must use the IPA field.', 'll-tools-text-domain');
@@ -466,6 +672,10 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
         'uses_audio_matcher' => ($provider === 'audio_matcher'),
         'uses_local_browser' => ($provider === 'local_browser'),
         'uses_hosted_api' => ($provider === 'hosted_api'),
+        'uses_assemblyai' => ($provider === 'assemblyai'),
+        'assemblyai_profile' => (string) ($assemblyai_request['profile'] ?? 'wordset_language'),
+        'assemblyai_profile_label' => (string) ($assemblyai_request['profile_label'] ?? ll_tools_get_wordset_speaking_game_assemblyai_profile_label('wordset_language')),
+        'assemblyai_request' => $assemblyai_request,
         'local_endpoint' => $local_endpoint,
         'api_token_configured' => ($api_token !== ''),
         'local_result_field' => in_array($provider, ['local_browser', 'hosted_api'], true) ? $local_result_field : 'recording_text',

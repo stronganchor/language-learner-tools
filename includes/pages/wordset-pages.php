@@ -1256,6 +1256,9 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $speaking_target = isset($_POST['ll_wordset_speaking_game_target'])
             ? ll_tools_sanitize_wordset_speaking_game_target(wp_unslash((string) $_POST['ll_wordset_speaking_game_target']))
             : 'word_title';
+        $speaking_assemblyai_profile = isset($_POST['ll_wordset_speaking_game_assemblyai_profile'])
+            ? ll_tools_sanitize_wordset_speaking_game_assemblyai_profile(wp_unslash((string) $_POST['ll_wordset_speaking_game_assemblyai_profile']))
+            : 'wordset_language';
 
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, $provider);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, $target);
@@ -1277,6 +1280,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, $speaking_enabled);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, $speaking_provider);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, $speaking_target);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY, $speaking_assemblyai_profile);
     } elseif ($submitted_tool === 'study') {
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_AUTOPLAY_TEXT_AUDIO_ANSWER_OPTIONS_META_KEY, $autoplay_text_audio_answer_options);
     } else {
@@ -3273,6 +3277,12 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
     $speaking_target_options = is_array($speaking_game_config['target_options'] ?? null)
         ? $speaking_game_config['target_options']
         : [];
+    $speaking_assemblyai_profile = function_exists('ll_tools_get_wordset_speaking_game_assemblyai_profile')
+        ? ll_tools_get_wordset_speaking_game_assemblyai_profile([$wordset_id], true)
+        : 'wordset_language';
+    $speaking_assemblyai_profile_options = function_exists('ll_tools_get_wordset_speaking_game_assemblyai_profile_options')
+        ? ll_tools_get_wordset_speaking_game_assemblyai_profile_options()
+        : [];
     $speaking_is_compatible = !isset($speaking_game_config['compatible']) || !empty($speaking_game_config['compatible']);
     $speaking_compatibility_message = trim((string) ($speaking_game_config['compatibility_message'] ?? ''));
     $secondary_label = trim((string) ($secondary_transcription_config['label'] ?? ''));
@@ -3409,10 +3419,43 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         <option value="hosted_api" <?php selected($speaking_provider, 'hosted_api'); ?>><?php echo esc_html__('Hosted STT API', 'll-tools-text-domain'); ?></option>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Built-in audio matcher compares learner audio directly to each word\'s isolation recording (no STT transcript required). AssemblyAI reuses the saved AssemblyAI API key. Local browser model reuses the endpoint and output format above. Hosted STT API reuses the same endpoint, output format, and token, but routes the audio through WordPress server-side.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Built-in audio matcher compares learner audio directly to each word\'s isolation recording (no STT transcript required). AssemblyAI transcribes both the learner audio and each word\'s saved isolation recording, then caches the saved recording transcript for reuse. Local browser model reuses the endpoint and output format above. Hosted STT API reuses the same endpoint, output format, and token, but routes the audio through WordPress server-side.', 'll-tools-text-domain'); ?>
                     </p>
                     <p class="description" style="margin-top:0;">
                         <?php echo esc_html__('If speaking practice is enabled and no provider is selected, LL Tools now defaults to the built-in audio matcher.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Speaking Game AssemblyAI Language', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-speaking-assemblyai-profile" class="screen-reader-text"><?php echo esc_html__('Speaking game AssemblyAI language or model profile', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-speaking-assemblyai-profile" name="ll_wordset_speaking_game_assemblyai_profile" class="ll-tools-settings-select" style="max-width: 420px;">
+                        <?php
+                        $current_profile_group = '';
+                        foreach ($speaking_assemblyai_profile_options as $profile_key => $profile_row) :
+                            $profile_group = is_array($profile_row) ? trim((string) ($profile_row['group'] ?? '')) : '';
+                            $profile_label = is_array($profile_row) ? (string) ($profile_row['label'] ?? $profile_key) : (string) $profile_row;
+                            if ($profile_group !== $current_profile_group) {
+                                if ($current_profile_group !== '') {
+                                    echo '</optgroup>';
+                                }
+                                if ($profile_group !== '') {
+                                    echo '<optgroup label="' . esc_attr($profile_group) . '">';
+                                }
+                                $current_profile_group = $profile_group;
+                            }
+                            ?>
+                            <option value="<?php echo esc_attr((string) $profile_key); ?>" <?php selected($speaking_assemblyai_profile, (string) $profile_key); ?>><?php echo esc_html($profile_label); ?></option>
+                        <?php endforeach; ?>
+                        <?php if ($current_profile_group !== '') : ?>
+                            </optgroup>
+                        <?php endif; ?>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('This only applies when the speaking game provider is AssemblyAI. LL Tools will use the same AssemblyAI mode for both the learner recording and the saved reference recording, then cache the saved transcript on the audio post for later attempts.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <p class="description" style="margin-top:0;">
+                        <?php echo esc_html__('For short isolation clips, choosing a specific language is usually faster and more reliable than multilingual auto-detection.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 

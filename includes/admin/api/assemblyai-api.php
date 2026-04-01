@@ -125,12 +125,20 @@ function ll_tools_assemblyai_upload_audio($file_path) {
  *
  * @param string $upload_url
  * @param string $language_code
+ * @param array  $options
  * @return string|WP_Error
  */
-function ll_tools_assemblyai_request_transcript($upload_url, $language_code = '') {
+function ll_tools_assemblyai_request_transcript($upload_url, $language_code = '', array $options = []) {
     $api_key = ll_get_assemblyai_api_key();
     if ($api_key === '') {
         return new WP_Error('missing_key', __('AssemblyAI API key not configured.', 'll-tools-text-domain'));
+    }
+
+    $language_code = function_exists('ll_tools_normalize_language_code')
+        ? (string) ll_tools_normalize_language_code($language_code, 'lower')
+        : strtolower(trim((string) $language_code));
+    if ($language_code === 'auto') {
+        $language_code = '';
     }
 
     $payload = [
@@ -141,6 +149,26 @@ function ll_tools_assemblyai_request_transcript($upload_url, $language_code = ''
 
     if ($language_code !== '') {
         $payload['language_code'] = $language_code;
+    }
+
+    $speech_models = [];
+    foreach ((array) ($options['speech_models'] ?? []) as $speech_model) {
+        $speech_model = sanitize_key((string) $speech_model);
+        if ($speech_model !== '') {
+            $speech_models[$speech_model] = $speech_model;
+        }
+    }
+    $speech_models = array_values($speech_models);
+    if (!empty($speech_models)) {
+        $payload['speech_models'] = $speech_models;
+    }
+
+    if (!empty($options['language_detection']) && $language_code === '') {
+        $payload['language_detection'] = true;
+    }
+
+    if (!empty($payload['language_detection']) && !empty($options['language_detection_options']) && is_array($options['language_detection_options'])) {
+        $payload['language_detection_options'] = $options['language_detection_options'];
     }
 
     $response = wp_remote_post('https://api.assemblyai.com/v2/transcript', [
@@ -204,15 +232,16 @@ function ll_tools_assemblyai_get_transcript($transcript_id) {
  *
  * @param string $file_path
  * @param string $language_code
+ * @param array  $options
  * @return string|WP_Error Transcript ID
  */
-function ll_tools_assemblyai_start_transcription($file_path, $language_code = '') {
+function ll_tools_assemblyai_start_transcription($file_path, $language_code = '', array $options = []) {
     $upload_url = ll_tools_assemblyai_upload_audio($file_path);
     if (is_wp_error($upload_url)) {
         return $upload_url;
     }
 
-    return ll_tools_assemblyai_request_transcript($upload_url, $language_code);
+    return ll_tools_assemblyai_request_transcript($upload_url, $language_code, $options);
 }
 
 /**
@@ -220,10 +249,11 @@ function ll_tools_assemblyai_start_transcription($file_path, $language_code = ''
  *
  * @param string $file_path
  * @param string $language_code
+ * @param array  $options
  * @return array|WP_Error
  */
-function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = '') {
-    $transcript_id = ll_tools_assemblyai_start_transcription($file_path, $language_code);
+function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = '', array $options = []) {
+    $transcript_id = ll_tools_assemblyai_start_transcription($file_path, $language_code, $options);
     if (is_wp_error($transcript_id)) {
         return $transcript_id;
     }
@@ -242,9 +272,11 @@ function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = 
         $state = isset($status['status']) ? $status['status'] : '';
         if ($state === 'completed') {
             return [
-                'id'     => $transcript_id,
+                'id' => $transcript_id,
                 'status' => 'completed',
-                'text'   => isset($status['text']) ? (string) $status['text'] : '',
+                'text' => isset($status['text']) ? (string) $status['text'] : '',
+                'language_code' => isset($status['language_code']) ? (string) $status['language_code'] : (string) $language_code,
+                'speech_model_used' => isset($status['speech_model_used']) ? (string) $status['speech_model_used'] : '',
             ];
         }
 

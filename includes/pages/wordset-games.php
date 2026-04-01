@@ -1808,6 +1808,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             'recording_type' => $target_type,
             'url' => '',
             'recording_ipa' => '',
+            'stored_path' => '',
         ];
     }
 
@@ -1829,6 +1830,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             'recording_type' => $target_type,
             'url' => '',
             'recording_ipa' => '',
+            'stored_path' => '',
         ];
     }
 
@@ -1875,6 +1877,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
             'recording_type' => $resolved_type !== '' ? $resolved_type : $target_type,
             'url' => $audio_url,
             'recording_ipa' => trim((string) get_post_meta($audio_post->ID, 'recording_ipa', true)),
+            'stored_path' => $audio_path,
         ];
     }
 
@@ -1883,6 +1886,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
         'recording_type' => $target_type,
         'url' => '',
         'recording_ipa' => '',
+        'stored_path' => '',
     ];
 }
 
@@ -1918,6 +1922,130 @@ function ll_tools_wordset_games_get_speaking_display_texts(int $word_id, string 
     ];
 }
 
+function ll_tools_wordset_games_get_assemblyai_reference_cache_meta_key(): string {
+    return '_ll_speaking_game_assemblyai_reference_cache';
+}
+
+function ll_tools_wordset_games_resolve_audio_absolute_path(string $stored_audio_path): string {
+    $stored_audio_path = trim((string) $stored_audio_path);
+    if ($stored_audio_path === '' || preg_match('#^https?://#i', $stored_audio_path)) {
+        return '';
+    }
+
+    $candidate = wp_normalize_path(ABSPATH . ltrim($stored_audio_path, "/\\"));
+    if (!is_readable($candidate) || !is_file($candidate)) {
+        return '';
+    }
+
+    $real = realpath($candidate);
+    if (!is_string($real) || $real === '') {
+        return '';
+    }
+
+    return wp_normalize_path($real);
+}
+
+function ll_tools_wordset_games_get_audio_signature(string $absolute_path, string $stored_audio_path = ''): string {
+    $absolute_path = wp_normalize_path($absolute_path);
+    $stored_audio_path = trim((string) $stored_audio_path);
+    if ($absolute_path === '' || !is_file($absolute_path)) {
+        return '';
+    }
+
+    $file_size = (string) @filesize($absolute_path);
+    $file_mtime = (string) @filemtime($absolute_path);
+
+    return md5($stored_audio_path . '|' . $absolute_path . '|' . $file_size . '|' . $file_mtime);
+}
+
+function ll_tools_wordset_games_get_assemblyai_reference_cache_key(array $request_config): string {
+    $payload = [
+        'profile' => sanitize_key((string) ($request_config['profile'] ?? '')),
+        'language_code' => sanitize_key((string) ($request_config['language_code'] ?? '')),
+        'speech_models' => array_values(array_map('sanitize_key', (array) ($request_config['speech_models'] ?? []))),
+        'language_detection' => !empty($request_config['language_detection']),
+        'language_detection_options' => is_array($request_config['language_detection_options'] ?? null)
+            ? $request_config['language_detection_options']
+            : [],
+    ];
+
+    return md5((string) wp_json_encode($payload));
+}
+
+function ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(int $audio_post_id, string $stored_audio_path, array $request_config) {
+    $audio_post_id = (int) $audio_post_id;
+    if ($audio_post_id <= 0) {
+        return new WP_Error('missing_reference_audio', __('This word does not have a saved isolation recording for speaking practice.', 'll-tools-text-domain'));
+    }
+
+    if (!function_exists('ll_tools_assemblyai_transcribe_audio_file')) {
+        return new WP_Error('assemblyai_unavailable', __('AssemblyAI integration is not available.', 'll-tools-text-domain'));
+    }
+
+    $absolute_path = ll_tools_wordset_games_resolve_audio_absolute_path($stored_audio_path);
+    if ($absolute_path === '') {
+        return new WP_Error('missing_reference_audio_file', __('The saved isolation recording could not be found on disk.', 'll-tools-text-domain'));
+    }
+
+    $cache_key = ll_tools_wordset_games_get_assemblyai_reference_cache_key($request_config);
+    $signature = ll_tools_wordset_games_get_audio_signature($absolute_path, $stored_audio_path);
+    $meta_key = ll_tools_wordset_games_get_assemblyai_reference_cache_meta_key();
+
+    static $runtime_cache = [];
+    if (isset($runtime_cache[$audio_post_id][$cache_key]) && is_array($runtime_cache[$audio_post_id][$cache_key])) {
+        $cached_row = $runtime_cache[$audio_post_id][$cache_key];
+        if (($cached_row['signature'] ?? '') === $signature && trim((string) ($cached_row['text'] ?? '')) !== '') {
+            return $cached_row;
+        }
+    }
+
+    $cache_rows = get_post_meta($audio_post_id, $meta_key, true);
+    if (!is_array($cache_rows)) {
+        $cache_rows = [];
+    }
+
+    if (isset($cache_rows[$cache_key]) && is_array($cache_rows[$cache_key])) {
+        $cached_row = $cache_rows[$cache_key];
+        if (($cached_row['signature'] ?? '') === $signature && trim((string) ($cached_row['text'] ?? '')) !== '') {
+            $runtime_cache[$audio_post_id][$cache_key] = $cached_row;
+            return $cached_row;
+        }
+    }
+
+    $language_code = sanitize_key((string) ($request_config['language_code'] ?? ''));
+    $assembly_options = [
+        'speech_models' => array_values(array_filter(array_map('sanitize_key', (array) ($request_config['speech_models'] ?? [])))),
+        'language_detection' => !empty($request_config['language_detection']),
+        'language_detection_options' => is_array($request_config['language_detection_options'] ?? null)
+            ? $request_config['language_detection_options']
+            : [],
+    ];
+    $result = ll_tools_assemblyai_transcribe_audio_file($absolute_path, $language_code, $assembly_options);
+    if (is_wp_error($result)) {
+        return $result;
+    }
+
+    $text = trim((string) ($result['text'] ?? ''));
+    if ($text === '') {
+        return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
+    }
+
+    $cache_row = [
+        'text' => $text,
+        'signature' => $signature,
+        'profile' => sanitize_key((string) ($request_config['profile'] ?? '')),
+        'profile_label' => trim((string) ($request_config['profile_label'] ?? '')),
+        'language_code' => sanitize_key((string) ($result['language_code'] ?? $language_code)),
+        'speech_model_used' => trim((string) ($result['speech_model_used'] ?? '')),
+        'cached_at' => time(),
+    ];
+    $cache_rows[$cache_key] = $cache_row;
+    update_post_meta($audio_post_id, $meta_key, $cache_rows);
+    $runtime_cache[$audio_post_id][$cache_key] = $cache_row;
+
+    return $cache_row;
+}
+
 function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $word_id, string $transcript, string $target_field = ''): array {
     $wordset_id = (int) $wordset_id;
     $word_id = (int) $word_id;
@@ -1951,6 +2079,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
         ? ll_tools_get_wordset_speaking_game_config([$wordset_id], true)
         : [];
     $configured_target = sanitize_key((string) ($config['target'] ?? 'word_title'));
+    $provider = sanitize_key((string) ($config['provider'] ?? ''));
     if ($target_field === '') {
         $target_field = $configured_target;
     }
@@ -1970,20 +2099,43 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
         $display_texts['ipa'] = $isolation_ipa;
         $display_texts['target_text'] = $isolation_ipa;
     }
-    $expected = ($target_field === 'recording_ipa')
+    $display_target = ($target_field === 'recording_ipa')
         ? $isolation_ipa
         : trim((string) ($display_texts['target_text'] ?? ''));
-    if ($expected === '') {
+    if ($display_target === '') {
         return new WP_Error('missing_target', __('Target text is missing for this word.', 'll-tools-text-domain'));
     }
 
-    $normalized_expected = ll_tools_wordset_games_normalize_speaking_text($expected, $target_field);
-    $normalized_transcript = ll_tools_wordset_games_normalize_speaking_text($transcript, $target_field);
+    $comparison_target = $display_target;
+    $comparison_mode = $target_field;
+    $reference_transcript = '';
+    if ($provider === 'assemblyai') {
+        $request_config = is_array($config['assemblyai_request'] ?? null) ? $config['assemblyai_request'] : [];
+        $cached_reference = ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(
+            (int) ($isolation_audio['audio_post_id'] ?? 0),
+            (string) ($isolation_audio['stored_path'] ?? ''),
+            $request_config
+        );
+        if (is_wp_error($cached_reference)) {
+            return $cached_reference;
+        }
+
+        $reference_transcript = trim((string) ($cached_reference['text'] ?? ''));
+        if ($reference_transcript === '') {
+            return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
+        }
+
+        $comparison_target = $reference_transcript;
+        $comparison_mode = 'word_title';
+    }
+
+    $normalized_expected = ll_tools_wordset_games_normalize_speaking_text($comparison_target, $comparison_mode);
+    $normalized_transcript = ll_tools_wordset_games_normalize_speaking_text($transcript, $comparison_mode);
     if ($normalized_expected === '' || $normalized_transcript === '') {
         return new WP_Error('empty_transcript', __('Transcript could not be normalized.', 'll-tools-text-domain'));
     }
 
-    $score = ll_tools_wordset_games_similarity_score($normalized_expected, $normalized_transcript, $target_field);
+    $score = ll_tools_wordset_games_similarity_score($normalized_expected, $normalized_transcript, $comparison_mode);
     $bucket = ll_tools_wordset_games_score_bucket($score);
 
     $best_audio_url = trim((string) ($isolation_audio['url'] ?? ''));
@@ -1993,13 +2145,16 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
         'word_id' => $word_id,
         'target_field' => $target_field,
         'target_label' => (string) ($display_texts['target_label'] ?? ''),
-        'target_text' => $expected,
+        'target_text' => $display_target,
         'normalized_target_text' => $normalized_expected,
         'normalized_transcript_text' => $normalized_transcript,
         'score' => $score,
         'bucket' => $bucket,
         'display_texts' => $display_texts,
         'best_correct_audio_url' => $best_audio_url,
+        'provider' => $provider,
+        'comparison_mode' => $comparison_mode,
+        'reference_transcript' => $reference_transcript,
     ];
 }
 
@@ -2127,12 +2282,11 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
             ], 500);
         }
 
-        $language_code = '';
-        if (function_exists('ll_tools_get_assemblyai_language_code')) {
-            $language_code = (string) ll_tools_get_assemblyai_language_code([$wordset_id]);
-        }
-
-        $result = ll_tools_assemblyai_transcribe_audio_file((string) $_FILES['audio']['tmp_name'], $language_code);
+        $assemblyai_request = is_array($config['assemblyai_request'] ?? null)
+            ? $config['assemblyai_request']
+            : [];
+        $language_code = sanitize_key((string) ($assemblyai_request['language_code'] ?? ''));
+        $result = ll_tools_assemblyai_transcribe_audio_file((string) $_FILES['audio']['tmp_name'], $language_code, $assemblyai_request);
         if (is_wp_error($result)) {
             wp_send_json_error([
                 'code' => $result->get_error_code(),
@@ -2179,6 +2333,7 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
         'status' => 'completed',
         'transcript' => $text,
         'text' => $text,
+        'assemblyai_profile' => (string) ($config['assemblyai_profile'] ?? ''),
         'normalized_transcript' => ll_tools_wordset_games_normalize_speaking_text($text, sanitize_key((string) ($config['target'] ?? 'word_title'))),
     ]);
 }
