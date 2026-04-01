@@ -1295,7 +1295,81 @@ function ll_tools_wordset_games_strip_speaking_stress_marks(string $text): strin
     return trim((string) $text);
 }
 
-function ll_tools_wordset_games_normalize_speaking_text(string $text, string $target_field): string {
+function ll_tools_wordset_games_normalize_text_language_code(string $raw): string {
+    $raw = trim((string) $raw);
+    if ($raw === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_resolve_language_code_from_label')) {
+        return (string) ll_tools_resolve_language_code_from_label($raw, 'lower');
+    }
+    if (function_exists('ll_tools_normalize_language_code')) {
+        return (string) ll_tools_normalize_language_code($raw, 'lower');
+    }
+
+    return sanitize_key($raw);
+}
+
+function ll_tools_wordset_games_get_text_comparison_language_code(int $wordset_id): string {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !function_exists('ll_tools_get_wordset_target_language')) {
+        return '';
+    }
+
+    return ll_tools_wordset_games_normalize_text_language_code(
+        (string) ll_tools_get_wordset_target_language([$wordset_id], true)
+    );
+}
+
+function ll_tools_wordset_games_is_turkish_text_language(string $language_code): bool {
+    return ll_tools_wordset_games_normalize_text_language_code($language_code) === 'tr';
+}
+
+function ll_tools_wordset_games_strip_speaking_text_punctuation(string $text): string {
+    $text = wp_strip_all_tags($text);
+    $text = str_replace(["\r", "\n", "\t", "\u{00A0}"], ' ', $text);
+    $text = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $text);
+    $text = preg_replace('/\s+/u', ' ', (string) $text);
+
+    return trim((string) $text);
+}
+
+function ll_tools_wordset_games_prepare_stt_result_text(string $text, string $target_field = 'word_title', string $language_code = ''): string {
+    $target_field = sanitize_key($target_field);
+    $text = trim((string) $text);
+    if ($text === '') {
+        return '';
+    }
+
+    if ($target_field === 'recording_ipa') {
+        return ll_tools_wordset_games_strip_speaking_stress_marks($text);
+    }
+
+    return ll_tools_wordset_games_strip_speaking_text_punctuation($text);
+}
+
+function ll_tools_wordset_games_turkish_lowercase(string $text): string {
+    $text = strtr($text, [
+        'I' => 'ı',
+        'İ' => 'i',
+        'Ç' => 'ç',
+        'Ğ' => 'ğ',
+        'Ö' => 'ö',
+        'Ş' => 'ş',
+        'Ü' => 'ü',
+    ]);
+
+    if (function_exists('mb_strtolower')) {
+        $text = mb_strtolower($text, 'UTF-8');
+    } else {
+        $text = strtolower($text);
+    }
+
+    return str_replace("\u{0307}", '', $text);
+}
+
+function ll_tools_wordset_games_normalize_speaking_text(string $text, string $target_field, string $language_code = ''): string {
     $target_field = sanitize_key($target_field);
     $text = trim($text);
     if ($text === '') {
@@ -1320,12 +1394,14 @@ function ll_tools_wordset_games_normalize_speaking_text(string $text, string $ta
         $text = preg_replace('/\s+/u', ' ', $text);
     }
 
-    $text = trim((string) $text);
+    $text = ll_tools_wordset_games_strip_speaking_text_punctuation((string) $text);
     if ($text === '') {
         return '';
     }
 
-    if (function_exists('mb_strtolower')) {
+    if (ll_tools_wordset_games_is_turkish_text_language($language_code)) {
+        $text = ll_tools_wordset_games_turkish_lowercase($text);
+    } elseif (function_exists('mb_strtolower')) {
         $text = mb_strtolower($text, 'UTF-8');
     } else {
         $text = strtolower($text);
@@ -1334,9 +1410,9 @@ function ll_tools_wordset_games_normalize_speaking_text(string $text, string $ta
     return trim($text);
 }
 
-function ll_tools_wordset_games_tokenize_speaking_text(string $text, string $target_field): array {
+function ll_tools_wordset_games_tokenize_speaking_text(string $text, string $target_field, string $language_code = ''): array {
     $target_field = sanitize_key($target_field);
-    $normalized = ll_tools_wordset_games_normalize_speaking_text($text, $target_field);
+    $normalized = ll_tools_wordset_games_normalize_speaking_text($text, $target_field, $language_code);
     if ($normalized === '') {
         return [];
     }
@@ -1752,14 +1828,14 @@ function ll_tools_wordset_games_similarity_score_ipa(string $expected, string $a
     return round(($token_score * 0.72) + ($unit_score * 0.28), 2);
 }
 
-function ll_tools_wordset_games_similarity_score(string $expected, string $actual, string $target_field): float {
+function ll_tools_wordset_games_similarity_score(string $expected, string $actual, string $target_field, string $language_code = ''): float {
     $target_field = sanitize_key($target_field);
     if ($target_field === 'recording_ipa') {
         return ll_tools_wordset_games_similarity_score_ipa($expected, $actual);
     }
 
-    $expected_tokens = ll_tools_wordset_games_tokenize_speaking_text($expected, $target_field);
-    $actual_tokens = ll_tools_wordset_games_tokenize_speaking_text($actual, $target_field);
+    $expected_tokens = ll_tools_wordset_games_tokenize_speaking_text($expected, $target_field, $language_code);
+    $actual_tokens = ll_tools_wordset_games_tokenize_speaking_text($actual, $target_field, $language_code);
 
     if (empty($expected_tokens) || empty($actual_tokens)) {
         return 0.0;
@@ -2047,7 +2123,10 @@ function ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(int $
         return $result;
     }
 
-    $text = trim((string) ($result['text'] ?? ''));
+    $text = ll_tools_wordset_games_prepare_stt_result_text(
+        trim((string) ($result['text'] ?? '')),
+        'word_title'
+    );
     if ($text === '') {
         return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
     }
@@ -2143,7 +2222,10 @@ function ll_tools_wordset_games_get_cached_hosted_reference_transcript(
         return $result;
     }
 
-    $text = trim((string) ($result['transcript'] ?? ''));
+    $text = ll_tools_wordset_games_prepare_stt_result_text(
+        trim((string) ($result['transcript'] ?? '')),
+        $target_field
+    );
     if ($text === '') {
         return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
     }
@@ -2224,6 +2306,9 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
 
     $comparison_target = $display_target;
     $comparison_mode = $target_field;
+    $comparison_language_code = ($target_field === 'recording_ipa')
+        ? ''
+        : ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);
     $reference_transcript = '';
     if ($target_field === 'reference_stt') {
         if ($provider === 'assemblyai') {
@@ -2244,6 +2329,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
 
             $comparison_target = $reference_transcript;
             $comparison_mode = 'word_title';
+            $comparison_language_code = ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);
         } elseif ($provider === 'hosted_api') {
             $service = function_exists('ll_tools_get_wordset_transcription_service_config')
                 ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
@@ -2267,18 +2353,21 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
 
             $comparison_target = $reference_transcript;
             $comparison_mode = (($service['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'word_title';
+            $comparison_language_code = ($comparison_mode === 'recording_ipa')
+                ? ''
+                : ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);
         } else {
             return new WP_Error('reference_stt_unavailable', __('Cached reference STT is only available with server-side speaking providers.', 'll-tools-text-domain'));
         }
     }
 
-    $normalized_expected = ll_tools_wordset_games_normalize_speaking_text($comparison_target, $comparison_mode);
-    $normalized_transcript = ll_tools_wordset_games_normalize_speaking_text($transcript, $comparison_mode);
+    $normalized_expected = ll_tools_wordset_games_normalize_speaking_text($comparison_target, $comparison_mode, $comparison_language_code);
+    $normalized_transcript = ll_tools_wordset_games_normalize_speaking_text($transcript, $comparison_mode, $comparison_language_code);
     if ($normalized_expected === '' || $normalized_transcript === '') {
         return new WP_Error('empty_transcript', __('Transcript could not be normalized.', 'll-tools-text-domain'));
     }
 
-    $score = ll_tools_wordset_games_similarity_score($normalized_expected, $normalized_transcript, $comparison_mode);
+    $score = ll_tools_wordset_games_similarity_score($normalized_expected, $normalized_transcript, $comparison_mode, $comparison_language_code);
     $bucket = ll_tools_wordset_games_score_bucket($score);
 
     $best_audio_url = trim((string) ($isolation_audio['url'] ?? ''));
@@ -2470,6 +2559,12 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
         $text = trim((string) ($result['transcript'] ?? ''));
     }
 
+    $normalize_target_field = sanitize_key((string) ($config['target'] ?? 'word_title'));
+    $normalize_language_code = ($normalize_target_field === 'recording_ipa')
+        ? ''
+        : ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);
+    $text = ll_tools_wordset_games_prepare_stt_result_text($text, $normalize_target_field, $normalize_language_code);
+
     wp_send_json_success([
         'wordset_id' => $wordset_id,
         'provider' => $provider,
@@ -2477,7 +2572,7 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
         'transcript' => $text,
         'text' => $text,
         'assemblyai_profile' => (string) ($config['assemblyai_profile'] ?? ''),
-        'normalized_transcript' => ll_tools_wordset_games_normalize_speaking_text($text, sanitize_key((string) ($config['target'] ?? 'word_title'))),
+        'normalized_transcript' => ll_tools_wordset_games_normalize_speaking_text($text, $normalize_target_field, $normalize_language_code),
     ]);
 }
 add_action('wp_ajax_ll_wordset_speaking_game_transcribe_attempt', 'll_tools_wordset_games_transcribe_attempt_ajax');
