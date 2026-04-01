@@ -3,6 +3,62 @@ if (!defined('WPINC')) {
     die;
 }
 
+function ll_tools_remote_stt_is_runpod_host(string $host): bool {
+    $host = strtolower(trim($host));
+    if ($host === '') {
+        return false;
+    }
+
+    return (substr($host, -11) === '.runpod.ai')
+        || (substr($host, -14) === '.api.runpod.ai')
+        || (strpos($host, 'runpod') !== false);
+}
+
+function ll_tools_remote_stt_build_url(array $parts): string {
+    $scheme = isset($parts['scheme']) ? (string) $parts['scheme'] : 'https';
+    $host = isset($parts['host']) ? (string) $parts['host'] : '';
+    $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+    $user = isset($parts['user']) ? (string) $parts['user'] : '';
+    $pass = isset($parts['pass']) ? ':' . (string) $parts['pass'] : '';
+    $auth = $user !== '' ? $user . $pass . '@' : '';
+    $path = isset($parts['path']) ? (string) $parts['path'] : '';
+    $query = isset($parts['query']) && (string) $parts['query'] !== '' ? '?' . (string) $parts['query'] : '';
+    $fragment = isset($parts['fragment']) && (string) $parts['fragment'] !== '' ? '#' . (string) $parts['fragment'] : '';
+
+    return $scheme . '://' . $auth . $host . $port . $path . $query . $fragment;
+}
+
+function ll_tools_remote_stt_normalize_endpoint(string $endpoint, string $mode = 'transcribe'): string {
+    $endpoint = trim($endpoint);
+    if ($endpoint === '') {
+        return '';
+    }
+
+    $parts = wp_parse_url($endpoint);
+    if (!is_array($parts)) {
+        return $endpoint;
+    }
+
+    $host = isset($parts['host']) ? (string) $parts['host'] : '';
+    if (!ll_tools_remote_stt_is_runpod_host($host)) {
+        return $endpoint;
+    }
+
+    $target_path = ($mode === 'health') ? '/health' : '/transcribe';
+    $path = isset($parts['path']) ? trim((string) $parts['path']) : '';
+    if ($path === '' || $path === '/') {
+        $parts['path'] = $target_path;
+        return ll_tools_remote_stt_build_url($parts);
+    }
+
+    if (preg_match('~/(ping|health|transcribe)/?$~i', $path)) {
+        $parts['path'] = preg_replace('~/(ping|health|transcribe)/?$~i', $target_path, $path);
+        return ll_tools_remote_stt_build_url($parts);
+    }
+
+    return $endpoint;
+}
+
 function ll_tools_remote_stt_extract_transcript($payload, string $raw_body = ''): string {
     if (is_string($payload)) {
         return trim($payload);
@@ -89,6 +145,7 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
     $endpoint = function_exists('ll_tools_sanitize_wordset_local_transcription_endpoint')
         ? ll_tools_sanitize_wordset_local_transcription_endpoint($endpoint)
         : trim($endpoint);
+    $endpoint = ll_tools_remote_stt_normalize_endpoint($endpoint, 'transcribe');
     if ($endpoint === '') {
         return new WP_Error('stt_missing_endpoint', __('STT endpoint URL is not configured.', 'll-tools-text-domain'));
     }
@@ -171,9 +228,18 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
             __('STT endpoint returned HTTP %d.', 'll-tools-text-domain'),
             $status_code
         );
+        $message = ll_tools_remote_stt_extract_error_message($payload, $fallback);
+        $endpoint_host = (string) wp_parse_url($endpoint, PHP_URL_HOST);
+        if (
+            $status_code === 404
+            && ll_tools_remote_stt_is_runpod_host($endpoint_host)
+            && strcasecmp($message, 'Not Found') === 0
+        ) {
+            $message = __('Runpod endpoint returned Not Found. Use the public load-balancer URL and make sure it ends with /transcribe.', 'll-tools-text-domain');
+        }
         return new WP_Error(
             'stt_request_rejected',
-            ll_tools_remote_stt_extract_error_message($payload, $fallback)
+            $message
         );
     }
 
