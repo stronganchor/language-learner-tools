@@ -431,6 +431,16 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     } elseif ($provider === 'audio_matcher') {
         $service_enabled = true;
     }
+
+    // If speaking is enabled but the selected STT provider is not usable, fall back to
+    // the built-in matcher so speaking games stay available.
+    if ($enabled_flag && !$service_enabled) {
+        $provider = 'audio_matcher';
+        $service_enabled = true;
+        $local_endpoint = '';
+        $local_result_field = 'recording_text';
+        $api_token = '';
+    }
     $enabled = $enabled_flag && $service_enabled && $target !== '';
     $compatible = true;
     $compatibility_message = '';
