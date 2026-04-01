@@ -4,7 +4,9 @@ project(lltools_offline_stt)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(WHISPER_VENDOR_DIR ${CMAKE_SOURCE_DIR}/third_party/whisper.cpp)
+# Keep the vendored path short so Git for Windows can stage the tracked JNI tree
+# during release/version-bump flows without tripping the MAX_PATH limit.
+set(WHISPER_VENDOR_DIR ${CMAKE_SOURCE_DIR}/w)
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build vendored whisper.cpp deps as static libraries" FORCE)
 set(GGML_NATIVE OFF CACHE BOOL "Do not optimize for the build host" FORCE)

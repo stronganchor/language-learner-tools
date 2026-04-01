@@ -15,6 +15,12 @@ $pluginFile = Join-Path $repoRoot 'language-learner-tools.php'
 $pluginSlug = 'language-learner-tools'
 $gitHubApiBase = 'https://api.github.com'
 
+function Enable-GitLongPaths {
+    & git -C $repoRoot config core.longpaths true *> $null
+}
+
+Enable-GitLongPaths
+
 function Invoke-Git {
     param(
         [Parameter(Mandatory = $true)]
