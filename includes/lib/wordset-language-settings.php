@@ -24,6 +24,9 @@ if (!defined('LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY')) {
     define('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY', 'll_wordset_local_transcription_endpoint');
 }
+if (!defined('LL_TOOLS_WORDSET_TRANSCRIPTION_API_TOKEN_META_KEY')) {
+    define('LL_TOOLS_WORDSET_TRANSCRIPTION_API_TOKEN_META_KEY', 'll_wordset_transcription_api_token');
+}
 if (!defined('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY')) {
     define('LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY', 'll_wordset_local_transcription_target');
 }
@@ -64,7 +67,7 @@ function ll_tools_sanitize_wordset_recording_transcription_mode($value): string 
 
 function ll_tools_sanitize_wordset_transcription_provider($value): string {
     $value = sanitize_key((string) $value);
-    return in_array($value, ['assemblyai', 'local_browser'], true) ? $value : '';
+    return in_array($value, ['assemblyai', 'local_browser', 'hosted_api'], true) ? $value : '';
 }
 
 function ll_tools_sanitize_wordset_local_transcription_target($value): string {
@@ -98,6 +101,24 @@ function ll_tools_sanitize_wordset_local_transcription_endpoint($value): string 
     }
 
     return esc_url_raw($value, ['http', 'https']);
+}
+
+function ll_tools_sanitize_wordset_transcription_api_token($value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    $quote_chars = ["'", '"'];
+    $first_char = substr($value, 0, 1);
+    $last_char = substr($value, -1);
+    if ($first_char !== '' && $first_char === $last_char && in_array($first_char, $quote_chars, true)) {
+        $value = substr($value, 1, -1);
+    }
+
+    $value = preg_replace('/[\r\n\t]+/', '', $value);
+
+    return trim((string) $value);
 }
 
 function ll_tools_sanitize_wordset_offline_stt_bundle_path($value): string {
@@ -261,6 +282,21 @@ function ll_tools_get_wordset_local_transcription_target($wordset_ids = [], bool
     return $fallback_to_default ? 'recording_ipa' : '';
 }
 
+function ll_tools_get_wordset_transcription_api_token($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_API_TOKEN_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_transcription_api_token(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_API_TOKEN_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? '' : '';
+}
+
 function ll_tools_get_wordset_offline_stt_bundle_path($wordset_ids = [], bool $fallback_to_default = true): string {
     $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
     foreach ($ids as $wordset_id) {
@@ -367,16 +403,21 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     $provider = ll_tools_get_wordset_speaking_game_provider($wordset_ids, $fallback_to_default);
     $enabled_flag = ll_tools_get_wordset_speaking_game_enabled($wordset_ids, $fallback_to_default);
     $target = ll_tools_get_wordset_speaking_game_target($wordset_ids, $fallback_to_default);
-    $local_endpoint = $provider === 'local_browser'
+    $local_endpoint = in_array($provider, ['local_browser', 'hosted_api'], true)
         ? ll_tools_get_wordset_local_transcription_endpoint($wordset_ids, $fallback_to_default)
         : '';
-    $local_result_field = $provider === 'local_browser'
+    $local_result_field = in_array($provider, ['local_browser', 'hosted_api'], true)
         ? ll_tools_get_wordset_local_transcription_target($wordset_ids, $fallback_to_default)
         : 'recording_text';
+    $api_token = $provider === 'hosted_api'
+        ? ll_tools_get_wordset_transcription_api_token($wordset_ids, $fallback_to_default)
+        : '';
     $service_enabled = false;
     if ($provider === 'assemblyai') {
         $service_enabled = function_exists('ll_get_assemblyai_api_key') && ll_get_assemblyai_api_key() !== '';
     } elseif ($provider === 'local_browser') {
+        $service_enabled = $local_endpoint !== '';
+    } elseif ($provider === 'hosted_api') {
         $service_enabled = $local_endpoint !== '';
     }
     $enabled = $enabled_flag && $service_enabled && $target !== '';
@@ -385,13 +426,13 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     if ($provider === 'assemblyai' && $target === 'recording_ipa') {
         $compatible = false;
         $compatibility_message = __('AssemblyAI returns normal text for this game, so the target must use word title text.', 'll-tools-text-domain');
-    } elseif ($provider === 'local_browser') {
+    } elseif (in_array($provider, ['local_browser', 'hosted_api'], true)) {
         if ($local_result_field === 'recording_ipa' && $target !== 'recording_ipa') {
             $compatible = false;
-            $compatibility_message = __('The local STT model is configured to return IPA, so the speaking game target must use the IPA field.', 'll-tools-text-domain');
+            $compatibility_message = __('This STT model is configured to return IPA, so the speaking game target must use the IPA field.', 'll-tools-text-domain');
         } elseif ($local_result_field !== 'recording_ipa' && $target === 'recording_ipa') {
             $compatible = false;
-            $compatibility_message = __('The local STT model is configured to return normal text, so the speaking game target must use word title text.', 'll-tools-text-domain');
+            $compatibility_message = __('This STT model is configured to return normal text, so the speaking game target must use word title text.', 'll-tools-text-domain');
         }
     }
     $enabled = $enabled && $compatible;
@@ -402,8 +443,10 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
         'provider' => $provider,
         'provider_label' => ll_tools_get_wordset_transcription_provider_label($provider),
         'uses_local_browser' => ($provider === 'local_browser'),
+        'uses_hosted_api' => ($provider === 'hosted_api'),
         'local_endpoint' => $local_endpoint,
-        'local_result_field' => $provider === 'local_browser' ? $local_result_field : 'recording_text',
+        'api_token_configured' => ($api_token !== ''),
+        'local_result_field' => in_array($provider, ['local_browser', 'hosted_api'], true) ? $local_result_field : 'recording_text',
         'service_enabled' => $service_enabled,
         'compatible' => $compatible,
         'compatibility_message' => $compatibility_message,
@@ -491,6 +534,9 @@ function ll_tools_get_wordset_transcription_provider_label(string $provider): st
     if ($provider === 'local_browser') {
         return __('Local browser model', 'll-tools-text-domain');
     }
+    if ($provider === 'hosted_api') {
+        return __('Hosted STT API', 'll-tools-text-domain');
+    }
     if ($provider === 'assemblyai') {
         return __('AssemblyAI', 'll-tools-text-domain');
     }
@@ -524,17 +570,22 @@ function ll_tools_get_wordset_local_transcription_target_label(string $target, $
 function ll_tools_get_wordset_transcription_service_config($wordset_ids = [], bool $fallback_to_default = true): array {
     $provider = ll_tools_get_wordset_transcription_provider($wordset_ids, $fallback_to_default);
     $uses_local_browser = ($provider === 'local_browser');
-    $target_field = $uses_local_browser
+    $uses_hosted_api = ($provider === 'hosted_api');
+    $uses_custom_endpoint = ($uses_local_browser || $uses_hosted_api);
+    $target_field = $uses_custom_endpoint
         ? ll_tools_get_wordset_local_transcription_target($wordset_ids, $fallback_to_default)
         : 'recording_text';
-    $local_endpoint = $uses_local_browser
+    $local_endpoint = $uses_custom_endpoint
         ? ll_tools_get_wordset_local_transcription_endpoint($wordset_ids, $fallback_to_default)
+        : '';
+    $api_token = $uses_hosted_api
+        ? ll_tools_get_wordset_transcription_api_token($wordset_ids, $fallback_to_default)
         : '';
 
     $enabled = false;
     if ($provider === 'assemblyai') {
         $enabled = function_exists('ll_get_assemblyai_api_key') && ll_get_assemblyai_api_key() !== '';
-    } elseif ($uses_local_browser) {
+    } elseif ($uses_custom_endpoint) {
         $enabled = ($local_endpoint !== '');
     }
 
@@ -542,10 +593,12 @@ function ll_tools_get_wordset_transcription_service_config($wordset_ids = [], bo
         'provider' => $provider,
         'provider_label' => ll_tools_get_wordset_transcription_provider_label($provider),
         'uses_local_browser' => $uses_local_browser,
+        'uses_hosted_api' => $uses_hosted_api,
         'target_field' => $target_field,
         'target_meta_key' => $target_field,
         'target_label' => ll_tools_get_wordset_local_transcription_target_label($target_field, $wordset_ids),
         'local_endpoint' => $local_endpoint,
+        'api_token_configured' => ($api_token !== ''),
         'enabled' => $enabled,
     ];
 }

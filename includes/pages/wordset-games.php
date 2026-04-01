@@ -21,6 +21,11 @@ function ll_tools_wordset_games_speaking_practice_launch_word_cap(): int {
     return max($minimum, (int) apply_filters('ll_tools_wordset_games_speaking_practice_launch_word_cap', 60));
 }
 
+function ll_tools_wordset_games_speaking_stack_launch_word_cap(): int {
+    $minimum = ll_tools_wordset_games_min_word_count();
+    return max($minimum, (int) apply_filters('ll_tools_wordset_games_speaking_stack_launch_word_cap', 60));
+}
+
 function ll_tools_wordset_games_render_page_icon(string $class = 'll-wordset-games-icon'): string {
     $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
     return '<svg' . $class_attr . ' viewBox="0 0 256 256" width="18" height="18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'
@@ -69,10 +74,28 @@ function ll_tools_wordset_games_render_speaking_icon(string $class = 'll-wordset
         . '</svg>';
 }
 
+function ll_tools_wordset_games_render_speaking_stack_icon(string $class = 'll-wordset-games-icon'): string {
+    $class_attr = $class !== '' ? ' class="' . esc_attr($class) . '"' : '';
+    return '<svg' . $class_attr . ' viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+        . '<rect x="4.2" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"/>'
+        . '<rect x="13.6" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"/>'
+        . '<path d="M12 3.6c-1.41 0-2.55 1.14-2.55 2.55v2.7c0 1.41 1.14 2.55 2.55 2.55s2.55-1.14 2.55-2.55v-2.7c0-1.41-1.14-2.55-2.55-2.55Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'
+        . '<path d="M9.8 8.95c0 1.22.99 2.2 2.2 2.2s2.2-.98 2.2-2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '<path d="M12 11.35v1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '<path d="M9.9 12.95h4.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '<path d="M12 14.2v-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '<path d="M12 14.2l-1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '<path d="M12 14.2l1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
 function ll_tools_wordset_games_render_game_icon(string $slug, string $class = 'll-wordset-games-icon'): string {
     $normalized_slug = sanitize_key($slug);
     if ($normalized_slug === 'bubble-pop') {
         return ll_tools_wordset_games_render_bubble_icon($class);
+    }
+    if ($normalized_slug === 'speaking-stack') {
+        return ll_tools_wordset_games_render_speaking_stack_icon($class);
     }
     if ($normalized_slug === 'speaking-practice') {
         return ll_tools_wordset_games_render_speaking_icon($class);
@@ -1046,6 +1069,30 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
     ];
 }
 
+function ll_tools_wordset_games_build_speaking_stack_pool(int $wordset_id, int $user_id = 0): array {
+    $speaking_pool = ll_tools_wordset_games_build_speaking_practice_pool($wordset_id, $user_id);
+    $eligible_words = isset($speaking_pool['words']) && is_array($speaking_pool['words'])
+        ? array_values(array_filter($speaking_pool['words'], static function ($word): bool {
+            return is_array($word) && trim((string) ($word['image'] ?? '')) !== '';
+        }))
+        : [];
+
+    return [
+        'minimum_word_count' => (int) ($speaking_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count()),
+        'pool_source' => 'speaking_stack',
+        'category_ids' => isset($speaking_pool['category_ids']) && is_array($speaking_pool['category_ids']) ? $speaking_pool['category_ids'] : [],
+        'words' => $eligible_words,
+        'target_field' => (string) ($speaking_pool['target_field'] ?? ''),
+        'target_label' => (string) ($speaking_pool['target_label'] ?? ''),
+        'enabled' => !empty($speaking_pool['enabled']),
+        'reason_code' => !empty($speaking_pool['reason_code']) ? (string) $speaking_pool['reason_code'] : '',
+        'provider' => (string) ($speaking_pool['provider'] ?? ''),
+        'provider_label' => (string) ($speaking_pool['provider_label'] ?? ''),
+        'service_enabled' => !empty($speaking_pool['service_enabled']),
+        'local_endpoint' => (string) ($speaking_pool['local_endpoint'] ?? ''),
+    ];
+}
+
 function ll_tools_wordset_games_get_audio_recording_type($audio_post): string {
     $audio_post_id = $audio_post instanceof WP_Post
         ? (int) $audio_post->ID
@@ -1186,6 +1233,35 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
             'provider' => (string) ($speaking_pool['provider'] ?? ''),
             'provider_label' => (string) ($speaking_pool['provider_label'] ?? ''),
             'local_endpoint' => (string) ($speaking_pool['local_endpoint'] ?? ''),
+        ];
+    }
+
+    $speaking_stack_pool = ll_tools_wordset_games_build_speaking_stack_pool($wordset_id, $user_id);
+    $speaking_stack_minimum = (int) ($speaking_stack_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count());
+    $speaking_stack_available = count((array) ($speaking_stack_pool['words'] ?? []));
+    $speaking_stack_launch_words = ll_tools_wordset_games_limit_launch_words(
+        isset($speaking_stack_pool['words']) && is_array($speaking_stack_pool['words']) ? $speaking_stack_pool['words'] : [],
+        ll_tools_wordset_games_speaking_stack_launch_word_cap()
+    );
+    $speaking_stack_enabled = !empty($speaking_stack_pool['enabled']) && !empty($speaking_stack_pool['service_enabled']);
+    if ($speaking_stack_enabled && $speaking_stack_available >= $speaking_stack_minimum) {
+        $catalog['speaking-stack'] = [
+            'slug' => 'speaking-stack',
+            'title' => __('Word Stack', 'll-tools-text-domain'),
+            'description' => __('Say the picture before the stack reaches the top.', 'll-tools-text-domain'),
+            'minimum_word_count' => $speaking_stack_minimum,
+            'available_word_count' => $speaking_stack_available,
+            'launch_word_cap' => ll_tools_wordset_games_speaking_stack_launch_word_cap(),
+            'launch_word_count' => count($speaking_stack_launch_words),
+            'launchable' => true,
+            'reason_code' => '',
+            'category_ids' => isset($speaking_stack_pool['category_ids']) && is_array($speaking_stack_pool['category_ids']) ? $speaking_stack_pool['category_ids'] : [],
+            'words' => $speaking_stack_launch_words,
+            'target_field' => (string) ($speaking_stack_pool['target_field'] ?? ''),
+            'target_label' => (string) ($speaking_stack_pool['target_label'] ?? ''),
+            'provider' => (string) ($speaking_stack_pool['provider'] ?? ''),
+            'provider_label' => (string) ($speaking_stack_pool['provider_label'] ?? ''),
+            'local_endpoint' => (string) ($speaking_stack_pool['local_endpoint'] ?? ''),
         ];
     }
 
@@ -1932,6 +2008,57 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
     ];
 }
 
+function ll_tools_wordset_games_score_best_speaking_match(int $wordset_id, array $word_ids, string $transcript, string $target_field = '') {
+    $candidate_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($candidate_ids)) {
+        return new WP_Error('missing_words', __('No active words were provided.', 'll-tools-text-domain'));
+    }
+
+    $best_result = null;
+    $scored_count = 0;
+    $bucket_rank = [
+        'wrong' => 0,
+        'close' => 1,
+        'right' => 2,
+    ];
+
+    foreach ($candidate_ids as $candidate_id) {
+        $result = ll_tools_wordset_games_score_speaking_transcript($wordset_id, $candidate_id, $transcript, $target_field);
+        if (is_wp_error($result)) {
+            continue;
+        }
+
+        $scored_count += 1;
+        if (!is_array($best_result)) {
+            $best_result = $result;
+            continue;
+        }
+
+        $result_score = (float) ($result['score'] ?? 0.0);
+        $best_score = (float) ($best_result['score'] ?? 0.0);
+        $result_rank = (int) ($bucket_rank[(string) ($result['bucket'] ?? 'wrong')] ?? 0);
+        $best_rank = (int) ($bucket_rank[(string) ($best_result['bucket'] ?? 'wrong')] ?? 0);
+
+        if ($result_score > $best_score || ($result_score === $best_score && $result_rank > $best_rank)) {
+            $best_result = $result;
+        }
+    }
+
+    if ($scored_count <= 0 || !is_array($best_result)) {
+        return new WP_Error('no_candidates', __('No playable words were available for matching.', 'll-tools-text-domain'));
+    }
+
+    $matched = (string) ($best_result['bucket'] ?? 'wrong') !== 'wrong';
+
+    return array_merge($best_result, [
+        'matched' => $matched,
+        'candidate_word_ids' => $candidate_ids,
+        'candidate_count' => $scored_count,
+    ]);
+}
+
 function ll_tools_wordset_games_require_speaking_permissions(): void {
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
@@ -1982,17 +2109,12 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
     }
 
     $config = (array) $config_or_error;
-    if (($config['provider'] ?? '') !== 'assemblyai') {
+    $provider = sanitize_key((string) ($config['provider'] ?? ''));
+    if (!in_array($provider, ['assemblyai', 'hosted_api'], true)) {
         wp_send_json_error([
             'code' => 'provider_unsupported',
-            'message' => __('This speaking set is not configured for AssemblyAI transcription.', 'll-tools-text-domain'),
+            'message' => __('This speaking set is not configured for server-side transcription.', 'll-tools-text-domain'),
         ], 400);
-    }
-    if (!function_exists('ll_tools_assemblyai_transcribe_audio_file')) {
-        wp_send_json_error([
-            'code' => 'assemblyai_unavailable',
-            'message' => __('AssemblyAI integration is not available.', 'll-tools-text-domain'),
-        ], 500);
     }
     if (empty($_FILES['audio']) || !is_array($_FILES['audio']) || empty($_FILES['audio']['tmp_name'])) {
         wp_send_json_error([
@@ -2001,24 +2123,65 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
         ], 400);
     }
 
-    $language_code = '';
-    if (function_exists('ll_tools_get_assemblyai_language_code')) {
-        $language_code = (string) ll_tools_get_assemblyai_language_code([$wordset_id]);
+    $text = '';
+    if ($provider === 'assemblyai') {
+        if (!function_exists('ll_tools_assemblyai_transcribe_audio_file')) {
+            wp_send_json_error([
+                'code' => 'assemblyai_unavailable',
+                'message' => __('AssemblyAI integration is not available.', 'll-tools-text-domain'),
+            ], 500);
+        }
+
+        $language_code = '';
+        if (function_exists('ll_tools_get_assemblyai_language_code')) {
+            $language_code = (string) ll_tools_get_assemblyai_language_code([$wordset_id]);
+        }
+
+        $result = ll_tools_assemblyai_transcribe_audio_file((string) $_FILES['audio']['tmp_name'], $language_code);
+        if (is_wp_error($result)) {
+            wp_send_json_error([
+                'code' => $result->get_error_code(),
+                'message' => $result->get_error_message(),
+            ], 400);
+        }
+
+        $text = trim((string) ($result['text'] ?? ''));
+    } else {
+        $service = function_exists('ll_tools_get_wordset_transcription_service_config')
+            ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
+            : [];
+        $endpoint = trim((string) ($service['local_endpoint'] ?? ''));
+        $token = function_exists('ll_tools_get_wordset_transcription_api_token')
+            ? ll_tools_get_wordset_transcription_api_token([$wordset_id], true)
+            : '';
+        $word_id = isset($_POST['word_id']) ? (int) $_POST['word_id'] : 0;
+        $word_title = isset($_POST['word_title']) ? sanitize_text_field(wp_unslash((string) $_POST['word_title'])) : '';
+        $target_field = (($service['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'recording_text';
+        $result = ll_tools_remote_stt_transcribe_audio_file($endpoint, (string) $_FILES['audio']['tmp_name'], [
+            'token' => $token,
+            'filename' => sanitize_file_name((string) ($_FILES['audio']['name'] ?? 'speaking-attempt.webm')),
+            'fields' => [
+                'wordset_id' => (string) $wordset_id,
+                'word_id' => $word_id > 0 ? (string) $word_id : '',
+                'word_title' => $word_title,
+                'recording_type' => 'speaking_attempt',
+                'target_field' => $target_field,
+            ],
+        ]);
+        if (is_wp_error($result)) {
+            wp_send_json_error([
+                'code' => $result->get_error_code(),
+                'message' => $result->get_error_message(),
+            ], 400);
+        }
+
+        $text = trim((string) ($result['transcript'] ?? ''));
     }
 
-    $result = ll_tools_assemblyai_transcribe_audio_file((string) $_FILES['audio']['tmp_name'], $language_code);
-    if (is_wp_error($result)) {
-        wp_send_json_error([
-            'code' => $result->get_error_code(),
-            'message' => $result->get_error_message(),
-        ], 400);
-    }
-
-    $text = trim((string) ($result['text'] ?? ''));
     wp_send_json_success([
         'wordset_id' => $wordset_id,
-        'provider' => 'assemblyai',
-        'status' => (string) ($result['status'] ?? 'completed'),
+        'provider' => $provider,
+        'status' => 'completed',
         'transcript' => $text,
         'text' => $text,
         'normalized_transcript' => ll_tools_wordset_games_normalize_speaking_text($text, sanitize_key((string) ($config['target'] ?? 'word_title'))),
@@ -2058,6 +2221,39 @@ function ll_tools_wordset_games_score_attempt_ajax(): void {
     wp_send_json_success($result);
 }
 add_action('wp_ajax_ll_wordset_speaking_game_score_attempt', 'll_tools_wordset_games_score_attempt_ajax');
+
+function ll_tools_wordset_games_match_attempt_ajax(): void {
+    ll_tools_wordset_games_require_speaking_permissions();
+
+    [$wordset_id, $config_or_error] = ll_tools_wordset_games_validate_speaking_wordset_request();
+    if (is_wp_error($config_or_error)) {
+        wp_send_json_error([
+            'code' => $config_or_error->get_error_code(),
+            'message' => $config_or_error->get_error_message(),
+        ], 400);
+    }
+
+    $transcript = isset($_POST['transcript']) ? wp_unslash((string) $_POST['transcript']) : '';
+    $word_ids = isset($_POST['word_ids']) ? (array) $_POST['word_ids'] : [];
+    if (trim($transcript) === '' || empty($word_ids)) {
+        wp_send_json_error([
+            'code' => 'missing_data',
+            'message' => __('Missing active words or transcript.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $target_field = sanitize_key((string) ($_POST['target_field'] ?? ''));
+    $result = ll_tools_wordset_games_score_best_speaking_match($wordset_id, $word_ids, $transcript, $target_field);
+    if (is_wp_error($result)) {
+        wp_send_json_error([
+            'code' => $result->get_error_code(),
+            'message' => $result->get_error_message(),
+        ], 400);
+    }
+
+    wp_send_json_success($result);
+}
+add_action('wp_ajax_ll_wordset_speaking_game_match_attempt', 'll_tools_wordset_games_match_attempt_ajax');
 
 function ll_tools_wordset_games_bootstrap_ajax(): void {
     if (!is_user_logged_in()) {

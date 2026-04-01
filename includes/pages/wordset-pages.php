@@ -1243,6 +1243,9 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $endpoint = isset($_POST['ll_wordset_local_transcription_endpoint'])
             ? ll_tools_sanitize_wordset_local_transcription_endpoint(wp_unslash((string) $_POST['ll_wordset_local_transcription_endpoint']))
             : '';
+        $api_token = isset($_POST['ll_wordset_transcription_api_token'])
+            ? ll_tools_sanitize_wordset_transcription_api_token(wp_unslash((string) $_POST['ll_wordset_transcription_api_token']))
+            : '';
         $offline_stt_bundle_path = isset($_POST['ll_wordset_offline_stt_bundle_path'])
             ? ll_tools_sanitize_wordset_offline_stt_bundle_path(wp_unslash((string) $_POST['ll_wordset_offline_stt_bundle_path']))
             : '';
@@ -1260,6 +1263,11 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, $endpoint);
         } else {
             delete_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY);
+        }
+        if ($api_token !== '') {
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_API_TOKEN_META_KEY, $api_token);
+        } else {
+            delete_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_API_TOKEN_META_KEY);
         }
         if ($offline_stt_bundle_path !== '') {
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY, $offline_stt_bundle_path);
@@ -2119,6 +2127,7 @@ function ll_tools_get_wordset_games_frontend_config(): array {
         'bootstrapAction' => 'll_wordset_games_bootstrap',
         'transcribeAttemptAction' => 'll_wordset_speaking_game_transcribe_attempt',
         'scoreAttemptAction' => 'll_wordset_speaking_game_score_attempt',
+        'matchAttemptAction' => 'll_wordset_speaking_game_match_attempt',
         'minimumWordCount' => function_exists('ll_tools_wordset_games_min_word_count')
             ? ll_tools_wordset_games_min_word_count()
             : 5,
@@ -2195,6 +2204,35 @@ function ll_tools_get_wordset_games_frontend_config(): array {
                 LL_TOOLS_BASE_URL . 'media/wrong-answer.mp3',
             ],
         ],
+        'speakingStack' => [
+            'slug' => 'speaking-stack',
+            'cardCount' => 4,
+            'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_stack_launch_word_cap')
+                ? ll_tools_wordset_games_speaking_stack_launch_word_cap()
+                : 60,
+            'initialSpawnDelayMs' => 680,
+            'spawnGapMs' => 2600,
+            'fallSpeed' => 176,
+            'stackGapPx' => 12,
+            'groundPaddingPx' => 34,
+            'topDangerPaddingPx' => 14,
+            'finalSilenceMs' => 10000,
+            'matchThresholdScore' => 65,
+            'maxRecordingMs' => 6000,
+            'silenceWindowMs' => 820,
+            'silenceThreshold' => 0.03,
+            'speechStartThreshold' => 0.055,
+            'minSpeechMs' => 120,
+            'apiCheckTimeoutMs' => 1500,
+            'correctHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.mp3',
+                LL_TOOLS_BASE_URL . 'media/space-shooter-correct-hit.ogg',
+            ],
+            'wrongHitAudioSources' => [
+                LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.mp3',
+                LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
+            ],
+        ],
     ];
 }
 
@@ -2229,6 +2267,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
         'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
         'gamesBoardLabelSpeakingPractice' => __('Speaking practice panel', 'll-tools-text-domain'),
+        'gamesBoardLabelSpeakingStack' => __('Word Stack game board', 'll-tools-text-domain'),
         'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
         'gamesSpeakingApiUnavailable' => __('Speaking practice is unavailable on this device right now.', 'll-tools-text-domain'),
         'gamesSpeakingRound' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
@@ -2255,6 +2294,18 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesSpeakingNotSupported' => __('This browser cannot record audio for speaking practice.', 'll-tools-text-domain'),
         'gamesSpeakingDoneTitle' => __('Speaking round complete', 'll-tools-text-domain'),
         'gamesSpeakingDoneSummary' => __('Right: %1$d · Close: %2$d · Wrong: %3$d', 'll-tools-text-domain'),
+        'gamesSpeakingStackProgress' => __('%1$d left', 'll-tools-text-domain'),
+        'gamesSpeakingStackReady' => __('Mic ready', 'll-tools-text-domain'),
+        'gamesSpeakingStackListening' => __('Listening for the next word...', 'll-tools-text-domain'),
+        'gamesSpeakingStackProcessing' => __('Checking your word...', 'll-tools-text-domain'),
+        'gamesSpeakingStackTooQuiet' => __('No clear word detected.', 'll-tools-text-domain'),
+        'gamesSpeakingStackNoMatch' => __('No match yet.', 'll-tools-text-domain'),
+        'gamesSpeakingStackMicError' => __('Microphone access failed.', 'll-tools-text-domain'),
+        'gamesSpeakingStackHeardLabel' => __('Heard', 'll-tools-text-domain'),
+        'gamesSpeakingStackWinTitle' => __('You cleared the stack', 'll-tools-text-domain'),
+        'gamesSpeakingStackLoseStackedTitle' => __('The stack reached the top', 'll-tools-text-domain'),
+        'gamesSpeakingStackLoseSilenceTitle' => __('Time ran out', 'll-tools-text-domain'),
+        'gamesSpeakingStackSummary' => __('Cleared: %1$d of %2$d', 'll-tools-text-domain'),
     ];
 }
 
@@ -3193,6 +3244,9 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
     $provider = ll_tools_sanitize_wordset_transcription_provider((string) ($transcription_settings['provider'] ?? ''));
     $local_endpoint = (string) ($transcription_settings['local_endpoint'] ?? ll_tools_get_default_local_transcription_endpoint());
     $local_target = ll_tools_sanitize_wordset_local_transcription_target((string) ($transcription_settings['target_field'] ?? 'recording_ipa'));
+    $api_token = function_exists('ll_tools_get_wordset_transcription_api_token')
+        ? ll_tools_get_wordset_transcription_api_token([$wordset_id], true)
+        : '';
     $offline_stt_bundle_path = function_exists('ll_tools_get_wordset_offline_stt_bundle_path')
         ? ll_tools_get_wordset_offline_stt_bundle_path([$wordset_id], true)
         : '';
@@ -3242,26 +3296,27 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         <option value="" <?php selected($provider, ''); ?>><?php echo esc_html__('Disabled', 'll-tools-text-domain'); ?></option>
                         <option value="assemblyai" <?php selected($provider, 'assemblyai'); ?>><?php echo esc_html__('AssemblyAI', 'll-tools-text-domain'); ?></option>
                         <option value="local_browser" <?php selected($provider, 'local_browser'); ?>><?php echo esc_html__('Local browser model', 'll-tools-text-domain'); ?></option>
+                        <option value="hosted_api" <?php selected($provider, 'hosted_api'); ?>><?php echo esc_html__('Hosted STT API', 'll-tools-text-domain'); ?></option>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('AssemblyAI keeps the current server-side captions workflow. Local browser model sends lesson audio from this browser to a localhost service on the computer you are using right now.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('AssemblyAI keeps the current server-side captions workflow. Local browser model sends lesson audio from this browser to a localhost service on the computer you are using right now. Hosted STT API sends lesson audio from WordPress to your own model endpoint.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
-                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Local Model Output', 'll-tools-text-domain'); ?></h3>
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Custom STT Output', 'll-tools-text-domain'); ?></h3>
                     <label for="ll-wordset-settings-local-target" class="screen-reader-text"><?php echo esc_html__('Local model output field', 'll-tools-text-domain'); ?></label>
                     <select id="ll-wordset-settings-local-target" name="ll_wordset_local_transcription_target" class="ll-tools-settings-select" style="max-width: 320px;">
                         <option value="recording_ipa" <?php selected($local_target, 'recording_ipa'); ?>><?php echo esc_html(sprintf(__('Secondary transcription field (%s)', 'll-tools-text-domain'), $secondary_label)); ?></option>
                         <option value="recording_text" <?php selected($local_target, 'recording_text'); ?>><?php echo esc_html__('Recording text', 'll-tools-text-domain'); ?></option>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Use the secondary field when your local model returns IPA, transliteration, or another alternate transcription instead of normal word text.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Use the secondary field when your local or hosted model returns IPA, transliteration, or another alternate transcription instead of normal word text.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
-                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Local Endpoint', 'll-tools-text-domain'); ?></h3>
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Custom STT Endpoint', 'll-tools-text-domain'); ?></h3>
                     <label for="ll-wordset-settings-local-endpoint" class="screen-reader-text"><?php echo esc_html__('Local transcription endpoint URL', 'll-tools-text-domain'); ?></label>
                     <input
                         id="ll-wordset-settings-local-endpoint"
@@ -3279,7 +3334,26 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         <?php echo esc_html__('Expected request: POST multipart/form-data with an "audio" file field. Expected response: JSON containing one of predicted_ipa, ipa, transcript, or text.', 'll-tools-text-domain'); ?>
                     </p>
                     <p class="description" style="margin-top:0;">
-                        <?php echo esc_html__('If the site is served over HTTPS, your browser may require the localhost service to allow that origin and may require HTTPS there too, depending on browser policy.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Local browser mode calls this URL from the browser. Hosted STT API mode calls this URL from WordPress server-side, which keeps any API token off the page.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Hosted API Token', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-api-token" class="screen-reader-text"><?php echo esc_html__('Hosted STT API token', 'll-tools-text-domain'); ?></label>
+                    <input
+                        id="ll-wordset-settings-api-token"
+                        type="password"
+                        name="ll_wordset_transcription_api_token"
+                        class="regular-text ll-tools-settings-input"
+                        style="max-width: 420px;"
+                        value="<?php echo esc_attr($api_token); ?>"
+                        placeholder="<?php echo esc_attr__('Optional bearer token for your hosted STT endpoint', 'll-tools-text-domain'); ?>"
+                        spellcheck="false"
+                        autocomplete="new-password"
+                    />
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Optional but recommended for Hosted STT API mode. WordPress will send this token to your endpoint as both Authorization: Bearer and X-LL-Tools-Token.', 'll-tools-text-domain'); ?>
                     </p>
                     <div style="margin-top:10px;">
                         <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Save Transcription Settings', 'll-tools-text-domain'); ?></button>
@@ -3326,9 +3400,10 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         <option value="" <?php selected($speaking_provider, ''); ?>><?php echo esc_html__('Disabled', 'll-tools-text-domain'); ?></option>
                         <option value="assemblyai" <?php selected($speaking_provider, 'assemblyai'); ?>><?php echo esc_html__('AssemblyAI', 'll-tools-text-domain'); ?></option>
                         <option value="local_browser" <?php selected($speaking_provider, 'local_browser'); ?>><?php echo esc_html__('Local browser model', 'll-tools-text-domain'); ?></option>
+                        <option value="hosted_api" <?php selected($speaking_provider, 'hosted_api'); ?>><?php echo esc_html__('Hosted STT API', 'll-tools-text-domain'); ?></option>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('AssemblyAI reuses the saved AssemblyAI API key. Local browser model reuses the local endpoint and output format configured above.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('AssemblyAI reuses the saved AssemblyAI API key. Local browser model reuses the endpoint and output format above. Hosted STT API reuses the same endpoint, output format, and token, but routes the audio through WordPress server-side.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
@@ -5910,7 +5985,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
             <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
                 <?php foreach ($games_catalog as $game_slug => $game_row) : ?>
                     <?php if (!is_array($game_row)) { continue; } ?>
-                    <?php $initially_hidden = ((string) $game_slug === 'speaking-practice'); ?>
+                    <?php $initially_hidden = in_array((string) $game_slug, ['speaking-practice', 'speaking-stack'], true); ?>
                     <article class="ll-wordset-game-card" data-ll-wordset-game-card data-game-slug="<?php echo esc_attr((string) $game_slug); ?>"<?php if ($initially_hidden) : ?> hidden<?php endif; ?>>
                         <div class="ll-wordset-game-card__icon" aria-hidden="true">
                             <?php
@@ -6019,6 +6094,21 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 width="720"
                                 height="960"
                                 aria-label="<?php echo esc_attr__('Wordset game board', 'll-tools-text-domain'); ?>"></canvas>
+                            <section class="ll-wordset-speaking-stack-stage" data-ll-wordset-speaking-stack-stage hidden aria-live="polite">
+                                <div class="ll-wordset-speaking-stack-stage__topline">
+                                    <span class="ll-wordset-speaking-stack-stage__progress" data-ll-wordset-speaking-stack-progress><?php echo esc_html__('0 left', 'll-tools-text-domain'); ?></span>
+                                    <span class="ll-wordset-speaking-stack-stage__status" data-ll-wordset-speaking-stack-status><?php echo esc_html__('Mic ready', 'll-tools-text-domain'); ?></span>
+                                </div>
+                                <div class="ll-wordset-speaking-stack-stage__heard-row" data-ll-wordset-speaking-stack-heard-row hidden>
+                                    <span class="ll-wordset-speaking-stack-stage__heard-label"><?php echo esc_html__('Heard', 'll-tools-text-domain'); ?></span>
+                                    <span class="ll-wordset-speaking-stack-stage__heard" data-ll-wordset-speaking-stack-heard></span>
+                                </div>
+                                <div class="ll-wordset-speaking-stack-stage__meter" data-ll-wordset-speaking-stack-meter aria-hidden="true">
+                                    <?php for ($stack_meter_index = 0; $stack_meter_index < 12; $stack_meter_index++) : ?>
+                                        <span class="ll-wordset-speaking-stack-stage__meter-bar"></span>
+                                    <?php endfor; ?>
+                                </div>
+                            </section>
                         </div>
 
                             <section class="ll-wordset-speaking-stage" data-ll-wordset-speaking-stage hidden aria-live="polite">

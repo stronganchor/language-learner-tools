@@ -5,6 +5,7 @@
     const DEFAULT_GAME_SLUG = 'space-shooter';
     const BUBBLE_POP_GAME_SLUG = 'bubble-pop';
     const SPEAKING_PRACTICE_GAME_SLUG = 'speaking-practice';
+    const SPEAKING_STACK_GAME_SLUG = 'speaking-stack';
     const MODULE_NS = '.llWordsetGames';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
     const CARD_RATIO_MIN = 0.55;
@@ -225,6 +226,20 @@
                     '<path d="M9.1 18.5h5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>' +
                 '</svg>';
         }
+        if (normalizedSlug === SPEAKING_STACK_GAME_SLUG) {
+            return '' +
+                '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
+                    '<rect x="4.2" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"></rect>' +
+                    '<rect x="13.6" y="15.2" width="6.2" height="4.4" rx="1.2" stroke="currentColor" stroke-width="1.5"></rect>' +
+                    '<path d="M12 3.6c-1.41 0-2.55 1.14-2.55 2.55v2.7c0 1.41 1.14 2.55 2.55 2.55s2.55-1.14 2.55-2.55v-2.7c0-1.41-1.14-2.55-2.55-2.55Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path>' +
+                    '<path d="M9.8 8.95c0 1.22.99 2.2 2.2 2.2s2.2-.98 2.2-2.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<path d="M12 11.35v1.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<path d="M9.9 12.95h4.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<path d="M12 14.2v-1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<path d="M12 14.2l-1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<path d="M12 14.2l1.65-1.65" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                '</svg>';
+        }
 
         return '' +
             '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
@@ -241,7 +256,7 @@
         const normalizedSlug = normalizeGameSlug(slug);
         const data = (entry && typeof entry === 'object') ? entry : {};
         const options = (cfg && typeof cfg === 'object') ? cfg : {};
-        const hiddenAttr = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG ? ' hidden' : '';
+        const hiddenAttr = (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG || normalizedSlug === SPEAKING_STACK_GAME_SLUG) ? ' hidden' : '';
         const title = escapeHtml(String(data.title || ''));
         const description = escapeHtml(String(data.description || ''));
         const statusText = escapeHtml(String(options.statusText || ''));
@@ -658,6 +673,10 @@
         return normalizeGameSlug(run && run.slug) === SPEAKING_PRACTICE_GAME_SLUG;
     }
 
+    function isSpeakingStackRun(ctx, run) {
+        return normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG;
+    }
+
     function isSpaceShooterRun(ctx, run) {
         return normalizeGameSlug(run && run.slug) === DEFAULT_GAME_SLUG;
     }
@@ -688,6 +707,9 @@
         }
         if (requestedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingPractice || 'Speaking practice panel');
+        }
+        if (requestedSlug === SPEAKING_STACK_GAME_SLUG) {
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingStack || 'Word Stack game board');
         }
         if (requestedSlug === DEFAULT_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpaceShooter || 'Space Shooter game board');
@@ -1264,6 +1286,61 @@
     function renderBackground(ctx, run) {
         const context = ctx.canvasContext;
         context.clearRect(0, 0, run.width, run.height);
+
+        if (isSpeakingStackRun(ctx, run)) {
+            const sky = context.createLinearGradient(0, 0, 0, run.height);
+            sky.addColorStop(0, '#0B2740');
+            sky.addColorStop(0.55, '#1D4967');
+            sky.addColorStop(1, '#2C6A67');
+            context.fillStyle = sky;
+            context.fillRect(0, 0, run.width, run.height);
+
+            const glow = context.createRadialGradient(run.width * 0.24, run.height * 0.16, 0, run.width * 0.24, run.height * 0.16, run.width * 0.48);
+            glow.addColorStop(0, 'rgba(153, 246, 228, 0.22)');
+            glow.addColorStop(1, 'rgba(153, 246, 228, 0)');
+            context.fillStyle = glow;
+            context.fillRect(0, 0, run.width, run.height);
+
+            context.strokeStyle = 'rgba(255,255,255,0.07)';
+            context.lineWidth = 1;
+            for (let laneIndex = 1; laneIndex < run.cardCount; laneIndex += 1) {
+                const x = laneCenterX(run, laneIndex) - (run.metrics.laneWidth / 2);
+                context.beginPath();
+                context.moveTo(x, 0);
+                context.lineTo(x, run.height);
+                context.stroke();
+            }
+
+            const dangerY = getSpeakingStackTopDangerY(ctx, run);
+            context.strokeStyle = 'rgba(251, 191, 36, 0.55)';
+            context.lineWidth = 2;
+            context.setLineDash([8, 8]);
+            context.beginPath();
+            context.moveTo(0, dangerY);
+            context.lineTo(run.width, dangerY);
+            context.stroke();
+            context.setLineDash([]);
+
+            const groundTop = getSpeakingStackGroundTop(ctx, run);
+            const ground = context.createLinearGradient(0, groundTop, 0, run.height);
+            ground.addColorStop(0, '#1F8A70');
+            ground.addColorStop(1, '#155E63');
+            context.fillStyle = ground;
+            context.fillRect(0, groundTop, run.width, run.height - groundTop);
+
+            context.fillStyle = 'rgba(255,255,255,0.16)';
+            context.fillRect(0, groundTop, run.width, 4);
+
+            run.stars.forEach(function (star) {
+                context.globalAlpha = Math.min(0.28, star.alpha * 0.88);
+                context.fillStyle = '#F8FAFC';
+                context.beginPath();
+                context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                context.fill();
+            });
+            context.globalAlpha = 1;
+            return;
+        }
 
         if (isBubblePopRun(ctx, run)) {
             const bubbleGradient = context.createLinearGradient(0, 0, 0, run.height);
@@ -2322,6 +2399,132 @@
         };
     }
 
+    function getSpeakingStackGroundTop(ctx, run) {
+        const gameConfig = getGameConfig(ctx, run) || {};
+        return Math.max(80, run.height - Math.max(12, toInt(gameConfig.groundPaddingPx) || 34));
+    }
+
+    function getSpeakingStackTopDangerY(ctx, run) {
+        const gameConfig = getGameConfig(ctx, run) || {};
+        return Math.max(0, toInt(gameConfig.topDangerPaddingPx) || 14);
+    }
+
+    function getSpeakingStackLaneCards(run, laneIndex) {
+        return (Array.isArray(run && run.cards) ? run.cards : [])
+            .filter(function (card) {
+                return !!card
+                    && !card.removedFromStack
+                    && !card.exploding
+                    && toInt(card.stackLaneIndex) === toInt(laneIndex);
+            })
+            .sort(function (left, right) {
+                return toInt(left && left.stackIndex) - toInt(right && right.stackIndex);
+            });
+    }
+
+    function refreshSpeakingStackLaneTargets(ctx, run, laneIndex) {
+        const laneCards = getSpeakingStackLaneCards(run, laneIndex);
+        const gameConfig = getGameConfig(ctx, run) || {};
+        const gap = Math.max(0, toInt(gameConfig.stackGapPx) || 12);
+        let cursor = getSpeakingStackGroundTop(ctx, run);
+
+        laneCards.forEach(function (card, index) {
+            card.stackLaneIndex = toInt(laneIndex);
+            card.stackIndex = index;
+            card.stackTargetX = laneCenterX(run, laneIndex);
+            cursor -= Number(card.height || 0) / 2;
+            card.stackTargetY = cursor;
+            cursor -= (Number(card.height || 0) / 2) + gap;
+        });
+
+        return laneCards;
+    }
+
+    function refreshSpeakingStackTargets(ctx, run) {
+        if (!run) {
+            return;
+        }
+        for (let laneIndex = 0; laneIndex < Math.max(1, toInt(run.cardCount) || 4); laneIndex += 1) {
+            refreshSpeakingStackLaneTargets(ctx, run, laneIndex);
+        }
+    }
+
+    function chooseSpeakingStackLane(run) {
+        const laneCount = Math.max(1, toInt(run && run.cardCount) || 4);
+        const laneCounts = [];
+        let minimumCount = Infinity;
+
+        for (let laneIndex = 0; laneIndex < laneCount; laneIndex += 1) {
+            const count = getSpeakingStackLaneCards(run, laneIndex).length;
+            laneCounts.push({
+                laneIndex: laneIndex,
+                count: count
+            });
+            minimumCount = Math.min(minimumCount, count);
+        }
+
+        const candidates = laneCounts.filter(function (entry) {
+            return entry.count === minimumCount;
+        });
+        if (!candidates.length) {
+            return 0;
+        }
+        return toInt(candidates[Math.floor(Math.random() * candidates.length)].laneIndex);
+    }
+
+    function spawnSpeakingStackCard(ctx, run, now) {
+        if (!run || run.allWordsQueued || !Array.isArray(run.wordQueue) || !run.wordQueue.length) {
+            if (run && (!Array.isArray(run.wordQueue) || !run.wordQueue.length)) {
+                run.allWordsQueued = true;
+                if (!run.finalSpawnedAt) {
+                    run.finalSpawnedAt = Number(now) || currentTimestamp();
+                }
+            }
+            return null;
+        }
+
+        const nextWord = run.wordQueue.shift();
+        if (!nextWord) {
+            run.allWordsQueued = true;
+            run.finalSpawnedAt = Number(now) || currentTimestamp();
+            return null;
+        }
+
+        const laneIndex = chooseSpeakingStackLane(run);
+        const card = createCard(run, nextWord, laneIndex, true, 0, 0);
+        const fallSpeed = Math.max(80, toInt((getGameConfig(ctx, run) || {}).fallSpeed) || 176);
+        card.promptId = toInt(run.spawnedWordCount) + 1;
+        card.stackLaneIndex = laneIndex;
+        card.stackIndex = getSpeakingStackLaneCards(run, laneIndex).length;
+        card.stackTargetX = laneCenterX(run, laneIndex);
+        card.stackTargetY = -Math.max(card.height, run.metrics && run.metrics.cardHeight ? run.metrics.cardHeight : card.height);
+        card.removedFromStack = false;
+        card.speed = fallSpeed;
+        card.x = laneCenterX(run, laneIndex);
+        card.y = -Math.max(card.height, run.metrics && run.metrics.cardHeight ? run.metrics.cardHeight : card.height);
+
+        run.cards.push(card);
+        run.spawnedWordCount += 1;
+        run.lastSpawnedAt = Number(now) || currentTimestamp();
+        refreshSpeakingStackLaneTargets(ctx, run, laneIndex);
+
+        queueExposureOnce(ctx, {
+            target: nextWord,
+            recordingType: 'isolation',
+            gameSlug: SPEAKING_STACK_GAME_SLUG
+        }, {
+            event_source: 'speaking_stack',
+            speaking_target_field: String(run.targetField || '')
+        });
+
+        if (!run.wordQueue.length) {
+            run.allWordsQueued = true;
+            run.finalSpawnedAt = run.lastSpawnedAt;
+        }
+
+        return card;
+    }
+
     function getCardEntryRevealMs(ctx, card) {
         const gameConfig = getGameConfig(ctx, ctx && ctx.run);
         const maxRevealMs = Math.max(220, toInt(gameConfig && gameConfig.cardEntryRevealMs) || 560);
@@ -2532,12 +2735,18 @@
                         && String(word.speaking_target_text || '').trim() !== ''
                         && String(word.speaking_best_correct_audio_url || '').trim() !== '';
                 }
+                if (normalizedSlug === SPEAKING_STACK_GAME_SLUG) {
+                    return word.id > 0
+                        && String(word.image || '').trim() !== ''
+                        && String(word.speaking_target_text || '').trim() !== ''
+                        && String(word.speaking_best_correct_audio_url || '').trim() !== '';
+                }
 
                 const audio = selectPromptAudio(word);
                 return word.id > 0 && word.image !== '' && audio.url !== '';
             });
         const words = limitLaunchWords(eligibleWords, maxLoadedWords);
-        const playableTargets = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG
+        const playableTargets = (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG || normalizedSlug === SPEAKING_STACK_GAME_SLUG)
             ? words.slice()
             : findPlayableTargets(words, Math.max(2, toInt(gameConfig && gameConfig.cardCount) || 4));
         const prepared = $.extend({}, entry, {
@@ -2567,7 +2776,10 @@
         if (!entry) {
             return String(ctx.i18n.gamesLoadError || 'Unable to load games right now.');
         }
-        if (normalizeGameSlug(entry.slug) === SPEAKING_PRACTICE_GAME_SLUG && String(entry.reason_code || '') === 'speaking_api_unavailable') {
+        if (
+            [SPEAKING_PRACTICE_GAME_SLUG, SPEAKING_STACK_GAME_SLUG].indexOf(normalizeGameSlug(entry.slug)) !== -1
+            && String(entry.reason_code || '') === 'speaking_api_unavailable'
+        ) {
             return String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.');
         }
         if (entry.launchable) {
@@ -2586,7 +2798,10 @@
         if (!card) {
             return;
         }
-        const shouldHide = normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG && (isLoading || !entry || entry.hidden);
+        const shouldHide = (
+            normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG
+            || normalizedSlug === SPEAKING_STACK_GAME_SLUG
+        ) && (isLoading || !entry || entry.hidden);
         if (shouldHide) {
             card.$card.attr('hidden', 'hidden');
         } else {
@@ -2634,7 +2849,7 @@
         }
     }
 
-    function checkSpeakingGameEndpoint(ctx, endpoint) {
+    function checkSpeakingGameEndpoint(ctx, endpoint, slug) {
         const url = getSpeakingGameProbeUrl(endpoint);
         if (!url || typeof root.fetch !== 'function') {
             return Promise.resolve(false);
@@ -2643,7 +2858,8 @@
             return ctx.speaking.availabilityChecks[url];
         }
 
-        const timeoutMs = Math.max(500, toInt(ctx.speakingPractice && ctx.speakingPractice.apiCheckTimeoutMs) || 1500);
+        const gameConfig = getGameConfig(ctx, slug);
+        const timeoutMs = Math.max(500, toInt(gameConfig && gameConfig.apiCheckTimeoutMs) || 1500);
         const controller = (typeof root.AbortController === 'function') ? new root.AbortController() : null;
         let timeoutId = 0;
         const requestOptions = {
@@ -2695,7 +2911,7 @@
 
     function resolveCatalogEntryAvailability(ctx, slug, entry) {
         const normalizedSlug = normalizeGameSlug(slug);
-        if (!entry || normalizedSlug !== SPEAKING_PRACTICE_GAME_SLUG) {
+        if (!entry || [SPEAKING_PRACTICE_GAME_SLUG, SPEAKING_STACK_GAME_SLUG].indexOf(normalizedSlug) === -1) {
             return Promise.resolve(entry);
         }
 
@@ -2740,7 +2956,7 @@
             return Promise.resolve(entry);
         }
 
-        return checkSpeakingGameEndpoint(ctx, entry.local_endpoint).then(function (isAvailable) {
+        return checkSpeakingGameEndpoint(ctx, entry.local_endpoint, normalizedSlug).then(function (isAvailable) {
             if (isAvailable) {
                 return entry;
             }
@@ -3495,6 +3711,7 @@
             ? ''
             : normalizeGameSlug(rawSlug);
         const isSpeaking = gameSlug === SPEAKING_PRACTICE_GAME_SLUG;
+        const isSpeakingStack = gameSlug === SPEAKING_STACK_GAME_SLUG;
         const isBubble = gameSlug === BUBBLE_POP_GAME_SLUG;
 
         if (ctx && ctx.$stage && ctx.$stage.length) {
@@ -3504,25 +3721,28 @@
             ctx.$hud.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$controlsWrap && ctx.$controlsWrap.length) {
-            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking);
+            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking || isSpeakingStack);
         }
         if (ctx && ctx.$canvasWrap && ctx.$canvasWrap.length) {
             ctx.$canvasWrap.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$replayAudioButton && ctx.$replayAudioButton.length) {
-            ctx.$replayAudioButton.prop('hidden', isSpeaking);
+            ctx.$replayAudioButton.prop('hidden', isSpeaking || isSpeakingStack);
         }
         if (ctx && ctx.$pauseButton && ctx.$pauseButton.length) {
             ctx.$pauseButton.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$coins && ctx.$coins.length) {
-            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking);
+            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack);
         }
         if (ctx && ctx.$lives && ctx.$lives.length) {
-            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking);
+            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack);
         }
         if (ctx && ctx.$speakingStage && ctx.$speakingStage.length) {
             ctx.$speakingStage.prop('hidden', !isSpeaking);
+        }
+        if (ctx && ctx.$speakingStackStage && ctx.$speakingStackStage.length) {
+            ctx.$speakingStackStage.prop('hidden', !isSpeakingStack);
         }
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
             ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
@@ -3549,7 +3769,7 @@
         if (!run || run.paused || !run.controls || !Object.prototype.hasOwnProperty.call(run.controls, control)) {
             return;
         }
-        if (isBubblePopRun(ctx, run)) {
+        if (isBubblePopRun(ctx, run) || isSpeakingStackRun(ctx, run)) {
             return;
         }
         run.controls[control] = !!isActive;
@@ -4012,6 +4232,7 @@
     }
 
     function removeResolvedObjects(run, now) {
+        const removedSpeakingStackLanes = {};
         run.cards = run.cards.filter(function (card) {
             if (card.resolvedFalling) {
                 if (normalizeGameSlug(run && run.slug) === BUBBLE_POP_GAME_SLUG) {
@@ -4033,11 +4254,24 @@
                     return false;
                 }
             }
-            return !(card.exploding && now >= card.removeAt);
+            if (card.exploding && now >= card.removeAt) {
+                if (normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG) {
+                    removedSpeakingStackLanes[toInt(card.stackLaneIndex)] = true;
+                }
+                return false;
+            }
+            return true;
         });
         run.explosions = run.explosions.filter(function (explosion) {
             return now < (explosion.startedAt + explosion.duration);
         });
+        if (normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG && api.__ctx && api.__ctx.run === run) {
+            Object.keys(removedSpeakingStackLanes).forEach(function (laneIndex) {
+                if (toInt(laneIndex) >= 0) {
+                    refreshSpeakingStackLaneTargets(api.__ctx, run, toInt(laneIndex));
+                }
+            });
+        }
     }
 
     function fireBullet(run) {
@@ -4461,9 +4695,122 @@
         return false;
     }
 
+    function finishSpeakingStackRun(ctx, reason) {
+        const run = ctx.run;
+        if (!run || run.ended) {
+            return;
+        }
+
+        run.ended = true;
+        teardownSpeaking(ctx);
+        flushProgress(ctx);
+        pausePromptAudio(ctx);
+        stopFeedbackAudio(ctx);
+        stopTransientAudio(ctx);
+        updatePauseUi(ctx);
+
+        const isWin = reason === 'win';
+        const remainingCards = getSpeakingStackActiveCards(run);
+        if (!isWin) {
+            remainingCards.forEach(function (card) {
+                queueOutcome(ctx, {
+                    target: card.word,
+                    recordingType: 'isolation',
+                    gameSlug: SPEAKING_STACK_GAME_SLUG
+                }, false, false, {
+                    event_source: 'speaking_stack',
+                    stack_end_reason: String(reason || 'stacked')
+                });
+            });
+        }
+
+        showOverlay(
+            ctx,
+            isWin
+                ? String(ctx.i18n.gamesSpeakingStackWinTitle || 'You cleared the stack')
+                : String(
+                    reason === 'silence'
+                        ? (ctx.i18n.gamesSpeakingStackLoseSilenceTitle || 'Time ran out')
+                        : (ctx.i18n.gamesSpeakingStackLoseStackedTitle || 'The stack reached the top')
+                ),
+            formatMessage(ctx.i18n.gamesSpeakingStackSummary || 'Cleared: %1$d of %2$d', [
+                toInt(run.clearedCount),
+                toInt(run.totalWordCount)
+            ]),
+            {
+                mode: 'game-over',
+                primaryLabel: String(ctx.i18n.gamesReplayRun || 'Replay'),
+                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+            }
+        );
+    }
+
+    function stepSpeakingStackRun(ctx, now, dtMs) {
+        const run = ctx.run;
+        if (!run || run.ended) {
+            return;
+        }
+
+        const dt = Math.min(40, Math.max(0, dtMs || 0)) / 1000;
+        if (!run.allWordsQueued && now >= Number(run.nextSpawnAt || 0)) {
+            spawnSpeakingStackCard(ctx, run, now);
+            run.nextSpawnAt = now + Math.max(900, toInt((getGameConfig(ctx, run) || {}).spawnGapMs) || 2600);
+            setSpeakingStackProgressFromRun(ctx, run);
+        }
+
+        run.cards.forEach(function (card) {
+            if (!card || card.exploding) {
+                return;
+            }
+
+            card.x = isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : laneCenterX(run, card.laneIndex);
+            const targetY = isFinite(Number(card.stackTargetY)) ? Number(card.stackTargetY) : Number(card.y || 0);
+            if (Number(card.y) < targetY) {
+                card.y = Math.min(targetY, Number(card.y || 0) + ((Number(card.speed) || 0) * dt));
+            } else {
+                card.y = targetY;
+            }
+        });
+
+        if (run.allWordsQueued && !getSpeakingStackActiveCards(run).length && !run.cards.some(function (card) { return !!(card && card.exploding); })) {
+            finishSpeakingStackRun(ctx, 'win');
+            removeResolvedObjects(run, now);
+            return;
+        }
+
+        const topDangerY = getSpeakingStackTopDangerY(ctx, run);
+        const reachedTop = getSpeakingStackActiveCards(run).some(function (card) {
+            return (Number(card.stackTargetY || card.y) - (Number(card.height || 0) / 2)) <= topDangerY;
+        });
+        if (reachedTop) {
+            finishSpeakingStackRun(ctx, 'stacked');
+            removeResolvedObjects(run, now);
+            return;
+        }
+
+        if (
+            run.allWordsQueued
+            && getSpeakingStackActiveCards(run).length
+            && (now - Math.max(Number(run.finalSpawnedAt || 0), Number(run.lastSpeechAt || 0))) >= Math.max(1000, toInt((getGameConfig(ctx, run) || {}).finalSilenceMs) || 10000)
+        ) {
+            finishSpeakingStackRun(ctx, 'silence');
+            removeResolvedObjects(run, now);
+            return;
+        }
+
+        removeResolvedObjects(run, now);
+    }
+
     function stepRun(ctx, now, dtMs) {
         const run = ctx.run;
         if (!run || !run.prompt) {
+            if (run && isSpeakingStackRun(ctx, run)) {
+                stepSpeakingStackRun(ctx, now, dtMs);
+            }
+            return;
+        }
+        if (isSpeakingStackRun(ctx, run)) {
+            stepSpeakingStackRun(ctx, now, dtMs);
             return;
         }
 
@@ -4644,6 +4991,10 @@
         stepRun(ctx, timestamp, timestamp - run.lastFrameAt);
         renderRun(ctx, timestamp);
         run.lastFrameAt = timestamp;
+        if (run.ended) {
+            run.rafId = 0;
+            return;
+        }
         run.rafId = root.requestAnimationFrame(function (nextFrameAt) {
             runLoop(ctx, nextFrameAt);
         });
@@ -4722,6 +5073,10 @@
             run.resumeAction = RESUME_ACTION_NEXT_PROMPT;
         }
         run.pauseReason = String(opts.reason || 'manual');
+        if (isSpeakingStackRun(ctx, run)) {
+            teardownSpeaking(ctx);
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesPaused || 'Paused'));
+        }
         updatePauseUi(ctx);
         showOverlay(
             ctx,
@@ -4756,6 +5111,12 @@
         }
         hideOverlay(ctx);
         updatePauseUi(ctx);
+
+        if (isSpeakingStackRun(ctx, run)) {
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackReady || 'Mic ready'));
+            queueSpeakingStackCaptureRestart(ctx, 40);
+            return;
+        }
 
         if (resumeAction === RESUME_ACTION_NEXT_PROMPT) {
             startNextPrompt(ctx);
@@ -4858,6 +5219,10 @@
             startSpeakingRun(ctx, entry);
             return;
         }
+        if (gameSlug === SPEAKING_STACK_GAME_SLUG) {
+            startSpeakingStackRun(ctx, entry);
+            return;
+        }
         const gameConfig = getGameConfig(ctx, gameSlug);
         if (!gameConfig) {
             return;
@@ -4945,7 +5310,10 @@
         renderAllCatalogCards(ctx, null, true);
         if (ctx.staticCatalog && typeof ctx.staticCatalog === 'object') {
             const entryPromises = Object.keys(ctx.catalogCards || {}).map(function (slug) {
-                if (!ctx.staticCatalog[slug] && normalizeGameSlug(slug) === SPEAKING_PRACTICE_GAME_SLUG) {
+                if (
+                    !ctx.staticCatalog[slug]
+                    && [SPEAKING_PRACTICE_GAME_SLUG, SPEAKING_STACK_GAME_SLUG].indexOf(normalizeGameSlug(slug)) !== -1
+                ) {
                     return Promise.resolve({
                         slug: slug,
                         entry: null
@@ -5000,7 +5368,10 @@
             }
 
             const entryPromises = Object.keys(ctx.catalogCards || {}).map(function (slug) {
-                if (!payload.games[slug] && normalizeGameSlug(slug) === SPEAKING_PRACTICE_GAME_SLUG) {
+                if (
+                    !payload.games[slug]
+                    && [SPEAKING_PRACTICE_GAME_SLUG, SPEAKING_STACK_GAME_SLUG].indexOf(normalizeGameSlug(slug)) !== -1
+                ) {
                     return Promise.resolve({
                         slug: slug,
                         entry: null
@@ -5054,23 +5425,58 @@
         state[key] = 0;
     }
 
+    function getActiveSpeakingMeterBars(ctx) {
+        const run = ctx && ctx.run;
+        if (isSpeakingStackRun(ctx, run)) {
+            return ctx && ctx.$speakingStackMeterBars ? ctx.$speakingStackMeterBars : $();
+        }
+        return ctx && ctx.$speakingMeterBars ? ctx.$speakingMeterBars : $();
+    }
+
     function setSpeakingStatus(ctx, text) {
+        const run = ctx && ctx.run;
+        if (isSpeakingStackRun(ctx, run)) {
+            if (ctx && ctx.$speakingStackStatus && ctx.$speakingStackStatus.length) {
+                ctx.$speakingStackStatus.text(String(text || ''));
+            }
+            return;
+        }
         if (ctx && ctx.$speakingStatus && ctx.$speakingStatus.length) {
             ctx.$speakingStatus.text(String(text || ''));
         }
     }
 
-    function resetSpeakingMeter(ctx) {
-        if (!ctx || !ctx.$speakingMeterBars || !ctx.$speakingMeterBars.length) {
+    function setSpeakingStackProgress(ctx, text) {
+        if (!ctx || !ctx.$speakingStackProgress || !ctx.$speakingStackProgress.length) {
             return;
         }
-        ctx.$speakingMeterBars.each(function (index, element) {
+        ctx.$speakingStackProgress.text(String(text || ''));
+    }
+
+    function setSpeakingStackHeard(ctx, text) {
+        if (!ctx || !ctx.$speakingStackHeard || !ctx.$speakingStackHeard.length) {
+            return;
+        }
+
+        const heardText = String(text || '').trim();
+        if (ctx.$speakingStackHeardRow && ctx.$speakingStackHeardRow.length) {
+            ctx.$speakingStackHeardRow.prop('hidden', heardText === '');
+        }
+        ctx.$speakingStackHeard.text(heardText);
+    }
+
+    function resetSpeakingMeter(ctx) {
+        const bars = getActiveSpeakingMeterBars(ctx);
+        if (!bars.length) {
+            return;
+        }
+        bars.each(function (index, element) {
             $(element).css('--ll-speaking-meter-level', '0.08');
         });
     }
 
     function updateSpeakingMeter(ctx, level) {
-        const bars = ctx && ctx.$speakingMeterBars ? ctx.$speakingMeterBars : $();
+        const bars = getActiveSpeakingMeterBars(ctx);
         if (!bars.length) {
             return;
         }
@@ -5249,6 +5655,25 @@
         return String(source.speaking_prompt_text || source.translation || source.prompt_label || source.label || source.title || '').trim();
     }
 
+    function resetSpeakingStackUi(ctx) {
+        setSpeakingStackProgress(ctx, '');
+        setSpeakingStatus(ctx, '');
+        setSpeakingStackHeard(ctx, '');
+        resetSpeakingMeter(ctx);
+    }
+
+    function setSpeakingStackProgressFromRun(ctx, run) {
+        if (!run) {
+            setSpeakingStackProgress(ctx, '');
+            return;
+        }
+
+        setSpeakingStackProgress(ctx, formatMessage(
+            ctx.i18n.gamesSpeakingStackProgress || '%1$d left',
+            [Math.max(0, toInt(run.totalWordCount) - toInt(run.clearedCount))]
+        ));
+    }
+
     function renderSpeakingPrompt(ctx, run, word) {
         const promptText = getSpeakingPromptText(word);
         const hasImage = String(word && word.image || '').trim() !== '';
@@ -5338,6 +5763,7 @@
             return;
         }
         clearSpeakingAutoStart(ctx);
+        clearSpeakingTimeout(state, 'restartTimer');
         clearSpeakingTimeout(state, 'maxStopTimer');
         stopSpeakingMeterMonitoring(ctx);
         if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
@@ -5350,12 +5776,14 @@
         state.currentBlob = null;
         clearSpeakingAttemptAudioSource(ctx);
         state.stopPromise = null;
+        state.transcribing = false;
         state.speechDetected = false;
         state.speechStartedAt = 0;
         state.silenceStartedAt = 0;
         stopSpeakingStream(ctx);
         stopSpeakingAudioContext(ctx);
         resetSpeakingMeter(ctx);
+        setSpeakingStackHeard(ctx, '');
     }
 
     function ensureSpeakingSupported() {
@@ -5461,7 +5889,7 @@
         }
 
         const run = ctx.run;
-        const gameConfig = ctx.speakingPractice || {};
+        const gameConfig = getGameConfig(ctx, run) || {};
         const dataArray = new Uint8Array(state.analyser.fftSize);
         state.meterTimer = root.setInterval(function () {
             if (!ctx.run || ctx.run !== run || !state.analyser) {
@@ -5483,9 +5911,15 @@
                 state.speechDetected = true;
                 state.speechStartedAt = now;
                 state.silenceStartedAt = 0;
+                if (isSpeakingStackRun(ctx, run)) {
+                    run.lastSpeechAt = now;
+                }
             } else if (state.speechDetected) {
                 if (rms >= Number(gameConfig.silenceThreshold || 0.034)) {
                     state.silenceStartedAt = 0;
+                    if (isSpeakingStackRun(ctx, run)) {
+                        run.lastSpeechAt = now;
+                    }
                 } else if (!state.silenceStartedAt) {
                     state.silenceStartedAt = now;
                 } else if (
@@ -5505,15 +5939,22 @@
     function startSpeakingCapture(ctx) {
         const run = ctx.run;
         const state = speakingState(ctx);
-        if (!run || !state || !ensureSpeakingSupported()) {
-            return Promise.reject(new Error('unsupported'));
+        if (!run || !state) {
+            return Promise.reject(new Error('missing_state'));
+        }
+        if (!ensureSpeakingSupported()) {
+            return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingNotSupported || 'This browser cannot record audio for speaking practice.')));
         }
         if (state.mediaRecorder && state.mediaRecorder.state !== 'inactive') {
             return Promise.resolve();
         }
 
-        resetSpeakingResultUi(ctx);
-        setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true, 'listening');
+        if (isSpeakingPracticeRun(ctx, run)) {
+            resetSpeakingResultUi(ctx);
+            setSpeakingRecordButton(ctx, String(ctx.i18n.gamesSpeakingListening || 'Listening...'), true, 'listening');
+        } else if (isSpeakingStackRun(ctx, run)) {
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackListening || 'Listening for the next word...'));
+        }
 
         return ensureSpeakingStream(ctx).then(function (stream) {
             state.audioChunks = [];
@@ -5541,7 +5982,7 @@
                         processSpeakingAttempt(ctx, blob);
                     }
                 });
-            }, Math.max(1500, toInt(ctx.speakingPractice && ctx.speakingPractice.maxRecordingMs) || 8000));
+            }, Math.max(1500, toInt((getGameConfig(ctx, run) || {}).maxRecordingMs) || 8000));
         });
     }
 
@@ -5597,11 +6038,18 @@
             });
         }
 
-        if (String(run.provider || '') === 'assemblyai') {
+        if (String(run.provider || '') === 'assemblyai' || String(run.provider || '') === 'hosted_api') {
             const formData = new FormData();
             formData.append('action', ctx.transcribeAttemptAction);
             formData.append('nonce', ctx.nonce);
             formData.append('wordset_id', String(ctx.wordsetId));
+            formData.append('target_field', String(run.targetField || ''));
+            if (run && run.prompt && run.prompt.target && run.prompt.target.id) {
+                formData.append('word_id', String(run.prompt.target.id));
+            }
+            if (run && run.prompt && run.prompt.target && run.prompt.target.title) {
+                formData.append('word_title', String(run.prompt.target.title));
+            }
             formData.append('audio', blob, 'speaking-attempt.webm');
             return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
                 if (!payload || !payload.success || !payload.data) {
@@ -5613,6 +6061,13 @@
 
         const localFormData = new FormData();
         localFormData.append('audio', blob, 'speaking-attempt.webm');
+        localFormData.append('target_field', String(run.targetField || ''));
+        if (run && run.prompt && run.prompt.target && run.prompt.target.id) {
+            localFormData.append('word_id', String(run.prompt.target.id));
+        }
+        if (run && run.prompt && run.prompt.target && run.prompt.target.title) {
+            localFormData.append('word_title', String(run.prompt.target.title));
+        }
         return fetchJsonForm(String(run.localEndpoint || ''), localFormData, {
             credentials: 'omit',
             mode: 'cors'
@@ -5641,6 +6096,119 @@
         formData.append('word_id', String(toInt(run && run.prompt && run.prompt.target && run.prompt.target.id)));
         formData.append('target_field', String(run && run.targetField || ''));
         formData.append('transcript', String(transcript || ''));
+        return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
+            if (!payload || !payload.success || !payload.data) {
+                throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
+            }
+            return payload.data;
+        });
+    }
+
+    function getSpeakingStackActiveCards(run) {
+        return (Array.isArray(run && run.cards) ? run.cards : []).filter(function (card) {
+            return !!card && !card.exploding && !card.removedFromStack && toInt(card.word && card.word.id) > 0;
+        });
+    }
+
+    function pickBestSpeakingStackMatch(results) {
+        const bucketRank = {
+            wrong: 0,
+            close: 1,
+            right: 2
+        };
+        let best = null;
+
+        (Array.isArray(results) ? results : []).forEach(function (result) {
+            if (!result || typeof result !== 'object') {
+                return;
+            }
+
+            const nextScore = clamp(Number(result.score) || 0, 0, 100);
+            const nextRank = bucketRank[String(result.bucket || 'wrong')] || 0;
+            if (!best) {
+                best = $.extend({}, result, {
+                    score: nextScore
+                });
+                return;
+            }
+
+            const bestScore = clamp(Number(best.score) || 0, 0, 100);
+            const bestRank = bucketRank[String(best.bucket || 'wrong')] || 0;
+            if (nextScore > bestScore || (nextScore === bestScore && nextRank > bestRank)) {
+                best = $.extend({}, result, {
+                    score: nextScore
+                });
+            }
+        });
+
+        if (!best) {
+            return {
+                matched: false,
+                word_id: 0,
+                score: 0,
+                bucket: 'wrong'
+            };
+        }
+
+        return $.extend({
+            matched: String(best.bucket || 'wrong') !== 'wrong'
+        }, best);
+    }
+
+    function scoreSpeakingStackTranscript(ctx, run, transcript) {
+        const activeCards = getSpeakingStackActiveCards(run);
+        const activeWordIds = uniqueIntList(activeCards.map(function (card) {
+            return toInt(card.word && card.word.id);
+        }));
+        if (!activeWordIds.length) {
+            return Promise.resolve({
+                matched: false,
+                word_id: 0,
+                score: 0,
+                bucket: 'wrong'
+            });
+        }
+
+        if (ctx && ctx.offlineMode) {
+            const bridge = getOfflineSpeakingBridge(ctx);
+            if (bridge && typeof bridge.scoreSpeakingMatchAttempt === 'function') {
+                return Promise.resolve(bridge.scoreSpeakingMatchAttempt(run, transcript, activeWordIds, ctx));
+            }
+            if (!bridge || typeof bridge.scoreSpeakingAttempt !== 'function') {
+                return Promise.reject(new Error(String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.')));
+            }
+
+            return Promise.all(activeCards.map(function (card) {
+                const candidateRun = $.extend({}, run, {
+                    prompt: {
+                        target: card.word
+                    }
+                });
+                return Promise.resolve(bridge.scoreSpeakingAttempt(candidateRun, transcript, ctx)).then(function (result) {
+                    if (!result || typeof result !== 'object') {
+                        return null;
+                    }
+                    return $.extend({}, result, {
+                        word_id: toInt(result.word_id) || toInt(card.word && card.word.id)
+                    });
+                }).catch(function () {
+                    return null;
+                });
+            })).then(function (results) {
+                return pickBestSpeakingStackMatch(results);
+            });
+        }
+
+        const formData = new FormData();
+        formData.append('action', ctx.matchAttemptAction);
+        formData.append('nonce', ctx.nonce);
+        formData.append('wordset_id', String(ctx.wordsetId));
+        formData.append('target_field', String(run && run.targetField || ''));
+        formData.append('transcript', String(transcript || ''));
+        activeWordIds.forEach(function (wordId) {
+            formData.append('word_ids[]', String(wordId));
+        });
+
         return fetchJsonForm(ctx.ajaxUrl, formData).then(function (payload) {
             if (!payload || !payload.success || !payload.data) {
                 throw new Error(String(ctx.i18n.gamesSpeakingSttError || 'Transcription failed. Try again.'));
@@ -5795,10 +6363,171 @@
         });
     }
 
+    function findSpeakingStackCardByWordId(run, wordId) {
+        const targetId = toInt(wordId);
+        if (!targetId) {
+            return null;
+        }
+
+        for (let index = 0; index < run.cards.length; index += 1) {
+            const card = run.cards[index];
+            if (!card || card.exploding || card.removedFromStack) {
+                continue;
+            }
+            if (toInt(card.word && card.word.id) === targetId) {
+                return card;
+            }
+        }
+
+        return null;
+    }
+
+    function queueSpeakingStackCaptureRestart(ctx, delayMs, error) {
+        const run = ctx && ctx.run;
+        const state = speakingState(ctx);
+        if (!state) {
+            return;
+        }
+
+        clearSpeakingTimeout(state, 'restartTimer');
+        if (!run || run.ended || run.paused || !isSpeakingStackRun(ctx, run)) {
+            return;
+        }
+
+        state.restartTimer = root.setTimeout(function () {
+            if (!ctx.run || ctx.run !== run || run.ended || run.paused) {
+                return;
+            }
+            startSpeakingCapture(ctx).catch(function (captureError) {
+                setSpeakingStatus(ctx, String(
+                    captureError && captureError.message
+                        || error && error.message
+                        || ctx.i18n.gamesSpeakingStackMicError
+                        || 'Microphone access failed.'
+                ));
+            });
+        }, Math.max(0, toInt(delayMs) || 0));
+    }
+
+    function handleSpeakingStackMatch(ctx, run, result, transcript) {
+        const card = findSpeakingStackCardByWordId(run, toInt(result && result.word_id));
+        if (!card) {
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
+            return false;
+        }
+
+        const bucket = String(result && result.bucket || 'right');
+        const score = clamp(Number(result && result.score) || 0, 0, 100);
+        const now = currentTimestamp();
+        run.clearedCount += 1;
+        card.removedFromStack = true;
+        card.exploding = true;
+        card.explosionStyle = 'correct';
+        card.explosionDuration = 220;
+        card.removeAt = now + card.explosionDuration;
+
+        spawnExplosion(run, {
+            x: card.x,
+            y: card.y,
+            radius: Math.max(card.width, card.height) * 0.74,
+            primaryColor: 'rgba(16, 185, 129, 0.96)',
+            secondaryColor: 'rgba(103, 232, 249, 0.78)',
+            duration: 300,
+            style: 'ring'
+        });
+        refreshSpeakingStackLaneTargets(ctx, run, toInt(card.stackLaneIndex));
+        setSpeakingStackProgressFromRun(ctx, run);
+        setSpeakingStatus(ctx, String({
+            right: ctx.i18n.gamesSpeakingResultRight || 'Correct',
+            close: ctx.i18n.gamesSpeakingResultClose || 'Close'
+        }[bucket] || ctx.i18n.gamesSpeakingResultRight || 'Correct'));
+        setSpeakingStackHeard(ctx, String(transcript || ''));
+
+        queueOutcome(ctx, {
+            target: card.word,
+            recordingType: 'isolation',
+            gameSlug: SPEAKING_STACK_GAME_SLUG
+        }, true, bucket === 'close', {
+            event_source: 'speaking_stack',
+            speaking_game_bucket: bucket,
+            speaking_score: score,
+            stt_provider: String(run.provider || ''),
+            speaking_target_field: String(run.targetField || '')
+        });
+
+        playFeedbackSound(ctx, 'correct');
+        return true;
+    }
+
+    function processSpeakingStackAttempt(ctx, blob) {
+        const run = ctx.run;
+        const state = speakingState(ctx);
+        if (!run || !blob || !state) {
+            return;
+        }
+
+        state.transcribing = true;
+        setSpeakingStackHeard(ctx, '');
+
+        if (!state.speechDetected) {
+            state.transcribing = false;
+            setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackTooQuiet || 'No clear word detected.'));
+            queueSpeakingStackCaptureRestart(ctx, 120);
+            return;
+        }
+
+        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackProcessing || 'Checking your word...'));
+        transcribeSpeakingBlob(ctx, run, blob).then(function (transcript) {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return null;
+            }
+
+            const transcriptText = String(transcript || '').trim();
+            if (!transcriptText) {
+                throw new Error(String(ctx.i18n.gamesSpeakingStackTooQuiet || 'No clear word detected.'));
+            }
+            setSpeakingStackHeard(ctx, transcriptText);
+            return scoreSpeakingStackTranscript(ctx, run, transcriptText).then(function (result) {
+                if (!ctx.run || ctx.run !== run || run.ended) {
+                    return;
+                }
+
+                const matched = !!(result && result.matched && String(result.bucket || 'wrong') !== 'wrong');
+                if (!matched) {
+                    setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackNoMatch || 'No match yet.'));
+                    return;
+                }
+                handleSpeakingStackMatch(ctx, run, result, transcriptText);
+            });
+        }).catch(function (error) {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            setSpeakingStatus(ctx, String(
+                error && error.message
+                    || ctx.i18n.gamesSpeakingStackMicError
+                    || ctx.i18n.gamesSpeakingSttError
+                    || 'Microphone access failed.'
+            ));
+        }).finally(function () {
+            state.transcribing = false;
+            if (ctx.run === run && !run.ended && !run.paused) {
+                queueSpeakingStackCaptureRestart(ctx, 120);
+            }
+        });
+    }
+
     function processSpeakingAttempt(ctx, blob) {
         const run = ctx.run;
         const state = speakingState(ctx);
         if (!run || !run.prompt || !blob || !state) {
+            if (run && isSpeakingStackRun(ctx, run) && blob && state) {
+                processSpeakingStackAttempt(ctx, blob);
+            }
+            return;
+        }
+        if (isSpeakingStackRun(ctx, run)) {
+            processSpeakingStackAttempt(ctx, blob);
             return;
         }
         if (!state.speechDetected) {
@@ -5918,6 +6647,101 @@
         );
     }
 
+    function startSpeakingStackRun(ctx, entry) {
+        const keepModalOpen = isRunModalVisible(ctx);
+        const shuffledWords = shuffle(entry.words.slice());
+        const launchedAt = currentTimestamp();
+
+        resetGamesSurface(ctx, {
+            keepModalOpen: keepModalOpen
+        });
+        ctx.$stage.prop('hidden', false);
+        ctx.activeGameSlug = SPEAKING_STACK_GAME_SLUG;
+        updateStageGameUi(ctx, entry);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
+        hideOverlay(ctx);
+
+        ctx.run = {
+            slug: SPEAKING_STACK_GAME_SLUG,
+            words: shuffledWords.slice(),
+            wordQueue: shuffledWords.slice(),
+            totalWordCount: shuffledWords.length,
+            clearedCount: 0,
+            spawnedWordCount: 0,
+            promptDeck: [],
+            prompt: null,
+            cards: [],
+            bullets: [],
+            explosions: [],
+            decorativeBubbles: [],
+            controls: {
+                left: false,
+                right: false,
+                fire: false
+            },
+            coins: 0,
+            lives: 1,
+            promptsResolved: 0,
+            lastFireAt: 0,
+            lastFrameAt: 0,
+            shipX: 0,
+            shipY: 0,
+            width: 720,
+            height: 960,
+            dpr: 1,
+            metrics: null,
+            stars: [],
+            cardCount: Math.max(2, toInt((getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG) || {}).cardCount) || 4),
+            cardSpeed: Math.max(80, toInt((getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG) || {}).fallSpeed) || 176),
+            promptIdCounter: 0,
+            promptTimer: 0,
+            promptTimerReadyAt: 0,
+            promptTimerRemainingMs: 0,
+            decorativeBubbleIdCounter: 0,
+            speedRampTurns: 0,
+            speedRampStartFactor: 1,
+            useSameCategoryDistractorsNext: false,
+            awaitingPrompt: false,
+            nextPreparedPrompt: null,
+            nextPromptPromise: null,
+            inactiveRounds: 0,
+            lastResolvedPromptHadUserActivity: false,
+            resumeAction: '',
+            pauseReason: '',
+            paused: false,
+            ended: false,
+            rafId: 0,
+            provider: String(entry.provider || ''),
+            localEndpoint: String(entry.local_endpoint || ''),
+            embeddedModel: ((entry.embedded_model && typeof entry.embedded_model === 'object')
+                ? $.extend({}, entry.embedded_model)
+                : ((entry.offline_stt && typeof entry.offline_stt === 'object') ? $.extend({}, entry.offline_stt) : null)),
+            targetField: String(entry.target_field || ''),
+            lastSpeechAt: launchedAt,
+            lastSpawnedAt: 0,
+            finalSpawnedAt: 0,
+            allWordsQueued: false,
+            nextSpawnAt: launchedAt + Math.max(0, toInt((getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG) || {}).initialSpawnDelayMs) || 680)
+        };
+
+        syncCanvasSize(ctx);
+        ctx.run.shipX = ctx.run.width / 2;
+        ctx.run.shipY = ctx.run.metrics.shipY;
+        ctx.run.stars = createStageStars(ctx.run);
+        updateHud(ctx);
+        updatePauseUi(ctx);
+        setTrackerContext(ctx);
+        setSpeakingStackProgressFromRun(ctx, ctx.run);
+        setSpeakingStatus(ctx, String(ctx.i18n.gamesSpeakingStackReady || 'Mic ready'));
+        setSpeakingStackHeard(ctx, '');
+        scrollStageIntoView(ctx);
+        queueSpeakingStackCaptureRestart(ctx, 40);
+        ctx.run.rafId = root.requestAnimationFrame(function (timestamp) {
+            runLoop(ctx, timestamp);
+        });
+    }
+
     function startSpeakingRun(ctx, entry) {
         const keepModalOpen = isRunModalVisible(ctx);
         const speaking = speakingState(ctx);
@@ -6023,7 +6847,7 @@
                 showCatalog(ctx);
                 return;
             }
-            if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden') || isBubblePopRun(ctx, ctx.run)) {
+            if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden') || isBubblePopRun(ctx, ctx.run) || isSpeakingStackRun(ctx, ctx.run)) {
                 return;
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
@@ -6047,7 +6871,7 @@
             }
         };
         ctx.onKeyUp = function (event) {
-            if (!ctx.run || ctx.run.paused || isBubblePopRun(ctx, ctx.run)) {
+            if (!ctx.run || ctx.run.paused || isBubblePopRun(ctx, ctx.run) || isSpeakingStackRun(ctx, ctx.run)) {
                 return;
             }
             if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
@@ -6447,6 +7271,9 @@
         const speakingPractice = (gamesCfg.speakingPractice && typeof gamesCfg.speakingPractice === 'object')
             ? gamesCfg.speakingPractice
             : {};
+        const speakingStack = (gamesCfg.speakingStack && typeof gamesCfg.speakingStack === 'object')
+            ? gamesCfg.speakingStack
+            : {};
         const runtimeMode = String(cfg.runtimeMode || gamesCfg.runtimeMode || '').trim().toLowerCase();
         const offlineMode = runtimeMode === 'offline';
         ensureCatalogCardsExist($gamesRoot, gamesCfg, {
@@ -6549,6 +7376,36 @@
             minSpeechMs: Math.max(100, toInt(speakingPractice.minSpeechMs) || 160),
             apiCheckTimeoutMs: Math.max(500, toInt(speakingPractice.apiCheckTimeoutMs) || 1500)
         });
+        gameConfigs[SPEAKING_STACK_GAME_SLUG] = $.extend({}, buildGameConfig(speakingStack, {
+            slug: SPEAKING_STACK_GAME_SLUG,
+            lives: 1,
+            cardCount: 4,
+            maxLoadedWords: 60,
+            correctCoinReward: 0,
+            wrongHitLifePenalty: 0,
+            timeoutCoinPenalty: 0,
+            timeoutLifePenalty: 0,
+            promptAudioVolume: 1,
+            correctHitVolume: 0.28,
+            wrongHitVolume: 0.2,
+            correctHitAudioSources: spaceShooter.correctHitAudioSources || [],
+            wrongHitAudioSources: spaceShooter.wrongHitAudioSources || []
+        }), {
+            initialSpawnDelayMs: Math.max(0, toInt(speakingStack.initialSpawnDelayMs) || 680),
+            spawnGapMs: Math.max(900, toInt(speakingStack.spawnGapMs) || 2600),
+            fallSpeed: Math.max(80, toInt(speakingStack.fallSpeed) || 176),
+            stackGapPx: Math.max(0, toInt(speakingStack.stackGapPx) || 12),
+            groundPaddingPx: Math.max(12, toInt(speakingStack.groundPaddingPx) || 34),
+            topDangerPaddingPx: Math.max(0, toInt(speakingStack.topDangerPaddingPx) || 14),
+            finalSilenceMs: Math.max(1000, toInt(speakingStack.finalSilenceMs) || 10000),
+            matchThresholdScore: clamp(Number(speakingStack.matchThresholdScore) || 65, 1, 100),
+            maxRecordingMs: Math.max(1500, toInt(speakingStack.maxRecordingMs) || 6000),
+            silenceWindowMs: Math.max(400, toInt(speakingStack.silenceWindowMs) || 820),
+            silenceThreshold: clamp(Number(speakingStack.silenceThreshold) || 0.03, 0.005, 0.2),
+            speechStartThreshold: clamp(Number(speakingStack.speechStartThreshold) || 0.055, 0.005, 0.3),
+            minSpeechMs: Math.max(100, toInt(speakingStack.minSpeechMs) || 120),
+            apiCheckTimeoutMs: Math.max(500, toInt(speakingStack.apiCheckTimeoutMs) || 1500)
+        });
 
         return {
             rootEl: rootEl,
@@ -6608,6 +7465,13 @@
             $speakingPlayCorrect: $gamesRoot.find('[data-ll-wordset-speaking-play-correct]').first(),
             $speakingRetry: $gamesRoot.find('[data-ll-wordset-speaking-retry]').first(),
             $speakingNext: $gamesRoot.find('[data-ll-wordset-speaking-next]').first(),
+            $speakingStackStage: $gamesRoot.find('[data-ll-wordset-speaking-stack-stage]').first(),
+            $speakingStackProgress: $gamesRoot.find('[data-ll-wordset-speaking-stack-progress]').first(),
+            $speakingStackStatus: $gamesRoot.find('[data-ll-wordset-speaking-stack-status]').first(),
+            $speakingStackHeardRow: $gamesRoot.find('[data-ll-wordset-speaking-stack-heard-row]').first(),
+            $speakingStackHeard: $gamesRoot.find('[data-ll-wordset-speaking-stack-heard]').first(),
+            $speakingStackMeter: $gamesRoot.find('[data-ll-wordset-speaking-stack-meter]').first(),
+            $speakingStackMeterBars: $gamesRoot.find('.ll-wordset-speaking-stack-stage__meter-bar'),
             speakingAttemptAudio: $gamesRoot.find('[data-ll-wordset-speaking-attempt-audio]').get(0) || null,
             speakingCorrectAudio: $gamesRoot.find('[data-ll-wordset-speaking-correct-audio]').get(0) || null,
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
@@ -6633,6 +7497,7 @@
             bootstrapAction: String(gamesCfg.bootstrapAction || ''),
             transcribeAttemptAction: String(gamesCfg.transcribeAttemptAction || ''),
             scoreAttemptAction: String(gamesCfg.scoreAttemptAction || ''),
+            matchAttemptAction: String(gamesCfg.matchAttemptAction || ''),
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
             runtimeMode: runtimeMode,
             offlineMode: offlineMode,
@@ -6660,6 +7525,7 @@
             spaceShooter: gameConfigs[DEFAULT_GAME_SLUG],
             bubblePop: gameConfigs[BUBBLE_POP_GAME_SLUG],
             speakingPractice: gameConfigs[SPEAKING_PRACTICE_GAME_SLUG],
+            speakingStack: gameConfigs[SPEAKING_STACK_GAME_SLUG],
             speaking: {
                 availabilityChecks: {},
                 mediaStream: null,
@@ -6674,10 +7540,12 @@
                 silenceStartedAt: 0,
                 maxStopTimer: 0,
                 autoStartTimer: 0,
+                restartTimer: 0,
                 stopPromise: null,
                 currentBlob: null,
                 attemptAudioUrl: '',
-                recentLaunchWordIds: []
+                recentLaunchWordIds: [],
+                transcribing: false
             }
         };
     }

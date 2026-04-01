@@ -6702,6 +6702,55 @@ function ll_tools_transcribe_recording_by_id_handler() {
         wp_send_json_success($response);
     }
 
+    if (($transcription_service['provider'] ?? '') === 'hosted_api') {
+        $audio_path = (string) get_post_meta($recording_id, 'audio_file_path', true);
+        $file_info = ll_tools_resolve_audio_file_for_transcription($audio_path);
+        $file_path = (string) ($file_info['path'] ?? '');
+        $is_temp = !empty($file_info['is_temp']);
+        if ($file_path === '' || !file_exists($file_path) || !is_readable($file_path)) {
+            if ($is_temp && $file_path !== '' && file_exists($file_path)) {
+                @unlink($file_path);
+            }
+            wp_send_json_error('Audio file missing', 400);
+        }
+
+        $endpoint = (string) ($transcription_service['local_endpoint'] ?? '');
+        $token = function_exists('ll_tools_get_wordset_transcription_api_token')
+            ? ll_tools_get_wordset_transcription_api_token($wordset_ids, true)
+            : '';
+        $remote_result = ll_tools_remote_stt_transcribe_audio_file($endpoint, $file_path, [
+            'token' => $token,
+            'filename' => wp_basename($file_path),
+            'fields' => [
+                'wordset_id' => (string) $wordset_id,
+                'recording_id' => (string) $recording_id,
+                'target_field' => $target_meta_key,
+                'recording_type' => (string) ll_tools_normalize_practice_recording_type_slug((string) get_post_meta($recording_id, 'recording_type', true)),
+                'word_title' => html_entity_decode((string) get_the_title((int) $recording->post_parent), ENT_QUOTES, 'UTF-8'),
+            ],
+        ]);
+        if ($is_temp && $file_path !== '' && file_exists($file_path)) {
+            @unlink($file_path);
+        }
+        if (is_wp_error($remote_result)) {
+            wp_send_json_error($remote_result->get_error_message(), 500);
+        }
+
+        $remote_transcript = trim((string) ($remote_result['transcript'] ?? ''));
+        $response = ($target_meta_key === 'recording_ipa')
+            ? ll_tools_word_grid_finalize_secondary_transcription($recording_id, $recording, $wordset_id, $remote_transcript)
+            : ll_tools_word_grid_finalize_transcription($recording_id, $recording, $wordset_ids, $force, $remote_transcript);
+        if (is_wp_error($response)) {
+            wp_send_json_error($response->get_error_message(), 400);
+        }
+
+        delete_post_meta($recording_id, 'll_tools_assemblyai_transcript_id');
+        $response['pending'] = false;
+        $response['transcript_id'] = '';
+        $response['status'] = 'completed';
+        wp_send_json_success($response);
+    }
+
     if (!function_exists('ll_tools_assemblyai_start_transcription') || !function_exists('ll_tools_assemblyai_get_transcript')) {
         wp_send_json_error(__('AssemblyAI integration not available', 'll-tools-text-domain'), 400);
     }
