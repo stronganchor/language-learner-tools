@@ -3,9 +3,17 @@ declare(strict_types=1);
 
 final class WordsetGamesTest extends LL_Tools_TestCase
 {
+    /** @var array<string,mixed> */
+    private $getBackup = [];
+
+    /** @var array<string,mixed> */
+    private $serverBackup = [];
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->getBackup = $_GET;
+        $this->serverBackup = $_SERVER;
         if (function_exists('ll_tools_install_user_progress_schema')) {
             ll_tools_install_user_progress_schema();
         }
@@ -13,7 +21,10 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
     protected function tearDown(): void
     {
+        $_GET = $this->getBackup;
+        $_SERVER = $this->serverBackup;
         set_query_var('ll_wordset_view', null);
+        set_query_var('ll_wordset_page', null);
         parent::tearDown();
     }
 
@@ -68,6 +79,62 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('data-ll-wordset-game-close', $gamesHtml);
     }
 
+    public function test_subpage_return_url_preserves_original_back_target_when_switching_subpages(): void
+    {
+        $term = wp_insert_term('Games Back Target ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $expectedBack = ll_tools_get_wordset_page_view_url($wordset);
+        $settingsToolUrl = ll_tools_get_wordset_settings_tool_url($wordset, 'transcription', $expectedBack);
+
+        $_GET = [
+            'll_wordset_page' => (string) $wordset->slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'transcription',
+            'll_wordset_back' => $expectedBack,
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl($settingsToolUrl);
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $returnUrl = ll_tools_wordset_page_get_subpage_return_url($wordset);
+        $gamesUrl = ll_tools_wordset_page_with_back_url(
+            ll_tools_get_wordset_page_view_url($wordset, 'games'),
+            $returnUrl
+        );
+
+        $this->assertSame($expectedBack, $returnUrl);
+        $this->assertSame($expectedBack, $this->getQueryArgFromUrl($gamesUrl, 'll_wordset_back'));
+    }
+
+    public function test_subpage_return_url_falls_back_to_wordset_home_for_direct_subpage_requests(): void
+    {
+        $term = wp_insert_term('Games Direct Subpage ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $expectedBack = ll_tools_get_wordset_page_view_url($wordset);
+        $settingsToolUrl = ll_tools_get_wordset_settings_tool_url($wordset, 'transcription');
+
+        $_GET = [
+            'll_wordset_page' => (string) $wordset->slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'transcription',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl($settingsToolUrl);
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $this->assertSame($expectedBack, ll_tools_wordset_page_get_subpage_return_url($wordset));
+    }
+
     public function test_space_shooter_pool_only_includes_studied_words_with_images_and_core_prompt_recordings_in_scope(): void
     {
         $fixture = $this->createGamesFixture(5);
@@ -101,6 +168,25 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             ['question', 'isolation', 'introduction'],
             (array) ($firstWord['game_prompt_recording_types'] ?? [])
         ));
+    }
+
+    private function requestUriFromUrl(string $url): string
+    {
+        $path = (string) wp_parse_url($url, PHP_URL_PATH);
+        $query = (string) wp_parse_url($url, PHP_URL_QUERY);
+
+        return $path . ($query !== '' ? ('?' . $query) : '');
+    }
+
+    private function getQueryArgFromUrl(string $url, string $key): string
+    {
+        $query = (string) wp_parse_url($url, PHP_URL_QUERY);
+        if ($query === '') {
+            return '';
+        }
+
+        parse_str($query, $params);
+        return isset($params[$key]) && is_string($params[$key]) ? $params[$key] : '';
     }
 
     public function test_space_shooter_pool_is_unavailable_below_minimum_count(): void

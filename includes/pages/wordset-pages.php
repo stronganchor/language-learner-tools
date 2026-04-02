@@ -874,6 +874,17 @@ function ll_tools_wordset_page_normalize_same_origin_url(string $url): string {
 
 function ll_tools_wordset_page_get_subpage_return_url(WP_Term $wordset_term): string {
     $fallback = ll_tools_get_wordset_page_view_url($wordset_term);
+
+    // Preserve the original return target when moving between sibling subpages.
+    if (isset($_GET['ll_wordset_back'])) {
+        $requested_back = ll_tools_wordset_page_normalize_same_origin_url(
+            wp_unslash((string) $_GET['ll_wordset_back'])
+        );
+        if ($requested_back !== '') {
+            return $requested_back;
+        }
+    }
+
     $current = ll_tools_wordset_page_current_url();
     if ($current === '') {
         return $fallback;
@@ -882,6 +893,10 @@ function ll_tools_wordset_page_get_subpage_return_url(WP_Term $wordset_term): st
     $current = remove_query_arg('ll_wordset_back', $current);
     $current = ll_tools_wordset_page_normalize_same_origin_url($current);
     if ($current === '') {
+        return $fallback;
+    }
+
+    if (ll_tools_get_wordset_page_view() !== '') {
         return $fallback;
     }
 
@@ -2255,6 +2270,9 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesNeedCompatibleWords' => __('This word set does not have a playable mix of picture cards yet.', 'll-tools-text-domain'),
         'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
         'gamesLocked' => __('Locked', 'll-tools-text-domain'),
+        'gamesSpeakingHiddenConnection' => __('Speaking games are hidden because the speaking service for this word set is not responding on this device.', 'll-tools-text-domain'),
+        'gamesSpeakingHiddenGeneric' => __('Speaking games are hidden because this word set speaking setup is not available right now.', 'll-tools-text-domain'),
+        'gamesSpeakingOpenSettings' => __('Open speaking settings', 'll-tools-text-domain'),
         'gamesBack' => __('Games', 'll-tools-text-domain'),
         'gamesReplayAudio' => __('Replay prompt', 'll-tools-text-domain'),
         'gamesPauseRun' => __('Pause run', 'll-tools-text-domain'),
@@ -6011,11 +6029,19 @@ function ll_tools_render_wordset_games_shell(array $args): string {
     }
 
     $games_catalog = is_array($args['games_catalog'] ?? null) ? $args['games_catalog'] : [];
+    $speaking_hidden_notice = is_array($args['speaking_hidden_notice'] ?? null) ? $args['speaking_hidden_notice'] : [];
     $is_study_user = !empty($args['is_study_user']);
     $back_url = isset($args['back_url']) ? (string) $args['back_url'] : '';
     $as_modal = !empty($args['as_modal']);
     $is_open = !empty($args['is_open']);
     $title_id = 'll-wordset-games-title-' . (int) $wordset_term->term_id . ($as_modal ? '-modal' : '-page');
+    $show_speaking_notice = !empty($speaking_hidden_notice['show']) && trim((string) ($speaking_hidden_notice['message'] ?? '')) !== '';
+    $speaking_notice_message = trim((string) ($speaking_hidden_notice['message'] ?? ''));
+    $speaking_notice_url = trim((string) ($speaking_hidden_notice['settings_url'] ?? ''));
+    $speaking_notice_label = trim((string) ($speaking_hidden_notice['settings_label'] ?? ''));
+    if ($speaking_notice_label === '') {
+        $speaking_notice_label = __('Open speaking settings', 'll-tools-text-domain');
+    }
 
     ob_start();
     if ($as_modal) :
@@ -6074,6 +6100,17 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                         </div>
                     </article>
                 <?php endforeach; ?>
+            </div>
+
+            <div class="ll-wordset-games-notice" data-ll-wordset-games-speaking-notice<?php if (!$show_speaking_notice) : ?> hidden<?php endif; ?>>
+                <p class="ll-wordset-games-notice__text" data-ll-wordset-games-speaking-notice-text><?php echo esc_html($speaking_notice_message); ?></p>
+                <a
+                    class="ll-wordset-games-notice__link"
+                    data-ll-wordset-games-speaking-notice-link
+                    href="<?php echo esc_url($speaking_notice_url !== '' ? $speaking_notice_url : '#'); ?>"
+                    <?php if ($speaking_notice_url === '') : ?>hidden<?php endif; ?>>
+                    <?php echo esc_html($speaking_notice_label); ?>
+                </a>
             </div>
 
             <?php if (!$is_study_user) : ?>
