@@ -42,6 +42,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             'post_title' => 'Ship Recording',
         ]);
         wp_set_object_terms($recording_id, ['Isolation'], 'recording_type', false);
+        update_post_meta($recording_id, 'audio_file_path', 'wp-content/uploads/test-audio/ship.mp3');
         update_post_meta($recording_id, 'recording_text', 'ship');
         update_post_meta($recording_id, 'recording_translation', 'gem');
         update_post_meta($recording_id, 'recording_ipa', 'ʃʃ');
@@ -77,9 +78,13 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame('Ship', (string) ($recording['word_text'] ?? ''));
         $this->assertSame('Gem', (string) ($recording['word_translation'] ?? ''));
         $this->assertSame('Isolation', (string) ($recording['recording_type'] ?? ''));
+        $this->assertSame('isolation', (string) ($recording['recording_type_slug'] ?? ''));
+        $this->assertSame('isolation', (string) ($recording['recording_icon_type'] ?? ''));
         $this->assertSame('ship', (string) ($recording['recording_text'] ?? ''));
         $this->assertSame('gem', (string) ($recording['recording_translation'] ?? ''));
         $this->assertSame('ʒ', (string) ($recording['recording_ipa'] ?? ''));
+        $this->assertSame(site_url('wp-content/uploads/test-audio/ship.mp3'), (string) ($recording['audio_url'] ?? ''));
+        $this->assertSame('Play Isolation recording', (string) ($recording['audio_label'] ?? ''));
         $this->assertNotSame('', (string) ($recording['word_edit_link'] ?? ''));
     }
 

@@ -67,6 +67,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'mapAddHint' => __('Use multiple letters to map digraphs like ll.', 'll-tools-text-domain'),
             'mapAdd' => __('Add mapping', 'll-tools-text-domain'),
             'mapAddMissing' => __('Enter letters and characters to add.', 'll-tools-text-domain'),
+            'playRecording' => __('Play recording', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -238,10 +239,39 @@ function ll_tools_ipa_keyboard_count_special_symbols(string $recording_ipa, stri
 }
 
 function ll_tools_ipa_keyboard_build_recording_payload(int $recording_id, int $word_id, array $word_info, string $recording_ipa = ''): array {
-    $recording_type_terms = wp_get_post_terms($recording_id, 'recording_type', ['fields' => 'names']);
-    $recording_type = (!is_wp_error($recording_type_terms) && !empty($recording_type_terms))
-        ? (string) $recording_type_terms[0]
-        : '';
+    $recording_type_terms = wp_get_post_terms($recording_id, 'recording_type');
+    $recording_type = '';
+    $recording_type_slug = '';
+    if (!is_wp_error($recording_type_terms) && !empty($recording_type_terms) && $recording_type_terms[0] instanceof WP_Term) {
+        $recording_type = (string) $recording_type_terms[0]->name;
+        $recording_type_slug = sanitize_key((string) $recording_type_terms[0]->slug);
+    }
+
+    $recording_icon_type = 'isolation';
+    if (in_array($recording_type_slug, ['question', 'isolation', 'introduction'], true)) {
+        $recording_icon_type = $recording_type_slug;
+    } elseif (in_array($recording_type_slug, ['sentence', 'in-sentence', 'in_sentence', 'insentence'], true)) {
+        $recording_icon_type = 'sentence';
+    }
+
+    $audio_url = '';
+    if (function_exists('ll_tools_word_grid_get_recording_audio_url')) {
+        $audio_url = (string) ll_tools_word_grid_get_recording_audio_url($recording_id);
+    } else {
+        $audio_path = trim((string) get_post_meta($recording_id, 'audio_file_path', true));
+        if ($audio_path !== '') {
+            $audio_url = function_exists('ll_tools_resolve_audio_file_url')
+                ? (string) ll_tools_resolve_audio_file_url($audio_path)
+                : ((0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path));
+        }
+    }
+
+    $recording_label = $recording_type !== '' ? $recording_type : __('Recording', 'll-tools-text-domain');
+    $audio_label = sprintf(
+        /* translators: %s: recording type label */
+        __('Play %s recording', 'll-tools-text-domain'),
+        $recording_label
+    );
 
     return [
         'recording_id' => $recording_id,
@@ -249,9 +279,13 @@ function ll_tools_ipa_keyboard_build_recording_payload(int $recording_id, int $w
         'word_text' => (string) ($word_info['word_text'] ?? ''),
         'word_translation' => (string) ($word_info['translation'] ?? ''),
         'recording_type' => $recording_type,
+        'recording_type_slug' => $recording_type_slug,
+        'recording_icon_type' => $recording_icon_type,
         'recording_text' => (string) get_post_meta($recording_id, 'recording_text', true),
         'recording_translation' => (string) get_post_meta($recording_id, 'recording_translation', true),
         'recording_ipa' => (string) $recording_ipa,
+        'audio_url' => $audio_url,
+        'audio_label' => $audio_label,
         'word_edit_link' => get_edit_post_link($word_id, 'raw'),
     ];
 }

@@ -21,6 +21,8 @@
 
     let currentWordsetId = 0;
     let currentTranscription = null;
+    let currentAudio = null;
+    let currentAudioButton = null;
 
     function buildDefaultTranscription() {
         return {
@@ -86,6 +88,21 @@
         }
     }
 
+    function stopCurrentAudio() {
+        if (currentAudioButton) {
+            $(currentAudioButton).removeClass('is-playing');
+        }
+        currentAudioButton = null;
+
+        if (!currentAudio) {
+            return;
+        }
+
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        currentAudio = null;
+    }
+
     function getSymbolSummaryText(recordingCount, occurrenceCount) {
         const countLabel = formatCount(
             recordingCount,
@@ -122,9 +139,13 @@
         const wordText = rec && rec.word_text ? rec.word_text : '';
         const wordTranslation = rec && rec.word_translation ? rec.word_translation : '';
         const recordingType = rec && rec.recording_type ? rec.recording_type : '';
+        const recordingTypeSlug = rec && rec.recording_type_slug ? rec.recording_type_slug : '';
+        const recordingIconType = rec && rec.recording_icon_type ? rec.recording_icon_type : 'isolation';
         const recordingText = rec && rec.recording_text ? rec.recording_text : '';
         const recordingTranslation = rec && rec.recording_translation ? rec.recording_translation : '';
         const recordingIpa = rec && rec.recording_ipa ? rec.recording_ipa : '';
+        const audioUrl = rec && rec.audio_url ? rec.audio_url : '';
+        const audioLabel = rec && rec.audio_label ? rec.audio_label : (i18n.playRecording || 'Play recording');
         const editLink = rec && rec.word_edit_link ? rec.word_edit_link : '';
 
         const $wordCell = $('<td>');
@@ -153,6 +174,30 @@
             $textCell.text('-');
         }
 
+        const $recordingMeta = $('<div>', { class: 'll-ipa-recording-cell' });
+        if (audioUrl) {
+            const $audioButton = $('<button>', {
+                type: 'button',
+                class: 'll-study-recording-btn ll-ipa-recording-audio-btn ll-study-recording-btn--' + recordingIconType,
+                'data-audio-url': audioUrl,
+                'data-recording-id': recordingId,
+                'data-recording-type': recordingTypeSlug,
+                'aria-label': audioLabel,
+                title: audioLabel
+            });
+            $audioButton.append($('<span>', { class: 'll-study-recording-icon', 'aria-hidden': 'true' }));
+            const $visualizer = $('<span>', { class: 'll-study-recording-visualizer', 'aria-hidden': 'true' });
+            for (let index = 0; index < 4; index += 1) {
+                $visualizer.append($('<span>', { class: 'bar' }));
+            }
+            $audioButton.append($visualizer);
+            $recordingMeta.append($audioButton);
+        }
+        $recordingMeta.append($('<span>', {
+            class: 'll-ipa-recording-type-label',
+            text: recordingType || '-'
+        }));
+
         const $ipaInput = $('<input>', {
             type: 'text',
             class: 'll-ipa-input',
@@ -168,7 +213,7 @@
 
         return $('<tr>', { 'data-recording-id': recordingId })
             .append($wordCell)
-            .append($('<td>', { text: recordingType || '-' }))
+            .append($('<td>').append($recordingMeta))
             .append($textCell)
             .append($('<td>').append($ipaInput))
             .append($('<td>').append($saveBtn));
@@ -341,6 +386,10 @@
 
         if (!recordingId) {
             return;
+        }
+
+        if (currentAudioButton && (parseInt($(currentAudioButton).attr('data-recording-id'), 10) || 0) === recordingId) {
+            stopCurrentAudio();
         }
 
         Object.keys(previousCounts).forEach(function (symbol) {
@@ -770,6 +819,61 @@
             setStatus(i18n.error || 'Something went wrong. Please try again.', true);
         }).always(function () {
             $btn.prop('disabled', false).text(originalText);
+        });
+    });
+
+    $symbols.on('click', '.ll-study-recording-btn', function (event) {
+        const button = event.currentTarget;
+        const url = (button.getAttribute('data-audio-url') || '').trim();
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!url || button.disabled) {
+            return;
+        }
+
+        if (currentAudio && currentAudioButton === button && !currentAudio.paused) {
+            stopCurrentAudio();
+            return;
+        }
+
+        stopCurrentAudio();
+
+        currentAudio = new Audio(url);
+        currentAudioButton = button;
+
+        currentAudio.addEventListener('play', function () {
+            if (currentAudioButton === button) {
+                $(button).addClass('is-playing');
+            }
+        });
+        currentAudio.addEventListener('pause', function () {
+            if (currentAudioButton === button) {
+                $(button).removeClass('is-playing');
+            }
+        });
+        currentAudio.addEventListener('ended', function () {
+            if (currentAudioButton === button) {
+                $(button).removeClass('is-playing');
+            }
+            currentAudio = null;
+            currentAudioButton = null;
+        });
+        currentAudio.addEventListener('error', function () {
+            if (currentAudioButton === button) {
+                $(button).removeClass('is-playing');
+            }
+            currentAudio = null;
+            currentAudioButton = null;
+        });
+
+        currentAudio.play().catch(function () {
+            if (currentAudioButton === button) {
+                $(button).removeClass('is-playing');
+            }
+            currentAudio = null;
+            currentAudioButton = null;
         });
     });
 
