@@ -86,14 +86,314 @@
         }
     }
 
+    function getSymbolSummaryText(recordingCount, occurrenceCount) {
+        const countLabel = formatCount(
+            recordingCount,
+            i18n.recordingCountSingular || '%1$d recording',
+            i18n.recordingCountPlural || '%1$d recordings'
+        );
+        const totalLabel = occurrenceCount
+            ? (' - ' + formatCount(
+                occurrenceCount,
+                i18n.occurrenceCountSingular || '%1$d occurrence',
+                i18n.occurrenceCountPlural || '%1$d occurrences'
+            ))
+            : '';
+        return countLabel + totalLabel;
+    }
+
+    function setSymbolSummaryCounts($details, recordingCount, occurrenceCount) {
+        const safeRecordingCount = Math.max(0, parseInt(recordingCount, 10) || 0);
+        const safeOccurrenceCount = Math.max(0, parseInt(occurrenceCount, 10) || 0);
+        let $count = $details.children('summary').find('.ll-ipa-symbol-count').first();
+
+        if (!$count.length) {
+            $count = $('<span>', { class: 'll-ipa-symbol-count' });
+            $details.children('summary').append($count);
+        }
+
+        $details.attr('data-recording-count', safeRecordingCount);
+        $details.attr('data-occurrence-count', safeOccurrenceCount);
+        $count.text(getSymbolSummaryText(safeRecordingCount, safeOccurrenceCount));
+    }
+
+    function buildRecordingRow(rec) {
+        const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
+        const wordText = rec && rec.word_text ? rec.word_text : '';
+        const wordTranslation = rec && rec.word_translation ? rec.word_translation : '';
+        const recordingType = rec && rec.recording_type ? rec.recording_type : '';
+        const recordingText = rec && rec.recording_text ? rec.recording_text : '';
+        const recordingTranslation = rec && rec.recording_translation ? rec.recording_translation : '';
+        const recordingIpa = rec && rec.recording_ipa ? rec.recording_ipa : '';
+        const editLink = rec && rec.word_edit_link ? rec.word_edit_link : '';
+
+        const $wordCell = $('<td>');
+        if (editLink) {
+            $wordCell.append(
+                $('<a>', { href: editLink, text: wordText || (i18n.untitled || '(Untitled)'), target: '_blank' })
+            );
+        } else {
+            $wordCell.text(wordText || (i18n.untitled || '(Untitled)'));
+        }
+        if (wordTranslation) {
+            $wordCell.append(
+                $('<span>', { class: 'll-ipa-translation', text: ' (' + wordTranslation + ')' })
+            );
+        }
+
+        const $textCell = $('<td>');
+        if (recordingText) {
+            $textCell.text(recordingText);
+            if (recordingTranslation) {
+                $textCell.append(
+                    $('<span>', { class: 'll-ipa-translation', text: ' (' + recordingTranslation + ')' })
+                );
+            }
+        } else {
+            $textCell.text('-');
+        }
+
+        const $ipaInput = $('<input>', {
+            type: 'text',
+            class: 'll-ipa-input',
+            value: recordingIpa
+        });
+
+        const $saveBtn = $('<button>', {
+            type: 'button',
+            class: 'button button-primary ll-ipa-save',
+            text: i18n.save || 'Save',
+            'data-recording-id': recordingId
+        });
+
+        return $('<tr>', { 'data-recording-id': recordingId })
+            .append($wordCell)
+            .append($('<td>', { text: recordingType || '-' }))
+            .append($textCell)
+            .append($('<td>').append($ipaInput))
+            .append($('<td>').append($saveBtn));
+    }
+
+    function buildRecordingsTable() {
+        const transcription = getTranscription();
+        const $table = $('<table>', { class: 'widefat striped ll-ipa-recordings' });
+        const $thead = $('<thead>').append(
+            $('<tr>')
+                .append($('<th>', { text: i18n.wordColumnLabel || 'Word' }))
+                .append($('<th>', { text: i18n.recordingColumnLabel || 'Recording' }))
+                .append($('<th>', { text: i18n.textColumnLabel || 'Text' }))
+                .append($('<th>', { text: transcription.symbols_column_label || 'Pronunciation' }))
+                .append($('<th>', { text: '' }))
+        );
+
+        return $table.append($thead, $('<tbody>'));
+    }
+
+    function findSymbolDetails(symbol) {
+        return $symbols.children('.ll-ipa-symbol').filter(function () {
+            return ($(this).attr('data-symbol') || '') === symbol;
+        }).first();
+    }
+
+    function createSymbolDetails(symbol) {
+        const $details = $('<details>', {
+            class: 'll-ipa-symbol',
+            'data-symbol': symbol,
+            'data-recording-count': 0,
+            'data-occurrence-count': 0
+        });
+        const $summary = $('<summary>');
+        $summary.append($('<span>', { class: 'll-ipa-symbol-text', text: symbol }));
+        $details.append($summary, $('<div>', { class: 'll-ipa-symbol-body' }));
+        setSymbolSummaryCounts($details, 0, 0);
+        return $details;
+    }
+
+    function insertSymbolDetails($details) {
+        const symbol = ($details.attr('data-symbol') || '').toString();
+        let inserted = false;
+
+        $symbols.children('.ll-ipa-empty').remove();
+        $symbols.children('.ll-ipa-symbol').each(function () {
+            const $existing = $(this);
+            const existingSymbol = ($existing.attr('data-symbol') || '').toString();
+            if (existingSymbol.localeCompare(symbol) > 0) {
+                $existing.before($details);
+                inserted = true;
+                return false;
+            }
+            return undefined;
+        });
+
+        if (!inserted) {
+            $symbols.append($details);
+        }
+    }
+
+    function getOrCreateSymbolDetails(symbol) {
+        let $details = findSymbolDetails(symbol);
+        if ($details.length) {
+            return $details;
+        }
+
+        $details = createSymbolDetails(symbol);
+        insertSymbolDetails($details);
+        return $details;
+    }
+
+    function ensureSymbolTableBody($details) {
+        const $body = $details.children('.ll-ipa-symbol-body').first();
+        let $table = $body.children('.ll-ipa-recordings').first();
+
+        $body.children('.ll-ipa-empty').remove();
+        if (!$table.length) {
+            $table = buildRecordingsTable();
+            $body.append($table);
+        }
+
+        return $table.children('tbody').first();
+    }
+
+    function ensureSymbolEmptyState($details) {
+        const $body = $details.children('.ll-ipa-symbol-body').first();
+        const hasRows = $body.find('.ll-ipa-recordings tbody tr').length > 0;
+
+        $body.children('.ll-ipa-empty').remove();
+        if (hasRows) {
+            return;
+        }
+
+        $body.children('.ll-ipa-recordings').remove();
+        $body.append($('<div>', {
+            class: 'll-ipa-empty',
+            text: i18n.noRecordings || 'No recordings use this character yet.'
+        }));
+    }
+
+    function upsertRecordingRow(symbol, rec) {
+        const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
+        if (!symbol || !recordingId) {
+            return;
+        }
+
+        const $details = getOrCreateSymbolDetails(symbol);
+        const $tbody = ensureSymbolTableBody($details);
+        const $existing = $tbody.children('tr').filter(function () {
+            return (parseInt($(this).attr('data-recording-id'), 10) || 0) === recordingId;
+        }).first();
+        const $row = buildRecordingRow(rec);
+
+        if ($existing.length) {
+            $existing.replaceWith($row);
+        } else {
+            $tbody.append($row);
+        }
+    }
+
+    function removeRecordingRow(symbol, recordingId) {
+        const safeRecordingId = parseInt(recordingId, 10) || 0;
+        if (!symbol || !safeRecordingId) {
+            return;
+        }
+
+        const $details = findSymbolDetails(symbol);
+        if (!$details.length) {
+            return;
+        }
+
+        const $tbody = $details.find('.ll-ipa-recordings tbody').first();
+        if (!$tbody.length) {
+            return;
+        }
+
+        $tbody.children('tr').filter(function () {
+            return (parseInt($(this).attr('data-recording-id'), 10) || 0) === safeRecordingId;
+        }).remove();
+
+        if (!$tbody.children('tr').length) {
+            ensureSymbolEmptyState($details);
+        }
+    }
+
+    function normalizeSymbolCountMap(rawMap) {
+        const clean = {};
+
+        if (!rawMap || typeof rawMap !== 'object') {
+            return clean;
+        }
+
+        Object.keys(rawMap).forEach(function (symbol) {
+            const count = parseInt(rawMap[symbol], 10) || 0;
+            if (symbol && count > 0) {
+                clean[symbol] = count;
+            }
+        });
+
+        return clean;
+    }
+
+    function syncSavedRecording(data) {
+        const recording = data && data.recording ? data.recording : {};
+        const recordingId = parseInt(recording.recording_id || data.recording_id, 10) || 0;
+        const previousCounts = normalizeSymbolCountMap(data && data.previous_symbol_counts);
+        const nextCounts = normalizeSymbolCountMap(data && data.symbol_counts);
+        const symbolsToSync = {};
+
+        if (!recordingId) {
+            return;
+        }
+
+        Object.keys(previousCounts).forEach(function (symbol) {
+            symbolsToSync[symbol] = true;
+        });
+        Object.keys(nextCounts).forEach(function (symbol) {
+            symbolsToSync[symbol] = true;
+        });
+
+        Object.keys(symbolsToSync).forEach(function (symbol) {
+            const previousCount = previousCounts[symbol] || 0;
+            const nextCount = nextCounts[symbol] || 0;
+            const recordingDelta = (nextCount > 0 ? 1 : 0) - (previousCount > 0 ? 1 : 0);
+            const occurrenceDelta = nextCount - previousCount;
+
+            if (nextCount > 0) {
+                upsertRecordingRow(symbol, recording);
+            } else {
+                removeRecordingRow(symbol, recordingId);
+            }
+
+            if (recordingDelta !== 0 || occurrenceDelta !== 0) {
+                const $details = nextCount > 0 ? getOrCreateSymbolDetails(symbol) : findSymbolDetails(symbol);
+                if ($details.length) {
+                    const currentRecordingCount = parseInt($details.attr('data-recording-count'), 10) || 0;
+                    const currentOccurrenceCount = parseInt($details.attr('data-occurrence-count'), 10) || 0;
+                    setSymbolSummaryCounts($details, currentRecordingCount + recordingDelta, currentOccurrenceCount + occurrenceDelta);
+                    if ((parseInt($details.attr('data-recording-count'), 10) || 0) === 0) {
+                        ensureSymbolEmptyState($details);
+                    }
+                }
+            }
+        });
+
+        if (typeof data.recording_ipa === 'string') {
+            $symbols.find('tr[data-recording-id="' + recordingId + '"] .ll-ipa-input').val(data.recording_ipa);
+        }
+
+        if (Array.isArray(data && data.letter_map)) {
+            renderLetterMap({ letter_map: data.letter_map });
+        }
+    }
+
     function renderSymbols(payload) {
         const list = (payload && Array.isArray(payload.symbols)) ? payload.symbols : [];
-        const transcription = getTranscription();
         $symbols.empty();
 
         if (!list.length) {
             $symbols.append(
-                $('<div>', { class: 'll-ipa-empty', text: transcription.special_chars_empty || i18n.empty || 'No special characters found for this word set.' })
+                $('<div>', {
+                    class: 'll-ipa-empty',
+                    text: getTranscription().special_chars_empty || i18n.empty || 'No special characters found for this word set.'
+                })
             );
             return;
         }
@@ -106,106 +406,22 @@
                 ? entry.recording_count
                 : recordings.length;
 
-            const $details = $('<details>', { class: 'll-ipa-symbol', 'data-symbol': symbol });
-            const $summary = $('<summary>');
-            $summary.append($('<span>', { class: 'll-ipa-symbol-text', text: symbol }));
-
-            const countLabel = formatCount(
-                recordingCount,
-                i18n.recordingCountSingular || '%1$d recording',
-                i18n.recordingCountPlural || '%1$d recordings'
-            );
-            const totalLabel = count
-                ? (' - ' + formatCount(
-                    count,
-                    i18n.occurrenceCountSingular || '%1$d occurrence',
-                    i18n.occurrenceCountPlural || '%1$d occurrences'
-                ))
-                : '';
-            $summary.append($('<span>', { class: 'll-ipa-symbol-count', text: countLabel + totalLabel }));
-
-            $details.append($summary);
-
-            const $body = $('<div>', { class: 'll-ipa-symbol-body' });
-            if (recordings.length) {
-                const $table = $('<table>', { class: 'widefat striped ll-ipa-recordings' });
-                const $thead = $('<thead>').append(
-                    $('<tr>')
-                        .append($('<th>', { text: i18n.wordColumnLabel || 'Word' }))
-                        .append($('<th>', { text: i18n.recordingColumnLabel || 'Recording' }))
-                        .append($('<th>', { text: i18n.textColumnLabel || 'Text' }))
-                        .append($('<th>', { text: transcription.symbols_column_label || 'Pronunciation' }))
-                        .append($('<th>', { text: '' }))
-                );
-                $table.append($thead);
-
-                const $tbody = $('<tbody>');
-                recordings.forEach(function (rec) {
-                    const recordingId = rec.recording_id || 0;
-                    const wordText = rec.word_text || '';
-                    const wordTranslation = rec.word_translation || '';
-                    const recordingType = rec.recording_type || '';
-                    const recordingText = rec.recording_text || '';
-                    const recordingTranslation = rec.recording_translation || '';
-                    const recordingIpa = rec.recording_ipa || '';
-                    const editLink = rec.word_edit_link || '';
-
-                    const $wordCell = $('<td>');
-                    if (editLink) {
-                        $wordCell.append(
-                            $('<a>', { href: editLink, text: wordText || (i18n.untitled || '(Untitled)'), target: '_blank' })
-                        );
-                    } else {
-                        $wordCell.text(wordText || (i18n.untitled || '(Untitled)'));
-                    }
-                    if (wordTranslation) {
-                        $wordCell.append(
-                            $('<span>', { class: 'll-ipa-translation', text: ' (' + wordTranslation + ')' })
-                        );
-                    }
-
-                    const $textCell = $('<td>');
-                    if (recordingText) {
-                        $textCell.text(recordingText);
-                        if (recordingTranslation) {
-                            $textCell.append(
-                                $('<span>', { class: 'll-ipa-translation', text: ' (' + recordingTranslation + ')' })
-                            );
-                        }
-                    } else {
-                        $textCell.text('-');
-                    }
-
-                    const $ipaInput = $('<input>', {
-                        type: 'text',
-                        class: 'll-ipa-input',
-                        value: recordingIpa
-                    });
-
-                    const $saveBtn = $('<button>', {
-                        type: 'button',
-                        class: 'button button-primary ll-ipa-save',
-                        text: i18n.save || 'Save',
-                        'data-recording-id': recordingId
-                    });
-
-                    const $row = $('<tr>')
-                        .append($wordCell)
-                        .append($('<td>', { text: recordingType || '-' }))
-                        .append($textCell)
-                        .append($('<td>').append($ipaInput))
-                        .append($('<td>').append($saveBtn));
-
-                    $tbody.append($row);
-                });
-
-                $table.append($tbody);
-                $body.append($table);
-            } else {
-                $body.append($('<div>', { class: 'll-ipa-empty', text: i18n.noRecordings || 'No recordings use this character yet.' }));
+            if (!symbol) {
+                return;
             }
 
-            $details.append($body);
+            const $details = createSymbolDetails(symbol);
+            setSymbolSummaryCounts($details, recordingCount, count);
+
+            if (recordings.length) {
+                const $tbody = ensureSymbolTableBody($details);
+                recordings.forEach(function (rec) {
+                    $tbody.append(buildRecordingRow(rec));
+                });
+            } else {
+                ensureSymbolEmptyState($details);
+            }
+
             $symbols.append($details);
         });
     }
@@ -548,11 +764,8 @@
                 return;
             }
             const data = response.data || {};
-            if (typeof data.recording_ipa === 'string') {
-                $input.val(data.recording_ipa);
-            }
+            syncSavedRecording(data);
             setStatus(i18n.saved || 'Saved.', false);
-            loadWordset(currentWordsetId);
         }).fail(function () {
             setStatus(i18n.error || 'Something went wrong. Please try again.', true);
         }).always(function () {
