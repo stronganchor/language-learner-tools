@@ -984,11 +984,11 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
             'uses_local_browser' => false,
             'local_endpoint' => '',
             'service_enabled' => false,
-            'target' => 'word_title',
-            'target_label' => __('Word title', 'll-tools-text-domain'),
+            'target' => 'recording_text',
+            'target_label' => __('Written text', 'll-tools-text-domain'),
         ];
-    $target_field = sanitize_key((string) ($config['target'] ?? 'word_title'));
-    $target_label = (string) ($config['target_label'] ?? __('Word title', 'll-tools-text-domain'));
+    $target_field = sanitize_key((string) ($config['target'] ?? 'recording_text'));
+    $target_label = (string) ($config['target_label'] ?? __('Written text', 'll-tools-text-domain'));
     $minimum_word_count = ll_tools_wordset_games_min_word_count();
     if (empty($config['enabled'])) {
         return [
@@ -1112,6 +1112,7 @@ function ll_tools_wordset_games_build_speaking_stack_pool(int $wordset_id, int $
 
 function ll_tools_wordset_games_get_audio_recording_type($audio_post): string {
     $audio_post_id = $audio_post instanceof WP_Post
+        $word['recording_text'] = trim((string) ($isolation_audio['recording_text'] ?? ''));
         ? (int) $audio_post->ID
         : (int) $audio_post;
     if ($audio_post_id <= 0) {
@@ -1341,7 +1342,7 @@ function ll_tools_wordset_games_strip_speaking_text_punctuation(string $text): s
     return trim((string) $text);
 }
 
-function ll_tools_wordset_games_prepare_stt_result_text(string $text, string $target_field = 'word_title', string $language_code = ''): string {
+function ll_tools_wordset_games_prepare_stt_result_text(string $text, string $target_field = 'recording_text', string $language_code = ''): string {
     $target_field = sanitize_key($target_field);
     $text = trim((string) $text);
     if ($text === '') {
@@ -2165,7 +2166,7 @@ function ll_tools_wordset_games_get_speaking_display_texts(int $word_id, string 
             ? __('IPA', 'll-tools-text-domain')
             : ($target_field === 'reference_stt'
                 ? __('Cached reference STT', 'll-tools-text-domain')
-                : __('Word title', 'll-tools-text-domain')),
+                : __('Written text', 'll-tools-text-domain')),
     ];
 }
 
@@ -2274,7 +2275,7 @@ function ll_tools_wordset_games_get_cached_assemblyai_reference_transcript(int $
 
     $text = ll_tools_wordset_games_prepare_stt_result_text(
         trim((string) ($result['text'] ?? '')),
-        'word_title'
+        'recording_text'
     );
     if ($text === '') {
         return new WP_Error('empty_reference_transcript', __('The saved isolation recording could not be transcribed.', 'll-tools-text-domain'));
@@ -2425,7 +2426,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
     $config = function_exists('ll_tools_get_wordset_speaking_game_config')
         ? ll_tools_get_wordset_speaking_game_config([$wordset_id], true)
         : [];
-    $configured_target = sanitize_key((string) ($config['target'] ?? 'word_title'));
+    $configured_target = sanitize_key((string) ($config['target'] ?? 'recording_text'));
     $provider = sanitize_key((string) ($config['provider'] ?? ''));
     if ($target_field === '') {
         $target_field = $configured_target;
@@ -2437,7 +2438,10 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
     $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation', [
         'speaking_short_only' => true,
     ]);
-    $display_word_data = ['title' => $word->post_title];
+    $display_word_data = [
+        'title' => $word->post_title,
+        'recording_text' => trim((string) ($isolation_audio['recording_text'] ?? '')),
+    ];
     if ($target_field === 'recording_ipa') {
         $display_word_data['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
     }
@@ -2479,7 +2483,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
             }
 
             $comparison_target = $reference_transcript;
-            $comparison_mode = 'word_title';
+            $comparison_mode = 'recording_text';
             $comparison_language_code = ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);
         } elseif ($provider === 'hosted_api') {
             $service = function_exists('ll_tools_get_wordset_transcription_service_config')
@@ -2503,7 +2507,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
             }
 
             $comparison_target = $reference_transcript;
-            $comparison_mode = (($service['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'word_title';
+            $comparison_mode = (($service['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'recording_text';
             $comparison_language_code = ($comparison_mode === 'recording_ipa')
                 ? ''
                 : ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);
@@ -2710,7 +2714,7 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
         $text = trim((string) ($result['transcript'] ?? ''));
     }
 
-    $normalize_target_field = sanitize_key((string) ($config['target'] ?? 'word_title'));
+    $normalize_target_field = sanitize_key((string) ($config['target'] ?? 'recording_text'));
     $normalize_language_code = ($normalize_target_field === 'recording_ipa')
         ? ''
         : ll_tools_wordset_games_get_text_comparison_language_code($wordset_id);

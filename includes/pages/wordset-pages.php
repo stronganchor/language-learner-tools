@@ -1270,7 +1270,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
             : '';
         $speaking_target = isset($_POST['ll_wordset_speaking_game_target'])
             ? ll_tools_sanitize_wordset_speaking_game_target(wp_unslash((string) $_POST['ll_wordset_speaking_game_target']))
-            : 'word_title';
+            : 'recording_text';
         $speaking_assemblyai_profile = isset($_POST['ll_wordset_speaking_game_assemblyai_profile'])
             ? ll_tools_sanitize_wordset_speaking_game_assemblyai_profile(wp_unslash((string) $_POST['ll_wordset_speaking_game_assemblyai_profile']))
             : 'wordset_language';
@@ -3283,16 +3283,16 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
         : [
             'enabled_flag' => false,
             'provider' => '',
-            'target' => 'word_title',
+            'target' => 'recording_text',
             'target_options' => [
-                'word_title' => ['label' => __('Word title', 'll-tools-text-domain')],
+                'recording_text' => ['label' => __('Written text', 'll-tools-text-domain')],
             ],
             'compatible' => true,
             'compatibility_message' => '',
         ];
     $speaking_enabled = !empty($speaking_game_config['enabled_flag']);
     $speaking_provider = ll_tools_sanitize_wordset_speaking_game_provider((string) ($speaking_game_config['provider'] ?? ''));
-    $speaking_target = ll_tools_sanitize_wordset_speaking_game_target((string) ($speaking_game_config['target'] ?? 'word_title'));
+    $speaking_target = ll_tools_sanitize_wordset_speaking_game_target((string) ($speaking_game_config['target'] ?? 'recording_text'));
     $speaking_target_options = is_array($speaking_game_config['target_options'] ?? null)
         ? $speaking_game_config['target_options']
         : [];
@@ -3488,7 +3488,7 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         <?php endforeach; ?>
                     </select>
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Word title works with text STT. IPA works with a model that returns the secondary transcription field. Cached reference STT compares the learner transcript to a cached transcript generated from the saved isolation audio with the same server-side STT provider.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Written text matches the saved text on the word\'s isolation recording. IPA works with a model that returns the secondary transcription field. Cached reference STT compares the learner transcript to a cached transcript generated from the saved isolation audio with the same server-side STT provider.', 'll-tools-text-domain'); ?>
                     </p>
                     <?php if ($speaking_enabled && !$speaking_is_compatible && $speaking_compatibility_message !== '') : ?>
                         <p class="description" style="margin-top:0; color:#a12622;">

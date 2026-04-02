@@ -85,7 +85,11 @@ function ll_tools_sanitize_wordset_local_transcription_target($value): string {
 
 function ll_tools_sanitize_wordset_speaking_game_target($value): string {
     $value = sanitize_key((string) $value);
-    return in_array($value, ['word_title', 'recording_ipa', 'reference_stt'], true) ? $value : 'word_title';
+    if ($value === 'word_title') {
+        return 'recording_text';
+    }
+
+    return in_array($value, ['recording_text', 'recording_ipa', 'reference_stt'], true) ? $value : 'recording_text';
 }
 
 function ll_tools_get_wordset_speaking_game_assemblyai_profile_options(): array {
@@ -488,7 +492,7 @@ function ll_tools_get_wordset_speaking_game_target($wordset_ids = [], bool $fall
         );
     }
 
-    return $fallback_to_default ? 'word_title' : '';
+    return $fallback_to_default ? 'recording_text' : '';
 }
 
 function ll_tools_get_wordset_speaking_game_assemblyai_profile($wordset_ids = [], bool $fallback_to_default = true): string {
@@ -537,13 +541,13 @@ function ll_tools_get_wordset_speaking_game_target_label(string $target, $wordse
         return __('IPA', 'll-tools-text-domain');
     }
 
-    return __('Word title', 'll-tools-text-domain');
+    return __('Written text', 'll-tools-text-domain');
 }
 
 function ll_tools_get_wordset_speaking_game_target_options(): array {
     return [
-        'word_title' => [
-            'label' => __('Word title', 'll-tools-text-domain'),
+        'recording_text' => [
+            'label' => __('Written text', 'll-tools-text-domain'),
         ],
         'recording_ipa' => [
             'label' => __('IPA', 'll-tools-text-domain'),
@@ -666,14 +670,14 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
         }
     } elseif ($provider === 'assemblyai' && $target === 'recording_ipa') {
         $compatible = false;
-        $compatibility_message = __('AssemblyAI returns normal text for this game, so use word title or cached reference STT instead of IPA.', 'll-tools-text-domain');
+        $compatibility_message = __('AssemblyAI returns normal text for this game, so use written text or cached reference STT instead of IPA.', 'll-tools-text-domain');
     } elseif (in_array($provider, ['local_browser', 'hosted_api'], true)) {
         if ($local_result_field === 'recording_ipa' && $target !== 'recording_ipa') {
             $compatible = false;
             $compatibility_message = __('This STT model is configured to return IPA, so the speaking game target must use the IPA field.', 'll-tools-text-domain');
         } elseif ($local_result_field !== 'recording_ipa' && $target === 'recording_ipa') {
             $compatible = false;
-            $compatibility_message = __('This STT model is configured to return normal text, so the speaking game target must use word title text.', 'll-tools-text-domain');
+            $compatibility_message = __('This STT model is configured to return normal text, so the speaking game target must use written text.', 'll-tools-text-domain');
         }
     }
     $enabled = $enabled && $compatible;
@@ -707,12 +711,34 @@ function ll_tools_is_wordset_speaking_game_available($wordset_ids = [], bool $fa
     return !empty($config['enabled']);
 }
 
-function ll_tools_get_wordset_speaking_game_target_value(int $word_id, string $target = 'word_title', array $word_data = []): string {
+function ll_tools_get_wordset_speaking_game_target_value(int $word_id, string $target = 'recording_text', array $word_data = []): string {
     $word_id = (int) $word_id;
     $target = ll_tools_sanitize_wordset_speaking_game_target($target);
 
     if ($target === 'reference_stt') {
-        $target = 'word_title';
+        $title = trim((string) ($word_data['title'] ?? ''));
+        if ($title === '' && $word_id > 0) {
+            $title = html_entity_decode((string) get_the_title($word_id), ENT_QUOTES, 'UTF-8');
+        }
+
+        return trim((string) $title);
+    }
+
+    if ($target === 'recording_text') {
+        $raw = trim((string) ($word_data['recording_text'] ?? ''));
+        if ($raw !== '') {
+            return $raw;
+        }
+
+        if ($word_id > 0 && function_exists('ll_tools_wordset_games_get_audio_details')) {
+            $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation', [
+                'speaking_short_only' => true,
+            ]);
+            $raw = trim((string) ($isolation_audio['recording_text'] ?? ''));
+            if ($raw !== '') {
+                return $raw;
+            }
+        }
     }
 
     if ($target === 'recording_ipa') {
