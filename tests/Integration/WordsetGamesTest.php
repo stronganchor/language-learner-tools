@@ -74,9 +74,63 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-wordset-games-back', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-back-label', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-page-title', $gamesHtml);
+        $this->assertStringContainsString('data-ll-wordset-games-speaking-notice', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="bubble-pop"', $gamesHtml);
         $this->assertStringNotContainsString('data-ll-wordset-game-close', $gamesHtml);
+    }
+
+    public function test_speaking_hidden_notice_is_only_returned_for_users_who_can_manage_wordset_settings(): void
+    {
+        $managerId = self::factory()->user->create(['role' => 'administrator']);
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Speaking Notice Wordset ' . wp_generate_password(6, false), 'wordset');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $settingsUrl = 'https://example.test/wordsets/speaking-notice/settings/?ll_wordset_tool=transcription';
+
+        $managerNotice = ll_tools_wordset_games_get_speaking_hidden_notice($wordsetId, $managerId, [
+            'settings_url' => $settingsUrl,
+        ]);
+        $learnerNotice = ll_tools_wordset_games_get_speaking_hidden_notice($wordsetId, $learnerId, [
+            'settings_url' => $settingsUrl,
+        ]);
+
+        $this->assertTrue((bool) ($managerNotice['show'] ?? false));
+        $this->assertSame('speaking_disabled', (string) ($managerNotice['reason_code'] ?? ''));
+        $this->assertSame(
+            'Speaking games are hidden because speaking practice is turned off for this word set.',
+            (string) ($managerNotice['message'] ?? '')
+        );
+        $this->assertSame($settingsUrl, (string) ($managerNotice['settings_url'] ?? ''));
+        $this->assertSame('Open speaking settings', (string) ($managerNotice['settings_label'] ?? ''));
+
+        $this->assertFalse((bool) ($learnerNotice['show'] ?? false));
+        $this->assertSame('', (string) ($learnerNotice['message'] ?? ''));
+    }
+
+    public function test_games_view_renders_speaking_hidden_notice_for_wordset_managers(): void
+    {
+        $managerId = self::factory()->user->create(['role' => 'administrator']);
+        $wordset = wp_insert_term('Rendered Speaking Notice ' . wp_generate_password(6, false), 'wordset');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        wp_set_current_user($managerId);
+        set_query_var('ll_wordset_view', 'games');
+
+        $gamesHtml = ll_tools_render_wordset_page_content((int) $wordset['term_id']);
+
+        $this->assertStringContainsString('data-ll-wordset-games-speaking-notice', $gamesHtml);
+        $this->assertStringContainsString(
+            'Speaking games are hidden because speaking practice is turned off for this word set.',
+            $gamesHtml
+        );
+        $this->assertStringContainsString('ll_wordset_tool=transcription', $gamesHtml);
     }
 
     public function test_subpage_return_url_preserves_original_back_target_when_switching_subpages(): void

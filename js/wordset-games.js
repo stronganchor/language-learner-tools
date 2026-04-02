@@ -3126,11 +3126,136 @@
         card.$card.toggleClass('is-loading', !!isLoading);
     }
 
+    function normalizeSpeakingNotice(data) {
+        const source = (data && typeof data === 'object') ? data : {};
+        const message = String(source.message || '').trim();
+
+        return {
+            show: !!source.show && message !== '',
+            reasonCode: String(source.reason_code || source.reasonCode || '').trim(),
+            message: message,
+            settingsUrl: String(source.settings_url || source.settingsUrl || '').trim(),
+            settingsLabel: String(source.settings_label || source.settingsLabel || '').trim()
+        };
+    }
+
+    function getHiddenSpeakingNotice(ctx, entries, isLoading) {
+        if (!ctx || !ctx.canManageSettings) {
+            return null;
+        }
+
+        if (!!isLoading) {
+            return (ctx.speakingHiddenNotice && ctx.speakingHiddenNotice.show)
+                ? ctx.speakingHiddenNotice
+                : null;
+        }
+
+        const catalogEntries = (entries && typeof entries === 'object') ? entries : {};
+        const practiceEntry = catalogEntries[SPEAKING_PRACTICE_GAME_SLUG] || null;
+        const stackEntry = catalogEntries[SPEAKING_STACK_GAME_SLUG] || null;
+        const practiceVisible = !!(practiceEntry && !practiceEntry.hidden);
+        const stackVisible = !!(stackEntry && !stackEntry.hidden);
+
+        if (practiceVisible || stackVisible) {
+            return null;
+        }
+
+        const hiddenEntries = [practiceEntry, stackEntry].filter(function (entry) {
+            return !!(entry && entry.hidden);
+        });
+        const unavailableEntry = hiddenEntries.find(function (entry) {
+            return String(entry.reason_code || '') === 'speaking_api_unavailable';
+        });
+        if (unavailableEntry) {
+            return {
+                show: true,
+                reasonCode: 'speaking_api_unavailable',
+                message: String(
+                    ctx.i18n.gamesSpeakingHiddenConnection
+                    || 'Speaking games are hidden because the speaking service for this word set is not responding on this device.'
+                ),
+                settingsUrl: String(ctx.speakingSettingsUrl || '').trim(),
+                settingsLabel: String(
+                    ctx.i18n.gamesSpeakingOpenSettings
+                    || 'Open speaking settings'
+                )
+            };
+        }
+
+        if (ctx.speakingHiddenNotice && ctx.speakingHiddenNotice.show) {
+            return ctx.speakingHiddenNotice;
+        }
+
+        if (!practiceEntry && !stackEntry) {
+            return {
+                show: true,
+                reasonCode: 'speaking_hidden',
+                message: String(
+                    ctx.i18n.gamesSpeakingHiddenGeneric
+                    || 'Speaking games are hidden because this word set speaking setup is not available right now.'
+                ),
+                settingsUrl: String(ctx.speakingSettingsUrl || '').trim(),
+                settingsLabel: String(
+                    ctx.i18n.gamesSpeakingOpenSettings
+                    || 'Open speaking settings'
+                )
+            };
+        }
+
+        return null;
+    }
+
+    function renderSpeakingNotice(ctx, entries, isLoading) {
+        if (!(ctx && ctx.$speakingNotice && ctx.$speakingNotice.length)) {
+            return;
+        }
+
+        const notice = getHiddenSpeakingNotice(ctx, entries, isLoading);
+        if (!notice || !notice.show || !String(notice.message || '').trim()) {
+            ctx.$speakingNotice.attr('hidden', 'hidden');
+            if (ctx.$speakingNoticeText && ctx.$speakingNoticeText.length) {
+                ctx.$speakingNoticeText.text('');
+            }
+            if (ctx.$speakingNoticeLink && ctx.$speakingNoticeLink.length) {
+                ctx.$speakingNoticeLink.attr('hidden', 'hidden');
+                ctx.$speakingNoticeLink.attr('href', '#');
+                ctx.$speakingNoticeLink.text('');
+            }
+            return;
+        }
+
+        if (ctx.$speakingNoticeText && ctx.$speakingNoticeText.length) {
+            ctx.$speakingNoticeText.text(notice.message);
+        }
+
+        if (ctx.$speakingNoticeLink && ctx.$speakingNoticeLink.length) {
+            const settingsUrl = String(notice.settingsUrl || ctx.speakingSettingsUrl || '').trim();
+            const settingsLabel = String(
+                notice.settingsLabel
+                || ctx.i18n.gamesSpeakingOpenSettings
+                || 'Open speaking settings'
+            ).trim();
+
+            if (settingsUrl) {
+                ctx.$speakingNoticeLink.attr('href', settingsUrl);
+                ctx.$speakingNoticeLink.text(settingsLabel);
+                ctx.$speakingNoticeLink.removeAttr('hidden');
+            } else {
+                ctx.$speakingNoticeLink.attr('hidden', 'hidden');
+                ctx.$speakingNoticeLink.attr('href', '#');
+                ctx.$speakingNoticeLink.text('');
+            }
+        }
+
+        ctx.$speakingNotice.removeAttr('hidden');
+    }
+
     function renderAllCatalogCards(ctx, entries, isLoading) {
         const catalogEntries = (entries && typeof entries === 'object') ? entries : {};
         (Array.isArray(ctx.catalogOrder) ? ctx.catalogOrder : []).forEach(function (slug) {
             renderCatalogCard(ctx, slug, catalogEntries[slug] || null, !!isLoading);
         });
+        renderSpeakingNotice(ctx, catalogEntries, isLoading);
     }
 
     function getSpeakingGameProbeUrl(endpoint) {
@@ -5737,6 +5862,9 @@
             if (!payload || !payload.games || typeof payload.games !== 'object') {
                 renderAllCatalogCards(ctx, null, false);
                 return;
+            }
+            if (payload.speaking_hidden_notice && typeof payload.speaking_hidden_notice === 'object') {
+                ctx.speakingHiddenNotice = normalizeSpeakingNotice(payload.speaking_hidden_notice);
             }
 
             const entryPromises = Object.keys(ctx.catalogCards || {}).map(function (slug) {
@@ -9057,6 +9185,9 @@
             $catalogBackLabel: $page.find('[data-ll-wordset-games-back-label]').first(),
             $pageTitle: $page.find('[data-ll-wordset-games-page-title]').first(),
             $catalog: $gamesRoot.find('[data-ll-wordset-games-catalog]').first(),
+            $speakingNotice: $gamesRoot.find('[data-ll-wordset-games-speaking-notice]').first(),
+            $speakingNoticeText: $gamesRoot.find('[data-ll-wordset-games-speaking-notice-text]').first(),
+            $speakingNoticeLink: $gamesRoot.find('[data-ll-wordset-games-speaking-notice-link]').first(),
             catalogCards: catalogCards,
             catalogOrder: catalogOrder,
             catalogBackDefaultLabel: String($page.find('[data-ll-wordset-games-back-label]').first().text() || ''),
@@ -9139,6 +9270,9 @@
             scoreAttemptAction: String(gamesCfg.scoreAttemptAction || ''),
             matchAttemptAction: String(gamesCfg.matchAttemptAction || ''),
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
+            canManageSettings: !!gamesCfg.canManageSettings,
+            speakingSettingsUrl: String(gamesCfg.speakingSettingsUrl || (((cfg.links || {}).settings) || '') || ''),
+            speakingHiddenNotice: normalizeSpeakingNotice(gamesCfg.speakingHiddenNotice || null),
             runtimeMode: runtimeMode,
             offlineMode: offlineMode,
             staticCatalog: staticCatalog,

@@ -131,6 +131,75 @@ function ll_tools_wordset_games_default_catalog(): array {
     return ll_tools_wordset_games_base_catalog();
 }
 
+function ll_tools_wordset_games_current_user_can_manage_settings(int $wordset_id, int $user_id = 0): bool {
+    $wordset_id = max(0, $wordset_id);
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if ($wordset_id <= 0 || $uid <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_user_can_manage_wordset_content')) {
+        return ll_tools_user_can_manage_wordset_content($wordset_id, $uid);
+    }
+
+    return user_can($uid, 'manage_options');
+}
+
+function ll_tools_wordset_games_get_speaking_hidden_notice(int $wordset_id, int $user_id = 0, array $args = []): array {
+    $default = [
+        'show' => false,
+        'reason_code' => '',
+        'message' => '',
+        'settings_url' => '',
+        'settings_label' => '',
+    ];
+
+    $wordset_id = max(0, $wordset_id);
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if ($wordset_id <= 0 || !ll_tools_wordset_games_current_user_can_manage_settings($wordset_id, $uid)) {
+        return $default;
+    }
+
+    if (!function_exists('ll_tools_get_wordset_speaking_game_config')) {
+        return $default;
+    }
+
+    $settings_url = trim((string) ($args['settings_url'] ?? ''));
+    $settings_label = __('Open speaking settings', 'll-tools-text-domain');
+    $config = ll_tools_get_wordset_speaking_game_config([$wordset_id], true);
+    if (!is_array($config) || !empty($config['enabled'])) {
+        return $default;
+    }
+
+    $reason_code = '';
+    $message = '';
+    if (empty($config['enabled_flag'])) {
+        $reason_code = 'speaking_disabled';
+        $message = __('Speaking games are hidden because speaking practice is turned off for this word set.', 'll-tools-text-domain');
+    } elseif (empty($config['compatible'])) {
+        $reason_code = 'speaking_configuration_incompatible';
+        $compatibility_message = trim((string) ($config['compatibility_message'] ?? ''));
+        $message = $compatibility_message !== ''
+            ? sprintf(
+                /* translators: %s: speaking configuration compatibility problem */
+                __('Speaking games are hidden because the current speaking configuration is incompatible: %s', 'll-tools-text-domain'),
+                $compatibility_message
+            )
+            : __('Speaking games are hidden because the current speaking configuration is incompatible.', 'll-tools-text-domain');
+    } else {
+        $reason_code = 'speaking_configuration_incomplete';
+        $message = __('Speaking games are hidden because the current speaking configuration is incomplete for this word set.', 'll-tools-text-domain');
+    }
+
+    return [
+        'show' => ($message !== ''),
+        'reason_code' => $reason_code,
+        'message' => $message,
+        'settings_url' => $settings_url,
+        'settings_label' => $settings_label,
+    ];
+}
+
 function ll_tools_wordset_games_categories_for_wordset(int $wordset_id): array {
     $wordset_id = max(0, $wordset_id);
     if ($wordset_id <= 0) {
@@ -1043,6 +1112,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         if ($target_field === 'recording_ipa') {
             $word['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
         }
+        $word['recording_text'] = trim((string) ($isolation_audio['recording_text'] ?? ''));
 
         $target_text = ($target_field === 'recording_ipa')
             ? trim((string) ($word['recording_ipa'] ?? ''))
@@ -1112,7 +1182,6 @@ function ll_tools_wordset_games_build_speaking_stack_pool(int $wordset_id, int $
 
 function ll_tools_wordset_games_get_audio_recording_type($audio_post): string {
     $audio_post_id = $audio_post instanceof WP_Post
-        $word['recording_text'] = trim((string) ($isolation_audio['recording_text'] ?? ''));
         ? (int) $audio_post->ID
         : (int) $audio_post;
     if ($audio_post_id <= 0) {
@@ -2823,6 +2892,7 @@ function ll_tools_wordset_games_bootstrap_ajax(): void {
     wp_send_json_success([
         'wordset_id' => $wordset_id,
         'games' => ll_tools_wordset_games_build_catalog($wordset_id, get_current_user_id()),
+        'speaking_hidden_notice' => ll_tools_wordset_games_get_speaking_hidden_notice($wordset_id, get_current_user_id()),
     ]);
 }
 add_action('wp_ajax_ll_wordset_games_bootstrap', 'll_tools_wordset_games_bootstrap_ajax');

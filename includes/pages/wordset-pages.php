@@ -4091,6 +4091,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
         : current_user_can('manage_options');
     $can_manage_wordset_uploads = $can_manage_wordset_content && current_user_can('upload_files');
+    $speaking_settings_url = $can_manage_wordset_content
+        ? ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $games_url)
+        : '';
+    $speaking_hidden_notice = function_exists('ll_tools_wordset_games_get_speaking_hidden_notice')
+        ? ll_tools_wordset_games_get_speaking_hidden_notice($wordset_id, get_current_user_id(), [
+            'settings_url' => $speaking_settings_url,
+        ])
+        : [];
     if (!$can_manage_wordset_content && in_array($settings_tool, ['visibility', 'import', 'recorder', 'transcription', 'image-upload', 'audio-upload'], true)) {
         $settings_tool = '';
     }
@@ -4793,6 +4801,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ],
         'games' => array_merge($games_frontend_config, [
             'catalog' => $games_catalog,
+            'canManageSettings' => $can_manage_wordset_content,
+            'speakingSettingsUrl' => $speaking_settings_url,
+            'speakingHiddenNotice' => $speaking_hidden_notice,
         ]),
         'summaryCounts' => $summary_counts,
         'summaryCountsDeferred' => $summary_counts_deferred,
@@ -5386,6 +5397,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             echo ll_tools_render_wordset_games_shell([
                 'wordset_term' => $wordset_term,
                 'games_catalog' => $games_catalog,
+                'speaking_hidden_notice' => $speaking_hidden_notice,
                 'is_study_user' => $is_study_user,
                 'back_url' => $back_url,
             ]);

@@ -52,6 +52,11 @@ function buildGamesMarkup() {
           ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
         </div>
 
+        <div class="ll-wordset-games-notice" data-ll-wordset-games-speaking-notice hidden>
+          <p class="ll-wordset-games-notice__text" data-ll-wordset-games-speaking-notice-text></p>
+          <a class="ll-wordset-games-notice__link" data-ll-wordset-games-speaking-notice-link href="#" hidden></a>
+        </div>
+
         <div class="ll-wordset-game-run-modal" data-ll-wordset-game-run-modal hidden>
           <div class="ll-wordset-game-run-modal__backdrop" data-ll-wordset-game-run-dismiss aria-hidden="true"></div>
           <section class="ll-wordset-game-run-modal__dialog" data-ll-wordset-game-run-dialog role="dialog" aria-modal="true" aria-label="Wordset game">
@@ -323,8 +328,8 @@ function buildSpaceShooterWords() {
   ];
 }
 
-function buildGamesConfig(isLoggedIn) {
-  return {
+function buildGamesConfig(isLoggedIn, overrides = null) {
+  const config = {
     ajaxUrl: '/fake-admin-ajax.php',
     nonce: isLoggedIn ? 'nonce-77' : '',
     isLoggedIn: !!isLoggedIn,
@@ -605,6 +610,23 @@ function buildGamesConfig(isLoggedIn) {
       gamesBoardLabelBubblePop: 'Bubble Pop game board'
     }
   };
+
+  if (!overrides || typeof overrides !== 'object') {
+    return config;
+  }
+
+  const nextConfig = Object.assign({}, config, overrides);
+  if (overrides.games && typeof overrides.games === 'object') {
+    nextConfig.games = Object.assign({}, config.games, overrides.games);
+    if (overrides.games.catalog && typeof overrides.games.catalog === 'object') {
+      nextConfig.games.catalog = Object.assign({}, config.games.catalog, overrides.games.catalog);
+    }
+  }
+  if (overrides.i18n && typeof overrides.i18n === 'object') {
+    nextConfig.i18n = Object.assign({}, config.i18n, overrides.i18n);
+  }
+
+  return nextConfig;
 }
 
 async function mountGamesPage(page, {
@@ -614,7 +636,8 @@ async function mountGamesPage(page, {
   promptAudioDurationSeconds = 4.2,
   promptAutoReplayGapMs = null,
   spaceShooterOverrides = null,
-  bubblePopOverrides = null
+  bubblePopOverrides = null,
+  configOverrides = null
 } = {}) {
   await page.setContent(buildGamesMarkup(), { waitUntil: 'domcontentloaded' });
   await page.addScriptTag({ content: jquerySource });
@@ -913,7 +936,7 @@ async function mountGamesPage(page, {
       };
     },
     {
-      config: buildGamesConfig(isLoggedIn),
+      config: buildGamesConfig(isLoggedIn, configOverrides),
       gameWords: words,
       audioLoadDelay: audioLoadDelayMs,
       promptAudioDuration: promptAudioDurationSeconds,
@@ -936,6 +959,31 @@ test('games page keeps launch disabled when logged out', async ({ page }) => {
     'Sign in to play with your in-progress words.'
   );
   await expect(gameLaunchButton(page, 'bubble-pop')).toBeDisabled();
+});
+
+test('games page shows a manager-only notice when speaking games stay hidden', async ({ page }) => {
+  const settingsUrl = '/wordsets/test-wordset/settings/?ll_wordset_tool=transcription';
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    configOverrides: {
+      games: {
+        canManageSettings: true,
+        speakingSettingsUrl: settingsUrl,
+        speakingHiddenNotice: {
+          show: true,
+          message: 'Speaking games are hidden because speaking practice is turned off for this word set.',
+          settings_url: settingsUrl,
+          settings_label: 'Open speaking settings'
+        }
+      }
+    }
+  });
+
+  await expect(page.locator('[data-ll-wordset-games-speaking-notice]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-games-speaking-notice-text]')).toHaveText(
+    'Speaking games are hidden because speaking practice is turned off for this word set.'
+  );
+  await expect(page.locator('[data-ll-wordset-games-speaking-notice-link]')).toHaveAttribute('href', settingsUrl);
 });
 
 test('games catalog keeps cards compact on wide screens and uses distinct launch themes for each game', async ({ page }) => {
