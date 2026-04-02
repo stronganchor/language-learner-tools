@@ -2171,6 +2171,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
                     'gender_marked' => !empty($word['gender_marked']),
                     'gender_progress_tracked' => !empty($word['gender_progress_tracked']),
                     'gender_eligible' => !empty($word['gender_eligible']),
+                    'prompt_blocked' => ll_tools_word_is_blocked_from_prompt_rounds($word),
                     'category_ids' => [],
                 ];
             }
@@ -2385,6 +2386,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'last_seen_at' => $last_seen_at,
             'due_at' => $due_at,
             'is_starred' => !empty($starred_lookup[$wid]),
+            'prompt_blocked' => !empty($word['prompt_blocked']),
             'normalized_grammatical_gender' => (string) ($word['normalized_grammatical_gender'] ?? ''),
             'gender_marked' => !empty($word['gender_marked']),
             'gender_progress_tracked' => !empty($word['gender_progress_tracked']),

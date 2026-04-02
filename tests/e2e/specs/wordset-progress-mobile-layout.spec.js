@@ -598,7 +598,11 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
   const config = buildProgressPageConfig(configOverrides);
   await page.evaluate((cfg) => {
     window.llWordsetPageData = cfg;
-    window.alert = function () {};
+    window.__llAlerts = [];
+    window.__llLaunches = [];
+    window.alert = function (message) {
+      window.__llAlerts.push(String(message || ''));
+    };
     window.Audio = function (url) {
       this.src = url;
       this.currentSrc = url;
@@ -625,6 +629,64 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
       (this._handlers.pause || []).forEach((handler) => handler.call(this));
     };
     const analytics = JSON.parse(JSON.stringify(cfg.analytics || {}));
+    const buildWordsByCategory = function () {
+      if (cfg.wordsByCategory && typeof cfg.wordsByCategory === 'object') {
+        return JSON.parse(JSON.stringify(cfg.wordsByCategory));
+      }
+      const grouped = {};
+      const rows = Array.isArray(analytics.words) ? analytics.words : [];
+      rows.forEach((row) => {
+        const wordId = Number(row && row.id) || 0;
+        if (!wordId) {
+          return;
+        }
+        const categoryIds = Array.isArray(row && row.category_ids) && row.category_ids.length
+          ? row.category_ids
+          : [Number(row && row.category_id) || 0];
+        categoryIds.forEach((rawCategoryId) => {
+          const categoryId = Number(rawCategoryId) || 0;
+          if (!categoryId) {
+            return;
+          }
+          if (!Array.isArray(grouped[categoryId])) {
+            grouped[categoryId] = [];
+          }
+          grouped[categoryId].push({
+            id: wordId,
+            title: String(row && row.title || ''),
+            translation: String(row && row.translation || ''),
+            label: String(row && row.label || row && row.translation || row && row.title || ''),
+            image: String(row && row.image || ''),
+            audio: String(row && row.audio_url || ''),
+            audio_url: String(row && row.audio_url || ''),
+            audio_files: [],
+            category_id: categoryId,
+            category_ids: [categoryId],
+            prompt_blocked: !!(row && row.prompt_blocked)
+          });
+        });
+      });
+      return grouped;
+    };
+    const wordsByCategory = buildWordsByCategory();
+    window.initFlashcardWidget = function (catNames, mode) {
+      const flashData = window.llToolsFlashcardsData || {};
+      const launchPlan = (flashData.lastLaunchPlan && typeof flashData.lastLaunchPlan === 'object')
+        ? flashData.lastLaunchPlan
+        : ((flashData.last_launch_plan && typeof flashData.last_launch_plan === 'object')
+          ? flashData.last_launch_plan
+          : {});
+      window.__llLaunches.push({
+        mode: String(mode || ''),
+        catNames: Array.isArray(catNames) ? catNames.slice() : [],
+        categoryIds: Array.isArray(launchPlan.category_ids) ? launchPlan.category_ids.slice() : [],
+        sessionWordIds: Array.isArray(flashData.sessionWordIds)
+          ? flashData.sessionWordIds.slice()
+          : (Array.isArray(flashData.session_word_ids) ? flashData.session_word_ids.slice() : []),
+        categoryLabelOverride: String(flashData.categoryDisplayOverride || flashData.category_display_override || '')
+      });
+      return null;
+    };
     jQuery.post = function (_url, request) {
       const deferred = jQuery.Deferred();
       const action = request && request.action ? String(request.action) : '';
@@ -633,6 +695,15 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
           success: true,
           data: {
             analytics
+          }
+        });
+        return deferred.promise();
+      }
+      if (action === 'll_user_study_fetch_words') {
+        deferred.resolve({
+          success: true,
+          data: {
+            words_by_category: wordsByCategory
           }
         });
         return deferred.promise();
@@ -659,6 +730,252 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
     : 0;
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(expectedWordCount);
 }
+
+test('progress practice launch skips selected categories that cannot form a valid option pool', async ({ page }) => {
+  await mountProgressPage(page, { width: 390, height: 844 }, {
+    categories: [
+      {
+        id: 11,
+        slug: 'cat-a',
+        name: 'Cat A',
+        translation: 'Cat A',
+        count: 5,
+        url: '#',
+        mode: 'image',
+        prompt_type: 'audio',
+        option_type: 'image',
+        learning_supported: true,
+        gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
+        hidden: false,
+        preview: []
+      },
+      {
+        id: 22,
+        slug: 'cat-b',
+        name: 'Cat B',
+        translation: 'Cat B',
+        count: 2,
+        url: '#',
+        mode: 'image',
+        prompt_type: 'audio',
+        option_type: 'image',
+        learning_supported: true,
+        gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
+        hidden: false,
+        preview: []
+      }
+    ],
+    visibleCategoryIds: [11, 22],
+    state: {
+      wordset_id: 77,
+      category_ids: [],
+      starred_word_ids: [1101, 1102, 1103, 1104, 1105, 2201, 2202],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    analytics: {
+      scope: {
+        wordset_id: 77,
+        category_ids: [11, 22],
+        category_count: 2,
+        mode: 'all'
+      },
+      summary: {
+        total_words: 7,
+        mastered_words: 0,
+        studied_words: 7,
+        new_words: 0,
+        hard_words: 0,
+        starred_words: 7
+      },
+      daily_activity: {
+        days: [],
+        max_events: 0,
+        window_days: 14
+      },
+      gender_progress: {
+        enabled: false,
+        tracked_word_total: 0,
+        not_started_words: 0,
+        level_1_words: 0,
+        level_2_words: 0,
+        level_3_words: 0,
+        categories: []
+      },
+      categories: [
+        {
+          id: 11,
+          label: 'Cat A',
+          word_count: 5,
+          mastered_words: 0,
+          studied_words: 5,
+          new_words: 0,
+          exposure_total: 5,
+          exposure_by_mode: { learning: 0, practice: 5, listening: 0, gender: 0, 'self-check': 0 },
+          last_mode: 'practice',
+          last_seen_at: '2026-03-20 10:00:00',
+          gender_progress: {
+            tracked_word_total: 0,
+            not_started_words: 0,
+            level_1_words: 0,
+            level_2_words: 0,
+            level_3_words: 0,
+            last_seen_at: ''
+          }
+        },
+        {
+          id: 22,
+          label: 'Cat B',
+          word_count: 2,
+          mastered_words: 0,
+          studied_words: 2,
+          new_words: 0,
+          exposure_total: 2,
+          exposure_by_mode: { learning: 0, practice: 2, listening: 0, gender: 0, 'self-check': 0 },
+          last_mode: 'practice',
+          last_seen_at: '2026-03-19 08:00:00',
+          gender_progress: {
+            tracked_word_total: 0,
+            not_started_words: 0,
+            level_1_words: 0,
+            level_2_words: 0,
+            level_3_words: 0,
+            last_seen_at: ''
+          }
+        }
+      ],
+      words: [
+        { id: 1101, title: 'A1', translation: 'A1', label: 'A1', image: 'https://example.com/a1.jpg', audio_url: 'https://example.com/a1.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 4, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 1102, title: 'A2', translation: 'A2', label: 'A2', image: 'https://example.com/a2.jpg', audio_url: 'https://example.com/a2.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 4, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 1103, title: 'A3', translation: 'A3', label: 'A3', image: 'https://example.com/a3.jpg', audio_url: 'https://example.com/a3.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 4, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 1104, title: 'A4', translation: 'A4', label: 'A4', image: 'https://example.com/a4.jpg', audio_url: 'https://example.com/a4.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 4, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 1105, title: 'A5', translation: 'A5', label: 'A5', image: 'https://example.com/a5.jpg', audio_url: 'https://example.com/a5.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 4, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 2201, title: 'B1', translation: 'B1', label: 'B1', image: 'https://example.com/b1.jpg', audio_url: 'https://example.com/b1.mp3', audio_recording_type: 'isolation', category_id: 22, category_label: 'Cat B', category_ids: [22], category_labels: ['Cat B'], status: 'studied', difficulty_score: 0, total_coverage: 2, incorrect: 0, last_seen_at: '2026-03-19 08:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 2202, title: 'B2', translation: 'B2', label: 'B2', image: 'https://example.com/b2.jpg', audio_url: 'https://example.com/b2.mp3', audio_recording_type: 'isolation', category_id: 22, category_label: 'Cat B', category_ids: [22], category_labels: ['Cat B'], status: 'studied', difficulty_score: 0, total_coverage: 2, incorrect: 0, last_seen_at: '2026-03-19 08:00:00', is_starred: true, prompt_blocked: true, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} }
+      ],
+      generated_at: '2026-03-20T10:00:00Z'
+    }
+  });
+
+  await page.locator('[data-ll-wordset-progress-select-all]').click();
+  const practiceButton = page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]');
+  await expect(practiceButton).toBeEnabled();
+  await practiceButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.categoryIds).toEqual([11]);
+  expect(launch.sessionWordIds.slice().sort((a, b) => a - b)).toEqual([1101, 1102, 1103, 1104, 1105]);
+});
+
+test('progress selection disables practice when only one distinct option remains', async ({ page }) => {
+  await mountProgressPage(page, { width: 390, height: 844 }, {
+    categories: [
+      {
+        id: 11,
+        slug: 'cat-a',
+        name: 'Cat A',
+        translation: 'Cat A',
+        count: 5,
+        url: '#',
+        mode: 'text',
+        prompt_type: 'audio',
+        option_type: 'text_translation',
+        learning_supported: true,
+        gender_supported: false,
+        aspect_bucket: 'ratio:1_1',
+        hidden: false,
+        preview: []
+      }
+    ],
+    visibleCategoryIds: [11],
+    state: {
+      wordset_id: 77,
+      category_ids: [],
+      starred_word_ids: [3101, 3102, 3103, 3104, 3105],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    analytics: {
+      scope: {
+        wordset_id: 77,
+        category_ids: [11],
+        category_count: 1,
+        mode: 'all'
+      },
+      summary: {
+        total_words: 5,
+        mastered_words: 0,
+        studied_words: 5,
+        new_words: 0,
+        hard_words: 0,
+        starred_words: 5
+      },
+      daily_activity: {
+        days: [],
+        max_events: 0,
+        window_days: 14
+      },
+      gender_progress: {
+        enabled: false,
+        tracked_word_total: 0,
+        not_started_words: 0,
+        level_1_words: 0,
+        level_2_words: 0,
+        level_3_words: 0,
+        categories: []
+      },
+      categories: [
+        {
+          id: 11,
+          label: 'Cat A',
+          word_count: 5,
+          mastered_words: 0,
+          studied_words: 5,
+          new_words: 0,
+          exposure_total: 5,
+          exposure_by_mode: { learning: 0, practice: 5, listening: 0, gender: 0, 'self-check': 0 },
+          last_mode: 'practice',
+          last_seen_at: '2026-03-20 10:00:00',
+          gender_progress: {
+            tracked_word_total: 0,
+            not_started_words: 0,
+            level_1_words: 0,
+            level_2_words: 0,
+            level_3_words: 0,
+            last_seen_at: ''
+          }
+        }
+      ],
+      words: [
+        { id: 3101, title: 'One', translation: 'Same', label: 'Same', image: '', audio_url: 'https://example.com/one.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 3, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 3102, title: 'Two', translation: 'Same', label: 'Same', image: '', audio_url: 'https://example.com/two.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 3, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 3103, title: 'Three', translation: 'Same', label: 'Same', image: '', audio_url: 'https://example.com/three.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 3, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 3104, title: 'Four', translation: 'Same', label: 'Same', image: '', audio_url: 'https://example.com/four.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 3, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} },
+        { id: 3105, title: 'Five', translation: 'Same', label: 'Same', image: '', audio_url: 'https://example.com/five.mp3', audio_recording_type: 'isolation', category_id: 11, category_label: 'Cat A', category_ids: [11], category_labels: ['Cat A'], status: 'studied', difficulty_score: 0, total_coverage: 3, incorrect: 0, last_seen_at: '2026-03-20 10:00:00', is_starred: true, prompt_blocked: false, normalized_grammatical_gender: '', gender_marked: false, gender_progress_tracked: false, gender_eligible: false, gender_level: 0, gender_seen_total: 0, gender_last_seen_at: '', gender_progress: {} }
+      ],
+      generated_at: '2026-03-20T10:00:00Z'
+    }
+  });
+
+  await page.locator('[data-ll-wordset-progress-select-all]').click();
+
+  await expect(page.locator('[data-ll-wordset-progress-selection-mode][data-mode="practice"]')).toBeDisabled();
+
+  const launchCount = await page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  expect(launchCount).toBe(0);
+});
 
 test('mobile progress words table keeps the layout stable and renders audio controls', async ({ page }) => {
   await mountProgressPage(page);

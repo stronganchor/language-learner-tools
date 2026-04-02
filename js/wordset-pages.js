@@ -739,6 +739,7 @@
                 id: parseInt(row.id, 10) || 0,
                 title: String(row.title || ''),
                 translation: String(row.translation || ''),
+                label: String(row.label || ''),
                 image: String(row.image || ''),
                 audio_url: String(row.audio_url || ''),
                 audio_recording_type: String(row.audio_recording_type || ''),
@@ -756,6 +757,7 @@
                 lapse_count: Math.max(0, parseInt(row.lapse_count, 10) || 0),
                 last_seen_at: String(row.last_seen_at || ''),
                 is_starred: !!row.is_starred,
+                prompt_blocked: !!row.prompt_blocked,
                 normalized_grammatical_gender: String(row.normalized_grammatical_gender || ''),
                 gender_marked: !!row.gender_marked,
                 gender_progress_tracked: !!row.gender_progress_tracked,
@@ -1151,6 +1153,23 @@
             if (char === '"') { return '&quot;'; }
             return '&#39;';
         });
+    }
+
+    function normalizeSelectionTextKey(text) {
+        const base = String(text || '').trim();
+        if (!base) {
+            return '';
+        }
+        const prepared = base.replace(/[I\u0130]/g, function (char) {
+            return char === 'I' ? '\u0131' : 'i';
+        });
+        let lowered = prepared;
+        try {
+            lowered = prepared.toLocaleLowerCase('tr');
+        } catch (_) {
+            lowered = prepared.toLowerCase();
+        }
+        return lowered.replace(/\u0307/g, '');
     }
 
     function buildSortLocales(rawLocale) {
@@ -4153,9 +4172,111 @@
         return uniqueIntList(categoryIds);
     }
 
+    function analyticsWordIsPromptBlocked(row) {
+        return !!(row && row.prompt_blocked);
+    }
+
+    function getPromptEligibleProgressSelectedWordIds(wordIds) {
+        const eligibleLookup = {};
+        (Array.isArray(analytics.words) ? analytics.words : []).forEach(function (row) {
+            const wordId = parseInt(row && row.id, 10) || 0;
+            if (!wordId || analyticsWordIsPromptBlocked(row)) {
+                return;
+            }
+            eligibleLookup[wordId] = true;
+        });
+
+        return uniqueIntList(wordIds || []).filter(function (wordId) {
+            return !!eligibleLookup[wordId];
+        });
+    }
+
+    function getPromptEligibleAnalyticsRowsForCategory(categoryId) {
+        const cid = parseInt(categoryId, 10) || 0;
+        if (!cid) {
+            return [];
+        }
+
+        return (Array.isArray(analytics.words) ? analytics.words : []).filter(function (row) {
+            if (!row || analyticsWordIsPromptBlocked(row)) {
+                return false;
+            }
+            return wordRowCategoryIds(row).indexOf(cid) !== -1;
+        });
+    }
+
+    function getProgressCategoryOptionVarietyCount(categoryId) {
+        const cid = parseInt(categoryId, 10) || 0;
+        if (!cid) {
+            return 0;
+        }
+
+        const cat = getCategoryById(cid);
+        const optionType = String((cat && (cat.option_type || cat.mode)) || 'image').trim().toLowerCase();
+        const rows = getPromptEligibleAnalyticsRowsForCategory(cid);
+        if (!rows.length) {
+            return 0;
+        }
+
+        const seen = {};
+        let count = 0;
+
+        rows.forEach(function (row) {
+            const wordId = parseInt(row && row.id, 10) || 0;
+            if (!wordId) {
+                return;
+            }
+
+            let key = '';
+            if (optionType === 'image') {
+                key = String((row && row.image) || '').trim();
+            } else if (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio') {
+                key = normalizeSelectionTextKey((row && (row.label || row.translation || row.title)) || '');
+            } else if (optionType === 'audio') {
+                key = String((row && row.audio_url) || '').trim();
+            }
+
+            if (!key) {
+                key = 'id:' + String(wordId);
+            }
+            if (seen[key]) {
+                return;
+            }
+            seen[key] = true;
+            count += 1;
+        });
+
+        return count;
+    }
+
+    function filterProgressSelectedWordIdsByCategories(wordIds, categoryIds) {
+        const ids = uniqueIntList(wordIds || []);
+        const allowedCategoryIds = uniqueIntList(categoryIds || []);
+        if (!ids.length || !allowedCategoryIds.length) {
+            return [];
+        }
+
+        const allowedLookup = {};
+        allowedCategoryIds.forEach(function (categoryId) {
+            allowedLookup[categoryId] = true;
+        });
+
+        return ids.filter(function (wordId) {
+            const row = (Array.isArray(analytics.words) ? analytics.words : []).find(function (entry) {
+                return (parseInt(entry && entry.id, 10) || 0) === wordId;
+            });
+            if (!row || analyticsWordIsPromptBlocked(row)) {
+                return false;
+            }
+            return wordRowCategoryIds(row).some(function (categoryId) {
+                return !!allowedLookup[categoryId];
+            });
+        });
+    }
+
     function buildProgressSelectionLaunchPlan(mode, selectedWordIds) {
         const normalizedMode = normalizeMode(mode) || 'practice';
-        const sessionWordIds = uniqueIntList(selectedWordIds || []);
+        const sessionWordIds = getPromptEligibleProgressSelectedWordIds(selectedWordIds);
         if (!sessionWordIds.length) {
             return {
                 categoryIds: [],
@@ -4163,11 +4284,6 @@
                 details: {}
             };
         }
-
-        const selectedLookup = {};
-        sessionWordIds.forEach(function (id) {
-            selectedLookup[id] = true;
-        });
 
         const rawCategoryIds = getProgressSelectionCategoryIds(sessionWordIds);
         const categoryIds = filterCategoryIdsForMode(normalizedMode, rawCategoryIds, {
@@ -4190,20 +4306,7 @@
 
         const categoryWordCounts = {};
         categoryIds.forEach(function (categoryId) {
-            const rows = Array.isArray(wordsByCategory[categoryId]) ? wordsByCategory[categoryId] : [];
-            const seen = {};
-            let count = 0;
-
-            rows.forEach(function (word) {
-                const wordId = parseInt(word && word.id, 10) || 0;
-                if (!wordId || seen[wordId] || !selectedLookup[wordId]) {
-                    return;
-                }
-                seen[wordId] = true;
-                count += 1;
-            });
-
-            categoryWordCounts[categoryId] = count;
+            categoryWordCounts[categoryId] = filterProgressSelectedWordIdsByCategories(sessionWordIds, [categoryId]).length;
         });
 
         const representedCategoryIds = categoryIds.filter(function (categoryId) {
@@ -4228,9 +4331,17 @@
             return left - right;
         });
 
+        const launchableCategoryIds = representedCategoryIds.filter(function (categoryId) {
+            if (normalizedMode !== 'practice' && normalizedMode !== 'listening') {
+                return true;
+            }
+            return getProgressCategoryOptionVarietyCount(categoryId) >= 2;
+        });
+        const launchableSessionWordIds = filterProgressSelectedWordIdsByCategories(sessionWordIds, launchableCategoryIds);
+
         return {
-            categoryIds: representedCategoryIds,
-            sessionWordIds: sessionWordIds,
+            categoryIds: launchableCategoryIds,
+            sessionWordIds: launchableSessionWordIds,
             details: {
                 preserve_mixed_presentation: true,
                 allow_session_category_display: true,
@@ -4291,15 +4402,21 @@
             $progressSelectionCount.text(formatTemplate(i18n.analyticsSelectionCount || '%d selected words', [selectedCount]));
         }
 
-        const selectedCategoryIds = getProgressSelectionCategoryIds(selectedWordIds);
+        const selectedCategoryIds = getProgressSelectionCategoryIds(getPromptEligibleProgressSelectedWordIds(selectedWordIds));
         const allowGender = selectionHasGenderSupport(selectedCategoryIds);
-        const hasEnoughWords = selectedCount >= getSelectionMinimumWordCount();
+        const minimumWordCount = getSelectionMinimumWordCount();
 
         if ($progressSelectionModeButtons.length) {
             $progressSelectionModeButtons.each(function () {
                 const $button = $(this);
                 const mode = normalizeMode($button.attr('data-mode') || '');
-                const disabled = !mode || !hasEnoughWords || (mode === 'gender' && !allowGender);
+                const launchPlan = mode ? buildProgressSelectionLaunchPlan(mode, selectedWordIds) : null;
+                const launchableWordCount = launchPlan ? uniqueIntList(launchPlan.sessionWordIds || []).length : 0;
+                const hasLaunchPlan = !!(launchPlan && Array.isArray(launchPlan.categoryIds) && launchPlan.categoryIds.length);
+                const disabled = !mode
+                    || !hasLaunchPlan
+                    || launchableWordCount < minimumWordCount
+                    || (mode === 'gender' && !allowGender);
                 $button
                     .prop('disabled', disabled)
                     .attr('aria-disabled', disabled ? 'true' : 'false')
@@ -4319,26 +4436,24 @@
             alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
             return;
         }
-        if (selectedWordIds.length < getSelectionMinimumWordCount()) {
+        const minimumWordCount = getSelectionMinimumWordCount();
+        const initialLaunchPlan = buildProgressSelectionLaunchPlan(normalizedMode, selectedWordIds);
+        const initialSessionWordIds = uniqueIntList(initialLaunchPlan.sessionWordIds || []);
+        if (!Array.isArray(initialLaunchPlan.categoryIds) || !initialLaunchPlan.categoryIds.length || initialSessionWordIds.length < minimumWordCount) {
             alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
             return;
         }
 
-        const selectedCategoryIds = getProgressSelectionCategoryIds(selectedWordIds);
-        if (!selectedCategoryIds.length) {
-            alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
-            return;
-        }
-
-        ensureWordsForCategories(selectedCategoryIds).always(function () {
+        ensureWordsForCategories(initialLaunchPlan.categoryIds).always(function () {
             const launchPlan = buildProgressSelectionLaunchPlan(normalizedMode, selectedWordIds);
-            if (!Array.isArray(launchPlan.categoryIds) || !launchPlan.categoryIds.length) {
+            const launchSessionWordIds = uniqueIntList(launchPlan.sessionWordIds || []);
+            if (!Array.isArray(launchPlan.categoryIds) || !launchPlan.categoryIds.length || launchSessionWordIds.length < minimumWordCount) {
                 alert(i18n.noWordsInSelection || 'No quiz words are available for this selection.');
                 return;
             }
 
             chunkSession = null;
-            launchFlashcards(normalizedMode, launchPlan.categoryIds, launchPlan.sessionWordIds, {
+            launchFlashcards(normalizedMode, launchPlan.categoryIds, launchSessionWordIds, {
                 source: 'wordset_progress_selection_start',
                 chunked: false,
                 sessionStarMode: 'normal',
