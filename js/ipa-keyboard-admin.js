@@ -23,6 +23,8 @@
     let currentTranscription = null;
     let currentAudio = null;
     let currentAudioButton = null;
+    let letterMapRefreshTimer = null;
+    let letterMapRefreshRequestId = 0;
 
     function buildDefaultTranscription() {
         return {
@@ -101,6 +103,53 @@
         currentAudio.pause();
         currentAudio.currentTime = 0;
         currentAudio = null;
+    }
+
+    function cancelScheduledLetterMapRefresh() {
+        if (letterMapRefreshTimer) {
+            window.clearTimeout(letterMapRefreshTimer);
+            letterMapRefreshTimer = null;
+        }
+        letterMapRefreshRequestId += 1;
+    }
+
+    function refreshLetterMap(wordsetId) {
+        const safeWordsetId = parseInt(wordsetId, 10) || 0;
+        const requestId = ++letterMapRefreshRequestId;
+
+        if (!safeWordsetId) {
+            return;
+        }
+
+        $.post(ajaxUrl, {
+            action: 'll_tools_get_ipa_keyboard_letter_map',
+            nonce: nonce,
+            wordset_id: safeWordsetId
+        }).done(function (response) {
+            if (requestId !== letterMapRefreshRequestId || safeWordsetId !== currentWordsetId) {
+                return;
+            }
+            if (!response || response.success !== true) {
+                return;
+            }
+            renderLetterMap(response.data || {});
+        });
+    }
+
+    function scheduleLetterMapRefresh(wordsetId) {
+        const safeWordsetId = parseInt(wordsetId, 10) || 0;
+        if (!safeWordsetId) {
+            return;
+        }
+
+        if (letterMapRefreshTimer) {
+            window.clearTimeout(letterMapRefreshTimer);
+        }
+
+        letterMapRefreshTimer = window.setTimeout(function () {
+            letterMapRefreshTimer = null;
+            refreshLetterMap(safeWordsetId);
+        }, 900);
     }
 
     function getSymbolSummaryText(recordingCount, occurrenceCount) {
@@ -427,10 +476,6 @@
         if (typeof data.recording_ipa === 'string') {
             $symbols.find('tr[data-recording-id="' + recordingId + '"] .ll-ipa-input').val(data.recording_ipa);
         }
-
-        if (Array.isArray(data && data.letter_map)) {
-            renderLetterMap({ letter_map: data.letter_map });
-        }
     }
 
     function renderSymbols(payload) {
@@ -725,6 +770,7 @@
 
     function loadWordset(wordsetId) {
         currentWordsetId = wordsetId;
+        cancelScheduledLetterMapRefresh();
         $symbols.empty();
         $letterMap.empty();
         setStatus('');
@@ -814,6 +860,9 @@
             }
             const data = response.data || {};
             syncSavedRecording(data);
+            if (data.letter_map_refresh_required) {
+                scheduleLetterMapRefresh(currentWordsetId);
+            }
             setStatus(i18n.saved || 'Saved.', false);
         }).fail(function () {
             setStatus(i18n.error || 'Something went wrong. Please try again.', true);

@@ -70,7 +70,8 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame(['ʒ'], array_values((array) ($data['symbols'] ?? [])));
         $this->assertSame(2, (int) (($data['previous_symbol_counts']['ʃ'] ?? 0)));
         $this->assertSame(1, (int) (($data['symbol_counts']['ʒ'] ?? 0)));
-        $this->assertIsArray($data['letter_map'] ?? null);
+        $this->assertTrue((bool) ($data['letter_map_refresh_required'] ?? false));
+        $this->assertArrayNotHasKey('letter_map', $data);
 
         $recording = (array) ($data['recording'] ?? []);
         $this->assertSame($recording_id, (int) ($recording['recording_id'] ?? 0));
@@ -86,6 +87,21 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame(site_url('wp-content/uploads/test-audio/ship.mp3'), (string) ($recording['audio_url'] ?? ''));
         $this->assertSame('Play Isolation recording', (string) ($recording['audio_label'] ?? ''));
         $this->assertNotSame('', (string) ($recording['word_edit_link'] ?? ''));
+
+        $this->assertSame(['ʒ'], ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id));
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+            'wordset_id' => $wordset_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $letterMapResponse = $this->runJsonEndpoint(static function (): void {
+            ll_tools_get_ipa_keyboard_letter_map_handler();
+        });
+
+        $this->assertTrue((bool) ($letterMapResponse['success'] ?? false));
+        $this->assertIsArray($letterMapResponse['data']['letter_map'] ?? null);
     }
 
     private function create_viewer_user(): int
