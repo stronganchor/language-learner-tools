@@ -2447,6 +2447,54 @@
         'ש': 'sh',
         'ת': 't'
     };
+    const secondaryTextSortBaseMap = secondaryTextMode === 'ipa'
+        ? Object.assign({}, ipaMatchMap, {
+            'β': 'v',
+            'ɱ': 'm',
+            'ɳ': 'n',
+            'ɴ': 'n',
+            'ɫ': 'l',
+            'ɭ': 'l',
+            'ʎ': 'l',
+            'ʟ': 'l',
+            'ɬ': 'l',
+            'ɮ': 'l',
+            'ɕ': 'sh',
+            'ʑ': 'zh',
+            'ʂ': 'sh',
+            'ʐ': 'zh',
+            'ɟ': 'j',
+            'ʝ': 'j',
+            'ç': 'h',
+            'χ': 'x',
+            'ħ': 'h',
+            'ʔ': 'q',
+            'ʕ': 'h'
+        })
+        : Object.assign({}, transcriptionMatchMap);
+    const secondaryTextSortModifierMap = {
+        'ˈ': '00stress',
+        'ˌ': '01stress',
+        'ʰ': '10h',
+        'ʱ': '11h',
+        'ʲ': '12y',
+        'ʷ': '13w',
+        'ʳ': '14r',
+        'ʴ': '15r',
+        'ʵ': '16e',
+        'ˠ': '17v',
+        'ˤ': '18p',
+        '˞': '19r',
+        'ː': '20long',
+        'ˑ': '21half',
+        'ˀ': '22glot',
+        'ʼ': '23ej',
+        'ⁿ': '24n',
+        'ˡ': '25l',
+        '̃': '30nasal',
+        '̩': '31syll',
+        '̯': '32off'
+    };
     let activeIpaInput = null;
     let activeIpaSelection = null;
     let lastIpaEdit = { input: null, type: null, time: 0 };
@@ -2462,6 +2510,74 @@
             out += transcriptionMatchMap[ch] || ch;
         }
         return out;
+    }
+
+    function getSecondaryTextSymbolSortMeta(symbol) {
+        const raw = sanitizeIpaValue(symbol);
+        if (!raw) {
+            return { family: '', modifier: '', modifierRank: 0, plainRank: 1, raw: '' };
+        }
+
+        let family = '';
+        let modifier = '';
+        Array.from(raw.toLowerCase()).forEach(function (ch) {
+            if (!ch || /[\s.]/u.test(ch)) { return; }
+
+            if (secondaryTextMode === 'ipa') {
+                if (isTieBar(ch)) { return; }
+                if (isCombiningMark(ch) || isPostModifier(ch) || isIpaStressMarker(ch)) {
+                    modifier += secondaryTextSortModifierMap[ch] || ('zz' + encodeURIComponent(ch).replace(/%/g, '').toLowerCase());
+                    return;
+                }
+            } else if (isCombiningMark(ch)) {
+                modifier += secondaryTextSortModifierMap[ch] || ('zz' + encodeURIComponent(ch).replace(/%/g, '').toLowerCase());
+                return;
+            }
+
+            let mapped = secondaryTextSortBaseMap[ch] || '';
+            if (!mapped && /^[a-z0-9]$/u.test(ch)) {
+                mapped = ch;
+            }
+            if (!mapped) {
+                mapped = applyTranscriptionMatchMap(ch).toLowerCase().replace(/[^a-z0-9]+/g, '');
+            }
+            if (!mapped) {
+                mapped = 'zz' + encodeURIComponent(ch).replace(/%/g, '').toLowerCase();
+            }
+            family += mapped;
+        });
+
+        return {
+            family: family || '0',
+            modifier: modifier,
+            modifierRank: modifier ? 1 : 0,
+            plainRank: /^[a-z]+$/u.test(raw.toLowerCase()) ? 0 : 1,
+            raw: raw
+        };
+    }
+
+    function compareSecondaryTextSymbols(left, right) {
+        const leftMeta = getSecondaryTextSymbolSortMeta(left);
+        const rightMeta = getSecondaryTextSymbolSortMeta(right);
+
+        if (leftMeta.family !== rightMeta.family) {
+            return leftMeta.family < rightMeta.family ? -1 : 1;
+        }
+        if (leftMeta.modifierRank !== rightMeta.modifierRank) {
+            return leftMeta.modifierRank - rightMeta.modifierRank;
+        }
+        if (leftMeta.modifier !== rightMeta.modifier) {
+            return leftMeta.modifier < rightMeta.modifier ? -1 : 1;
+        }
+        if (leftMeta.plainRank !== rightMeta.plainRank) {
+            return leftMeta.plainRank - rightMeta.plainRank;
+        }
+        return leftMeta.raw.localeCompare(rightMeta.raw);
+    }
+
+    function sortSecondaryTextSymbols(symbols) {
+        if (!Array.isArray(symbols) || !symbols.length) { return []; }
+        return symbols.slice().sort(compareSecondaryTextSymbols);
     }
 
     function normalizeIpaChar(ch) {
@@ -3501,7 +3617,7 @@
             return 0;
         }
 
-        merged.forEach(function (ch) {
+        sortSecondaryTextSymbols(merged).forEach(function (ch) {
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',
@@ -3536,7 +3652,7 @@
             return 0;
         }
 
-        merged.forEach(function (ch) {
+        sortSecondaryTextSymbols(merged).forEach(function (ch) {
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',

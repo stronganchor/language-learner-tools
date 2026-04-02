@@ -821,7 +821,15 @@ function ll_tools_word_grid_get_wordset_ipa_special_chars(int $wordset_id): arra
         return [];
     }
 
-    return array_values(array_unique(array_merge($auto, $manual)));
+    $symbols = array_values(array_unique(array_merge($auto, $manual)));
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
+            ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
+            : 'ipa';
+        return ll_tools_sort_secondary_text_symbols($symbols, $mode);
+    }
+
+    return $symbols;
 }
 
 function ll_tools_word_grid_rebuild_wordset_ipa_special_chars(int $wordset_id): array {
@@ -880,6 +888,9 @@ function ll_tools_word_grid_rebuild_wordset_ipa_special_chars(int $wordset_id): 
     }
 
     $symbols = array_keys($symbols);
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $symbols = ll_tools_sort_secondary_text_symbols($symbols, $mode);
+    }
     update_term_meta($wordset_id, 'll_wordset_ipa_special_chars', $symbols);
     return $symbols;
 }
@@ -2508,6 +2519,9 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
                 $normalized_chars[] = $normalized;
             }
             $ipa_special_chars = $normalized_chars;
+            if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+                $ipa_special_chars = ll_tools_sort_secondary_text_symbols($ipa_special_chars, $transcription_mode);
+            }
         }
 
         $letter_maps = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_maps')
@@ -2527,6 +2541,11 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         }
     }
 
+    $secondary_text_common_chars = array_values(array_map('strval', (array) ($transcription_config['common_chars'] ?? [])));
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $secondary_text_common_chars = ll_tools_sort_secondary_text_symbols($secondary_text_common_chars, $transcription_mode);
+    }
+
     return [
         'ajaxUrl'    => admin_url('admin-ajax.php'),
         'nonce'      => is_user_logged_in() ? wp_create_nonce('ll_user_study') : '',
@@ -2536,7 +2555,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         'supportsIpaExtended' => ll_tools_word_grid_supports_ipa_extended(),
         'secondaryTextMode' => $transcription_mode,
         'secondaryTextDisplayFormat' => (string) ($transcription_config['display_format'] ?? 'plain'),
-        'secondaryTextCommonChars' => array_values(array_map('strval', (array) ($transcription_config['common_chars'] ?? []))),
+        'secondaryTextCommonChars' => $secondary_text_common_chars,
         'secondaryTextUsesIpaFont' => !empty($transcription_config['uses_ipa_font']),
         'secondaryTextSupportsSuperscript' => !empty($transcription_config['supports_superscript']),
         'state'      => $user_study_state,

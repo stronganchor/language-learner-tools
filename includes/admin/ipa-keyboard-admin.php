@@ -312,24 +312,16 @@ function ll_tools_ipa_keyboard_build_symbol_data(int $wordset_id): array {
         ];
     }
 
-    $default_index = array_flip($default_symbols);
-    usort($entries, function ($a, $b) use ($default_index) {
+    usort($entries, function ($a, $b) use ($transcription_mode) {
         $symbol_a = (string) ($a['symbol'] ?? '');
         $symbol_b = (string) ($b['symbol'] ?? '');
-        $is_default_a = array_key_exists($symbol_a, $default_index);
-        $is_default_b = array_key_exists($symbol_b, $default_index);
-        if ($is_default_a || $is_default_b) {
-            if ($is_default_a && $is_default_b) {
-                return ($default_index[$symbol_a] <=> $default_index[$symbol_b]);
+        if (function_exists('ll_tools_compare_secondary_text_symbols')) {
+            $sorted = ll_tools_compare_secondary_text_symbols($symbol_a, $symbol_b, $transcription_mode);
+            if ($sorted !== 0) {
+                return $sorted;
             }
-            return $is_default_a ? -1 : 1;
         }
-        $count_a = (int) ($a['count'] ?? 0);
-        $count_b = (int) ($b['count'] ?? 0);
-        if ($count_a === $count_b) {
-            return strnatcasecmp($symbol_a, $symbol_b);
-        }
-        return ($count_b <=> $count_a);
+        return ll_tools_locale_compare_strings($symbol_a, $symbol_b);
     });
 
     return $entries;
@@ -794,6 +786,9 @@ function ll_tools_add_wordset_ipa_symbols_handler() {
         : [];
 
     $merged = array_values(array_unique(array_merge($existing, $symbols)));
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $merged = ll_tools_sort_secondary_text_symbols($merged, $transcription_mode);
+    }
     update_term_meta($wordset_id, 'll_wordset_ipa_manual_symbols', $merged);
 
     wp_send_json_success([
