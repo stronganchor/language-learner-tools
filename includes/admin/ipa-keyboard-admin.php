@@ -163,8 +163,16 @@ function ll_tools_ipa_keyboard_get_requested_tab(): string {
     return in_array($tab, ['map', 'symbols', 'search'], true) ? $tab : 'map';
 }
 
+function ll_tools_ipa_keyboard_sanitize_search_query($raw): string {
+    $query = is_scalar($raw) ? (string) wp_unslash((string) $raw) : '';
+    $query = function_exists('wp_check_invalid_utf8') ? wp_check_invalid_utf8($query) : $query;
+    $query = html_entity_decode($query, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $query = preg_replace('/[\r\n\t]+/u', ' ', $query);
+    return trim((string) $query);
+}
+
 function ll_tools_ipa_keyboard_get_requested_search_state(): array {
-    $query = isset($_GET['search']) ? sanitize_text_field(wp_unslash((string) $_GET['search'])) : '';
+    $query = isset($_GET['search']) ? ll_tools_ipa_keyboard_sanitize_search_query($_GET['search']) : '';
     $scope = isset($_GET['scope']) ? sanitize_key((string) wp_unslash($_GET['scope'])) : 'both';
     if (!in_array($scope, ['written', 'transcription', 'both'], true)) {
         $scope = 'both';
@@ -2318,7 +2326,7 @@ add_action('set_object_terms', 'll_tools_ipa_keyboard_sync_validation_on_wordset
 
 function ll_tools_ipa_keyboard_text_matches_pattern(string $value, string $query): bool {
     $value = trim($value);
-    $query = trim($query);
+    $query = html_entity_decode(trim($query), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     if ($query === '') {
         return true;
     }
@@ -2399,7 +2407,26 @@ function ll_tools_ipa_keyboard_parse_search_sequence_alternatives(string $value,
     return empty($tokens) ? [] : [$tokens];
 }
 
-function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $offset, array $sequence): bool {
+function ll_tools_ipa_keyboard_search_token_matches(string $actual_token, string $expected_token, string $mode = 'ipa'): bool {
+    $actual_token = ll_tools_ipa_keyboard_normalize_ipa_token($actual_token, $mode);
+    $expected_token = ll_tools_ipa_keyboard_normalize_ipa_token($expected_token, $mode);
+    if ($actual_token === '' || $expected_token === '') {
+        return false;
+    }
+
+    if ($actual_token === $expected_token) {
+        return true;
+    }
+
+    $expected_base = ll_tools_ipa_keyboard_extract_token_base($expected_token, $mode);
+    if ($expected_base === '' || $expected_token !== $expected_base) {
+        return false;
+    }
+
+    return ll_tools_ipa_keyboard_extract_token_base($actual_token, $mode) === $expected_base;
+}
+
+function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $offset, array $sequence, string $mode = 'ipa'): bool {
     $sequence = array_values(array_filter(array_map('strval', $sequence), static function (string $token): bool {
         return $token !== '';
     }));
@@ -2408,7 +2435,7 @@ function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $of
     }
 
     foreach ($sequence as $index => $token) {
-        if ((string) ($tokens[$offset + $index] ?? '') !== $token) {
+        if (!ll_tools_ipa_keyboard_search_token_matches((string) ($tokens[$offset + $index] ?? ''), $token, $mode)) {
             return false;
         }
     }
@@ -2416,9 +2443,9 @@ function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $of
     return true;
 }
 
-function ll_tools_ipa_keyboard_search_any_sequence_matches_at(array $tokens, int $offset, array $alternatives): bool {
+function ll_tools_ipa_keyboard_search_any_sequence_matches_at(array $tokens, int $offset, array $alternatives, string $mode = 'ipa'): bool {
     foreach ($alternatives as $sequence) {
-        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $offset, (array) $sequence)) {
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $offset, (array) $sequence, $mode)) {
             return true;
         }
     }
@@ -2426,14 +2453,14 @@ function ll_tools_ipa_keyboard_search_any_sequence_matches_at(array $tokens, int
     return false;
 }
 
-function ll_tools_ipa_keyboard_search_any_sequence_ends_at(array $tokens, int $end_offset, array $alternatives): bool {
+function ll_tools_ipa_keyboard_search_any_sequence_ends_at(array $tokens, int $end_offset, array $alternatives, string $mode = 'ipa'): bool {
     foreach ($alternatives as $sequence) {
         $sequence = array_values((array) $sequence);
         $start_offset = $end_offset - count($sequence);
         if ($start_offset < 0) {
             continue;
         }
-        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $start_offset, $sequence)) {
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $start_offset, $sequence, $mode)) {
             return true;
         }
     }
@@ -2442,7 +2469,7 @@ function ll_tools_ipa_keyboard_search_any_sequence_ends_at(array $tokens, int $e
 }
 
 function ll_tools_ipa_keyboard_transcription_matches_advanced_pattern(string $value, string $query, string $mode = 'ipa'): ?bool {
-    $query = trim($query);
+    $query = html_entity_decode(trim($query), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     if ($query === '' || stripos($query, 'rx:') === 0) {
         return null;
     }
@@ -2463,13 +2490,13 @@ function ll_tools_ipa_keyboard_transcription_matches_advanced_pattern(string $va
         unset($token);
         foreach ($left_alternatives as $sequence) {
             $sequence = array_values((array) $sequence);
-            if (empty($sequence) || !ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, (int) $offset, $sequence)) {
+            if (empty($sequence) || !ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, (int) $offset, $sequence, $mode)) {
                 continue;
             }
 
             $next_offset = (int) $offset + count($sequence);
-            $has_following_match = ll_tools_ipa_keyboard_search_any_sequence_matches_at($tokens, $next_offset, $right_alternatives);
-            $has_previous_match = ll_tools_ipa_keyboard_search_any_sequence_ends_at($tokens, (int) $offset, $right_alternatives);
+            $has_following_match = ll_tools_ipa_keyboard_search_any_sequence_matches_at($tokens, $next_offset, $right_alternatives, $mode);
+            $has_previous_match = ll_tools_ipa_keyboard_search_any_sequence_ends_at($tokens, (int) $offset, $right_alternatives, $mode);
 
             if ($operator === '>' && $has_following_match) {
                 return true;
@@ -2966,7 +2993,7 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
         wp_send_json_error('Invalid word set', 400);
     }
 
-    $query = sanitize_text_field((string) ($_POST['query'] ?? ''));
+    $query = ll_tools_ipa_keyboard_sanitize_search_query($_POST['query'] ?? '');
     $scope = sanitize_key((string) ($_POST['scope'] ?? 'both'));
     if (!in_array($scope, ['written', 'transcription', 'both'], true)) {
         $scope = 'both';
