@@ -1283,6 +1283,50 @@ function ll_tools_get_admin_maintenance_tasks(): array {
         }
     }
 
+    if (function_exists('ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset')) {
+        $review_counts_by_wordset = ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset();
+        foreach ($review_counts_by_wordset as $wordset_entry) {
+            $wordset_id = (int) ($wordset_entry['wordset_id'] ?? 0);
+            $wordset_name = (string) ($wordset_entry['wordset_name'] ?? '');
+            $review_count = (int) ($wordset_entry['count'] ?? 0);
+            if ($wordset_id <= 0 || $wordset_name === '' || $review_count <= 0) {
+                continue;
+            }
+
+            $tasks[] = [
+                'key' => 'transcription_review_' . $wordset_id,
+                'url' => add_query_arg([
+                    'page' => 'll-ipa-keyboard',
+                    'tab' => 'search',
+                    'review' => '1',
+                    'wordset_id' => $wordset_id,
+                ], admin_url('tools.php')),
+                'screen_id' => 'tools_page_ll-ipa-keyboard',
+                'screen_query_args' => [
+                    'tab' => 'search',
+                    'review' => '1',
+                    'wordset_id' => (string) $wordset_id,
+                ],
+                'title' => sprintf(
+                    /* translators: %s: wordset name */
+                    __('Transcription Manager: %s', 'll-tools-text-domain'),
+                    $wordset_name
+                ),
+                'message' => sprintf(
+                    /* translators: 1: number of recordings, 2: wordset name */
+                    _n(
+                        '%1$d auto-generated transcription in %2$s needs review',
+                        '%1$d auto-generated transcriptions in %2$s need review',
+                        $review_count,
+                        'll-tools-text-domain'
+                    ),
+                    $review_count,
+                    $wordset_name
+                ),
+            ];
+        }
+    }
+
     return $tasks;
 }
 

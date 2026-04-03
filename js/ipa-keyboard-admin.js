@@ -31,6 +31,7 @@
     const $searchQuery = $('#ll-ipa-search-query');
     const $searchScope = $('#ll-ipa-search-scope');
     const $searchIssuesOnly = $('#ll-ipa-search-issues-only');
+    const $searchReviewOnly = $('#ll-ipa-search-review-only');
     const $searchBtn = $('#ll-ipa-search-btn');
     const $searchSummary = $('#ll-ipa-search-summary');
     const $searchResults = $('#ll-ipa-search-results');
@@ -502,7 +503,8 @@
         return {
             query: ($searchQuery.val() || '').toString(),
             scope: ($searchScope.val() || 'both').toString(),
-            issuesOnly: !!$searchIssuesOnly.prop('checked')
+            issuesOnly: !!$searchIssuesOnly.prop('checked'),
+            reviewOnly: !!$searchReviewOnly.prop('checked')
         };
     }
 
@@ -528,7 +530,8 @@
             wordset_id: wordsetId,
             query: searchState.query,
             scope: searchState.scope,
-            issues_only: searchState.issuesOnly ? 1 : 0
+            issues_only: searchState.issuesOnly ? 1 : 0,
+            review_only: searchState.reviewOnly ? 1 : 0
         }).done(function (response) {
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
@@ -1072,15 +1075,45 @@
         return $item;
     }
 
-    function buildIssuesCellData(activeIssues, ignoredIssues) {
+    function buildSearchReviewItem(needsReview) {
+        if (!needsReview) {
+            return null;
+        }
+
+        const $item = $('<div>', { class: 'll-ipa-search-review' });
+        const $header = $('<div>', { class: 'll-ipa-search-review-header' });
+        $header.append($('<span>', {
+            class: 'll-ipa-search-review-title',
+            text: t('searchReviewPendingTitle', 'Needs review')
+        }));
+        if (currentCanEdit) {
+            $header.append($('<button>', {
+                type: 'button',
+                class: 'button-link ll-ipa-review-confirm',
+                text: t('searchReviewConfirm', 'Mark correct')
+            }));
+        }
+        $item.append($header);
+        $item.append($('<div>', {
+            class: 'll-ipa-search-review-message',
+            text: t('searchReviewPendingMessage', 'This transcription was generated automatically.')
+        }));
+        return $item;
+    }
+
+    function buildIssuesCellData(activeIssues, ignoredIssues, needsReview) {
         const active = Array.isArray(activeIssues) ? activeIssues : [];
         const ignored = Array.isArray(ignoredIssues) ? ignoredIssues : [];
+        const reviewPending = !!needsReview;
         return {
             html: function () {
                 const $wrap = $('<div>', { class: 'll-ipa-search-issues-wrap' });
-                if (!active.length && !ignored.length) {
+                if (!active.length && !ignored.length && !reviewPending) {
                     $wrap.append($('<span>', { class: 'll-ipa-search-issues-empty', text: t('searchNoIssues', 'No warnings') }));
                     return $wrap;
+                }
+                if (reviewPending) {
+                    $wrap.append(buildSearchReviewItem(true));
                 }
                 active.forEach(function (issue) {
                     $wrap.append(buildSearchIssueItem(issue, false));
@@ -1128,6 +1161,7 @@
         const categories = rec && rec.categories ? rec.categories : [];
         const issues = rec && rec.issues ? rec.issues : [];
         const ignoredIssues = rec && rec.ignored_issues ? rec.ignored_issues : [];
+        const needsReview = !!(rec && rec.needs_review);
         const transcription = getTranscription();
         const textValue = rec && rec.recording_text ? rec.recording_text : '';
         const ipaValue = rec && rec.recording_ipa ? rec.recording_ipa : '';
@@ -1192,10 +1226,13 @@
             .append($('<span>', { class: 'll-ipa-search-save-label' }));
 
         const $issueCell = $('<td>', { class: 'll-ipa-search-issues-cell' }).append(
-            buildIssuesCellData(issues, ignoredIssues).html()
+            buildIssuesCellData(issues, ignoredIssues, needsReview).html()
         );
 
-        return $('<tr>', { 'data-recording-id': recordingId })
+        return $('<tr>', {
+            'data-recording-id': recordingId,
+            'data-needs-review': needsReview ? '1' : '0'
+        })
             .append($metaCell)
             .append($('<td>', { class: 'll-ipa-search-text-cell' }).append($textInput))
             .append($('<td>', { class: 'll-ipa-search-ipa-cell' }).append($ipaInput))
@@ -1366,6 +1403,7 @@
         const shownCount = parseInt(payload.shown_count, 10) || 0;
         const hasMore = !!payload.has_more;
         const issuesOnly = !!payload.issues_only;
+        const reviewOnly = !!payload.review_only;
 
         renderValidationRules(payload);
         $searchResults.empty();
@@ -1379,9 +1417,11 @@
             return;
         }
 
-        const summary = issuesOnly
+        const summary = issuesOnly && !reviewOnly
             ? formatCount(totalMatches, 'searchFilteredSummary', 'searchFilteredSummaryPlural', 'Showing %1$d flagged recording', 'Showing %1$d flagged recordings')
-            : formatCount(totalMatches, 'searchSummary', 'searchSummaryPlural', '%1$d result', '%1$d results');
+            : (reviewOnly && !issuesOnly
+                ? formatCount(totalMatches, 'searchReviewSummary', 'searchReviewSummaryPlural', 'Showing %1$d transcription needing review', 'Showing %1$d transcriptions needing review')
+                : formatCount(totalMatches, 'searchSummary', 'searchSummaryPlural', '%1$d result', '%1$d results'));
         setSearchSummary(summary + (hasMore ? ' ' + formatText(t('searchTooMany', 'Showing the first %1$d results. Narrow the search to see more.'), [shownCount]) : ''));
 
         const $table = $('<table>', { class: 'widefat striped ll-ipa-search-table' });
@@ -1462,9 +1502,10 @@
     function updateSearchRowValidation($row, validation) {
         const active = validation && Array.isArray(validation.active) ? validation.active : [];
         const ignored = validation && Array.isArray(validation.ignored) ? validation.ignored : [];
+        const needsReview = ($row.attr('data-needs-review') || '0') === '1';
         const $cell = $row.find('.ll-ipa-search-issues-cell').first();
         if ($cell.length) {
-            $cell.empty().append(buildIssuesCellData(active, ignored).html());
+            $cell.empty().append(buildIssuesCellData(active, ignored, needsReview).html());
         }
     }
 
@@ -1489,6 +1530,11 @@
     function searchRowHasUnsavedChanges($row) {
         const values = getSearchRowValues($row);
         return values.recordingText !== values.savedText || values.recordingIpa !== values.savedIpa;
+    }
+
+    function searchUsesFilteredView() {
+        const state = getSearchState();
+        return !!state.issuesOnly || !!state.reviewOnly;
     }
 
     function updateSearchRowSavedValues($row) {
@@ -1552,7 +1598,7 @@
             const data = response.data || {};
             markTabsDirty(['map', 'symbols']);
 
-            if (getSearchState().issuesOnly) {
+            if (searchUsesFilteredView()) {
                 setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
                 window.setTimeout(function () {
                     loadSearch(currentWordsetId, true, { quietStatus: true, showLoading: false });
@@ -1839,6 +1885,48 @@
         }, 0);
     });
 
+    $searchResults.on('click', '.ll-ipa-review-confirm', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('tr');
+        const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+
+        if (!recordingId || !currentWordsetId) {
+            return;
+        }
+
+        if ($row.data('llSearchRowSaving') || searchRowHasUnsavedChanges($row)) {
+            autosaveSearchRow($row);
+            return;
+        }
+
+        $btn.prop('disabled', true);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_confirm_ipa_keyboard_transcription_review',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+
+            const data = response.data || {};
+            if (searchUsesFilteredView()) {
+                loadSearch(currentWordsetId, true, { quietStatus: true, showLoading: false });
+            } else if (data.recording) {
+                const $newRow = replaceSearchRow($row, data.recording);
+                setSearchRowSaveState($newRow, 'saved', t('searchReviewed', 'Reviewed.'));
+            }
+            setStatus(t('searchReviewed', 'Reviewed.'), false);
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
     $searchResults.on('click', '.ll-ipa-issue-toggle', function () {
         const $btn = $(this);
         const $row = $btn.closest('tr');
@@ -1980,6 +2068,9 @@
         }
         if (Object.prototype.hasOwnProperty.call(initialSearch, 'issues_only')) {
             $searchIssuesOnly.prop('checked', !!initialSearch.issues_only);
+        }
+        if (Object.prototype.hasOwnProperty.call(initialSearch, 'review_only')) {
+            $searchReviewOnly.prop('checked', !!initialSearch.review_only);
         }
 
         if (initialWordsetId) {

@@ -928,6 +928,32 @@
     min-width: 0;
 }
 
+.ll-ipa-search-review {
+    border: 1px solid #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-radius: 10px;
+    padding: 7px 9px;
+}
+
+.ll-ipa-search-review-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+}
+
+.ll-ipa-search-review-title {
+    font-weight: 600;
+}
+
+.ll-ipa-search-review-message {
+    font-size: 11px;
+    line-height: 1.35;
+    margin-top: 4px;
+}
+
 .ll-ipa-search-issue {
     border: 1px solid #fdba74;
     background: var(--ll-ipa-warning-bg);
@@ -992,6 +1018,16 @@
     border: 0;
     background: transparent;
     color: #0f766e;
+    cursor: pointer;
+    text-align: left;
+    font-size: 12px;
+}
+
+.ll-ipa-review-confirm {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #1d4ed8;
     cursor: pointer;
     text-align: left;
     font-size: 12px;

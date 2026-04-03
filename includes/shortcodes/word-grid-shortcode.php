@@ -5062,6 +5062,7 @@ function ll_tools_word_grid_update_word_handler() {
         $recording_text = (string) ($recording['text'] ?? '');
         $recording_translation = (string) ($recording['translation'] ?? '');
         $recording_ipa = (string) ($recording['ipa'] ?? '');
+        $previous_recording_ipa = (string) get_post_meta($recording_id, 'recording_ipa', true);
 
         if ($recording_text !== '') {
             update_post_meta($recording_id, 'recording_text', $recording_text);
@@ -5077,6 +5078,9 @@ function ll_tools_word_grid_update_word_handler() {
             update_post_meta($recording_id, 'recording_ipa', $recording_ipa);
         } else {
             delete_post_meta($recording_id, 'recording_ipa');
+        }
+        if ($recording_ipa !== $previous_recording_ipa && function_exists('ll_tools_ipa_keyboard_clear_recording_auto_review')) {
+            ll_tools_ipa_keyboard_clear_recording_auto_review($recording_id);
         }
 
         $recordings_out[] = [
@@ -6622,6 +6626,9 @@ function ll_tools_word_grid_finalize_secondary_transcription($recording_id, $rec
     }
 
     update_post_meta($recording_id, 'recording_ipa', $clean);
+    if (function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')) {
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($recording_id);
+    }
 
     if ($wordset_id > 0) {
         if (function_exists('ll_tools_word_grid_rebuild_wordset_ipa_special_chars')) {
