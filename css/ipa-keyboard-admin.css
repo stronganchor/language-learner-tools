@@ -298,11 +298,37 @@
     outline-offset: 2px;
 }
 
-.ll-ipa-recording-download-icon::before {
-    content: "\2193";
+.ll-ipa-recording-download-icon {
+    position: relative;
     display: block;
-    font-size: 16px;
-    line-height: 1;
+    width: 14px;
+    height: 14px;
+    border-bottom: 2px solid currentColor;
+    box-sizing: border-box;
+}
+
+.ll-ipa-recording-download-icon::before {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 1px;
+    width: 2px;
+    height: 7px;
+    background: currentColor;
+    border-radius: 999px;
+}
+
+.ll-ipa-recording-download-icon::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 5px;
+    width: 6px;
+    height: 6px;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    box-sizing: border-box;
 }
 
 .ll-ipa-admin .ll-study-recording-icon {
