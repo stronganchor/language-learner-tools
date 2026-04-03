@@ -2377,8 +2377,67 @@ function ll_tools_ipa_keyboard_tokenize_search_transcription(string $value, stri
     $normalized = [];
     foreach ((array) $tokens as $token) {
         $token = ll_tools_ipa_keyboard_normalize_ipa_token((string) $token, $mode);
-        if ($token !== '') {
+        if ($token === '') {
+            continue;
+        }
+
+        if ($mode !== 'ipa') {
             $normalized[] = $token;
+            continue;
+        }
+
+        $chars = ll_tools_ipa_keyboard_split_token_characters($token);
+        if (empty($chars)) {
+            continue;
+        }
+
+        $base = '';
+        foreach ($chars as $char) {
+            if (function_exists('ll_tools_word_grid_is_ipa_stress_marker')
+                && ll_tools_word_grid_is_ipa_stress_marker($char, $mode)) {
+                continue;
+            }
+            if (function_exists('ll_tools_word_grid_is_ipa_separator')
+                && ll_tools_word_grid_is_ipa_separator($char, $mode)) {
+                continue;
+            }
+
+            if (function_exists('ll_tools_word_grid_is_ipa_post_modifier')
+                && ll_tools_word_grid_is_ipa_post_modifier($char, $mode)) {
+                if ($base !== '') {
+                    $normalized[] = $base;
+                    $base = '';
+                }
+
+                $modifier = ll_tools_ipa_keyboard_normalize_ipa_token($char, $mode);
+                if ($modifier !== '') {
+                    $normalized[] = $modifier;
+                }
+                continue;
+            }
+
+            if ($base === '') {
+                $base = $char;
+                continue;
+            }
+
+            $base_chars = ll_tools_ipa_keyboard_split_token_characters($base);
+            $last_base_char = empty($base_chars) ? '' : (string) end($base_chars);
+            if ((function_exists('ll_tools_word_grid_is_ipa_combining_mark')
+                    && ll_tools_word_grid_is_ipa_combining_mark($char))
+                || (function_exists('ll_tools_word_grid_is_ipa_tie_bar')
+                    && ll_tools_word_grid_is_ipa_tie_bar($char, $mode))
+                || ((function_exists('ll_tools_word_grid_is_ipa_tie_bar')
+                        && ll_tools_word_grid_is_ipa_tie_bar($last_base_char, $mode)))) {
+                $base .= $char;
+                continue;
+            }
+
+            $base .= $char;
+        }
+
+        if ($base !== '') {
+            $normalized[] = $base;
         }
     }
 
