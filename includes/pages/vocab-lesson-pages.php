@@ -38,6 +38,23 @@ function ll_tools_vocab_lesson_recent_update_guard_active(): bool {
     return (bool) get_transient(LL_TOOLS_VOCAB_LESSON_RECENT_UPDATE_TRANSIENT);
 }
 
+/**
+ * Keep launch button order consistent across vocab lessons and wordset cards.
+ *
+ * @return string[]
+ */
+function ll_tools_get_study_launch_mode_order(bool $include_gender = false): array {
+    $modes = ['learning', 'practice', 'listening'];
+
+    if ($include_gender) {
+        $modes[] = 'gender';
+    }
+
+    $modes[] = 'self-check';
+
+    return $modes;
+}
+
 function ll_tools_get_vocab_lesson_trash_notice_state(): array {
     $raw = get_option(LL_TOOLS_VOCAB_LESSON_TRASH_NOTICE_OPTION, []);
     if (!is_array($raw)) {

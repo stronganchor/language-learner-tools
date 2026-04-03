@@ -941,15 +941,13 @@ if (have_posts()) {
                 <div class="ll-vocab-lesson-actions">
                     <div class="ll-vocab-lesson-modes" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                         <?php
-                        $lesson_modes = $gender_quiz_available
-                            ? ['practice', 'learning', 'self-check', 'gender', 'listening']
-                            : ['practice', 'learning', 'self-check', 'listening'];
+                        $lesson_modes = ll_tools_get_study_launch_mode_order($gender_quiz_available);
                         $fallback_icons = [
-                            'practice' => '❓',
                             'learning' => '🎓',
-                            'self-check' => '✔✖',
-                            'gender' => '⚥',
+                            'practice' => '❓',
                             'listening' => '🎧',
+                            'gender' => '⚥',
+                            'self-check' => '✔✖',
                         ];
                         ?>
                         <?php foreach ($lesson_modes as $mode) : ?>

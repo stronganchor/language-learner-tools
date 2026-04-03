@@ -42,11 +42,11 @@ function buildLessonHeroMarkup() {
           </div>
           <div class="ll-vocab-lesson-actions">
             <div class="ll-vocab-lesson-modes">
-              <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Practice</span></button>
               <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Learn</span></button>
-              <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Self check</span></button>
-              <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Gender</span></button>
+              <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Practice</span></button>
               <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Listen</span></button>
+              <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Gender</span></button>
+              <button type="button" class="ll-vocab-lesson-mode-button"><span class="ll-vocab-lesson-mode-label">Self check</span></button>
             </div>
           </div>
         </div>

@@ -5364,11 +5364,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <span class="ll-wordset-selection-bar__text" data-ll-wordset-progress-selection-count><?php echo esc_html__('0 selected words', 'll-tools-text-domain'); ?></span>
                             <div class="ll-wordset-selection-bar__actions">
                                 <?php
-                                $progress_selection_modes = ['learning', 'practice', 'listening'];
-                                if ($gender_enabled) {
-                                    $progress_selection_modes[] = 'gender';
-                                }
-                                $progress_selection_modes[] = 'self-check';
+                                $progress_selection_modes = ll_tools_get_study_launch_mode_order($gender_enabled);
                                 foreach ($progress_selection_modes as $mode) :
                                 ?>
                                     <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-wordset-progress-selection-mode data-mode="<?php echo esc_attr($mode); ?>">
@@ -5633,11 +5629,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <section class="ll-wordset-top-actions">
                 <div class="ll-wordset-mode-buttons" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                     <?php
-                    $top_modes = ['learning', 'practice', 'listening'];
-                    if ($gender_mode_available) {
-                        $top_modes[] = 'gender';
-                    }
-                    $top_modes[] = 'self-check';
+                    $top_modes = ll_tools_get_study_launch_mode_order($gender_mode_available);
                     foreach ($top_modes as $mode) :
                     ?>
                         <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button" data-ll-wordset-start-mode data-mode="<?php echo esc_attr($mode); ?>">
@@ -5810,11 +5802,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             </div>
                             <div class="ll-wordset-card__quiz-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Quiz modes for %s', 'll-tools-text-domain'), $cat['name'])); ?>">
                                 <?php
-                                $card_modes = ['learning', 'practice', 'listening'];
-                                if ($gender_enabled && !empty($cat['gender_supported'])) {
-                                    $card_modes[] = 'gender';
-                                }
-                                $card_modes[] = 'self-check';
+                                $card_modes = ll_tools_get_study_launch_mode_order($gender_enabled && !empty($cat['gender_supported']));
                                 foreach ($card_modes as $mode) :
                                 ?>
                                     <button type="button" class="ll-wordset-card__quiz-btn" data-ll-wordset-category-mode data-mode="<?php echo esc_attr($mode); ?>" data-cat-id="<?php echo esc_attr($cat_id); ?>" aria-label="<?php echo esc_attr(sprintf(__('%1$s: %2$s', 'll-tools-text-domain'), $mode_labels[$mode] ?? ucfirst($mode), $cat['name'])); ?>">
@@ -5854,11 +5842,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </label>
                 <div class="ll-wordset-selection-bar__actions">
                     <?php
-                    $selection_modes = ['learning', 'practice', 'listening'];
-                    if ($gender_mode_available) {
-                        $selection_modes[] = 'gender';
-                    }
-                    $selection_modes[] = 'self-check';
+                    $selection_modes = ll_tools_get_study_launch_mode_order($gender_mode_available);
                     foreach ($selection_modes as $mode) :
                     ?>
                         <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-mode-button ll-wordset-mode-button--tiny" data-ll-wordset-selection-mode data-mode="<?php echo esc_attr($mode); ?>">
