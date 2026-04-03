@@ -1239,6 +1239,32 @@ function ll_tools_get_admin_maintenance_tasks(): array {
         }
     }
 
+    if (function_exists('ll_tools_ipa_keyboard_get_flagged_validation_recording_count')) {
+        $flagged_transcription_count = ll_tools_ipa_keyboard_get_flagged_validation_recording_count();
+        if ($flagged_transcription_count > 0) {
+            $tasks[] = [
+                'key' => 'transcription_validation',
+                'url' => admin_url('tools.php?page=ll-ipa-keyboard&tab=search&issues=1'),
+                'screen_id' => 'tools_page_ll-ipa-keyboard',
+                'screen_query_args' => [
+                    'tab' => 'search',
+                    'issues' => '1',
+                ],
+                'title' => __('Transcription Manager', 'll-tools-text-domain'),
+                'message' => sprintf(
+                    /* translators: %d: number of recordings */
+                    _n(
+                        '%d recording has possible transcription issues',
+                        '%d recordings have possible transcription issues',
+                        $flagged_transcription_count,
+                        'll-tools-text-domain'
+                    ),
+                    $flagged_transcription_count
+                ),
+            ];
+        }
+    }
+
     return $tasks;
 }
 

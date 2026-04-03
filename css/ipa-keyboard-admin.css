@@ -1,24 +1,130 @@
+.ll-ipa-admin {
+    --ll-ipa-border: #cbd5e1;
+    --ll-ipa-border-strong: #94a3b8;
+    --ll-ipa-bg-soft: #f8fafc;
+    --ll-ipa-bg-blue: #eff6ff;
+    --ll-ipa-text: #0f172a;
+    --ll-ipa-muted: #64748b;
+    --ll-ipa-accent: #0f766e;
+    --ll-ipa-accent-strong: #115e59;
+    --ll-ipa-warning: #b45309;
+    --ll-ipa-warning-bg: #fff7ed;
+    --ll-ipa-ignored: #475569;
+    --ll-ipa-ignored-bg: #f1f5f9;
+}
+
+.ll-ipa-admin-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin: 18px 0 12px;
+}
+
 .ll-ipa-admin-controls,
-.ll-ipa-admin-add {
+.ll-ipa-admin-add,
+.ll-ipa-search-controls {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    margin: 12px 0;
 }
 
 .ll-ipa-wordset-select,
-.ll-ipa-add-input {
-    min-width: 240px;
+.ll-ipa-add-input,
+.ll-ipa-search-input,
+.ll-ipa-search-scope {
+    min-width: 220px;
+}
+
+.ll-ipa-tabs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ll-ipa-tab-button {
+    appearance: none;
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 999px;
+    background: #ffffff;
+    color: var(--ll-ipa-text);
+    padding: 8px 14px;
+    line-height: 1.2;
+    cursor: pointer;
+    font-weight: 600;
+    box-shadow: none;
+}
+
+.ll-ipa-tab-button:hover {
+    background: var(--ll-ipa-bg-soft);
+}
+
+.ll-ipa-tab-button.is-active {
+    border-color: var(--ll-ipa-accent);
+    background: #ecfdf5;
+    color: var(--ll-ipa-accent-strong);
+}
+
+.ll-ipa-tab-button:focus-visible {
+    outline: 3px solid #38bdf8;
+    outline-offset: 2px;
 }
 
 .ll-ipa-admin-status {
     margin: 10px 0 0;
-    color: #0f172a;
+    color: var(--ll-ipa-text);
 }
 
 .ll-ipa-admin-status.is-error {
     color: #b91c1c;
+}
+
+.ll-ipa-admin-panels {
+    display: grid;
+    gap: 24px;
+    margin-top: 18px;
+}
+
+.ll-ipa-panel {
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 14px;
+    background: #ffffff;
+    padding: 18px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.ll-ipa-panel h2,
+.ll-ipa-panel h3 {
+    margin: 0 0 6px;
+}
+
+.ll-ipa-panel .description,
+.ll-ipa-search-hint {
+    margin: 0 0 12px;
+    color: var(--ll-ipa-muted);
+}
+
+.ll-ipa-search-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ll-ipa-text);
+}
+
+.ll-ipa-search-summary {
+    margin: 6px 0 0;
+    color: var(--ll-ipa-muted);
+    font-weight: 600;
+}
+
+.ll-ipa-empty {
+    padding: 12px;
+    border: 1px dashed var(--ll-ipa-border);
+    border-radius: 10px;
+    background: var(--ll-ipa-bg-soft);
+    color: #475569;
 }
 
 .ll-ipa-symbols {
@@ -27,31 +133,8 @@
     margin-top: 16px;
 }
 
-.ll-ipa-admin-sections {
-    display: grid;
-    gap: 24px;
-    margin-top: 16px;
-}
-
-.ll-ipa-admin-section h2 {
-    margin: 0 0 6px;
-}
-
-.ll-ipa-admin-section .description {
-    margin: 0 0 12px;
-    color: #64748b;
-}
-
-.ll-ipa-empty {
-    padding: 12px;
-    border: 1px dashed #cbd5e1;
-    border-radius: 8px;
-    background: #f8fafc;
-    color: #475569;
-}
-
 .ll-ipa-symbol {
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--ll-ipa-border);
     border-radius: 10px;
     background: #ffffff;
     overflow: hidden;
@@ -64,7 +147,7 @@
     align-items: center;
     gap: 12px;
     padding: 10px 12px;
-    background: #f8fafc;
+    background: var(--ll-ipa-bg-soft);
 }
 
 .ll-ipa-symbol > summary::-webkit-details-marker {
@@ -76,10 +159,35 @@
     font-weight: 600;
 }
 
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-symbol-text {
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-symbol-text,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-search-ipa-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-add-symbols,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-token,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-sample-ipa,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-blocked-symbol,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-rule-target,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-rule-previous,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-rule-next,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-search-issue-samples code {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
     font-variant-ligatures: none;
+}
+
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-symbol-text,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-search-ipa-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-add-symbols,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-token,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-sample-ipa,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-blocked-symbol,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-input,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-rule-target,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-rule-previous,
+.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-rule-next {
+    font-style: italic;
 }
 
 .ll-ipa-symbol-count {
@@ -96,8 +204,17 @@
 }
 
 .ll-ipa-recordings th,
-.ll-ipa-recordings td {
+.ll-ipa-recordings td,
+.ll-ipa-letter-table th,
+.ll-ipa-letter-table td,
+.ll-ipa-search-table th,
+.ll-ipa-search-table td {
     vertical-align: top;
+}
+
+.ll-ipa-recordings td:last-child,
+.ll-ipa-search-table td:last-child {
+    width: 120px;
 }
 
 .ll-ipa-recording-cell {
@@ -108,7 +225,7 @@
 }
 
 .ll-ipa-recording-type-label {
-    color: #0f172a;
+    color: var(--ll-ipa-text);
 }
 
 .ll-ipa-admin .ll-study-recording-btn {
@@ -116,11 +233,11 @@
     min-height: 32px !important;
     min-width: 74px !important;
     border-radius: 8px !important;
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid var(--ll-ipa-border) !important;
     background: #ffffff !important;
     background-color: #ffffff !important;
     background-image: none !important;
-    color: #0f172a !important;
+    color: var(--ll-ipa-text) !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
@@ -226,43 +343,45 @@
     100% { transform: scaleY(1.1); }
 }
 
-.ll-ipa-recordings td:last-child {
-    width: 120px;
-}
-
-.ll-ipa-input {
+.ll-ipa-input,
+.ll-ipa-search-input-field {
     width: 100%;
-    max-width: 280px;
-}
-
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-input {
-    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
-    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
-    font-variant-ligatures: none;
+    max-width: 320px;
 }
 
 .ll-ipa-translation {
-    color: #64748b;
+    color: var(--ll-ipa-muted);
 }
 
 .ll-ipa-letter-map {
     margin-top: 12px;
 }
 
-.ll-ipa-map-add {
-    border: 1px solid #cbd5e1;
+.ll-ipa-map-add,
+.ll-ipa-rules-panel,
+.ll-ipa-search-results,
+.ll-ipa-search-table {
+    margin-top: 12px;
+}
+
+.ll-ipa-map-add,
+.ll-ipa-rules-panel {
+    border: 1px solid var(--ll-ipa-border);
     border-radius: 10px;
     background: #ffffff;
     padding: 12px;
-    margin-bottom: 12px;
 }
 
-.ll-ipa-map-add-title {
+.ll-ipa-map-add-title,
+.ll-ipa-map-blocked-title,
+.ll-ipa-rules-subtitle {
     font-weight: 600;
     margin-bottom: 8px;
 }
 
-.ll-ipa-map-add-fields {
+.ll-ipa-map-add-fields,
+.ll-ipa-map-controls,
+.ll-ipa-rule-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -270,28 +389,21 @@
 }
 
 .ll-ipa-map-add-letter,
-.ll-ipa-map-add-symbols {
-    min-width: 200px;
+.ll-ipa-map-add-symbols,
+.ll-ipa-map-input,
+.ll-ipa-rule-input {
+    min-width: 180px;
     padding: 6px 8px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--ll-ipa-border);
     border-radius: 6px;
+    box-sizing: border-box;
 }
 
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-add-symbols {
-    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
-    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
-    font-variant-ligatures: none;
-}
-
-.ll-ipa-map-add-hint {
+.ll-ipa-map-add-hint,
+.ll-ipa-rule-hint {
     margin-top: 6px;
-    color: #64748b;
+    color: var(--ll-ipa-muted);
     font-size: 12px;
-}
-
-.ll-ipa-letter-table th,
-.ll-ipa-letter-table td {
-    vertical-align: top;
 }
 
 .ll-ipa-map-letter {
@@ -299,10 +411,14 @@
     font-weight: 600;
 }
 
-.ll-ipa-map-auto {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+.ll-ipa-map-auto,
+.ll-ipa-map-blocked-list,
+.ll-ipa-search-categories,
+.ll-ipa-search-issues-wrap,
+.ll-ipa-rules-builtins,
+.ll-ipa-rule-list {
+    display: grid;
+    gap: 8px;
 }
 
 .ll-ipa-map-token-wrap {
@@ -325,17 +441,13 @@
     padding: 4px 8px;
     border-radius: 999px;
     background: #e2e8f0;
-    color: #0f172a;
+    color: var(--ll-ipa-text);
     font-size: 14px;
 }
 
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-token {
-    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
-    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
-    font-variant-ligatures: none;
-}
-
-.ll-ipa-map-token-count {
+.ll-ipa-map-token-count,
+.ll-ipa-map-blocked-count,
+.ll-ipa-search-issue-count {
     font-size: 11px;
     color: #475569;
 }
@@ -360,7 +472,12 @@
     background: #ffe4e6;
 }
 
-.ll-ipa-map-block:disabled {
+.ll-ipa-map-block:disabled,
+.ll-ipa-map-unblock:disabled,
+.ll-ipa-map-button:disabled,
+.ll-ipa-rule-remove:disabled,
+.ll-ipa-rule-add:disabled,
+.ll-ipa-rule-save:disabled {
     opacity: 0.6;
     cursor: not-allowed;
 }
@@ -402,7 +519,7 @@
 }
 
 .ll-ipa-map-sample-link {
-    color: #0f172a;
+    color: var(--ll-ipa-text);
     text-decoration: none;
 }
 
@@ -417,31 +534,15 @@
 }
 
 .ll-ipa-map-sample-label {
-    color: #64748b;
-}
-
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-sample-ipa {
-    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
-    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
-    font-variant-ligatures: none;
+    color: var(--ll-ipa-muted);
 }
 
 .ll-ipa-map-blocked {
     margin-top: 16px;
     padding: 12px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid var(--ll-ipa-border);
     border-radius: 10px;
     background: #ffffff;
-}
-
-.ll-ipa-map-blocked-title {
-    font-weight: 600;
-    margin-bottom: 8px;
-}
-
-.ll-ipa-map-blocked-list {
-    display: grid;
-    gap: 8px;
 }
 
 .ll-ipa-map-blocked-item {
@@ -453,7 +554,7 @@
     padding: 6px 8px;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
-    background: #f8fafc;
+    background: var(--ll-ipa-bg-soft);
 }
 
 .ll-ipa-map-blocked-label {
@@ -461,90 +562,24 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
-    color: #0f172a;
+    color: var(--ll-ipa-text);
     font-size: 13px;
 }
 
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-blocked-symbol {
-    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
-    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
-    font-variant-ligatures: none;
-}
-
-.ll-ipa-map-blocked-count {
-    color: #64748b;
-    font-size: 12px;
-}
-
-.ll-ipa-map-unblock {
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #0f172a;
-    padding: 4px 10px;
-    border-radius: 999px;
-    cursor: pointer;
-    font-size: 12px;
-}
-
-.ll-ipa-map-unblock:hover {
-    background: #e2e8f0;
-}
-
-.ll-ipa-map-unblock:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-}
-
-.ll-ipa-map-empty {
-    color: #64748b;
-    font-style: italic;
-}
-
-.ll-ipa-map-controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-}
-
-.ll-ipa-map-input {
-    min-width: 220px;
-    max-width: 320px;
-}
-
-.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-map-input {
-    font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
-    font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
-    font-variant-ligatures: none;
-}
-
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-symbol-text,
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-input,
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-add-symbols,
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-token,
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-sample-ipa,
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-blocked-symbol,
-.ll-ipa-admin[data-ll-secondary-text-mode="transliteration"] .ll-ipa-map-input {
-    font-style: italic;
-}
-
+.ll-ipa-map-unblock,
 .ll-ipa-map-button {
-    border: 1px solid #cbd5e1;
-    background: #f8fafc;
-    color: #0f172a;
+    border: 1px solid var(--ll-ipa-border);
+    background: var(--ll-ipa-bg-soft);
+    color: var(--ll-ipa-text);
     padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 13px;
 }
 
+.ll-ipa-map-unblock:hover,
 .ll-ipa-map-button:hover {
     background: #e2e8f0;
-}
-
-.ll-ipa-map-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
 }
 
 .ll-ipa-map-save {
@@ -565,4 +600,214 @@
 
 .ll-ipa-map-clear:hover {
     background: #ffedd5;
+}
+
+.ll-ipa-search-table {
+    width: 100%;
+}
+
+.ll-ipa-search-thumb {
+    display: block;
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid var(--ll-ipa-border);
+    background: var(--ll-ipa-bg-soft);
+}
+
+.ll-ipa-search-empty {
+    color: var(--ll-ipa-muted);
+}
+
+.ll-ipa-search-categories {
+    gap: 6px;
+}
+
+.ll-ipa-search-category-link {
+    color: #0f766e;
+    text-decoration: none;
+}
+
+.ll-ipa-search-category-link:hover {
+    text-decoration: underline;
+}
+
+.ll-ipa-search-issues-cell {
+    min-width: 260px;
+}
+
+.ll-ipa-search-issue {
+    border: 1px solid #fdba74;
+    background: var(--ll-ipa-warning-bg);
+    color: #78350f;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+.ll-ipa-search-issue.is-ignored {
+    border-color: var(--ll-ipa-border);
+    background: var(--ll-ipa-ignored-bg);
+    color: var(--ll-ipa-ignored);
+}
+
+.ll-ipa-search-issue-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.ll-ipa-search-issue-title {
+    font-weight: 600;
+}
+
+.ll-ipa-search-issue-message {
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.ll-ipa-search-issue-samples {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.ll-ipa-search-issue-samples code {
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.75);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    font-size: 12px;
+}
+
+.ll-ipa-search-ignored {
+    display: grid;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ll-ipa-search-ignored-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ll-ipa-muted);
+}
+
+.ll-ipa-issue-toggle {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #0f766e;
+    cursor: pointer;
+    text-align: left;
+    font-size: 12px;
+}
+
+.ll-ipa-rule-list {
+    margin-top: 10px;
+}
+
+.ll-ipa-rule-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 1.2fr) minmax(90px, 0.7fr) minmax(120px, 1fr) minmax(120px, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-ipa-builtin-rule {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px;
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 10px;
+    background: var(--ll-ipa-bg-soft);
+}
+
+.ll-ipa-builtin-copy {
+    display: grid;
+    gap: 4px;
+}
+
+.ll-ipa-builtin-title {
+    font-weight: 600;
+    color: var(--ll-ipa-text);
+}
+
+.ll-ipa-builtin-description {
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.ll-ipa-rules-builtins,
+.ll-ipa-rules-custom {
+    display: grid;
+    gap: 12px;
+}
+
+.ll-ipa-rules-custom {
+    margin-top: 18px;
+}
+
+@media (max-width: 960px) {
+    .ll-ipa-admin-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ll-ipa-tabs {
+        width: 100%;
+    }
+
+    .ll-ipa-tab-button {
+        flex: 1 1 auto;
+        text-align: center;
+    }
+
+    .ll-ipa-search-table {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .ll-ipa-rule-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .ll-ipa-panel {
+        padding: 14px;
+    }
+
+    .ll-ipa-search-controls,
+    .ll-ipa-admin-controls,
+    .ll-ipa-admin-add,
+    .ll-ipa-map-add-fields,
+    .ll-ipa-map-controls,
+    .ll-ipa-rule-actions {
+        align-items: stretch;
+    }
+
+    .ll-ipa-wordset-select,
+    .ll-ipa-add-input,
+    .ll-ipa-search-input,
+    .ll-ipa-search-scope,
+    .ll-ipa-map-add-letter,
+    .ll-ipa-map-add-symbols,
+    .ll-ipa-map-input,
+    .ll-ipa-rule-input {
+        min-width: 0;
+        width: 100%;
+        max-width: none;
+    }
+
+    .ll-ipa-search-thumb {
+        width: 52px;
+        height: 52px;
+    }
 }
