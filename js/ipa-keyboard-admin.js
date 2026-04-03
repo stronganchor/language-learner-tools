@@ -442,12 +442,18 @@
     }
 
     function loadSearch(wordsetId, shouldLoad, options) {
-        const settings = $.extend({ quietStatus: false }, options || {});
+        const settings = $.extend({ quietStatus: false, showLoading: null }, options || {});
         if (!shouldLoad) {
             return;
         }
 
         const searchState = getSearchState();
+        if (settings.showLoading === null) {
+            settings.showLoading = !settings.quietStatus;
+        }
+        if (settings.showLoading) {
+            renderSearchLoading();
+        }
         if (!settings.quietStatus) {
             setStatus(t('searchLoading', 'Searching recordings...'), false);
         }
@@ -470,8 +476,22 @@
                 setStatus('');
             }
         }).fail(function () {
+            if (settings.showLoading) {
+                $searchResults.empty();
+                setSearchSummary('');
+            }
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         });
+    }
+
+    function renderSearchLoading() {
+        setSearchSummary('');
+        $searchResults.empty().append(
+            $('<div>', { class: 'll-ipa-search-loading', 'aria-live': 'polite' })
+                .append($('<div>', { class: 'll-ipa-search-loading-bar', 'aria-hidden': 'true' }).append($('<span>')))
+                .append($('<div>', { class: 'll-ipa-search-loading-title', text: t('searchLoading', 'Searching recordings...') }))
+                .append($('<div>', { class: 'll-ipa-search-loading-hint', text: t('searchLoadingHint', 'This can take a moment for larger word sets.') }))
+        );
     }
 
     function getSymbolSummaryText(recordingCount, occurrenceCount) {

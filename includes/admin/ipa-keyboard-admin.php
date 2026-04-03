@@ -267,6 +267,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'tabSymbols' => __('IPA Special Characters', 'll-tools-text-domain'),
             'tabSearch' => __('Search', 'll-tools-text-domain'),
             'searchLoading' => __('Searching recordings...', 'll-tools-text-domain'),
+            'searchLoadingHint' => __('This can take a moment for larger word sets.', 'll-tools-text-domain'),
             'searchResultsEmpty' => __('No recordings matched this search.', 'll-tools-text-domain'),
             'searchSummary' => __('%1$d result', 'll-tools-text-domain'),
             'searchSummaryPlural' => __('%1$d results', 'll-tools-text-domain'),
