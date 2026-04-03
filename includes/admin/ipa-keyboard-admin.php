@@ -263,6 +263,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'mapAdd' => __('Add mapping', 'll-tools-text-domain'),
             'mapAddMissing' => __('Enter letters and characters to add.', 'll-tools-text-domain'),
             'playRecording' => __('Play recording', 'll-tools-text-domain'),
+            'downloadRecording' => __('Download recording', 'll-tools-text-domain'),
             'tabMap' => __('Letter to IPA Map', 'll-tools-text-domain'),
             'tabSymbols' => __('IPA Special Characters', 'll-tools-text-domain'),
             'tabSearch' => __('Search', 'll-tools-text-domain'),

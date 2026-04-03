@@ -260,13 +260,15 @@
         });
     }
 
-    function createAudioButton(rec, extraClass) {
+    function createAudioButton(rec, extraClass, options) {
+        const settings = $.extend({ showDownload: false }, options || {});
         const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
         const recordingType = rec && rec.recording_type ? rec.recording_type : '';
         const recordingTypeSlug = rec && rec.recording_type_slug ? rec.recording_type_slug : '';
         const recordingIconType = rec && rec.recording_icon_type ? rec.recording_icon_type : 'isolation';
         const audioUrl = rec && rec.audio_url ? rec.audio_url : '';
         const audioLabel = rec && rec.audio_label ? rec.audio_label : t('playRecording', 'Play recording');
+        const downloadLabel = t('downloadRecording', 'Download recording');
         if (!audioUrl) {
             return $('<span>', { class: 'll-ipa-search-audio-empty', text: '—' });
         }
@@ -287,8 +289,23 @@
         }
         $audioButton.append($visualizer);
 
+        const $buttons = $('<div>', { class: 'll-ipa-recording-buttons' }).append($audioButton);
+        if (settings.showDownload) {
+            $buttons.append(
+                $('<a>', {
+                    class: 'll-ipa-recording-download-btn',
+                    href: audioUrl,
+                    download: '',
+                    target: '_blank',
+                    rel: 'noopener',
+                    'aria-label': downloadLabel,
+                    title: downloadLabel
+                }).append($('<span>', { class: 'll-ipa-recording-download-icon', 'aria-hidden': 'true' }))
+            );
+        }
+
         const $wrap = $('<div>', { class: 'll-ipa-recording-cell' });
-        $wrap.append($audioButton);
+        $wrap.append($buttons);
         if (recordingType) {
             $wrap.append($('<span>', { class: 'll-ipa-recording-type-label', text: recordingType }));
         }
@@ -1097,7 +1114,7 @@
         }
         $mediaWrap.append($('<div>', {
             class: 'll-ipa-search-meta-recording'
-        }).append(createAudioButton(rec, 'll-ipa-search-audio-btn')));
+        }).append(createAudioButton(rec, 'll-ipa-search-audio-btn', { showDownload: true })));
 
         $metaWrap.append($wordWrap, $mediaWrap);
         $metaCell.append($metaWrap);

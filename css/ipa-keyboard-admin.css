@@ -224,6 +224,12 @@
     gap: 8px;
 }
 
+.ll-ipa-recording-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .ll-ipa-recording-type-label {
     color: var(--ll-ipa-text);
 }
@@ -263,6 +269,40 @@
 .ll-ipa-admin .ll-study-recording-btn:focus-visible {
     outline: 3px solid #38bdf8 !important;
     outline-offset: 2px;
+}
+
+.ll-ipa-recording-download-btn {
+    height: 32px;
+    width: 32px;
+    min-width: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--ll-ipa-border);
+    background: #ffffff;
+    color: var(--ll-ipa-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+}
+
+.ll-ipa-recording-download-btn:hover {
+    background: #e0f2fe;
+    border-color: #38bdf8;
+    color: #0ea5e9;
+}
+
+.ll-ipa-recording-download-btn:focus-visible {
+    outline: 3px solid #38bdf8;
+    outline-offset: 2px;
+}
+
+.ll-ipa-recording-download-icon::before {
+    content: "\2193";
+    display: block;
+    font-size: 16px;
+    line-height: 1;
 }
 
 .ll-ipa-admin .ll-study-recording-icon {
