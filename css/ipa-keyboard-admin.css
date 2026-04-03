@@ -604,12 +604,82 @@
 
 .ll-ipa-search-table {
     width: 100%;
+    table-layout: fixed;
+}
+
+.ll-ipa-search-table col.ll-ipa-search-col-meta {
+    width: 220px;
+}
+
+.ll-ipa-search-table col.ll-ipa-search-col-text {
+    width: 160px;
+}
+
+.ll-ipa-search-table col.ll-ipa-search-col-categories {
+    width: 150px;
+}
+
+.ll-ipa-search-table col.ll-ipa-search-col-checks {
+    width: 250px;
+}
+
+.ll-ipa-search-table col.ll-ipa-search-col-actions {
+    width: 92px;
+}
+
+.ll-ipa-search-table .ll-ipa-search-input-field {
+    max-width: none;
+    min-width: 0;
+}
+
+.ll-ipa-search-meta,
+.ll-ipa-search-meta-word,
+.ll-ipa-search-meta-media {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-ipa-search-word-link {
+    color: #2271b1;
+    font-weight: 600;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.ll-ipa-search-word-link:hover {
+    text-decoration: underline;
+}
+
+.ll-ipa-search-meta-recording .ll-ipa-recording-cell {
+    display: inline-grid;
+    justify-items: start;
+    gap: 6px;
+}
+
+.ll-ipa-search-meta-recording .ll-ipa-recording-type-label {
+    line-height: 1.3;
+}
+
+.ll-ipa-search-text-cell,
+.ll-ipa-search-ipa-cell,
+.ll-ipa-search-categories-cell,
+.ll-ipa-search-issues-cell,
+.ll-ipa-search-action-cell {
+    min-width: 0;
+}
+
+.ll-ipa-search-action-cell .button {
+    width: 100%;
+}
+
+.ll-ipa-search-action-cell {
+    width: 92px;
 }
 
 .ll-ipa-search-thumb {
     display: block;
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     object-fit: cover;
     border-radius: 10px;
     border: 1px solid var(--ll-ipa-border);
@@ -621,12 +691,14 @@
 }
 
 .ll-ipa-search-categories {
-    gap: 6px;
+    gap: 4px;
 }
 
 .ll-ipa-search-category-link {
     color: #0f766e;
     text-decoration: none;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
 .ll-ipa-search-category-link:hover {
@@ -634,7 +706,7 @@
 }
 
 .ll-ipa-search-issues-cell {
-    min-width: 260px;
+    min-width: 0;
 }
 
 .ll-ipa-search-issue {
@@ -642,7 +714,7 @@
     background: var(--ll-ipa-warning-bg);
     color: #78350f;
     border-radius: 10px;
-    padding: 8px 10px;
+    padding: 7px 9px;
 }
 
 .ll-ipa-search-issue.is-ignored {
@@ -665,8 +737,8 @@
 }
 
 .ll-ipa-search-issue-message {
-    font-size: 12px;
-    line-height: 1.45;
+    font-size: 11px;
+    line-height: 1.35;
 }
 
 .ll-ipa-search-issue-samples {

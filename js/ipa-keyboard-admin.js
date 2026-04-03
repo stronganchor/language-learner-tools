@@ -1044,30 +1044,42 @@
         const ignoredIssues = rec && rec.ignored_issues ? rec.ignored_issues : [];
         const transcription = getTranscription();
 
-        const $wordCell = $('<td>');
+        const $metaCell = $('<td>', { class: 'll-ipa-search-meta-cell' });
+        const $metaWrap = $('<div>', { class: 'll-ipa-search-meta' });
+        const $wordWrap = $('<div>', { class: 'll-ipa-search-meta-word' });
         if (rec && rec.word_edit_link) {
-            $wordCell.append($('<a>', {
+            $wordWrap.append($('<a>', {
+                class: 'll-ipa-search-word-link',
                 href: rec.word_edit_link,
                 target: '_blank',
                 text: rec.word_text || t('untitled', '(Untitled)')
             }));
         } else {
-            $wordCell.text(rec.word_text || t('untitled', '(Untitled)'));
+            $wordWrap.append($('<span>', {
+                class: 'll-ipa-search-word-link',
+                text: rec.word_text || t('untitled', '(Untitled)')
+            }));
         }
         if (rec && rec.word_translation) {
-            $wordCell.append($('<span>', { class: 'll-ipa-translation', text: ' (' + rec.word_translation + ')' }));
+            $wordWrap.append($('<span>', { class: 'll-ipa-translation', text: rec.word_translation }));
         }
 
-        const $imageCell = $('<td>');
+        const $mediaWrap = $('<div>', { class: 'll-ipa-search-meta-media' });
         if (image && image.url) {
-            $imageCell.append($('<img>', {
+            $mediaWrap.append($('<img>', {
                 class: 'll-ipa-search-thumb',
                 src: image.url,
                 alt: image.alt || ''
             }));
         } else {
-            $imageCell.append($('<span>', { class: 'll-ipa-search-empty', text: t('searchNoImage', 'No image') }));
+            $mediaWrap.append($('<span>', { class: 'll-ipa-search-empty', text: t('searchNoImage', 'No image') }));
         }
+        $mediaWrap.append($('<div>', {
+            class: 'll-ipa-search-meta-recording'
+        }).append(createAudioButton(rec, 'll-ipa-search-audio-btn')));
+
+        $metaWrap.append($wordWrap, $mediaWrap);
+        $metaCell.append($metaWrap);
 
         const $textInput = $('<input>', {
             type: 'text',
@@ -1095,14 +1107,12 @@
         );
 
         return $('<tr>', { 'data-recording-id': recordingId })
-            .append($wordCell)
-            .append($imageCell)
-            .append($('<td>').append(createAudioButton(rec, 'll-ipa-search-audio-btn')))
-            .append($('<td>').append($textInput))
-            .append($('<td>').append($ipaInput))
-            .append($('<td>').append(buildCategoriesCell(categories)))
+            .append($metaCell)
+            .append($('<td>', { class: 'll-ipa-search-text-cell' }).append($textInput))
+            .append($('<td>', { class: 'll-ipa-search-ipa-cell' }).append($ipaInput))
+            .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
-            .append($('<td>').append($saveBtn));
+            .append($('<td>', { class: 'll-ipa-search-action-cell' }).append($saveBtn));
     }
 
     function collectCustomRules() {
@@ -1268,11 +1278,16 @@
         setSearchSummary(summary + (hasMore ? ' ' + formatText(t('searchTooMany', 'Showing the first %1$d results. Narrow the search to see more.'), [shownCount]) : ''));
 
         const $table = $('<table>', { class: 'widefat striped ll-ipa-search-table' });
+        const $colgroup = $('<colgroup>')
+            .append($('<col>', { class: 'll-ipa-search-col-meta' }))
+            .append($('<col>', { class: 'll-ipa-search-col-text' }))
+            .append($('<col>', { class: 'll-ipa-search-col-ipa' }))
+            .append($('<col>', { class: 'll-ipa-search-col-categories' }))
+            .append($('<col>', { class: 'll-ipa-search-col-checks' }))
+            .append($('<col>', { class: 'll-ipa-search-col-actions' }));
         const $thead = $('<thead>').append(
             $('<tr>')
                 .append($('<th>', { text: t('searchWordLabel', 'Word') }))
-                .append($('<th>', { text: t('searchImageLabel', 'Image') }))
-                .append($('<th>', { text: t('recordingColumnLabel', 'Recording') }))
                 .append($('<th>', { text: t('textColumnLabel', 'Text') }))
                 .append($('<th>', { text: getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation') }))
                 .append($('<th>', { text: t('searchCategoriesLabel', 'Categories') }))
@@ -1283,7 +1298,7 @@
         results.forEach(function (rec) {
             $tbody.append(buildSearchRow(rec));
         });
-        $table.append($thead, $tbody);
+        $table.append($colgroup, $thead, $tbody);
         $searchResults.append($table);
     }
 
