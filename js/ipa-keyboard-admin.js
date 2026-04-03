@@ -46,6 +46,7 @@
         symbols: true,
         search: true
     };
+    let searchRulesExpanded = false;
     let letterMapRefreshTimer = null;
     let letterMapRefreshRequestId = 0;
 
@@ -1148,13 +1149,30 @@
 
         $searchRules.empty();
 
+        const $details = $('<details>', { class: 'll-ipa-rules-disclosure' });
+        if (searchRulesExpanded) {
+            $details.prop('open', true);
+        }
+
+        const $summary = $('<summary>', { class: 'll-ipa-rules-summary' });
+        $summary.append($('<span>', {
+            class: 'll-ipa-rules-summary-title',
+            text: t('searchRulesSummary', 'IPA checks and typo rules')
+        }));
+        $summary.append($('<span>', {
+            class: 'll-ipa-rules-summary-hint',
+            text: t('searchRulesSummaryHint', 'Expand to review built-in checks and wordset-specific IPA rules.')
+        }));
+        $details.append($summary);
+
         const $panel = $('<div>', { class: 'll-ipa-rules-panel' });
         $panel.append($('<h3>', { text: t('searchRulesTitle', 'Wordset-specific IPA checks') }));
         $panel.append($('<p>', { class: 'description', text: t('searchRulesDescription', 'Add sounds that should never appear in this word set, or ban sounds in specific immediate environments.') }));
 
         if (!supportsRules) {
             $panel.append($('<div>', { class: 'll-ipa-empty', text: t('searchRulesUnavailable', 'Custom IPA checks are only available when this word set uses IPA transcription mode.') }));
-            $searchRules.append($panel);
+            $details.append($panel);
+            $searchRules.append($details);
             return;
         }
 
@@ -1250,7 +1268,8 @@
         $customWrap.append($actions);
         $panel.append($customWrap);
 
-        $searchRules.append($panel);
+        $details.append($panel);
+        $searchRules.append($details);
     }
 
     function renderSearch(payload) {
@@ -1739,6 +1758,10 @@
         }).always(function () {
             $btn.prop('disabled', !currentCanEdit);
         });
+    });
+
+    $searchRules.on('toggle', '.ll-ipa-rules-disclosure', function () {
+        searchRulesExpanded = !!this.open;
     });
 
     function init() {

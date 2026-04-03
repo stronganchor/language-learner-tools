@@ -172,7 +172,7 @@ function ll_tools_ipa_keyboard_get_requested_search_state(): array {
 
     $issues_only = isset($_GET['issues'])
         ? (sanitize_text_field(wp_unslash((string) $_GET['issues'])) === '1')
-        : ($query === '');
+        : false;
 
     return [
         'query' => $query,
@@ -283,6 +283,8 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchIgnoredLabel' => __('Ignored', 'll-tools-text-domain'),
             'searchReviewIssues' => __('Review warnings', 'll-tools-text-domain'),
             'searchPatternHint' => __('Use * as a wildcard.', 'll-tools-text-domain'),
+            'searchRulesSummary' => __('IPA checks and typo rules', 'll-tools-text-domain'),
+            'searchRulesSummaryHint' => __('Expand to review built-in checks and wordset-specific IPA rules.', 'll-tools-text-domain'),
             'searchRulesTitle' => __('Wordset-specific IPA checks', 'll-tools-text-domain'),
             'searchRulesDescription' => __('Add sounds that should never appear in this word set, or ban sounds in specific immediate environments.', 'll-tools-text-domain'),
             'searchBuiltinsTitle' => __('Standard IPA checks', 'll-tools-text-domain'),
@@ -375,8 +377,8 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '</section>';
 
     echo '<section class="ll-ipa-panel" id="ll-ipa-panel-search" data-ll-tab-panel="search" role="tabpanel" aria-labelledby="ll-ipa-tab-search"' . ($initial_tab === 'search' ? '' : ' hidden') . '>';
-    echo '<h2>' . esc_html__('Search and Checks', 'll-tools-text-domain') . '</h2>';
-    echo '<p class="description">' . esc_html__('Search written text or IPA, edit recordings inline, and review likely typo warnings.', 'll-tools-text-domain') . '</p>';
+    echo '<h2>' . esc_html__('Search', 'll-tools-text-domain') . '</h2>';
+    echo '<p class="description">' . esc_html__('Search written text or IPA and edit recordings inline. Typo checks are available below as an advanced section.', 'll-tools-text-domain') . '</p>';
     echo '<div class="ll-ipa-search-controls">';
     echo '<label class="screen-reader-text" for="ll-ipa-search-query">' . esc_html__('Search recordings', 'll-tools-text-domain') . '</label>';
     echo '<input type="search" id="ll-ipa-search-query" class="ll-ipa-search-input" value="' . esc_attr($initial_search['query']) . '" placeholder="' . esc_attr__('Search written text or IPA', 'll-tools-text-domain') . '" />';
@@ -392,10 +394,22 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '</label>';
     echo '<button type="button" class="button button-primary" id="ll-ipa-search-btn">' . esc_html__('Search', 'll-tools-text-domain') . '</button>';
     echo '</div>';
-    echo '<p class="ll-ipa-search-hint description">' . esc_html__('Use * as a wildcard when needed. Leave the query empty to review flagged recordings in this word set.', 'll-tools-text-domain') . '</p>';
+    echo '<details class="ll-ipa-search-help">';
+    echo '<summary>' . esc_html__('Pattern help', 'll-tools-text-domain') . '</summary>';
+    echo '<div class="ll-ipa-search-help-body">';
+    echo '<p class="description">' . esc_html__('Use plain text for simple searches. For IPA context searches, switch to Transcription only and use one of these patterns:', 'll-tools-text-domain') . '</p>';
+    echo '<ul class="ll-ipa-search-help-list">';
+    echo '<li><code>k !> ʰ</code> ' . esc_html__('Find k not immediately followed by ʰ.', 'll-tools-text-domain') . '</li>';
+    echo '<li><code>k > [i e]</code> ' . esc_html__('Find k immediately followed by i or e.', 'll-tools-text-domain') . '</li>';
+    echo '<li><code>k < [a o u]</code> ' . esc_html__('Find k immediately preceded by a, o, or u.', 'll-tools-text-domain') . '</li>';
+    echo '<li><code>rx:k(?!ʰ)</code> ' . esc_html__('Run a regex search on the current field.', 'll-tools-text-domain') . '</li>';
+    echo '<li><code>*</code> / <code>?</code> ' . esc_html__('Use wildcard matches for simpler text searches.', 'll-tools-text-domain') . '</li>';
+    echo '</ul>';
+    echo '</div>';
+    echo '</details>';
     echo '<div id="ll-ipa-search-summary" class="ll-ipa-search-summary" aria-live="polite"></div>';
-    echo '<div id="ll-ipa-search-rules" class="ll-ipa-search-rules"></div>';
     echo '<div id="ll-ipa-search-results" class="ll-ipa-search-results"></div>';
+    echo '<div id="ll-ipa-search-rules" class="ll-ipa-search-rules"></div>';
     echo '</section>';
 
     echo '</div>';
@@ -2248,6 +2262,20 @@ function ll_tools_ipa_keyboard_text_matches_pattern(string $value, string $query
         return true;
     }
 
+    if (stripos($query, 'rx:') === 0) {
+        $pattern = trim(substr($query, 3));
+        if ($pattern === '') {
+            return false;
+        }
+
+        if ($pattern[0] !== '/') {
+            $pattern = '/' . str_replace('/', '\/', $pattern) . '/u';
+        }
+
+        $result = @preg_match($pattern, $value);
+        return ($result === 1);
+    }
+
     if (strpos($query, '*') !== false || strpos($query, '?') !== false) {
         $pattern = preg_quote($query, '/');
         $pattern = str_replace(['\*', '\?'], ['.*', '.'], $pattern);
@@ -2261,7 +2289,151 @@ function ll_tools_ipa_keyboard_text_matches_pattern(string $value, string $query
     return stripos($value, $query) !== false;
 }
 
-function ll_tools_ipa_keyboard_recording_matches_search(array $payload, string $query, string $scope = 'both'): bool {
+function ll_tools_ipa_keyboard_tokenize_search_transcription(string $value, string $mode = 'ipa'): array {
+    $value = trim($value);
+    if ($value === '') {
+        return [];
+    }
+
+    $value = function_exists('ll_tools_word_grid_sanitize_ipa')
+        ? ll_tools_word_grid_sanitize_ipa($value, $mode)
+        : sanitize_text_field($value);
+    $tokens = function_exists('ll_tools_word_grid_tokenize_ipa')
+        ? ll_tools_word_grid_tokenize_ipa($value, $mode)
+        : preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+    if (empty($tokens)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ((array) $tokens as $token) {
+        $token = ll_tools_ipa_keyboard_normalize_ipa_token((string) $token, $mode);
+        if ($token !== '') {
+            $normalized[] = $token;
+        }
+    }
+
+    return $normalized;
+}
+
+function ll_tools_ipa_keyboard_parse_search_sequence_alternatives(string $value, string $mode = 'ipa'): array {
+    $value = trim($value);
+    if ($value === '') {
+        return [];
+    }
+
+    if (preg_match('/^\[(.*)\]$/u', $value, $matches)) {
+        $parts = preg_split('/\s*(?:\||,)\s*|\s+/u', trim((string) $matches[1]), -1, PREG_SPLIT_NO_EMPTY);
+        $alternatives = [];
+        foreach ((array) $parts as $part) {
+            $tokens = ll_tools_ipa_keyboard_tokenize_search_transcription((string) $part, $mode);
+            if (!empty($tokens)) {
+                $alternatives[] = $tokens;
+            }
+        }
+        return $alternatives;
+    }
+
+    $tokens = ll_tools_ipa_keyboard_tokenize_search_transcription($value, $mode);
+    return empty($tokens) ? [] : [$tokens];
+}
+
+function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $offset, array $sequence): bool {
+    $sequence = array_values(array_filter(array_map('strval', $sequence), static function (string $token): bool {
+        return $token !== '';
+    }));
+    if ($offset < 0 || empty($sequence) || ($offset + count($sequence)) > count($tokens)) {
+        return false;
+    }
+
+    foreach ($sequence as $index => $token) {
+        if ((string) ($tokens[$offset + $index] ?? '') !== $token) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_ipa_keyboard_search_any_sequence_matches_at(array $tokens, int $offset, array $alternatives): bool {
+    foreach ($alternatives as $sequence) {
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $offset, (array) $sequence)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_ipa_keyboard_search_any_sequence_ends_at(array $tokens, int $end_offset, array $alternatives): bool {
+    foreach ($alternatives as $sequence) {
+        $sequence = array_values((array) $sequence);
+        $start_offset = $end_offset - count($sequence);
+        if ($start_offset < 0) {
+            continue;
+        }
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $start_offset, $sequence)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_ipa_keyboard_transcription_matches_advanced_pattern(string $value, string $query, string $mode = 'ipa'): ?bool {
+    $query = trim($query);
+    if ($query === '' || stripos($query, 'rx:') === 0) {
+        return null;
+    }
+
+    if (!preg_match('/^(.+?)\s*(!?>|!?<|>|<)\s*(.+)$/u', $query, $matches)) {
+        return null;
+    }
+
+    $left_alternatives = ll_tools_ipa_keyboard_parse_search_sequence_alternatives((string) $matches[1], $mode);
+    $right_alternatives = ll_tools_ipa_keyboard_parse_search_sequence_alternatives((string) $matches[3], $mode);
+    $tokens = ll_tools_ipa_keyboard_tokenize_search_transcription($value, $mode);
+    if (empty($left_alternatives) || empty($right_alternatives) || empty($tokens)) {
+        return false;
+    }
+
+    $operator = (string) $matches[2];
+    foreach ($tokens as $offset => $token) {
+        unset($token);
+        foreach ($left_alternatives as $sequence) {
+            $sequence = array_values((array) $sequence);
+            if (empty($sequence) || !ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, (int) $offset, $sequence)) {
+                continue;
+            }
+
+            $next_offset = (int) $offset + count($sequence);
+            $has_following_match = ll_tools_ipa_keyboard_search_any_sequence_matches_at($tokens, $next_offset, $right_alternatives);
+            $has_previous_match = ll_tools_ipa_keyboard_search_any_sequence_ends_at($tokens, (int) $offset, $right_alternatives);
+
+            if ($operator === '>' && $has_following_match) {
+                return true;
+            }
+            if ($operator === '!>' && !$has_following_match) {
+                return true;
+            }
+            if ($operator === '<' && $has_previous_match) {
+                return true;
+            }
+            if ($operator === '!<' && !$has_previous_match) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_ipa_keyboard_recording_matches_search(
+    array $payload,
+    string $query,
+    string $scope = 'both',
+    string $transcription_mode = 'ipa'
+): bool {
     $query = trim($query);
     if ($query === '') {
         return true;
@@ -2286,6 +2458,13 @@ function ll_tools_ipa_keyboard_recording_matches_search(array $payload, string $
 
     if ($scope === 'transcription') {
         foreach ($transcription_values as $value) {
+            $advanced_match = ll_tools_ipa_keyboard_transcription_matches_advanced_pattern($value, $query, $transcription_mode);
+            if ($advanced_match !== null) {
+                if ($advanced_match) {
+                    return true;
+                }
+                continue;
+            }
             if (ll_tools_ipa_keyboard_text_matches_pattern($value, $query)) {
                 return true;
             }
@@ -2293,7 +2472,20 @@ function ll_tools_ipa_keyboard_recording_matches_search(array $payload, string $
         return false;
     }
 
-    foreach (array_merge($written_values, $transcription_values) as $value) {
+    foreach ($written_values as $value) {
+        if (ll_tools_ipa_keyboard_text_matches_pattern($value, $query)) {
+            return true;
+        }
+    }
+
+    foreach ($transcription_values as $value) {
+        $advanced_match = ll_tools_ipa_keyboard_transcription_matches_advanced_pattern($value, $query, $transcription_mode);
+        if ($advanced_match !== null) {
+            if ($advanced_match) {
+                return true;
+            }
+            continue;
+        }
         if (ll_tools_ipa_keyboard_text_matches_pattern($value, $query)) {
             return true;
         }
@@ -2322,6 +2514,7 @@ function ll_tools_ipa_keyboard_search_recordings(
     bool $issues_only = false,
     int $limit = 200
 ): array {
+    $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
     $word_ids = ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id);
     if (empty($word_ids)) {
         return [
@@ -2370,7 +2563,7 @@ function ll_tools_ipa_keyboard_search_recordings(
             continue;
         }
 
-        if (!ll_tools_ipa_keyboard_recording_matches_search($payload, $query, $scope)) {
+        if (!ll_tools_ipa_keyboard_recording_matches_search($payload, $query, $scope, $transcription_mode)) {
             continue;
         }
 

@@ -359,17 +359,76 @@
 
 .ll-ipa-map-add,
 .ll-ipa-rules-panel,
+.ll-ipa-rules-disclosure,
+.ll-ipa-search-help,
 .ll-ipa-search-results,
 .ll-ipa-search-table {
     margin-top: 12px;
 }
 
 .ll-ipa-map-add,
-.ll-ipa-rules-panel {
+.ll-ipa-rules-disclosure,
+.ll-ipa-search-help {
     border: 1px solid var(--ll-ipa-border);
     border-radius: 10px;
     background: #ffffff;
+}
+
+.ll-ipa-map-add {
     padding: 12px;
+}
+
+.ll-ipa-rules-panel {
+    margin-top: 0;
+    border-top: 1px solid var(--ll-ipa-border);
+    padding: 12px;
+}
+
+.ll-ipa-search-help > summary,
+.ll-ipa-rules-summary {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+    padding: 12px;
+    font-weight: 600;
+    list-style: none;
+}
+
+.ll-ipa-search-help > summary::-webkit-details-marker,
+.ll-ipa-rules-summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-ipa-search-help-body {
+    border-top: 1px solid var(--ll-ipa-border);
+    padding: 12px;
+}
+
+.ll-ipa-search-help-list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+}
+
+.ll-ipa-search-help-list code {
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.ll-ipa-rules-summary-title,
+.ll-ipa-search-help > summary {
+    color: var(--ll-ipa-text);
+}
+
+.ll-ipa-rules-summary-hint {
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+    text-align: right;
 }
 
 .ll-ipa-map-add-title,
