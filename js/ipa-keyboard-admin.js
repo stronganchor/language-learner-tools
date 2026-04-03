@@ -1532,11 +1532,6 @@
         return values.recordingText !== values.savedText || values.recordingIpa !== values.savedIpa;
     }
 
-    function searchUsesFilteredView() {
-        const state = getSearchState();
-        return !!state.issuesOnly || !!state.reviewOnly;
-    }
-
     function updateSearchRowSavedValues($row) {
         $row.find('.ll-ipa-search-text-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-text-input').first().val() || '').toString());
         $row.find('.ll-ipa-search-ipa-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-ipa-input').first().val() || '').toString());
@@ -1597,13 +1592,7 @@
 
             const data = response.data || {};
             markTabsDirty(['map', 'symbols']);
-
-            if (searchUsesFilteredView()) {
-                setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
-                window.setTimeout(function () {
-                    loadSearch(currentWordsetId, true, { quietStatus: true, showLoading: false });
-                }, 250);
-            } else if (data.recording) {
+            if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
                 setSearchRowSaveState($newRow, 'saved', t('saved', 'Saved.'));
             } else {
@@ -1913,9 +1902,7 @@
             }
 
             const data = response.data || {};
-            if (searchUsesFilteredView()) {
-                loadSearch(currentWordsetId, true, { quietStatus: true, showLoading: false });
-            } else if (data.recording) {
+            if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
                 setSearchRowSaveState($newRow, 'saved', t('searchReviewed', 'Reviewed.'));
             }
@@ -1947,11 +1934,7 @@
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
             }
-            if (getSearchState().issuesOnly) {
-                loadSearch(currentWordsetId, true, { quietStatus: true });
-            } else {
-                updateSearchRowValidation($row, response.data ? response.data.validation : null);
-            }
+            updateSearchRowValidation($row, response.data ? response.data.validation : null);
             setStatus(t('saved', 'Saved.'), false);
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
