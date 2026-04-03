@@ -5,7 +5,8 @@
     const ajaxUrl = cfg.ajaxUrl || '';
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
-    const storageKey = 'llTranscriptionManagerLastWordsetId';
+    const wordsetStorageKey = 'llTranscriptionManagerLastWordsetId';
+    const tabStorageKey = 'llTranscriptionManagerLastTab';
 
     const $admin = $('.ll-ipa-admin').first();
     if (!$admin.length) {
@@ -36,7 +37,7 @@
     const $searchRules = $('#ll-ipa-search-rules');
 
     let currentWordsetId = 0;
-    let currentTab = (cfg.initialTab || $admin.attr('data-ll-initial-tab') || 'map').toString();
+    let currentTab = 'map';
     let currentTranscription = null;
     let currentAudio = null;
     let currentAudioButton = null;
@@ -159,9 +160,9 @@
 
         try {
             if (wordsetId) {
-                window.localStorage.setItem(storageKey, String(wordsetId));
+                window.localStorage.setItem(wordsetStorageKey, String(wordsetId));
             } else {
-                window.localStorage.removeItem(storageKey);
+                window.localStorage.removeItem(wordsetStorageKey);
             }
         } catch (err) {
             // Ignore storage failures.
@@ -174,7 +175,7 @@
         }
 
         try {
-            const stored = window.localStorage.getItem(storageKey) || '';
+            const stored = window.localStorage.getItem(wordsetStorageKey) || '';
             if (!stored) {
                 return 0;
             }
@@ -184,6 +185,52 @@
             return hasOption ? (parseInt(stored, 10) || 0) : 0;
         } catch (err) {
             return 0;
+        }
+    }
+
+    function normalizeTabName(tabName) {
+        const safeTab = (tabName || '').toString();
+        return ['map', 'symbols', 'search'].indexOf(safeTab) >= 0 ? safeTab : 'map';
+    }
+
+    function getRequestedTabFromUrl() {
+        if (!window.URLSearchParams) {
+            return '';
+        }
+
+        const params = new window.URLSearchParams(window.location.search || '');
+        if (!params.has('tab')) {
+            return '';
+        }
+
+        return normalizeTabName(params.get('tab'));
+    }
+
+    function rememberTab(tabName) {
+        if (!window.localStorage) {
+            return;
+        }
+
+        try {
+            window.localStorage.setItem(tabStorageKey, normalizeTabName(tabName));
+        } catch (err) {
+            // Ignore storage failures.
+        }
+    }
+
+    function getStoredTab() {
+        if (!window.localStorage) {
+            return '';
+        }
+
+        try {
+            const stored = window.localStorage.getItem(tabStorageKey) || '';
+            if (!stored) {
+                return '';
+            }
+            return normalizeTabName(stored);
+        } catch (err) {
+            return '';
         }
     }
 
@@ -318,8 +365,9 @@
     }
 
     function setTab(tabName) {
-        const nextTab = ['map', 'symbols', 'search'].indexOf(tabName) >= 0 ? tabName : 'map';
+        const nextTab = normalizeTabName(tabName);
         currentTab = nextTab;
+        rememberTab(nextTab);
 
         $tabButtons.each(function () {
             const $button = $(this);
@@ -1914,6 +1962,10 @@
             setStatus(t('noWordsets', 'No word sets are available for this page.'), true);
             return;
         }
+
+        const requestedTab = getRequestedTabFromUrl();
+        const storedTab = getStoredTab();
+        currentTab = requestedTab || storedTab || normalizeTabName(cfg.initialTab || $admin.attr('data-ll-initial-tab') || 'map');
 
         const serverWordsetId = parseInt(cfg.selectedWordsetId, 10) || getSelectedWordsetId();
         const storedWordsetId = getStoredWordset();
