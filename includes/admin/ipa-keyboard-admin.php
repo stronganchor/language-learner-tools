@@ -312,6 +312,7 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchOpenCategory' => __('Open category', 'll-tools-text-domain'),
             'searchExceptionIgnore' => __('Ignore for this transcription', 'll-tools-text-domain'),
             'searchExceptionRestore' => __('Undo exception', 'll-tools-text-domain'),
+            'searchSaveFailed' => __('Save failed', 'll-tools-text-domain'),
         ],
     ]);
 }
@@ -527,7 +528,57 @@ function ll_tools_ipa_keyboard_get_word_image_payload(int $word_id): array {
     ];
 }
 
-function ll_tools_ipa_keyboard_get_word_category_payload(int $word_id): array {
+function ll_tools_ipa_keyboard_get_wordset_lesson_url_map(int $wordset_id): array {
+    static $maps = [];
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    if (isset($maps[$wordset_id])) {
+        return $maps[$wordset_id];
+    }
+
+    $lesson_ids = get_posts([
+        'post_type' => 'll_vocab_lesson',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query' => [
+            [
+                'key' => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+        ],
+    ]);
+
+    $map = [];
+    foreach ((array) $lesson_ids as $lesson_id) {
+        $lesson_id = (int) $lesson_id;
+        if ($lesson_id <= 0) {
+            continue;
+        }
+
+        $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        if ($category_id <= 0 || isset($map[$category_id])) {
+            continue;
+        }
+
+        $permalink = (string) get_permalink($lesson_id);
+        if ($permalink !== '') {
+            $map[$category_id] = $permalink;
+        }
+    }
+
+    $maps[$wordset_id] = $map;
+    return $maps[$wordset_id];
+}
+
+function ll_tools_ipa_keyboard_get_word_category_payload(int $word_id, int $wordset_id = 0): array {
     if ($word_id <= 0) {
         return [];
     }
@@ -537,6 +588,7 @@ function ll_tools_ipa_keyboard_get_word_category_payload(int $word_id): array {
         return [];
     }
 
+    $lesson_url_map = ll_tools_ipa_keyboard_get_wordset_lesson_url_map($wordset_id);
     $categories = [];
     foreach ($terms as $term) {
         if (!$term instanceof WP_Term) {
@@ -548,6 +600,7 @@ function ll_tools_ipa_keyboard_get_word_category_payload(int $word_id): array {
             'name' => function_exists('ll_tools_get_category_display_name')
                 ? (string) ll_tools_get_category_display_name($term)
                 : (string) $term->name,
+            'url' => (string) ($lesson_url_map[(int) $term->term_id] ?? ''),
             'edit_url' => (string) get_edit_term_link($term, 'word-category', 'words'),
         ];
     }
@@ -590,7 +643,13 @@ function ll_tools_ipa_keyboard_count_special_symbols(string $recording_ipa, stri
     return $counts;
 }
 
-function ll_tools_ipa_keyboard_build_recording_payload(int $recording_id, int $word_id, array $word_info, string $recording_ipa = ''): array {
+function ll_tools_ipa_keyboard_build_recording_payload(
+    int $recording_id,
+    int $word_id,
+    array $word_info,
+    string $recording_ipa = '',
+    int $wordset_id = 0
+): array {
     $recording_type_terms = wp_get_post_terms($recording_id, 'recording_type');
     $recording_type = '';
     $recording_type_slug = '';
@@ -640,7 +699,7 @@ function ll_tools_ipa_keyboard_build_recording_payload(int $recording_id, int $w
         'audio_label' => $audio_label,
         'word_edit_link' => get_edit_post_link($word_id, 'raw'),
         'image' => ll_tools_ipa_keyboard_get_word_image_payload($word_id),
-        'categories' => ll_tools_ipa_keyboard_get_word_category_payload($word_id),
+        'categories' => ll_tools_ipa_keyboard_get_word_category_payload($word_id, $wordset_id),
     ];
 }
 
@@ -682,7 +741,7 @@ function ll_tools_ipa_keyboard_build_symbol_data(int $wordset_id): array {
         }
 
         $word_info = $word_display[$word_id] ?? ['word_text' => '', 'translation' => ''];
-        $recording_payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, $word_id, $word_info, $recording_ipa);
+        $recording_payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, $word_id, $word_info, $recording_ipa, $wordset_id);
 
         foreach ($special_counts as $token => $token_count) {
             $counts[$token] = (int) ($counts[$token] ?? 0) + max(1, (int) $token_count);
@@ -812,7 +871,7 @@ function ll_tools_ipa_keyboard_build_letter_map_samples(int $wordset_id, int $li
         }
 
         $word_info = $word_display[$word_id] ?? ['word_text' => '', 'translation' => ''];
-        $recording_payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, $word_id, $word_info, $recording_ipa);
+        $recording_payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, $word_id, $word_info, $recording_ipa, $wordset_id);
 
         foreach ($alignment['matches'] as $match) {
             $text_key = ll_tools_ipa_keyboard_normalize_letter_key((string) ($match['text'] ?? ''), $wordset_language);
@@ -2498,7 +2557,7 @@ function ll_tools_ipa_keyboard_recording_matches_search(
 
 function ll_tools_ipa_keyboard_build_search_row_payload(int $recording_id, int $wordset_id, array $word_info): array {
     $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa'));
-    $payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, (int) wp_get_post_parent_id($recording_id), $word_info, $recording_ipa);
+    $payload = ll_tools_ipa_keyboard_build_recording_payload($recording_id, (int) wp_get_post_parent_id($recording_id), $word_info, $recording_ipa, $wordset_id);
     $validation = ll_tools_ipa_keyboard_get_recording_wordset_validation_result($recording_id, $wordset_id);
 
     $payload['issues'] = array_values((array) ($validation['active'] ?? []));
@@ -2741,7 +2800,8 @@ function ll_tools_ipa_keyboard_update_recording_fields(
         $recording_id,
         $word_id,
         $word_display[$word_id] ?? ['word_text' => '', 'translation' => ''],
-        $recording_ipa
+        $recording_ipa,
+        $wordset_id
     );
     $recording_payload['issues'] = array_values((array) ($validation['active'] ?? []));
     $recording_payload['ignored_issues'] = array_values((array) ($validation['ignored'] ?? []));

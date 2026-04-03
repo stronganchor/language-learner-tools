@@ -1058,7 +1058,7 @@
         const $wrap = $('<div>', { class: 'll-ipa-search-categories' });
         list.forEach(function (category) {
             const name = category && category.name ? category.name : t('searchUnknownCategory', 'Unknown category');
-            const url = category && category.edit_url ? category.edit_url : '';
+            const url = category && (category.url || category.edit_url) ? (category.url || category.edit_url) : '';
             if (url) {
                 $wrap.append($('<a>', {
                     class: 'll-ipa-search-category-link',
@@ -1081,6 +1081,8 @@
         const issues = rec && rec.issues ? rec.issues : [];
         const ignoredIssues = rec && rec.ignored_issues ? rec.ignored_issues : [];
         const transcription = getTranscription();
+        const textValue = rec && rec.recording_text ? rec.recording_text : '';
+        const ipaValue = rec && rec.recording_ipa ? rec.recording_ipa : '';
 
         const $metaCell = $('<td>', { class: 'll-ipa-search-meta-cell' });
         const $metaWrap = $('<div>', { class: 'll-ipa-search-meta' });
@@ -1122,23 +1124,24 @@
         const $textInput = $('<input>', {
             type: 'text',
             class: 'll-ipa-search-input-field ll-ipa-search-text-input',
-            value: rec && rec.recording_text ? rec.recording_text : '',
+            value: textValue,
+            'data-saved-value': textValue,
             disabled: !currentCanEdit
         });
         const $ipaInput = $('<input>', {
             type: 'text',
             class: 'll-ipa-search-input-field ll-ipa-search-ipa-input',
-            value: rec && rec.recording_ipa ? rec.recording_ipa : '',
+            value: ipaValue,
+            'data-saved-value': ipaValue,
             disabled: !currentCanEdit,
             'aria-label': transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation')
         });
-        const $saveBtn = $('<button>', {
-            type: 'button',
-            class: 'button button-secondary ll-ipa-search-save',
-            text: t('save', 'Save'),
-            'data-recording-id': recordingId,
-            disabled: !currentCanEdit
-        });
+        const $saveState = $('<div>', {
+            class: 'll-ipa-search-save-state is-idle',
+            'aria-live': 'polite'
+        })
+            .append($('<span>', { class: 'll-ipa-search-save-indicator', 'aria-hidden': 'true' }))
+            .append($('<span>', { class: 'll-ipa-search-save-label' }));
 
         const $issueCell = $('<td>', { class: 'll-ipa-search-issues-cell' }).append(
             buildIssuesCellData(issues, ignoredIssues).html()
@@ -1150,7 +1153,7 @@
             .append($('<td>', { class: 'll-ipa-search-ipa-cell' }).append($ipaInput))
             .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
-            .append($('<td>', { class: 'll-ipa-search-action-cell' }).append($saveBtn));
+            .append($('<td>', { class: 'll-ipa-search-action-cell' }).append($saveState));
     }
 
     function collectCustomRules() {
@@ -1420,6 +1423,116 @@
     function replaceSearchRow($row, rec) {
         const $newRow = buildSearchRow(rec);
         $row.replaceWith($newRow);
+        return $newRow;
+    }
+
+    function getSearchRowValues($row) {
+        const $textInput = $row.find('.ll-ipa-search-text-input').first();
+        const $ipaInput = $row.find('.ll-ipa-search-ipa-input').first();
+        return {
+            recordingId: parseInt($row.attr('data-recording-id'), 10) || 0,
+            recordingText: ($textInput.val() || '').toString(),
+            recordingIpa: ($ipaInput.val() || '').toString(),
+            savedText: ($textInput.attr('data-saved-value') || '').toString(),
+            savedIpa: ($ipaInput.attr('data-saved-value') || '').toString()
+        };
+    }
+
+    function searchRowHasUnsavedChanges($row) {
+        const values = getSearchRowValues($row);
+        return values.recordingText !== values.savedText || values.recordingIpa !== values.savedIpa;
+    }
+
+    function updateSearchRowSavedValues($row) {
+        $row.find('.ll-ipa-search-text-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-text-input').first().val() || '').toString());
+        $row.find('.ll-ipa-search-ipa-input').first().attr('data-saved-value', ($row.find('.ll-ipa-search-ipa-input').first().val() || '').toString());
+    }
+
+    function setSearchRowInputsDisabled($row, disabled) {
+        $row.find('.ll-ipa-search-text-input, .ll-ipa-search-ipa-input').prop('disabled', !!disabled || !currentCanEdit);
+    }
+
+    function setSearchRowSaveState($row, state, label) {
+        const $state = $row.find('.ll-ipa-search-save-state').first();
+        if (!$state.length) {
+            return;
+        }
+
+        $state.removeClass('is-idle is-saving is-saved is-error');
+        $state.addClass('is-' + state);
+        $state.find('.ll-ipa-search-save-label').text(label || '');
+    }
+
+    function autosaveSearchRow($row) {
+        if (!$row.length || !currentCanEdit) {
+            return;
+        }
+
+        if ($row.data('llSearchRowSaving')) {
+            $row.data('llSearchRowPending', true);
+            return;
+        }
+
+        if (!searchRowHasUnsavedChanges($row)) {
+            return;
+        }
+
+        const values = getSearchRowValues($row);
+        if (!values.recordingId) {
+            return;
+        }
+
+        $row.data('llSearchRowSaving', true);
+        $row.data('llSearchRowPending', false);
+        setSearchRowInputsDisabled($row, true);
+        setSearchRowSaveState($row, 'saving', t('saving', 'Saving...'));
+
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_ipa_keyboard_recording',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: values.recordingId,
+            recording_text: values.recordingText,
+            recording_ipa: values.recordingIpa
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+
+            const data = response.data || {};
+            markTabsDirty(['map', 'symbols']);
+
+            if (getSearchState().issuesOnly) {
+                setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
+                window.setTimeout(function () {
+                    loadSearch(currentWordsetId, true, { quietStatus: true, showLoading: false });
+                }, 250);
+            } else if (data.recording) {
+                const $newRow = replaceSearchRow($row, data.recording);
+                setSearchRowSaveState($newRow, 'saved', t('saved', 'Saved.'));
+            } else {
+                updateSearchRowSavedValues($row);
+                updateSearchRowValidation($row, data.validation || null);
+                setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
+                setSearchRowInputsDisabled($row, false);
+            }
+
+            setStatus(t('saved', 'Saved.'), false);
+        }).fail(function () {
+            setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        }).always(function () {
+            $row.data('llSearchRowSaving', false);
+            if ($row.closest('html').length) {
+                setSearchRowInputsDisabled($row, false);
+                if ($row.data('llSearchRowPending')) {
+                    $row.data('llSearchRowPending', false);
+                    autosaveSearchRow($row);
+                }
+            }
+        });
     }
 
     function collectDisabledBuiltinRules() {
@@ -1652,35 +1765,30 @@
         }
     });
 
-    $searchResults.on('click', '.ll-ipa-search-save', function () {
-        const $btn = $(this);
-        const $row = $btn.closest('tr');
-        const recordingId = parseInt($btn.attr('data-recording-id'), 10) || 0;
-        const recordingText = ($row.find('.ll-ipa-search-text-input').first().val() || '').toString();
-        const recordingIpa = ($row.find('.ll-ipa-search-ipa-input').first().val() || '').toString();
-        const originalText = $btn.text();
+    $searchResults.on('input', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
+        const $row = $(this).closest('tr');
+        if (!$row.length || $row.data('llSearchRowSaving')) {
+            return;
+        }
 
-        $btn.prop('disabled', true).text(t('saving', 'Saving...'));
-        $.post(ajaxUrl, {
-            action: 'll_tools_update_ipa_keyboard_recording',
-            nonce: nonce,
-            wordset_id: currentWordsetId,
-            recording_id: recordingId,
-            recording_text: recordingText,
-            recording_ipa: recordingIpa
-        }).done(function (response) {
-            if (!response || response.success !== true) {
-                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        if (searchRowHasUnsavedChanges($row)) {
+            setSearchRowSaveState($row, 'idle', '');
+        }
+    });
+
+    $searchResults.on('focusout', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
+        const $row = $(this).closest('tr');
+        if (!$row.length) {
+            return;
+        }
+
+        window.setTimeout(function () {
+            const activeElement = document.activeElement;
+            if (activeElement && $row.has(activeElement).length) {
                 return;
             }
-            markTabsDirty(['map', 'symbols']);
-            loadSearch(currentWordsetId, true, { quietStatus: true });
-            setStatus(t('saved', 'Saved.'), false);
-        }).fail(function () {
-            setStatus(t('error', 'Something went wrong. Please try again.'), true);
-        }).always(function () {
-            $btn.prop('disabled', !currentCanEdit).text(originalText);
-        });
+            autosaveSearchRow($row);
+        }, 0);
     });
 
     $searchResults.on('click', '.ll-ipa-issue-toggle', function () {

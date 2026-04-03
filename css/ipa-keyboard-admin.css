@@ -839,12 +839,83 @@
     min-width: 0;
 }
 
-.ll-ipa-search-action-cell .button {
-    width: 100%;
-}
-
 .ll-ipa-search-action-cell {
     width: 92px;
+}
+
+.ll-ipa-search-save-state {
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.ll-ipa-search-save-indicator {
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    flex: 0 0 16px;
+}
+
+.ll-ipa-search-save-state.is-idle .ll-ipa-search-save-label {
+    display: none;
+}
+
+.ll-ipa-search-save-state.is-saving {
+    color: #0f766e;
+}
+
+.ll-ipa-search-save-state.is-saving .ll-ipa-search-save-indicator::before {
+    content: "";
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    border: 2px solid rgba(14, 165, 233, 0.25);
+    border-top-color: #0ea5e9;
+    animation: ll-ipa-search-save-spin 0.7s linear infinite;
+    box-sizing: border-box;
+}
+
+.ll-ipa-search-save-state.is-saved {
+    color: #15803d;
+}
+
+.ll-ipa-search-save-state.is-saved .ll-ipa-search-save-indicator::before {
+    content: "";
+    width: 8px;
+    height: 4px;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg) translateY(-1px);
+    box-sizing: border-box;
+}
+
+.ll-ipa-search-save-state.is-error {
+    color: #b91c1c;
+}
+
+.ll-ipa-search-save-state.is-error .ll-ipa-search-save-indicator::before {
+    content: "!";
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+}
+
+@keyframes ll-ipa-search-save-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .ll-ipa-search-thumb {
