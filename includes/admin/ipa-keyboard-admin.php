@@ -2110,6 +2110,67 @@ function ll_tools_ipa_keyboard_get_flagged_validation_recording_count(): int {
     return (int) $query->found_posts;
 }
 
+function ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset(): array {
+    if (!current_user_can('view_ll_tools')) {
+        return [];
+    }
+
+    $recording_ids = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'meta_query' => [
+            [
+                'key' => ll_tools_ipa_keyboard_validation_issue_count_meta_key(),
+                'value' => 0,
+                'compare' => '>',
+                'type' => 'NUMERIC',
+            ],
+        ],
+    ]);
+
+    if (empty($recording_ids)) {
+        return [];
+    }
+
+    $counts = [];
+    foreach ((array) $recording_ids as $recording_id) {
+        $state = ll_tools_ipa_keyboard_get_recording_validation_state((int) $recording_id);
+        foreach ($state as $wordset_id => $entry) {
+            $wordset_id = (int) $wordset_id;
+            if ($wordset_id <= 0 || empty($entry['active']) || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
+                continue;
+            }
+
+            if (!isset($counts[$wordset_id])) {
+                $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
+                if (!$wordset) {
+                    continue;
+                }
+
+                $counts[$wordset_id] = [
+                    'wordset_id' => $wordset_id,
+                    'wordset_name' => (string) $wordset->name,
+                    'count' => 0,
+                ];
+            }
+
+            $counts[$wordset_id]['count']++;
+        }
+    }
+
+    uasort($counts, static function (array $left, array $right): int {
+        return ll_tools_locale_compare_strings(
+            (string) ($left['wordset_name'] ?? ''),
+            (string) ($right['wordset_name'] ?? '')
+        );
+    });
+
+    return array_values($counts);
+}
+
 function ll_tools_ipa_keyboard_maybe_rescan_all_validations(): void {
     if (!is_admin() || (function_exists('wp_doing_ajax') && wp_doing_ajax()) || !current_user_can('view_ll_tools')) {
         return;

@@ -1732,8 +1732,9 @@
             return;
         }
 
+        const serverWordsetId = parseInt(cfg.selectedWordsetId, 10) || getSelectedWordsetId();
         const storedWordsetId = getStoredWordset();
-        const initialWordsetId = storedWordsetId || (parseInt(cfg.selectedWordsetId, 10) || getSelectedWordsetId());
+        const initialWordsetId = serverWordsetId || storedWordsetId;
         const initialSearch = cfg.initialSearch || {};
 
         if (typeof initialSearch.query === 'string') {

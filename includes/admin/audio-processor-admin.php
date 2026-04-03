@@ -1239,27 +1239,45 @@ function ll_tools_get_admin_maintenance_tasks(): array {
         }
     }
 
-    if (function_exists('ll_tools_ipa_keyboard_get_flagged_validation_recording_count')) {
-        $flagged_transcription_count = ll_tools_ipa_keyboard_get_flagged_validation_recording_count();
-        if ($flagged_transcription_count > 0) {
+    if (function_exists('ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset')) {
+        $flagged_by_wordset = ll_tools_ipa_keyboard_get_flagged_validation_recording_counts_by_wordset();
+        foreach ($flagged_by_wordset as $wordset_entry) {
+            $wordset_id = (int) ($wordset_entry['wordset_id'] ?? 0);
+            $wordset_name = (string) ($wordset_entry['wordset_name'] ?? '');
+            $flagged_transcription_count = (int) ($wordset_entry['count'] ?? 0);
+            if ($wordset_id <= 0 || $wordset_name === '' || $flagged_transcription_count <= 0) {
+                continue;
+            }
+
             $tasks[] = [
-                'key' => 'transcription_validation',
-                'url' => admin_url('tools.php?page=ll-ipa-keyboard&tab=search&issues=1'),
+                'key' => 'transcription_validation_' . $wordset_id,
+                'url' => add_query_arg([
+                    'page' => 'll-ipa-keyboard',
+                    'tab' => 'search',
+                    'issues' => '1',
+                    'wordset_id' => $wordset_id,
+                ], admin_url('tools.php')),
                 'screen_id' => 'tools_page_ll-ipa-keyboard',
                 'screen_query_args' => [
                     'tab' => 'search',
                     'issues' => '1',
+                    'wordset_id' => (string) $wordset_id,
                 ],
-                'title' => __('Transcription Manager', 'll-tools-text-domain'),
+                'title' => sprintf(
+                    /* translators: %s: wordset name */
+                    __('Transcription Manager: %s', 'll-tools-text-domain'),
+                    $wordset_name
+                ),
                 'message' => sprintf(
-                    /* translators: %d: number of recordings */
+                    /* translators: 1: number of recordings, 2: wordset name */
                     _n(
-                        '%d recording has possible transcription issues',
-                        '%d recordings have possible transcription issues',
+                        '%1$d recording in %2$s has possible transcription issues',
+                        '%1$d recordings in %2$s have possible transcription issues',
                         $flagged_transcription_count,
                         'll-tools-text-domain'
                     ),
-                    $flagged_transcription_count
+                    $flagged_transcription_count,
+                    $wordset_name
                 ),
             ];
         }
