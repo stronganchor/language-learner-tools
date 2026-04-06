@@ -3675,7 +3675,38 @@
         $('[data-ll-ipa-waveform]').attr('aria-hidden', 'true');
     }
 
-    function showIpaKeyboard($input) {
+    function centerIpaInputInEditBody(input) {
+        if (!input || !document.body.contains(input) || typeof input.closest !== 'function') { return; }
+        const container = input.closest('[data-ll-word-edit-body]');
+        if (!container) {
+            if (typeof input.scrollIntoView === 'function') {
+                input.scrollIntoView({ block: 'center', inline: 'nearest' });
+            }
+            return;
+        }
+        const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        if (maxScrollTop <= 0) { return; }
+
+        const containerRect = container.getBoundingClientRect();
+        const inputRect = input.getBoundingClientRect();
+        const containerContentTop = containerRect.top + container.clientTop;
+        const relativeTop = (inputRect.top - containerContentTop) + container.scrollTop;
+        const desiredScrollTop = relativeTop - ((container.clientHeight - inputRect.height) / 2);
+        const nextScrollTop = Math.max(0, Math.min(maxScrollTop, desiredScrollTop));
+
+        if (Math.abs(nextScrollTop - container.scrollTop) <= 1) { return; }
+        container.scrollTop = nextScrollTop;
+    }
+
+    function queueIpaInputCentering(input) {
+        if (!input) { return; }
+        window.requestAnimationFrame(function () {
+            centerIpaInputInEditBody(input);
+        });
+    }
+
+    function showIpaKeyboard($input, options) {
+        const settings = (options && typeof options === 'object') ? options : {};
         if (!$input || !$input.length) { return; }
         const $recording = $input.closest('.ll-word-edit-recording');
         const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
@@ -3687,8 +3718,6 @@
         $('[data-ll-ipa-target]').attr('aria-hidden', 'true');
         $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
         const $audio = $recording.find('[data-ll-ipa-audio]').first();
-        const shouldAdjustScroll = $audio.length && $audio.attr('aria-hidden') !== 'false';
-        const initialTop = (shouldAdjustScroll && inputEl) ? inputEl.getBoundingClientRect().top : null;
         $('[data-ll-ipa-audio]').not($audio).attr('aria-hidden', 'true').each(function () {
             const audio = $(this).find('audio').get(0);
             if (audio && !audio.paused) {
@@ -3720,14 +3749,10 @@
             $recording.find('[data-ll-ipa-waveform]').attr('aria-hidden', 'false');
             requestAnimationFrame(function () {
                 renderIpaWaveform($recording);
-                if (shouldAdjustScroll && inputEl && typeof initialTop === 'number') {
-                    const newTop = inputEl.getBoundingClientRect().top;
-                    const delta = newTop - initialTop;
-                    if (Math.abs(delta) > 0.5) {
-                        window.scrollBy(0, delta);
-                    }
-                }
             });
+        }
+        if (settings.centerInput && inputEl) {
+            queueIpaInputCentering(inputEl);
         }
     }
 
@@ -5445,7 +5470,7 @@
         });
 
         $grids.on('focus', '.ll-word-edit-input--ipa', function () {
-            showIpaKeyboard($(this));
+            showIpaKeyboard($(this), { centerInput: true });
             updateIpaSelection(this);
         });
 
