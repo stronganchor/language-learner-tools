@@ -9,6 +9,7 @@ final class WordsWithoutQuizzableCategoryAdminTaskTest extends LL_Tools_TestCase
         $_REQUEST = [];
 
         remove_filter('ll_tools_quiz_min_words', [$this, 'forceQuizMinWordsToThree']);
+        remove_filter('ll_tools_quiz_min_words', [$this, 'forceQuizMinWordsToFour']);
 
         parent::tearDown();
     }
@@ -38,6 +39,33 @@ final class WordsWithoutQuizzableCategoryAdminTaskTest extends LL_Tools_TestCase
 
         $this->assertSame(2, $count);
         $this->assertSame([$non_quizzable_word_id, $uncategorized_word_id], $word_ids);
+    }
+
+    public function test_words_without_quizzable_category_helpers_exclude_draft_words_waiting_for_audio(): void
+    {
+        add_filter('ll_tools_quiz_min_words', [$this, 'forceQuizMinWordsToFour']);
+
+        $quizzable_category_id = $this->createCategory('Published Quizzable Category ' . (string) wp_rand(1000, 9999));
+        $non_quizzable_category_id = $this->createCategory('Actionable Non Quizzable Category ' . (string) wp_rand(1000, 9999));
+        $audio_required_category_id = $this->createAudioRequiredCategory('Audio Required Category ' . (string) wp_rand(1000, 9999));
+
+        for ($index = 1; $index <= 4; $index++) {
+            $this->createWord('Published Quizzable Word ' . $index, [$quizzable_category_id]);
+        }
+
+        $actionable_word_id = $this->createWord('Still Needs Category Work', [$non_quizzable_category_id]);
+        $this->createWord('Waiting For Recorder', [$audio_required_category_id], 'draft');
+
+        $count = ll_tools_get_words_without_quizzable_categories_count();
+        $query = new WP_Query(ll_tools_get_words_without_quizzable_categories_query_args([
+            'posts_per_page' => -1,
+        ]));
+
+        $word_ids = array_map('intval', (array) $query->posts);
+        sort($word_ids, SORT_NUMERIC);
+
+        $this->assertSame(1, $count);
+        $this->assertSame([$actionable_word_id], $word_ids);
     }
 
     public function test_admin_maintenance_tasks_include_words_without_quizzable_category_task(): void
@@ -105,6 +133,11 @@ final class WordsWithoutQuizzableCategoryAdminTaskTest extends LL_Tools_TestCase
         return 3;
     }
 
+    public function forceQuizMinWordsToFour($min): int
+    {
+        return 4;
+    }
+
     private function createCategory(string $name): int
     {
         $term = wp_insert_term($name, 'word-category');
@@ -118,14 +151,27 @@ final class WordsWithoutQuizzableCategoryAdminTaskTest extends LL_Tools_TestCase
         return $term_id;
     }
 
+    private function createAudioRequiredCategory(string $name): int
+    {
+        $term = wp_insert_term($name, 'word-category');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $term_id = (int) $term['term_id'];
+        update_term_meta($term_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($term_id, 'll_quiz_option_type', 'text_translation');
+
+        return $term_id;
+    }
+
     /**
      * @param int[] $category_ids
      */
-    private function createWord(string $title, array $category_ids = []): int
+    private function createWord(string $title, array $category_ids = [], string $status = 'publish'): int
     {
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
-            'post_status' => 'publish',
+            'post_status' => $status,
             'post_title' => $title,
         ]);
 

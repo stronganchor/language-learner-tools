@@ -1076,7 +1076,7 @@ function ll_tools_get_words_without_quizzable_categories_query_args(array $overr
         $args['tax_query'] = [$tax_clause];
     }
 
-    return array_merge($args, $overrides);
+    return ll_tools_exclude_waiting_audio_drafts_from_no_quizzable_categories_query_args(array_merge($args, $overrides));
 }
 
 /**
@@ -1289,6 +1289,13 @@ function ll_apply_words_filters($query) {
         if (is_array($tax_clause) && !empty($tax_clause)) {
             $tax_query[] = $tax_clause;
         }
+
+        $query->set(
+            'post__not_in',
+            ll_tools_exclude_waiting_audio_drafts_from_no_quizzable_categories_query_args([
+                'post__not_in' => (array) $query->get('post__not_in'),
+            ])['post__not_in']
+        );
     }
 
     if (!empty($tax_query)) {
@@ -1583,16 +1590,7 @@ function ll_enforce_word_audio_publish_requirement($post_id, $post, $update) {
         return false;
     }
 
-    // Check if there's at least one published word_audio
-    $published_audio = get_posts([
-        'post_type' => 'word_audio',
-        'post_parent' => $post_id,
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-    ]);
-
-    if (!empty($published_audio)) {
+    if (ll_tools_word_has_published_audio($post_id)) {
         return false;
     }
 
@@ -1650,6 +1648,108 @@ function ll_word_requires_audio_to_publish($post_id) {
     // If any assigned category can quiz without audio, allow publish without audio.
     // Audio remains required only when every assigned category needs it.
     return $has_non_audio_category ? false : true;
+}
+
+/**
+ * Whether a word currently has at least one published audio child.
+ *
+ * @param int $word_id Word post ID.
+ * @return bool
+ */
+function ll_tools_word_has_published_audio($word_id): bool {
+    $published_audio = get_posts([
+        'post_type'        => 'word_audio',
+        'post_parent'      => (int) $word_id,
+        'post_status'      => 'publish',
+        'posts_per_page'   => 1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+    ]);
+
+    return !empty($published_audio);
+}
+
+/**
+ * Whether the word is a draft only because it is still waiting on published audio.
+ *
+ * @param int $word_id Word post ID.
+ * @return bool
+ */
+function ll_tools_is_word_waiting_for_published_audio($word_id): bool {
+    $word = get_post((int) $word_id);
+    if (!($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'draft') {
+        return false;
+    }
+
+    $category_ids = wp_get_post_terms($word->ID, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($category_ids) || empty($category_ids)) {
+        return false;
+    }
+
+    if (!ll_word_requires_audio_to_publish($word->ID)) {
+        return false;
+    }
+
+    return !ll_tools_word_has_published_audio($word->ID);
+}
+
+/**
+ * Exclude draft words that are only waiting on audio from the no-quizzable-category task.
+ *
+ * @return int[]
+ */
+function ll_tools_get_no_quizzable_categories_audio_waiting_word_ids(): array {
+    $query_args = [
+        'post_type'              => 'words',
+        'post_status'            => ['draft'],
+        'posts_per_page'         => -1,
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'suppress_filters'       => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+    ];
+
+    $tax_clause = ll_tools_get_words_without_quizzable_categories_tax_clause();
+    if (is_array($tax_clause) && !empty($tax_clause)) {
+        $query_args['tax_query'] = [$tax_clause];
+    }
+
+    $candidate_ids = get_posts($query_args);
+    $excluded_ids = [];
+
+    foreach ((array) $candidate_ids as $candidate_id) {
+        $candidate_id = (int) $candidate_id;
+        if ($candidate_id <= 0 || !ll_tools_is_word_waiting_for_published_audio($candidate_id)) {
+            continue;
+        }
+
+        $excluded_ids[] = $candidate_id;
+    }
+
+    return array_values(array_unique(array_map('intval', $excluded_ids)));
+}
+
+/**
+ * Apply exclusions for draft words that are waiting on audio.
+ *
+ * @param array<string,mixed> $query_args
+ * @return array<string,mixed>
+ */
+function ll_tools_exclude_waiting_audio_drafts_from_no_quizzable_categories_query_args(array $query_args): array {
+    $excluded_ids = ll_tools_get_no_quizzable_categories_audio_waiting_word_ids();
+    if (empty($excluded_ids)) {
+        return $query_args;
+    }
+
+    $existing_ids = array_values(array_filter(array_map('intval', (array) ($query_args['post__not_in'] ?? [])), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+
+    $query_args['post__not_in'] = array_values(array_unique(array_merge($existing_ids, $excluded_ids)));
+
+    return $query_args;
 }
 
 /**
