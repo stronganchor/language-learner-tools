@@ -37,6 +37,10 @@
     const $searchSummary = $('#ll-ipa-search-summary');
     const $searchResults = $('#ll-ipa-search-results');
     const $searchRules = $('#ll-ipa-search-rules');
+    const $orthographySummary = $('#ll-ipa-orthography-summary');
+    const $orthographyRules = $('#ll-ipa-orthography-rules');
+    const $orthographyIssues = $('#ll-ipa-orthography-issues');
+    const $orthographyConvert = $('#ll-ipa-orthography-convert');
 
     let currentWordsetId = 0;
     let currentTab = 'map';
@@ -47,7 +51,8 @@
     let tabDirty = {
         map: true,
         symbols: true,
-        search: true
+        search: true,
+        orthography: true
     };
     let searchRulesExpanded = false;
     let letterMapRefreshTimer = null;
@@ -192,7 +197,7 @@
 
     function normalizeTabName(tabName) {
         const safeTab = (tabName || '').toString();
-        return ['map', 'symbols', 'search'].indexOf(safeTab) >= 0 ? safeTab : 'map';
+        return ['map', 'symbols', 'search', 'orthography'].indexOf(safeTab) >= 0 ? safeTab : 'map';
     }
 
     function getRequestedTabFromUrl() {
@@ -415,6 +420,11 @@
             $searchRules.empty();
             $searchResults.empty();
             setSearchSummary('');
+        } else if (currentTab === 'orthography') {
+            $orthographySummary.empty();
+            $orthographyRules.empty();
+            $orthographyIssues.empty();
+            $orthographyConvert.empty();
         }
     }
 
@@ -437,6 +447,11 @@
             return;
         }
 
+        if (currentTab === 'orthography') {
+            loadOrthography(wordsetId, !!force || tabDirty.orthography);
+            return;
+        }
+
         loadSearch(wordsetId, !!force || tabDirty.search);
     }
 
@@ -448,7 +463,7 @@
             $wordset.val(String(safeWordsetId));
         }
         rememberWordset(safeWordsetId);
-        markTabsDirty(['map', 'symbols', 'search']);
+        markTabsDirty(['map', 'symbols', 'search', 'orthography']);
         loadActiveTab(settings.forceLoad);
     }
 
@@ -1465,6 +1480,543 @@
         $searchResults.append($table);
     }
 
+    function loadOrthography(wordsetId, shouldLoad) {
+        if (!shouldLoad) {
+            return;
+        }
+
+        setStatus(t('orthographyLoading', 'Loading orthography conversion data...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_get_ipa_keyboard_orthography',
+            nonce: nonce,
+            wordset_id: wordsetId
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+            handleWordsetResponse(response);
+            renderOrthography(response.data || {});
+            tabDirty.orthography = false;
+            setStatus('');
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    }
+
+    function buildOrthographyWordMeta(item) {
+        const $wrap = $('<div>', { class: 'll-ipa-orthography-word-meta' });
+        const title = item && item.word_text ? item.word_text : t('untitled', '(Untitled)');
+        if (item && item.word_edit_link) {
+            $wrap.append($('<a>', {
+                class: 'll-ipa-orthography-word-link',
+                href: item.word_edit_link,
+                target: '_blank',
+                text: title
+            }));
+        } else {
+            $wrap.append($('<span>', {
+                class: 'll-ipa-orthography-word-link',
+                text: title
+            }));
+        }
+        if (item && item.word_translation) {
+            $wrap.append($('<span>', {
+                class: 'll-ipa-translation',
+                text: item.word_translation
+            }));
+        }
+        return $wrap;
+    }
+
+    function buildOrthographyExamples(samples) {
+        const list = Array.isArray(samples) ? samples : [];
+        if (!list.length) {
+            return null;
+        }
+
+        const $details = $('<details>', { class: 'll-ipa-orthography-examples' });
+        $details.append($('<summary>', { text: t('orthographyRuleExamples', 'Examples') + ' (' + list.length + ')' }));
+        const $list = $('<div>', { class: 'll-ipa-orthography-examples-list' });
+        list.forEach(function (sample) {
+            const $item = $('<div>', { class: 'll-ipa-orthography-example' });
+            const title = sample && sample.word_text ? sample.word_text : t('untitled', '(Untitled)');
+            if (sample && sample.word_edit_link) {
+                $item.append($('<a>', {
+                    class: 'll-ipa-orthography-example-link',
+                    href: sample.word_edit_link,
+                    target: '_blank',
+                    text: title
+                }));
+            } else {
+                $item.append($('<span>', {
+                    class: 'll-ipa-orthography-example-link',
+                    text: title
+                }));
+            }
+            if (sample && sample.word_translation) {
+                $item.append($('<span>', { class: 'll-ipa-translation', text: sample.word_translation }));
+            }
+            if (sample && sample.recording_text) {
+                $item.append($('<div>', {
+                    class: 'll-ipa-orthography-example-line',
+                    text: t('orthographyIssueActual', 'Saved text') + ': ' + sample.recording_text
+                }));
+            }
+            if (sample && sample.recording_ipa) {
+                $item.append($('<div>', {
+                    class: 'll-ipa-orthography-example-line ll-ipa-orthography-example-ipa',
+                    text: sample.recording_ipa
+                }));
+            }
+            $list.append($item);
+        });
+        $details.append($list);
+        return $details;
+    }
+
+    function renderOrthographySummary(orthography) {
+        const stats = orthography && orthography.stats ? orthography.stats : {};
+        const $grid = $('<div>', { class: 'll-ipa-orthography-stat-grid' });
+        [
+            {
+                label: t('orthographySummaryRules', 'Rules'),
+                value: parseInt(stats.rule_count, 10) || 0
+            },
+            {
+                label: t('orthographySummaryIssues', 'Contradictions'),
+                value: parseInt(stats.active_contradiction_count, 10) || 0
+            },
+            {
+                label: t('orthographySummaryQueue', 'Missing text'),
+                value: parseInt(stats.candidate_count, 10) || 0
+            }
+        ].forEach(function (card) {
+            const $item = $('<div>', { class: 'll-ipa-orthography-stat' });
+            $item.append($('<span>', { class: 'll-ipa-orthography-stat-label', text: card.label }));
+            $item.append($('<strong>', { class: 'll-ipa-orthography-stat-value', text: String(card.value) }));
+            $grid.append($item);
+        });
+
+        $orthographySummary.empty().append($grid);
+    }
+
+    function buildOrthographyContextOptions(selectedValue) {
+        const selected = (selectedValue || 'any').toString();
+        return [
+            { value: 'any', label: t('orthographyRuleAny', 'Anywhere') },
+            { value: 'final', label: t('orthographyRuleFinal', 'Word-final') },
+            { value: 'nonfinal', label: t('orthographyRuleNonfinal', 'Elsewhere') }
+        ].map(function (item) {
+            return $('<option>', {
+                value: item.value,
+                text: item.label,
+                selected: item.value === selected
+            });
+        });
+    }
+
+    function renderOrthographyRules(orthography) {
+        const rows = orthography && Array.isArray(orthography.rules) ? orthography.rules : [];
+        $orthographyRules.empty();
+
+        const $section = $('<div>', { class: 'll-ipa-orthography-section' });
+        $section.append($('<h3>', { text: t('orthographyRulesTitle', 'Detected conversion rules') }));
+        $section.append($('<p>', {
+            class: 'description',
+            text: t('orthographyRulesDescription', 'Review the inferred IPA-to-orthography rules, block bad guesses, and add manual overrides.')
+        }));
+
+        const $add = $('<div>', { class: 'll-ipa-orthography-add' });
+        $add.append($('<div>', { class: 'll-ipa-orthography-add-title', text: t('orthographyRuleAddTitle', 'Add manual rule') }));
+        const $addFields = $('<div>', { class: 'll-ipa-orthography-add-fields' });
+        $addFields.append($('<input>', {
+            type: 'text',
+            class: 'll-ipa-orthography-add-segment',
+            placeholder: t('orthographyRuleAddSegmentPlaceholder', 'e.g. ʃ or t͡ʃ'),
+            'aria-label': t('orthographyRuleAddSegment', 'IPA segment'),
+            disabled: !currentCanEdit
+        }));
+        const $context = $('<select>', {
+            class: 'll-ipa-orthography-add-context',
+            'aria-label': t('orthographyRuleAddContext', 'Position'),
+            disabled: !currentCanEdit
+        });
+        buildOrthographyContextOptions('any').forEach(function ($option) {
+            $context.append($option);
+        });
+        $addFields.append($context);
+        $addFields.append($('<input>', {
+            type: 'text',
+            class: 'll-ipa-orthography-add-output',
+            placeholder: t('orthographyRuleAddOutputPlaceholder', 'e.g. sh'),
+            'aria-label': t('orthographyRuleAddOutput', 'Orthography'),
+            disabled: !currentCanEdit
+        }));
+        $addFields.append($('<button>', {
+            type: 'button',
+            class: 'button button-primary ll-ipa-orthography-add-btn',
+            text: t('orthographyRuleAddButton', 'Add rule'),
+            disabled: !currentCanEdit
+        }));
+        $add.append($addFields);
+        $section.append($add);
+
+        if (!rows.length) {
+            $section.append($('<div>', {
+                class: 'll-ipa-empty',
+                text: t('orthographyRulesEmpty', 'No usable IPA/text pairings were found yet for this word set.')
+            }));
+            $orthographyRules.append($section);
+            return;
+        }
+
+        const $table = $('<table>', { class: 'widefat striped ll-ipa-orthography-rules-table' });
+        $table.append($('<thead>').append(
+            $('<tr>')
+                .append($('<th>', { text: t('orthographyRuleSegment', 'IPA segment') }))
+                .append($('<th>', { text: t('orthographyRuleAuto', 'Auto rules') }))
+                .append($('<th>', { text: t('orthographyRuleManual', 'Manual overrides') }))
+        ));
+        const $tbody = $('<tbody>');
+
+        rows.forEach(function (row) {
+            const segment = row && row.segment ? row.segment : '';
+            const autoRules = row && Array.isArray(row.auto) ? row.auto : [];
+            const manual = row && row.manual ? row.manual : {};
+            const blocked = row && Array.isArray(row.blocked) ? row.blocked : [];
+            const $tr = $('<tr>', { 'data-segment': segment });
+            $tr.append($('<td>', { class: 'll-ipa-orthography-segment', text: segment }));
+
+            const $autoCell = $('<td>');
+            if (autoRules.length) {
+                const $autoWrap = $('<div>', { class: 'll-ipa-orthography-auto-list' });
+                autoRules.forEach(function (rule) {
+                    const $rule = $('<div>', { class: 'll-ipa-orthography-auto-rule' });
+                    const contextLabel = rule && rule.context && rule.context !== 'any'
+                        ? (t('orthographyRule' + rule.context.charAt(0).toUpperCase() + rule.context.slice(1), '') || '')
+                        : '';
+                    const prefix = contextLabel ? (contextLabel + ': ') : '';
+                    $rule.append($('<div>', {
+                        class: 'll-ipa-orthography-auto-rule-main',
+                        text: prefix + (rule && rule.output ? rule.output : '')
+                    }));
+                    if (rule && parseInt(rule.count, 10)) {
+                        $rule.append($('<div>', {
+                            class: 'll-ipa-orthography-auto-rule-count',
+                            text: '(' + String(parseInt(rule.count, 10) || 0) + ')'
+                        }));
+                    }
+                    if (currentCanEdit) {
+                        $rule.append($('<button>', {
+                            type: 'button',
+                            class: 'button-link ll-ipa-orthography-block',
+                            text: t('orthographyRuleBlock', 'Hide auto rule'),
+                            'data-segment': segment,
+                            'data-context': rule && rule.context ? rule.context : 'any',
+                            'data-output': rule && rule.output ? rule.output : ''
+                        }));
+                    }
+                    const $examples = buildOrthographyExamples(rule && rule.samples ? rule.samples : []);
+                    if ($examples) {
+                        $rule.append($examples);
+                    }
+                    $autoWrap.append($rule);
+                });
+                $autoCell.append($autoWrap);
+            } else {
+                $autoCell.append($('<span>', {
+                    class: 'll-ipa-map-empty',
+                    text: t('mapAutoEmpty', 'No mappings yet.')
+                }));
+            }
+
+            if (blocked.length) {
+                const $blocked = $('<div>', { class: 'll-ipa-orthography-blocked' });
+                $blocked.append($('<div>', {
+                    class: 'll-ipa-orthography-blocked-title',
+                    text: t('orthographyRuleBlockedTitle', 'Hidden auto rules')
+                }));
+                blocked.forEach(function (rule) {
+                    const contextLabel = rule && rule.context && rule.context !== 'any'
+                        ? (rule.context === 'final' ? t('orthographyRuleFinal', 'Word-final') : t('orthographyRuleNonfinal', 'Elsewhere')) + ': '
+                        : '';
+                    const $item = $('<div>', { class: 'll-ipa-orthography-blocked-item' });
+                    $item.append($('<span>', {
+                        class: 'll-ipa-orthography-blocked-value',
+                        text: contextLabel + (rule && rule.output ? rule.output : '')
+                    }));
+                    if (currentCanEdit) {
+                        $item.append($('<button>', {
+                            type: 'button',
+                            class: 'button-link ll-ipa-orthography-unblock',
+                            text: t('orthographyRuleUnblock', 'Restore'),
+                            'data-segment': segment,
+                            'data-context': rule && rule.context ? rule.context : 'any',
+                            'data-output': rule && rule.output ? rule.output : ''
+                        }));
+                    }
+                    $blocked.append($item);
+                });
+                $autoCell.append($blocked);
+            }
+
+            $tr.append($autoCell);
+
+            const $manualCell = $('<td>');
+            ['any', 'final', 'nonfinal'].forEach(function (contextKey) {
+                const label = contextKey === 'final'
+                    ? t('orthographyRuleFinal', 'Word-final')
+                    : (contextKey === 'nonfinal' ? t('orthographyRuleNonfinal', 'Elsewhere') : t('orthographyRuleAny', 'Anywhere'));
+                const $rowWrap = $('<div>', {
+                    class: 'll-ipa-orthography-manual-row',
+                    'data-context': contextKey
+                });
+                $rowWrap.append($('<label>', {
+                    class: 'll-ipa-orthography-manual-label',
+                    text: label
+                }));
+                $rowWrap.append($('<input>', {
+                    type: 'text',
+                    class: 'll-ipa-orthography-manual-input',
+                    value: manual && manual[contextKey] ? manual[contextKey] : '',
+                    disabled: !currentCanEdit
+                }));
+                $rowWrap.append($('<button>', {
+                    type: 'button',
+                    class: 'button button-secondary ll-ipa-orthography-manual-save',
+                    text: t('orthographyRuleSave', 'Save rules'),
+                    'data-segment': segment,
+                    'data-context': contextKey,
+                    disabled: !currentCanEdit
+                }));
+                $rowWrap.append($('<button>', {
+                    type: 'button',
+                    class: 'button-link ll-ipa-orthography-manual-clear',
+                    text: t('orthographyRuleClear', 'Clear'),
+                    'data-segment': segment,
+                    'data-context': contextKey,
+                    disabled: !currentCanEdit
+                }));
+                $manualCell.append($rowWrap);
+            });
+            $tr.append($manualCell);
+            $tbody.append($tr);
+        });
+
+        $table.append($tbody);
+        $section.append($table);
+        $orthographyRules.append($section);
+    }
+
+    function renderOrthographyIssues(orthography) {
+        const rows = orthography && Array.isArray(orthography.contradictions) ? orthography.contradictions : [];
+        const stats = orthography && orthography.stats ? orthography.stats : {};
+        $orthographyIssues.empty();
+
+        const $section = $('<div>', { class: 'll-ipa-orthography-section' });
+        $section.append($('<h3>', { text: t('orthographyIssuesTitle', 'Contradicting words') }));
+        $section.append($('<p>', {
+            class: 'description',
+            text: t('orthographyIssuesDescription', 'These saved IPA/text pairings do not match the current rules. You can approve a word as an exception or keep adjusting the rules.')
+        }));
+
+        if (!rows.length) {
+            $section.append($('<div>', {
+                class: 'll-ipa-empty',
+                text: t('orthographyIssuesEmpty', 'No contradictions found with the current rules.')
+            }));
+            $orthographyIssues.append($section);
+            return;
+        }
+
+        const activeCount = parseInt(stats.active_contradiction_count, 10) || 0;
+        $section.append($('<div>', {
+            class: 'll-ipa-orthography-section-summary',
+            text: formatCount(
+                activeCount,
+                'orthographyIssuesSummary',
+                'orthographyIssuesSummaryPlural',
+                '%1$d contradicting word',
+                '%1$d contradicting words'
+            )
+        }));
+
+        const $table = $('<table>', { class: 'widefat striped ll-ipa-orthography-issues-table' });
+        $table.append($('<thead>').append(
+            $('<tr>')
+                .append($('<th>', { text: t('searchWordLabel', 'Word') }))
+                .append($('<th>', { text: t('recordingColumnLabel', 'Recording') }))
+                .append($('<th>', { text: getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation') }))
+                .append($('<th>', { text: t('orthographyIssueActual', 'Saved text') }))
+                .append($('<th>', { text: t('orthographyIssuePredicted', 'Predicted text') }))
+                .append($('<th>', { text: '' }))
+        ));
+        const $tbody = $('<tbody>');
+        rows.forEach(function (row) {
+            const approved = !!(row && row.approved_exception);
+            const $tr = $('<tr>', {
+                'data-word-id': row && row.word_id ? row.word_id : 0,
+                class: approved ? 'is-approved' : ''
+            });
+            $tr.append($('<td>').append(buildOrthographyWordMeta(row)));
+            $tr.append($('<td>').append(createAudioButton(row, 'll-ipa-search-audio-btn', { showDownload: true })));
+            $tr.append($('<td>', {
+                class: 'll-ipa-orthography-ipa-cell',
+                text: row && row.recording_ipa ? row.recording_ipa : ''
+            }));
+            $tr.append($('<td>', {
+                text: row && row.recording_text ? row.recording_text : '—'
+            }));
+            $tr.append($('<td>', {
+                text: row && row.predicted_text ? row.predicted_text : t('orthographyConvertCannot', 'Needs more rules')
+            }));
+            const $actions = $('<td>', { class: 'll-ipa-orthography-issue-actions' });
+            if (approved) {
+                $actions.append($('<span>', {
+                    class: 'll-ipa-orthography-approved-label',
+                    text: t('orthographyIssueApproved', 'Approved exception')
+                }));
+            }
+            if (currentCanEdit) {
+                $actions.append($('<button>', {
+                    type: 'button',
+                    class: 'button button-secondary ll-ipa-orthography-exception-toggle',
+                    text: approved ? t('orthographyIssueRestore', 'Undo exception') : t('orthographyIssueApprove', 'Approve exception'),
+                    'data-word-id': row && row.word_id ? row.word_id : 0,
+                    'data-enabled': approved ? '0' : '1'
+                }));
+            }
+            $tr.append($actions);
+            $tbody.append($tr);
+        });
+        $table.append($tbody);
+        $section.append($table);
+        $orthographyIssues.append($section);
+    }
+
+    function renderOrthographyConvert(orthography) {
+        const rows = orthography && Array.isArray(orthography.conversion_candidates) ? orthography.conversion_candidates : [];
+        const stats = orthography && orthography.stats ? orthography.stats : {};
+        $orthographyConvert.empty();
+
+        const $section = $('<div>', { class: 'll-ipa-orthography-section' });
+        $section.append($('<h3>', { text: t('orthographyConvertTitle', 'Words missing written text') }));
+        $section.append($('<p>', {
+            class: 'description',
+            text: t('orthographyConvertDescription', 'Apply the current rules to words that have IPA saved but still need written text.')
+        }));
+
+        if (!rows.length) {
+            $section.append($('<div>', {
+                class: 'll-ipa-empty',
+                text: t('orthographyConvertEmpty', 'No words are waiting for IPA-to-orthography conversion.')
+            }));
+            $orthographyConvert.append($section);
+            return;
+        }
+
+        $section.append($('<div>', {
+            class: 'll-ipa-orthography-section-summary',
+            text: formatCount(
+                parseInt(stats.candidate_count, 10) || rows.length,
+                'orthographyConvertSummary',
+                'orthographyConvertSummaryPlural',
+                '%1$d word ready to convert',
+                '%1$d words ready to convert'
+            )
+        }));
+
+        const $controls = $('<div>', { class: 'll-ipa-orthography-convert-controls' });
+        $controls.append($('<button>', {
+            type: 'button',
+            class: 'button button-secondary ll-ipa-orthography-select-all',
+            text: t('orthographyConvertSelectAll', 'Select all'),
+            disabled: !currentCanEdit
+        }));
+        $controls.append($('<button>', {
+            type: 'button',
+            class: 'button button-secondary ll-ipa-orthography-clear-selection',
+            text: t('orthographyConvertClearSelection', 'Clear selection'),
+            disabled: !currentCanEdit
+        }));
+        $controls.append($('<button>', {
+            type: 'button',
+            class: 'button button-primary ll-ipa-orthography-convert-selected',
+            text: t('orthographyConvertSelected', 'Convert selected'),
+            disabled: !currentCanEdit
+        }));
+        $section.append($controls);
+
+        const $table = $('<table>', { class: 'widefat striped ll-ipa-orthography-convert-table' });
+        $table.append($('<thead>').append(
+            $('<tr>')
+                .append($('<th>', { text: '' }))
+                .append($('<th>', { text: t('searchWordLabel', 'Word') }))
+                .append($('<th>', { text: t('recordingColumnLabel', 'Recording') }))
+                .append($('<th>', { text: getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation') }))
+                .append($('<th>', { text: t('orthographyConvertPreview', 'Predicted text') }))
+                .append($('<th>', { text: t('orthographyConvertReason', 'Status') }))
+                .append($('<th>', { text: '' }))
+        ));
+        const $tbody = $('<tbody>');
+        rows.forEach(function (row) {
+            const canConvert = !!(row && row.can_convert);
+            const wordId = row && row.word_id ? row.word_id : 0;
+            const $tr = $('<tr>', {
+                'data-word-id': wordId,
+                'data-can-convert': canConvert ? '1' : '0'
+            });
+            $tr.append($('<td>').append($('<input>', {
+                type: 'checkbox',
+                class: 'll-ipa-orthography-select',
+                value: wordId,
+                disabled: !currentCanEdit || !canConvert
+            })));
+            $tr.append($('<td>').append(buildOrthographyWordMeta(row)));
+            $tr.append($('<td>').append(createAudioButton(row, 'll-ipa-search-audio-btn', { showDownload: true })));
+            $tr.append($('<td>', {
+                class: 'll-ipa-orthography-ipa-cell',
+                text: row && row.recording_ipa ? row.recording_ipa : ''
+            }));
+            $tr.append($('<td>', {
+                text: row && row.predicted_text ? row.predicted_text : '—'
+            }));
+            $tr.append($('<td>', {
+                text: canConvert ? '' : t('orthographyConvertCannot', 'Needs more rules')
+            }));
+            $tr.append($('<td>').append($('<button>', {
+                type: 'button',
+                class: 'button button-primary ll-ipa-orthography-convert-one',
+                text: t('orthographyConvertOne', 'Convert'),
+                'data-word-id': wordId,
+                disabled: !currentCanEdit || !canConvert
+            })));
+            $tbody.append($tr);
+        });
+        $table.append($tbody);
+        $section.append($table);
+        $orthographyConvert.append($section);
+    }
+
+    function renderOrthography(payload) {
+        const orthography = payload && payload.orthography ? payload.orthography : {};
+        renderOrthographySummary(orthography);
+        if (!orthography || orthography.supported === false) {
+            $orthographyRules.empty().append($('<div>', {
+                class: 'll-ipa-empty',
+                text: t('orthographyUnsupported', 'IPA-to-orthography conversion is only available when this word set uses IPA transcription mode.')
+            }));
+            $orthographyIssues.empty();
+            $orthographyConvert.empty();
+            return;
+        }
+
+        renderOrthographyRules(orthography);
+        renderOrthographyIssues(orthography);
+        renderOrthographyConvert(orthography);
+    }
+
     function syncSavedRecording(data) {
         const recording = data && data.recording ? data.recording : {};
         const recordingId = parseInt(recording.recording_id || data.recording_id, 10) || 0;
@@ -1607,7 +2159,7 @@
             }
 
             const data = response.data || {};
-            markTabsDirty(['map', 'symbols']);
+            markTabsDirty(['map', 'symbols', 'orthography']);
             if (data.recording) {
                 const $newRow = replaceSearchRow($row, data.recording);
                 setSearchRowSaveState($newRow, 'saved', t('saved', 'Saved.'));
@@ -1711,7 +2263,7 @@
                 return;
             }
             syncSavedRecording(response.data || {});
-            markTabsDirty('search');
+            markTabsDirty(['search', 'orthography']);
             if (response.data && response.data.letter_map_refresh_required) {
                 scheduleLetterMapRefresh(currentWordsetId);
             }
@@ -1855,6 +2407,170 @@
     $searchBtn.on('click', function () {
         markTabsDirty('search');
         loadSearch(currentWordsetId, true);
+    });
+
+    function handleOrthographyRefreshResponse(response, successMessage) {
+        if (!response || response.success !== true) {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+            return false;
+        }
+
+        handleWordsetResponse(response);
+        renderOrthography(response.data || {});
+        tabDirty.orthography = false;
+        if (successMessage) {
+            setStatus(successMessage, false);
+        } else {
+            setStatus('');
+        }
+        return true;
+    }
+
+    $orthographyRules.on('click', '.ll-ipa-orthography-add-btn', function () {
+        const $wrap = $(this).closest('.ll-ipa-orthography-add');
+        const segment = ($wrap.find('.ll-ipa-orthography-add-segment').first().val() || '').toString().trim();
+        const context = ($wrap.find('.ll-ipa-orthography-add-context').first().val() || 'any').toString();
+        const output = ($wrap.find('.ll-ipa-orthography-add-output').first().val() || '').toString().trim();
+
+        if (!segment || !output) {
+            setStatus(t('orthographyRuleAddMissing', 'Enter both an IPA segment and an orthography output.'), true);
+            return;
+        }
+
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_ipa_keyboard_orthography_rule',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            segment: segment,
+            context: context,
+            output: output
+        }).done(function (response) {
+            if (handleOrthographyRefreshResponse(response, t('saved', 'Saved.'))) {
+                $wrap.find('.ll-ipa-orthography-add-segment').first().val('');
+                $wrap.find('.ll-ipa-orthography-add-output').first().val('');
+            }
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    });
+
+    $orthographyRules.on('click', '.ll-ipa-orthography-manual-save', function () {
+        const $btn = $(this);
+        const $row = $btn.closest('.ll-ipa-orthography-manual-row');
+        const segment = ($btn.attr('data-segment') || '').toString();
+        const context = ($btn.attr('data-context') || 'any').toString();
+        const output = ($row.find('.ll-ipa-orthography-manual-input').first().val() || '').toString();
+
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_ipa_keyboard_orthography_rule',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            segment: segment,
+            context: context,
+            output: output
+        }).done(function (response) {
+            handleOrthographyRefreshResponse(response, t('saved', 'Saved.'));
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    });
+
+    $orthographyRules.on('click', '.ll-ipa-orthography-manual-clear', function () {
+        const $btn = $(this);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_update_ipa_keyboard_orthography_rule',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            segment: ($btn.attr('data-segment') || '').toString(),
+            context: ($btn.attr('data-context') || 'any').toString(),
+            clear: 1
+        }).done(function (response) {
+            handleOrthographyRefreshResponse(response, t('saved', 'Saved.'));
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    });
+
+    $orthographyRules.on('click', '.ll-ipa-orthography-block, .ll-ipa-orthography-unblock', function () {
+        const $btn = $(this);
+        const isUnblock = $btn.hasClass('ll-ipa-orthography-unblock');
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: isUnblock ? 'll_tools_unblock_ipa_keyboard_orthography_rule' : 'll_tools_block_ipa_keyboard_orthography_rule',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            segment: ($btn.attr('data-segment') || '').toString(),
+            context: ($btn.attr('data-context') || 'any').toString(),
+            output: ($btn.attr('data-output') || '').toString()
+        }).done(function (response) {
+            handleOrthographyRefreshResponse(response, t('saved', 'Saved.'));
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    });
+
+    $orthographyIssues.on('click', '.ll-ipa-orthography-exception-toggle', function () {
+        const $btn = $(this);
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_toggle_ipa_keyboard_orthography_exception',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            word_id: ($btn.attr('data-word-id') || '').toString(),
+            enabled: ($btn.attr('data-enabled') || '1') === '1' ? 1 : 0
+        }).done(function (response) {
+            handleOrthographyRefreshResponse(response, t('saved', 'Saved.'));
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    });
+
+    $orthographyConvert.on('click', '.ll-ipa-orthography-select-all', function () {
+        $orthographyConvert.find('.ll-ipa-orthography-select').prop('checked', true);
+    });
+
+    $orthographyConvert.on('click', '.ll-ipa-orthography-clear-selection', function () {
+        $orthographyConvert.find('.ll-ipa-orthography-select').prop('checked', false);
+    });
+
+    function submitOrthographyConversion(wordIds) {
+        const ids = Array.isArray(wordIds) ? wordIds : [];
+        if (!ids.length) {
+            setStatus(t('orthographyConvertNoSelection', 'Select at least one word to convert.'), true);
+            return;
+        }
+
+        setStatus(t('saving', 'Saving...'), false);
+        $.post(ajaxUrl, {
+            action: 'll_tools_convert_ipa_keyboard_orthography_words',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            word_ids: ids
+        }).done(function (response) {
+            if (!handleOrthographyRefreshResponse(response, t('orthographyConvertSaved', 'Conversion saved.'))) {
+                return;
+            }
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    }
+
+    $orthographyConvert.on('click', '.ll-ipa-orthography-convert-selected', function () {
+        const ids = $orthographyConvert.find('.ll-ipa-orthography-select:checked').map(function () {
+            return parseInt($(this).val(), 10) || 0;
+        }).get().filter(Boolean);
+        submitOrthographyConversion(ids);
+    });
+
+    $orthographyConvert.on('click', '.ll-ipa-orthography-convert-one', function () {
+        const wordId = parseInt($(this).attr('data-word-id'), 10) || 0;
+        if (!wordId) {
+            return;
+        }
+        submitOrthographyConversion([wordId]);
     });
 
     $searchQuery.on('keydown', function (event) {

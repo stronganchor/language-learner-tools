@@ -170,6 +170,10 @@
 .ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-rule-target,
 .ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-rule-previous,
 .ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-rule-next,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-orthography-segment,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-orthography-ipa-cell,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-orthography-add-segment,
+.ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-orthography-example-ipa,
 .ll-ipa-admin[data-ll-secondary-text-mode="ipa"] .ll-ipa-search-issue-samples code {
     font-family: "LL-IPA", "Charis SIL", "Doulos SIL", "Gentium Plus", "Noto Sans", "Noto Serif", system-ui, sans-serif;
     font-feature-settings: "kern" 1, "mark" 1, "mkmk" 1;
@@ -215,6 +219,198 @@
 .ll-ipa-recordings td:last-child,
 .ll-ipa-search-table td:last-child {
     width: 120px;
+}
+
+.ll-ipa-orthography-summary {
+    margin: 0 0 16px;
+}
+
+.ll-ipa-orthography-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+}
+
+.ll-ipa-orthography-stat {
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 12px;
+    background: var(--ll-ipa-bg-soft);
+    padding: 12px 14px;
+}
+
+.ll-ipa-orthography-stat-label {
+    display: block;
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+.ll-ipa-orthography-stat-value {
+    font-size: 24px;
+    line-height: 1;
+    color: var(--ll-ipa-text);
+}
+
+.ll-ipa-orthography-section + .ll-ipa-orthography-section {
+    margin-top: 22px;
+}
+
+.ll-ipa-orthography-section-summary {
+    margin: 0 0 10px;
+    color: var(--ll-ipa-muted);
+    font-weight: 600;
+}
+
+.ll-ipa-orthography-add {
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 12px;
+    background: var(--ll-ipa-bg-soft);
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+.ll-ipa-orthography-add-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.ll-ipa-orthography-add-fields,
+.ll-ipa-orthography-convert-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-ipa-orthography-add-fields input,
+.ll-ipa-orthography-add-fields select {
+    min-width: 180px;
+}
+
+.ll-ipa-orthography-rules-table th,
+.ll-ipa-orthography-rules-table td,
+.ll-ipa-orthography-issues-table th,
+.ll-ipa-orthography-issues-table td,
+.ll-ipa-orthography-convert-table th,
+.ll-ipa-orthography-convert-table td {
+    vertical-align: top;
+}
+
+.ll-ipa-orthography-auto-list,
+.ll-ipa-orthography-blocked {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-ipa-orthography-auto-rule,
+.ll-ipa-orthography-blocked-item {
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 10px;
+}
+
+.ll-ipa-orthography-auto-rule-main,
+.ll-ipa-orthography-blocked-value {
+    font-weight: 600;
+    color: var(--ll-ipa-text);
+}
+
+.ll-ipa-orthography-auto-rule-count,
+.ll-ipa-orthography-blocked-title {
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.ll-ipa-orthography-manual-row {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.ll-ipa-orthography-manual-row + .ll-ipa-orthography-manual-row {
+    margin-top: 8px;
+}
+
+.ll-ipa-orthography-manual-label {
+    font-weight: 600;
+    color: var(--ll-ipa-text);
+}
+
+.ll-ipa-orthography-examples {
+    margin-top: 8px;
+}
+
+.ll-ipa-orthography-examples summary {
+    cursor: pointer;
+    color: var(--ll-ipa-accent-strong);
+}
+
+.ll-ipa-orthography-examples-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.ll-ipa-orthography-example {
+    border-left: 3px solid #bfdbfe;
+    padding-left: 10px;
+}
+
+.ll-ipa-orthography-example-link,
+.ll-ipa-orthography-word-link {
+    font-weight: 600;
+    color: var(--ll-ipa-text);
+    text-decoration: none;
+}
+
+.ll-ipa-orthography-example-link:hover,
+.ll-ipa-orthography-word-link:hover {
+    color: var(--ll-ipa-accent-strong);
+}
+
+.ll-ipa-orthography-example-line {
+    margin-top: 4px;
+    color: var(--ll-ipa-muted);
+}
+
+.ll-ipa-orthography-word-meta {
+    display: grid;
+    gap: 4px;
+}
+
+.ll-ipa-orthography-issues-table tr.is-approved {
+    background: var(--ll-ipa-ignored-bg);
+}
+
+.ll-ipa-orthography-approved-label {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #dcfce7;
+    color: #166534;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.ll-ipa-orthography-issue-actions {
+    width: 170px;
+}
+
+.ll-ipa-orthography-convert-table td:first-child,
+.ll-ipa-orthography-convert-table th:first-child {
+    width: 42px;
+}
+
+.ll-ipa-orthography-convert-table td:last-child,
+.ll-ipa-orthography-issues-table td:last-child {
+    width: 150px;
 }
 
 .ll-ipa-recording-cell {
@@ -1181,7 +1377,9 @@
     .ll-ipa-admin-add,
     .ll-ipa-map-add-fields,
     .ll-ipa-map-controls,
-    .ll-ipa-rule-actions {
+    .ll-ipa-rule-actions,
+    .ll-ipa-orthography-add-fields,
+    .ll-ipa-orthography-convert-controls {
         align-items: stretch;
     }
 
@@ -1192,10 +1390,23 @@
     .ll-ipa-map-add-letter,
     .ll-ipa-map-add-symbols,
     .ll-ipa-map-input,
-    .ll-ipa-rule-input {
+    .ll-ipa-rule-input,
+    .ll-ipa-orthography-add-fields input,
+    .ll-ipa-orthography-add-fields select,
+    .ll-ipa-orthography-manual-input {
         min-width: 0;
         width: 100%;
         max-width: none;
+    }
+
+    .ll-ipa-orthography-manual-row {
+        grid-template-columns: 1fr;
+    }
+
+    .ll-ipa-orthography-rules-table,
+    .ll-ipa-orthography-issues-table,
+    .ll-ipa-orthography-convert-table {
+        min-width: 680px;
     }
 
     .ll-ipa-search-thumb {
