@@ -1155,6 +1155,15 @@
         return $wrap;
     }
 
+    function buildMetaCategoriesCell(categories) {
+        const list = Array.isArray(categories) ? categories : [];
+        if (!list.length) {
+            return null;
+        }
+
+        return buildCategoriesCell(list).addClass('ll-ipa-search-meta-categories');
+    }
+
     function buildSearchRow(rec) {
         const recordingId = parseInt(rec && rec.recording_id, 10) || 0;
         const image = rec && rec.image ? rec.image : {};
@@ -1201,6 +1210,10 @@
         }).append(createAudioButton(rec, 'll-ipa-search-audio-btn', { showDownload: true })));
 
         $metaWrap.append($wordWrap, $mediaWrap);
+        const $metaCategories = buildMetaCategoriesCell(categories);
+        if ($metaCategories) {
+            $metaWrap.append($metaCategories);
+        }
         $metaCell.append($metaWrap);
 
         const $textInput = $('<input>', {
@@ -1434,12 +1447,12 @@
             .append($('<col>', { class: 'll-ipa-search-col-actions' }));
         const $thead = $('<thead>').append(
             $('<tr>')
-                .append($('<th>', { text: t('searchWordLabel', 'Word') }))
-                .append($('<th>', { text: t('textColumnLabel', 'Text') }))
-                .append($('<th>', { text: getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation') }))
-                .append($('<th>', { text: t('searchCategoriesLabel', 'Categories') }))
-                .append($('<th>', { text: t('searchIssuesLabel', 'Checks') }))
-                .append($('<th>', { text: '' }))
+                .append($('<th>', { class: 'll-ipa-search-meta-heading', text: t('searchWordLabel', 'Word') }))
+                .append($('<th>', { class: 'll-ipa-search-text-heading', text: t('textColumnLabel', 'Text') }))
+                .append($('<th>', { class: 'll-ipa-search-ipa-heading', text: getTranscription().symbols_column_label || t('pronunciationLabel', 'Pronunciation') }))
+                .append($('<th>', { class: 'll-ipa-search-categories-heading', text: t('searchCategoriesLabel', 'Categories') }))
+                .append($('<th>', { class: 'll-ipa-search-checks-heading', text: t('searchIssuesLabel', 'Checks') }))
+                .append($('<th>', { class: 'll-ipa-search-actions-heading', text: '' }))
         );
         const $tbody = $('<tbody>');
         results.forEach(function (rec) {

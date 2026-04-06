@@ -763,6 +763,10 @@
     width: 160px;
 }
 
+.ll-ipa-search-table col.ll-ipa-search-col-ipa {
+    width: auto;
+}
+
 .ll-ipa-search-table col.ll-ipa-search-col-categories {
     width: 150px;
 }
@@ -785,6 +789,10 @@
 .ll-ipa-search-meta-media {
     display: grid;
     gap: 8px;
+}
+
+.ll-ipa-search-meta-categories {
+    display: none;
 }
 
 .ll-ipa-search-word-link {
@@ -1081,6 +1089,48 @@
     margin-top: 18px;
 }
 
+@media (max-width: 1080px) {
+    .ll-ipa-search-table {
+        display: block;
+        overflow-x: auto;
+        min-width: 760px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-meta {
+        width: 190px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-text {
+        width: 132px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-ipa {
+        width: 280px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-categories {
+        width: 0;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-checks {
+        width: 210px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-actions {
+        width: 84px;
+    }
+
+    .ll-ipa-search-categories-heading,
+    .ll-ipa-search-categories-cell {
+        display: none;
+    }
+
+    .ll-ipa-search-meta-categories {
+        display: grid;
+        gap: 4px;
+    }
+}
+
 @media (max-width: 960px) {
     .ll-ipa-admin-toolbar {
         flex-direction: column;
@@ -1097,8 +1147,23 @@
     }
 
     .ll-ipa-search-table {
-        display: block;
-        overflow-x: auto;
+        min-width: 700px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-meta {
+        width: 176px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-text {
+        width: 120px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-ipa {
+        width: 260px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-checks {
+        width: 190px;
     }
 
     .ll-ipa-rule-row {
@@ -1136,5 +1201,38 @@
     .ll-ipa-search-thumb {
         width: 52px;
         height: 52px;
+    }
+
+    .ll-ipa-search-table {
+        min-width: 640px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-meta {
+        width: 160px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-text {
+        width: 110px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-ipa {
+        width: 240px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-checks {
+        width: 165px;
+    }
+
+    .ll-ipa-search-table col.ll-ipa-search-col-actions {
+        width: 72px;
+    }
+
+    .ll-ipa-search-action-cell {
+        width: 72px;
+    }
+
+    .ll-ipa-search-save-state {
+        font-size: 11px;
+        gap: 4px;
     }
 }
