@@ -184,12 +184,16 @@ function ll_tools_ipa_keyboard_get_requested_search_state(): array {
     $review_only = isset($_GET['review'])
         ? (sanitize_text_field(wp_unslash((string) $_GET['review'])) === '1')
         : false;
+    $exact_transcription = isset($_GET['exact'])
+        ? (sanitize_text_field(wp_unslash((string) $_GET['exact'])) === '1')
+        : false;
 
     return [
         'query' => $query,
         'scope' => $scope,
         'issues_only' => $issues_only,
         'review_only' => $review_only,
+        'exact_transcription' => $exact_transcription,
     ];
 }
 
@@ -417,6 +421,10 @@ function ll_render_ipa_keyboard_admin_page() {
     echo '<label class="ll-ipa-search-toggle">';
     echo '<input type="checkbox" id="ll-ipa-search-review-only"' . checked(!empty($initial_search['review_only']), true, false) . ' />';
     echo '<span>' . esc_html__('Only needs review', 'll-tools-text-domain') . '</span>';
+    echo '</label>';
+    echo '<label class="ll-ipa-search-toggle">';
+    echo '<input type="checkbox" id="ll-ipa-search-exact-transcription"' . checked(!empty($initial_search['exact_transcription']), true, false) . ' />';
+    echo '<span>' . esc_html__('Exact letters + diacritics', 'll-tools-text-domain') . '</span>';
     echo '</label>';
     echo '<button type="button" class="button button-primary" id="ll-ipa-search-btn">' . esc_html__('Search', 'll-tools-text-domain') . '</button>';
     echo '</div>';
@@ -2460,6 +2468,42 @@ function ll_tools_ipa_keyboard_text_matches_pattern(string $value, string $query
     return stripos($value, $query) !== false;
 }
 
+function ll_tools_ipa_keyboard_transcription_matches_simple_query(
+    string $value,
+    string $query,
+    string $mode = 'ipa',
+    bool $exact = false
+): bool {
+    $query = html_entity_decode(trim($query), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    if ($query === '') {
+        return true;
+    }
+
+    if (stripos($query, 'rx:') === 0 || strpos($query, '*') !== false || strpos($query, '?') !== false) {
+        return ll_tools_ipa_keyboard_text_matches_pattern($value, $query);
+    }
+
+    $value_tokens = ll_tools_ipa_keyboard_tokenize_search_transcription($value, $mode);
+    $query_tokens = ll_tools_ipa_keyboard_tokenize_search_transcription($query, $mode);
+    if (empty($value_tokens) || empty($query_tokens)) {
+        return false;
+    }
+
+    $sequence_length = count($query_tokens);
+    $token_count = count($value_tokens);
+    if ($sequence_length > $token_count) {
+        return false;
+    }
+
+    for ($offset = 0; $offset <= ($token_count - $sequence_length); $offset++) {
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($value_tokens, $offset, $query_tokens, $mode, $exact)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function ll_tools_ipa_keyboard_tokenize_search_transcription(string $value, string $mode = 'ipa'): array {
     $value = trim($value);
     if ($value === '') {
@@ -2568,7 +2612,12 @@ function ll_tools_ipa_keyboard_parse_search_sequence_alternatives(string $value,
     return empty($tokens) ? [] : [$tokens];
 }
 
-function ll_tools_ipa_keyboard_search_token_matches(string $actual_token, string $expected_token, string $mode = 'ipa'): bool {
+function ll_tools_ipa_keyboard_search_token_matches(
+    string $actual_token,
+    string $expected_token,
+    string $mode = 'ipa',
+    bool $exact = false
+): bool {
     $actual_token = ll_tools_ipa_keyboard_normalize_ipa_token($actual_token, $mode);
     $expected_token = ll_tools_ipa_keyboard_normalize_ipa_token($expected_token, $mode);
     if ($actual_token === '' || $expected_token === '') {
@@ -2579,6 +2628,10 @@ function ll_tools_ipa_keyboard_search_token_matches(string $actual_token, string
         return true;
     }
 
+    if ($exact) {
+        return false;
+    }
+
     $expected_base = ll_tools_ipa_keyboard_extract_token_base($expected_token, $mode);
     if ($expected_base === '' || $expected_token !== $expected_base) {
         return false;
@@ -2587,7 +2640,13 @@ function ll_tools_ipa_keyboard_search_token_matches(string $actual_token, string
     return ll_tools_ipa_keyboard_extract_token_base($actual_token, $mode) === $expected_base;
 }
 
-function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $offset, array $sequence, string $mode = 'ipa'): bool {
+function ll_tools_ipa_keyboard_search_sequence_matches_at(
+    array $tokens,
+    int $offset,
+    array $sequence,
+    string $mode = 'ipa',
+    bool $exact = false
+): bool {
     $sequence = array_values(array_filter(array_map('strval', $sequence), static function (string $token): bool {
         return $token !== '';
     }));
@@ -2596,7 +2655,7 @@ function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $of
     }
 
     foreach ($sequence as $index => $token) {
-        if (!ll_tools_ipa_keyboard_search_token_matches((string) ($tokens[$offset + $index] ?? ''), $token, $mode)) {
+        if (!ll_tools_ipa_keyboard_search_token_matches((string) ($tokens[$offset + $index] ?? ''), $token, $mode, $exact)) {
             return false;
         }
     }
@@ -2604,9 +2663,15 @@ function ll_tools_ipa_keyboard_search_sequence_matches_at(array $tokens, int $of
     return true;
 }
 
-function ll_tools_ipa_keyboard_search_any_sequence_matches_at(array $tokens, int $offset, array $alternatives, string $mode = 'ipa'): bool {
+function ll_tools_ipa_keyboard_search_any_sequence_matches_at(
+    array $tokens,
+    int $offset,
+    array $alternatives,
+    string $mode = 'ipa',
+    bool $exact = false
+): bool {
     foreach ($alternatives as $sequence) {
-        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $offset, (array) $sequence, $mode)) {
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $offset, (array) $sequence, $mode, $exact)) {
             return true;
         }
     }
@@ -2614,14 +2679,20 @@ function ll_tools_ipa_keyboard_search_any_sequence_matches_at(array $tokens, int
     return false;
 }
 
-function ll_tools_ipa_keyboard_search_any_sequence_ends_at(array $tokens, int $end_offset, array $alternatives, string $mode = 'ipa'): bool {
+function ll_tools_ipa_keyboard_search_any_sequence_ends_at(
+    array $tokens,
+    int $end_offset,
+    array $alternatives,
+    string $mode = 'ipa',
+    bool $exact = false
+): bool {
     foreach ($alternatives as $sequence) {
         $sequence = array_values((array) $sequence);
         $start_offset = $end_offset - count($sequence);
         if ($start_offset < 0) {
             continue;
         }
-        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $start_offset, $sequence, $mode)) {
+        if (ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, $start_offset, $sequence, $mode, $exact)) {
             return true;
         }
     }
@@ -2629,7 +2700,12 @@ function ll_tools_ipa_keyboard_search_any_sequence_ends_at(array $tokens, int $e
     return false;
 }
 
-function ll_tools_ipa_keyboard_transcription_matches_advanced_pattern(string $value, string $query, string $mode = 'ipa'): ?bool {
+function ll_tools_ipa_keyboard_transcription_matches_advanced_pattern(
+    string $value,
+    string $query,
+    string $mode = 'ipa',
+    bool $exact = false
+): ?bool {
     $query = html_entity_decode(trim($query), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     if ($query === '' || stripos($query, 'rx:') === 0) {
         return null;
@@ -2651,13 +2727,13 @@ function ll_tools_ipa_keyboard_transcription_matches_advanced_pattern(string $va
         unset($token);
         foreach ($left_alternatives as $sequence) {
             $sequence = array_values((array) $sequence);
-            if (empty($sequence) || !ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, (int) $offset, $sequence, $mode)) {
+            if (empty($sequence) || !ll_tools_ipa_keyboard_search_sequence_matches_at($tokens, (int) $offset, $sequence, $mode, $exact)) {
                 continue;
             }
 
             $next_offset = (int) $offset + count($sequence);
-            $has_following_match = ll_tools_ipa_keyboard_search_any_sequence_matches_at($tokens, $next_offset, $right_alternatives, $mode);
-            $has_previous_match = ll_tools_ipa_keyboard_search_any_sequence_ends_at($tokens, (int) $offset, $right_alternatives, $mode);
+            $has_following_match = ll_tools_ipa_keyboard_search_any_sequence_matches_at($tokens, $next_offset, $right_alternatives, $mode, $exact);
+            $has_previous_match = ll_tools_ipa_keyboard_search_any_sequence_ends_at($tokens, (int) $offset, $right_alternatives, $mode, $exact);
 
             if ($operator === '>' && $has_following_match) {
                 return true;
@@ -2681,7 +2757,8 @@ function ll_tools_ipa_keyboard_recording_matches_search(
     array $payload,
     string $query,
     string $scope = 'both',
-    string $transcription_mode = 'ipa'
+    string $transcription_mode = 'ipa',
+    bool $exact_transcription = false
 ): bool {
     $query = trim($query);
     if ($query === '') {
@@ -2707,14 +2784,14 @@ function ll_tools_ipa_keyboard_recording_matches_search(
 
     if ($scope === 'transcription') {
         foreach ($transcription_values as $value) {
-            $advanced_match = ll_tools_ipa_keyboard_transcription_matches_advanced_pattern($value, $query, $transcription_mode);
+            $advanced_match = ll_tools_ipa_keyboard_transcription_matches_advanced_pattern($value, $query, $transcription_mode, $exact_transcription);
             if ($advanced_match !== null) {
                 if ($advanced_match) {
                     return true;
                 }
                 continue;
             }
-            if (ll_tools_ipa_keyboard_text_matches_pattern($value, $query)) {
+            if (ll_tools_ipa_keyboard_transcription_matches_simple_query($value, $query, $transcription_mode, $exact_transcription)) {
                 return true;
             }
         }
@@ -2728,14 +2805,14 @@ function ll_tools_ipa_keyboard_recording_matches_search(
     }
 
     foreach ($transcription_values as $value) {
-        $advanced_match = ll_tools_ipa_keyboard_transcription_matches_advanced_pattern($value, $query, $transcription_mode);
+        $advanced_match = ll_tools_ipa_keyboard_transcription_matches_advanced_pattern($value, $query, $transcription_mode, $exact_transcription);
         if ($advanced_match !== null) {
             if ($advanced_match) {
                 return true;
             }
             continue;
         }
-        if (ll_tools_ipa_keyboard_text_matches_pattern($value, $query)) {
+        if (ll_tools_ipa_keyboard_transcription_matches_simple_query($value, $query, $transcription_mode, $exact_transcription)) {
             return true;
         }
     }
@@ -2763,6 +2840,7 @@ function ll_tools_ipa_keyboard_search_recordings(
     string $scope = 'both',
     bool $issues_only = false,
     bool $review_only = false,
+    bool $exact_transcription = false,
     int $limit = 200
 ): array {
     $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
@@ -2818,7 +2896,7 @@ function ll_tools_ipa_keyboard_search_recordings(
             continue;
         }
 
-        if (!ll_tools_ipa_keyboard_recording_matches_search($payload, $query, $scope, $transcription_mode)) {
+        if (!ll_tools_ipa_keyboard_recording_matches_search($payload, $query, $scope, $transcription_mode, $exact_transcription)) {
             continue;
         }
 
@@ -3172,7 +3250,8 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
     }
     $issues_only = !empty($_POST['issues_only']);
     $review_only = !empty($_POST['review_only']);
-    $results = ll_tools_ipa_keyboard_search_recordings($wordset_id, $query, $scope, $issues_only, $review_only, 200);
+    $exact_transcription = !empty($_POST['exact_transcription']);
+    $results = ll_tools_ipa_keyboard_search_recordings($wordset_id, $query, $scope, $issues_only, $review_only, $exact_transcription, 200);
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
 
     wp_send_json_success([
@@ -3187,6 +3266,7 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
         'has_more' => !empty($results['has_more']),
         'issues_only' => $issues_only,
         'review_only' => $review_only,
+        'exact_transcription' => $exact_transcription,
         'can_edit' => ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id),
         'validation_config' => ll_tools_ipa_keyboard_build_validation_config_payload($wordset_id),
     ]);

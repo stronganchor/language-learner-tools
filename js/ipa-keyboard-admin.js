@@ -32,6 +32,7 @@
     const $searchScope = $('#ll-ipa-search-scope');
     const $searchIssuesOnly = $('#ll-ipa-search-issues-only');
     const $searchReviewOnly = $('#ll-ipa-search-review-only');
+    const $searchExactTranscription = $('#ll-ipa-search-exact-transcription');
     const $searchBtn = $('#ll-ipa-search-btn');
     const $searchSummary = $('#ll-ipa-search-summary');
     const $searchResults = $('#ll-ipa-search-results');
@@ -504,7 +505,8 @@
             query: ($searchQuery.val() || '').toString(),
             scope: ($searchScope.val() || 'both').toString(),
             issuesOnly: !!$searchIssuesOnly.prop('checked'),
-            reviewOnly: !!$searchReviewOnly.prop('checked')
+            reviewOnly: !!$searchReviewOnly.prop('checked'),
+            exactTranscription: !!$searchExactTranscription.prop('checked')
         };
     }
 
@@ -531,7 +533,8 @@
             query: searchState.query,
             scope: searchState.scope,
             issues_only: searchState.issuesOnly ? 1 : 0,
-            review_only: searchState.reviewOnly ? 1 : 0
+            review_only: searchState.reviewOnly ? 1 : 0,
+            exact_transcription: searchState.exactTranscription ? 1 : 0
         }).done(function (response) {
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
@@ -2067,6 +2070,9 @@
         }
         if (Object.prototype.hasOwnProperty.call(initialSearch, 'review_only')) {
             $searchReviewOnly.prop('checked', !!initialSearch.review_only);
+        }
+        if (Object.prototype.hasOwnProperty.call(initialSearch, 'exact_transcription')) {
+            $searchExactTranscription.prop('checked', !!initialSearch.exact_transcription);
         }
 
         if (initialWordsetId) {
