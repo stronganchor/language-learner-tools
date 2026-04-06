@@ -115,6 +115,8 @@ function ll_tools_enqueue_export_import_assets($hook) {
         'processingDone' => __('Import finished. Loading results...', 'll-tools-text-domain'),
         'processingFailed' => __('Import request did not complete. Return to the import page and try again.', 'll-tools-text-domain'),
         'processingReload' => __('Back to import page', 'll-tools-text-domain'),
+        'copyButtonCopied' => __('Copied', 'll-tools-text-domain'),
+        'copyButtonFailed' => __('Copy failed', 'll-tools-text-domain'),
     ]);
 }
 
@@ -1133,8 +1135,12 @@ function ll_tools_render_metadata_update_reference_section(): void {
 
         <div class="ll-tools-import-csv-reference-list">
             <div class="ll-tools-import-csv-reference-card">
-                <h4><?php esc_html_e('Agent Instructions', 'll-tools-text-domain'); ?></h4>
+                <div class="ll-tools-import-csv-reference-card-header">
+                    <h4><?php esc_html_e('Agent Instructions', 'll-tools-text-domain'); ?></h4>
+                    <button type="button" class="button button-secondary ll-tools-copy-reference-button" data-ll-copy-target="ll-tools-metadata-update-agent-instructions"><?php esc_html_e('Copy', 'll-tools-text-domain'); ?></button>
+                </div>
                 <textarea
+                    id="ll-tools-metadata-update-agent-instructions"
                     class="large-text code ll-tools-import-csv-reference-text"
                     rows="10"
                     readonly
@@ -1143,8 +1149,12 @@ function ll_tools_render_metadata_update_reference_section(): void {
             </div>
 
             <div class="ll-tools-import-csv-reference-card">
-                <h4><?php esc_html_e('Supported Editable Fields', 'll-tools-text-domain'); ?></h4>
+                <div class="ll-tools-import-csv-reference-card-header">
+                    <h4><?php esc_html_e('Supported Editable Fields', 'll-tools-text-domain'); ?></h4>
+                    <button type="button" class="button button-secondary ll-tools-copy-reference-button" data-ll-copy-target="ll-tools-metadata-update-supported-fields"><?php esc_html_e('Copy', 'll-tools-text-domain'); ?></button>
+                </div>
                 <textarea
+                    id="ll-tools-metadata-update-supported-fields"
                     class="large-text code ll-tools-import-csv-reference-text"
                     rows="<?php echo esc_attr((string) max(4, count($field_labels))); ?>"
                     readonly
@@ -1153,9 +1163,13 @@ function ll_tools_render_metadata_update_reference_section(): void {
             </div>
 
             <div class="ll-tools-import-csv-reference-card">
-                <h4><?php esc_html_e('CSV Template', 'll-tools-text-domain'); ?></h4>
+                <div class="ll-tools-import-csv-reference-card-header">
+                    <h4><?php esc_html_e('CSV Template', 'll-tools-text-domain'); ?></h4>
+                    <button type="button" class="button button-secondary ll-tools-copy-reference-button" data-ll-copy-target="ll-tools-metadata-update-csv-template"><?php esc_html_e('Copy', 'll-tools-text-domain'); ?></button>
+                </div>
                 <p class="description"><?php esc_html_e('CSV is best for spreadsheets. Keep identifier columns and edit only the fields you want to change.', 'll-tools-text-domain'); ?></p>
                 <textarea
+                    id="ll-tools-metadata-update-csv-template"
                     class="large-text code ll-tools-import-csv-reference-text"
                     rows="<?php echo esc_attr((string) max(4, substr_count($csv_template, "\n") + 1)); ?>"
                     readonly
@@ -1164,9 +1178,13 @@ function ll_tools_render_metadata_update_reference_section(): void {
             </div>
 
             <div class="ll-tools-import-csv-reference-card">
-                <h4><?php esc_html_e('JSON / JSONL Example', 'll-tools-text-domain'); ?></h4>
+                <div class="ll-tools-import-csv-reference-card-header">
+                    <h4><?php esc_html_e('JSON / JSONL Example', 'll-tools-text-domain'); ?></h4>
+                    <button type="button" class="button button-secondary ll-tools-copy-reference-button" data-ll-copy-target="ll-tools-metadata-update-json-template"><?php esc_html_e('Copy', 'll-tools-text-domain'); ?></button>
+                </div>
                 <p class="description"><?php esc_html_e('JSON accepts an array of row objects. JSONL accepts one JSON object per line with the same keys.', 'll-tools-text-domain'); ?></p>
                 <textarea
+                    id="ll-tools-metadata-update-json-template"
                     class="large-text code ll-tools-import-csv-reference-text"
                     rows="<?php echo esc_attr((string) max(8, substr_count($json_template, "\n") + 1)); ?>"
                     readonly

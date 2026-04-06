@@ -11,8 +11,81 @@
             processingProgressLabel: typeof cfg.processingProgressLabel === 'string' ? cfg.processingProgressLabel : '',
             processingDone: typeof cfg.processingDone === 'string' ? cfg.processingDone : '',
             processingFailed: typeof cfg.processingFailed === 'string' ? cfg.processingFailed : '',
-            processingReload: typeof cfg.processingReload === 'string' ? cfg.processingReload : ''
+            processingReload: typeof cfg.processingReload === 'string' ? cfg.processingReload : '',
+            copyButtonCopied: typeof cfg.copyButtonCopied === 'string' ? cfg.copyButtonCopied : 'Copied',
+            copyButtonFailed: typeof cfg.copyButtonFailed === 'string' ? cfg.copyButtonFailed : 'Copy failed'
         };
+    }
+
+    function initReferenceCopyButtons() {
+        var buttons = document.querySelectorAll('.ll-tools-copy-reference-button[data-ll-copy-target]');
+        if (!buttons.length) {
+            return;
+        }
+
+        var config = getImportUiConfig();
+
+        function copyText(text) {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                return navigator.clipboard.writeText(text);
+            }
+
+            return new Promise(function (resolve, reject) {
+                var helper = document.createElement('textarea');
+                helper.value = text;
+                helper.setAttribute('readonly', 'readonly');
+                helper.style.position = 'fixed';
+                helper.style.opacity = '0';
+                helper.style.pointerEvents = 'none';
+                document.body.appendChild(helper);
+                helper.focus();
+                helper.select();
+
+                try {
+                    if (document.execCommand('copy')) {
+                        resolve();
+                    } else {
+                        reject(new Error('copy_failed'));
+                    }
+                } catch (error) {
+                    reject(error);
+                } finally {
+                    document.body.removeChild(helper);
+                }
+            });
+        }
+
+        for (var i = 0; i < buttons.length; i++) {
+            (function (button) {
+                var defaultLabel = button.textContent;
+                button.addEventListener('click', function () {
+                    var targetId = button.getAttribute('data-ll-copy-target');
+                    if (!targetId) {
+                        return;
+                    }
+
+                    var target = document.getElementById(targetId);
+                    if (!target) {
+                        return;
+                    }
+
+                    button.disabled = true;
+                    copyText(target.value || target.textContent || '').then(function () {
+                        button.textContent = config.copyButtonCopied;
+                        window.setTimeout(function () {
+                            button.textContent = defaultLabel;
+                            button.disabled = false;
+                        }, 1500);
+                    }).catch(function () {
+                        button.textContent = config.copyButtonFailed;
+                        window.setTimeout(function () {
+                            button.textContent = defaultLabel;
+                            button.disabled = false;
+                        }, 1800);
+                    });
+                });
+            })(buttons[i]);
+        }
     }
 
     function ensureImportProcessingScreen(config) {
@@ -336,5 +409,6 @@
         initAutoPreviewOnZipUpload();
         initImportConfirmProgressUi();
         initImportPreviewAudioButtons();
+        initReferenceCopyButtons();
     });
 })();

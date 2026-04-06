@@ -61,6 +61,22 @@
   min-height: 220px;
 }
 
+.ll-tools-export-import .ll-tools-import-csv-reference-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference-card-header h4 {
+  margin: 0;
+}
+
+.ll-tools-export-import .ll-tools-copy-reference-button {
+  flex: 0 0 auto;
+}
+
 .ll-tools-export-import .ll-tools-action-button {
   border: 1px solid #1d4ed8;
   background: #1d4ed8;
@@ -257,6 +273,13 @@
   color: #92400e;
   letter-spacing: 0;
   text-transform: none;
+}
+
+@media (max-width: 782px) {
+  .ll-tools-export-import .ll-tools-import-csv-reference-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recordings {

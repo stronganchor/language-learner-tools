@@ -15,6 +15,8 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Metadata Updates', $output);
         $this->assertStringContainsString('ll_tools_import_metadata_updates', $output);
         $this->assertStringContainsString('metadata.csv or metadata.jsonl', $output);
+        $this->assertStringContainsString('ll-tools-copy-reference-button', $output);
+        $this->assertStringContainsString('ll-tools-metadata-update-agent-instructions', $output);
     }
 
     public function test_process_metadata_update_csv_updates_word_and_recording_fields(): void
