@@ -88,6 +88,7 @@ add_action('admin_post_ll_tools_download_bundle', 'll_tools_handle_download_bund
 add_action('admin_post_ll_tools_preview_import_bundle', 'll_tools_handle_preview_import_bundle');
 add_action('admin_post_ll_tools_import_preview_media', 'll_tools_handle_import_preview_media');
 add_action('admin_post_ll_tools_import_bundle', 'll_tools_handle_import_bundle');
+add_action('admin_post_ll_tools_import_metadata_updates', 'll_tools_handle_import_metadata_updates');
 add_action('admin_post_ll_tools_undo_import', 'll_tools_handle_undo_import');
 add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wordset_csv');
 add_action('admin_post_ll_tools_export_stt_training_bundle', 'll_tools_handle_export_stt_training_bundle');
@@ -997,6 +998,186 @@ function ll_tools_render_import_csv_reference_section(): void {
     <?php
 }
 
+function ll_tools_get_metadata_update_supported_fields(): array {
+    return [
+        'word_title' => [
+            'label' => __('Word title', 'll-tools-text-domain'),
+            'target' => 'word',
+            'storage' => 'post_field',
+            'field' => 'post_title',
+            'clearable' => false,
+            'sanitize' => 'text',
+        ],
+        'word_translation' => [
+            'label' => __('Word translation', 'll-tools-text-domain'),
+            'target' => 'word',
+            'storage' => 'meta',
+            'meta_keys' => ['word_translation', 'word_english_meaning'],
+            'clearable' => true,
+            'sanitize' => 'textarea',
+        ],
+        'word_example_sentence' => [
+            'label' => __('Word example sentence', 'll-tools-text-domain'),
+            'target' => 'word',
+            'storage' => 'meta',
+            'meta_keys' => ['word_example_sentence'],
+            'clearable' => true,
+            'sanitize' => 'textarea',
+        ],
+        'word_example_sentence_translation' => [
+            'label' => __('Word example sentence translation', 'll-tools-text-domain'),
+            'target' => 'word',
+            'storage' => 'meta',
+            'meta_keys' => ['word_example_sentence_translation'],
+            'clearable' => true,
+            'sanitize' => 'textarea',
+        ],
+        'recording_text' => [
+            'label' => __('Recording text', 'll-tools-text-domain'),
+            'target' => 'recording',
+            'storage' => 'meta',
+            'meta_keys' => ['recording_text'],
+            'clearable' => true,
+            'sanitize' => 'textarea',
+        ],
+        'recording_translation' => [
+            'label' => __('Recording translation', 'll-tools-text-domain'),
+            'target' => 'recording',
+            'storage' => 'meta',
+            'meta_keys' => ['recording_translation'],
+            'clearable' => true,
+            'sanitize' => 'textarea',
+        ],
+        'recording_ipa' => [
+            'label' => __('Recording transcription / IPA', 'll-tools-text-domain'),
+            'target' => 'recording',
+            'storage' => 'meta',
+            'meta_keys' => ['recording_ipa'],
+            'clearable' => true,
+            'sanitize' => 'textarea',
+        ],
+        'speaker_name' => [
+            'label' => __('Speaker name', 'll-tools-text-domain'),
+            'target' => 'recording',
+            'storage' => 'meta',
+            'meta_keys' => ['speaker_name'],
+            'clearable' => true,
+            'sanitize' => 'text',
+        ],
+    ];
+}
+
+function ll_tools_get_metadata_update_agent_instructions(): string {
+    $lines = [
+        __('Build one CSV, JSON, or JSONL file of metadata changes.', 'll-tools-text-domain'),
+        __('Keep stable identifiers in every row: use word_id when possible, and use recording_id for recording fields when possible.', 'll-tools-text-domain'),
+        __('If recording_id is unavailable, you can identify a recording with recording_slug + word_id/word_slug, or with recording_type + word_id/word_slug when that word has exactly one recording of that type.', 'll-tools-text-domain'),
+        __('The importer accepts these editable fields: word_title, word_translation, word_example_sentence, word_example_sentence_translation, recording_text, recording_translation, recording_ipa, speaker_name.', 'll-tools-text-domain'),
+        __('Blank values mean "leave unchanged". To delete a value, put the field name in clear_fields.', 'll-tools-text-domain'),
+        __('Extra columns are ignored, so you can start from an exported STT metadata.csv / metadata.jsonl file and only change the fields you want to fix.', 'll-tools-text-domain'),
+        __('If you keep the STT export columns text + text_field, changing text updates whichever field text_field names: recording_text, recording_ipa, recording_translation, word_title, or word_translation.', 'll-tools-text-domain'),
+        __('If the same field for the same item appears more than once, rows are processed top to bottom and the last changed value wins.', 'll-tools-text-domain'),
+        __('For full export zips, word IDs come from words[].origin_id and recording IDs come from words[].audio_entries[].origin_id inside data.json.', 'll-tools-text-domain'),
+    ];
+
+    return implode("\n", $lines);
+}
+
+function ll_tools_get_metadata_update_csv_template(): string {
+    return implode("\n", [
+        'word_id,word_slug,recording_id,recording_slug,recording_type,word_title,word_translation,word_example_sentence,word_example_sentence_translation,recording_text,recording_translation,recording_ipa,speaker_name,clear_fields',
+        '123,merheba,456,,isolation,Merheba,Hello,,,,Merheba,,mer.he.ba,,',
+        '123,merheba,456,,,,,,,,,,,speaker_name',
+    ]) . "\n";
+}
+
+function ll_tools_get_metadata_update_json_template(): string {
+    $example = [
+        [
+            'word_id' => 123,
+            'recording_id' => 456,
+            'word_title' => 'Merheba',
+            'word_translation' => 'Hello',
+            'recording_text' => 'Merheba',
+            'recording_ipa' => 'mer.he.ba',
+        ],
+        [
+            'word_id' => 123,
+            'recording_id' => 456,
+            'clear_fields' => ['speaker_name'],
+        ],
+        [
+            'audio' => 'audio/456-merheba.mp3',
+            'text_field' => 'recording_ipa',
+            'text' => 'mer.he.ba',
+        ],
+    ];
+
+    $json = wp_json_encode($example, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    return is_string($json) ? $json : '[]';
+}
+
+function ll_tools_render_metadata_update_reference_section(): void {
+    $instructions = ll_tools_get_metadata_update_agent_instructions();
+    $csv_template = ll_tools_get_metadata_update_csv_template();
+    $json_template = ll_tools_get_metadata_update_json_template();
+    $field_labels = [];
+
+    foreach (ll_tools_get_metadata_update_supported_fields() as $field_key => $field_config) {
+        $field_labels[] = $field_key . ' - ' . (string) ($field_config['label'] ?? $field_key);
+    }
+    ?>
+    <div class="ll-tools-import-csv-reference">
+        <h3><?php esc_html_e('Metadata Update File Guide', 'll-tools-text-domain'); ?></h3>
+        <p class="description"><?php esc_html_e('Use this when you want to review exported word / recording metadata offline, then upload one file of fixes back into the site.', 'll-tools-text-domain'); ?></p>
+
+        <div class="ll-tools-import-csv-reference-list">
+            <div class="ll-tools-import-csv-reference-card">
+                <h4><?php esc_html_e('Agent Instructions', 'll-tools-text-domain'); ?></h4>
+                <textarea
+                    class="large-text code ll-tools-import-csv-reference-text"
+                    rows="10"
+                    readonly
+                    spellcheck="false"
+                ><?php echo esc_textarea($instructions); ?></textarea>
+            </div>
+
+            <div class="ll-tools-import-csv-reference-card">
+                <h4><?php esc_html_e('Supported Editable Fields', 'll-tools-text-domain'); ?></h4>
+                <textarea
+                    class="large-text code ll-tools-import-csv-reference-text"
+                    rows="<?php echo esc_attr((string) max(4, count($field_labels))); ?>"
+                    readonly
+                    spellcheck="false"
+                ><?php echo esc_textarea(implode("\n", $field_labels)); ?></textarea>
+            </div>
+
+            <div class="ll-tools-import-csv-reference-card">
+                <h4><?php esc_html_e('CSV Template', 'll-tools-text-domain'); ?></h4>
+                <p class="description"><?php esc_html_e('CSV is best for spreadsheets. Keep identifier columns and edit only the fields you want to change.', 'll-tools-text-domain'); ?></p>
+                <textarea
+                    class="large-text code ll-tools-import-csv-reference-text"
+                    rows="<?php echo esc_attr((string) max(4, substr_count($csv_template, "\n") + 1)); ?>"
+                    readonly
+                    spellcheck="false"
+                ><?php echo esc_textarea($csv_template); ?></textarea>
+            </div>
+
+            <div class="ll-tools-import-csv-reference-card">
+                <h4><?php esc_html_e('JSON / JSONL Example', 'll-tools-text-domain'); ?></h4>
+                <p class="description"><?php esc_html_e('JSON accepts an array of row objects. JSONL accepts one JSON object per line with the same keys.', 'll-tools-text-domain'); ?></p>
+                <textarea
+                    class="large-text code ll-tools-import-csv-reference-text"
+                    rows="<?php echo esc_attr((string) max(8, substr_count($json_template, "\n") + 1)); ?>"
+                    readonly
+                    spellcheck="false"
+                ><?php echo esc_textarea($json_template); ?></textarea>
+            </div>
+        </div>
+    </div>
+    <?php
+}
+
 function ll_tools_import_history_created_summary(array $stats): string {
     $summary = [];
     $map = [
@@ -1361,6 +1542,12 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     'categories_deleted',
                     'wordsets_deleted',
                     'audio_files_deleted',
+                    'metadata_files_processed',
+                    'metadata_rows_total',
+                    'metadata_rows_applied',
+                    'metadata_rows_skipped',
+                    'metadata_fields_updated',
+                    'metadata_fields_cleared',
                 ] as $key) {
                     if (!empty($stats[$key])) {
                         $stat_bits[] = esc_html($stats[$key] . ' ' . str_replace('_', ' ', $key));
@@ -2005,6 +2192,23 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             </div>
         <?php endif; ?>
 
+        <hr>
+        <h2><?php esc_html_e('Metadata Updates', 'll-tools-text-domain'); ?></h2>
+        <p><?php esc_html_e('Upload one CSV, JSON, or JSONL file to update existing words and word-audio metadata in place.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('This workflow updates existing items only. It does not create new words, categories, or recordings, and undo is not available for edited existing content.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Best starting point: export STT Training Data, edit metadata.csv or metadata.jsonl offline, then upload the edited file here.', 'll-tools-text-domain'); ?></p>
+        <form method="post" action="<?php echo esc_url($import_action); ?>" enctype="multipart/form-data">
+            <?php wp_nonce_field('ll_tools_import_metadata_updates'); ?>
+            <input type="hidden" name="action" value="ll_tools_import_metadata_updates">
+
+            <p><label for="ll_import_metadata_file"><strong><?php esc_html_e('Upload metadata update file', 'll-tools-text-domain'); ?></strong></label></p>
+            <input type="file" name="ll_import_metadata_file" id="ll_import_metadata_file" accept=".csv,.json,.jsonl,.ndjson,application/json,text/csv,application/x-ndjson">
+            <p class="description"><?php esc_html_e('Accepted formats: .csv, .json, .jsonl, .ndjson. Extra columns are ignored.', 'll-tools-text-domain'); ?></p>
+
+            <p><button type="submit" class="button button-primary"><?php esc_html_e('Apply Metadata Updates', 'll-tools-text-domain'); ?></button></p>
+        </form>
+
+        <?php ll_tools_render_metadata_update_reference_section(); ?>
         <?php ll_tools_render_import_csv_reference_section(); ?>
         <?php endif; ?>
     </div>
@@ -4697,6 +4901,1050 @@ function ll_tools_handle_import_bundle() {
     ll_tools_store_import_result_and_redirect($processed);
 }
 
+function ll_tools_resolve_metadata_update_upload() {
+    if (empty($_FILES['ll_import_metadata_file']['name'])) {
+        return new WP_Error('ll_tools_metadata_updates_missing', __('Metadata update import failed: choose a CSV, JSON, or JSONL file.', 'll-tools-text-domain'));
+    }
+
+    $source_name = sanitize_file_name((string) wp_unslash($_FILES['ll_import_metadata_file']['name']));
+    $extension = strtolower((string) pathinfo($source_name, PATHINFO_EXTENSION));
+    if (!in_array($extension, ['csv', 'json', 'jsonl', 'ndjson'], true)) {
+        return new WP_Error('ll_tools_metadata_updates_invalid_extension', __('Metadata update import failed: the file must end in .csv, .json, .jsonl, or .ndjson.', 'll-tools-text-domain'));
+    }
+
+    $upload = wp_handle_upload($_FILES['ll_import_metadata_file'], [
+        'test_form' => false,
+        'test_type' => false,
+    ]);
+    if (isset($upload['error'])) {
+        return new WP_Error('ll_tools_metadata_updates_upload_failed', (string) $upload['error']);
+    }
+
+    $file_path = isset($upload['file']) ? (string) $upload['file'] : '';
+    if ($file_path === '' || !is_file($file_path)) {
+        return new WP_Error('ll_tools_metadata_updates_missing_upload', __('Metadata update import failed: the uploaded file could not be read.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'file_path' => $file_path,
+        'source_name' => $source_name !== '' ? $source_name : basename($file_path),
+        'cleanup_file' => true,
+    ];
+}
+
+function ll_tools_get_metadata_update_column_aliases(): array {
+    $aliases = [
+        'word_id' => ['word id', 'origin id', 'source word id', 'source word origin id'],
+        'word_slug' => ['word slug', 'source word slug'],
+        'recording_id' => ['recording id', 'word audio id', 'audio id', 'recording origin id', 'audio origin id'],
+        'recording_slug' => ['recording slug', 'word audio slug', 'audio slug'],
+        'recording_type' => ['recording type', 'audio type'],
+        'recording_types' => ['recording types', 'audio types'],
+        'audio' => ['audio', 'audio file', 'audio path'],
+        'text' => ['text'],
+        'text_field' => ['text field'],
+        'clear_fields' => ['clear fields', 'clear', 'unset fields'],
+        'word_title' => ['word title', 'title', 'post title'],
+        'word_translation' => ['word translation', 'translation', 'gloss'],
+        'word_example_sentence' => ['word example sentence', 'example sentence'],
+        'word_example_sentence_translation' => ['word example sentence translation', 'example sentence translation'],
+        'recording_text' => ['recording text', 'transcript'],
+        'recording_translation' => ['recording translation', 'audio translation'],
+        'recording_ipa' => ['recording ipa', 'recording transcription', 'ipa', 'transcription', 'phonetic'],
+        'speaker_name' => ['speaker name', 'speaker'],
+    ];
+
+    $map = [];
+    foreach ($aliases as $canonical => $candidate_aliases) {
+        $all = array_merge([$canonical], $candidate_aliases);
+        foreach ($all as $alias) {
+            $normalized = ll_tools_import_normalize_external_csv_header($alias);
+            if ($normalized !== '') {
+                $map[$normalized] = $canonical;
+            }
+        }
+    }
+
+    return $map;
+}
+
+function ll_tools_metadata_update_extract_scalar_value($value): string {
+    if (is_array($value)) {
+        return '';
+    }
+    if (is_bool($value)) {
+        return $value ? '1' : '';
+    }
+    if ($value === null) {
+        return '';
+    }
+    return trim(ll_tools_import_decode_external_csv_text($value));
+}
+
+function ll_tools_metadata_update_parse_clear_fields($value): array {
+    if (is_array($value)) {
+        $parts = $value;
+    } else {
+        $raw = ll_tools_metadata_update_extract_scalar_value($value);
+        $parts = $raw === '' ? [] : preg_split('/[,;|]/', $raw);
+    }
+
+    $supported = ll_tools_get_metadata_update_supported_fields();
+    $aliases = ll_tools_get_metadata_update_column_aliases();
+    $resolved = [];
+
+    foreach ((array) $parts as $part_raw) {
+        $normalized = ll_tools_import_normalize_external_csv_header($part_raw);
+        if ($normalized === '') {
+            continue;
+        }
+        $canonical = $aliases[$normalized] ?? '';
+        if ($canonical === '' || !isset($supported[$canonical])) {
+            continue;
+        }
+        $resolved[$canonical] = true;
+    }
+
+    return array_values(array_keys($resolved));
+}
+
+function ll_tools_metadata_update_pick_recording_type($value): string {
+    if (is_array($value)) {
+        $parts = $value;
+    } else {
+        $raw = ll_tools_metadata_update_extract_scalar_value($value);
+        if ($raw === '') {
+            return '';
+        }
+        $parts = preg_split('/[|,;]/', $raw);
+    }
+
+    $types = [];
+    foreach ((array) $parts as $part_raw) {
+        $slug = sanitize_title((string) $part_raw);
+        if ($slug !== '') {
+            $types[$slug] = true;
+        }
+    }
+
+    if (count($types) !== 1) {
+        return '';
+    }
+
+    return (string) key($types);
+}
+
+function ll_tools_metadata_update_extract_recording_id_from_audio_reference(string $reference): int {
+    $reference = trim($reference);
+    if ($reference === '') {
+        return 0;
+    }
+
+    $basename = basename($reference);
+    if ($basename === '' || !preg_match('/^([0-9]+)-/', $basename, $matches)) {
+        return 0;
+    }
+
+    return isset($matches[1]) ? (int) $matches[1] : 0;
+}
+
+function ll_tools_metadata_update_normalize_input_row(array $row, int $row_number): array {
+    $aliases = ll_tools_get_metadata_update_column_aliases();
+    $supported_fields = ll_tools_get_metadata_update_supported_fields();
+    $normalized = [
+        'row_number' => $row_number,
+        'word_id' => 0,
+        'word_slug' => '',
+        'recording_id' => 0,
+        'recording_slug' => '',
+        'recording_type' => '',
+        'audio' => '',
+        'text' => '',
+        'text_field' => '',
+        'clear_fields' => [],
+        'updates' => [],
+    ];
+
+    $flatten = static function (array $source, array &$destination) use ($aliases): void {
+        foreach ($source as $key_raw => $value) {
+            $normalized_key = ll_tools_import_normalize_external_csv_header((string) $key_raw);
+            if ($normalized_key === '') {
+                continue;
+            }
+            $canonical = $aliases[$normalized_key] ?? '';
+            if ($canonical === '') {
+                continue;
+            }
+            $destination[$canonical] = $value;
+        }
+    };
+
+    $flat = [];
+    $flatten($row, $flat);
+    if (!empty($row['match']) && is_array($row['match'])) {
+        $flatten($row['match'], $flat);
+    }
+    if (!empty($row['fields']) && is_array($row['fields'])) {
+        $flatten($row['fields'], $flat);
+    }
+
+    $normalized['word_id'] = isset($flat['word_id']) ? (int) $flat['word_id'] : 0;
+    $normalized['word_slug'] = isset($flat['word_slug']) ? sanitize_title(ll_tools_metadata_update_extract_scalar_value($flat['word_slug'])) : '';
+    $normalized['recording_id'] = isset($flat['recording_id']) ? (int) $flat['recording_id'] : 0;
+    $normalized['recording_slug'] = isset($flat['recording_slug']) ? sanitize_title(ll_tools_metadata_update_extract_scalar_value($flat['recording_slug'])) : '';
+    $normalized['recording_type'] = isset($flat['recording_type'])
+        ? sanitize_title(ll_tools_metadata_update_extract_scalar_value($flat['recording_type']))
+        : ll_tools_metadata_update_pick_recording_type($flat['recording_types'] ?? '');
+    $normalized['audio'] = isset($flat['audio']) ? ll_tools_metadata_update_extract_scalar_value($flat['audio']) : '';
+    $normalized['text'] = isset($flat['text']) ? ll_tools_metadata_update_extract_scalar_value($flat['text']) : '';
+    $text_field_candidate = isset($flat['text_field']) ? sanitize_key(ll_tools_metadata_update_extract_scalar_value($flat['text_field'])) : '';
+    $allowed_text_fields = ['recording_text', 'recording_ipa', 'recording_translation', 'word_title', 'word_translation'];
+    $normalized['text_field'] = in_array($text_field_candidate, $allowed_text_fields, true) ? $text_field_candidate : '';
+    $normalized['clear_fields'] = ll_tools_metadata_update_parse_clear_fields($flat['clear_fields'] ?? []);
+
+    if ($normalized['recording_id'] <= 0 && $normalized['audio'] !== '') {
+        $normalized['recording_id'] = ll_tools_metadata_update_extract_recording_id_from_audio_reference($normalized['audio']);
+    }
+
+    foreach (array_keys($supported_fields) as $field_key) {
+        if (!array_key_exists($field_key, $flat)) {
+            continue;
+        }
+        $raw_value = ll_tools_metadata_update_extract_scalar_value($flat[$field_key]);
+        if ($raw_value === '') {
+            continue;
+        }
+        $normalized['updates'][$field_key] = $raw_value;
+    }
+
+    if ($normalized['text'] !== '' && $normalized['text_field'] !== '' && isset($supported_fields[$normalized['text_field']]) && empty($normalized['updates'][$normalized['text_field']])) {
+        $normalized['updates'][$normalized['text_field']] = $normalized['text'];
+    }
+
+    return $normalized;
+}
+
+function ll_tools_metadata_update_row_is_blank(array $row): bool {
+    return empty($row['word_id'])
+        && empty($row['word_slug'])
+        && empty($row['recording_id'])
+        && empty($row['recording_slug'])
+        && empty($row['recording_type'])
+        && empty($row['audio'])
+        && empty($row['updates'])
+        && empty($row['clear_fields']);
+}
+
+function ll_tools_parse_metadata_updates_file(string $file_path, string $source_name = '') {
+    if ($file_path === '' || !is_file($file_path)) {
+        return new WP_Error('ll_tools_metadata_updates_missing_file', __('Metadata update import failed: the source file is missing.', 'll-tools-text-domain'));
+    }
+
+    $extension = strtolower((string) pathinfo($source_name !== '' ? $source_name : $file_path, PATHINFO_EXTENSION));
+    if ($extension === '') {
+        $extension = strtolower((string) pathinfo($file_path, PATHINFO_EXTENSION));
+    }
+
+    if ($extension === 'csv') {
+        $raw_contents = @file_get_contents($file_path);
+        if (!is_string($raw_contents)) {
+            return new WP_Error('ll_tools_metadata_updates_read_failed', __('Metadata update import failed: the CSV file could not be read.', 'll-tools-text-domain'));
+        }
+
+        $contents = ll_tools_import_convert_external_csv_bytes_to_utf8($raw_contents);
+        $handle = fopen('php://temp', 'r+');
+        if ($handle === false) {
+            return new WP_Error('ll_tools_metadata_updates_csv_handle', __('Metadata update import failed: the CSV file could not be parsed.', 'll-tools-text-domain'));
+        }
+
+        fwrite($handle, $contents);
+        rewind($handle);
+
+        $first_line = fgets($handle);
+        if ($first_line === false) {
+            fclose($handle);
+            return [];
+        }
+
+        $delimiter = ll_tools_import_detect_external_csv_delimiter((string) $first_line);
+        rewind($handle);
+
+        $header_row = fgetcsv($handle, 0, $delimiter, '"', '\\');
+        if (!is_array($header_row) || empty($header_row)) {
+            fclose($handle);
+            return new WP_Error('ll_tools_metadata_updates_csv_header', __('Metadata update import failed: the CSV header row could not be read.', 'll-tools-text-domain'));
+        }
+
+        $headers = [];
+        foreach ($header_row as $index => $header_raw) {
+            $headers[(int) $index] = ll_tools_import_normalize_external_csv_header($header_raw);
+        }
+
+        $rows = [];
+        $row_number = 1;
+        while (($row = fgetcsv($handle, 0, $delimiter, '"', '\\')) !== false) {
+            $row_number++;
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $assoc = [];
+            foreach ($headers as $index => $header_name) {
+                if ($header_name === '') {
+                    continue;
+                }
+                $assoc[$header_name] = ll_tools_import_get_external_csv_cell($row, (int) $index);
+            }
+
+            $normalized = ll_tools_metadata_update_normalize_input_row($assoc, $row_number);
+            if (ll_tools_metadata_update_row_is_blank($normalized)) {
+                continue;
+            }
+            $rows[] = $normalized;
+        }
+
+        fclose($handle);
+        return $rows;
+    }
+
+    $raw_contents = @file_get_contents($file_path);
+    if (!is_string($raw_contents)) {
+        return new WP_Error('ll_tools_metadata_updates_read_failed', __('Metadata update import failed: the JSON file could not be read.', 'll-tools-text-domain'));
+    }
+
+    $contents = ll_tools_import_convert_external_csv_bytes_to_utf8($raw_contents);
+    $contents = preg_replace('/^\xEF\xBB\xBF/', '', $contents);
+    $contents = is_string($contents) ? $contents : '';
+    if ($contents === '') {
+        return [];
+    }
+
+    $items = [];
+    if (in_array($extension, ['jsonl', 'ndjson'], true)) {
+        $lines = preg_split('/\r\n|\n|\r/', $contents);
+        foreach ((array) $lines as $line_number => $line_raw) {
+            $line = trim((string) $line_raw);
+            if ($line === '') {
+                continue;
+            }
+            $decoded = json_decode($line, true);
+            if (!is_array($decoded)) {
+                return new WP_Error(
+                    'll_tools_metadata_updates_invalid_jsonl',
+                    sprintf(
+                        /* translators: %d JSONL line number */
+                        __('Metadata update import failed: JSONL line %d is not valid JSON.', 'll-tools-text-domain'),
+                        ((int) $line_number) + 1
+                    )
+                );
+            }
+            $items[] = $decoded;
+        }
+    } else {
+        $decoded = json_decode($contents, true);
+        if (!is_array($decoded)) {
+            return new WP_Error('ll_tools_metadata_updates_invalid_json', __('Metadata update import failed: the JSON file is not valid JSON.', 'll-tools-text-domain'));
+        }
+
+        if (isset($decoded['updates']) && is_array($decoded['updates'])) {
+            $items = $decoded['updates'];
+        } elseif ($decoded === [] || array_keys($decoded) === range(0, count($decoded) - 1)) {
+            $items = $decoded;
+        } else {
+            $items = [$decoded];
+        }
+    }
+
+    $rows = [];
+    foreach ($items as $index => $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $normalized = ll_tools_metadata_update_normalize_input_row($item, ((int) $index) + 1);
+        if (ll_tools_metadata_update_row_is_blank($normalized)) {
+            continue;
+        }
+        $rows[] = $normalized;
+    }
+
+    return $rows;
+}
+
+function ll_tools_metadata_update_sanitize_field_value(string $field_key, string $value): string {
+    $supported = ll_tools_get_metadata_update_supported_fields();
+    if (!isset($supported[$field_key])) {
+        return trim($value);
+    }
+
+    $sanitize_mode = (string) ($supported[$field_key]['sanitize'] ?? 'text');
+    if ($sanitize_mode === 'textarea') {
+        return trim(sanitize_textarea_field($value));
+    }
+
+    return trim(sanitize_text_field($value));
+}
+
+function ll_tools_metadata_update_resolve_word_target(array $row, int $fallback_word_id = 0) {
+    $id_match = 0;
+    $slug_match = 0;
+
+    if (!empty($row['word_id'])) {
+        $post = get_post((int) $row['word_id']);
+        if (!$post || $post->post_type !== 'words') {
+            return new WP_Error(
+                'll_tools_metadata_updates_word_missing',
+                sprintf(
+                    /* translators: 1 row number, 2 word ID */
+                    __('Row %1$d: word_id %2$d was not found.', 'll-tools-text-domain'),
+                    (int) ($row['row_number'] ?? 0),
+                    (int) $row['word_id']
+                )
+            );
+        }
+        $id_match = (int) $post->ID;
+    }
+
+    if (!empty($row['word_slug'])) {
+        $post = get_page_by_path((string) $row['word_slug'], OBJECT, 'words');
+        if (!$post) {
+            return new WP_Error(
+                'll_tools_metadata_updates_word_slug_missing',
+                sprintf(
+                    /* translators: 1 row number, 2 word slug */
+                    __('Row %1$d: word_slug "%2$s" was not found.', 'll-tools-text-domain'),
+                    (int) ($row['row_number'] ?? 0),
+                    (string) $row['word_slug']
+                )
+            );
+        }
+        $slug_match = (int) $post->ID;
+    }
+
+    if ($id_match > 0 && $slug_match > 0 && $id_match !== $slug_match) {
+        return new WP_Error(
+            'll_tools_metadata_updates_word_mismatch',
+            sprintf(
+                /* translators: %d row number */
+                __('Row %d: word_id and word_slug point to different words.', 'll-tools-text-domain'),
+                (int) ($row['row_number'] ?? 0)
+            )
+        );
+    }
+
+    $resolved = $id_match > 0 ? $id_match : $slug_match;
+    if ($resolved <= 0 && $fallback_word_id > 0) {
+        $resolved = $fallback_word_id;
+    }
+
+    return $resolved > 0 ? $resolved : 0;
+}
+
+function ll_tools_metadata_update_find_recording_id_by_slug(string $slug, int $word_id = 0) {
+    $slug = sanitize_title($slug);
+    if ($slug === '') {
+        return 0;
+    }
+
+    if ($word_id > 0) {
+        return ll_tools_import_find_word_audio_id_by_slug($word_id, $slug);
+    }
+
+    $matches = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => 2,
+        'name' => $slug,
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'fields' => 'ids',
+    ]);
+
+    if (count($matches) === 1) {
+        return (int) $matches[0];
+    }
+
+    return count($matches) > 1 ? new WP_Error('ll_tools_metadata_updates_recording_slug_ambiguous', __('Recording slug is ambiguous without a parent word identifier.', 'll-tools-text-domain')) : 0;
+}
+
+function ll_tools_metadata_update_find_recording_id_by_type(int $word_id, string $recording_type) {
+    if ($word_id <= 0 || $recording_type === '') {
+        return 0;
+    }
+
+    $matches = get_posts([
+        'post_type' => 'word_audio',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => 2,
+        'post_parent' => $word_id,
+        'orderby' => 'ID',
+        'order' => 'ASC',
+        'fields' => 'ids',
+        'tax_query' => [[
+            'taxonomy' => 'recording_type',
+            'field' => 'slug',
+            'terms' => [$recording_type],
+        ]],
+    ]);
+
+    if (count($matches) === 1) {
+        return (int) $matches[0];
+    }
+
+    if (count($matches) > 1) {
+        return new WP_Error(
+            'll_tools_metadata_updates_recording_type_ambiguous',
+            sprintf(
+                /* translators: 1 row word ID, 2 recording type */
+                __('Word %1$d has multiple recordings of type "%2$s". Use recording_id or recording_slug instead.', 'll-tools-text-domain'),
+                $word_id,
+                $recording_type
+            )
+        );
+    }
+
+    return 0;
+}
+
+function ll_tools_metadata_update_resolve_recording_target(array $row, int $word_id = 0) {
+    $recording_id = !empty($row['recording_id']) ? (int) $row['recording_id'] : 0;
+    $resolved = 0;
+
+    if ($recording_id > 0) {
+        $post = get_post($recording_id);
+        if (!$post || $post->post_type !== 'word_audio') {
+            return new WP_Error(
+                'll_tools_metadata_updates_recording_missing',
+                sprintf(
+                    /* translators: 1 row number, 2 recording ID */
+                    __('Row %1$d: recording_id %2$d was not found.', 'll-tools-text-domain'),
+                    (int) ($row['row_number'] ?? 0),
+                    $recording_id
+                )
+            );
+        }
+        $resolved = (int) $post->ID;
+    } elseif (!empty($row['recording_slug'])) {
+        $resolved = ll_tools_metadata_update_find_recording_id_by_slug((string) $row['recording_slug'], $word_id);
+        if (is_wp_error($resolved)) {
+            return new WP_Error(
+                'll_tools_metadata_updates_recording_slug_ambiguous',
+                sprintf(
+                    /* translators: 1 row number, 2 reason */
+                    __('Row %1$d: %2$s', 'll-tools-text-domain'),
+                    (int) ($row['row_number'] ?? 0),
+                    $resolved->get_error_message()
+                )
+            );
+        }
+    } elseif ($word_id > 0 && !empty($row['recording_type'])) {
+        $resolved = ll_tools_metadata_update_find_recording_id_by_type($word_id, (string) $row['recording_type']);
+        if (is_wp_error($resolved)) {
+            return new WP_Error(
+                'll_tools_metadata_updates_recording_type_ambiguous',
+                sprintf(
+                    /* translators: 1 row number, 2 reason */
+                    __('Row %1$d: %2$s', 'll-tools-text-domain'),
+                    (int) ($row['row_number'] ?? 0),
+                    $resolved->get_error_message()
+                )
+            );
+        }
+    }
+
+    if ((int) $resolved <= 0) {
+        return 0;
+    }
+
+    $recording_post = get_post((int) $resolved);
+    if (!$recording_post || $recording_post->post_type !== 'word_audio') {
+        return 0;
+    }
+
+    $parent_word_id = (int) $recording_post->post_parent;
+    if ($word_id > 0 && $parent_word_id > 0 && $parent_word_id !== $word_id) {
+        return new WP_Error(
+            'll_tools_metadata_updates_recording_word_mismatch',
+            sprintf(
+                /* translators: %d row number */
+                __('Row %d: the recording does not belong to the specified word.', 'll-tools-text-domain'),
+                (int) ($row['row_number'] ?? 0)
+            )
+        );
+    }
+
+    return (int) $resolved;
+}
+
+function ll_tools_metadata_update_get_word_category_ids(int $word_id): array {
+    if ($word_id <= 0) {
+        return [];
+    }
+
+    $category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($category_ids)) {
+        return [];
+    }
+
+    return array_values(array_unique(array_filter(array_map('intval', (array) $category_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+}
+
+function ll_tools_process_metadata_updates_file(string $file_path, string $source_name = ''): array {
+    $result = [
+        'ok' => false,
+        'message' => '',
+        'errors' => [],
+        'warnings' => [],
+        'stats' => ll_tools_import_default_stats(),
+        'undo' => ll_tools_import_default_undo_payload(),
+        'history_context' => ll_tools_import_default_history_context(),
+    ];
+
+    $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
+    if (is_wp_error($rows)) {
+        $result['message'] = $rows->get_error_message();
+        return $result;
+    }
+
+    if (empty($rows)) {
+        $result['message'] = __('Metadata update import found no non-empty update rows.', 'll-tools-text-domain');
+        return $result;
+    }
+
+    $result['stats']['metadata_files_processed'] = 1;
+    $supported_fields = ll_tools_get_metadata_update_supported_fields();
+    $max_messages = 50;
+    $error_overflow = 0;
+    $warning_overflow = 0;
+    $changed_word_ids = [];
+    $changed_recording_ids = [];
+    $touched_category_ids = [];
+
+    $add_error = static function (string $message) use (&$result, &$error_overflow, $max_messages): void {
+        if (count($result['errors']) < $max_messages) {
+            $result['errors'][] = $message;
+            return;
+        }
+        $error_overflow++;
+    };
+    $add_warning = static function (string $message) use (&$result, &$warning_overflow, $max_messages): void {
+        if (count($result['warnings']) < $max_messages) {
+            $result['warnings'][] = $message;
+            return;
+        }
+        $warning_overflow++;
+    };
+
+    $skip_audio_cb = static function ($skip) {
+        return true;
+    };
+    add_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999, 4);
+
+    try {
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $result['stats']['metadata_rows_total']++;
+            $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
+            $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
+            $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
+
+            $needs_word = false;
+            $needs_recording = false;
+            foreach (array_keys($updates) as $field_key) {
+                if (!isset($supported_fields[$field_key])) {
+                    continue;
+                }
+                if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
+                    $needs_word = true;
+                } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
+                    $needs_recording = true;
+                }
+            }
+            foreach ($clear_fields as $field_key) {
+                if (!isset($supported_fields[$field_key])) {
+                    continue;
+                }
+                if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
+                    $needs_word = true;
+                } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
+                    $needs_recording = true;
+                }
+            }
+
+            if (!$needs_word && !$needs_recording) {
+                $result['stats']['metadata_rows_skipped']++;
+                continue;
+            }
+
+            $resolved_recording_id = 0;
+            $resolved_word_id = 0;
+
+            if ($needs_recording || ((!empty($row['recording_id']) || !empty($row['recording_slug']) || !empty($row['recording_type']) || !empty($row['audio'])) && $needs_word)) {
+                $word_hint = 0;
+                $word_hint_result = ll_tools_metadata_update_resolve_word_target($row);
+                if (is_wp_error($word_hint_result)) {
+                    $word_hint_result = 0;
+                }
+                $word_hint = is_int($word_hint_result) ? (int) $word_hint_result : 0;
+
+                $recording_result = ll_tools_metadata_update_resolve_recording_target($row, $word_hint);
+                if (is_wp_error($recording_result)) {
+                    $add_error($recording_result->get_error_message());
+                    $result['stats']['metadata_rows_skipped']++;
+                    continue;
+                }
+                $resolved_recording_id = (int) $recording_result;
+                if ($needs_recording && $resolved_recording_id <= 0) {
+                    $add_error(sprintf(
+                        /* translators: %d row number */
+                        __('Row %d: recording fields were provided but no recording could be identified.', 'll-tools-text-domain'),
+                        $row_number
+                    ));
+                    $result['stats']['metadata_rows_skipped']++;
+                    continue;
+                }
+            }
+
+            if ($needs_word) {
+                $fallback_word_id = 0;
+                if ($resolved_recording_id > 0) {
+                    $recording_post = get_post($resolved_recording_id);
+                    if ($recording_post instanceof WP_Post) {
+                        $fallback_word_id = (int) $recording_post->post_parent;
+                    }
+                }
+
+                $word_result = ll_tools_metadata_update_resolve_word_target($row, $fallback_word_id);
+                if (is_wp_error($word_result)) {
+                    $add_error($word_result->get_error_message());
+                    $result['stats']['metadata_rows_skipped']++;
+                    continue;
+                }
+                $resolved_word_id = (int) $word_result;
+                if ($resolved_word_id <= 0) {
+                    $add_error(sprintf(
+                        /* translators: %d row number */
+                        __('Row %d: word fields were provided but no word could be identified.', 'll-tools-text-domain'),
+                        $row_number
+                    ));
+                    $result['stats']['metadata_rows_skipped']++;
+                    continue;
+                }
+            } elseif ($resolved_recording_id > 0) {
+                $recording_post = get_post($resolved_recording_id);
+                if ($recording_post instanceof WP_Post) {
+                    $resolved_word_id = (int) $recording_post->post_parent;
+                }
+            }
+
+            $row_changed = false;
+
+            if ($needs_word && $resolved_word_id > 0) {
+                $word_postarr = ['ID' => $resolved_word_id];
+                $word_post_changed = false;
+                $word_post_field_change_count = 0;
+                $word_meta_changed_this_row = false;
+
+                foreach ($supported_fields as $field_key => $field_config) {
+                    if (($field_config['target'] ?? '') !== 'word') {
+                        continue;
+                    }
+
+                    $clear_requested = in_array($field_key, $clear_fields, true);
+                    $has_update = array_key_exists($field_key, $updates);
+                    if (!$clear_requested && !$has_update) {
+                        continue;
+                    }
+
+                    if ($clear_requested && empty($field_config['clearable'])) {
+                        $add_warning(sprintf(
+                            /* translators: 1 row number, 2 field key */
+                            __('Row %1$d: %2$s cannot be cleared and was ignored.', 'll-tools-text-domain'),
+                            $row_number,
+                            $field_key
+                        ));
+                        continue;
+                    }
+
+                    if (($field_config['storage'] ?? '') === 'post_field') {
+                        if ($clear_requested) {
+                            continue;
+                        }
+                        $sanitized = ll_tools_metadata_update_sanitize_field_value($field_key, (string) $updates[$field_key]);
+                        $current = (string) get_post_field((string) ($field_config['field'] ?? 'post_title'), $resolved_word_id);
+                        if ($sanitized !== '' && $sanitized !== $current) {
+                            $word_postarr[(string) $field_config['field']] = $sanitized;
+                            $word_post_changed = true;
+                            $word_post_field_change_count++;
+                        }
+                        continue;
+                    }
+
+                    $meta_keys = isset($field_config['meta_keys']) && is_array($field_config['meta_keys']) ? $field_config['meta_keys'] : [];
+                    if (empty($meta_keys)) {
+                        continue;
+                    }
+
+                    if ($clear_requested) {
+                        $had_value = false;
+                        foreach ($meta_keys as $meta_key) {
+                            if (metadata_exists('post', $resolved_word_id, $meta_key) && get_post_meta($resolved_word_id, $meta_key, true) !== '') {
+                                $had_value = true;
+                            }
+                            delete_post_meta($resolved_word_id, $meta_key);
+                        }
+                        if ($had_value) {
+                            $word_meta_changed_this_row = true;
+                            $result['stats']['metadata_fields_cleared']++;
+                        }
+                        continue;
+                    }
+
+                    $sanitized = ll_tools_metadata_update_sanitize_field_value($field_key, (string) $updates[$field_key]);
+                    $needs_sync = false;
+                    foreach ($meta_keys as $meta_key) {
+                        if ((string) get_post_meta($resolved_word_id, $meta_key, true) !== $sanitized) {
+                            $needs_sync = true;
+                            break;
+                        }
+                    }
+                    if (!$needs_sync) {
+                        continue;
+                    }
+
+                    foreach ($meta_keys as $meta_key) {
+                        update_post_meta($resolved_word_id, $meta_key, $sanitized);
+                    }
+                    $word_meta_changed_this_row = true;
+                    $result['stats']['metadata_fields_updated']++;
+                }
+
+                $word_post_applied = false;
+                if ($word_post_changed) {
+                    $updated_word_id = wp_update_post($word_postarr, true);
+                    if (is_wp_error($updated_word_id)) {
+                        $add_error(sprintf(
+                            /* translators: 1 row number, 2 error message */
+                            __('Row %1$d: failed to update the word post: %2$s', 'll-tools-text-domain'),
+                            $row_number,
+                            $updated_word_id->get_error_message()
+                        ));
+                    } else {
+                        $word_post_applied = true;
+                        $result['stats']['metadata_fields_updated'] += $word_post_field_change_count;
+                    }
+                }
+
+                $word_changed_this_row = $word_meta_changed_this_row || $word_post_applied;
+                if ($word_changed_this_row) {
+                    if (!isset($changed_word_ids[$resolved_word_id])) {
+                        $changed_word_ids[$resolved_word_id] = true;
+                        $result['stats']['words_updated']++;
+                    }
+                    foreach (ll_tools_metadata_update_get_word_category_ids($resolved_word_id) as $category_id) {
+                        $touched_category_ids[$category_id] = true;
+                    }
+                    $row_changed = true;
+                }
+            }
+
+            if ($needs_recording && $resolved_recording_id > 0) {
+                $recording_changed_this_row = false;
+
+                foreach ($supported_fields as $field_key => $field_config) {
+                    if (($field_config['target'] ?? '') !== 'recording') {
+                        continue;
+                    }
+
+                    $clear_requested = in_array($field_key, $clear_fields, true);
+                    $has_update = array_key_exists($field_key, $updates);
+                    if (!$clear_requested && !$has_update) {
+                        continue;
+                    }
+
+                    $meta_keys = isset($field_config['meta_keys']) && is_array($field_config['meta_keys']) ? $field_config['meta_keys'] : [];
+                    if (empty($meta_keys)) {
+                        continue;
+                    }
+
+                    if ($clear_requested) {
+                        $had_value = false;
+                        foreach ($meta_keys as $meta_key) {
+                            if (metadata_exists('post', $resolved_recording_id, $meta_key) && get_post_meta($resolved_recording_id, $meta_key, true) !== '') {
+                                $had_value = true;
+                            }
+                            delete_post_meta($resolved_recording_id, $meta_key);
+                        }
+                        if ($had_value) {
+                            $recording_changed_this_row = true;
+                            $result['stats']['metadata_fields_cleared']++;
+                        }
+                        continue;
+                    }
+
+                    $sanitized = ll_tools_metadata_update_sanitize_field_value($field_key, (string) $updates[$field_key]);
+                    $needs_sync = false;
+                    foreach ($meta_keys as $meta_key) {
+                        if ((string) get_post_meta($resolved_recording_id, $meta_key, true) !== $sanitized) {
+                            $needs_sync = true;
+                            break;
+                        }
+                    }
+                    if (!$needs_sync) {
+                        continue;
+                    }
+
+                    foreach ($meta_keys as $meta_key) {
+                        update_post_meta($resolved_recording_id, $meta_key, $sanitized);
+                    }
+                    $recording_changed_this_row = true;
+                    $result['stats']['metadata_fields_updated']++;
+                }
+
+                if ($recording_changed_this_row) {
+                    if (!isset($changed_recording_ids[$resolved_recording_id])) {
+                        $changed_recording_ids[$resolved_recording_id] = true;
+                        $result['stats']['word_audio_updated']++;
+                    }
+                    if ($resolved_word_id > 0) {
+                        foreach (ll_tools_metadata_update_get_word_category_ids($resolved_word_id) as $category_id) {
+                            $touched_category_ids[$category_id] = true;
+                        }
+                    }
+                    $row_changed = true;
+                }
+            }
+
+            if ($row_changed) {
+                $result['stats']['metadata_rows_applied']++;
+            } else {
+                $result['stats']['metadata_rows_skipped']++;
+            }
+        }
+    } finally {
+        remove_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999);
+    }
+
+    if ($warning_overflow > 0) {
+        $result['warnings'][] = sprintf(
+            _n(
+                '%d additional metadata warning was not shown.',
+                '%d additional metadata warnings were not shown.',
+                $warning_overflow,
+                'll-tools-text-domain'
+            ),
+            $warning_overflow
+        );
+    }
+    if ($error_overflow > 0) {
+        $result['errors'][] = sprintf(
+            _n(
+                '%d additional metadata error was not shown.',
+                '%d additional metadata errors were not shown.',
+                $error_overflow,
+                'll-tools-text-domain'
+            ),
+            $error_overflow
+        );
+    }
+
+    if (!empty($touched_category_ids)) {
+        $category_ids = array_map('intval', array_keys($touched_category_ids));
+        if (function_exists('ll_tools_bump_category_cache_version')) {
+            ll_tools_bump_category_cache_version($category_ids);
+        }
+        if (function_exists('ll_tools_handle_category_sync')) {
+            foreach ($category_ids as $category_id) {
+                ll_tools_handle_category_sync($category_id);
+            }
+        }
+        if (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+            foreach ($category_ids as $category_id) {
+                ll_tools_sync_vocab_lessons_for_category($category_id);
+            }
+        }
+    }
+
+    $result['warnings'] = array_values(array_filter(array_unique(array_map('strval', $result['warnings'])), static function (string $warning): bool {
+        return trim($warning) !== '';
+    }));
+    $result['errors'] = array_values(array_filter(array_unique(array_map('strval', $result['errors'])), static function (string $error): bool {
+        return trim($error) !== '';
+    }));
+
+    $result['ok'] = empty($result['errors']);
+    if ($result['stats']['metadata_rows_applied'] <= 0 && empty($result['errors'])) {
+        $result['message'] = __('Metadata update import completed, but no changes were needed.', 'll-tools-text-domain');
+    } elseif (!$result['ok']) {
+        $result['message'] = __('Metadata updates finished with some errors.', 'll-tools-text-domain');
+    } elseif (!empty($result['warnings'])) {
+        $result['message'] = __('Metadata updates complete with warnings.', 'll-tools-text-domain');
+    } else {
+        $result['message'] = __('Metadata updates complete.', 'll-tools-text-domain');
+    }
+
+    return $result;
+}
+
+function ll_tools_handle_import_metadata_updates(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to import LL Tools metadata updates.', 'll-tools-text-domain'));
+    }
+    check_admin_referer('ll_tools_import_metadata_updates');
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+
+    $result = [
+        'ok' => false,
+        'message' => '',
+        'errors' => [],
+        'warnings' => [],
+        'stats' => ll_tools_import_default_stats(),
+        'undo' => ll_tools_import_default_undo_payload(),
+        'history_context' => ll_tools_import_default_history_context(),
+    ];
+
+    $upload_info = ll_tools_resolve_metadata_update_upload();
+    if (is_wp_error($upload_info)) {
+        $result['message'] = __('Metadata update import failed.', 'll-tools-text-domain');
+        $result['errors'][] = $upload_info->get_error_message();
+        ll_tools_store_import_result_and_redirect($result);
+    }
+
+    $file_path = (string) ($upload_info['file_path'] ?? '');
+    $source_name = (string) ($upload_info['source_name'] ?? basename($file_path));
+    $cleanup_file = !empty($upload_info['cleanup_file']);
+
+    $processed = ll_tools_process_metadata_updates_file($file_path, $source_name);
+
+    if ($cleanup_file && $file_path !== '' && is_file($file_path)) {
+        @unlink($file_path);
+    }
+
+    ll_tools_import_append_history_entry([
+        'id' => wp_generate_uuid4(),
+        'finished_at' => time(),
+        'user_id' => get_current_user_id(),
+        'ok' => !empty($processed['ok']),
+        'message' => isset($processed['message']) ? (string) $processed['message'] : '',
+        'errors_count' => isset($processed['errors']) && is_array($processed['errors']) ? count($processed['errors']) : 0,
+        'stats' => isset($processed['stats']) && is_array($processed['stats']) ? $processed['stats'] : [],
+        'source_type' => 'uploaded',
+        'source_zip' => $source_name,
+        'undo' => isset($processed['undo']) && is_array($processed['undo']) ? $processed['undo'] : ll_tools_import_default_undo_payload(),
+        'history_context' => isset($processed['history_context']) && is_array($processed['history_context'])
+            ? $processed['history_context']
+            : ll_tools_import_default_history_context(),
+        'undone_at' => 0,
+    ]);
+
+    ll_tools_store_import_result_and_redirect($processed);
+}
+
 function ll_tools_import_delete_audio_file_if_safe(string $audio_path): bool {
     $audio_path = trim($audio_path);
     if ($audio_path === '') {
@@ -6357,6 +7605,12 @@ function ll_tools_import_default_stats(): array {
         'word_audio_updated' => 0,
         'attachments_imported' => 0,
         'audio_files_imported' => 0,
+        'metadata_files_processed' => 0,
+        'metadata_rows_total' => 0,
+        'metadata_rows_applied' => 0,
+        'metadata_rows_skipped' => 0,
+        'metadata_fields_updated' => 0,
+        'metadata_fields_cleared' => 0,
     ];
 }
 
