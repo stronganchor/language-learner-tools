@@ -1146,6 +1146,7 @@ function ll_tools_get_metadata_update_agent_instructions(): string {
         __('If you keep the STT export columns text + text_field, changing text updates whichever field text_field names: recording_text, recording_ipa, recording_translation, word_title, or word_translation.', 'll-tools-text-domain'),
         __('If the same field for the same item appears more than once, rows are processed top to bottom and the last changed value wins.', 'll-tools-text-domain'),
         __('For full export zips, word IDs come from words[].origin_id and recording IDs come from words[].audio_entries[].origin_id inside data.json.', 'll-tools-text-domain'),
+        __('When importing IPA changes in wp-admin, leave the default review checkbox enabled unless you intentionally want to skip transcription-manager review flags.', 'll-tools-text-domain'),
     ];
 
     return implode("\n", $lines);
@@ -1287,6 +1288,7 @@ function ll_tools_import_history_created_summary(array $stats): string {
             'word_images_updated' => __('Word images updated: %d', 'll-tools-text-domain'),
             'words_updated' => __('Words updated: %d', 'll-tools-text-domain'),
             'word_audio_updated' => __('Audio entries updated: %d', 'll-tools-text-domain'),
+            'metadata_ipa_reviews_flagged' => __('IPA reviews flagged: %d', 'll-tools-text-domain'),
         ];
         foreach ($updated_map as $key => $label) {
             $value = isset($stats[$key]) ? (int) $stats[$key] : 0;
@@ -1634,6 +1636,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     'metadata_rows_skipped',
                     'metadata_fields_updated',
                     'metadata_fields_cleared',
+                    'metadata_ipa_reviews_flagged',
                 ] as $key) {
                     if (!empty($stats[$key])) {
                         $stat_bits[] = esc_html($stats[$key] . ' ' . str_replace('_', ' ', $key));
@@ -2281,7 +2284,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
         <hr>
         <h2><?php esc_html_e('Metadata Updates', 'll-tools-text-domain'); ?></h2>
         <p><?php esc_html_e('Upload one CSV, JSON, or JSONL file to update existing words and word-audio metadata in place.', 'll-tools-text-domain'); ?></p>
-        <p class="description"><?php esc_html_e('This workflow updates existing items only. It does not create new words, categories, or recordings, and undo is not available for edited existing content.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('This workflow updates existing items only. It does not create new words, categories, or recordings. Undo is available from Recent Imports.', 'll-tools-text-domain'); ?></p>
         <p class="description"><?php esc_html_e('Best starting point: export STT Training Data, edit metadata.csv or metadata.jsonl offline, then upload the edited file here.', 'll-tools-text-domain'); ?></p>
         <form method="post" action="<?php echo esc_url($import_action); ?>" enctype="multipart/form-data">
             <?php wp_nonce_field('ll_tools_import_metadata_updates'); ?>
@@ -2290,6 +2293,13 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             <p><label for="ll_import_metadata_file"><strong><?php esc_html_e('Upload metadata update file', 'll-tools-text-domain'); ?></strong></label></p>
             <input type="file" name="ll_import_metadata_file" id="ll_import_metadata_file" accept=".csv,.json,.jsonl,.ndjson,application/json,text/csv,application/x-ndjson">
             <p class="description"><?php esc_html_e('Accepted formats: .csv, .json, .jsonl, .ndjson. Extra columns are ignored.', 'll-tools-text-domain'); ?></p>
+            <p>
+                <label for="ll_import_metadata_mark_ipa_review">
+                    <input type="checkbox" name="ll_import_metadata_mark_ipa_review" id="ll_import_metadata_mark_ipa_review" value="1" checked="checked">
+                    <?php esc_html_e('Mark imported IPA transcription changes as needing review', 'll-tools-text-domain'); ?>
+                </label>
+            </p>
+            <p class="description"><?php esc_html_e('Enabled by default so Transcription Manager shows the review notification and opens the filtered review list for these updated recordings.', 'll-tools-text-domain'); ?></p>
 
             <p><button type="submit" class="button button-primary"><?php esc_html_e('Apply Metadata Updates', 'll-tools-text-domain'); ?></button></p>
         </form>
@@ -5576,7 +5586,7 @@ function ll_tools_metadata_update_get_word_category_ids(int $word_id): array {
     })));
 }
 
-function ll_tools_process_metadata_updates_file(string $file_path, string $source_name = ''): array {
+function ll_tools_process_metadata_updates_file(string $file_path, string $source_name = '', array $options = []): array {
     $result = [
         'ok' => false,
         'message' => '',
@@ -5600,6 +5610,9 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
 
     $result['stats']['metadata_files_processed'] = 1;
     $supported_fields = ll_tools_get_metadata_update_supported_fields();
+    $mark_imported_ipa_review = !array_key_exists('mark_imported_ipa_review', $options)
+        ? true
+        : !empty($options['mark_imported_ipa_review']);
     $max_messages = 50;
     $error_overflow = 0;
     $warning_overflow = 0;
@@ -5863,6 +5876,7 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
 
             if ($needs_recording && $resolved_recording_id > 0) {
                 $recording_changed_this_row = false;
+                $recording_ipa_updated_this_row = false;
 
                 foreach ($supported_fields as $field_key => $field_config) {
                     if (($field_config['target'] ?? '') !== 'recording') {
@@ -5926,8 +5940,32 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                     foreach ($meta_keys as $meta_key) {
                         update_post_meta($resolved_recording_id, $meta_key, $sanitized);
                     }
+                    if ($field_key === 'recording_ipa') {
+                        $recording_ipa_updated_this_row = true;
+                    }
                     $recording_changed_this_row = true;
                     $result['stats']['metadata_fields_updated']++;
+                }
+
+                if (
+                    $mark_imported_ipa_review
+                    && $recording_ipa_updated_this_row
+                    && function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')
+                    && function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
+                ) {
+                    $review_meta_key = ll_tools_ipa_keyboard_auto_review_meta_key();
+                    if ((string) get_post_meta($resolved_recording_id, $review_meta_key, true) !== '1') {
+                        ll_tools_import_track_post_undo_snapshot(
+                            $result,
+                            $resolved_recording_id,
+                            'word_audio',
+                            [],
+                            [$review_meta_key]
+                        );
+                        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($resolved_recording_id);
+                        $recording_changed_this_row = true;
+                        $result['stats']['metadata_ipa_reviews_flagged']++;
+                    }
                 }
 
                 if ($recording_changed_this_row) {
@@ -6044,7 +6082,11 @@ function ll_tools_handle_import_metadata_updates(): void {
     $source_name = (string) ($upload_info['source_name'] ?? basename($file_path));
     $cleanup_file = !empty($upload_info['cleanup_file']);
 
-    $processed = ll_tools_process_metadata_updates_file($file_path, $source_name);
+    $mark_imported_ipa_review = isset($_POST['ll_import_metadata_mark_ipa_review'])
+        && sanitize_text_field(wp_unslash((string) $_POST['ll_import_metadata_mark_ipa_review'])) === '1';
+    $processed = ll_tools_process_metadata_updates_file($file_path, $source_name, [
+        'mark_imported_ipa_review' => $mark_imported_ipa_review,
+    ]);
 
     if ($cleanup_file && $file_path !== '' && is_file($file_path)) {
         @unlink($file_path);
@@ -7876,6 +7918,7 @@ function ll_tools_import_default_stats(): array {
         'metadata_rows_skipped' => 0,
         'metadata_fields_updated' => 0,
         'metadata_fields_cleared' => 0,
+        'metadata_ipa_reviews_flagged' => 0,
     ];
 }
 

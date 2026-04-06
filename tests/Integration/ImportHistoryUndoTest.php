@@ -143,6 +143,7 @@ final class ImportHistoryUndoTest extends LL_Tools_TestCase
             $processed = ll_tools_process_metadata_updates_file($file_path, 'undo-updates.csv');
             $this->assertTrue((bool) ($processed['ok'] ?? false), implode(' | ', (array) ($processed['errors'] ?? [])));
             $this->assertTrue(ll_tools_import_has_undo_targets((array) ($processed['undo'] ?? [])));
+            $this->assertTrue(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
 
             $undo_result = ll_tools_undo_import_entry([
                 'undo' => (array) ($processed['undo'] ?? []),
@@ -155,10 +156,11 @@ final class ImportHistoryUndoTest extends LL_Tools_TestCase
             $this->assertSame('Undo Original Recording Text', (string) get_post_meta($recording_id, 'recording_text', true));
             $this->assertSame('undo.old.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
             $this->assertSame('Undo Speaker', (string) get_post_meta($recording_id, 'speaker_name', true));
+            $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
 
             $stats = isset($undo_result['stats']) && is_array($undo_result['stats']) ? $undo_result['stats'] : [];
             $this->assertSame(2, (int) ($stats['metadata_posts_restored'] ?? 0));
-            $this->assertGreaterThanOrEqual(4, (int) ($stats['metadata_fields_restored'] ?? 0));
+            $this->assertGreaterThanOrEqual(5, (int) ($stats['metadata_fields_restored'] ?? 0));
         } finally {
             @unlink($file_path);
         }
