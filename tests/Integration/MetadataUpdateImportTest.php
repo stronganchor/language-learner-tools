@@ -57,6 +57,7 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
 
             $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_rows_applied'] ?? 0));
+            $this->assertTrue(ll_tools_import_has_undo_targets((array) ($result['undo'] ?? [])));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['words_updated'] ?? 0));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['word_audio_updated'] ?? 0));
             $this->assertSame('New Word', (string) get_the_title($word_id));

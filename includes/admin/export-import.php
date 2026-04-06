@@ -342,6 +342,7 @@ function ll_tools_import_default_undo_payload(): array {
         'word_audio_post_ids' => [],
         'attachment_ids' => [],
         'audio_paths' => [],
+        'updated_post_snapshots' => [],
     ];
 }
 
@@ -583,6 +584,62 @@ function ll_tools_import_track_undo_path(array &$result, string $bucket, string 
     }
 }
 
+function ll_tools_import_track_post_undo_snapshot(array &$result, int $post_id, string $expected_post_type, array $post_fields = [], array $meta_keys = []): void {
+    $post_id = (int) $post_id;
+    $expected_post_type = sanitize_key($expected_post_type);
+    if ($post_id <= 0 || $expected_post_type === '') {
+        return;
+    }
+
+    $post = get_post($post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== $expected_post_type) {
+        return;
+    }
+
+    if (!isset($result['undo']) || !is_array($result['undo'])) {
+        $result['undo'] = ll_tools_import_default_undo_payload();
+    }
+    if (!isset($result['undo']['updated_post_snapshots']) || !is_array($result['undo']['updated_post_snapshots'])) {
+        $result['undo']['updated_post_snapshots'] = [];
+    }
+    if (!isset($result['undo']['updated_post_snapshots'][$expected_post_type]) || !is_array($result['undo']['updated_post_snapshots'][$expected_post_type])) {
+        $result['undo']['updated_post_snapshots'][$expected_post_type] = [];
+    }
+
+    $post_key = (string) $post_id;
+    if (!isset($result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]) || !is_array($result['undo']['updated_post_snapshots'][$expected_post_type][$post_key])) {
+        $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key] = [
+            'post_fields' => [],
+            'meta' => [],
+        ];
+    }
+
+    if (!isset($result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['post_fields']) || !is_array($result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['post_fields'])) {
+        $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['post_fields'] = [];
+    }
+    if (!isset($result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['meta']) || !is_array($result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['meta'])) {
+        $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['meta'] = [];
+    }
+
+    foreach ($post_fields as $post_field_raw) {
+        $post_field = sanitize_key((string) $post_field_raw);
+        if ($post_field === '' || array_key_exists($post_field, $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['post_fields'])) {
+            continue;
+        }
+
+        $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['post_fields'][$post_field] = (string) get_post_field($post_field, $post_id, 'raw');
+    }
+
+    foreach ($meta_keys as $meta_key_raw) {
+        $meta_key = (string) $meta_key_raw;
+        if ($meta_key === '' || array_key_exists($meta_key, $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['meta'])) {
+            continue;
+        }
+
+        $result['undo']['updated_post_snapshots'][$expected_post_type][$post_key]['meta'][$meta_key] = get_post_meta($post_id, $meta_key, false);
+    }
+}
+
 function ll_tools_import_has_undo_targets(array $undo): bool {
     foreach ([
         'category_term_ids',
@@ -594,6 +651,15 @@ function ll_tools_import_has_undo_targets(array $undo): bool {
         'audio_paths',
     ] as $bucket) {
         if (!empty($undo[$bucket]) && is_array($undo[$bucket])) {
+            return true;
+        }
+    }
+
+    $snapshots = isset($undo['updated_post_snapshots']) && is_array($undo['updated_post_snapshots'])
+        ? $undo['updated_post_snapshots']
+        : [];
+    foreach ($snapshots as $posts_by_type) {
+        if (!empty($posts_by_type) && is_array($posts_by_type)) {
             return true;
         }
     }
@@ -1377,7 +1443,7 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
     ?>
     <div class="ll-tools-recent-imports">
         <h2><?php esc_html_e('Recent Imports', 'll-tools-text-domain'); ?></h2>
-        <p class="description"><?php esc_html_e('Shows imports completed today and yesterday. Undo removes items created by one import; existing items updated by that import are not reverted.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Shows imports completed today and yesterday. Undo removes items created by bundle imports and restores previous values for metadata-update imports when snapshot data is available.', 'll-tools-text-domain'); ?></p>
 
         <?php if (empty($recent_imports)) : ?>
             <p class="description"><?php esc_html_e('No recent imports found for today or yesterday.', 'll-tools-text-domain'); ?></p>
@@ -1560,6 +1626,8 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     'categories_deleted',
                     'wordsets_deleted',
                     'audio_files_deleted',
+                    'metadata_posts_restored',
+                    'metadata_fields_restored',
                     'metadata_files_processed',
                     'metadata_rows_total',
                     'metadata_rows_applied',
@@ -5695,6 +5763,13 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                         $sanitized = ll_tools_metadata_update_sanitize_field_value($field_key, (string) $updates[$field_key]);
                         $current = (string) get_post_field((string) ($field_config['field'] ?? 'post_title'), $resolved_word_id);
                         if ($sanitized !== '' && $sanitized !== $current) {
+                            ll_tools_import_track_post_undo_snapshot(
+                                $result,
+                                $resolved_word_id,
+                                'words',
+                                [(string) ($field_config['field'] ?? 'post_title')],
+                                []
+                            );
                             $word_postarr[(string) $field_config['field']] = $sanitized;
                             $word_post_changed = true;
                             $word_post_field_change_count++;
@@ -5713,10 +5788,19 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                             if (metadata_exists('post', $resolved_word_id, $meta_key) && get_post_meta($resolved_word_id, $meta_key, true) !== '') {
                                 $had_value = true;
                             }
-                            delete_post_meta($resolved_word_id, $meta_key);
                         }
                         if ($had_value) {
+                            ll_tools_import_track_post_undo_snapshot(
+                                $result,
+                                $resolved_word_id,
+                                'words',
+                                [],
+                                $meta_keys
+                            );
                             $word_meta_changed_this_row = true;
+                            foreach ($meta_keys as $meta_key) {
+                                delete_post_meta($resolved_word_id, $meta_key);
+                            }
                             $result['stats']['metadata_fields_cleared']++;
                         }
                         continue;
@@ -5734,6 +5818,13 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                         continue;
                     }
 
+                    ll_tools_import_track_post_undo_snapshot(
+                        $result,
+                        $resolved_word_id,
+                        'words',
+                        [],
+                        $meta_keys
+                    );
                     foreach ($meta_keys as $meta_key) {
                         update_post_meta($resolved_word_id, $meta_key, $sanitized);
                     }
@@ -5795,9 +5886,18 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                             if (metadata_exists('post', $resolved_recording_id, $meta_key) && get_post_meta($resolved_recording_id, $meta_key, true) !== '') {
                                 $had_value = true;
                             }
-                            delete_post_meta($resolved_recording_id, $meta_key);
                         }
                         if ($had_value) {
+                            ll_tools_import_track_post_undo_snapshot(
+                                $result,
+                                $resolved_recording_id,
+                                'word_audio',
+                                [],
+                                $meta_keys
+                            );
+                            foreach ($meta_keys as $meta_key) {
+                                delete_post_meta($resolved_recording_id, $meta_key);
+                            }
                             $recording_changed_this_row = true;
                             $result['stats']['metadata_fields_cleared']++;
                         }
@@ -5816,6 +5916,13 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                         continue;
                     }
 
+                    ll_tools_import_track_post_undo_snapshot(
+                        $result,
+                        $resolved_recording_id,
+                        'word_audio',
+                        [],
+                        $meta_keys
+                    );
                     foreach ($meta_keys as $meta_key) {
                         update_post_meta($resolved_recording_id, $meta_key, $sanitized);
                     }
@@ -5963,6 +6070,121 @@ function ll_tools_handle_import_metadata_updates(): void {
     ll_tools_store_import_result_and_redirect($processed);
 }
 
+function ll_tools_import_snapshot_values_equal(array $left, array $right): bool {
+    return serialize($left) === serialize($right);
+}
+
+function ll_tools_import_restore_updated_post_snapshots(array $snapshots, array &$result): array {
+    $touched_word_ids = [];
+    if (empty($snapshots)) {
+        return [];
+    }
+
+    $skip_audio_cb = static function ($skip) {
+        return true;
+    };
+    add_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999, 4);
+
+    try {
+        foreach ($snapshots as $expected_post_type => $posts_by_id) {
+            $expected_post_type = sanitize_key((string) $expected_post_type);
+            if ($expected_post_type === '' || !is_array($posts_by_id)) {
+                continue;
+            }
+
+            foreach ($posts_by_id as $post_id_raw => $snapshot) {
+                $post_id = (int) $post_id_raw;
+                if ($post_id <= 0 || !is_array($snapshot)) {
+                    continue;
+                }
+
+                $post = get_post($post_id);
+                if (!($post instanceof WP_Post)) {
+                    $result['errors'][] = sprintf(__('Skipped restoring updated post %d during undo because it no longer exists.', 'll-tools-text-domain'), $post_id);
+                    continue;
+                }
+                if ($post->post_type !== $expected_post_type) {
+                    $result['errors'][] = sprintf(__('Skipped restoring post %d during undo because it is not %s.', 'll-tools-text-domain'), $post_id, $expected_post_type);
+                    continue;
+                }
+
+                $restored_this_post = false;
+                $restored_field_count = 0;
+                $post_fields = isset($snapshot['post_fields']) && is_array($snapshot['post_fields']) ? $snapshot['post_fields'] : [];
+                $postarr = ['ID' => $post_id];
+                $post_field_change_count = 0;
+
+                foreach ($post_fields as $field => $value) {
+                    $field = sanitize_key((string) $field);
+                    if ($field === '') {
+                        continue;
+                    }
+                    $current = (string) get_post_field($field, $post_id, 'raw');
+                    $expected = (string) $value;
+                    if ($current === $expected) {
+                        continue;
+                    }
+
+                    $postarr[$field] = $expected;
+                    $post_field_change_count++;
+                }
+
+                if ($post_field_change_count > 0) {
+                    $updated = wp_update_post($postarr, true);
+                    if (is_wp_error($updated)) {
+                        $result['errors'][] = sprintf(__('Failed to restore updated post %1$d during undo: %2$s', 'll-tools-text-domain'), $post_id, $updated->get_error_message());
+                    } else {
+                        $restored_this_post = true;
+                        $restored_field_count += $post_field_change_count;
+                    }
+                }
+
+                $meta_snapshots = isset($snapshot['meta']) && is_array($snapshot['meta']) ? $snapshot['meta'] : [];
+                foreach ($meta_snapshots as $meta_key => $expected_values_raw) {
+                    $meta_key = (string) $meta_key;
+                    if ($meta_key === '') {
+                        continue;
+                    }
+
+                    $expected_values = is_array($expected_values_raw) ? array_values($expected_values_raw) : [];
+                    $current_values = get_post_meta($post_id, $meta_key, false);
+                    if (ll_tools_import_snapshot_values_equal($current_values, $expected_values)) {
+                        continue;
+                    }
+
+                    delete_post_meta($post_id, $meta_key);
+                    foreach ($expected_values as $expected_value) {
+                        add_post_meta($post_id, $meta_key, maybe_unserialize($expected_value));
+                    }
+
+                    $restored_this_post = true;
+                    $restored_field_count++;
+                }
+
+                if (!$restored_this_post) {
+                    continue;
+                }
+
+                $result['stats']['metadata_posts_restored']++;
+                $result['stats']['metadata_fields_restored'] += $restored_field_count;
+
+                if ($expected_post_type === 'words') {
+                    $touched_word_ids[$post_id] = true;
+                } elseif ($expected_post_type === 'word_audio') {
+                    $parent_id = (int) $post->post_parent;
+                    if ($parent_id > 0) {
+                        $touched_word_ids[$parent_id] = true;
+                    }
+                }
+            }
+        }
+    } finally {
+        remove_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999);
+    }
+
+    return array_values(array_map('intval', array_keys($touched_word_ids)));
+}
+
 function ll_tools_import_delete_audio_file_if_safe(string $audio_path): bool {
     $audio_path = trim($audio_path);
     if ($audio_path === '') {
@@ -5991,6 +6213,8 @@ function ll_tools_undo_import_entry(array $entry): array {
         'message' => __('Undo complete.', 'll-tools-text-domain'),
         'errors' => [],
         'stats' => [
+            'metadata_posts_restored' => 0,
+            'metadata_fields_restored' => 0,
             'word_audio_deleted' => 0,
             'words_deleted' => 0,
             'word_images_deleted' => 0,
@@ -6010,6 +6234,16 @@ function ll_tools_undo_import_entry(array $entry): array {
     $audio_paths = array_values(array_unique(array_filter(array_map('strval', (array) ($undo['audio_paths'] ?? [])), static function (string $path): bool {
         return trim($path) !== '';
     })));
+    $updated_post_snapshots = isset($undo['updated_post_snapshots']) && is_array($undo['updated_post_snapshots'])
+        ? $undo['updated_post_snapshots']
+        : [];
+    $restored_word_ids = ll_tools_import_restore_updated_post_snapshots($updated_post_snapshots, $result);
+    $restored_category_ids = [];
+    foreach ($restored_word_ids as $restored_word_id) {
+        foreach (ll_tools_metadata_update_get_word_category_ids((int) $restored_word_id) as $category_id) {
+            $restored_category_ids[$category_id] = true;
+        }
+    }
 
     foreach ($word_audio_ids as $post_id) {
         $post = get_post($post_id);
@@ -6115,6 +6349,19 @@ function ll_tools_undo_import_entry(array $entry): array {
 
     if (function_exists('ll_tools_rebuild_specific_wrong_answer_owner_map')) {
         ll_tools_rebuild_specific_wrong_answer_owner_map();
+    }
+    if (!empty($restored_category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version(array_map('intval', array_keys($restored_category_ids)));
+    }
+    if (!empty($restored_category_ids) && function_exists('ll_tools_handle_category_sync')) {
+        foreach (array_keys($restored_category_ids) as $category_id) {
+            ll_tools_handle_category_sync((int) $category_id);
+        }
+    }
+    if (!empty($restored_category_ids) && function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+        foreach (array_keys($restored_category_ids) as $category_id) {
+            ll_tools_sync_vocab_lessons_for_category((int) $category_id);
+        }
     }
     if (!empty($category_ids) && function_exists('ll_tools_bump_category_cache_version')) {
         ll_tools_bump_category_cache_version($category_ids);

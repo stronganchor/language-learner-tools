@@ -106,6 +106,64 @@ final class ImportHistoryUndoTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) ($stats['audio_files_deleted'] ?? 0));
     }
 
+    public function test_undo_import_entry_restores_metadata_update_snapshots(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Undo Original Word',
+            'post_name' => 'undo-original-word',
+        ]);
+        update_post_meta($word_id, 'word_translation', 'Undo Original Translation');
+        update_post_meta($word_id, 'word_english_meaning', 'Undo Original Translation');
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Undo Original Recording',
+            'post_name' => 'undo-original-recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'Undo Original Recording Text');
+        update_post_meta($recording_id, 'recording_ipa', 'undo.old.ipa');
+        update_post_meta($recording_id, 'speaker_name', 'Undo Speaker');
+
+        $csv = implode("\n", [
+            'word_id,recording_id,word_title,word_translation,recording_text,recording_ipa,speaker_name',
+            $word_id . ',' . $recording_id . ',Undo Changed Word,Undo Changed Translation,Undo Changed Recording Text,undo.new.ipa,Undo Speaker New',
+        ]) . "\n";
+
+        $file_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-undo-metadata-' . wp_generate_password(8, false, false) . '.csv');
+        file_put_contents($file_path, $csv);
+
+        try {
+            $processed = ll_tools_process_metadata_updates_file($file_path, 'undo-updates.csv');
+            $this->assertTrue((bool) ($processed['ok'] ?? false), implode(' | ', (array) ($processed['errors'] ?? [])));
+            $this->assertTrue(ll_tools_import_has_undo_targets((array) ($processed['undo'] ?? [])));
+
+            $undo_result = ll_tools_undo_import_entry([
+                'undo' => (array) ($processed['undo'] ?? []),
+            ]);
+
+            $this->assertTrue((bool) ($undo_result['ok'] ?? false), implode(' | ', (array) ($undo_result['errors'] ?? [])));
+            $this->assertSame('Undo Original Word', (string) get_the_title($word_id));
+            $this->assertSame('Undo Original Translation', (string) get_post_meta($word_id, 'word_translation', true));
+            $this->assertSame('Undo Original Translation', (string) get_post_meta($word_id, 'word_english_meaning', true));
+            $this->assertSame('Undo Original Recording Text', (string) get_post_meta($recording_id, 'recording_text', true));
+            $this->assertSame('undo.old.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+            $this->assertSame('Undo Speaker', (string) get_post_meta($recording_id, 'speaker_name', true));
+
+            $stats = isset($undo_result['stats']) && is_array($undo_result['stats']) ? $undo_result['stats'] : [];
+            $this->assertSame(2, (int) ($stats['metadata_posts_restored'] ?? 0));
+            $this->assertGreaterThanOrEqual(4, (int) ($stats['metadata_fields_restored'] ?? 0));
+        } finally {
+            @unlink($file_path);
+        }
+    }
+
     public function test_recent_imports_section_lists_categories_and_matching_lesson_links(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
