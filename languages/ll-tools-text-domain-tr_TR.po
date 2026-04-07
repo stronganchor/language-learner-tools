@@ -559,7 +559,7 @@ msgstr "Eşleme ekle"
 
 #: includes/post-types/word-audio-post-type.php:14
 msgid "Add New Audio Recording"
-msgstr "Yeni Ses Kaydı Ekleme"
+msgstr "Yeni Ses Kaydı Ekle"
 
 #: includes/post-types/dictionary-entry-post-type.php:373
 msgid "Add New Dictionary Entry"
@@ -913,7 +913,7 @@ msgstr "İçe aktarılan tüm kelimeleri mevcut bir kelime setine ata"
 
 #: includes/pages/wordset-pages.php:3924
 msgid "Assign Audio Recorder User"
-msgstr "Ses Kaydedici Kullanıcısı Atama"
+msgstr "Ses kaydedici kullanıcı ata"
 
 #: includes/pages/wordset-pages.php:3954
 msgid "Assign Recorder"
@@ -1106,7 +1106,7 @@ msgstr "Otomatik altyazılar"
 
 #: includes/admin/ipa-keyboard-admin.php:46
 msgid "Auto map"
-msgstr "Otomatik harita"
+msgstr "Otomatik eşle"
 
 #: includes/user-roles/audio-recorder-role.php:213
 #: includes/user-roles/audio-recorder-role.php:337
@@ -1115,7 +1115,7 @@ msgstr "Kayıtları Otomatik İşleme"
 
 #: templates/vocab-lesson-template.php:272
 msgid "Auto-transcribe missing recordings"
-msgstr "Eksik kayıtları otomatik yazıya dökme"
+msgstr "Eksik kayıtları otomatik olarak yazıya dök"
 
 #: includes/shortcodes/audio-recording-shortcode.php:1178
 msgid "Available"
@@ -1126,7 +1126,7 @@ msgstr "Mevcut"
 #: templates/vocab-lesson-template.php:254
 #, php-format
 msgid "Back to %s"
-msgstr "Geri %s"
+msgstr "%s sayfasına geri dön"
 
 #: includes/admin/split-word-admin.php:160
 msgid "Back to Audio Processor"
@@ -1746,7 +1746,7 @@ msgstr "Kurulum ve bakım için kullanılan yapılandırma ve taksonomi sayfalar
 #: includes/admin/admin-dashboard-menu.php:307
 msgid "Configure global plugin behavior, languages, and operational defaults."
 msgstr ""
-"Genel eklenti davranışını, dilleri ve operasyonel varsayılanları "
+"Genel eklenti davranışını, dilleri ve varsayılan çalışma ayarlarını "
 "yapılandır."
 
 #: includes/user-roles/audio-recorder-role.php:124
@@ -4856,8 +4856,8 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:1148
 msgid "Microphone requires a secure connection. Please use HTTPS or localhost."
 msgstr ""
-"Mikrofon güvenli bir bağlantı gerektirir. Lütfen HTTPS veya localhost "
-"kullan."
+"Mikrofon güvenli bir bağlantı gerektirir. Lütfen HTTPS ya da localhost "
+"kullanın."
 
 #: includes/admin/bulk-translation-admin.php:118
 msgid "Migrate legacy meta (word_english_meaning to word_translation)"
@@ -5083,8 +5083,8 @@ msgstr ""
 #: includes/pages/wordset-pages.php:3318
 msgid "New learners can create an account to start tracking progress."
 msgstr ""
-"Yeni öğrenciler ilerlemelerini takip etmeye başlamak için bir hesap "
-"oluşturabilirler."
+"Yeni öğrenciler, ilerlemelerini takip etmeye başlamak için bir hesap "
+"oluşturabilir."
 
 #: includes/admin/metabox-word-audio-parent.php:58
 msgid "New Parent Word ID"

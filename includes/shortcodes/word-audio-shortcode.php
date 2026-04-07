@@ -58,7 +58,7 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     // Generate unique ID for the audio element
     $audio_id = uniqid('audio_');
 
-    $play_icon = '<img src="' . LL_TOOLS_BASE_URL . 'media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
+    $play_icon = '<img src="' . LL_TOOLS_BASE_URL . 'media/play-symbol.svg" width="10" height="10" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '" data-no-lazy="1"/>';
 
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';

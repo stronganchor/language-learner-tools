@@ -5,7 +5,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 ## Key Features
 
 - **Post types & taxonomies**
-  - `words`, `word_images`, and `word_audio` post types.
+  - `words`, `word_images`, `word_audio`, `ll_dictionary_entry`, and `ll_vocab_lesson` post types.
   - Taxonomies: `word-category`, `wordset`, `language`, `part-of-speech`, `recording_type`.
 
 - **Flashcard quiz modes**

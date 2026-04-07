@@ -243,7 +243,7 @@ Core settings live in `includes/admin/settings.php`:
 # Public UI surfaces and routes
 ## Shortcodes (user-facing)
 - `[flashcard_widget]` (controller: `includes/shortcodes/flashcard-widget.php`)
-  - Attributes: `category`, `mode`, `embed`, `quiz_mode` (practice|learning|listening), `wordset`, `wordset_fallback`.
+  - Attributes: `category`, `mode`, `embed`, `quiz_mode` (practice|learning|listening|gender|self-check), `wordset`, `wordset_fallback`.
 - `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
@@ -251,13 +251,13 @@ Core settings live in `includes/admin/settings.php`:
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
-- `[language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
+- `[ll_language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
 
 ## Routes
 - `/quiz/<category>` auto pages (created/synced by `includes/pages/quiz-pages.php`).
-  - Optional params: `?mode=practice|learning|listening`.
+  - Optional params: `?mode=practice|learning|listening|gender|self-check`.
 - `/embed/<category>` embed page (handled by `includes/pages/embed-page.php`).
-  - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening`.
+  - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
 
 # Flashcard widget architecture
 ## PHP controller

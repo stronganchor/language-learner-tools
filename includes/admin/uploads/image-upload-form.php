@@ -39,11 +39,11 @@ function ll_image_upload_validate_uploaded_image(
     ];
 
     if ((int) $file_error !== UPLOAD_ERR_OK) {
-        $result['error'] = 'File upload error';
+        $result['error'] = __('File upload error', 'll-tools-text-domain');
         return $result;
     }
     if ($require_uploaded_file && !is_uploaded_file((string) $tmp_name)) {
-        $result['error'] = 'File upload error';
+        $result['error'] = __('File upload error', 'll-tools-text-domain');
         return $result;
     }
 
@@ -54,13 +54,13 @@ function ll_image_upload_validate_uploaded_image(
     if ($validated_mime === '' || $validated_ext === ''
         || !in_array($validated_mime, $allowed_image_types, true)
         || !in_array($validated_ext, $allowed_image_extensions, true)) {
-        $result['error'] = 'Invalid image type';
+        $result['error'] = __('Invalid image type', 'll-tools-text-domain');
         return $result;
     }
 
     $image_size = @getimagesize((string) $tmp_name);
     if ($image_size === false) {
-        $result['error'] = 'Invalid image data';
+        $result['error'] = __('Invalid image data', 'll-tools-text-domain');
         return $result;
     }
 
