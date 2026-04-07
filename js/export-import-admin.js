@@ -403,8 +403,60 @@
         syncUi();
     }
 
+    function initExportWordTextDialectSync() {
+        var wordsetSelect = document.getElementById('ll_export_wordset');
+        var dialectInput = document.getElementById('ll_export_dialect');
+        if (!wordsetSelect || !dialectInput) {
+            return;
+        }
+
+        function getSelectedWordsetName() {
+            if (wordsetSelect.selectedIndex < 0) {
+                return '';
+            }
+
+            var option = wordsetSelect.options[wordsetSelect.selectedIndex];
+            return option && typeof option.text === 'string' ? option.text.trim() : '';
+        }
+
+        var lastSyncedDialect = getSelectedWordsetName();
+        var initialDialect = typeof dialectInput.value === 'string' ? dialectInput.value.trim() : '';
+
+        if (initialDialect === '' && lastSyncedDialect !== '') {
+            dialectInput.value = lastSyncedDialect;
+            initialDialect = lastSyncedDialect;
+        }
+
+        dialectInput.setAttribute(
+            'data-ll-dialect-sync-mode',
+            (initialDialect === '' || initialDialect === lastSyncedDialect) ? 'auto' : 'manual'
+        );
+
+        dialectInput.addEventListener('input', function () {
+            var currentDialect = typeof dialectInput.value === 'string' ? dialectInput.value.trim() : '';
+            dialectInput.setAttribute(
+                'data-ll-dialect-sync-mode',
+                (currentDialect === '' || currentDialect === lastSyncedDialect) ? 'auto' : 'manual'
+            );
+        });
+
+        wordsetSelect.addEventListener('change', function () {
+            var currentDialect = typeof dialectInput.value === 'string' ? dialectInput.value.trim() : '';
+            var nextDialect = getSelectedWordsetName();
+            var syncMode = dialectInput.getAttribute('data-ll-dialect-sync-mode');
+
+            if (syncMode === 'auto' || currentDialect === '' || currentDialect === lastSyncedDialect) {
+                dialectInput.value = nextDialect;
+                dialectInput.setAttribute('data-ll-dialect-sync-mode', 'auto');
+            }
+
+            lastSyncedDialect = nextDialect;
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         initExportFullBundleCategoryUi();
+        initExportWordTextDialectSync();
         initImportWordsetModeUi();
         initAutoPreviewOnZipUpload();
         initImportConfirmProgressUi();

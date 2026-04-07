@@ -1703,6 +1703,8 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
         $selected_wordset_id = (int) $wordsets[0]->term_id;
     }
     $selected_wordset = $selected_wordset_id ? get_term($selected_wordset_id, 'wordset') : null;
+    $word_text_source_options = ll_tools_export_get_word_text_source_options();
+    $recording_text_source_options = ll_tools_export_get_recording_text_source_options($selected_wordset_id);
     $stt_text_field_options = ll_tools_export_get_stt_text_field_options($selected_wordset_id);
     $selected_stt_text_field = ll_tools_export_normalize_stt_text_field(
         isset($_GET['stt_text_field']) ? wp_unslash((string) $_GET['stt_text_field']) : 'recording_text',
@@ -1867,7 +1869,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             <input type="hidden" name="action" value="ll_tools_export_wordset_csv">
 
             <div class="ll-tools-export-csv">
-                <p class="description"><?php esc_html_e('Lexeme uses the selected text source. Choose the fields that match your target language.', 'll-tools-text-domain'); ?></p>
+                <p class="description"><?php esc_html_e('All supported word and recording text fields are selected by default for the chosen word set. Uncheck anything you do not want to include.', 'll-tools-text-domain'); ?></p>
 
                 <div class="ll-tools-export-field">
                     <label class="ll-tools-export-label" for="ll_export_wordset"><?php esc_html_e('Word set', 'll-tools-text-domain'); ?></label>
@@ -1888,10 +1890,14 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 <div class="ll-tools-export-field">
                     <span class="ll-tools-export-label"><?php esc_html_e('Word text sources', 'll-tools-text-domain'); ?></span>
                     <div class="ll-tools-checkboxes">
-                        <label><input type="checkbox" name="ll_word_text_sources[]" value="title" checked> <?php esc_html_e('Title', 'll-tools-text-domain'); ?></label>
-                        <label><input type="checkbox" name="ll_word_text_sources[]" value="translation"> <?php esc_html_e('Translation', 'll-tools-text-domain'); ?></label>
+                        <?php foreach ($word_text_source_options as $field_key => $field_config) : ?>
+                            <label>
+                                <input type="checkbox" name="ll_word_text_sources[]" value="<?php echo esc_attr($field_key); ?>" checked>
+                                <?php echo esc_html((string) ($field_config['label'] ?? $field_key)); ?>
+                            </label>
+                        <?php endforeach; ?>
                     </div>
-                    <p class="description"><?php esc_html_e('Each selected source adds rows. Gloss columns use the paired translation when available.', 'll-tools-text-domain'); ?></p>
+                    <p class="description"><?php esc_html_e('Each selected source adds rows. Word example sentence fields are included here too.', 'll-tools-text-domain'); ?></p>
                 </div>
 
                 <div class="ll-tools-export-field">
@@ -1904,13 +1910,17 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                                 <div class="ll-tools-recording-type">
                                     <div class="ll-tools-recording-title"><?php echo esc_html($recording_type->name); ?></div>
                                     <div class="ll-tools-recording-options">
-                                        <label><input type="checkbox" name="ll_recording_sources[<?php echo esc_attr($recording_type->slug); ?>][]" value="text"> <?php esc_html_e('Text', 'll-tools-text-domain'); ?></label>
-                                        <label><input type="checkbox" name="ll_recording_sources[<?php echo esc_attr($recording_type->slug); ?>][]" value="translation"> <?php esc_html_e('Translation', 'll-tools-text-domain'); ?></label>
+                                        <?php foreach ($recording_text_source_options as $field_key => $field_config) : ?>
+                                            <label>
+                                                <input type="checkbox" name="ll_recording_sources[<?php echo esc_attr($recording_type->slug); ?>][]" value="<?php echo esc_attr($field_key); ?>" checked>
+                                                <?php echo esc_html((string) ($field_config['label'] ?? $field_key)); ?>
+                                            </label>
+                                        <?php endforeach; ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
                         </div>
-                        <p class="description"><?php esc_html_e('Select which recording types to export, and whether to include their text, translation, or both.', 'll-tools-text-domain'); ?></p>
+                        <p class="description"><?php esc_html_e('All recording text, translation, and transcription fields start enabled. Uncheck specific recording types or fields to exclude them.', 'll-tools-text-domain'); ?></p>
                     <?php endif; ?>
                 </div>
 
@@ -2564,16 +2574,10 @@ function ll_tools_handle_export_wordset_csv() {
 
     @set_time_limit(0);
 
-    $word_sources = isset($_POST['ll_word_text_sources']) && is_array($_POST['ll_word_text_sources'])
-        ? array_map('sanitize_text_field', wp_unslash($_POST['ll_word_text_sources']))
-        : [];
-    $include_title = in_array('title', $word_sources, true);
-    $include_translation = in_array('translation', $word_sources, true);
+    $word_sources = ll_tools_export_normalize_word_text_sources($_POST['ll_word_text_sources'] ?? []);
+    $recording_sources = ll_tools_export_parse_recording_sources($_POST['ll_recording_sources'] ?? [], $wordset_id);
 
-    $recording_sources = ll_tools_export_parse_recording_sources($_POST['ll_recording_sources'] ?? []);
-    $include_recordings = !empty($recording_sources);
-
-    if (!$include_title && !$include_translation && !$include_recordings) {
+    if (empty($word_sources) && empty($recording_sources)) {
         wp_die(__('Select at least one text source to export.', 'll-tools-text-domain'));
     }
 
@@ -2600,11 +2604,19 @@ function ll_tools_handle_export_wordset_csv() {
         wp_die(__('No words found for the selected word set.', 'll-tools-text-domain'));
     }
 
-    $audio_by_word = ll_tools_export_collect_audio_entries($word_ids);
     $gloss_headers = array_map(function ($code) {
         return 'Gloss_' . $code;
     }, $gloss_languages);
+    $gloss_count = count($gloss_headers);
     $header = array_merge(['Lexeme', 'PhoneticForm'], $gloss_headers, ['Dialect', 'Source', 'Notes']);
+    $rows = ll_tools_export_build_wordset_csv_rows(
+        $wordset_id,
+        $word_sources,
+        $recording_sources,
+        $gloss_count,
+        $dialect,
+        $source
+    );
 
     $filename = 'll-tools-wordset-text-' . sanitize_title($wordset->slug) . '-' . gmdate('Ymd-His') . '.csv';
     nocache_headers();
@@ -2617,56 +2629,8 @@ function ll_tools_handle_export_wordset_csv() {
     }
 
     fputcsv($output, $header, ',', '"', '\\');
-    $gloss_count = count($gloss_headers);
-
-    foreach ($word_ids as $word_id) {
-        $word_id = (int) $word_id;
-        if ($word_id <= 0) {
-            continue;
-        }
-
-        $title = (string) get_the_title($word_id);
-        $translation = ll_tools_export_get_word_translation($word_id);
-        $word_ipa = ll_tools_export_pick_word_ipa($audio_by_word[$word_id] ?? []);
-
-        if ($include_title) {
-            $lexeme = trim($title);
-            if ($lexeme !== '') {
-                $row = ll_tools_export_build_csv_row($lexeme, $word_ipa, $translation, $gloss_count, $dialect, $source);
-                fputcsv($output, $row, ',', '"', '\\');
-            }
-        }
-
-        if ($include_translation) {
-            $lexeme = trim($translation);
-            if ($lexeme !== '') {
-                $row = ll_tools_export_build_csv_row($lexeme, $word_ipa, $title, $gloss_count, $dialect, $source);
-                fputcsv($output, $row, ',', '"', '\\');
-            }
-        }
-
-        if ($include_recordings && !empty($audio_by_word[$word_id])) {
-            foreach ($audio_by_word[$word_id] as $recording) {
-                $recording_type = (string) ($recording['recording_type'] ?? '');
-                if ($recording_type === '' || empty($recording_sources[$recording_type])) {
-                    continue;
-                }
-
-                $recording_text = trim((string) ($recording['recording_text'] ?? ''));
-                $recording_translation = trim((string) ($recording['recording_translation'] ?? ''));
-                $recording_ipa = trim((string) ($recording['recording_ipa'] ?? ''));
-
-                if (in_array('text', $recording_sources[$recording_type], true) && $recording_text !== '') {
-                    $row = ll_tools_export_build_csv_row($recording_text, $recording_ipa, $recording_translation, $gloss_count, $dialect, $source);
-                    fputcsv($output, $row, ',', '"', '\\');
-                }
-
-                if (in_array('translation', $recording_sources[$recording_type], true) && $recording_translation !== '') {
-                    $row = ll_tools_export_build_csv_row($recording_translation, $recording_ipa, $recording_text, $gloss_count, $dialect, $source);
-                    fputcsv($output, $row, ',', '"', '\\');
-                }
-            }
-        }
+    foreach ($rows as $row) {
+        fputcsv($output, $row, ',', '"', '\\');
     }
 
     fclose($output);
@@ -7367,11 +7331,78 @@ function ll_tools_export_parse_gloss_languages($raw): array {
     return array_values(array_unique($codes));
 }
 
-function ll_tools_export_parse_recording_sources($raw): array {
+function ll_tools_export_get_recording_transcription_label(int $wordset_id = 0): string {
+    $transcription_label = __('Recording transcription', 'll-tools-text-domain');
+    if (function_exists('ll_tools_get_wordset_recording_transcription_config')) {
+        $config = ll_tools_get_wordset_recording_transcription_config($wordset_id > 0 ? [$wordset_id] : [], true);
+        $mode_label = isset($config['label']) ? trim((string) $config['label']) : '';
+        if ($mode_label !== '') {
+            $transcription_label = sprintf(
+                /* translators: %s transcription mode label, for example IPA */
+                __('Recording transcription (%s)', 'll-tools-text-domain'),
+                $mode_label
+            );
+        }
+    }
+
+    return $transcription_label;
+}
+
+function ll_tools_export_get_word_text_source_options(): array {
+    return [
+        'title' => [
+            'label' => __('Title', 'll-tools-text-domain'),
+        ],
+        'translation' => [
+            'label' => __('Translation', 'll-tools-text-domain'),
+        ],
+        'example_sentence' => [
+            'label' => __('Example sentence', 'll-tools-text-domain'),
+        ],
+        'example_sentence_translation' => [
+            'label' => __('Example sentence translation', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+function ll_tools_export_normalize_word_text_sources($raw): array {
+    $options = ll_tools_export_get_word_text_source_options();
+    $values = is_array($raw) ? $raw : [$raw];
+    $selected = [];
+
+    foreach ($values as $value) {
+        if (!is_scalar($value)) {
+            continue;
+        }
+        $value = sanitize_key((string) wp_unslash($value));
+        if ($value !== '' && isset($options[$value])) {
+            $selected[] = $value;
+        }
+    }
+
+    return array_values(array_unique($selected));
+}
+
+function ll_tools_export_get_recording_text_source_options(int $wordset_id = 0): array {
+    return [
+        'text' => [
+            'label' => __('Text', 'll-tools-text-domain'),
+        ],
+        'translation' => [
+            'label' => __('Translation', 'll-tools-text-domain'),
+        ],
+        'transcription' => [
+            'label' => ll_tools_export_get_recording_transcription_label($wordset_id),
+        ],
+    ];
+}
+
+function ll_tools_export_parse_recording_sources($raw, int $wordset_id = 0): array {
     if (!is_array($raw)) {
         return [];
     }
 
+    $allowed_values = ll_tools_export_get_recording_text_source_options($wordset_id);
     $sources = [];
     foreach ($raw as $slug => $values) {
         $slug = sanitize_title($slug);
@@ -7381,8 +7412,11 @@ function ll_tools_export_parse_recording_sources($raw): array {
         $values = is_array($values) ? $values : [$values];
         $clean = [];
         foreach ($values as $value) {
-            $value = sanitize_text_field(wp_unslash($value));
-            if ($value === 'text' || $value === 'translation') {
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $value = sanitize_key((string) wp_unslash($value));
+            if ($value !== '' && isset($allowed_values[$value])) {
                 $clean[] = $value;
             }
         }
@@ -7514,26 +7548,106 @@ function ll_tools_export_build_csv_row(string $lexeme, string $phonetic, string 
     return $row;
 }
 
-function ll_tools_export_get_stt_text_field_options(int $wordset_id = 0): array {
-    $transcription_label = __('Recording transcription', 'll-tools-text-domain');
-    if (function_exists('ll_tools_get_wordset_recording_transcription_config')) {
-        $config = ll_tools_get_wordset_recording_transcription_config($wordset_id > 0 ? [$wordset_id] : [], true);
-        $mode_label = isset($config['label']) ? trim((string) $config['label']) : '';
-        if ($mode_label !== '') {
-            $transcription_label = sprintf(
-                /* translators: %s transcription mode label, for example IPA */
-                __('Recording transcription (%s)', 'll-tools-text-domain'),
-                $mode_label
-            );
+function ll_tools_export_build_wordset_csv_rows(
+    int $wordset_id,
+    array $word_sources,
+    array $recording_sources,
+    int $gloss_count,
+    string $dialect,
+    string $source
+): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $word_sources = ll_tools_export_normalize_word_text_sources($word_sources);
+    $recording_sources = ll_tools_export_parse_recording_sources($recording_sources, $wordset_id);
+    if (empty($word_sources) && empty($recording_sources)) {
+        return [];
+    }
+
+    $word_ids = ll_tools_export_get_wordset_word_ids($wordset_id);
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $audio_by_word = ll_tools_export_collect_audio_entries($word_ids);
+    $rows = [];
+
+    foreach ($word_ids as $word_id) {
+        $word_id = (int) $word_id;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $title = trim((string) get_the_title($word_id));
+        $translation = trim(ll_tools_export_get_word_translation($word_id));
+        $example_sentence = trim((string) get_post_meta($word_id, 'word_example_sentence', true));
+        $example_sentence_translation = trim((string) get_post_meta($word_id, 'word_example_sentence_translation', true));
+        $word_ipa = ll_tools_export_pick_word_ipa($audio_by_word[$word_id] ?? []);
+
+        if (in_array('title', $word_sources, true) && $title !== '') {
+            $rows[] = ll_tools_export_build_csv_row($title, $word_ipa, $translation, $gloss_count, $dialect, $source);
+        }
+
+        if (in_array('translation', $word_sources, true) && $translation !== '') {
+            $rows[] = ll_tools_export_build_csv_row($translation, $word_ipa, $title, $gloss_count, $dialect, $source);
+        }
+
+        if (in_array('example_sentence', $word_sources, true) && $example_sentence !== '') {
+            $rows[] = ll_tools_export_build_csv_row($example_sentence, '', $example_sentence_translation, $gloss_count, $dialect, $source);
+        }
+
+        if (in_array('example_sentence_translation', $word_sources, true) && $example_sentence_translation !== '') {
+            $rows[] = ll_tools_export_build_csv_row($example_sentence_translation, '', $example_sentence, $gloss_count, $dialect, $source);
+        }
+
+        if (empty($audio_by_word[$word_id])) {
+            continue;
+        }
+
+        foreach ($audio_by_word[$word_id] as $recording) {
+            $recording_type = (string) ($recording['recording_type'] ?? '');
+            if ($recording_type === '' || empty($recording_sources[$recording_type])) {
+                continue;
+            }
+
+            $recording_text = trim((string) ($recording['recording_text'] ?? ''));
+            $recording_translation = trim((string) ($recording['recording_translation'] ?? ''));
+            $recording_ipa = trim((string) ($recording['recording_ipa'] ?? ''));
+
+            if (in_array('text', $recording_sources[$recording_type], true) && $recording_text !== '') {
+                $rows[] = ll_tools_export_build_csv_row($recording_text, $recording_ipa, $recording_translation, $gloss_count, $dialect, $source);
+            }
+
+            if (in_array('translation', $recording_sources[$recording_type], true) && $recording_translation !== '') {
+                $rows[] = ll_tools_export_build_csv_row($recording_translation, $recording_ipa, $recording_text, $gloss_count, $dialect, $source);
+            }
+
+            if (in_array('transcription', $recording_sources[$recording_type], true) && $recording_ipa !== '') {
+                $rows[] = ll_tools_export_build_csv_row(
+                    $recording_ipa,
+                    $recording_ipa,
+                    $recording_text !== '' ? $recording_text : $recording_translation,
+                    $gloss_count,
+                    $dialect,
+                    $source
+                );
+            }
         }
     }
 
+    return $rows;
+}
+
+function ll_tools_export_get_stt_text_field_options(int $wordset_id = 0): array {
     return [
         'recording_text' => [
             'label' => __('Recording text', 'll-tools-text-domain'),
         ],
         'recording_ipa' => [
-            'label' => $transcription_label,
+            'label' => ll_tools_export_get_recording_transcription_label($wordset_id),
         ],
         'recording_translation' => [
             'label' => __('Recording translation', 'll-tools-text-domain'),
