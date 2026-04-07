@@ -18,6 +18,7 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Export STT Training Data', $output);
         $this->assertStringContainsString('ll_tools_export_stt_training_bundle', $output);
         $this->assertStringContainsString('ll_export_stt_text_field', $output);
+        $this->assertMatchesRegularExpression('/name="ll_stt_only_reviewed" value="1" checked/', $output);
     }
 
     public function test_build_stt_training_entries_filters_by_selected_text_field(): void
@@ -46,6 +47,32 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $this->assertSame($audio_ipa_id, (int) $ipa_entries[0]['recording_id']);
         $this->assertSame('al.fa', (string) $ipa_entries[0]['text']);
         $this->assertSame('recording_ipa', (string) $ipa_entries[0]['text_field']);
+    }
+
+    public function test_build_stt_training_entries_excludes_unreviewed_transcriptions_by_default(): void
+    {
+        $wordset_id = $this->createWordset('STT Review Filter');
+        $word_id = $this->createWord($wordset_id, 'Charlie', 'Charlie translation');
+
+        $reviewed_recording_id = $this->createAudioRecording($word_id, 'stt-reviewed.mp3', [
+            'recording_text' => 'Charlie reviewed text',
+        ]);
+        $flagged_recording_id = $this->createAudioRecording($word_id, 'stt-flagged.mp3', [
+            'recording_text' => 'Charlie needs review',
+            'needs_review' => '1',
+        ]);
+
+        $default_entries = ll_tools_export_build_stt_training_entries($wordset_id, 'recording_text');
+        $all_entries = ll_tools_export_build_stt_training_entries($wordset_id, 'recording_text', false);
+
+        $this->assertCount(1, $default_entries);
+        $this->assertSame($reviewed_recording_id, (int) $default_entries[0]['recording_id']);
+
+        $this->assertCount(2, $all_entries);
+        $this->assertSame(
+            [$reviewed_recording_id, $flagged_recording_id],
+            array_map('intval', array_column($all_entries, 'recording_id'))
+        );
     }
 
     public function test_stt_training_zip_contains_metadata_and_audio_files(): void
@@ -138,6 +165,9 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         }
         if (isset($meta['recording_translation'])) {
             update_post_meta($recording_id, 'recording_translation', $meta['recording_translation']);
+        }
+        if (!empty($meta['needs_review'])) {
+            update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');
         }
         if (!empty($meta['recording_type'])) {
             $recording_type_id = $this->ensureRecordingType((string) $meta['recording_type']);

@@ -1985,6 +1985,16 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 </div>
 
                 <div class="ll-tools-export-field">
+                    <span class="ll-tools-export-label"><?php esc_html_e('Review filter', 'll-tools-text-domain'); ?></span>
+                    <input type="hidden" name="ll_stt_only_reviewed" value="0">
+                    <label for="ll_export_stt_only_reviewed">
+                        <input type="checkbox" id="ll_export_stt_only_reviewed" name="ll_stt_only_reviewed" value="1" checked="checked"<?php echo $has_wordsets ? '' : ' disabled'; ?>>
+                        <?php esc_html_e('Only export reviewed transcriptions', 'll-tools-text-domain'); ?>
+                    </label>
+                    <p class="description"><?php esc_html_e('Enabled by default. Recordings still flagged for manual transcription review are excluded until they are marked reviewed.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <div class="ll-tools-export-field">
                     <button type="submit" class="ll-tools-action-button"<?php echo $has_wordsets ? '' : ' disabled'; ?>><?php esc_html_e('Download STT Bundle (.zip)', 'll-tools-text-domain'); ?></button>
                     <p class="description"><?php esc_html_e('The zip includes metadata.csv, metadata.jsonl, and an audio folder with the exported recordings.', 'll-tools-text-domain'); ?></p>
                 </div>
@@ -2664,10 +2674,13 @@ function ll_tools_handle_export_stt_training_bundle() {
         isset($_POST['ll_stt_text_field']) ? wp_unslash((string) $_POST['ll_stt_text_field']) : 'recording_text',
         $wordset_id
     );
+    $reviewed_only = ll_tools_export_normalize_stt_reviewed_only(
+        isset($_POST['ll_stt_only_reviewed']) ? wp_unslash((string) $_POST['ll_stt_only_reviewed']) : '1'
+    );
 
     @set_time_limit(0);
 
-    $entries = ll_tools_export_build_stt_training_entries($wordset_id, $text_field);
+    $entries = ll_tools_export_build_stt_training_entries($wordset_id, $text_field, $reviewed_only);
     if (empty($entries)) {
         wp_die(__('No recordings with audio files and the selected text field were found for this word set.', 'll-tools-text-domain'));
     }
@@ -7679,6 +7692,15 @@ function ll_tools_export_get_stt_text_field_label(string $text_field, int $words
     return (string) ($options[$text_field]['label'] ?? __('Recording text', 'll-tools-text-domain'));
 }
 
+function ll_tools_export_normalize_stt_reviewed_only($value): bool {
+    if (is_bool($value)) {
+        return $value;
+    }
+
+    $value = strtolower(trim((string) $value));
+    return !in_array($value, ['', '0', 'false', 'off', 'no'], true);
+}
+
 function ll_tools_export_normalize_manifest_text(string $value): string {
     $value = str_replace(["\r\n", "\r", "\n", "\t"], ' ', $value);
     $value = preg_replace('/\s+/u', ' ', $value);
@@ -7711,7 +7733,27 @@ function ll_tools_export_get_stt_entry_text(array $entry, string $text_field): s
     return ll_tools_export_normalize_manifest_text($value);
 }
 
-function ll_tools_export_build_stt_training_entries(int $wordset_id, string $text_field): array {
+function ll_tools_export_should_include_stt_recording(int $recording_id, bool $reviewed_only = true): bool {
+    if ($recording_id <= 0) {
+        return false;
+    }
+
+    if (!$reviewed_only) {
+        return true;
+    }
+
+    if (function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')) {
+        return !ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id);
+    }
+
+    $review_meta_key = function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
+        ? ll_tools_ipa_keyboard_auto_review_meta_key()
+        : 'll_auto_transcription_needs_review';
+
+    return ((string) get_post_meta($recording_id, $review_meta_key, true) !== '1');
+}
+
+function ll_tools_export_build_stt_training_entries(int $wordset_id, string $text_field, bool $reviewed_only = true): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [];
@@ -7762,6 +7804,10 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
         $word_translation = ll_tools_export_normalize_manifest_text(ll_tools_export_get_word_translation($word_id));
 
         foreach ($audio_by_word[$word_id] as $audio_post) {
+            if (!ll_tools_export_should_include_stt_recording((int) $audio_post->ID, $reviewed_only)) {
+                continue;
+            }
+
             $resolved_audio_path = ll_tools_export_resolve_audio_source_path(
                 (string) get_post_meta($audio_post->ID, 'audio_file_path', true)
             );
