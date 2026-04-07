@@ -39,6 +39,7 @@
   function initPasswordField(root) {
     var passwordInput = root.querySelector("[data-ll-register-password]");
     var toggleButton = root.querySelector("[data-ll-register-password-toggle]");
+    var toggleText = toggleButton ? toggleButton.querySelector(".ll-tools-login-window__password-toggle-text") : null;
 
     if (!passwordInput) {
       return;
@@ -58,9 +59,12 @@
       var hideLabel = toggleButton.getAttribute("data-hide-label") || "Hide";
       var label = isMasked ? showLabel : hideLabel;
 
-      toggleButton.textContent = label;
+      if (toggleText) {
+        toggleText.textContent = label;
+      }
       toggleButton.setAttribute("aria-label", label);
       toggleButton.setAttribute("aria-pressed", isMasked ? "false" : "true");
+      toggleButton.setAttribute("data-password-visible", isMasked ? "0" : "1");
     }
 
     toggleButton.addEventListener("click", function () {

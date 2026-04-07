@@ -205,7 +205,10 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 
         $this->assertMatchesRegularExpression('/type="password"\s+id="ll-tools-register-password-[^"]+"\s+name="user_pass"[\s\S]*?data-ll-register-password="1"/', $markup);
         $this->assertStringContainsString('data-ll-register-password-toggle="1"', $markup);
-        $this->assertMatchesRegularExpression('/<button[^>]*data-ll-register-password-toggle="1"[\s\S]*?>\s*Show\s*<\/button>/', $markup);
+        $this->assertStringContainsString('ll-tools-login-window__password-toggle-icon--show', $markup);
+        $this->assertStringContainsString('ll-tools-login-window__password-toggle-icon--hide', $markup);
+        $this->assertStringContainsString('data-password-visible="0"', $markup);
+        $this->assertStringContainsString('aria-label="Show"', $markup);
     }
 
     public function test_login_window_hides_registration_form_when_disabled(): void

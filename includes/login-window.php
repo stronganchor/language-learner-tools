@@ -72,6 +72,22 @@ if (!function_exists('ll_tools_is_generated_registration_password_visible')) {
     }
 }
 
+if (!function_exists('ll_tools_get_password_visibility_toggle_icon')) {
+    function ll_tools_get_password_visibility_toggle_icon(string $state, string $class = 'll-tools-login-window__password-toggle-icon-svg'): string {
+        if ($state === 'hide') {
+            return '<svg class="' . esc_attr($class) . '" viewBox="0 0 64 64" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+                . '<path d="M6 32 C14 26, 22 22, 32 22 C42 22, 50 26, 58 32 C50 38, 42 42, 32 42 C22 42, 14 38, 6 32Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
+                . '<circle cx="32" cy="32" r="7" fill="currentColor"/>'
+                . '<path d="M16 16 L48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>'
+                . '</svg>';
+        }
+
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
+            . '<path d="M12 5c5.8 0 9.8 4.6 11.3 6.8a1 1 0 0 1 0 1.1C21.8 15 17.8 19.5 12 19.5S2.2 15 0.7 12.9a1 1 0 0 1 0-1.1C2.2 9.6 6.2 5 12 5Zm0 2C7.5 7 4.2 10.4 2.8 12 4.2 13.6 7.5 17 12 17s7.8-3.4 9.2-5C19.8 10.4 16.5 7 12 7Zm0 2.2a2.8 2.8 0 1 1 0 5.6 2.8 2.8 0 0 1 0-5.6Z"/>'
+            . '</svg>';
+    }
+}
+
 if (!function_exists('ll_tools_sanitize_notification_email')) {
     function ll_tools_sanitize_notification_email($value, $settings_key = 'll_tools_recording_notification_email', $error_code = 'll_tools_notification_email_invalid'): string {
         $value = trim((string) $value);
@@ -1488,13 +1504,23 @@ if (!function_exists('ll_tools_render_login_window')) {
                                         type="button"
                                         class="ll-tools-login-window__password-toggle"
                                         data-ll-register-password-toggle="1"
+                                        data-password-visible="<?php echo $show_generated_registration_password ? '1' : '0'; ?>"
                                         data-show-label="<?php echo esc_attr__('Show', 'll-tools-text-domain'); ?>"
                                         data-hide-label="<?php echo esc_attr__('Hide', 'll-tools-text-domain'); ?>"
                                         aria-controls="<?php echo esc_attr($registration_password_id); ?>"
+                                        aria-label="<?php echo esc_attr($show_generated_registration_password ? __('Hide', 'll-tools-text-domain') : __('Show', 'll-tools-text-domain')); ?>"
                                         aria-pressed="<?php echo $show_generated_registration_password ? 'true' : 'false'; ?>">
-                                        <?php echo $show_generated_registration_password
-                                            ? esc_html__('Hide', 'll-tools-text-domain')
-                                            : esc_html__('Show', 'll-tools-text-domain'); ?>
+                                        <span class="ll-tools-login-window__password-toggle-icon ll-tools-login-window__password-toggle-icon--show" aria-hidden="true">
+                                            <?php echo ll_tools_get_password_visibility_toggle_icon('show'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                        </span>
+                                        <span class="ll-tools-login-window__password-toggle-icon ll-tools-login-window__password-toggle-icon--hide" aria-hidden="true">
+                                            <?php echo ll_tools_get_password_visibility_toggle_icon('hide'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                        </span>
+                                        <span class="ll-tools-login-window__password-toggle-text">
+                                            <?php echo $show_generated_registration_password
+                                                ? esc_html__('Hide', 'll-tools-text-domain')
+                                                : esc_html__('Show', 'll-tools-text-domain'); ?>
+                                        </span>
                                     </button>
                                 </span>
                             </p>
