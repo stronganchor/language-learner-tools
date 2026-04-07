@@ -757,10 +757,47 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
 function ll_tools_get_wordset_page_view(): string {
     $raw = ll_tools_get_requested_wordset_page_view_raw();
     $view = sanitize_key($raw);
-    if (!in_array($view, ['progress', 'hidden-categories', 'settings', 'games'], true)) {
+    if (!in_array($view, ll_tools_get_wordset_page_allowed_views(), true)) {
         return '';
     }
     return $view;
+}
+
+function ll_tools_get_wordset_page_allowed_views(): array {
+    return ['progress', 'hidden-categories', 'settings', 'games'];
+}
+
+function ll_tools_wordset_page_rewrite_rule_matches_target(string $target, array $expected_query_args): bool {
+    $query_start = strpos($target, '?');
+    if ($query_start === false) {
+        return false;
+    }
+
+    $query = substr($target, $query_start + 1);
+    if (!is_string($query) || $query === '') {
+        return false;
+    }
+
+    $parsed = [];
+    wp_parse_str($query, $parsed);
+    if (empty($parsed) || !is_array($parsed)) {
+        return false;
+    }
+
+    $expected_slug = sanitize_title((string) ($expected_query_args['ll_wordset_page'] ?? ''));
+    if ($expected_slug === '') {
+        return false;
+    }
+
+    $actual_slug = sanitize_title((string) ($parsed['ll_wordset_page'] ?? ''));
+    if ($actual_slug !== $expected_slug) {
+        return false;
+    }
+
+    $expected_view = sanitize_key((string) ($expected_query_args['ll_wordset_view'] ?? ''));
+    $actual_view = sanitize_key((string) ($parsed['ll_wordset_view'] ?? ''));
+
+    return $actual_view === $expected_view;
 }
 
 function ll_tools_wordset_page_has_rewrite_routes(string $slug): bool {
@@ -782,15 +819,35 @@ function ll_tools_wordset_page_has_rewrite_routes(string $slug): bool {
 
     $quoted = preg_quote($slug, '/');
     $required_patterns = [
-        '^' . $quoted . '/?$',
-        '^' . $quoted . '/progress/?$',
-        '^' . $quoted . '/hidden-categories/?$',
-        '^' . $quoted . '/settings/?$',
-        '^' . $quoted . '/games/?$',
+        '^' . $quoted . '/?$' => [
+            'll_wordset_page' => $slug,
+        ],
+        '^' . $quoted . '/progress/?$' => [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'progress',
+        ],
+        '^' . $quoted . '/hidden-categories/?$' => [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'hidden-categories',
+        ],
+        '^' . $quoted . '/settings/?$' => [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'settings',
+        ],
+        '^' . $quoted . '/games/?$' => [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'games',
+        ],
     ];
 
-    foreach ($required_patterns as $pattern) {
+    foreach ($required_patterns as $pattern => $expected_query_args) {
         if (!array_key_exists($pattern, $rules)) {
+            $cache[$slug] = false;
+            return false;
+        }
+
+        $target = $rules[$pattern];
+        if (!is_string($target) || !ll_tools_wordset_page_rewrite_rule_matches_target($target, $expected_query_args)) {
             $cache[$slug] = false;
             return false;
         }
@@ -800,6 +857,25 @@ function ll_tools_wordset_page_has_rewrite_routes(string $slug): bool {
     return true;
 }
 
+function ll_tools_wordset_page_get_pretty_view_url(WP_Term $wordset_term, string $view = ''): string {
+    $slug = sanitize_title($wordset_term->slug ?? '');
+    if ($slug === '') {
+        return home_url('/');
+    }
+
+    $view = sanitize_key($view);
+    if (!in_array($view, ll_tools_get_wordset_page_allowed_views(), true)) {
+        $view = '';
+    }
+
+    $path = $slug;
+    if ($view !== '') {
+        $path .= '/' . $view;
+    }
+
+    return home_url(user_trailingslashit($path));
+}
+
 function ll_tools_get_wordset_page_view_url(WP_Term $wordset_term, string $view = ''): string {
     $slug = sanitize_title($wordset_term->slug ?? '');
     if ($slug === '') {
@@ -807,18 +883,11 @@ function ll_tools_get_wordset_page_view_url(WP_Term $wordset_term, string $view 
     }
 
     $view = sanitize_key($view);
-
-    $allowed_views = ['progress', 'hidden-categories', 'settings', 'games'];
     $query_args = ['ll_wordset_page' => $slug];
-    if ($view !== '' && in_array($view, $allowed_views, true)) {
+    if ($view !== '' && in_array($view, ll_tools_get_wordset_page_allowed_views(), true)) {
         $query_args['ll_wordset_view'] = $view;
     }
     $query_fallback_url = add_query_arg($query_args, home_url('/'));
-
-    // Subpage links must be reliable even if rewrite rules are stale or unavailable.
-    if ($view !== '' && in_array($view, $allowed_views, true)) {
-        return $query_fallback_url;
-    }
 
     $permalink_structure = (string) get_option('permalink_structure', '');
     if ($permalink_structure === '') {
@@ -835,7 +904,7 @@ function ll_tools_get_wordset_page_view_url(WP_Term $wordset_term, string $view 
         return $query_fallback_url;
     }
 
-    return trailingslashit(home_url($slug));
+    return ll_tools_wordset_page_get_pretty_view_url($wordset_term, $view);
 }
 
 function ll_tools_wordset_page_current_url(): string {
@@ -870,6 +939,47 @@ function ll_tools_wordset_page_normalize_same_origin_url(string $url): string {
     }
 
     return $validated;
+}
+
+function ll_tools_wordset_page_get_query_request_redirect_url(): string {
+    if (!ll_tools_is_wordset_page_context()) {
+        return '';
+    }
+
+    $request_method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    if (!in_array($request_method, ['GET', 'HEAD'], true)) {
+        return '';
+    }
+
+    if (!isset($_GET['ll_wordset_page']) && !isset($_GET['ll_wordset_view'])) {
+        return '';
+    }
+
+    $wordset_term = ll_tools_get_wordset_page_term();
+    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
+        return '';
+    }
+
+    $view = ll_tools_get_wordset_page_view();
+    $redirect_url = ll_tools_get_wordset_page_view_url($wordset_term, $view);
+    if ($redirect_url === '' || strpos($redirect_url, 'll_wordset_page=') !== false) {
+        return '';
+    }
+
+    $query_args = isset($_GET) && is_array($_GET) ? wp_unslash($_GET) : [];
+    unset($query_args['ll_wordset_page'], $query_args['ll_wordset_view']);
+
+    if (!empty($query_args)) {
+        $redirect_url = (string) add_query_arg($query_args, $redirect_url);
+    }
+
+    $current_url = ll_tools_wordset_page_normalize_same_origin_url(ll_tools_wordset_page_current_url());
+    $normalized_redirect = ll_tools_wordset_page_normalize_same_origin_url($redirect_url);
+    if ($current_url !== '' && $normalized_redirect !== '' && untrailingslashit($current_url) === untrailingslashit($normalized_redirect)) {
+        return '';
+    }
+
+    return $redirect_url;
 }
 
 function ll_tools_wordset_page_get_subpage_return_url(WP_Term $wordset_term): string {
@@ -5934,6 +6044,17 @@ function ll_tools_register_wordset_page_rewrite_rules() {
     }
 }
 add_action('init', 'll_tools_register_wordset_page_rewrite_rules', 21);
+
+function ll_tools_wordset_page_maybe_redirect_query_request(): void {
+    $redirect_url = ll_tools_wordset_page_get_query_request_redirect_url();
+    if ($redirect_url === '') {
+        return;
+    }
+
+    wp_safe_redirect($redirect_url, 301, 'LL Tools Wordset Page');
+    exit;
+}
+add_action('template_redirect', 'll_tools_wordset_page_maybe_redirect_query_request', 1);
 
 add_filter('redirect_canonical', function ($redirect_url) {
     if (ll_tools_is_wordset_page_context()) {

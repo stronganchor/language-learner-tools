@@ -38,21 +38,83 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Term::class, $wordset);
 
         $slug = (string) $wordset->slug;
+        $this->setValidWordsetRewriteRules($slug);
+
+        set_query_var('ll_wordset_view', 'games');
+
+        $gamesUrl = (string) ll_tools_get_wordset_page_view_url($wordset, 'games');
+        $settingsUrl = (string) ll_tools_get_wordset_page_view_url($wordset, 'settings');
+        $this->assertSame(ll_tools_wordset_page_get_pretty_view_url($wordset, 'games'), $gamesUrl);
+        $this->assertSame(ll_tools_wordset_page_get_pretty_view_url($wordset, 'settings'), $settingsUrl);
+        $this->assertSame('games', ll_tools_get_wordset_page_view());
+        $this->assertTrue(ll_tools_wordset_page_has_rewrite_routes($slug));
+    }
+
+    public function test_games_and_settings_urls_fall_back_to_query_args_when_rewrite_targets_are_stale(): void
+    {
+        $term = wp_insert_term('Stale Games Routes ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $slug = (string) $wordset->slug;
+        update_option('permalink_structure', '/%postname%/');
         update_option('rewrite_rules', [
             '^' . preg_quote($slug, '/') . '/?$' => 'index.php?ll_wordset_page=' . $slug,
             '^' . preg_quote($slug, '/') . '/progress/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=progress',
             '^' . preg_quote($slug, '/') . '/hidden-categories/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=hidden-categories',
             '^' . preg_quote($slug, '/') . '/settings/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=settings',
-            '^' . preg_quote($slug, '/') . '/games/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=games',
+            '^' . preg_quote($slug, '/') . '/games/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=settings',
         ]);
 
-        set_query_var('ll_wordset_view', 'games');
-
         $gamesUrl = (string) ll_tools_get_wordset_page_view_url($wordset, 'games');
+        $settingsUrl = (string) ll_tools_get_wordset_page_view_url($wordset, 'settings');
+
+        $this->assertFalse(ll_tools_wordset_page_has_rewrite_routes($slug));
         $this->assertStringContainsString('ll_wordset_page=' . rawurlencode($slug), $gamesUrl);
         $this->assertStringContainsString('ll_wordset_view=games', $gamesUrl);
-        $this->assertSame('games', ll_tools_get_wordset_page_view());
-        $this->assertTrue(ll_tools_wordset_page_has_rewrite_routes($slug));
+        $this->assertStringContainsString('ll_wordset_page=' . rawurlencode($slug), $settingsUrl);
+        $this->assertStringContainsString('ll_wordset_view=settings', $settingsUrl);
+    }
+
+    public function test_query_wordset_subpage_requests_redirect_to_pretty_paths_when_rewrites_are_current(): void
+    {
+        $term = wp_insert_term('Canonical Games Routes ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $slug = (string) $wordset->slug;
+        $this->setValidWordsetRewriteRules($slug);
+
+        $expectedBack = ll_tools_get_wordset_page_view_url($wordset);
+        $queryUrl = add_query_arg([
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'transcription',
+            'll_wordset_back' => $expectedBack,
+        ], home_url('/'));
+
+        $_GET = [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'transcription',
+            'll_wordset_back' => $expectedBack,
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl($queryUrl);
+        set_query_var('ll_wordset_page', $slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirectUrl = ll_tools_wordset_page_get_query_request_redirect_url();
+
+        $this->assertStringStartsWith(ll_tools_wordset_page_get_pretty_view_url($wordset, 'settings'), $redirectUrl);
+        $this->assertSame('transcription', $this->getQueryArgFromUrl($redirectUrl, 'll_wordset_tool'));
+        $this->assertSame($expectedBack, $this->getQueryArgFromUrl($redirectUrl, 'll_wordset_back'));
     }
 
     public function test_wordset_page_render_outputs_games_navigation_and_games_view_shell(): void
@@ -61,11 +123,29 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertFalse(is_wp_error($term));
         $this->assertIsArray($term);
 
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->setValidWordsetRewriteRules((string) $wordset->slug);
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+
         set_query_var('ll_wordset_view', '');
         $mainHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $expectedBack = ll_tools_get_wordset_page_view_url($wordset);
+        $expectedGamesUrl = ll_tools_wordset_page_with_back_url(
+            ll_tools_get_wordset_page_view_url($wordset, 'games'),
+            $expectedBack
+        );
+        $expectedSettingsUrl = ll_tools_get_wordset_settings_tool_url($wordset, '', $expectedBack);
         $this->assertStringContainsString('ll-wordset-hero__action-links', $mainHtml);
         $this->assertStringContainsString('ll-wordset-link-chip--games', $mainHtml);
-        $this->assertStringContainsString('ll_wordset_view=games', $mainHtml);
+        $this->assertStringContainsString(
+            'href="' . esc_url($expectedGamesUrl) . '"',
+            $mainHtml
+        );
+        $this->assertStringContainsString(
+            'href="' . esc_url($expectedSettingsUrl) . '"',
+            $mainHtml
+        );
 
         set_query_var('ll_wordset_view', 'games');
         $gamesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
@@ -230,6 +310,18 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $query = (string) wp_parse_url($url, PHP_URL_QUERY);
 
         return $path . ($query !== '' ? ('?' . $query) : '');
+    }
+
+    private function setValidWordsetRewriteRules(string $slug): void
+    {
+        update_option('permalink_structure', '/%postname%/');
+        update_option('rewrite_rules', [
+            '^' . preg_quote($slug, '/') . '/?$' => 'index.php?ll_wordset_page=' . $slug,
+            '^' . preg_quote($slug, '/') . '/progress/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=progress',
+            '^' . preg_quote($slug, '/') . '/hidden-categories/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=hidden-categories',
+            '^' . preg_quote($slug, '/') . '/settings/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=settings',
+            '^' . preg_quote($slug, '/') . '/games/?$' => 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=games',
+        ]);
     }
 
     private function getQueryArgFromUrl(string $url, string $key): string
