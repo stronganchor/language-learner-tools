@@ -243,6 +243,11 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         $this->assertSame($expectedBack, $returnUrl);
         $this->assertSame($expectedBack, $this->getQueryArgFromUrl($gamesUrl, 'll_wordset_back'));
+
+        set_query_var('ll_wordset_view', 'settings');
+        $rendered = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $expectedHubUrl = ll_tools_get_wordset_settings_tool_url($wordset, '', $expectedBack);
+        $this->assertStringContainsString('href="' . esc_url($expectedHubUrl) . '"', $rendered);
     }
 
     public function test_subpage_return_url_falls_back_to_wordset_home_for_direct_subpage_requests(): void

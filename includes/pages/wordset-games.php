@@ -820,9 +820,6 @@ function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int 
     $progress_rows = (!empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows'))
         ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
         : [];
-    $progress_rows = (!empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows'))
-        ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
-        : [];
 
     $eligible_words = [];
     $studied_words = [];
@@ -841,23 +838,12 @@ function ll_tools_wordset_games_build_practice_source_pool(int $wordset_id, int 
         $progress = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
             ? $progress_rows[$word_id]
             : [];
-        $status = function_exists('ll_tools_user_progress_word_status')
-            ? ll_tools_user_progress_word_status($progress)
-            : 'new';
-        if ($status !== 'mastered') {
-            continue;
-        }
-
-        $progress = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
-            ? $progress_rows[$word_id]
-            : [];
         if (!empty($progress)) {
             $has_recorded_progress = true;
         }
-        $status = 'new';
-        if (function_exists('ll_tools_user_progress_word_status')) {
-            $status = ll_tools_user_progress_word_status($progress);
-        }
+        $status = function_exists('ll_tools_user_progress_word_status')
+            ? ll_tools_user_progress_word_status($progress)
+            : 'new';
 
         if (!ll_tools_wordset_games_word_has_supported_image($word)) {
             continue;

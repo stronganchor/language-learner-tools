@@ -4177,6 +4177,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $categories = ll_tools_get_wordset_page_categories($wordset_id, $preview_limit);
     $wordset_url = ll_tools_get_wordset_page_view_url($wordset_term);
     $subpage_return_url = ll_tools_wordset_page_get_subpage_return_url($wordset_term);
+    $settings_navigation_back_url = $subpage_return_url;
     $progress_url = ll_tools_wordset_page_with_back_url(
         ll_tools_get_wordset_page_view_url($wordset_term, 'progress'),
         $subpage_return_url
@@ -4191,11 +4192,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     );
     $settings_url = ll_tools_wordset_page_with_back_url(
         ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
-        $subpage_return_url
+        $settings_navigation_back_url
     );
     $settings_tool = ($view === 'settings') ? ll_tools_get_wordset_settings_tool() : '';
     $back_url = ll_tools_wordset_page_resolve_back_url($wordset_term);
-    $settings_url = ll_tools_get_wordset_settings_tool_url($wordset_term, '', $back_url);
     $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
     $can_manage_wordset_content = function_exists('ll_tools_current_user_can_manage_wordset_content')
         ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
@@ -4220,13 +4220,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     }
     $settings_tool_urls = [
         'hub' => $settings_url,
-        'study' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $back_url),
-        'visibility' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $back_url),
-        'import' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'import', $back_url),
-        'recorder' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $back_url),
-        'transcription' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $back_url),
-        'image-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'image-upload', $back_url),
-        'audio-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'audio-upload', $back_url),
+        'study' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'study', $settings_navigation_back_url),
+        'visibility' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $settings_navigation_back_url),
+        'import' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'import', $settings_navigation_back_url),
+        'recorder' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $settings_navigation_back_url),
+        'transcription' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $settings_navigation_back_url),
+        'image-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'image-upload', $settings_navigation_back_url),
+        'audio-upload' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'audio-upload', $settings_navigation_back_url),
     ];
     $utility_current_url = function_exists('ll_tools_get_current_request_url')
         ? (string) ll_tools_get_current_request_url()
