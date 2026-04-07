@@ -36,12 +36,12 @@ if (!function_exists('ll_tools_user_study_can_access')) {
             return false;
         }
 
-        if (current_user_can('manage_options') || current_user_can('view_ll_tools')) {
+        if (user_can($uid, 'manage_options') || user_can($uid, 'view_ll_tools')) {
             return true;
         }
 
         // Keep learner-facing study tools available to normal logged-in users unless overridden.
-        return (bool) apply_filters('ll_tools_allow_basic_user_study_access', current_user_can('read'), $uid);
+        return (bool) apply_filters('ll_tools_allow_basic_user_study_access', user_can($uid, 'read'), $uid);
     }
 }
 
@@ -1195,6 +1195,24 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
 
     $payload = isset($raw['payload']) && is_array($raw['payload']) ? $raw['payload'] : [];
     $category_name = isset($raw['category_name']) ? sanitize_text_field((string) $raw['category_name']) : '';
+    $device_id = isset($raw['device_id']) ? strtolower(trim((string) $raw['device_id'])) : '';
+    $device_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $device_id), 0, 80);
+    $profile_id = isset($raw['profile_id']) ? strtolower(trim((string) $raw['profile_id'])) : '';
+    $profile_id = substr(preg_replace('/[^a-z0-9._:-]/', '', $profile_id), 0, 80);
+    $client_created_at = '';
+    if (!empty($raw['client_created_at'])) {
+        $timestamp = strtotime((string) $raw['client_created_at']);
+        if ($timestamp && $timestamp > 946684800 && $timestamp < (time() + DAY_IN_SECONDS)) {
+            $client_created_at = gmdate('Y-m-d H:i:s', $timestamp);
+        }
+    }
+
+    if ($device_id !== '' && !array_key_exists('device_id', $payload)) {
+        $payload['device_id'] = $device_id;
+    }
+    if ($profile_id !== '' && !array_key_exists('profile_id', $payload)) {
+        $payload['profile_id'] = $profile_id;
+    }
 
     return [
         'event_uuid'       => $uuid,
@@ -1207,6 +1225,9 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         'had_wrong_before' => !empty($had_wrong_before),
         'payload'          => $payload,
         'category_name'    => $category_name,
+        'device_id'        => $device_id,
+        'profile_id'       => $profile_id,
+        'client_created_at' => $client_created_at,
     ];
 }
 
@@ -1534,6 +1555,9 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
             $event['wordset_id'] = ll_tools_resolve_wordset_id_for_word((int) $event['word_id']);
         }
 
+        $event_created_at = !empty($event['client_created_at']) ? (string) $event['client_created_at'] : $now;
+
+        $previous_suppress_errors = $wpdb->suppress_errors(true);
         $inserted = $wpdb->insert(
             $events_table,
             [
@@ -1547,10 +1571,11 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
                 'is_correct' => is_null($event['is_correct']) ? null : ($event['is_correct'] ? 1 : 0),
                 'had_wrong_before' => !empty($event['had_wrong_before']) ? 1 : 0,
                 'payload_json' => !empty($event['payload']) ? wp_json_encode($event['payload']) : null,
-                'created_at' => $now,
+                'created_at' => $event_created_at,
             ],
             ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
         );
+        $wpdb->suppress_errors($previous_suppress_errors);
 
         if ($inserted === false) {
             $last_error = (string) $wpdb->last_error;
@@ -1564,7 +1589,7 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
 
         $ok = true;
         if ($event['event_type'] === 'word_outcome' || $event['event_type'] === 'word_exposure') {
-            $ok = ll_tools_apply_word_progress_event($user_id, $event, $now);
+            $ok = ll_tools_apply_word_progress_event($user_id, $event, $event_created_at);
         } elseif ($event['event_type'] === 'category_study') {
             if (!empty($event['category_id'])) {
                 $delta = isset($event['payload']['units']) ? max(1, (int) $event['payload']['units']) : 1;
@@ -1633,6 +1658,77 @@ function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): ar
     }
 
     return $out;
+}
+
+function ll_tools_prepare_user_word_progress_rows_for_client(array $rows): array {
+    $prepared = [];
+    foreach ($rows as $word_id => $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $wid = (int) $word_id;
+        if ($wid <= 0) {
+            $wid = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+        }
+        if ($wid <= 0) {
+            continue;
+        }
+
+        $entry = $row;
+        $entry['word_id'] = $wid;
+        $entry['practice_required_recording_types'] = ll_tools_decode_practice_recording_types($row['practice_required_recording_types'] ?? '');
+        $entry['practice_correct_recording_types'] = ll_tools_decode_practice_recording_types($row['practice_correct_recording_types'] ?? '');
+        $entry['gender_progress'] = ll_tools_get_progress_row_gender_progress($row);
+        $entry['progress_status'] = ll_tools_user_progress_word_status($row);
+        $entry['status'] = $entry['progress_status'];
+        $entry['difficulty_score'] = max(0, ll_tools_user_progress_word_difficulty_score($row));
+        $entry['progress_total_coverage'] = max(0, (int) ($row['total_coverage'] ?? 0));
+        $entry['progress_stage'] = max(0, (int) ($row['stage'] ?? 0));
+        $entry['progress_last_mode'] = isset($row['last_mode']) ? ll_tools_normalize_progress_mode((string) $row['last_mode']) : 'practice';
+        $entry['progress_last_seen_at'] = isset($row['last_seen_at']) ? (string) $row['last_seen_at'] : '';
+        $prepared[$wid] = $entry;
+    }
+
+    return $prepared;
+}
+
+function ll_tools_build_user_progress_sync_snapshot(int $user_id, int $wordset_id, array $word_ids): array {
+    $state = function_exists('ll_tools_get_user_study_state')
+        ? ll_tools_get_user_study_state($user_id)
+        : [
+            'wordset_id' => 0,
+            'category_ids' => [],
+            'starred_word_ids' => [],
+            'star_mode' => 'normal',
+            'fast_transitions' => false,
+        ];
+
+    $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function ($id): bool {
+        return $id > 0;
+    }));
+
+    $rows = !empty($word_ids)
+        ? ll_tools_get_user_word_progress_rows($user_id, $word_ids)
+        : [];
+
+    if ($wordset_id > 0 && !empty($rows)) {
+        $rows = array_filter($rows, static function ($row) use ($wordset_id): bool {
+            return is_array($row) && ((int) ($row['wordset_id'] ?? 0) === $wordset_id);
+        });
+    }
+
+    return [
+        'state' => [
+            'wordset_id' => isset($state['wordset_id']) ? (int) $state['wordset_id'] : 0,
+            'category_ids' => array_values(array_map('intval', (array) ($state['category_ids'] ?? []))),
+            'starred_word_ids' => array_values(array_map('intval', (array) ($state['starred_word_ids'] ?? []))),
+            'star_mode' => function_exists('ll_tools_normalize_star_mode')
+                ? ll_tools_normalize_star_mode((string) ($state['star_mode'] ?? 'normal'))
+                : (string) ($state['star_mode'] ?? 'normal'),
+            'fast_transitions' => !empty($state['fast_transitions']),
+        ],
+        'progress_rows' => ll_tools_prepare_user_word_progress_rows_for_client($rows),
+    ];
 }
 
 function ll_tools_user_progress_mastered_stage_threshold(): int {
@@ -5186,6 +5282,28 @@ function ll_tools_user_progress_batch_ajax() {
     ]);
 }
 add_action('wp_ajax_ll_user_study_progress_batch', 'll_tools_user_progress_batch_ajax');
+
+function ll_tools_user_progress_sync_snapshot_ajax() {
+    if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {
+        wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
+    }
+    check_ajax_referer('ll_user_study', 'nonce');
+
+    $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
+    $word_ids_raw = $_POST['word_ids'] ?? [];
+    if (!is_array($word_ids_raw)) {
+        $decoded = json_decode(wp_unslash((string) $word_ids_raw), true);
+        $word_ids_raw = is_array($decoded) ? $decoded : [];
+    }
+    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids_raw), static function ($id): bool {
+        return $id > 0;
+    }));
+
+    wp_send_json_success(
+        ll_tools_build_user_progress_sync_snapshot(get_current_user_id(), $wordset_id, $word_ids)
+    );
+}
+add_action('wp_ajax_ll_user_study_sync_snapshot', 'll_tools_user_progress_sync_snapshot_ajax');
 
 function ll_tools_user_study_save_goals_ajax() {
     if (!is_user_logged_in() || !ll_tools_user_study_can_access()) {

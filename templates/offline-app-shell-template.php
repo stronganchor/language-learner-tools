@@ -144,6 +144,9 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
       border-radius: 16px;
       box-shadow: 0 10px 22px rgba(23,32,43,0.06);
     }
+    .ll-offline-app-header__copy {
+      min-width: 0;
+    }
     .ll-offline-app-title {
       margin: 0;
       font-size: 1.15rem;
@@ -154,6 +157,158 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
       margin: 0;
       font-size: 0.88rem;
       opacity: 0.78;
+    }
+    .ll-offline-sync {
+      flex: 0 1 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: min(320px, 100%);
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(23,32,43,0.12);
+      background: rgba(255,255,255,0.76);
+      box-shadow: 0 10px 18px rgba(23,32,43,0.04);
+    }
+    .ll-offline-sync__status {
+      margin: 0;
+      font-size: 0.88rem;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    .ll-offline-sync__meta {
+      margin: 0;
+      font-size: 0.82rem;
+      opacity: 0.74;
+    }
+    .ll-offline-sync__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ll-offline-sync__button,
+    .ll-offline-sync-sheet__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(23,32,43,0.12);
+      background: #fff;
+      color: var(--ll-offline-ink);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .ll-offline-sync__button--primary,
+    .ll-offline-sync-sheet__button--primary {
+      background: var(--ll-offline-accent);
+      border-color: var(--ll-offline-accent);
+      color: #fff;
+    }
+    .ll-offline-sync__feedback,
+    .ll-offline-sync-sheet__feedback {
+      margin: 0;
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+    .ll-offline-sync__feedback[hidden],
+    .ll-offline-sync-sheet__feedback[hidden] {
+      display: none !important;
+    }
+    .ll-offline-sync-sheet {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(23,32,43,0.42);
+      backdrop-filter: blur(2px);
+    }
+    .ll-offline-sync-sheet[hidden] {
+      display: none !important;
+    }
+    .ll-offline-sync-sheet__card {
+      width: min(420px, calc(100vw - 24px));
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 18px;
+      border-radius: 18px;
+      border: 1px solid rgba(23,32,43,0.12);
+      background: #fffaf2;
+      box-shadow: 0 20px 40px rgba(23,32,43,0.18);
+    }
+    .ll-offline-sync-sheet__title {
+      margin: 0;
+      font-size: 1.05rem;
+      line-height: 1.25;
+    }
+    .ll-offline-sync-sheet__field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .ll-offline-sync-sheet__label {
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+    .ll-offline-sync-sheet__input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 1px solid rgba(23,32,43,0.18);
+      border-radius: 12px;
+      box-sizing: border-box;
+      background: #fff;
+      color: var(--ll-offline-ink);
+      font: inherit;
+    }
+    .ll-offline-sync-sheet__password-wrap {
+      position: relative;
+    }
+    .ll-offline-sync-sheet__password-wrap .ll-offline-sync-sheet__input {
+      padding-right: 52px;
+    }
+    .ll-offline-sync-sheet__password-toggle {
+      position: absolute;
+      top: 50%;
+      right: 8px;
+      transform: translateY(-50%);
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--ll-offline-ink);
+      cursor: pointer;
+    }
+    .ll-offline-sync-sheet__password-toggle-icon {
+      display: inline-flex;
+      width: 20px;
+      height: 20px;
+    }
+    .ll-offline-sync-sheet__password-toggle-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .ll-offline-sync-sheet__password-toggle[aria-pressed="true"] .ll-offline-sync-sheet__password-toggle-icon--show,
+    .ll-offline-sync-sheet__password-toggle[aria-pressed="false"] .ll-offline-sync-sheet__password-toggle-icon--hide {
+      display: none;
+    }
+    .ll-offline-sync-sheet__actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
     }
     .ll-offline-warning-list {
       max-width: 960px;
@@ -464,10 +619,17 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
     .ll-offline-app-shell .ll-tools-category-display {
       font-weight: 700;
     }
-    @media (max-width: 640px) {
-      .ll-wordset-page.ll-wordset-page--offline .ll-wordset-selection-bar {
-        left: 16px;
-        right: 16px;
+	    @media (max-width: 640px) {
+	      .ll-offline-app-header {
+	        flex-direction: column;
+	        align-items: stretch;
+	      }
+	      .ll-offline-sync {
+	        min-width: 0;
+	      }
+	      .ll-wordset-page.ll-wordset-page--offline .ll-wordset-selection-bar {
+	        left: 16px;
+	        right: 16px;
         width: auto;
         transform: none;
       }
@@ -494,13 +656,52 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
 <body data-ll-offline-app="1" data-ll-startup-mode="<?php echo esc_attr($startup_mode); ?>">
   <main class="ll-offline-app-shell ll-wordset-page ll-wordset-page--offline">
     <header class="ll-offline-app-header">
-      <div>
+      <div class="ll-offline-app-header__copy">
         <h1 class="ll-offline-app-title"><?php echo esc_html($app_title); ?></h1>
         <?php if ($wordset_name !== '') : ?>
           <p class="ll-offline-app-wordset"><?php echo esc_html($wordset_name); ?></p>
         <?php endif; ?>
       </div>
+      <section id="ll-offline-sync-panel" class="ll-offline-sync" hidden>
+        <p id="ll-offline-sync-status" class="ll-offline-sync__status"></p>
+        <p id="ll-offline-sync-meta" class="ll-offline-sync__meta"></p>
+        <div class="ll-offline-sync__actions">
+          <button id="ll-offline-sync-connect" class="ll-offline-sync__button ll-offline-sync__button--primary" type="button"></button>
+          <button id="ll-offline-sync-now" class="ll-offline-sync__button" type="button" hidden></button>
+          <button id="ll-offline-sync-disconnect" class="ll-offline-sync__button" type="button" hidden></button>
+        </div>
+        <p id="ll-offline-sync-feedback" class="ll-offline-sync__feedback" hidden></p>
+      </section>
     </header>
+
+    <div id="ll-offline-sync-sheet" class="ll-offline-sync-sheet" hidden>
+      <form id="ll-offline-sync-form" class="ll-offline-sync-sheet__card">
+        <h2 id="ll-offline-sync-sheet-title" class="ll-offline-sync-sheet__title"><?php esc_html_e('Connect to Sync', 'll-tools-text-domain'); ?></h2>
+        <label class="ll-offline-sync-sheet__field">
+          <span class="ll-offline-sync-sheet__label"><?php esc_html_e('Username or email', 'll-tools-text-domain'); ?></span>
+          <input id="ll-offline-sync-identifier" class="ll-offline-sync-sheet__input" type="text" autocomplete="username">
+        </label>
+        <label class="ll-offline-sync-sheet__field">
+          <span class="ll-offline-sync-sheet__label"><?php esc_html_e('Password', 'll-tools-text-domain'); ?></span>
+          <span class="ll-offline-sync-sheet__password-wrap">
+            <input id="ll-offline-sync-password" class="ll-offline-sync-sheet__input" type="password" autocomplete="current-password">
+            <button id="ll-offline-sync-password-toggle" class="ll-offline-sync-sheet__password-toggle" type="button" aria-pressed="false" aria-label="<?php echo esc_attr__('Show password', 'll-tools-text-domain'); ?>">
+              <span class="ll-offline-sync-sheet__password-toggle-icon ll-offline-sync-sheet__password-toggle-icon--show" aria-hidden="true">
+                <?php echo ll_tools_get_password_visibility_toggle_icon('show', 'll-offline-sync-sheet__password-toggle-svg'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+              </span>
+              <span class="ll-offline-sync-sheet__password-toggle-icon ll-offline-sync-sheet__password-toggle-icon--hide" aria-hidden="true">
+                <?php echo ll_tools_get_password_visibility_toggle_icon('hide', 'll-offline-sync-sheet__password-toggle-svg'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+              </span>
+            </button>
+          </span>
+        </label>
+        <p id="ll-offline-sync-sheet-feedback" class="ll-offline-sync-sheet__feedback" hidden></p>
+        <div class="ll-offline-sync-sheet__actions">
+          <button id="ll-offline-sync-cancel" class="ll-offline-sync-sheet__button" type="button"><?php esc_html_e('Cancel', 'll-tools-text-domain'); ?></button>
+          <button id="ll-offline-sync-submit" class="ll-offline-sync-sheet__button ll-offline-sync-sheet__button--primary" type="submit"><?php esc_html_e('Sign in', 'll-tools-text-domain'); ?></button>
+        </div>
+      </form>
+    </div>
 
     <?php if (!empty($warnings)) : ?>
       <section class="ll-offline-warning-list" aria-label="<?php echo esc_attr__('Offline export warnings', 'll-tools-text-domain'); ?>">

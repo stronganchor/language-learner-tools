@@ -996,7 +996,29 @@
         return slug ? ('lltools_offline_study_prefs_v1::slug:' + slug) : 'lltools_offline_study_prefs_v1::default';
     }
 
-    function loadOfflineStudyPrefsState() {
+    function parseTimestampMs(raw, fallbackMs) {
+        if (typeof raw === 'number' && isFinite(raw) && raw > 0) {
+            return raw;
+        }
+        if (typeof raw === 'string') {
+            const text = raw.trim();
+            if (text !== '') {
+                if (/^\d+$/.test(text)) {
+                    const numeric = parseInt(text, 10);
+                    if (numeric > 0) {
+                        return numeric;
+                    }
+                }
+                const parsed = Date.parse(text);
+                if (isFinite(parsed) && parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        return Math.max(1, parseInt(fallbackMs, 10) || Date.now());
+    }
+
+    function getOfflineStudyPrefsStoreSnapshot() {
         if (!isOfflineRuntime() || !root.localStorage) {
             return null;
         }
@@ -1006,35 +1028,129 @@
                 return null;
             }
             const decoded = JSON.parse(raw);
-            if (!decoded || typeof decoded !== 'object') {
+            return decoded && typeof decoded === 'object' ? decoded : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function loadOfflineStudyPrefsState() {
+        if (!isOfflineRuntime() || !root.localStorage) {
+            return null;
+        }
+        try {
+            const decoded = getOfflineStudyPrefsStoreSnapshot();
+            const tracker = root.LLFlashcards && root.LLFlashcards.ProgressTracker;
+            const trackerState = (tracker && typeof tracker.getStoredStudyState === 'function')
+                ? tracker.getStoredStudyState()
+                : null;
+            if (!decoded && !trackerState) {
                 return null;
             }
+            const merged = Object.assign({}, decoded || {});
+            if (trackerState && typeof trackerState === 'object') {
+                if (typeof trackerState.wordset_id !== 'undefined') {
+                    merged.wordset_id = trackerState.wordset_id;
+                }
+                if (Array.isArray(trackerState.category_ids)) {
+                    merged.category_ids = trackerState.category_ids.slice();
+                }
+                if (Array.isArray(trackerState.starred_word_ids)) {
+                    merged.starred_word_ids = trackerState.starred_word_ids.slice();
+                }
+                if (typeof trackerState.star_mode !== 'undefined') {
+                    merged.star_mode = trackerState.star_mode;
+                }
+                if (typeof trackerState.fast_transitions !== 'undefined') {
+                    merged.fast_transitions = trackerState.fast_transitions;
+                }
+            }
             return {
-                starred_word_ids: normalizeStudyPrefIds(decoded.starred_word_ids || decoded.starredWordIds || []),
-                star_mode: normalizeStarMode(decoded.star_mode || decoded.starMode || 'normal'),
-                fast_transitions: parseBool(decoded.fast_transitions ?? decoded.fastTransitions)
+                wordset_id: parseInt(merged.wordset_id, 10) || 0,
+                category_ids: normalizeStudyPrefIds(merged.category_ids || []),
+                starred_word_ids: normalizeStudyPrefIds(merged.starred_word_ids || merged.starredWordIds || []),
+                star_mode: normalizeStarMode(merged.star_mode || merged.starMode || 'normal'),
+                fast_transitions: parseBool(merged.fast_transitions ?? merged.fastTransitions)
             };
         } catch (_) {
             return null;
         }
     }
 
-    function saveOfflineStudyPrefsState(rawState) {
+    function saveOfflineStudyPrefsState(rawState, options) {
         if (!isOfflineRuntime() || !root.localStorage) {
             return false;
         }
         const state = (rawState && typeof rawState === 'object') ? rawState : {};
+        const opts = (options && typeof options === 'object') ? options : {};
+        const existing = getOfflineStudyPrefsStoreSnapshot() || {};
         const normalized = {
             starred_word_ids: normalizeStudyPrefIds(state.starred_word_ids || state.starredWordIds || []),
             star_mode: normalizeStarMode(state.star_mode || state.starMode || 'normal'),
             fast_transitions: parseBool(state.fast_transitions ?? state.fastTransitions)
         };
+        const snapshot = Object.assign({}, existing, normalized, {
+            updated_at: parseTimestampMs(opts.updatedAt, Date.now()),
+            sync_pending: typeof opts.syncPending === 'undefined'
+                ? true
+                : !!opts.syncPending,
+            last_synced_at: (typeof opts.lastSyncedAt !== 'undefined')
+                ? String(opts.lastSyncedAt || '')
+                : String(existing.last_synced_at || ''),
+            last_sync_error: (typeof opts.lastSyncError !== 'undefined')
+                ? String(opts.lastSyncError || '')
+                : String(existing.last_sync_error || '')
+        });
         try {
-            root.localStorage.setItem(getOfflineStudyPrefsStorageKey(), JSON.stringify(normalized));
+            root.localStorage.setItem(getOfflineStudyPrefsStorageKey(), JSON.stringify(snapshot));
             return true;
         } catch (_) {
             return false;
         }
+    }
+
+    function hasMeaningfulOfflineStudyPrefs(rawState) {
+        const state = (rawState && typeof rawState === 'object') ? rawState : {};
+        const starred = normalizeStudyPrefIds(state.starred_word_ids || state.starredWordIds || []);
+        const starMode = normalizeStarMode(state.star_mode || state.starMode || 'normal');
+        const fastTransitions = parseBool(state.fast_transitions ?? state.fastTransitions, false);
+        return starred.length > 0 || starMode !== 'normal' || fastTransitions;
+    }
+
+    function markOfflineStudyPrefsSynced(savedState) {
+        if (!isOfflineRuntime()) {
+            return;
+        }
+        saveOfflineStudyPrefsState(savedState || buildStudyPrefsPayload(), {
+            syncPending: false,
+            updatedAt: Date.now(),
+            lastSyncedAt: new Date().toISOString(),
+            lastSyncError: ''
+        });
+    }
+
+    function markOfflineStudyPrefsSyncFailed() {
+        if (!isOfflineRuntime()) {
+            return;
+        }
+        const snapshot = getOfflineStudyPrefsStoreSnapshot() || {};
+        saveOfflineStudyPrefsState(snapshot, {
+            syncPending: true,
+            updatedAt: Date.now(),
+            lastSyncError: 'request_failed'
+        });
+    }
+
+    function getStudyPrefsAjaxContext() {
+        const ajaxUrl = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.ajaxurl) || '';
+        const nonce = root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyNonce;
+        if (!ajaxUrl || !nonce || !isUserLoggedIn() || !$ || typeof $.post !== 'function') {
+            return null;
+        }
+        return {
+            ajaxUrl: ajaxUrl,
+            nonce: nonce
+        };
     }
 
     function ensureStudyPrefs() {
@@ -2280,7 +2396,7 @@
     }
 
     function incrementLocalPracticeExposureCount(targetWord) {
-        if (!isUserLoggedIn() || getCurrentModeKey() !== 'practice' || !targetWord || typeof targetWord !== 'object') {
+        if ((!isUserLoggedIn() && !isOfflineRuntime()) || getCurrentModeKey() !== 'practice' || !targetWord || typeof targetWord !== 'object') {
             return;
         }
 
@@ -2303,11 +2419,15 @@
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
         tracker.trackWordExposure({
             mode: getCurrentModeKey(),
+            word: targetWord,
             wordId: targetWord.id,
             categoryId: cat.category_id,
             categoryName: cat.category_name,
             wordsetId: resolveWordsetIdForProgress()
         });
+        if (typeof tracker.hydrateWords === 'function') {
+            tracker.hydrateWords([targetWord]);
+        }
     }
 
     function normalizePracticeRecordingTypeForProgress(value) {
@@ -2380,6 +2500,7 @@
         }
         tracker.trackWordOutcome({
             mode: getCurrentModeKey(),
+            word: targetWord,
             wordId: targetWord.id,
             categoryId: cat.category_id,
             categoryName: cat.category_name,
@@ -2388,6 +2509,9 @@
             hadWrongBefore: !!hadWrongBefore,
             payload: nextPayload
         });
+        if (typeof tracker.hydrateWords === 'function') {
+            tracker.hydrateWords([targetWord]);
+        }
     }
 
     function triggerSelfCheckFlowFromFlashcard() {
@@ -2640,17 +2764,107 @@
         }
     }
 
+    function mergeOfflineStudyPrefsFromRemoteState(remoteState) {
+        if (!isOfflineRuntime() || !remoteState || typeof remoteState !== 'object') {
+            return false;
+        }
+        const existing = getOfflineStudyPrefsStoreSnapshot();
+        if (existing && (parseBool(existing.sync_pending, false) || hasMeaningfulOfflineStudyPrefs(existing))) {
+            return false;
+        }
+
+        const mergedPrefs = {
+            starred_word_ids: normalizeStudyPrefIds(remoteState.starred_word_ids || []),
+            star_mode: normalizeStarMode(remoteState.star_mode || 'normal'),
+            fast_transitions: parseBool(remoteState.fast_transitions, false)
+        };
+        saveOfflineStudyPrefsState(mergedPrefs, {
+            syncPending: false,
+            updatedAt: parseTimestampMs(remoteState.updated_at, Date.now()),
+            lastSyncedAt: new Date().toISOString(),
+            lastSyncError: ''
+        });
+
+        const currentPayload = buildStudyPrefsPayload();
+        applySavedStudyState(Object.assign({}, currentPayload, mergedPrefs));
+        return true;
+    }
+
+    function flushOfflineStudyPrefsSync(force) {
+        if (!isOfflineRuntime()) {
+            return Promise.resolve({ skipped: true });
+        }
+        const snapshot = getOfflineStudyPrefsStoreSnapshot();
+        if (!snapshot) {
+            return Promise.resolve({ skipped: true });
+        }
+        if (!force && !parseBool(snapshot.sync_pending, false)) {
+            return Promise.resolve({ skipped: true });
+        }
+        if (savePrefsInFlightRequest) {
+            savePrefsQueued = true;
+            return Promise.resolve({ in_flight: true });
+        }
+
+        const ajaxContext = getStudyPrefsAjaxContext();
+        if (!ajaxContext) {
+            return Promise.resolve({ deferred: true });
+        }
+
+        const payload = buildStudyPrefsPayload();
+        savePrefsQueued = false;
+        const requestToken = ++savePrefsRequestToken;
+        savePrefsLatestToken = requestToken;
+
+        savePrefsInFlightRequest = $.post(ajaxContext.ajaxUrl, Object.assign({
+            action: 'll_user_study_save',
+            nonce: ajaxContext.nonce
+        }, payload)).done(function (res) {
+            if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
+                return;
+            }
+            if (res && res.success && res.data && res.data.state) {
+                applySavedStudyState(res.data.state);
+                markOfflineStudyPrefsSynced(res.data.state);
+            } else {
+                markOfflineStudyPrefsSynced(payload);
+            }
+        }).fail(function (err) {
+            console.warn('LL Tools: failed to sync offline study prefs', err);
+            markOfflineStudyPrefsSyncFailed();
+        }).always(function () {
+            savePrefsInFlightRequest = null;
+            if (savePrefsQueued) {
+                queueStudyPrefsSave();
+            }
+        });
+
+        return Promise.resolve(savePrefsInFlightRequest).then(function () {
+            return { synced: true };
+        }, function () {
+            return { failed: true };
+        });
+    }
+
     function queueStudyPrefsSave() {
         if (isOfflineRuntime()) {
             const payload = buildStudyPrefsPayload();
-            saveOfflineStudyPrefsState(payload);
+            saveOfflineStudyPrefsState(payload, {
+                syncPending: true,
+                updatedAt: Date.now(),
+                lastSyncError: ''
+            });
             applySavedStudyState(payload);
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.saveStudyState === 'function') {
+                tracker.saveStudyState(payload);
+            }
+            if (!getStudyPrefsAjaxContext()) {
+                return;
+            }
+        } else if (!getStudyPrefsAjaxContext()) {
             return;
         }
-        if (!isUserLoggedIn()) return;
-        const ajaxUrl = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.ajaxurl) || '';
-        const nonce = root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyNonce;
-        if (!ajaxUrl || !nonce) return;
 
         savePrefsQueued = true;
         if (savePrefsInFlightRequest) {
@@ -2661,21 +2875,31 @@
         const requestToken = ++savePrefsRequestToken;
         savePrefsLatestToken = requestToken;
         const payload = buildStudyPrefsPayload();
+        const ajaxContext = getStudyPrefsAjaxContext();
+        if (!ajaxContext) {
+            return;
+        }
 
         // Serialize preference saves so an older request cannot overwrite a
         // newer star change when users toggle several items in one session.
-        savePrefsInFlightRequest = $.post(ajaxUrl, Object.assign({
+        savePrefsInFlightRequest = $.post(ajaxContext.ajaxUrl, Object.assign({
             action: 'll_user_study_save',
-            nonce: nonce
+            nonce: ajaxContext.nonce
         }, payload)).done(function (res) {
             if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
                 return;
             }
             if (res && res.success && res.data && res.data.state) {
                 applySavedStudyState(res.data.state);
+                if (isOfflineRuntime()) {
+                    markOfflineStudyPrefsSynced(res.data.state);
+                }
             }
         }).fail(function (err) {
             console.warn('LL Tools: failed to save study prefs', err);
+            if (isOfflineRuntime()) {
+                markOfflineStudyPrefsSyncFailed();
+            }
         }).always(function () {
             savePrefsInFlightRequest = null;
             if (savePrefsQueued) {
@@ -4547,7 +4771,31 @@
         root.FlashcardLoader.preloadCategoryResources(State.firstCategoryName);
     }
 
+    if ($ && typeof $.fn !== 'undefined' && typeof document !== 'undefined') {
+        $(document).on('lltools:remote-sync-snapshot', function (_event, payload) {
+            const snapshot = (payload && typeof payload === 'object') ? payload : {};
+            mergeOfflineStudyPrefsFromRemoteState(snapshot.state || {});
+            flushOfflineStudyPrefsSync(false);
+        });
+        $(document).on('lltools:offline-auth-context-updated', function () {
+            flushOfflineStudyPrefsSync(false);
+        });
+    }
+
     root.LLFlashcards = root.LLFlashcards || {};
+    root.LLFlashcards.OfflineStudyPrefsSync = {
+        flush: flushOfflineStudyPrefsSync,
+        getStatus: function () {
+            const snapshot = getOfflineStudyPrefsStoreSnapshot() || {};
+            return {
+                available: isOfflineRuntime(),
+                sync_pending: parseBool(snapshot.sync_pending, false),
+                last_synced_at: String(snapshot.last_synced_at || ''),
+                last_sync_error: String(snapshot.last_sync_error || '')
+            };
+        },
+        mergeRemoteState: mergeOfflineStudyPrefsFromRemoteState
+    };
     root.LLFlashcards.StudySettings = {
         normalizeStarMode: normalizeStarMode,
         syncStarModeButtons: syncStarModeButtons,

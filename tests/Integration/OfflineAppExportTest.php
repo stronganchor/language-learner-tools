@@ -317,7 +317,11 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertIsString($offline_data);
                 $this->assertStringContainsString('"runtimeMode":"offline"', $offline_data);
                 $this->assertStringContainsString('"availableModes":["learning","practice","listening","self-check","gender"]', $offline_data);
-                $this->assertStringNotContainsString('admin-ajax.php', $offline_data);
+                $this->assertStringContainsString('"offlineSync":{"enabled":true', $offline_data);
+                $this->assertStringContainsString('"loginAction":"ll_tools_offline_app_login"', $offline_data);
+                $this->assertStringContainsString('"logoutAction":"ll_tools_offline_app_logout"', $offline_data);
+                $this->assertStringContainsString('"syncAction":"ll_tools_offline_app_sync"', $offline_data);
+                $this->assertStringContainsString('admin-ajax.php', $offline_data);
                 $this->assertStringContainsString('./content/images/', $offline_data);
                 $this->assertStringContainsString('./content/audio/', $offline_data);
                 $this->assertStringContainsString('"launcher":{"categories":[', $offline_data);
@@ -352,6 +356,10 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('data-ll-offline-view="games"', $index_html);
                 $this->assertStringContainsString('data-ll-wordset-games-root', $index_html);
                 $this->assertStringContainsString('data-ll-offline-launch-selected', $index_html);
+                $this->assertStringContainsString('id="ll-offline-sync-panel"', $index_html);
+                $this->assertStringContainsString('id="ll-offline-sync-sheet"', $index_html);
+                $this->assertStringContainsString('id="ll-offline-sync-connect"', $index_html);
+                $this->assertStringContainsString('id="ll-offline-sync-password-toggle"', $index_html);
                 $this->assertStringContainsString('src="./app/offline-app.js"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/language-learner-tools.css"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/wordset-pages.css"', $index_html);

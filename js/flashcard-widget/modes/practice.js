@@ -323,6 +323,14 @@
         return !!data.isUserLoggedIn;
     }
 
+    function canUseTrackedPracticeProgress() {
+        if (isUserLoggedIn()) {
+            return true;
+        }
+        const tracker = root.LLFlashcards && root.LLFlashcards.ProgressTracker;
+        return !!(tracker && typeof tracker.canPersistLocally === 'function' && tracker.canPersistLocally());
+    }
+
     function sortRecordingTypes(types) {
         const seen = {};
         const extras = [];
@@ -513,15 +521,15 @@
 
     function resolvePracticePromptAudio(word) {
         const availableTypes = getAvailableRecordingTypes(word);
-        const correctTypes = isUserLoggedIn() ? getCorrectRecordingTypes(word) : [];
+        const correctTypes = canUseTrackedPracticeProgress() ? getCorrectRecordingTypes(word) : [];
         let selectedType = '';
 
-        if (isUserLoggedIn() && availableTypes.length) {
+        if (canUseTrackedPracticeProgress() && availableTypes.length) {
             const progressIndex = Math.max(getPracticeExposureCount(word), correctTypes.length);
             selectedType = availableTypes[progressIndex % availableTypes.length] || '';
         }
 
-        if (!selectedType && isUserLoggedIn()) {
+        if (!selectedType && canUseTrackedPracticeProgress()) {
             selectedType = availableTypes.find(function (type) {
                 return correctTypes.indexOf(type) === -1;
             }) || '';

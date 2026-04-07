@@ -1,6 +1,7 @@
 (function (root) {
     'use strict';
 
+    const $ = root.jQuery;
     const offlinePayload = (root.llToolsOfflineData && typeof root.llToolsOfflineData === 'object')
         ? root.llToolsOfflineData
         : {};
@@ -18,6 +19,14 @@
         : {};
     const launcherConfig = (app.launcher && typeof app.launcher === 'object')
         ? app.launcher
+        : {};
+    const syncConfig = Object.assign(
+        {},
+        (flashcards.offlineSync && typeof flashcards.offlineSync === 'object') ? flashcards.offlineSync : {},
+        (app.sync && typeof app.sync === 'object') ? app.sync : {}
+    );
+    const syncConfigMessages = (syncConfig.messages && typeof syncConfig.messages === 'object')
+        ? syncConfig.messages
         : {};
     const modeUi = (flashcards.modeUi && typeof flashcards.modeUi === 'object')
         ? flashcards.modeUi
@@ -43,11 +52,117 @@
         noCategoriesSelected: String(messages.noCategoriesSelected || 'Select at least one category.'),
         somethingWentWrong: String(messages.somethingWentWrong || 'Something went wrong')
     };
+    const syncMessages = {
+        localOnlyLabel: String(syncConfigMessages.localOnlyLabel || 'Local progress only'),
+        connectedAsLabel: String(syncConfigMessages.connectedAsLabel || 'Connected as %s'),
+        connectButton: String(syncConfigMessages.connectButton || 'Connect account'),
+        disconnectButton: String(syncConfigMessages.disconnectButton || 'Disconnect'),
+        syncNowButton: String(syncConfigMessages.syncNowButton || 'Sync now'),
+        syncPendingLabel: String(syncConfigMessages.syncPendingLabel || '%d pending'),
+        syncIdleLabel: String(syncConfigMessages.syncIdleLabel || 'All caught up'),
+        syncFailedLabel: String(syncConfigMessages.syncFailedLabel || 'Sync failed. Your local progress is still saved.'),
+        syncFormTitle: String(syncConfigMessages.syncFormTitle || 'Connect to Sync'),
+        syncIdentifierLabel: String(syncConfigMessages.syncIdentifierLabel || 'Username or email'),
+        syncPasswordLabel: String(syncConfigMessages.syncPasswordLabel || 'Password'),
+        syncSubmitButton: String(syncConfigMessages.syncSubmitButton || 'Sign in'),
+        syncCancelButton: String(syncConfigMessages.syncCancelButton || 'Cancel'),
+        syncSignedOutLabel: String(syncConfigMessages.syncSignedOutLabel || 'Disconnected. The app will keep storing progress locally.'),
+        syncInProgressLabel: String(syncConfigMessages.syncInProgressLabel || 'Syncing...'),
+        showPasswordLabel: String(syncConfigMessages.showPasswordLabel || 'Show password'),
+        hidePasswordLabel: String(syncConfigMessages.hidePasswordLabel || 'Hide password')
+    };
     const MODE_ORDER = ['learning', 'practice', 'listening', 'gender', 'self-check'];
+
+    function getProgressTracker() {
+        return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+            ? root.LLFlashcards.ProgressTracker
+            : null;
+    }
 
     function toInt(value) {
         const parsed = parseInt(value, 10);
         return parsed > 0 ? parsed : 0;
+    }
+
+    function getOfflineAppStateStorageKey() {
+        const wordsetId = toInt(
+            (flashcards.userStudyState && flashcards.userStudyState.wordset_id)
+            || (Array.isArray(flashcards.wordsetIds) ? flashcards.wordsetIds[0] : 0)
+        );
+        return 'lltools_offline_app_state_v1::wordset:' + String(wordsetId || 0);
+    }
+
+    function loadOfflineAppState() {
+        if (!root.localStorage) {
+            return { selected_category_ids: [] };
+        }
+        try {
+            const raw = root.localStorage.getItem(getOfflineAppStateStorageKey());
+            if (!raw) {
+                return { selected_category_ids: [] };
+            }
+            const decoded = JSON.parse(raw);
+            if (!decoded || typeof decoded !== 'object') {
+                return { selected_category_ids: [] };
+            }
+            return {
+                selected_category_ids: Array.isArray(decoded.selected_category_ids)
+                    ? decoded.selected_category_ids.map(toInt).filter(Boolean)
+                    : []
+            };
+        } catch (_) {
+            return { selected_category_ids: [] };
+        }
+    }
+
+    function saveOfflineAppState(nextState) {
+        if (!root.localStorage) {
+            return false;
+        }
+        const state = (nextState && typeof nextState === 'object') ? nextState : {};
+        const payload = {
+            selected_category_ids: Array.isArray(state.selected_category_ids)
+                ? state.selected_category_ids.map(toInt).filter(Boolean)
+                : []
+        };
+        try {
+            root.localStorage.setItem(getOfflineAppStateStorageKey(), JSON.stringify(payload));
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function persistSelectedCategoryIds(categoryIds) {
+        const normalized = Array.isArray(categoryIds) ? categoryIds.map(toInt).filter(Boolean) : [];
+        saveOfflineAppState({ selected_category_ids: normalized });
+        if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyState) {
+            root.llToolsFlashcardsData.userStudyState.category_ids = normalized.slice();
+        }
+    }
+
+    function applyOfflineStudyState(state) {
+        const next = (state && typeof state === 'object') ? state : {};
+        if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyState) {
+            root.llToolsFlashcardsData.userStudyState.wordset_id = toInt(next.wordset_id || root.llToolsFlashcardsData.userStudyState.wordset_id);
+            root.llToolsFlashcardsData.userStudyState.category_ids = Array.isArray(next.category_ids)
+                ? next.category_ids.map(toInt).filter(Boolean)
+                : (root.llToolsFlashcardsData.userStudyState.category_ids || []);
+            root.llToolsFlashcardsData.userStudyState.starred_word_ids = Array.isArray(next.starred_word_ids)
+                ? next.starred_word_ids.map(toInt).filter(Boolean)
+                : (root.llToolsFlashcardsData.userStudyState.starred_word_ids || []);
+            root.llToolsFlashcardsData.userStudyState.star_mode = String(next.star_mode || root.llToolsFlashcardsData.userStudyState.star_mode || 'normal');
+            root.llToolsFlashcardsData.userStudyState.fast_transitions = !!(next.fast_transitions ?? root.llToolsFlashcardsData.userStudyState.fast_transitions);
+        }
+        persistSelectedCategoryIds((root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyState && root.llToolsFlashcardsData.userStudyState.category_ids) || []);
+
+        if (documentRef && typeof documentRef.dispatchEvent === 'function') {
+            documentRef.dispatchEvent(new CustomEvent('lltools:offline-app-state-updated', {
+                detail: {
+                    state: (root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyState) || {}
+                }
+            }));
+        }
     }
 
     root.llToolsFlashcardsData = Object.assign({
@@ -77,6 +192,14 @@
         availableModes: MODE_ORDER.slice(),
         offlineCategoryData: {}
     }, flashcards);
+
+    const storedAppState = loadOfflineAppState();
+    if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyState
+        && Array.isArray(storedAppState.selected_category_ids)
+        && storedAppState.selected_category_ids.length
+    ) {
+        root.llToolsFlashcardsData.userStudyState.category_ids = storedAppState.selected_category_ids.slice();
+    }
 
     root.llToolsFlashcardsMessages = Object.assign({}, messages);
 
@@ -174,6 +297,122 @@
         if (root.console && typeof root.console.warn === 'function') {
             root.console.warn(message);
         }
+    }
+
+    function getOfflineWordsetId() {
+        const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        const userState = (flashData.userStudyState && typeof flashData.userStudyState === 'object')
+            ? flashData.userStudyState
+            : {};
+        return toInt(
+            userState.wordset_id
+            || flashData.genderWordsetId
+            || (Array.isArray(flashData.wordsetIds) ? flashData.wordsetIds[0] : 0)
+        );
+    }
+
+    function collectOfflineWordIds() {
+        const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+        const offlineCategoryData = (flashData.offlineCategoryData && typeof flashData.offlineCategoryData === 'object')
+            ? flashData.offlineCategoryData
+            : {};
+        const ids = [];
+        const seen = {};
+
+        Object.keys(offlineCategoryData).forEach(function (categoryName) {
+            const rows = Array.isArray(offlineCategoryData[categoryName]) ? offlineCategoryData[categoryName] : [];
+            rows.forEach(function (word) {
+                const wordId = toInt(word && word.id);
+                if (!wordId || seen[wordId]) {
+                    return;
+                }
+                seen[wordId] = true;
+                ids.push(wordId);
+            });
+        });
+
+        return ids;
+    }
+
+    function buildOfflineSyncApi() {
+        const getTracker = function () {
+            return root.LLFlashcards && root.LLFlashcards.ProgressTracker
+                ? root.LLFlashcards.ProgressTracker
+                : null;
+        };
+        const getPrefsSync = function () {
+            return root.LLFlashcards && root.LLFlashcards.OfflineStudyPrefsSync
+                ? root.LLFlashcards.OfflineStudyPrefsSync
+                : null;
+        };
+
+        return {
+            configureAuth: function (auth) {
+                const tracker = getTracker();
+                const prefsSync = getPrefsSync();
+                if (tracker && typeof tracker.setAuthContext === 'function') {
+                    tracker.setAuthContext(auth || {});
+                }
+
+                const syncProgress = tracker && typeof tracker.syncFromServer === 'function'
+                    ? tracker.syncFromServer({
+                        wordsetId: getOfflineWordsetId(),
+                        wordIds: collectOfflineWordIds()
+                    })
+                    : Promise.resolve({ skipped: true });
+
+                return Promise.resolve(syncProgress).then(function () {
+                    if (prefsSync && typeof prefsSync.flush === 'function') {
+                        return prefsSync.flush(true);
+                    }
+                    return { skipped: true };
+                }).then(function () {
+                    const progressState = tracker && typeof tracker.getSyncState === 'function'
+                        ? tracker.getSyncState()
+                        : {};
+                    const prefsState = prefsSync && typeof prefsSync.getStatus === 'function'
+                        ? prefsSync.getStatus()
+                        : {};
+                    return {
+                        progress: progressState,
+                        prefs: prefsState
+                    };
+                });
+            },
+            flush: function () {
+                const tracker = getTracker();
+                const prefsSync = getPrefsSync();
+                const progressFlush = tracker && typeof tracker.flush === 'function'
+                    ? tracker.flush({ wordsetId: getOfflineWordsetId() })
+                    : Promise.resolve({ skipped: true });
+
+                return Promise.resolve(progressFlush).then(function (progress) {
+                    if (prefsSync && typeof prefsSync.flush === 'function') {
+                        return Promise.resolve(prefsSync.flush(false)).then(function (prefs) {
+                            return { progress: progress, prefs: prefs };
+                        });
+                    }
+                    return { progress: progress, prefs: { skipped: true } };
+                });
+            },
+            getState: function () {
+                const tracker = getTracker();
+                const prefsSync = getPrefsSync();
+                return {
+                    progress: tracker && typeof tracker.getSyncState === 'function'
+                        ? tracker.getSyncState()
+                        : {},
+                    prefs: prefsSync && typeof prefsSync.getStatus === 'function'
+                        ? prefsSync.getStatus()
+                        : {}
+                };
+            },
+            collectWordIds: collectOfflineWordIds
+        };
     }
 
     function resetLaunchUi() {
@@ -494,6 +733,7 @@
             flashData.genderLaunchSource = 'direct';
         }
         root.llToolsFlashcardsData = flashData;
+        persistSelectedCategoryIds(selectedIds.slice());
 
         if (root.llToolsStudyPrefs && typeof root.llToolsStudyPrefs === 'object') {
             root.llToolsStudyPrefs.starredWordIds = starredWordIds.slice();
@@ -1322,6 +1562,257 @@
         });
     }
 
+    function initOfflineSyncPanel() {
+        if (!documentRef) {
+            return;
+        }
+
+        const tracker = getProgressTracker();
+        const panel = documentRef.getElementById('ll-offline-sync-panel');
+        const statusEl = documentRef.getElementById('ll-offline-sync-status');
+        const metaEl = documentRef.getElementById('ll-offline-sync-meta');
+        const feedbackEl = documentRef.getElementById('ll-offline-sync-feedback');
+        const connectButton = documentRef.getElementById('ll-offline-sync-connect');
+        const syncNowButton = documentRef.getElementById('ll-offline-sync-now');
+        const disconnectButton = documentRef.getElementById('ll-offline-sync-disconnect');
+        const sheet = documentRef.getElementById('ll-offline-sync-sheet');
+        const form = documentRef.getElementById('ll-offline-sync-form');
+        const identifierInput = documentRef.getElementById('ll-offline-sync-identifier');
+        const passwordInput = documentRef.getElementById('ll-offline-sync-password');
+        const passwordToggle = documentRef.getElementById('ll-offline-sync-password-toggle');
+        const cancelButton = documentRef.getElementById('ll-offline-sync-cancel');
+        const submitButton = documentRef.getElementById('ll-offline-sync-submit');
+        const sheetFeedbackEl = documentRef.getElementById('ll-offline-sync-sheet-feedback');
+        const sheetTitleEl = documentRef.getElementById('ll-offline-sync-sheet-title');
+
+        if (!panel || !statusEl || !metaEl || !connectButton || !syncNowButton || !disconnectButton || !sheet
+            || !form || !identifierInput || !passwordInput || !passwordToggle || !cancelButton || !submitButton
+            || !tracker || typeof tracker.syncFromServer !== 'function' || typeof tracker.setOfflineSyncSession !== 'function'
+            || typeof tracker.clearOfflineSyncSession !== 'function' || !syncConfig.enabled
+            || !String(syncConfig.ajaxUrl || '').trim()
+        ) {
+            return;
+        }
+
+        connectButton.textContent = syncMessages.connectButton;
+        syncNowButton.textContent = syncMessages.syncNowButton;
+        disconnectButton.textContent = syncMessages.disconnectButton;
+        cancelButton.textContent = syncMessages.syncCancelButton;
+        submitButton.textContent = syncMessages.syncSubmitButton;
+        if (sheetTitleEl) {
+            sheetTitleEl.textContent = syncMessages.syncFormTitle;
+        }
+        passwordToggle.setAttribute('aria-label', syncMessages.showPasswordLabel);
+        panel.hidden = false;
+
+        function setFeedback(element, message, isError) {
+            if (!element) {
+                return;
+            }
+            const text = String(message || '');
+            element.hidden = !text;
+            element.textContent = text;
+            element.style.color = isError ? '#8e2b18' : '#1f5f4a';
+        }
+
+        function closeSheet() {
+            sheet.hidden = true;
+            setFeedback(sheetFeedbackEl, '', false);
+            if (passwordInput) {
+                passwordInput.type = 'password';
+            }
+            passwordToggle.setAttribute('aria-pressed', 'false');
+        }
+
+        function openSheet() {
+            setFeedback(sheetFeedbackEl, '', false);
+            sheet.hidden = false;
+            if (identifierInput && !identifierInput.value) {
+                identifierInput.focus();
+            }
+        }
+
+        function updatePanel(info) {
+            const state = (info && typeof info === 'object') ? info : tracker.getSyncState();
+            const auth = (state.auth && typeof state.auth === 'object') ? state.auth : {};
+            const user = (auth.user && typeof auth.user === 'object') ? auth.user : null;
+            const connected = !!(state.connected && user && user.id);
+            const pending = Math.max(0, parseInt(state.pending, 10) || 0);
+            statusEl.textContent = connected
+                ? formatMessage(syncMessages.connectedAsLabel, [user.display_name || user.login || ''])
+                : syncMessages.localOnlyLabel;
+
+            if (pending > 0) {
+                metaEl.textContent = formatMessage(syncMessages.syncPendingLabel, [pending]);
+            } else if (auth.last_sync_at) {
+                metaEl.textContent = syncMessages.syncIdleLabel;
+            } else {
+                metaEl.textContent = '';
+            }
+
+            connectButton.hidden = connected;
+            syncNowButton.hidden = !connected;
+            disconnectButton.hidden = !connected;
+
+            if (auth.last_error) {
+                setFeedback(feedbackEl, auth.last_error || syncMessages.syncFailedLabel, true);
+            } else {
+                setFeedback(feedbackEl, '', false);
+            }
+        }
+
+        function postSyncAction(action, payload) {
+            const formData = new root.FormData();
+            formData.append('action', action);
+            Object.keys(payload || {}).forEach(function (key) {
+                formData.append(key, String(payload[key] || ''));
+            });
+            return fetch(String(syncConfig.ajaxUrl || ''), {
+                method: 'POST',
+                body: formData,
+                credentials: 'omit'
+            }).then(function (response) {
+                return response.text().then(function (rawText) {
+                    let parsed = null;
+                    try {
+                        parsed = rawText ? JSON.parse(rawText) : null;
+                    } catch (_) {
+                        parsed = null;
+                    }
+                    if (response.ok && parsed && parsed.success) {
+                        return parsed.data || {};
+                    }
+                    throw new Error((parsed && parsed.data && parsed.data.message) ? parsed.data.message : launcherMessages.somethingWentWrong);
+                });
+            });
+        }
+
+        function syncNow(options) {
+            const opts = (options && typeof options === 'object') ? options : {};
+            const silent = !!opts.silent;
+            if (!silent) {
+                setFeedback(feedbackEl, syncMessages.syncInProgressLabel, false);
+            }
+            return tracker.syncFromServer({
+                wordIds: collectOfflineWordIds()
+            }).then(function (result) {
+                const payload = result && result.data && typeof result.data === 'object' ? result.data : null;
+                if (payload && payload.state) {
+                    applyOfflineStudyState(payload.state);
+                }
+                updatePanel();
+                if (!silent) {
+                    if (result && result.failed) {
+                        setFeedback(feedbackEl, result.error || syncMessages.syncFailedLabel, true);
+                    } else if (Math.max(0, parseInt((tracker.getSyncState().pending || 0), 10) || 0) > 0) {
+                        setFeedback(feedbackEl, formatMessage(syncMessages.syncPendingLabel, [tracker.getSyncState().pending]), false);
+                    } else {
+                        setFeedback(feedbackEl, syncMessages.syncIdleLabel, false);
+                    }
+                }
+                return result;
+            }).catch(function (error) {
+                updatePanel();
+                if (!silent) {
+                    setFeedback(feedbackEl, error && error.message ? error.message : syncMessages.syncFailedLabel, true);
+                }
+                return { failed: true, error: error && error.message ? error.message : syncMessages.syncFailedLabel };
+            });
+        }
+
+        passwordToggle.addEventListener('click', function () {
+            const nextVisible = passwordToggle.getAttribute('aria-pressed') !== 'true';
+            passwordToggle.setAttribute('aria-pressed', nextVisible ? 'true' : 'false');
+            passwordInput.type = nextVisible ? 'text' : 'password';
+            passwordToggle.setAttribute('aria-label', nextVisible ? syncMessages.hidePasswordLabel : syncMessages.showPasswordLabel);
+        });
+
+        connectButton.addEventListener('click', openSheet);
+        cancelButton.addEventListener('click', closeSheet);
+        sheet.addEventListener('click', function (event) {
+            if (event.target === sheet) {
+                closeSheet();
+            }
+        });
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            setFeedback(sheetFeedbackEl, '', false);
+            const identifier = String(identifierInput.value || '').trim();
+            const password = String(passwordInput.value || '');
+            if (!identifier || !password) {
+                setFeedback(sheetFeedbackEl, launcherMessages.somethingWentWrong, true);
+                return;
+            }
+
+            submitButton.disabled = true;
+            postSyncAction(syncConfig.loginAction || 'll_tools_offline_app_login', {
+                identifier: identifier,
+                password: password,
+                device_id: tracker.getSyncState().device_id || '',
+                profile_id: tracker.getSyncState().profile_id || ''
+            }).then(function (payload) {
+                tracker.setOfflineSyncSession({
+                    auth_token: payload.auth_token || '',
+                    expires_at: payload.expires_at || '',
+                    user: payload.user || null
+                });
+                closeSheet();
+                updatePanel();
+                return syncNow({ silent: false });
+            }).catch(function (error) {
+                setFeedback(sheetFeedbackEl, error && error.message ? error.message : launcherMessages.somethingWentWrong, true);
+            }).finally(function () {
+                submitButton.disabled = false;
+            });
+        });
+
+        syncNowButton.addEventListener('click', function () {
+            syncNow({ silent: false });
+        });
+
+        disconnectButton.addEventListener('click', function () {
+            const state = tracker.getSyncState();
+            const auth = state && state.auth ? state.auth : {};
+            const token = String(auth.token || '');
+            const clearLocal = function () {
+                tracker.clearOfflineSyncSession();
+                updatePanel();
+                setFeedback(feedbackEl, syncMessages.syncSignedOutLabel, false);
+            };
+
+            if (!token) {
+                clearLocal();
+                return;
+            }
+
+            postSyncAction(syncConfig.logoutAction || 'll_tools_offline_app_logout', {
+                auth_token: token
+            }).catch(function () {
+                return null;
+            }).finally(clearLocal);
+        });
+
+        if ($ && typeof $.fn !== 'undefined') {
+            $(document).on('lltools:offline-sync-state-changed', function (_event, info) {
+                updatePanel(info);
+            });
+            $(document).on('lltools:remote-sync-snapshot', function (_event, payload) {
+                if (payload && payload.state && typeof payload.state === 'object') {
+                    applyOfflineStudyState(payload.state);
+                }
+                updatePanel();
+            });
+        }
+
+        updatePanel();
+
+        const initialState = tracker.getSyncState();
+        if (initialState.connected) {
+            syncNow({ silent: true });
+        }
+    }
+
     function initOfflineLauncher() {
         if (!documentRef) {
             return;
@@ -1355,7 +1846,9 @@
         const offlineCategoryData = (flashData.offlineCategoryData && typeof flashData.offlineCategoryData === 'object')
             ? flashData.offlineCategoryData
             : {};
-        let selectedIds = [];
+        let selectedIds = Array.isArray((flashData.userStudyState && flashData.userStudyState.category_ids) || [])
+            ? flashData.userStudyState.category_ids.map(toInt).filter(Boolean)
+            : [];
 
         function setModeButtonDisabled(buttonEl, disabled) {
             if (!buttonEl) {
@@ -1403,6 +1896,7 @@
                 const categoryId = parseInt(input.getAttribute('data-cat-id') || '', 10) || 0;
                 input.checked = !!nextLookup[categoryId];
             });
+            persistSelectedCategoryIds(selectedIds.slice());
         }
 
         function getSelectedCategories() {
@@ -1561,6 +2055,13 @@
             }
         });
 
+        documentRef.addEventListener('lltools:offline-app-state-updated', function (event) {
+            const detail = event && event.detail && typeof event.detail === 'object' ? event.detail : {};
+            const state = detail.state && typeof detail.state === 'object' ? detail.state : {};
+            setSelectedIds(Array.isArray(state.category_ids) ? state.category_ids : []);
+            syncSelectionUi();
+        });
+
         renderCategoryCards();
     }
 
@@ -1586,8 +2087,20 @@
             rootEl.setAttribute('data-wordset-fallback', root.llToolsFlashcardsData.wordsetFallback ? '1' : '0');
         }
 
+        initOfflineSyncPanel();
         initOfflineLauncher();
         initOfflineGames();
         setOfflineActiveView('study');
+    }
+
+    root.LLToolsOfflineSync = buildOfflineSyncApi();
+    if (root.llToolsFlashcardsData && root.llToolsFlashcardsData.isUserLoggedIn) {
+        try {
+            root.LLToolsOfflineSync.configureAuth({
+                ajaxUrl: root.llToolsFlashcardsData.ajaxurl || '',
+                nonce: root.llToolsFlashcardsData.userStudyNonce || '',
+                isUserLoggedIn: !!root.llToolsFlashcardsData.isUserLoggedIn
+            });
+        } catch (_) { /* no-op */ }
     }
 })(window);

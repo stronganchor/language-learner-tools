@@ -66,6 +66,22 @@
             return {};
         }
 
+        function decorateOfflineWords(words) {
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (!tracker || typeof tracker.decorateWordsForLocalProgress !== 'function') {
+                return Array.isArray(words) ? words : [];
+            }
+            return tracker.decorateWordsForLocalProgress(Array.isArray(words) ? words : []);
+        }
+
+        function hydrateProgressWords(words) {
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (!tracker || typeof tracker.hydrateWords !== 'function') {
+                return Array.isArray(words) ? words : [];
+            }
+            return tracker.hydrateWords(Array.isArray(words) ? words : []);
+        }
+
         function getCategoryConfig(name) {
             const cats = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
                 ? window.llToolsFlashcardsData.categories
@@ -643,6 +659,12 @@
                 }
                 return true;
             }) : [];
+            hydrateProgressWords(filteredByCategory);
+
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (tracker && typeof tracker.applyLocalProgressToWords === 'function') {
+                tracker.applyLocalProgressToWords(filteredByCategory);
+            }
 
             const filteredBySession = sessionWordLookup
                 ? filteredByCategory.filter(function (w) {
@@ -650,6 +672,9 @@
                     return !!wordId && !!sessionWordLookup[wordId];
                 })
                 : filteredByCategory.slice();
+
+            decorateOfflineWords(filteredByCategory);
+            decorateOfflineWords(filteredBySession);
 
             window.optionWordsByCategory[categoryName].push(...filteredByCategory);
             window.optionWordsByCategory[categoryName] = randomlySort(window.optionWordsByCategory[categoryName]);

@@ -835,7 +835,7 @@ function ll_tools_render_offline_app_export_page(): void {
                 </tbody>
             </table>
 
-            <p class="description"><?php esc_html_e('The offline bundle exports the standalone APK shell plus bundled media for supported quiz modes. User accounts and server-backed study syncing stay out of the APK.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('The offline bundle exports the standalone APK shell plus bundled media for supported quiz modes. Learners can keep using the app locally, then optionally link a site account later to sync study state and progress when they reconnect.', 'll-tools-text-domain'); ?></p>
             <p>
                 <button type="submit" class="button button-primary" id="ll-offline-export-submit" <?php disabled(empty($wordsets)); ?>>
                     <?php esc_html_e('Download Offline App Bundle (.zip)', 'll-tools-text-domain'); ?>
@@ -1537,6 +1537,14 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'fastTransitions'     => false,
             'fast_transitions'    => false,
             'userStudyNonce'      => '',
+            'offlineSync'         => [
+                'enabled'     => true,
+                'ajaxUrl'     => admin_url('admin-ajax.php'),
+                'siteUrl'     => home_url('/'),
+                'loginAction' => 'll_tools_offline_app_login',
+                'logoutAction' => 'll_tools_offline_app_logout',
+                'syncAction'  => 'll_tools_offline_app_sync',
+            ],
             'availableModes'      => $available_modes,
             'genderEnabled'       => !empty($gender_runtime['enabled']),
             'genderWordsetId'     => !empty($gender_runtime['enabled']) ? (int) $wordset->term_id : 0,
@@ -1582,6 +1590,28 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             ],
             'speechToText' => [
                 'bundles' => !empty($stt_bundle_manifest) ? [$stt_bundle_manifest] : [],
+            ],
+            'sync'         => [
+                'enabled' => true,
+                'messages' => [
+                    'localOnlyLabel' => __('Local progress only', 'll-tools-text-domain'),
+                    'connectedAsLabel' => __('Connected as %s', 'll-tools-text-domain'),
+                    'connectButton' => __('Connect account', 'll-tools-text-domain'),
+                    'disconnectButton' => __('Disconnect', 'll-tools-text-domain'),
+                    'syncNowButton' => __('Sync now', 'll-tools-text-domain'),
+                    'syncPendingLabel' => __('%d pending', 'll-tools-text-domain'),
+                    'syncIdleLabel' => __('All caught up', 'll-tools-text-domain'),
+                    'syncFailedLabel' => __('Sync failed. Your local progress is still saved.', 'll-tools-text-domain'),
+                    'syncFormTitle' => __('Connect to Sync', 'll-tools-text-domain'),
+                    'syncIdentifierLabel' => __('Username or email', 'll-tools-text-domain'),
+                    'syncPasswordLabel' => __('Password', 'll-tools-text-domain'),
+                    'syncSubmitButton' => __('Sign in', 'll-tools-text-domain'),
+                    'syncCancelButton' => __('Cancel', 'll-tools-text-domain'),
+                    'syncSignedOutLabel' => __('Disconnected. The app will keep storing progress locally.', 'll-tools-text-domain'),
+                    'syncInProgressLabel' => __('Syncing…', 'll-tools-text-domain'),
+                    'showPasswordLabel' => __('Show password', 'll-tools-text-domain'),
+                    'hidePasswordLabel' => __('Hide password', 'll-tools-text-domain'),
+                ],
             ],
         ],
     ];
@@ -1649,7 +1679,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         ),
         '',
         __('To build an APK, extract this zip and run the scripts in offline-app-builder from this plugin repository against the bundle zip or extracted folder.', 'll-tools-text-domain'),
-        __('This bundle includes the offline quiz shell, bundled media, and local-only quiz runtime data. User accounts and server-backed study syncing are not included.', 'll-tools-text-domain'),
+        __('This bundle includes the offline quiz shell, bundled media, and local-first quiz runtime data. Learners can keep studying fully offline, then optionally sign in later to sync saved progress back to the source site.', 'll-tools-text-domain'),
     ];
     if (!empty($stt_bundle_manifest)) {
         $readme_lines[] = sprintf(
