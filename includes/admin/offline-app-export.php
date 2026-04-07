@@ -1194,6 +1194,95 @@ function ll_tools_offline_app_get_wordset_category_options(int $wordset_id): arr
     return $request_cache[$wordset_id];
 }
 
+function ll_tools_offline_app_parse_export_request(array $request) {
+    $wordset_id = isset($request['ll_offline_wordset_id']) ? (int) wp_unslash((string) $request['ll_offline_wordset_id']) : 0;
+    if ($wordset_id <= 0) {
+        return new WP_Error('ll_tools_offline_app_missing_wordset', __('Select a word set to export.', 'll-tools-text-domain'));
+    }
+
+    $available_categories = ll_tools_offline_app_get_wordset_category_options($wordset_id);
+    $available_category_ids = ll_tools_offline_app_normalize_id_list(wp_list_pluck($available_categories, 'id'));
+    if (empty($available_category_ids)) {
+        return new WP_Error(
+            'll_tools_offline_app_no_available_categories',
+            __('The selected word set has no categories with published words available for offline export.', 'll-tools-text-domain')
+        );
+    }
+
+    $selected_category_ids = [];
+    if (array_key_exists('ll_offline_category_ids', $request)) {
+        $raw_selected_category_ids = $request['ll_offline_category_ids'];
+        if (!is_array($raw_selected_category_ids)) {
+            $raw_selected_category_ids = [$raw_selected_category_ids];
+        }
+
+        $selected_category_ids = ll_tools_offline_app_normalize_id_list((array) wp_unslash($raw_selected_category_ids));
+    } else {
+        $category_scope = isset($request['ll_offline_category_scope'])
+            ? sanitize_key(wp_unslash((string) $request['ll_offline_category_scope']))
+            : 'all';
+        if ($category_scope === 'custom') {
+            return new WP_Error(
+                'll_tools_offline_app_missing_categories',
+                __('Select at least one category to export.', 'll-tools-text-domain')
+            );
+        }
+
+        $selected_category_ids = $available_category_ids;
+    }
+
+    if (empty($selected_category_ids)) {
+        return new WP_Error(
+            'll_tools_offline_app_missing_categories',
+            __('Select at least one category to export.', 'll-tools-text-domain')
+        );
+    }
+
+    $invalid_category_ids = array_values(array_diff($selected_category_ids, $available_category_ids));
+    if (!empty($invalid_category_ids)) {
+        return new WP_Error(
+            'll_tools_offline_app_invalid_categories',
+            __('One or more selected categories are not available in the selected word set.', 'll-tools-text-domain')
+        );
+    }
+
+    $app_name = isset($request['ll_offline_app_name'])
+        ? sanitize_text_field(wp_unslash((string) $request['ll_offline_app_name']))
+        : '';
+    if ($app_name === '') {
+        $app_name = get_bloginfo('name');
+    }
+
+    $version_name = isset($request['ll_offline_version_name'])
+        ? sanitize_text_field(wp_unslash((string) $request['ll_offline_version_name']))
+        : ll_tools_get_plugin_version_string();
+    if ($version_name === '') {
+        $version_name = '1.0.0';
+    }
+
+    $version_code = isset($request['ll_offline_version_code']) ? (int) wp_unslash((string) $request['ll_offline_version_code']) : 1;
+    if ($version_code < 1) {
+        $version_code = 1;
+    }
+
+    $app_id_suffix = isset($request['ll_offline_app_id_suffix'])
+        ? sanitize_text_field(wp_unslash((string) $request['ll_offline_app_id_suffix']))
+        : '';
+    $app_icon_attachment_id = isset($request['ll_offline_app_icon_attachment_id'])
+        ? (int) wp_unslash((string) $request['ll_offline_app_icon_attachment_id'])
+        : 0;
+
+    return [
+        'wordset_id'             => $wordset_id,
+        'category_ids'           => $selected_category_ids,
+        'app_name'               => $app_name,
+        'version_name'           => $version_name,
+        'version_code'           => $version_code,
+        'app_id_suffix'          => $app_id_suffix,
+        'app_icon_attachment_id' => $app_icon_attachment_id,
+    ];
+}
+
 function ll_tools_handle_export_offline_app(): void {
     if (!ll_tools_current_user_can_offline_app_export()) {
         wp_die(__('You do not have permission to export offline app bundles.', 'll-tools-text-domain'));
@@ -1205,76 +1294,12 @@ function ll_tools_handle_export_offline_app(): void {
         wp_die(__('ZipArchive is not available on this server.', 'll-tools-text-domain'));
     }
 
-    $wordset_id = isset($_POST['ll_offline_wordset_id']) ? (int) $_POST['ll_offline_wordset_id'] : 0;
-    if ($wordset_id <= 0) {
-        wp_die(__('Select a word set to export.', 'll-tools-text-domain'));
+    $bundle_options = ll_tools_offline_app_parse_export_request($_POST);
+    if (is_wp_error($bundle_options)) {
+        wp_die($bundle_options->get_error_message());
     }
 
-    $available_categories = ll_tools_offline_app_get_wordset_category_options($wordset_id);
-    $available_category_ids = ll_tools_offline_app_normalize_id_list(wp_list_pluck($available_categories, 'id'));
-    if (empty($available_category_ids)) {
-        wp_die(__('The selected word set has no categories with published words available for offline export.', 'll-tools-text-domain'));
-    }
-
-    $category_scope = isset($_POST['ll_offline_category_scope'])
-        ? sanitize_key(wp_unslash((string) $_POST['ll_offline_category_scope']))
-        : 'all';
-    $include_all_categories = ($category_scope !== 'custom');
-
-    $selected_category_ids = $include_all_categories
-        ? []
-        : (
-            isset($_POST['ll_offline_category_ids'])
-                ? ll_tools_offline_app_normalize_id_list((array) wp_unslash($_POST['ll_offline_category_ids']))
-                : []
-        );
-
-    if (!$include_all_categories) {
-        if (empty($selected_category_ids)) {
-            wp_die(__('Select at least one category or choose to include all categories.', 'll-tools-text-domain'));
-        }
-
-        $invalid_category_ids = array_values(array_diff($selected_category_ids, $available_category_ids));
-        if (!empty($invalid_category_ids)) {
-            wp_die(__('One or more selected categories are not available in the selected word set.', 'll-tools-text-domain'));
-        }
-    }
-
-    $app_name = isset($_POST['ll_offline_app_name'])
-        ? sanitize_text_field(wp_unslash((string) $_POST['ll_offline_app_name']))
-        : '';
-    if ($app_name === '') {
-        $app_name = get_bloginfo('name');
-    }
-
-    $version_name = isset($_POST['ll_offline_version_name'])
-        ? sanitize_text_field(wp_unslash((string) $_POST['ll_offline_version_name']))
-        : ll_tools_get_plugin_version_string();
-    if ($version_name === '') {
-        $version_name = '1.0.0';
-    }
-
-    $version_code = isset($_POST['ll_offline_version_code']) ? (int) $_POST['ll_offline_version_code'] : 1;
-    if ($version_code < 1) {
-        $version_code = 1;
-    }
-
-    $app_id_suffix = isset($_POST['ll_offline_app_id_suffix'])
-        ? sanitize_text_field(wp_unslash((string) $_POST['ll_offline_app_id_suffix']))
-        : '';
-    $app_icon_attachment_id = isset($_POST['ll_offline_app_icon_attachment_id'])
-        ? (int) wp_unslash($_POST['ll_offline_app_icon_attachment_id'])
-        : 0;
-
-    $bundle = ll_tools_build_offline_app_bundle([
-        'wordset_id'             => $wordset_id,
-        'category_ids'           => $selected_category_ids,
-        'app_name'               => $app_name,
-        'version_name'           => $version_name,
-        'version_code'           => $version_code,
-        'app_id_suffix'          => $app_id_suffix,
-        'app_icon_attachment_id' => $app_icon_attachment_id,
-    ]);
+    $bundle = ll_tools_build_offline_app_bundle($bundle_options);
 
     if (is_wp_error($bundle)) {
         wp_die($bundle->get_error_message());

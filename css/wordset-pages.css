@@ -2427,6 +2427,75 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 8px;
 }
 
+.ll-wordset-settings-card__field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.ll-wordset-settings-card__field {
+    display: grid;
+    gap: 6px;
+}
+
+.ll-wordset-settings-card__field > label {
+    display: grid;
+    gap: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--ll-wp-text);
+}
+
+.ll-wordset-settings-card__field input[type="text"],
+.ll-wordset-settings-card__field input[type="number"],
+.ll-wordset-settings-card__field input[type="url"],
+.ll-wordset-settings-card__field select {
+    width: 100%;
+    max-width: 100%;
+}
+
+.ll-wordset-settings-card__checkbox-list {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid #d8dde6;
+    border-radius: 12px;
+    background: #f8fafc;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.ll-wordset-settings-card__checkbox-item {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--ll-wp-text);
+}
+
+.ll-wordset-settings-card__checkbox-item input[type="checkbox"] {
+    margin-top: 2px;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-settings-card__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ll-wordset-settings-card__pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: #eef4fb;
+    color: #36506b;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
 .ll-wordset-settings-card__subtitle {
     margin: 0;
     font-size: 0.82rem;
