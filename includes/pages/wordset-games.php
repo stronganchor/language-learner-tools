@@ -1089,6 +1089,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         }
         $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation', [
             'speaking_short_only' => true,
+            'target_field' => $target_field,
         ]);
         $best_correct_audio_url = trim((string) ($isolation_audio['url'] ?? ''));
         if ($best_correct_audio_url === '') {
@@ -2059,10 +2060,18 @@ function ll_tools_wordset_games_get_audio_duration_seconds(int $audio_post_id, s
     return $seconds;
 }
 
-function ll_tools_wordset_games_is_speaking_suitable_isolation_audio(int $audio_post_id, string $stored_audio_path = '', string $recording_text = ''): bool {
+function ll_tools_wordset_games_is_speaking_suitable_isolation_audio(
+    int $audio_post_id,
+    string $stored_audio_path = '',
+    string $recording_text = '',
+    string $target_field = 'recording_text'
+): bool {
+    $target_field = (($target_field === 'recording_ipa') ? 'recording_ipa' : 'recording_text');
     $max_word_count = ll_tools_wordset_games_speaking_isolation_max_word_count();
     $recording_text = trim((string) $recording_text);
-    if ($recording_text !== '' && ll_tools_wordset_games_count_isolation_words($recording_text) > $max_word_count) {
+    if ($target_field !== 'recording_ipa'
+        && $recording_text !== ''
+        && ll_tools_wordset_games_count_isolation_words($recording_text) > $max_word_count) {
         return false;
     }
 
@@ -2079,8 +2088,10 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
     $target_type = ll_tools_normalize_practice_recording_type_slug($recording_type);
     $args = wp_parse_args($args, [
         'speaking_short_only' => false,
+        'target_field' => 'recording_text',
     ]);
     $speaking_short_only = !empty($args['speaking_short_only']);
+    $target_field = (($args['target_field'] ?? '') === 'recording_ipa') ? 'recording_ipa' : 'recording_text';
     if ($word_id <= 0) {
         return [
             'audio_post_id' => 0,
@@ -2150,7 +2161,7 @@ function ll_tools_wordset_games_get_audio_details(int $word_id, string $recordin
         }
 
         if ($speaking_short_only && $target_type === 'isolation'
-            && !ll_tools_wordset_games_is_speaking_suitable_isolation_audio((int) $audio_post->ID, $audio_path, $recording_text)) {
+            && !ll_tools_wordset_games_is_speaking_suitable_isolation_audio((int) $audio_post->ID, $audio_path, $recording_text, $target_field)) {
             continue;
         }
 
@@ -2492,6 +2503,7 @@ function ll_tools_wordset_games_score_speaking_transcript(int $wordset_id, int $
 
     $isolation_audio = ll_tools_wordset_games_get_audio_details($word_id, 'isolation', [
         'speaking_short_only' => true,
+        'target_field' => $target_field,
     ]);
     $display_word_data = [
         'title' => $word->post_title,
@@ -2713,6 +2725,14 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
             'code' => 'missing_audio',
             'message' => __('Missing audio file.', 'll-tools-text-domain'),
         ], 400);
+    }
+
+    $upload_validation = ll_tools_validate_recording_upload_file((array) $_FILES['audio']);
+    if (empty($upload_validation['valid'])) {
+        wp_send_json_error([
+            'code' => 'invalid_audio',
+            'message' => (string) ($upload_validation['error'] ?? __('Invalid audio upload.', 'll-tools-text-domain')),
+        ], (int) ($upload_validation['status'] ?? 400));
     }
 
     $text = '';

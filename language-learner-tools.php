@@ -18,7 +18,7 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__)); 
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '5.9.3');
+define('LL_TOOLS_VERSION', '5.10.1');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 

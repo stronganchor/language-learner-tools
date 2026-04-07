@@ -38,11 +38,40 @@
 
   function initPasswordField(root) {
     var passwordInput = root.querySelector("[data-ll-register-password]");
-    if (!passwordInput || passwordInput.value) {
+    var toggleButton = root.querySelector("[data-ll-register-password-toggle]");
+
+    if (!passwordInput) {
       return;
     }
 
-    passwordInput.value = generateStrongPassword(18);
+    if (!passwordInput.value) {
+      passwordInput.value = generateStrongPassword(18);
+    }
+
+    if (!toggleButton) {
+      return;
+    }
+
+    function syncPasswordToggle() {
+      var isMasked = passwordInput.getAttribute("type") === "password";
+      var showLabel = toggleButton.getAttribute("data-show-label") || "Show";
+      var hideLabel = toggleButton.getAttribute("data-hide-label") || "Hide";
+      var label = isMasked ? showLabel : hideLabel;
+
+      toggleButton.textContent = label;
+      toggleButton.setAttribute("aria-label", label);
+      toggleButton.setAttribute("aria-pressed", isMasked ? "false" : "true");
+    }
+
+    toggleButton.addEventListener("click", function () {
+      var isMasked = passwordInput.getAttribute("type") === "password";
+
+      passwordInput.setAttribute("type", isMasked ? "text" : "password");
+      syncPasswordToggle();
+      passwordInput.focus();
+    });
+
+    syncPasswordToggle();
   }
 
   function initUsernameSuggestion(root) {

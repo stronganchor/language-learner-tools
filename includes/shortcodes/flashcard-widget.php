@@ -1125,10 +1125,8 @@ function ll_get_words_by_category_ajax() {
         ]);
     }
 
-    // Public endpoint should not expose internal user IDs.
-    if (!is_user_logged_in()) {
-        $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
-    }
+    // Frontend flashcard payloads should not expose internal speaker user IDs.
+    $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
 
     wp_send_json_success($words);
 }

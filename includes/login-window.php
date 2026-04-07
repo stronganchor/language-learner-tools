@@ -65,6 +65,13 @@ if (!function_exists('ll_tools_is_learner_self_registration_available')) {
     }
 }
 
+if (!function_exists('ll_tools_is_generated_registration_password_visible')) {
+    function ll_tools_is_generated_registration_password_visible(): bool {
+        $enabled = (int) get_option('ll_show_generated_registration_password', 1);
+        return (bool) apply_filters('ll_tools_show_generated_registration_password', ($enabled === 1));
+    }
+}
+
 if (!function_exists('ll_tools_sanitize_notification_email')) {
     function ll_tools_sanitize_notification_email($value, $settings_key = 'll_tools_recording_notification_email', $error_code = 'll_tools_notification_email_invalid'): string {
         $value = trim((string) $value);
@@ -1298,6 +1305,7 @@ if (!function_exists('ll_tools_render_login_window')) {
         if ($registration_disabled_message === '') {
             $registration_disabled_message = __('New account registration is currently disabled.', 'll-tools-text-domain');
         }
+        $show_generated_registration_password = ll_tools_is_generated_registration_password_visible();
 
         $login_form_id = 'll-tools-login-form-' . $suffix;
         $login_identifier_id = 'll-tools-user-login-' . $suffix;
@@ -1466,15 +1474,29 @@ if (!function_exists('ll_tools_render_login_window')) {
                             </p>
                             <p>
                                 <label for="<?php echo esc_attr($registration_password_id); ?>"><?php esc_html_e('Password', 'll-tools-text-domain'); ?></label>
-                                <input
-                                    type="text"
-                                    id="<?php echo esc_attr($registration_password_id); ?>"
-                                    name="user_pass"
-                                    autocomplete="new-password"
-                                    autocapitalize="none"
-                                    spellcheck="false"
-                                    data-ll-register-password="1"
-                                    required />
+                                <span class="ll-tools-login-window__password-row">
+                                    <input
+                                        type="<?php echo $show_generated_registration_password ? 'text' : 'password'; ?>"
+                                        id="<?php echo esc_attr($registration_password_id); ?>"
+                                        name="user_pass"
+                                        autocomplete="new-password"
+                                        autocapitalize="none"
+                                        spellcheck="false"
+                                        data-ll-register-password="1"
+                                        required />
+                                    <button
+                                        type="button"
+                                        class="ll-tools-login-window__password-toggle"
+                                        data-ll-register-password-toggle="1"
+                                        data-show-label="<?php echo esc_attr__('Show', 'll-tools-text-domain'); ?>"
+                                        data-hide-label="<?php echo esc_attr__('Hide', 'll-tools-text-domain'); ?>"
+                                        aria-controls="<?php echo esc_attr($registration_password_id); ?>"
+                                        aria-pressed="<?php echo $show_generated_registration_password ? 'true' : 'false'; ?>">
+                                        <?php echo $show_generated_registration_password
+                                            ? esc_html__('Hide', 'll-tools-text-domain')
+                                            : esc_html__('Show', 'll-tools-text-domain'); ?>
+                                    </button>
+                                </span>
                             </p>
                             <p class="login-remember">
                                 <input

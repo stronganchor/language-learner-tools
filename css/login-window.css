@@ -263,6 +263,17 @@
   border-color: var(--ll-login-accent);
 }
 
+.ll-tools-login-window__password-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.ll-tools-login-window__password-row input[type="text"],
+.ll-tools-login-window__password-row input[type="password"] {
+  flex: 1 1 auto;
+}
+
 .ll-tools-login-window__register-submit {
   margin: 0.75rem 0 0;
 }
@@ -291,6 +302,23 @@
 .ll-tools-login-window__register [type="submit"]:hover,
 .ll-tools-login-window__register [type="submit"]:focus {
   background: #f8fafc;
+  border-color: #9aa4b2;
+  color: #0f172a;
+}
+
+.ll-tools-login-window__register .ll-tools-login-window__password-toggle {
+  width: auto;
+  min-width: 5.5rem;
+  flex: 0 0 auto;
+  border-color: #b9c0cb;
+  background: #f8fafc;
+  color: #0f172a;
+  padding-inline: 0.9rem;
+}
+
+.ll-tools-login-window__register .ll-tools-login-window__password-toggle:hover,
+.ll-tools-login-window__register .ll-tools-login-window__password-toggle:focus {
+  background: #eef2f7;
   border-color: #9aa4b2;
   color: #0f172a;
 }

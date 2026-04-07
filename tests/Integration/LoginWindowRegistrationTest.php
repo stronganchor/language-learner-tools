@@ -10,6 +10,13 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_is_learner_self_registration_enabled());
     }
 
+    public function test_generated_registration_password_visibility_defaults_to_enabled(): void
+    {
+        delete_option('ll_show_generated_registration_password');
+
+        $this->assertTrue(ll_tools_is_generated_registration_password_visible());
+    }
+
     public function test_registration_admin_notification_setting_defaults_to_enabled(): void
     {
         delete_option('ll_tools_send_registration_admin_email');
@@ -154,6 +161,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
     public function test_login_window_renders_custom_auth_forms_when_enabled(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
+        update_option('ll_show_generated_registration_password', 1);
         update_option('users_can_register', 1);
 
         $markup = ll_tools_render_login_window([
@@ -171,6 +179,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('id="ll-tools-register-remember-', $markup);
         $this->assertStringContainsString('data-ll-register-email="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password="1"', $markup);
+        $this->assertStringContainsString('data-ll-register-password-toggle="1"', $markup);
         $this->assertStringContainsString('ll_tools_register_math_answer', $markup);
         $this->assertStringNotContainsString('ll-tools-login-window__register-message', $markup);
         $this->assertMatchesRegularExpression('/type="text"\s+id="ll-tools-register-password-[^"]+"\s+name="user_pass"[\s\S]*?autocomplete="new-password"/', $markup);
@@ -181,6 +190,22 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('wp-login.php', $markup);
         $this->assertStringNotContainsString('We suggest a username', $markup);
         $this->assertStringNotContainsString('A strong password', $markup);
+    }
+
+    public function test_login_window_can_mask_generated_registration_password_by_default(): void
+    {
+        update_option('ll_allow_learner_self_registration', 1);
+        update_option('ll_show_generated_registration_password', 0);
+        update_option('users_can_register', 1);
+
+        $markup = ll_tools_render_login_window([
+            'show_registration' => true,
+            'show_lost_password' => false,
+        ]);
+
+        $this->assertMatchesRegularExpression('/type="password"\s+id="ll-tools-register-password-[^"]+"\s+name="user_pass"[\s\S]*?data-ll-register-password="1"/', $markup);
+        $this->assertStringContainsString('data-ll-register-password-toggle="1"', $markup);
+        $this->assertMatchesRegularExpression('/<button[^>]*data-ll-register-password-toggle="1"[\s\S]*?>\s*Show\s*<\/button>/', $markup);
     }
 
     public function test_login_window_hides_registration_form_when_disabled(): void

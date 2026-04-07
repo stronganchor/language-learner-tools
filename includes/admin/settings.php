@@ -70,6 +70,11 @@ function ll_register_settings() {
         'sanitize_callback' => 'll_sanitize_learner_registration_setting',
         'default' => 1,
     ]);
+    register_setting('language-learning-tools-options', 'll_show_generated_registration_password', [
+        'type' => 'boolean',
+        'sanitize_callback' => 'll_sanitize_generated_registration_password_setting',
+        'default' => 1,
+    ]);
     // Settings for quiz font name and URL.
     register_setting('language-learning-tools-options', 'll_quiz_font', array(
         'type' => 'string',
@@ -106,6 +111,10 @@ function ll_sanitize_learner_registration_setting($value) {
     return ll_tools_normalize_learner_registration_setting_value($value);
 }
 
+function ll_sanitize_generated_registration_password_setting($value) {
+    return ll_tools_normalize_generated_registration_password_setting_value($value);
+}
+
 function ll_sanitize_browser_language_autoswitch_setting($value) {
     if (function_exists('ll_tools_normalize_browser_language_autoswitch_setting_value')) {
         return ll_tools_normalize_browser_language_autoswitch_setting_value($value);
@@ -115,6 +124,10 @@ function ll_sanitize_browser_language_autoswitch_setting($value) {
 }
 
 function ll_tools_normalize_learner_registration_setting_value($value) {
+    return (absint($value) === 1) ? 1 : 0;
+}
+
+function ll_tools_normalize_generated_registration_password_setting_value($value) {
     return (absint($value) === 1) ? 1 : 0;
 }
 
@@ -293,6 +306,7 @@ function ll_render_settings_page() {
     $quiz_font_url = get_option('ll_quiz_font_url');
     $enable_browser_language_autoswitch = (int) get_option('ll_enable_browser_language_autoswitch', 1);
     $allow_learner_self_registration = (int) get_option('ll_allow_learner_self_registration', 1);
+    $show_generated_registration_password = (int) get_option('ll_show_generated_registration_password', 1);
     $learner_registration_enabled = function_exists('ll_tools_is_learner_self_registration_available')
         ? ll_tools_is_learner_self_registration_available()
         : ($allow_learner_self_registration === 1);
@@ -376,6 +390,18 @@ function ll_render_settings_page() {
                             value="1"
                             <?php checked(1, (int) $learner_registration_enabled, true); ?> />
                         <p class="description"><?php esc_html_e('Allow new users to create learner accounts from learner-facing progress sign-in screens. This also turns WordPress user registration on or off for the site.', 'll-tools-text-domain'); ?></p>
+                    </td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row"><?php esc_html_e('Show Generated Registration Password:', 'll-tools-text-domain'); ?></th>
+                    <td>
+                        <input
+                            type="checkbox"
+                            name="ll_show_generated_registration_password"
+                            id="ll_show_generated_registration_password"
+                            value="1"
+                            <?php checked(1, $show_generated_registration_password, true); ?> />
+                        <p class="description"><?php esc_html_e('Show the auto-generated learner password in plain text by default on sign-up forms. Disable this to keep it masked until the learner chooses to reveal it.', 'll-tools-text-domain'); ?></p>
                     </td>
                 </tr>
                 <tr valign="top">

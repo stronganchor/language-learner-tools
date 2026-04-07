@@ -127,6 +127,8 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Term::class, $wordset);
         $this->setValidWordsetRewriteRules((string) $wordset->slug);
         wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset));
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
 
         set_query_var('ll_wordset_view', '');
         $mainHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
@@ -143,7 +145,11 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             $mainHtml
         );
         $this->assertStringContainsString(
-            'href="' . esc_url($expectedSettingsUrl) . '"',
+            'href="' . esc_url(ll_tools_get_wordset_page_view_url($wordset, 'settings')),
+            $mainHtml
+        );
+        $this->assertStringContainsString(
+            'll_wordset_back=' . esc_url($expectedBack),
             $mainHtml
         );
 
@@ -243,11 +249,6 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         $this->assertSame($expectedBack, $returnUrl);
         $this->assertSame($expectedBack, $this->getQueryArgFromUrl($gamesUrl, 'll_wordset_back'));
-
-        set_query_var('ll_wordset_view', 'settings');
-        $rendered = ll_tools_render_wordset_page_content((int) $term['term_id']);
-        $expectedHubUrl = ll_tools_get_wordset_settings_tool_url($wordset, '', $expectedBack);
-        $this->assertStringContainsString('href="' . esc_url($expectedHubUrl) . '"', $rendered);
     }
 
     public function test_subpage_return_url_falls_back_to_wordset_home_for_direct_subpage_requests(): void

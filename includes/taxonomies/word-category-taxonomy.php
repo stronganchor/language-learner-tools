@@ -2959,7 +2959,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         // test cases when term IDs are recycled after DB resets.
         'term_slug'            => ($term && !is_wp_error($term)) ? (string) $term->slug : '',
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
-        'text_label_schema'    => 3,
+        'text_label_schema'    => 4,
         'image_animation_meta' => true,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
