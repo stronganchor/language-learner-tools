@@ -88,6 +88,7 @@ add_action('admin_post_ll_tools_download_bundle', 'll_tools_handle_download_bund
 add_action('admin_post_ll_tools_preview_import_bundle', 'll_tools_handle_preview_import_bundle');
 add_action('admin_post_ll_tools_import_preview_media', 'll_tools_handle_import_preview_media');
 add_action('admin_post_ll_tools_import_bundle', 'll_tools_handle_import_bundle');
+add_action('admin_post_ll_tools_preview_metadata_updates', 'll_tools_handle_preview_metadata_updates');
 add_action('admin_post_ll_tools_import_metadata_updates', 'll_tools_handle_import_metadata_updates');
 add_action('admin_post_ll_tools_undo_import', 'll_tools_handle_undo_import');
 add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wordset_csv');
@@ -156,6 +157,13 @@ function ll_tools_import_preview_transient_key($token): string {
     $uid = $uid > 0 ? $uid : 0;
     $token = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $token);
     return 'll_tools_import_preview_' . $uid . '_' . $token;
+}
+
+function ll_tools_metadata_update_preview_transient_key($token): string {
+    $uid = get_current_user_id();
+    $uid = $uid > 0 ? $uid : 0;
+    $token = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $token);
+    return 'll_tools_metadata_update_preview_' . $uid . '_' . $token;
 }
 
 function ll_tools_import_preview_media_nonce_action(string $token, string $relative_path): string {
@@ -1728,6 +1736,8 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     $import_soft_bytes_label = $soft_import_limit_bytes > 0 ? size_format($soft_import_limit_bytes) : __('disabled', 'll-tools-text-domain');
     $import_preview_token = '';
     $import_preview = null;
+    $metadata_preview_token = '';
+    $metadata_preview = null;
     if ($show_import) {
         $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
         if ($import_preview_token !== '') {
@@ -1738,6 +1748,19 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             } else {
                 echo '<div class="notice notice-warning is-dismissible"><p>';
                 esc_html_e('Import preview expired. Generate a new preview and try again.', 'll-tools-text-domain');
+                echo '</p></div>';
+            }
+        }
+
+        $metadata_preview_token = isset($_GET['ll_metadata_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_metadata_preview'])) : '';
+        if ($metadata_preview_token !== '') {
+            $preview_key = ll_tools_metadata_update_preview_transient_key($metadata_preview_token);
+            $preview_value = get_transient($preview_key);
+            if (is_array($preview_value)) {
+                $metadata_preview = $preview_value;
+            } else {
+                echo '<div class="notice notice-warning is-dismissible"><p>';
+                esc_html_e('Metadata update preview expired. Generate a new preview and try again.', 'll-tools-text-domain');
                 echo '</p></div>';
             }
         }
@@ -2304,25 +2327,137 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
         <hr>
         <h2><?php esc_html_e('Metadata Updates', 'll-tools-text-domain'); ?></h2>
         <p><?php esc_html_e('Upload one CSV, JSON, or JSONL file to update existing words and word-audio metadata in place.', 'll-tools-text-domain'); ?></p>
-        <p class="description"><?php esc_html_e('This workflow updates existing items only. It does not create new words, categories, or recordings. Undo is available from Recent Imports.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Preview the update first, then confirm to apply it. This workflow updates existing items only. It does not create new words, categories, or recordings. Undo is available from Recent Imports.', 'll-tools-text-domain'); ?></p>
         <p class="description"><?php esc_html_e('Best starting point: export STT Training Data, edit metadata.csv or metadata.jsonl offline, then upload the edited file here.', 'll-tools-text-domain'); ?></p>
         <form method="post" action="<?php echo esc_url($import_action); ?>" enctype="multipart/form-data">
-            <?php wp_nonce_field('ll_tools_import_metadata_updates'); ?>
-            <input type="hidden" name="action" value="ll_tools_import_metadata_updates">
+            <?php wp_nonce_field('ll_tools_preview_metadata_updates'); ?>
+            <input type="hidden" name="action" value="ll_tools_preview_metadata_updates">
 
             <p><label for="ll_import_metadata_file"><strong><?php esc_html_e('Upload metadata update file', 'll-tools-text-domain'); ?></strong></label></p>
             <input type="file" name="ll_import_metadata_file" id="ll_import_metadata_file" accept=".csv,.json,.jsonl,.ndjson,application/json,text/csv,application/x-ndjson">
             <p class="description"><?php esc_html_e('Accepted formats: .csv, .json, .jsonl, .ndjson. Extra columns are ignored.', 'll-tools-text-domain'); ?></p>
             <p>
                 <label for="ll_import_metadata_mark_ipa_review">
+                    <input type="hidden" name="ll_import_metadata_mark_ipa_review" value="0">
                     <input type="checkbox" name="ll_import_metadata_mark_ipa_review" id="ll_import_metadata_mark_ipa_review" value="1" checked="checked">
                     <?php esc_html_e('Mark imported IPA transcription changes as needing review', 'll-tools-text-domain'); ?>
                 </label>
             </p>
             <p class="description"><?php esc_html_e('Enabled by default so Transcription Manager shows the review notification and opens the filtered review list for these updated recordings.', 'll-tools-text-domain'); ?></p>
 
-            <p><button type="submit" class="button button-primary"><?php esc_html_e('Apply Metadata Updates', 'll-tools-text-domain'); ?></button></p>
+            <p><button type="submit" class="button button-primary"><?php esc_html_e('Preview Metadata Updates', 'll-tools-text-domain'); ?></button></p>
         </form>
+
+        <?php if (is_array($metadata_preview)) : ?>
+            <?php
+            $metadata_preview_stats = isset($metadata_preview['stats']) && is_array($metadata_preview['stats']) ? $metadata_preview['stats'] : [];
+            $metadata_preview_warnings = isset($metadata_preview['warnings']) && is_array($metadata_preview['warnings'])
+                ? array_values(array_filter(array_map('strval', $metadata_preview['warnings'])))
+                : [];
+            $metadata_preview_errors = isset($metadata_preview['errors']) && is_array($metadata_preview['errors'])
+                ? array_values(array_filter(array_map('strval', $metadata_preview['errors'])))
+                : [];
+            $metadata_preview_samples = isset($metadata_preview['sample_changes']) && is_array($metadata_preview['sample_changes'])
+                ? $metadata_preview['sample_changes']
+                : [];
+            $metadata_preview_source_name = isset($metadata_preview['source_name']) ? (string) $metadata_preview['source_name'] : '';
+            $metadata_preview_mark_review = !empty($metadata_preview['options']['mark_imported_ipa_review']);
+            $metadata_preview_message = isset($metadata_preview['message']) ? (string) $metadata_preview['message'] : '';
+            ?>
+            <hr>
+            <h3 id="ll-tools-metadata-preview"><?php esc_html_e('Metadata Update Preview', 'll-tools-text-domain'); ?></h3>
+            <div class="ll-tools-import-preview">
+                <?php if ($metadata_preview_source_name !== '') : ?>
+                    <p><strong><?php esc_html_e('Source file:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html($metadata_preview_source_name); ?></p>
+                <?php endif; ?>
+
+                <?php if ($metadata_preview_message !== '') : ?>
+                    <p><strong><?php esc_html_e('Status:', 'll-tools-text-domain'); ?></strong> <?php echo esc_html($metadata_preview_message); ?></p>
+                <?php endif; ?>
+
+                <?php if (!empty($metadata_preview_warnings)) : ?>
+                    <div class="notice notice-warning inline">
+                        <p><strong><?php esc_html_e('Preview warnings:', 'll-tools-text-domain'); ?></strong></p>
+                        <ul>
+                            <?php foreach ($metadata_preview_warnings as $metadata_preview_warning) : ?>
+                                <li><?php echo esc_html($metadata_preview_warning); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!empty($metadata_preview_errors)) : ?>
+                    <div class="notice notice-error inline">
+                        <p><strong><?php esc_html_e('Rows with problems:', 'll-tools-text-domain'); ?></strong></p>
+                        <ul>
+                            <?php foreach ($metadata_preview_errors as $metadata_preview_error) : ?>
+                                <li><?php echo esc_html($metadata_preview_error); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <ul>
+                    <li><?php echo esc_html(sprintf(__('Rows found: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_rows_total'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(__('Rows with changes: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_rows_applied'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(__('Rows skipped: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_rows_skipped'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(__('Words to update: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['words_updated'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(__('Audio entries to update: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['word_audio_updated'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(__('Fields to update: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_fields_updated'] ?? 0))); ?></li>
+                    <li><?php echo esc_html(sprintf(__('Fields to clear: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_fields_cleared'] ?? 0))); ?></li>
+                    <?php if (!empty($metadata_preview_stats['metadata_ipa_reviews_flagged'])) : ?>
+                        <li><?php echo esc_html(sprintf(__('IPA review flags to set: %d', 'll-tools-text-domain'), (int) $metadata_preview_stats['metadata_ipa_reviews_flagged'])); ?></li>
+                    <?php endif; ?>
+                </ul>
+
+                <?php if (!empty($metadata_preview_samples)) : ?>
+                    <p><strong><?php esc_html_e('Example updates', 'll-tools-text-domain'); ?></strong></p>
+                    <table class="widefat striped ll-tools-import-preview-table">
+                        <thead>
+                            <tr>
+                                <th><?php esc_html_e('Item', 'll-tools-text-domain'); ?></th>
+                                <th><?php esc_html_e('Field', 'll-tools-text-domain'); ?></th>
+                                <th><?php esc_html_e('Current', 'll-tools-text-domain'); ?></th>
+                                <th><?php esc_html_e('New', 'll-tools-text-domain'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($metadata_preview_samples as $metadata_preview_sample) : ?>
+                                <?php
+                                $metadata_preview_item = isset($metadata_preview_sample['item_label']) ? (string) $metadata_preview_sample['item_label'] : '';
+                                $metadata_preview_field = isset($metadata_preview_sample['field_label']) ? (string) $metadata_preview_sample['field_label'] : '';
+                                $metadata_preview_current = isset($metadata_preview_sample['current_value']) ? (string) $metadata_preview_sample['current_value'] : '';
+                                $metadata_preview_new = isset($metadata_preview_sample['new_value']) ? (string) $metadata_preview_sample['new_value'] : '';
+                                ?>
+                                <tr>
+                                    <td><?php echo esc_html($metadata_preview_item); ?></td>
+                                    <td><?php echo esc_html($metadata_preview_field); ?></td>
+                                    <td class="ll-tools-metadata-preview-value"><?php echo $metadata_preview_current !== '' ? esc_html($metadata_preview_current) : '<span class="ll-tools-metadata-preview-empty">' . esc_html__('Blank', 'll-tools-text-domain') . '</span>'; ?></td>
+                                    <td class="ll-tools-metadata-preview-value"><?php echo $metadata_preview_new !== '' ? esc_html($metadata_preview_new) : '<span class="ll-tools-metadata-preview-empty">' . esc_html__('Blank', 'll-tools-text-domain') . '</span>'; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+
+                <form method="post" action="<?php echo esc_url($import_action); ?>">
+                    <?php wp_nonce_field('ll_tools_import_metadata_updates'); ?>
+                    <input type="hidden" name="action" value="ll_tools_import_metadata_updates">
+                    <input type="hidden" name="ll_metadata_preview_token" value="<?php echo esc_attr($metadata_preview_token); ?>">
+
+                    <p>
+                        <label for="ll_import_metadata_mark_ipa_review_confirm">
+                            <input type="hidden" name="ll_import_metadata_mark_ipa_review" value="0">
+                            <input type="checkbox" name="ll_import_metadata_mark_ipa_review" id="ll_import_metadata_mark_ipa_review_confirm" value="1" <?php checked($metadata_preview_mark_review); ?>>
+                            <?php esc_html_e('Mark imported IPA transcription changes as needing review', 'll-tools-text-domain'); ?>
+                        </label>
+                    </p>
+                    <p class="description"><?php esc_html_e('Enabled by default so Transcription Manager shows the review notification and opens the filtered review list for these updated recordings.', 'll-tools-text-domain'); ?></p>
+
+                    <p><button type="submit" class="button button-primary"><?php esc_html_e('Confirm Metadata Updates', 'll-tools-text-domain'); ?></button></p>
+                </form>
+            </div>
+        <?php endif; ?>
 
         <?php ll_tools_render_metadata_update_reference_section(); ?>
         <?php ll_tools_render_import_csv_reference_section(); ?>
@@ -5563,6 +5698,425 @@ function ll_tools_metadata_update_get_word_category_ids(int $word_id): array {
     })));
 }
 
+function ll_tools_metadata_update_preview_value_state_key(string $target_type, int $post_id, string $field_key): string {
+    return $target_type . ':' . $post_id . ':' . $field_key;
+}
+
+function ll_tools_metadata_update_get_effective_field_value(string $target_type, int $post_id, string $field_key, array $field_config, array $planned_values): string {
+    $state_key = ll_tools_metadata_update_preview_value_state_key($target_type, $post_id, $field_key);
+    if (array_key_exists($state_key, $planned_values)) {
+        return (string) $planned_values[$state_key];
+    }
+
+    if (($field_config['storage'] ?? '') === 'post_field') {
+        return (string) get_post_field((string) ($field_config['field'] ?? 'post_title'), $post_id);
+    }
+
+    $meta_keys = isset($field_config['meta_keys']) && is_array($field_config['meta_keys']) ? $field_config['meta_keys'] : [];
+    if (empty($meta_keys)) {
+        return '';
+    }
+
+    $fallback_value = '';
+    foreach ($meta_keys as $meta_key) {
+        $value = (string) get_post_meta($post_id, $meta_key, true);
+        if ($fallback_value === '') {
+            $fallback_value = $value;
+        }
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return $fallback_value;
+}
+
+function ll_tools_metadata_update_build_preview_item_label(string $target_type, int $post_id, int $word_id = 0): string {
+    $title = trim((string) get_the_title($post_id));
+    if ($target_type === 'word') {
+        if ($title !== '') {
+            return sprintf(
+                /* translators: %s word title */
+                __('Word: %s', 'll-tools-text-domain'),
+                $title
+            );
+        }
+
+        return sprintf(
+            /* translators: %d word post ID */
+            __('Word #%d', 'll-tools-text-domain'),
+            $post_id
+        );
+    }
+
+    $word_title = $word_id > 0 ? trim((string) get_the_title($word_id)) : '';
+    if ($title !== '' && $word_title !== '') {
+        return sprintf(
+            /* translators: 1 recording title, 2 parent word title */
+            __('Recording: %1$s (%2$s)', 'll-tools-text-domain'),
+            $title,
+            $word_title
+        );
+    }
+    if ($title !== '') {
+        return sprintf(
+            /* translators: %s recording title */
+            __('Recording: %s', 'll-tools-text-domain'),
+            $title
+        );
+    }
+
+    return sprintf(
+        /* translators: %d recording post ID */
+        __('Recording #%d', 'll-tools-text-domain'),
+        $post_id
+    );
+}
+
+function ll_tools_build_metadata_update_preview_data(string $file_path, string $source_name = '', array $options = []): array {
+    $preview = [
+        'ok' => false,
+        'message' => '',
+        'errors' => [],
+        'warnings' => [],
+        'stats' => ll_tools_import_default_stats(),
+        'sample_changes' => [],
+        'source_name' => $source_name !== '' ? $source_name : basename($file_path),
+        'options' => [
+            'mark_imported_ipa_review' => !array_key_exists('mark_imported_ipa_review', $options)
+                ? true
+                : !empty($options['mark_imported_ipa_review']),
+        ],
+    ];
+
+    $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
+    if (is_wp_error($rows)) {
+        $preview['message'] = $rows->get_error_message();
+        $preview['errors'][] = $rows->get_error_message();
+        return $preview;
+    }
+
+    if (empty($rows)) {
+        $preview['message'] = __('Metadata update import found no non-empty update rows.', 'll-tools-text-domain');
+        return $preview;
+    }
+
+    $preview['stats']['metadata_files_processed'] = 1;
+    $supported_fields = ll_tools_get_metadata_update_supported_fields();
+    $mark_imported_ipa_review = !empty($preview['options']['mark_imported_ipa_review']);
+    $max_messages = 50;
+    $sample_limit = 6;
+    $error_overflow = 0;
+    $warning_overflow = 0;
+    $changed_word_ids = [];
+    $changed_recording_ids = [];
+    $planned_values = [];
+
+    $add_error = static function (string $message) use (&$preview, &$error_overflow, $max_messages): void {
+        if (count($preview['errors']) < $max_messages) {
+            $preview['errors'][] = $message;
+            return;
+        }
+        $error_overflow++;
+    };
+    $add_warning = static function (string $message) use (&$preview, &$warning_overflow, $max_messages): void {
+        if (count($preview['warnings']) < $max_messages) {
+            $preview['warnings'][] = $message;
+            return;
+        }
+        $warning_overflow++;
+    };
+    $add_sample = static function (array $sample) use (&$preview, $sample_limit): void {
+        if (count($preview['sample_changes']) >= $sample_limit) {
+            return;
+        }
+        $preview['sample_changes'][] = $sample;
+    };
+
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $preview['stats']['metadata_rows_total']++;
+        $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
+        $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
+        $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
+
+        $needs_word = false;
+        $needs_recording = false;
+        foreach (array_keys($updates) as $field_key) {
+            if (!isset($supported_fields[$field_key])) {
+                continue;
+            }
+            if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
+                $needs_word = true;
+            } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
+                $needs_recording = true;
+            }
+        }
+        foreach ($clear_fields as $field_key) {
+            if (!isset($supported_fields[$field_key])) {
+                continue;
+            }
+            if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
+                $needs_word = true;
+            } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
+                $needs_recording = true;
+            }
+        }
+
+        if (!$needs_word && !$needs_recording) {
+            $preview['stats']['metadata_rows_skipped']++;
+            continue;
+        }
+
+        $resolved_recording_id = 0;
+        $resolved_word_id = 0;
+
+        if ($needs_recording || ((!empty($row['recording_id']) || !empty($row['recording_slug']) || !empty($row['recording_type']) || !empty($row['audio'])) && $needs_word)) {
+            $word_hint = 0;
+            $word_hint_result = ll_tools_metadata_update_resolve_word_target($row);
+            if (is_wp_error($word_hint_result)) {
+                $word_hint_result = 0;
+            }
+            $word_hint = is_int($word_hint_result) ? (int) $word_hint_result : 0;
+
+            $recording_result = ll_tools_metadata_update_resolve_recording_target($row, $word_hint);
+            if (is_wp_error($recording_result)) {
+                $add_error($recording_result->get_error_message());
+                $preview['stats']['metadata_rows_skipped']++;
+                continue;
+            }
+            $resolved_recording_id = (int) $recording_result;
+            if ($needs_recording && $resolved_recording_id <= 0) {
+                $add_error(sprintf(
+                    /* translators: %d row number */
+                    __('Row %d: recording fields were provided but no recording could be identified.', 'll-tools-text-domain'),
+                    $row_number
+                ));
+                $preview['stats']['metadata_rows_skipped']++;
+                continue;
+            }
+        }
+
+        if ($needs_word) {
+            $fallback_word_id = 0;
+            if ($resolved_recording_id > 0) {
+                $recording_post = get_post($resolved_recording_id);
+                if ($recording_post instanceof WP_Post) {
+                    $fallback_word_id = (int) $recording_post->post_parent;
+                }
+            }
+
+            $word_result = ll_tools_metadata_update_resolve_word_target($row, $fallback_word_id);
+            if (is_wp_error($word_result)) {
+                $add_error($word_result->get_error_message());
+                $preview['stats']['metadata_rows_skipped']++;
+                continue;
+            }
+            $resolved_word_id = (int) $word_result;
+            if ($resolved_word_id <= 0) {
+                $add_error(sprintf(
+                    /* translators: %d row number */
+                    __('Row %d: word fields were provided but no word could be identified.', 'll-tools-text-domain'),
+                    $row_number
+                ));
+                $preview['stats']['metadata_rows_skipped']++;
+                continue;
+            }
+        } elseif ($resolved_recording_id > 0) {
+            $recording_post = get_post($resolved_recording_id);
+            if ($recording_post instanceof WP_Post) {
+                $resolved_word_id = (int) $recording_post->post_parent;
+            }
+        }
+
+        $row_changed = false;
+        $word_changed_this_row = false;
+        $recording_changed_this_row = false;
+        $recording_ipa_updated_this_row = false;
+
+        if ($needs_word && $resolved_word_id > 0) {
+            foreach ($supported_fields as $field_key => $field_config) {
+                if (($field_config['target'] ?? '') !== 'word') {
+                    continue;
+                }
+
+                $clear_requested = in_array($field_key, $clear_fields, true);
+                $has_update = array_key_exists($field_key, $updates);
+                if (!$clear_requested && !$has_update) {
+                    continue;
+                }
+
+                if ($clear_requested && empty($field_config['clearable'])) {
+                    $add_warning(sprintf(
+                        /* translators: 1 row number, 2 field key */
+                        __('Row %1$d: %2$s cannot be cleared and was ignored.', 'll-tools-text-domain'),
+                        $row_number,
+                        $field_key
+                    ));
+                    continue;
+                }
+
+                $current_value = ll_tools_metadata_update_get_effective_field_value('word', $resolved_word_id, $field_key, $field_config, $planned_values);
+                $new_value = $clear_requested
+                    ? ''
+                    : ll_tools_metadata_update_sanitize_field_value($field_key, (string) $updates[$field_key]);
+
+                if (($field_config['storage'] ?? '') === 'post_field' && $clear_requested) {
+                    continue;
+                }
+                if (!$clear_requested && $new_value === '' && ($field_config['storage'] ?? '') === 'post_field') {
+                    continue;
+                }
+                if ($current_value === $new_value) {
+                    continue;
+                }
+
+                $planned_values[ll_tools_metadata_update_preview_value_state_key('word', $resolved_word_id, $field_key)] = $new_value;
+                $word_changed_this_row = true;
+                $row_changed = true;
+
+                if ($clear_requested) {
+                    $preview['stats']['metadata_fields_cleared']++;
+                } else {
+                    $preview['stats']['metadata_fields_updated']++;
+                }
+
+                $add_sample([
+                    'row_number' => $row_number,
+                    'item_label' => ll_tools_metadata_update_build_preview_item_label('word', $resolved_word_id),
+                    'field_label' => (string) ($field_config['label'] ?? $field_key),
+                    'current_value' => $current_value,
+                    'new_value' => $new_value,
+                ]);
+            }
+        }
+
+        if ($needs_recording && $resolved_recording_id > 0) {
+            foreach ($supported_fields as $field_key => $field_config) {
+                if (($field_config['target'] ?? '') !== 'recording') {
+                    continue;
+                }
+
+                $clear_requested = in_array($field_key, $clear_fields, true);
+                $has_update = array_key_exists($field_key, $updates);
+                if (!$clear_requested && !$has_update) {
+                    continue;
+                }
+
+                $current_value = ll_tools_metadata_update_get_effective_field_value('recording', $resolved_recording_id, $field_key, $field_config, $planned_values);
+                $new_value = $clear_requested
+                    ? ''
+                    : ll_tools_metadata_update_sanitize_field_value($field_key, (string) $updates[$field_key]);
+
+                if ($current_value === $new_value) {
+                    continue;
+                }
+
+                $planned_values[ll_tools_metadata_update_preview_value_state_key('recording', $resolved_recording_id, $field_key)] = $new_value;
+                $recording_changed_this_row = true;
+                $row_changed = true;
+
+                if ($field_key === 'recording_ipa' && !$clear_requested) {
+                    $recording_ipa_updated_this_row = true;
+                }
+
+                if ($clear_requested) {
+                    $preview['stats']['metadata_fields_cleared']++;
+                } else {
+                    $preview['stats']['metadata_fields_updated']++;
+                }
+
+                $add_sample([
+                    'row_number' => $row_number,
+                    'item_label' => ll_tools_metadata_update_build_preview_item_label('recording', $resolved_recording_id, $resolved_word_id),
+                    'field_label' => (string) ($field_config['label'] ?? $field_key),
+                    'current_value' => $current_value,
+                    'new_value' => $new_value,
+                ]);
+            }
+
+            if (
+                $mark_imported_ipa_review
+                && $recording_ipa_updated_this_row
+                && function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
+            ) {
+                $review_meta_key = ll_tools_ipa_keyboard_auto_review_meta_key();
+                $review_state_key = ll_tools_metadata_update_preview_value_state_key('recording', $resolved_recording_id, '__auto_review__');
+                $review_current_value = array_key_exists($review_state_key, $planned_values)
+                    ? (string) $planned_values[$review_state_key]
+                    : (string) get_post_meta($resolved_recording_id, $review_meta_key, true);
+                if ($review_current_value !== '1') {
+                    $planned_values[$review_state_key] = '1';
+                    $recording_changed_this_row = true;
+                    $row_changed = true;
+                    $preview['stats']['metadata_ipa_reviews_flagged']++;
+                }
+            }
+        }
+
+        if ($word_changed_this_row && !isset($changed_word_ids[$resolved_word_id])) {
+            $changed_word_ids[$resolved_word_id] = true;
+            $preview['stats']['words_updated']++;
+        }
+        if ($recording_changed_this_row && !isset($changed_recording_ids[$resolved_recording_id])) {
+            $changed_recording_ids[$resolved_recording_id] = true;
+            $preview['stats']['word_audio_updated']++;
+        }
+
+        if ($row_changed) {
+            $preview['stats']['metadata_rows_applied']++;
+        } else {
+            $preview['stats']['metadata_rows_skipped']++;
+        }
+    }
+
+    if ($warning_overflow > 0) {
+        $preview['warnings'][] = sprintf(
+            _n(
+                '%d additional metadata warning was not shown.',
+                '%d additional metadata warnings were not shown.',
+                $warning_overflow,
+                'll-tools-text-domain'
+            ),
+            $warning_overflow
+        );
+    }
+    if ($error_overflow > 0) {
+        $preview['errors'][] = sprintf(
+            _n(
+                '%d additional metadata error was not shown.',
+                '%d additional metadata errors were not shown.',
+                $error_overflow,
+                'll-tools-text-domain'
+            ),
+            $error_overflow
+        );
+    }
+
+    $preview['warnings'] = array_values(array_filter(array_unique(array_map('strval', $preview['warnings'])), static function (string $warning): bool {
+        return trim($warning) !== '';
+    }));
+    $preview['errors'] = array_values(array_filter(array_unique(array_map('strval', $preview['errors'])), static function (string $error): bool {
+        return trim($error) !== '';
+    }));
+
+    $preview['ok'] = empty($preview['errors']);
+    if ($preview['stats']['metadata_rows_applied'] <= 0 && empty($preview['errors'])) {
+        $preview['message'] = __('Metadata update preview found no changes.', 'll-tools-text-domain');
+    } elseif (!$preview['ok']) {
+        $preview['message'] = __('Metadata update preview found some errors.', 'll-tools-text-domain');
+    } elseif (!empty($preview['warnings'])) {
+        $preview['message'] = __('Metadata update preview is ready with warnings.', 'll-tools-text-domain');
+    } else {
+        $preview['message'] = __('Metadata update preview is ready.', 'll-tools-text-domain');
+    }
+
+    return $preview;
+}
+
 function ll_tools_process_metadata_updates_file(string $file_path, string $source_name = '', array $options = []): array {
     $result = [
         'ok' => false,
@@ -6030,6 +6584,55 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
     return $result;
 }
 
+function ll_tools_handle_preview_metadata_updates(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_die(__('You do not have permission to import LL Tools metadata updates.', 'll-tools-text-domain'));
+    }
+    check_admin_referer('ll_tools_preview_metadata_updates');
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+
+    $upload_info = ll_tools_resolve_metadata_update_upload();
+    if (is_wp_error($upload_info)) {
+        ll_tools_store_import_result_and_redirect([
+            'ok' => false,
+            'message' => __('Metadata update preview failed.', 'll-tools-text-domain'),
+            'errors' => [$upload_info->get_error_message()],
+            'stats' => [],
+        ]);
+    }
+
+    $file_path = (string) ($upload_info['file_path'] ?? '');
+    $source_name = (string) ($upload_info['source_name'] ?? basename($file_path));
+    $cleanup_file = !empty($upload_info['cleanup_file']);
+    $mark_imported_ipa_review = isset($_POST['ll_import_metadata_mark_ipa_review'])
+        && sanitize_text_field(wp_unslash((string) $_POST['ll_import_metadata_mark_ipa_review'])) === '1';
+
+    $preview = ll_tools_build_metadata_update_preview_data($file_path, $source_name, [
+        'mark_imported_ipa_review' => $mark_imported_ipa_review,
+    ]);
+
+    if (($preview['message'] ?? '') === '' && !$preview['ok']) {
+        $preview['message'] = __('Metadata update preview failed.', 'll-tools-text-domain');
+    }
+
+    $preview['file_path'] = $file_path;
+    $preview['source_name'] = $source_name;
+    $preview['cleanup_file'] = $cleanup_file;
+    $preview['created_by'] = get_current_user_id();
+    $preview['created_at'] = time();
+
+    $token = wp_generate_password(20, false, false);
+    set_transient(ll_tools_metadata_update_preview_transient_key($token), $preview, 30 * MINUTE_IN_SECONDS);
+
+    $redirect_url = ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
+        'll_metadata_preview' => $token,
+    ]);
+    $redirect_url .= '#ll-tools-metadata-preview';
+    wp_safe_redirect($redirect_url);
+    exit;
+}
+
 function ll_tools_handle_import_metadata_updates(): void {
     if (!ll_tools_current_user_can_export_import()) {
         wp_die(__('You do not have permission to import LL Tools metadata updates.', 'll-tools-text-domain'));
@@ -6048,25 +6651,46 @@ function ll_tools_handle_import_metadata_updates(): void {
         'history_context' => ll_tools_import_default_history_context(),
     ];
 
-    $upload_info = ll_tools_resolve_metadata_update_upload();
-    if (is_wp_error($upload_info)) {
-        $result['message'] = __('Metadata update import failed.', 'll-tools-text-domain');
-        $result['errors'][] = $upload_info->get_error_message();
-        ll_tools_store_import_result_and_redirect($result);
+    $preview_token = isset($_POST['ll_metadata_preview_token'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['ll_metadata_preview_token']))
+        : '';
+    $preview_defaults = [];
+    if ($preview_token !== '') {
+        $preview_data = get_transient(ll_tools_metadata_update_preview_transient_key($preview_token));
+        if (!is_array($preview_data) || empty($preview_data['file_path'])) {
+            $result['message'] = __('Metadata update import failed: preview is missing or expired. Generate a new preview and try again.', 'll-tools-text-domain');
+            ll_tools_store_import_result_and_redirect($result);
+        }
+
+        $file_path = (string) ($preview_data['file_path'] ?? '');
+        $source_name = (string) ($preview_data['source_name'] ?? basename($file_path));
+        $cleanup_file = !empty($preview_data['cleanup_file']);
+        $preview_defaults = isset($preview_data['options']) && is_array($preview_data['options']) ? $preview_data['options'] : [];
+    } else {
+        $upload_info = ll_tools_resolve_metadata_update_upload();
+        if (is_wp_error($upload_info)) {
+            $result['message'] = __('Metadata update import failed.', 'll-tools-text-domain');
+            $result['errors'][] = $upload_info->get_error_message();
+            ll_tools_store_import_result_and_redirect($result);
+        }
+
+        $file_path = (string) ($upload_info['file_path'] ?? '');
+        $source_name = (string) ($upload_info['source_name'] ?? basename($file_path));
+        $cleanup_file = !empty($upload_info['cleanup_file']);
     }
 
-    $file_path = (string) ($upload_info['file_path'] ?? '');
-    $source_name = (string) ($upload_info['source_name'] ?? basename($file_path));
-    $cleanup_file = !empty($upload_info['cleanup_file']);
-
-    $mark_imported_ipa_review = isset($_POST['ll_import_metadata_mark_ipa_review'])
-        && sanitize_text_field(wp_unslash((string) $_POST['ll_import_metadata_mark_ipa_review'])) === '1';
+    $mark_imported_ipa_review = array_key_exists('ll_import_metadata_mark_ipa_review', $_POST)
+        ? sanitize_text_field(wp_unslash((string) $_POST['ll_import_metadata_mark_ipa_review'])) === '1'
+        : !empty($preview_defaults['mark_imported_ipa_review']);
     $processed = ll_tools_process_metadata_updates_file($file_path, $source_name, [
         'mark_imported_ipa_review' => $mark_imported_ipa_review,
     ]);
 
     if ($cleanup_file && $file_path !== '' && is_file($file_path)) {
         @unlink($file_path);
+    }
+    if ($preview_token !== '') {
+        delete_transient(ll_tools_metadata_update_preview_transient_key($preview_token));
     }
 
     ll_tools_import_append_history_entry([

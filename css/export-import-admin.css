@@ -497,6 +497,16 @@
   max-width: 100%;
 }
 
+.ll-tools-export-import .ll-tools-metadata-preview-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ll-tools-export-import .ll-tools-metadata-preview-empty {
+  color: #6b7280;
+  font-style: italic;
+}
+
 .ll-tools-export-import .ll-tools-recent-imports {
   margin: 0 0 18px;
   padding: 14px 14px 10px;
