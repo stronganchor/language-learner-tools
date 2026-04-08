@@ -716,6 +716,88 @@
     }
 }
 
+.ll-ipa-search-pagination {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--ll-ipa-border);
+    border-radius: 10px;
+    background: #ffffff;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.ll-ipa-search-pagination.is-bottom {
+    margin-top: 14px;
+}
+
+.ll-ipa-search-pagination-status {
+    color: var(--ll-ipa-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.ll-ipa-search-pagination-controls {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.ll-ipa-search-page-button,
+.ll-ipa-search-page-current {
+    min-width: 34px;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-ipa-border);
+    box-sizing: border-box;
+    font-size: 13px;
+    line-height: 32px;
+    text-align: center;
+}
+
+.ll-ipa-search-page-button {
+    background: #ffffff !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    color: var(--ll-ipa-text) !important;
+    cursor: pointer;
+}
+
+.ll-ipa-search-page-button:hover:not(:disabled) {
+    border-color: #38bdf8;
+    background: #e0f2fe !important;
+    color: #0f172a !important;
+}
+
+.ll-ipa-search-page-button:focus-visible {
+    outline: 3px solid #38bdf8;
+    outline-offset: 2px;
+}
+
+.ll-ipa-search-page-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.ll-ipa-search-page-current {
+    display: inline-block;
+    border-color: var(--ll-ipa-accent);
+    background: #ecfdf5;
+    color: var(--ll-ipa-accent-strong);
+    font-weight: 700;
+}
+
+.ll-ipa-search-page-gap {
+    min-width: 20px;
+    text-align: center;
+    color: var(--ll-ipa-muted);
+    font-size: 13px;
+}
+
 .ll-ipa-map-add-title,
 .ll-ipa-map-blocked-title,
 .ll-ipa-rules-subtitle {
@@ -1370,6 +1452,14 @@
 @media (max-width: 640px) {
     .ll-ipa-panel {
         padding: 14px;
+    }
+
+    .ll-ipa-search-pagination {
+        align-items: stretch;
+    }
+
+    .ll-ipa-search-pagination-controls {
+        width: 100%;
     }
 
     .ll-ipa-search-controls,

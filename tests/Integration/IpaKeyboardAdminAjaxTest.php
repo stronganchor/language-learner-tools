@@ -104,6 +104,88 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertIsArray($letterMapResponse['data']['letter_map'] ?? null);
     }
 
+    public function test_search_recordings_handler_returns_paginated_review_results(): void
+    {
+        $user_id = $this->create_viewer_user();
+        $wordset_id = $this->create_wordset('Search Pagination Wordset');
+
+        foreach (['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'] as $title) {
+            $word_id = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+            wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+            $recording_id = self::factory()->post->create([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => $word_id,
+                'post_title' => $title . ' Recording',
+            ]);
+            update_post_meta($recording_id, 'recording_text', strtolower($title));
+            update_post_meta($recording_id, 'recording_ipa', 'a');
+            ll_tools_ipa_keyboard_mark_recording_needs_auto_review($recording_id);
+        }
+
+        $pageSizeFilter = static function (): int {
+            return 2;
+        };
+        add_filter('ll_tools_ipa_keyboard_search_results_per_page', $pageSizeFilter);
+
+        try {
+            wp_set_current_user($user_id);
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
+                'wordset_id' => $wordset_id,
+                'review_only' => 1,
+                'search_page' => 2,
+            ];
+            $_REQUEST = $_POST;
+
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_search_ipa_keyboard_recordings_handler();
+            });
+
+            $this->assertTrue((bool) ($response['success'] ?? false));
+            $data = (array) ($response['data'] ?? []);
+            $this->assertSame(5, (int) ($data['total_matches'] ?? 0));
+            $this->assertSame(2, (int) ($data['shown_count'] ?? 0));
+            $this->assertSame(2, (int) ($data['current_page'] ?? 0));
+            $this->assertSame(3, (int) ($data['total_pages'] ?? 0));
+            $this->assertSame(2, (int) ($data['per_page'] ?? 0));
+            $this->assertSame(3, (int) ($data['page_start'] ?? 0));
+            $this->assertSame(4, (int) ($data['page_end'] ?? 0));
+            $this->assertTrue((bool) ($data['has_more'] ?? false));
+
+            $results = array_values((array) ($data['results'] ?? []));
+            $this->assertCount(2, $results);
+            $this->assertSame('Charlie', (string) ($results[0]['word_text'] ?? ''));
+            $this->assertSame('Delta', (string) ($results[1]['word_text'] ?? ''));
+
+            $_POST['search_page'] = 99;
+            $_REQUEST = $_POST;
+
+            $lastPageResponse = $this->runJsonEndpoint(static function (): void {
+                ll_tools_search_ipa_keyboard_recordings_handler();
+            });
+
+            $this->assertTrue((bool) ($lastPageResponse['success'] ?? false));
+            $lastPageData = (array) ($lastPageResponse['data'] ?? []);
+            $this->assertSame(3, (int) ($lastPageData['current_page'] ?? 0));
+            $this->assertSame(5, (int) ($lastPageData['page_start'] ?? 0));
+            $this->assertSame(5, (int) ($lastPageData['page_end'] ?? 0));
+            $this->assertSame(1, (int) ($lastPageData['shown_count'] ?? 0));
+            $this->assertFalse((bool) ($lastPageData['has_more'] ?? true));
+
+            $lastPageResults = array_values((array) ($lastPageData['results'] ?? []));
+            $this->assertCount(1, $lastPageResults);
+            $this->assertSame('Echo', (string) ($lastPageResults[0]['word_text'] ?? ''));
+        } finally {
+            remove_filter('ll_tools_ipa_keyboard_search_results_per_page', $pageSizeFilter);
+        }
+    }
+
     private function create_viewer_user(): int
     {
         $user_id = self::factory()->user->create(['role' => 'administrator']);

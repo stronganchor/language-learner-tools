@@ -48,6 +48,7 @@
     let currentAudio = null;
     let currentAudioButton = null;
     let currentCanEdit = false;
+    let currentSearchPage = 1;
     let tabDirty = {
         map: true,
         symbols: true,
@@ -109,6 +110,11 @@
     function formatCount(count, singularKey, pluralKey, singularFallback, pluralFallback) {
         const template = count === 1 ? t(singularKey, singularFallback) : t(pluralKey, pluralFallback);
         return formatText(template, [count]);
+    }
+
+    function normalizeSearchPage(page) {
+        const parsed = parseInt(page, 10) || 0;
+        return parsed > 0 ? parsed : 1;
     }
 
     function buildDefaultTranscription() {
@@ -459,6 +465,7 @@
         const settings = $.extend({ forceLoad: false }, options || {});
         const safeWordsetId = parseInt(wordsetId, 10) || 0;
         currentWordsetId = safeWordsetId;
+        currentSearchPage = 1;
         if ($wordset.val() !== String(safeWordsetId)) {
             $wordset.val(String(safeWordsetId));
         }
@@ -532,6 +539,8 @@
         }
 
         const searchState = getSearchState();
+        const requestedPage = normalizeSearchPage(settings.page || currentSearchPage);
+        currentSearchPage = requestedPage;
         if (settings.showLoading === null) {
             settings.showLoading = !settings.quietStatus;
         }
@@ -549,13 +558,15 @@
             scope: searchState.scope,
             issues_only: searchState.issuesOnly ? 1 : 0,
             review_only: searchState.reviewOnly ? 1 : 0,
-            exact_transcription: searchState.exactTranscription ? 1 : 0
+            exact_transcription: searchState.exactTranscription ? 1 : 0,
+            search_page: requestedPage
         }).done(function (response) {
             if (!response || response.success !== true) {
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
             }
             handleWordsetResponse(response);
+            currentSearchPage = normalizeSearchPage(response.data && response.data.current_page ? response.data.current_page : requestedPage);
             renderSearch(response.data || {});
             tabDirty.search = false;
             if (!settings.quietStatus) {
@@ -578,6 +589,126 @@
                 .append($('<div>', { class: 'll-ipa-search-loading-title', text: t('searchLoading', 'Searching recordings...') }))
                 .append($('<div>', { class: 'll-ipa-search-loading-hint', text: t('searchLoadingHint', 'This can take a moment for larger word sets.') }))
         );
+    }
+
+    function buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly) {
+        if (totalMatches <= 0) {
+            return '';
+        }
+
+        if (totalMatches > 1 && pageStart > 0 && pageEnd >= pageStart) {
+            const rangeTemplate = issuesOnly && !reviewOnly
+                ? t('searchFilteredSummaryRange', 'Showing %1$d-%2$d of %3$d flagged recordings')
+                : (reviewOnly && !issuesOnly
+                    ? t('searchReviewSummaryRange', 'Showing %1$d-%2$d of %3$d transcriptions needing review')
+                    : t('searchSummaryRange', 'Showing %1$d-%2$d of %3$d results'));
+            return formatText(rangeTemplate, [pageStart, pageEnd, totalMatches]);
+        }
+
+        return issuesOnly && !reviewOnly
+            ? formatCount(totalMatches, 'searchFilteredSummary', 'searchFilteredSummaryPlural', 'Showing %1$d flagged recording', 'Showing %1$d flagged recordings')
+            : (reviewOnly && !issuesOnly
+                ? formatCount(totalMatches, 'searchReviewSummary', 'searchReviewSummaryPlural', 'Showing %1$d transcription needing review', 'Showing %1$d transcriptions needing review')
+                : formatCount(totalMatches, 'searchSummary', 'searchSummaryPlural', '%1$d result', '%1$d results'));
+    }
+
+    function getSearchPaginationItems(currentPage, totalPages) {
+        const pages = [1, totalPages, currentPage - 1, currentPage, currentPage + 1];
+
+        if (currentPage <= 4) {
+            pages.push(2, 3, 4);
+        }
+        if (currentPage >= (totalPages - 3)) {
+            pages.push(totalPages - 1, totalPages - 2, totalPages - 3);
+        }
+
+        const numbers = pages
+            .filter(function (page) {
+                return page >= 1 && page <= totalPages;
+            })
+            .sort(function (left, right) {
+                return left - right;
+            })
+            .filter(function (page, index, list) {
+                return index === 0 || list[index - 1] !== page;
+            });
+
+        const items = [];
+        numbers.forEach(function (page, index) {
+            if (index > 0 && (page - numbers[index - 1]) > 1) {
+                items.push('ellipsis');
+            }
+            items.push(page);
+        });
+
+        return items;
+    }
+
+    function buildSearchPagination(payload) {
+        const totalPages = normalizeSearchPage(payload && payload.total_pages ? payload.total_pages : 1);
+        const currentPage = normalizeSearchPage(payload && payload.current_page ? payload.current_page : currentSearchPage);
+        if (totalPages <= 1) {
+            return null;
+        }
+
+        const $nav = $('<nav>', {
+            class: 'll-ipa-search-pagination',
+            'aria-label': t('searchPaginationLabel', 'Search result pages')
+        });
+        $nav.append($('<div>', {
+            class: 'll-ipa-search-pagination-status',
+            text: formatText(t('searchPaginationPage', 'Page %1$d of %2$d'), [currentPage, totalPages])
+        }));
+
+        const $controls = $('<div>', { class: 'll-ipa-search-pagination-controls' });
+        $controls.append($('<button>', {
+            type: 'button',
+            class: 'button ll-ipa-search-page-button ll-ipa-search-page-button--nav',
+            text: t('searchPaginationPrevious', 'Previous'),
+            disabled: currentPage <= 1,
+            'data-page': currentPage > 1 ? String(currentPage - 1) : '',
+            'aria-label': t('searchPaginationPrevious', 'Previous')
+        }));
+
+        getSearchPaginationItems(currentPage, totalPages).forEach(function (item) {
+            if (item === 'ellipsis') {
+                $controls.append($('<span>', {
+                    class: 'll-ipa-search-page-gap',
+                    text: '...'
+                }));
+                return;
+            }
+
+            if (item === currentPage) {
+                $controls.append($('<span>', {
+                    class: 'll-ipa-search-page-current',
+                    text: String(item),
+                    'aria-current': 'page',
+                    'aria-label': formatText(t('searchPaginationCurrentPage', 'Current page %1$d'), [item])
+                }));
+                return;
+            }
+
+            $controls.append($('<button>', {
+                type: 'button',
+                class: 'button ll-ipa-search-page-button',
+                text: String(item),
+                'data-page': String(item),
+                'aria-label': formatText(t('searchPaginationGoToPage', 'Go to page %1$d'), [item])
+            }));
+        });
+
+        $controls.append($('<button>', {
+            type: 'button',
+            class: 'button ll-ipa-search-page-button ll-ipa-search-page-button--nav',
+            text: t('searchPaginationNext', 'Next'),
+            disabled: currentPage >= totalPages,
+            'data-page': currentPage < totalPages ? String(currentPage + 1) : '',
+            'aria-label': t('searchPaginationNext', 'Next')
+        }));
+
+        $nav.append($controls);
+        return $nav;
     }
 
     function getSymbolSummaryText(recordingCount, occurrenceCount) {
@@ -1431,8 +1562,8 @@
     function renderSearch(payload) {
         const results = Array.isArray(payload.results) ? payload.results : [];
         const totalMatches = parseInt(payload.total_matches, 10) || 0;
-        const shownCount = parseInt(payload.shown_count, 10) || 0;
-        const hasMore = !!payload.has_more;
+        const pageStart = parseInt(payload.page_start, 10) || 0;
+        const pageEnd = parseInt(payload.page_end, 10) || 0;
         const issuesOnly = !!payload.issues_only;
         const reviewOnly = !!payload.review_only;
 
@@ -1448,12 +1579,12 @@
             return;
         }
 
-        const summary = issuesOnly && !reviewOnly
-            ? formatCount(totalMatches, 'searchFilteredSummary', 'searchFilteredSummaryPlural', 'Showing %1$d flagged recording', 'Showing %1$d flagged recordings')
-            : (reviewOnly && !issuesOnly
-                ? formatCount(totalMatches, 'searchReviewSummary', 'searchReviewSummaryPlural', 'Showing %1$d transcription needing review', 'Showing %1$d transcriptions needing review')
-                : formatCount(totalMatches, 'searchSummary', 'searchSummaryPlural', '%1$d result', '%1$d results'));
-        setSearchSummary(summary + (hasMore ? ' ' + formatText(t('searchTooMany', 'Showing the first %1$d results. Narrow the search to see more.'), [shownCount]) : ''));
+        setSearchSummary(buildSearchSummaryText(totalMatches, pageStart, pageEnd, issuesOnly, reviewOnly));
+
+        const $topPagination = buildSearchPagination(payload);
+        if ($topPagination) {
+            $searchResults.append($topPagination);
+        }
 
         const $table = $('<table>', { class: 'widefat striped ll-ipa-search-table' });
         const $colgroup = $('<colgroup>')
@@ -1478,6 +1609,12 @@
         });
         $table.append($colgroup, $thead, $tbody);
         $searchResults.append($table);
+
+        const $bottomPagination = buildSearchPagination(payload);
+        if ($bottomPagination) {
+            $bottomPagination.addClass('is-bottom');
+            $searchResults.append($bottomPagination);
+        }
     }
 
     function loadOrthography(wordsetId, shouldLoad) {
@@ -2120,6 +2257,19 @@
         $state.find('.ll-ipa-search-save-label').text(label || '');
     }
 
+    function reloadCurrentSearchPage(options) {
+        if (!currentWordsetId) {
+            return;
+        }
+
+        markTabsDirty('search');
+        loadSearch(currentWordsetId, true, $.extend({
+            quietStatus: true,
+            showLoading: false,
+            page: currentSearchPage
+        }, options || {}));
+    }
+
     function autosaveSearchRow($row) {
         if (!$row.length || !currentCanEdit) {
             return;
@@ -2171,6 +2321,9 @@
             }
 
             setStatus(t('saved', 'Saved.'), false);
+            if (getSearchState().query.toString().trim() || getSearchState().issuesOnly || getSearchState().reviewOnly) {
+                reloadCurrentSearchPage();
+            }
         }).fail(function () {
             setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
@@ -2405,8 +2558,9 @@
     });
 
     $searchBtn.on('click', function () {
+        currentSearchPage = 1;
         markTabsDirty('search');
-        loadSearch(currentWordsetId, true);
+        loadSearch(currentWordsetId, true, { page: 1 });
     });
 
     function handleOrthographyRefreshResponse(response, successMessage) {
@@ -2580,6 +2734,17 @@
         }
     });
 
+    $searchResults.on('click', '.ll-ipa-search-page-button', function () {
+        const $btn = $(this);
+        const targetPage = normalizeSearchPage($btn.attr('data-page') || 0);
+        if ($btn.prop('disabled') || !targetPage || targetPage === currentSearchPage) {
+            return;
+        }
+
+        markTabsDirty('search');
+        loadSearch(currentWordsetId, true, { page: targetPage });
+    });
+
     $searchResults.on('input', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
         const $row = $(this).closest('tr');
         if (!$row.length || $row.data('llSearchRowSaving')) {
@@ -2639,6 +2804,9 @@
                 setSearchRowSaveState($newRow, 'saved', t('searchReviewed', 'Reviewed.'));
             }
             setStatus(t('searchReviewed', 'Reviewed.'), false);
+            if (getSearchState().reviewOnly || getSearchState().query.toString().trim()) {
+                reloadCurrentSearchPage();
+            }
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
@@ -2668,6 +2836,9 @@
             }
             updateSearchRowValidation($row, response.data ? response.data.validation : null);
             setStatus(t('saved', 'Saved.'), false);
+            if (getSearchState().issuesOnly) {
+                reloadCurrentSearchPage();
+            }
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
@@ -2789,6 +2960,9 @@
         }
         if (Object.prototype.hasOwnProperty.call(initialSearch, 'exact_transcription')) {
             $searchExactTranscription.prop('checked', !!initialSearch.exact_transcription);
+        }
+        if (Object.prototype.hasOwnProperty.call(initialSearch, 'page')) {
+            currentSearchPage = normalizeSearchPage(initialSearch.page);
         }
 
         if (initialWordsetId) {

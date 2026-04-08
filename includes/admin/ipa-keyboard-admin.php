@@ -171,6 +171,11 @@ function ll_tools_ipa_keyboard_sanitize_search_query($raw): string {
     return trim((string) $query);
 }
 
+function ll_tools_ipa_keyboard_sanitize_search_page($raw): int {
+    $page = is_scalar($raw) ? (int) $raw : 1;
+    return max(1, $page);
+}
+
 function ll_tools_ipa_keyboard_get_requested_search_state(): array {
     $query = isset($_GET['search']) ? ll_tools_ipa_keyboard_sanitize_search_query($_GET['search']) : '';
     $scope = isset($_GET['scope']) ? sanitize_key((string) wp_unslash($_GET['scope'])) : 'both';
@@ -187,6 +192,9 @@ function ll_tools_ipa_keyboard_get_requested_search_state(): array {
     $exact_transcription = isset($_GET['exact'])
         ? (sanitize_text_field(wp_unslash((string) $_GET['exact'])) === '1')
         : false;
+    $search_page = isset($_GET['search_page'])
+        ? ll_tools_ipa_keyboard_sanitize_search_page(wp_unslash($_GET['search_page']))
+        : 1;
 
     return [
         'query' => $query,
@@ -194,6 +202,7 @@ function ll_tools_ipa_keyboard_get_requested_search_state(): array {
         'issues_only' => $issues_only,
         'review_only' => $review_only,
         'exact_transcription' => $exact_transcription,
+        'page' => $search_page,
     ];
 }
 
@@ -293,7 +302,16 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchFilteredSummaryPlural' => __('Showing %1$d flagged recordings', 'll-tools-text-domain'),
             'searchReviewSummary' => __('Showing %1$d transcription needing review', 'll-tools-text-domain'),
             'searchReviewSummaryPlural' => __('Showing %1$d transcriptions needing review', 'll-tools-text-domain'),
+            'searchSummaryRange' => __('Showing %1$d-%2$d of %3$d results', 'll-tools-text-domain'),
+            'searchFilteredSummaryRange' => __('Showing %1$d-%2$d of %3$d flagged recordings', 'll-tools-text-domain'),
+            'searchReviewSummaryRange' => __('Showing %1$d-%2$d of %3$d transcriptions needing review', 'll-tools-text-domain'),
             'searchTooMany' => __('Showing the first %1$d results. Narrow the search to see more.', 'll-tools-text-domain'),
+            'searchPaginationLabel' => __('Search result pages', 'll-tools-text-domain'),
+            'searchPaginationPage' => __('Page %1$d of %2$d', 'll-tools-text-domain'),
+            'searchPaginationGoToPage' => __('Go to page %1$d', 'll-tools-text-domain'),
+            'searchPaginationCurrentPage' => __('Current page %1$d', 'll-tools-text-domain'),
+            'searchPaginationPrevious' => __('Previous', 'll-tools-text-domain'),
+            'searchPaginationNext' => __('Next', 'll-tools-text-domain'),
             'searchWordLabel' => __('Word', 'll-tools-text-domain'),
             'searchImageLabel' => __('Image', 'll-tools-text-domain'),
             'searchCategoriesLabel' => __('Categories', 'll-tools-text-domain'),
@@ -3961,6 +3979,11 @@ function ll_tools_ipa_keyboard_build_search_row_payload(int $recording_id, int $
     return $payload;
 }
 
+function ll_tools_ipa_keyboard_get_search_results_per_page(): int {
+    $per_page = (int) apply_filters('ll_tools_ipa_keyboard_search_results_per_page', 100);
+    return max(1, min(500, $per_page));
+}
+
 function ll_tools_ipa_keyboard_search_recordings(
     int $wordset_id,
     string $query = '',
@@ -3968,9 +3991,12 @@ function ll_tools_ipa_keyboard_search_recordings(
     bool $issues_only = false,
     bool $review_only = false,
     bool $exact_transcription = false,
-    int $limit = 200
+    int $page = 1,
+    int $per_page = 0
 ): array {
     $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
+    $page = max(1, $page);
+    $per_page = $per_page > 0 ? $per_page : ll_tools_ipa_keyboard_get_search_results_per_page();
     $word_ids = ll_tools_ipa_keyboard_get_word_ids_for_wordset($wordset_id);
     if (empty($word_ids)) {
         return [
@@ -3978,6 +4004,11 @@ function ll_tools_ipa_keyboard_search_recordings(
             'total_matches' => 0,
             'shown_count' => 0,
             'has_more' => false,
+            'current_page' => 1,
+            'total_pages' => 1,
+            'per_page' => $per_page,
+            'page_start' => 0,
+            'page_end' => 0,
         ];
     }
 
@@ -3995,12 +4026,16 @@ function ll_tools_ipa_keyboard_search_recordings(
             'total_matches' => 0,
             'shown_count' => 0,
             'has_more' => false,
+            'current_page' => 1,
+            'total_pages' => 1,
+            'per_page' => $per_page,
+            'page_start' => 0,
+            'page_end' => 0,
         ];
     }
 
     $word_display = ll_tools_ipa_keyboard_get_word_display_map($word_ids);
-    $results = [];
-    $total_matches = 0;
+    $matches = [];
 
     foreach ((array) $recording_ids as $recording_id) {
         $recording_id = (int) $recording_id;
@@ -4027,13 +4062,10 @@ function ll_tools_ipa_keyboard_search_recordings(
             continue;
         }
 
-        $total_matches++;
-        if (count($results) < $limit) {
-            $results[] = $payload;
-        }
+        $matches[] = $payload;
     }
 
-    usort($results, static function (array $left, array $right): int {
+    usort($matches, static function (array $left, array $right): int {
         $word_compare = ll_tools_locale_compare_strings((string) ($left['word_text'] ?? ''), (string) ($right['word_text'] ?? ''));
         if ($word_compare !== 0) {
             return $word_compare;
@@ -4042,11 +4074,24 @@ function ll_tools_ipa_keyboard_search_recordings(
         return ll_tools_locale_compare_strings((string) ($left['recording_text'] ?? ''), (string) ($right['recording_text'] ?? ''));
     });
 
+    $total_matches = count($matches);
+    $total_pages = max(1, (int) ceil($total_matches / $per_page));
+    $current_page = min($page, $total_pages);
+    $offset = max(0, ($current_page - 1) * $per_page);
+    $results = array_slice($matches, $offset, $per_page);
+    $page_start = $total_matches > 0 ? ($offset + 1) : 0;
+    $page_end = $total_matches > 0 ? ($offset + count($results)) : 0;
+
     return [
         'results' => $results,
         'total_matches' => $total_matches,
         'shown_count' => count($results),
-        'has_more' => ($total_matches > count($results)),
+        'has_more' => ($current_page < $total_pages),
+        'current_page' => $current_page,
+        'total_pages' => $total_pages,
+        'per_page' => $per_page,
+        'page_start' => $page_start,
+        'page_end' => $page_end,
     ];
 }
 
@@ -4639,7 +4684,8 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
     $issues_only = !empty($_POST['issues_only']);
     $review_only = !empty($_POST['review_only']);
     $exact_transcription = !empty($_POST['exact_transcription']);
-    $results = ll_tools_ipa_keyboard_search_recordings($wordset_id, $query, $scope, $issues_only, $review_only, $exact_transcription, 200);
+    $search_page = ll_tools_ipa_keyboard_sanitize_search_page($_POST['search_page'] ?? 1);
+    $results = ll_tools_ipa_keyboard_search_recordings($wordset_id, $query, $scope, $issues_only, $review_only, $exact_transcription, $search_page);
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
 
     wp_send_json_success([
@@ -4652,6 +4698,11 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
         'total_matches' => (int) ($results['total_matches'] ?? 0),
         'shown_count' => (int) ($results['shown_count'] ?? 0),
         'has_more' => !empty($results['has_more']),
+        'current_page' => (int) ($results['current_page'] ?? 1),
+        'total_pages' => (int) ($results['total_pages'] ?? 1),
+        'per_page' => (int) ($results['per_page'] ?? ll_tools_ipa_keyboard_get_search_results_per_page()),
+        'page_start' => (int) ($results['page_start'] ?? 0),
+        'page_end' => (int) ($results['page_end'] ?? 0),
         'issues_only' => $issues_only,
         'review_only' => $review_only,
         'exact_transcription' => $exact_transcription,
