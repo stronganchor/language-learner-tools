@@ -2257,19 +2257,6 @@
         $state.find('.ll-ipa-search-save-label').text(label || '');
     }
 
-    function reloadCurrentSearchPage(options) {
-        if (!currentWordsetId) {
-            return;
-        }
-
-        markTabsDirty('search');
-        loadSearch(currentWordsetId, true, $.extend({
-            quietStatus: true,
-            showLoading: false,
-            page: currentSearchPage
-        }, options || {}));
-    }
-
     function autosaveSearchRow($row) {
         if (!$row.length || !currentCanEdit) {
             return;
@@ -2321,9 +2308,6 @@
             }
 
             setStatus(t('saved', 'Saved.'), false);
-            if (getSearchState().query.toString().trim() || getSearchState().issuesOnly || getSearchState().reviewOnly) {
-                reloadCurrentSearchPage();
-            }
         }).fail(function () {
             setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
@@ -2833,9 +2817,6 @@
             }
             updateSearchRowValidation($row, response.data ? response.data.validation : null);
             setStatus(t('saved', 'Saved.'), false);
-            if (getSearchState().issuesOnly) {
-                reloadCurrentSearchPage();
-            }
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
