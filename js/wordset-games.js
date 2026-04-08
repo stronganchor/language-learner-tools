@@ -6,6 +6,7 @@
     const BUBBLE_POP_GAME_SLUG = 'bubble-pop';
     const SPEAKING_PRACTICE_GAME_SLUG = 'speaking-practice';
     const SPEAKING_STACK_GAME_SLUG = 'speaking-stack';
+    const GAME_LENGTH_ALL = 'all';
     const MODULE_NS = '.llWordsetGames';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
     const CARD_RATIO_MIN = 0.55;
@@ -101,6 +102,40 @@
     function normalizeGameSlug(value) {
         const slug = normalizeRecordingType(value);
         return slug || DEFAULT_GAME_SLUG;
+    }
+
+    function normalizeRoundOptionValue(value) {
+        const rawValue = String(value || '').trim().toLowerCase();
+        if (rawValue === GAME_LENGTH_ALL) {
+            return GAME_LENGTH_ALL;
+        }
+
+        const count = toInt(value);
+        return count > 0 ? String(count) : '';
+    }
+
+    function normalizeRoundOptionList(values, fallbackValue) {
+        const seen = {};
+        const options = (Array.isArray(values) ? values : [])
+            .map(normalizeRoundOptionValue)
+            .filter(function (value) {
+                if (!value || seen[value]) {
+                    return false;
+                }
+                seen[value] = true;
+                return true;
+            });
+        const normalizedFallback = normalizeRoundOptionValue(fallbackValue);
+
+        if (normalizedFallback && options.indexOf(normalizedFallback) === -1) {
+            options.push(normalizedFallback);
+        }
+
+        if (!options.length) {
+            return ['20', '50', '100', GAME_LENGTH_ALL];
+        }
+
+        return options;
     }
 
     function isEditableEventTarget(target) {
@@ -699,6 +734,122 @@
         return DEFAULT_GAME_SLUG;
     }
 
+    function getRoundPreferenceStorageKey(ctx) {
+        const wordsetId = toInt(ctx && ctx.wordsetId);
+        return 'll-wordset-games-round-option:' + String(wordsetId || 'default');
+    }
+
+    function readStoredRoundOption(ctx) {
+        try {
+            const storage = root.localStorage;
+            if (!storage) {
+                return '';
+            }
+            return normalizeRoundOptionValue(storage.getItem(getRoundPreferenceStorageKey(ctx)));
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function writeStoredRoundOption(ctx, value) {
+        try {
+            const storage = root.localStorage;
+            if (!storage) {
+                return;
+            }
+            storage.setItem(getRoundPreferenceStorageKey(ctx), normalizeRoundOptionValue(value));
+        } catch (_) {
+            /* no-op */
+        }
+    }
+
+    function getSelectedRoundOption(ctx) {
+        const selected = normalizeRoundOptionValue(ctx && ctx.selectedRoundOption);
+        if (selected) {
+            return selected;
+        }
+
+        const defaultOption = normalizeRoundOptionValue(ctx && ctx.defaultRoundOption);
+        if (defaultOption) {
+            return defaultOption;
+        }
+
+        return '50';
+    }
+
+    function updateRoundOptionUi(ctx) {
+        if (!(ctx && ctx.$roundOptions && ctx.$roundOptions.length)) {
+            return;
+        }
+
+        const selected = getSelectedRoundOption(ctx);
+        ctx.$roundOptions.each(function () {
+            const $option = $(this);
+            const value = normalizeRoundOptionValue($option.attr('data-word-count') || '');
+            const isActive = value === selected;
+            $option
+                .toggleClass('is-active', isActive)
+                .attr('aria-pressed', isActive ? 'true' : 'false');
+        });
+    }
+
+    function setSelectedRoundOption(ctx, value, persist) {
+        if (!ctx) {
+            return '';
+        }
+
+        const normalizedValue = normalizeRoundOptionValue(value);
+        const fallback = normalizeRoundOptionValue(ctx.defaultRoundOption) || '50';
+        const allowedOptions = Array.isArray(ctx.roundOptions) ? ctx.roundOptions : [];
+        ctx.selectedRoundOption = (normalizedValue && allowedOptions.indexOf(normalizedValue) !== -1)
+            ? normalizedValue
+            : fallback;
+
+        updateRoundOptionUi(ctx);
+
+        if (persist !== false) {
+            writeStoredRoundOption(ctx, ctx.selectedRoundOption);
+        }
+
+        return ctx.selectedRoundOption;
+    }
+
+    function resolveRoundGoalCount(roundOption, maxCount) {
+        const normalizedOption = normalizeRoundOptionValue(roundOption);
+        const availableCount = Math.max(0, toInt(maxCount));
+        if (availableCount <= 0) {
+            return 0;
+        }
+        if (normalizedOption === GAME_LENGTH_ALL) {
+            return availableCount;
+        }
+
+        const desiredCount = toInt(normalizedOption);
+        return desiredCount > 0 ? Math.min(availableCount, desiredCount) : Math.min(availableCount, 50);
+    }
+
+    function getEntryRoundGoalCount(ctx, entry) {
+        const preparedEntry = (entry && typeof entry === 'object') ? entry : {};
+        const gameSlug = normalizeGameSlug(preparedEntry.slug || getCurrentGameSlug(ctx));
+        const maxCount = (
+            gameSlug === SPEAKING_PRACTICE_GAME_SLUG
+            || gameSlug === SPEAKING_STACK_GAME_SLUG
+        )
+            ? (Array.isArray(preparedEntry.words) ? preparedEntry.words.length : toInt(preparedEntry.available_word_count))
+            : (Array.isArray(preparedEntry.playableTargets) ? preparedEntry.playableTargets.length : toInt(preparedEntry.available_word_count));
+
+        return resolveRoundGoalCount(getSelectedRoundOption(ctx), maxCount);
+    }
+
+    function getRunTotalRounds(run) {
+        return Math.max(0, toInt(run && run.totalRounds));
+    }
+
+    function runReachedGoal(run) {
+        const totalRounds = getRunTotalRounds(run);
+        return totalRounds > 0 && toInt(run && run.promptsResolved) >= totalRounds;
+    }
+
     function getGameConfig(ctx, slugOrRun) {
         const requestedSlug = normalizeGameSlug(
             slugOrRun && typeof slugOrRun === 'object'
@@ -974,10 +1125,26 @@
         const runModalDialogHeight = isRunModalVisible(ctx) && ctx.$runModalDialog && ctx.$runModalDialog.length
             ? Math.round(ctx.$runModalDialog.innerHeight() || 0)
             : 0;
+        const stage = ctx.$stage && ctx.$stage.length ? ctx.$stage.get(0) : null;
+        const stageStyles = stage && root.getComputedStyle ? root.getComputedStyle(stage) : null;
+        const stageVerticalPadding = stageStyles
+            ? (parseFloat(stageStyles.paddingTop || '0') + parseFloat(stageStyles.paddingBottom || '0'))
+            : 32;
+        const hudHeight = ctx.$hud && ctx.$hud.length && !ctx.$hud.prop('hidden')
+            ? Math.ceil(ctx.$hud.outerHeight(true) || 0)
+            : 0;
+        const controlsHeight = ctx.$controlsWrap && ctx.$controlsWrap.length && !ctx.$controlsWrap.prop('hidden')
+            ? Math.ceil(ctx.$controlsWrap.outerHeight(true) || 0)
+            : 0;
+        const speakingHeight = ctx.$speakingStage && ctx.$speakingStage.length && !ctx.$speakingStage.prop('hidden')
+            ? Math.ceil(ctx.$speakingStage.outerHeight(true) || 0)
+            : 0;
+        const reservedHeight = Math.ceil(stageVerticalPadding + hudHeight + controlsHeight + speakingHeight + 22);
         const viewportCap = runModalDialogHeight > 0
-            ? Math.max(430, runModalDialogHeight - 32)
-            : (root.innerHeight ? Math.round(root.innerHeight * 0.68) : 820);
-        const cssHeight = clamp(Math.round(wrapWidth * 1.18), 430, Math.max(430, viewportCap));
+            ? Math.max(220, runModalDialogHeight - reservedHeight)
+            : (root.innerHeight ? Math.max(220, Math.round(root.innerHeight * 0.68)) : 820);
+        const minCanvasHeight = Math.max(220, Math.min(430, viewportCap));
+        const cssHeight = clamp(Math.round(wrapWidth * 1.18), minCanvasHeight, Math.max(minCanvasHeight, viewportCap));
         const dpr = clamp(root.devicePixelRatio || 1, 1, 2);
 
         ctx.canvas.width = Math.round(wrapWidth * dpr);
@@ -3395,6 +3562,76 @@
         });
     }
 
+    function getPreparedCatalogEntry(ctx, slug) {
+        const normalizedSlug = normalizeGameSlug(slug || getDefaultCatalogSlug(ctx));
+        return ctx.catalogEntries[normalizedSlug]
+            || (normalizedSlug === getDefaultCatalogSlug(ctx) ? ctx.catalogEntry : null);
+    }
+
+    function fetchLaunchEntry(ctx, slug) {
+        const normalizedSlug = normalizeGameSlug(slug || getDefaultCatalogSlug(ctx));
+        const localEntry = getPreparedCatalogEntry(ctx, normalizedSlug);
+        if (!ctx || ctx.offlineMode || !ctx.isLoggedIn || !ctx.ajaxUrl || !ctx.launchAction || !ctx.wordsetId) {
+            return Promise.resolve(localEntry);
+        }
+
+        if (ctx.launchEntryCache && ctx.launchEntryCache[normalizedSlug]) {
+            return Promise.resolve(ctx.launchEntryCache[normalizedSlug]);
+        }
+        if (ctx.launchEntryRequests && ctx.launchEntryRequests[normalizedSlug]) {
+            return ctx.launchEntryRequests[normalizedSlug];
+        }
+
+        ctx.launchEntryRequests = ctx.launchEntryRequests || {};
+        ctx.launchEntryCache = ctx.launchEntryCache || {};
+
+        ctx.launchEntryRequests[normalizedSlug] = new Promise(function (resolve, reject) {
+            $.post(ctx.ajaxUrl, {
+                action: ctx.launchAction,
+                nonce: ctx.nonce,
+                wordset_id: ctx.wordsetId,
+                game_slug: normalizedSlug
+            }).done(function (response) {
+                const entry = response && response.success && response.data && response.data.game && typeof response.data.game === 'object'
+                    ? buildPreparedEntry(ctx, normalizedSlug, response.data.game)
+                    : null;
+                if (!entry) {
+                    reject(new Error('missing_launch_entry'));
+                    return;
+                }
+                ctx.launchEntryCache[normalizedSlug] = entry;
+                resolve(entry);
+            }).fail(function () {
+                reject(new Error('launch_request_failed'));
+            });
+        }).finally(function () {
+            if (ctx.launchEntryRequests) {
+                delete ctx.launchEntryRequests[normalizedSlug];
+            }
+        });
+
+        return ctx.launchEntryRequests[normalizedSlug];
+    }
+
+    function launchGame(ctx, slug) {
+        const normalizedSlug = normalizeGameSlug(slug || getDefaultCatalogSlug(ctx));
+        const fallbackEntry = getPreparedCatalogEntry(ctx, normalizedSlug);
+        if (!fallbackEntry || !fallbackEntry.launchable) {
+            return Promise.resolve(null);
+        }
+
+        return fetchLaunchEntry(ctx, normalizedSlug).catch(function () {
+            return fallbackEntry;
+        }).then(function (entry) {
+            if (!entry || !entry.launchable) {
+                return null;
+            }
+
+            startRun(ctx, entry);
+            return entry;
+        });
+    }
+
     function updateAudioButtonUi($button, isPlaying) {
         if (!$button || !$button.length) {
             return;
@@ -4060,6 +4297,21 @@
         return false;
     }
 
+    function requestCloseGame(ctx, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const run = ctx && ctx.run;
+        const shouldConfirm = !!(run && !run.ended && isGameGuardActive(ctx));
+
+        if (shouldConfirm) {
+            return confirmAndCloseGameFromGuard(ctx, opts);
+        }
+
+        showCatalog(ctx, {
+            historyAlreadyHandled: !!opts.historyAlreadyHandled
+        });
+        return true;
+    }
+
     function toggleRunModalPageLock(isLocked) {
         if (!root.document) {
             return;
@@ -4576,6 +4828,10 @@
     function startNextPrompt(ctx) {
         const run = ctx.run;
         if (!run || run.ended || run.awaitingPrompt) {
+            return;
+        }
+        if (runReachedGoal(run)) {
+            endRun(ctx, 'win');
             return;
         }
 
@@ -5192,7 +5448,9 @@
             ]),
             {
                 mode: 'game-over',
-                primaryLabel: String(ctx.i18n.gamesReplayRun || 'Replay'),
+                primaryLabel: String(isWin
+                    ? (ctx.i18n.gamesNewGame || 'New game')
+                    : (ctx.i18n.gamesReplayRun || 'Replay')),
                 secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
             }
         );
@@ -5626,11 +5884,12 @@
         }
     }
 
-    function endRun(ctx) {
+    function endRun(ctx, reason) {
         const run = ctx.run;
         if (!run) {
             return;
         }
+        const isWin = String(reason || '') === 'win';
 
         run.ended = true;
         run.awaitingPrompt = false;
@@ -5656,17 +5915,27 @@
         updatePauseUi(ctx);
         flushProgress(ctx);
 
-        const summary = formatMessage(ctx.i18n.gamesSummary || 'Coins: %1$d · Prompts: %2$d', [
-            run.coins,
-            run.promptsResolved
-        ]);
+        const summary = isWin
+            ? formatMessage(ctx.i18n.gamesWinSummary || 'Completed: %1$d of %2$d · Coins: %3$d', [
+                toInt(run.promptsResolved),
+                Math.max(toInt(run.promptsResolved), getRunTotalRounds(run)),
+                toInt(run.coins)
+            ])
+            : formatMessage(ctx.i18n.gamesSummary || 'Coins: %1$d · Prompts: %2$d', [
+                run.coins,
+                run.promptsResolved
+            ]);
         showOverlay(
             ctx,
-            String(ctx.i18n.gamesGameOver || 'Run Complete'),
+            String(isWin
+                ? (ctx.i18n.gamesWinTitle || 'You win')
+                : (ctx.i18n.gamesGameOver || 'Run Complete')),
             summary,
             {
                 mode: 'game-over',
-                primaryLabel: String(ctx.i18n.gamesReplayRun || 'Replay'),
+                primaryLabel: String(isWin
+                    ? (ctx.i18n.gamesNewGame || 'New game')
+                    : (ctx.i18n.gamesReplayRun || 'Replay')),
                 secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
             }
         );
@@ -5708,6 +5977,26 @@
         syncCanvasSize(ctx);
     }
 
+    function selectRoundWords(entry, roundGoal) {
+        const words = Array.isArray(entry && entry.words) ? entry.words.slice() : [];
+        const desiredCount = Math.max(0, toInt(roundGoal));
+        if (!desiredCount || words.length <= desiredCount) {
+            return words;
+        }
+
+        return limitLaunchWords(words, desiredCount);
+    }
+
+    function selectRoundTargets(entry, roundGoal) {
+        const targets = Array.isArray(entry && entry.playableTargets) ? entry.playableTargets.slice() : [];
+        const desiredCount = Math.max(0, toInt(roundGoal));
+        if (!desiredCount || targets.length <= desiredCount) {
+            return targets;
+        }
+
+        return limitLaunchWords(targets, desiredCount);
+    }
+
     function startRun(ctx, entry) {
         const gameSlug = normalizeGameSlug(entry && entry.slug);
         if (gameSlug === SPEAKING_PRACTICE_GAME_SLUG) {
@@ -5737,10 +6026,12 @@
             secondaryLabel: ''
         });
 
+        const selectedTargets = selectRoundTargets(entry, getEntryRoundGoalCount(ctx, entry));
+
         ctx.run = {
             slug: gameSlug,
             words: entry.words.slice(),
-            playableTargets: shuffle(entry.playableTargets.slice()),
+            playableTargets: shuffle(selectedTargets.slice()),
             promptDeck: [],
             prompt: null,
             cards: [],
@@ -5767,6 +6058,7 @@
             cardCount: gameConfig.cardCount,
             cardSpeed: 86,
             promptIdCounter: 0,
+            totalRounds: selectedTargets.length,
             promptTimer: 0,
             promptTimerReadyAt: 0,
             promptTimerRemainingMs: 0,
@@ -8388,7 +8680,7 @@
             ]),
             {
                 mode: 'game-over',
-                primaryLabel: String(ctx.i18n.gamesReplayRun || 'Replay'),
+                primaryLabel: String(ctx.i18n.gamesNewGame || 'New game'),
                 secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
             }
         );
@@ -8396,7 +8688,8 @@
 
     function startSpeakingStackRun(ctx, entry) {
         const keepModalOpen = isRunModalVisible(ctx);
-        const shuffledWords = shuffle(entry.words.slice());
+        const selectedWords = selectRoundWords(entry, getEntryRoundGoalCount(ctx, entry));
+        const shuffledWords = shuffle(selectedWords.slice());
         const launchedAt = currentTimestamp();
         const speakingStackConfig = getGameConfig(ctx, SPEAKING_STACK_GAME_SLUG) || {};
         const initialSpawnCount = Math.max(1, toInt(speakingStackConfig.initialSpawnCount) || 3);
@@ -8509,7 +8802,8 @@
     function startSpeakingRun(ctx, entry) {
         const keepModalOpen = isRunModalVisible(ctx);
         const speaking = speakingState(ctx);
-        const shuffledWords = shuffle(entry.words.slice());
+        const selectedWords = selectRoundWords(entry, getEntryRoundGoalCount(ctx, entry));
+        const shuffledWords = shuffle(selectedWords.slice());
         const promptDeck = buildSpeakingPromptDeck(shuffledWords, speaking && speaking.recentLaunchWordIds);
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
@@ -8608,7 +8902,7 @@
 
             if (matchesKey(event, ['escape'], ['escape']) && isRunModalVisible(ctx)) {
                 event.preventDefault();
-                showCatalog(ctx);
+                requestCloseGame(ctx);
                 return;
             }
             if (!ctx.run || ctx.run.paused || ctx.$stage.prop('hidden') || isBubblePopRun(ctx, ctx.run) || isSpeakingStackRun(ctx, ctx.run)) {
@@ -8832,20 +9126,37 @@
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-launch]', function (event) {
             event.preventDefault();
             const slug = normalizeGameSlug($(this).closest('[data-ll-wordset-game-card]').attr('data-game-slug') || '');
-            const entry = ctx.catalogEntries[slug] || null;
+            const entry = getPreparedCatalogEntry(ctx, slug);
             if (!entry || !entry.launchable) {
                 return;
             }
-            startRun(ctx, entry);
+            launchGame(ctx, slug);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-length-option]', function (event) {
+            event.preventDefault();
+            setSelectedRoundOption(ctx, $(this).attr('data-word-count') || '', true);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-run-dismiss]', function (event) {
             event.preventDefault();
-            showCatalog(ctx);
+            requestCloseGame(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-run-dialog]', function (event) {
+            if (event.target !== this) {
+                return;
+            }
+            event.preventDefault();
+            requestCloseGame(ctx);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-return]', function (event) {
             event.preventDefault();
+            if (ctx.run && !ctx.run.ended && ctx.overlayMode !== 'game-over') {
+                requestCloseGame(ctx);
+                return;
+            }
             showCatalog(ctx);
         });
 
@@ -8856,13 +9167,12 @@
                 return;
             }
             const replaySlug = normalizeGameSlug(ctx.activeGameSlug || getDefaultCatalogSlug(ctx));
-            const entry = ctx.catalogEntries[replaySlug]
-                || (replaySlug === getDefaultCatalogSlug(ctx) ? ctx.catalogEntry : null);
+            const entry = getPreparedCatalogEntry(ctx, replaySlug);
             if (!entry || !entry.launchable) {
                 return;
             }
             stopRun(ctx, { flush: true });
-            startRun(ctx, entry);
+            launchGame(ctx, replaySlug);
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-game-replay-audio]', function (event) {
@@ -9026,6 +9336,14 @@
         }
 
         const gamesCfg = (cfg.games && typeof cfg.games === 'object') ? cfg.games : {};
+        const configuredRoundOptions = normalizeRoundOptionList(gamesCfg.roundOptions, gamesCfg.defaultRoundOption || 50);
+        const defaultRoundOption = normalizeRoundOptionValue(gamesCfg.defaultRoundOption || 50) || '50';
+        const storedRoundOption = readStoredRoundOption({
+            wordsetId: toInt(cfg.wordsetId)
+        });
+        const selectedRoundOption = configuredRoundOptions.indexOf(storedRoundOption) !== -1
+            ? storedRoundOption
+            : (configuredRoundOptions.indexOf(defaultRoundOption) !== -1 ? defaultRoundOption : configuredRoundOptions[0]);
         const spaceShooter = (gamesCfg.spaceShooter && typeof gamesCfg.spaceShooter === 'object')
             ? gamesCfg.spaceShooter
             : {};
@@ -9200,6 +9518,7 @@
             $cardStatus: defaultCard ? defaultCard.$status : $(),
             $cardCount: defaultCard ? defaultCard.$count : $(),
             $launchButton: defaultCard ? defaultCard.$launchButton : $(),
+            $roundOptions: $gamesRoot.find('[data-ll-wordset-game-length-option]'),
             $stage: $gamesRoot.find('[data-ll-wordset-game-stage]').first(),
             $hud: $gamesRoot.find('.ll-wordset-game-stage__hud').first(),
             $canvasWrap: $gamesRoot.find('.ll-wordset-game-stage__canvas-wrap').first(),
@@ -9266,10 +9585,14 @@
             visibleCategoryIds: uniqueIntList(cfg.visibleCategoryIds || []),
             i18n: (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {},
             bootstrapAction: String(gamesCfg.bootstrapAction || ''),
+            launchAction: String(gamesCfg.launchAction || ''),
             transcribeAttemptAction: String(gamesCfg.transcribeAttemptAction || ''),
             scoreAttemptAction: String(gamesCfg.scoreAttemptAction || ''),
             matchAttemptAction: String(gamesCfg.matchAttemptAction || ''),
             minimumWordCount: Math.max(1, toInt(gamesCfg.minimumWordCount) || 5),
+            roundOptions: configuredRoundOptions,
+            defaultRoundOption: defaultRoundOption,
+            selectedRoundOption: selectedRoundOption,
             canManageSettings: !!gamesCfg.canManageSettings,
             speakingSettingsUrl: String(gamesCfg.speakingSettingsUrl || (((cfg.links || {}).settings) || '') || ''),
             speakingHiddenNotice: normalizeSpeakingNotice(gamesCfg.speakingHiddenNotice || null),
@@ -9292,6 +9615,8 @@
             promptPlaybackRequestId: 0,
             promptReplayTimer: 0,
             bootstrapRequest: null,
+            launchEntryCache: {},
+            launchEntryRequests: {},
             run: null,
             overlayMode: '',
             boundLifecycle: false,
@@ -9346,6 +9671,7 @@
         bindAudioElementButtonUi(ctx.speakingCorrectAudio, ctx.$speakingPlayCorrect);
         bindLifecycle(ctx);
         bindDom(ctx);
+        updateRoundOptionUi(ctx);
         toggleRunModalPageLock(false);
         setGameGuardPageClass(false);
         syncCanvasSize(ctx);
@@ -9374,6 +9700,7 @@
                 availableWordCount: activeEntry ? toInt(activeEntry.available_word_count) : 0,
                 launchWordCount: activeEntry ? toInt(activeEntry.launch_word_count) : 0,
                 launchWordCap: activeEntry ? toInt(activeEntry.launch_word_cap) : 0,
+                selectedRoundOption: getSelectedRoundOption(ctx),
                 stageHidden: !!ctx.$stage.prop('hidden'),
                 gameRunning: !!ctx.run,
                 catalogEntries: Object.keys(ctx.catalogEntries || {})
@@ -9391,6 +9718,7 @@
                 coins: run.coins,
                 lives: run.lives,
                 promptsResolved: run.promptsResolved,
+                totalRounds: getRunTotalRounds(run),
                 inactiveRounds: Math.max(0, toInt(run.inactiveRounds)),
                 paused: !!run.paused,
                 pauseReason: String(run.pauseReason || ''),
@@ -9455,7 +9783,7 @@
             const entry = api.__ctx.catalogEntries[requestedSlug]
                 || (requestedSlug === getDefaultCatalogSlug(api.__ctx) ? api.__ctx.catalogEntry : null);
             if (entry && entry.launchable) {
-                startRun(api.__ctx, entry);
+                launchGame(api.__ctx, requestedSlug);
             }
         },
         togglePause: function () {
@@ -9481,10 +9809,12 @@
             }
             const targetCard = findTargetCard(run);
             if (type === 'correct' && targetCard) {
+                markRunActivity(ctx);
                 handleCorrectHit(ctx, targetCard);
                 return true;
             }
             if (type === 'wrong') {
+                markRunActivity(ctx);
                 for (let index = 0; index < run.cards.length; index += 1) {
                     if (!run.cards[index].isTarget && !run.cards[index].exploding && isActivePromptCard(run, run.cards[index])) {
                         handleWrongHit(ctx, run.cards[index]);

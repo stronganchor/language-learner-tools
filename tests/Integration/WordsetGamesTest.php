@@ -747,6 +747,45 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($allowed['data']['games']['space-shooter']['launchable'] ?? false));
     }
 
+    public function test_launch_ajax_returns_full_game_pool_beyond_bootstrap_cap(): void
+    {
+        $fixture = $this->createGamesFixture(10);
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $nonce = wp_create_nonce('ll_user_study');
+        $capFilter = static function (): int {
+            return 5;
+        };
+        add_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $capFilter);
+
+        $_POST = [
+            'nonce' => $nonce,
+            'wordset_id' => (int) $fixture['wordset_id'],
+            'game_slug' => 'space-shooter',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_launch_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('ll_tools_wordset_games_space_shooter_launch_word_cap', $capFilter);
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame((int) $fixture['wordset_id'], (int) ($response['data']['wordset_id'] ?? 0));
+        $this->assertIsArray($response['data']['game'] ?? null);
+        $this->assertSame('space-shooter', (string) ($response['data']['game']['slug'] ?? ''));
+        $this->assertSame(10, (int) ($response['data']['game']['available_word_count'] ?? 0));
+        $this->assertSame(10, (int) ($response['data']['game']['launch_word_cap'] ?? 0));
+        $this->assertSame(10, (int) ($response['data']['game']['launch_word_count'] ?? 0));
+        $this->assertCount(10, (array) ($response['data']['game']['words'] ?? []));
+        $this->assertTrue((bool) ($response['data']['game']['launchable'] ?? false));
+    }
+
     public function test_speaking_practice_catalog_accepts_taxonomy_only_isolation_audio_for_text_prompt_words(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);

@@ -2450,11 +2450,21 @@ function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-sp
 }
 
 function ll_tools_get_wordset_games_frontend_config(): array {
+    $round_options = function_exists('ll_tools_wordset_games_round_options')
+        ? ll_tools_wordset_games_round_options()
+        : [20, 50, 100, 'all'];
+    $default_round_option = function_exists('ll_tools_wordset_games_default_round_option')
+        ? ll_tools_wordset_games_default_round_option()
+        : 50;
+
     return [
         'bootstrapAction' => 'll_wordset_games_bootstrap',
+        'launchAction' => 'll_wordset_games_launch',
         'transcribeAttemptAction' => 'll_wordset_speaking_game_transcribe_attempt',
         'scoreAttemptAction' => 'll_wordset_speaking_game_score_attempt',
         'matchAttemptAction' => 'll_wordset_speaking_game_match_attempt',
+        'roundOptions' => array_values($round_options),
+        'defaultRoundOption' => $default_round_option,
         'minimumWordCount' => function_exists('ll_tools_wordset_games_min_word_count')
             ? ll_tools_wordset_games_min_word_count()
             : 5,
@@ -2592,9 +2602,15 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesControlLeft' => __('Move left', 'll-tools-text-domain'),
         'gamesControlRight' => __('Move right', 'll-tools-text-domain'),
         'gamesControlFire' => __('Fire', 'll-tools-text-domain'),
+        'gamesLengthLabel' => __('Words per game', 'll-tools-text-domain'),
+        'gamesLengthAll' => __('All', 'll-tools-text-domain'),
+        'gamesLengthAllAria' => __('All available words', 'll-tools-text-domain'),
         'gamesGameOver' => __('Run Complete', 'll-tools-text-domain'),
         'gamesSummary' => __('Coins: %1$d · Prompts: %2$d', 'll-tools-text-domain'),
+        'gamesWinTitle' => __('You win', 'll-tools-text-domain'),
+        'gamesWinSummary' => __('Completed: %1$d of %2$d · Coins: %3$d', 'll-tools-text-domain'),
         'gamesReplayRun' => __('Replay', 'll-tools-text-domain'),
+        'gamesNewGame' => __('New game', 'll-tools-text-domain'),
         'gamesBackToCatalog' => __('Back to games', 'll-tools-text-domain'),
         'gamesCloseConfirm' => __('Leave this game? Your current run will be lost.', 'll-tools-text-domain'),
         'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
@@ -6817,6 +6833,12 @@ function ll_tools_render_wordset_games_shell(array $args): string {
     $speaking_notice_message = trim((string) ($speaking_hidden_notice['message'] ?? ''));
     $speaking_notice_url = trim((string) ($speaking_hidden_notice['settings_url'] ?? ''));
     $speaking_notice_label = trim((string) ($speaking_hidden_notice['settings_label'] ?? ''));
+    $round_options = function_exists('ll_tools_wordset_games_round_options')
+        ? ll_tools_wordset_games_round_options()
+        : [20, 50, 100, 'all'];
+    $default_round_option = function_exists('ll_tools_wordset_games_default_round_option')
+        ? ll_tools_wordset_games_default_round_option()
+        : 50;
     if ($speaking_notice_label === '') {
         $speaking_notice_label = __('Open speaking settings', 'll-tools-text-domain');
     }
@@ -6841,6 +6863,41 @@ function ll_tools_render_wordset_games_shell(array $args): string {
         </header>
 
         <section class="ll-wordset-games-page" data-ll-wordset-games-root>
+            <section
+                class="ll-wordset-games-length"
+                data-ll-wordset-game-length-picker
+                aria-label="<?php echo esc_attr__('Words per game', 'll-tools-text-domain'); ?>">
+                <p class="ll-wordset-games-length__label"><?php echo esc_html__('Words per game', 'll-tools-text-domain'); ?></p>
+                <div class="ll-wordset-games-length__options" role="group" aria-label="<?php echo esc_attr__('Words per game', 'll-tools-text-domain'); ?>">
+                    <?php foreach ($round_options as $round_option) : ?>
+                        <?php
+                        $is_all_option = is_string($round_option) && strtolower(trim($round_option)) === 'all';
+                        $option_value = $is_all_option ? 'all' : (string) ((int) $round_option);
+                        $is_selected = (string) $default_round_option === $option_value;
+                        $option_label = $is_all_option
+                            ? __('All', 'll-tools-text-domain')
+                            : (string) ((int) $round_option);
+                        $option_aria_label = $is_all_option
+                            ? __('All available words', 'll-tools-text-domain')
+                            : sprintf(
+                                /* translators: %s: number of words per game */
+                                __('%s words per game', 'll-tools-text-domain'),
+                                (string) ((int) $round_option)
+                            );
+                        ?>
+                        <button
+                            type="button"
+                            class="ll-wordset-games-length__option"
+                            data-ll-wordset-game-length-option
+                            data-word-count="<?php echo esc_attr($option_value); ?>"
+                            aria-pressed="<?php echo $is_selected ? 'true' : 'false'; ?>">
+                            <span class="screen-reader-text"><?php echo esc_html($option_aria_label); ?></span>
+                            <span aria-hidden="true"><?php echo esc_html($option_label); ?></span>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+
             <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
                 <?php foreach ($games_catalog as $game_slug => $game_row) : ?>
                     <?php if (!is_array($game_row)) { continue; } ?>

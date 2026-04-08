@@ -47,6 +47,28 @@ function buildGamesMarkup() {
         <h1 class="ll-wordset-title" id="test-games-title" data-ll-wordset-games-page-title>Games</h1>
       </header>
       <section class="ll-wordset-games-page" data-ll-wordset-games-root>
+        <section class="ll-wordset-games-length" data-ll-wordset-game-length-picker aria-label="Words per game">
+          <p class="ll-wordset-games-length__label">Words per game</p>
+          <div class="ll-wordset-games-length__options" role="group" aria-label="Words per game">
+            <button type="button" class="ll-wordset-games-length__option" data-ll-wordset-game-length-option data-word-count="20" aria-pressed="false">
+              <span class="screen-reader-text">20 words per game</span>
+              <span aria-hidden="true">20</span>
+            </button>
+            <button type="button" class="ll-wordset-games-length__option" data-ll-wordset-game-length-option data-word-count="50" aria-pressed="true">
+              <span class="screen-reader-text">50 words per game</span>
+              <span aria-hidden="true">50</span>
+            </button>
+            <button type="button" class="ll-wordset-games-length__option" data-ll-wordset-game-length-option data-word-count="100" aria-pressed="false">
+              <span class="screen-reader-text">100 words per game</span>
+              <span aria-hidden="true">100</span>
+            </button>
+            <button type="button" class="ll-wordset-games-length__option" data-ll-wordset-game-length-option data-word-count="all" aria-pressed="false">
+              <span class="screen-reader-text">All available words</span>
+              <span aria-hidden="true">All</span>
+            </button>
+          </div>
+        </section>
+
         <div class="ll-wordset-games-catalog" data-ll-wordset-games-catalog>
           ${buildGameCardMarkup('space-shooter', 'Space Shooter', 'Hear the word. Blast the matching picture.')}
           ${buildGameCardMarkup('bubble-pop', 'Bubble Pop', 'Hear the word. Pop the matching bubble.')}
@@ -161,19 +183,31 @@ async function waitForActivePrompt(page, slug) {
   }, slug);
 }
 
-async function closeRunPopup(page) {
-  await page.evaluate(() => {
-    const dismiss = document.querySelector('[data-ll-wordset-game-run-dismiss]');
-    if (dismiss) {
-      dismiss.dispatchEvent(new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window
-      }));
-    }
-  });
+async function closeRunPopup(page, { expectConfirm = true } = {}) {
+  let dialogPromise = null;
+  if (expectConfirm) {
+    dialogPromise = page.waitForEvent('dialog');
+    await page.evaluate(() => {
+      window.history.back();
+    });
+  } else {
+    await page.locator('[data-ll-wordset-game-run-dismiss]').click({ force: true });
+  }
+  if (dialogPromise) {
+    const dialog = await dialogPromise;
+    await dialog.accept();
+  }
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
+}
+
+async function clickOutsideGamePopup(page) {
+  await page.evaluate(() => {
+    const dialog = document.querySelector('[data-ll-wordset-game-run-dialog]');
+    if (dialog) {
+      dialog.click();
+    }
+  });
 }
 
 function buildSvgImage(width, height, color) {
@@ -328,6 +362,43 @@ function buildSpaceShooterWords() {
   ];
 }
 
+function buildLargeSpaceShooterWords(count) {
+  const baseWords = buildSpaceShooterWords();
+  if (count <= baseWords.length) {
+    return baseWords.slice(0, count);
+  }
+
+  const words = baseWords.slice();
+  const palette = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899'];
+  for (let index = baseWords.length; index < count; index += 1) {
+    const wordId = 200 + index;
+    const color = palette[index % palette.length];
+    const categoryId = (index % 2 === 0) ? 11 : 22;
+    const variant = index % 3;
+    const recordingType = variant === 0 ? 'question' : (variant === 1 ? 'isolation' : 'introduction');
+    words.push({
+      id: wordId,
+      title: `Word ${index + 1}`,
+      label: `Word ${index + 1}`,
+      prompt_label: `Word ${index + 1}`,
+      translation: `Word ${index + 1}`,
+      image: buildSvgImage(180 + ((index % 4) * 10), 180, color),
+      audio: '',
+      audio_files: [{ url: `https://example.test/audio/${wordId}-${recordingType}.mp3`, recording_type: recordingType }],
+      practice_recording_types: [recordingType],
+      preferred_speaker_user_id: 0,
+      option_blocked_ids: [],
+      category_id: categoryId,
+      category_ids: [categoryId],
+      category_name: categoryId === 11 ? 'Set A' : 'Set B',
+      category_names: [categoryId === 11 ? 'Set A' : 'Set B'],
+      similar_word_id: ''
+    });
+  }
+
+  return words;
+}
+
 function buildGamesConfig(isLoggedIn, overrides = null) {
   const config = {
     ajaxUrl: '/fake-admin-ajax.php',
@@ -422,6 +493,9 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
     },
     games: {
       bootstrapAction: 'll_wordset_games_bootstrap',
+      launchAction: 'll_wordset_games_launch',
+      roundOptions: [20, 50, 100, 'all'],
+      defaultRoundOption: 50,
       minimumWordCount: 5,
       catalog: {
         'space-shooter': {
@@ -600,9 +674,15 @@ function buildGamesConfig(isLoggedIn, overrides = null) {
       gamesControlLeft: 'Move left',
       gamesControlRight: 'Move right',
       gamesControlFire: 'Fire',
+      gamesLengthLabel: 'Words per game',
+      gamesLengthAll: 'All',
+      gamesLengthAllAria: 'All available words',
       gamesGameOver: 'Run Complete',
       gamesSummary: 'Coins: %1$d · Prompts: %2$d',
+      gamesWinTitle: 'You win',
+      gamesWinSummary: 'Completed: %1$d of %2$d · Coins: %3$d',
       gamesReplayRun: 'Replay',
+      gamesNewGame: 'New game',
       gamesBackToCatalog: 'Back to games',
       gamesCloseConfirm: 'Leave this game? Your current run will be lost.',
       gamesBoardLabelDefault: 'Wordset game board',
@@ -890,45 +970,166 @@ async function mountGamesPage(page, {
       const $ = window.jQuery;
       $.post = function (_url, data) {
         const deferred = $.Deferred();
+        const normalizePositiveInt = (value) => {
+          const parsed = Number.parseInt(value, 10);
+          return parsed > 0 ? parsed : 0;
+        };
+        const getWordCategoryKey = (word) => {
+          const categoryIds = Array.isArray(word && word.category_ids) ? word.category_ids : [];
+          const primaryCategoryId = normalizePositiveInt(word && word.category_id) || normalizePositiveInt(categoryIds[0]);
+          return primaryCategoryId > 0 ? String(primaryCategoryId) : 'default';
+        };
+        const limitLaunchWords = (words, wordCap) => {
+          const list = Array.isArray(words) ? words.slice() : [];
+          const cap = Math.max(1, normalizePositiveInt(wordCap) || list.length || 1);
+          if (list.length <= cap) {
+            return list;
+          }
+
+          const groups = {};
+          const groupOrder = [];
+          list.forEach((word) => {
+            const key = getWordCategoryKey(word);
+            if (!groups[key]) {
+              groups[key] = [];
+              groupOrder.push(key);
+            }
+            groups[key].push(word);
+          });
+
+          const selected = [];
+          const selectedIds = {};
+          while (selected.length < cap) {
+            let added = false;
+            groupOrder.forEach((key) => {
+              if (selected.length >= cap || !groups[key] || !groups[key].length) {
+                return;
+              }
+
+              const word = groups[key].shift();
+              const wordId = normalizePositiveInt(word && word.id);
+              if (wordId && selectedIds[wordId]) {
+                return;
+              }
+
+              selected.push(word);
+              if (wordId) {
+                selectedIds[wordId] = true;
+              }
+              added = true;
+            });
+
+            if (!added) {
+              break;
+            }
+          }
+
+          if (selected.length >= cap) {
+            return selected.slice(0, cap);
+          }
+
+          list.forEach((word) => {
+            if (selected.length >= cap) {
+              return;
+            }
+
+            const wordId = normalizePositiveInt(word && word.id);
+            if (wordId && selectedIds[wordId]) {
+              return;
+            }
+
+            selected.push(word);
+            if (wordId) {
+              selectedIds[wordId] = true;
+            }
+          });
+
+          return selected.slice(0, cap);
+        };
+        const buildResponseEntry = (slug, title, description, maxLoadedWords, words) => {
+          const launchWords = limitLaunchWords(words, maxLoadedWords);
+          return {
+            slug,
+            title,
+            description,
+            minimum_word_count: 5,
+            available_word_count: words.length,
+            launch_word_cap: maxLoadedWords,
+            launch_word_count: launchWords.length,
+            launchable: true,
+            category_ids: [11, 22],
+            words: launchWords
+          };
+        };
+        const buildLaunchEntry = (slug, title, description, words) => ({
+          slug,
+          title,
+          description,
+          minimum_word_count: 5,
+          available_word_count: words.length,
+          launch_word_cap: words.length,
+          launch_word_count: words.length,
+          launchable: true,
+          category_ids: [11, 22],
+          words: words
+        });
+
         if (data && data.action === 'll_wordset_games_bootstrap') {
+          const shooterCap = Number((((window.llWordsetPageData || {}).games || {}).spaceShooter || {}).maxLoadedWords || 6);
+          const bubbleCap = Number((((window.llWordsetPageData || {}).games || {}).bubblePop || {}).maxLoadedWords || 6);
           deferred.resolve({
             success: true,
             data: {
               wordset_id: 77,
               games: {
-                'space-shooter': {
-                  slug: 'space-shooter',
-                  title: 'Space Shooter',
-                  description: 'Hear the word. Blast the matching picture.',
-                  minimum_word_count: 5,
-                  available_word_count: window.__gameBootstrapWords.length,
-                  launch_word_cap: Number((((window.llWordsetPageData || {}).games || {}).spaceShooter || {}).maxLoadedWords || 6),
-                  launch_word_count: Math.min(
-                    window.__gameBootstrapWords.length,
-                    Number((((window.llWordsetPageData || {}).games || {}).spaceShooter || {}).maxLoadedWords || 6)
-                  ),
-                  launchable: true,
-                  category_ids: [11, 22],
-                  words: window.__gameBootstrapWords
-                },
-                'bubble-pop': {
-                  slug: 'bubble-pop',
-                  title: 'Bubble Pop',
-                  description: 'Hear the word. Pop the matching bubble.',
-                  minimum_word_count: 5,
-                  available_word_count: window.__gameBootstrapWords.length,
-                  launch_word_cap: Number((((window.llWordsetPageData || {}).games || {}).bubblePop || {}).maxLoadedWords || 6),
-                  launch_word_count: Math.min(
-                    window.__gameBootstrapWords.length,
-                    Number((((window.llWordsetPageData || {}).games || {}).bubblePop || {}).maxLoadedWords || 6)
-                  ),
-                  launchable: true,
-                  category_ids: [11, 22],
-                  words: window.__gameBootstrapWords
-                }
+                'space-shooter': buildResponseEntry(
+                  'space-shooter',
+                  'Space Shooter',
+                  'Hear the word. Blast the matching picture.',
+                  shooterCap,
+                  window.__gameBootstrapWords
+                ),
+                'bubble-pop': buildResponseEntry(
+                  'bubble-pop',
+                  'Bubble Pop',
+                  'Hear the word. Pop the matching bubble.',
+                  bubbleCap,
+                  window.__gameBootstrapWords
+                )
               }
             }
           });
+        } else if (data && data.action === 'll_wordset_games_launch') {
+          const slug = String(data.game_slug || '');
+          if (slug === 'space-shooter') {
+            deferred.resolve({
+              success: true,
+              data: {
+                wordset_id: 77,
+                game: buildLaunchEntry(
+                  'space-shooter',
+                  'Space Shooter',
+                  'Hear the word. Blast the matching picture.',
+                  window.__gameBootstrapWords
+                )
+              }
+            });
+          } else if (slug === 'bubble-pop') {
+            deferred.resolve({
+              success: true,
+              data: {
+                wordset_id: 77,
+                game: buildLaunchEntry(
+                  'bubble-pop',
+                  'Bubble Pop',
+                  'Hear the word. Pop the matching bubble.',
+                  window.__gameBootstrapWords
+                )
+              }
+            });
+          } else {
+            deferred.reject(new Error('Unexpected launch slug'));
+          }
         } else {
           deferred.reject(new Error('Unexpected ajax call'));
         }
@@ -949,6 +1150,33 @@ async function mountGamesPage(page, {
   await page.addScriptTag({ content: optionConflictsSource });
   await page.addScriptTag({ content: wordsetGamesSource });
   await page.addScriptTag({ content: wordsetPagesSource });
+}
+
+async function resolveCorrectRounds(page, slug, totalRounds) {
+  for (let roundIndex = 0; roundIndex < totalRounds; roundIndex += 1) {
+    const beforeState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+    expect(beforeState).toBeTruthy();
+
+    await page.evaluate(() => {
+      window.LLWordsetGames.__debug.resolvePrompt('correct');
+    });
+
+    if (roundIndex === totalRounds - 1) {
+      break;
+    }
+
+    await page.waitForFunction(({ expectedSlug, previousPromptId }) => {
+      const run = window.LLWordsetGames.__debug.getRunState();
+      return !!(run
+        && run.slug === expectedSlug
+        && run.promptId !== previousPromptId
+        && run.targetWordId
+        && !run.awaitingPrompt);
+    }, {
+      expectedSlug: slug,
+      previousPromptId: beforeState.promptId
+    });
+  }
 }
 
 test('games page keeps launch disabled when logged out', async ({ page }) => {
@@ -1068,6 +1296,74 @@ test('play opens a fullscreen game popup without page chrome', async ({ page }) 
   await closeRunPopup(page);
 });
 
+test('space shooter keeps touch controls visible on short mobile viewports', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 520 });
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  const controlsRect = await page.evaluate(() => {
+    const controls = document.querySelector('[data-ll-wordset-game-controls]');
+    const stage = document.querySelector('[data-ll-wordset-game-stage]');
+    if (!controls || !stage) {
+      return null;
+    }
+
+    const controlsRect = controls.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    return {
+      controlsTop: Math.round(controlsRect.top),
+      controlsBottom: Math.round(controlsRect.bottom),
+      controlsHeight: Math.round(controlsRect.height),
+      stageBottom: Math.round(stageRect.bottom),
+      viewportHeight: window.innerHeight || 0,
+      hidden: controls.hasAttribute('hidden')
+    };
+  });
+
+  expect(controlsRect).toBeTruthy();
+  expect(controlsRect.hidden).toBe(false);
+  expect(controlsRect.controlsHeight).toBeGreaterThan(40);
+  expect(controlsRect.controlsBottom).toBeLessThanOrEqual(controlsRect.viewportHeight);
+  expect(controlsRect.controlsBottom).toBeLessThanOrEqual(controlsRect.stageBottom + 1);
+
+  await closeRunPopup(page);
+});
+
+test('game length selector defaults to 50 and a selected run ends in a win overlay', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildLargeSpaceShooterWords(60),
+    audioLoadDelayMs: 15,
+    promptAudioDurationSeconds: 0.2,
+    spaceShooterOverrides: {
+      introRampStartFactor: 1
+    }
+  });
+
+  await expect(page.locator('[data-ll-wordset-game-length-option][data-word-count="50"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('[data-ll-wordset-game-length-option][data-word-count="20"]').click();
+  await expect(page.locator('[data-ll-wordset-game-length-option][data-word-count="20"]')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  const initialRunState = await page.evaluate(() => window.LLWordsetGames.__debug.getRunState());
+  expect(initialRunState.totalRounds).toBe(20);
+
+  await resolveCorrectRounds(page, 'space-shooter', 20);
+
+  await expect(page.locator('[data-ll-wordset-game-overlay]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-game-overlay-title]')).toHaveText('You win');
+  await expect(page.locator('[data-ll-wordset-game-replay]')).toHaveText('New game');
+  await expect(page.locator('[data-ll-wordset-game-return]')).toHaveText('Back to games');
+});
+
 test('game popup blocks pinch-style zoom and confirms before backspace or browser-back close', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mountGamesPage(page, { isLoggedIn: true });
@@ -1144,6 +1440,25 @@ test('game popup blocks pinch-style zoom and confirms before backspace or browse
   await expect(page.locator('[data-ll-wordset-game-stage]')).toBeHidden({ timeout: 30000 });
   await expect(page.locator('body')).not.toHaveClass(/ll-wordset-game-run-modal-open/);
   await expect(page.locator('body')).not.toHaveClass(/ll-tools-wordset-game-guard-active/);
+});
+
+test('backdrop dismiss asks for confirmation before returning to the games catalog', async ({ page }) => {
+  await mountGamesPage(page, { isLoggedIn: true });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+  await waitForActivePrompt(page, 'bubble-pop');
+
+  const dialogPromise = page.waitForEvent('dialog');
+  const dismissPromise = clickOutsideGamePopup(page);
+  const dialog = await dialogPromise;
+  expect(dialog.message()).toContain('Leave this game?');
+  await dialog.accept();
+  await dismissPromise;
+
+  await expect(page.locator('[data-ll-wordset-game-run-modal]')).toBeHidden();
+  await expect(page.locator('[data-ll-wordset-games-catalog]')).toBeVisible();
 });
 
 test('space shooter auto-replays the prompt once after a short pause', async ({ page }) => {
