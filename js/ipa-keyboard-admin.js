@@ -2804,9 +2804,6 @@
                 setSearchRowSaveState($newRow, 'saved', t('searchReviewed', 'Reviewed.'));
             }
             setStatus(t('searchReviewed', 'Reviewed.'), false);
-            if (getSearchState().reviewOnly || getSearchState().query.toString().trim()) {
-                reloadCurrentSearchPage();
-            }
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
