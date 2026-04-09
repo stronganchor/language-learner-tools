@@ -399,6 +399,14 @@ function buildLargeSpaceShooterWords(count) {
   return words;
 }
 
+function buildSpeakingStackWords(count = 6) {
+  return buildLargeSpaceShooterWords(Math.max(5, count)).map((word) => ({
+    ...word,
+    speaking_target_text: String(word.title || word.label || ''),
+    speaking_best_correct_audio_url: `https://example.test/audio/speaking-${word.id}.mp3`
+  }));
+}
+
 function buildGamesConfig(isLoggedIn, overrides = null) {
   const config = {
     ajaxUrl: '/fake-admin-ajax.php',
@@ -1061,7 +1069,7 @@ async function mountGamesPage(page, {
             words: launchWords
           };
         };
-        const buildLaunchEntry = (slug, title, description, words) => ({
+        const buildLaunchEntry = (slug, title, description, words, extra = {}) => Object.assign({
           slug,
           title,
           description,
@@ -1072,31 +1080,68 @@ async function mountGamesPage(page, {
           launchable: true,
           category_ids: [11, 22],
           words: words
-        });
+        }, extra);
+        const getGamesConfig = () => ((window.llWordsetPageData || {}).games || {});
+        const getCatalogEntry = (slug) => {
+          const catalog = getGamesConfig().catalog || {};
+          return (catalog && typeof catalog === 'object') ? (catalog[slug] || null) : null;
+        };
+        const getGameSettings = (slug) => {
+          const gamesConfig = getGamesConfig();
+          if (slug === 'space-shooter') {
+            return gamesConfig.spaceShooter || {};
+          }
+          if (slug === 'bubble-pop') {
+            return gamesConfig.bubblePop || {};
+          }
+          if (slug === 'speaking-stack') {
+            return gamesConfig.speakingStack || {};
+          }
+          return {};
+        };
 
         if (data && data.action === 'll_wordset_games_bootstrap') {
-          const shooterCap = Number((((window.llWordsetPageData || {}).games || {}).spaceShooter || {}).maxLoadedWords || 6);
-          const bubbleCap = Number((((window.llWordsetPageData || {}).games || {}).bubblePop || {}).maxLoadedWords || 6);
+          const responseGames = {};
+          const shooterCatalog = getCatalogEntry('space-shooter');
+          const bubbleCatalog = getCatalogEntry('bubble-pop');
+          const speakingStackCatalog = getCatalogEntry('speaking-stack');
+          const shooterSettings = getGameSettings('space-shooter');
+          const bubbleSettings = getGameSettings('bubble-pop');
+          const speakingStackSettings = getGameSettings('speaking-stack');
+
+          if (shooterCatalog) {
+            responseGames['space-shooter'] = buildResponseEntry(
+              'space-shooter',
+              shooterCatalog.title || 'Space Shooter',
+              shooterCatalog.description || 'Hear the word. Blast the matching picture.',
+              Number(shooterSettings.maxLoadedWords || 6),
+              window.__gameBootstrapWords
+            );
+          }
+          if (bubbleCatalog) {
+            responseGames['bubble-pop'] = buildResponseEntry(
+              'bubble-pop',
+              bubbleCatalog.title || 'Bubble Pop',
+              bubbleCatalog.description || 'Hear the word. Pop the matching bubble.',
+              Number(bubbleSettings.maxLoadedWords || 6),
+              window.__gameBootstrapWords
+            );
+          }
+          if (speakingStackCatalog) {
+            responseGames['speaking-stack'] = buildResponseEntry(
+              'speaking-stack',
+              speakingStackCatalog.title || 'Word Stack',
+              speakingStackCatalog.description || 'Say the word before the stack gets too high.',
+              Number(speakingStackSettings.maxLoadedWords || window.__gameBootstrapWords.length || 6),
+              window.__gameBootstrapWords
+            );
+          }
+
           deferred.resolve({
             success: true,
             data: {
               wordset_id: 77,
-              games: {
-                'space-shooter': buildResponseEntry(
-                  'space-shooter',
-                  'Space Shooter',
-                  'Hear the word. Blast the matching picture.',
-                  shooterCap,
-                  window.__gameBootstrapWords
-                ),
-                'bubble-pop': buildResponseEntry(
-                  'bubble-pop',
-                  'Bubble Pop',
-                  'Hear the word. Pop the matching bubble.',
-                  bubbleCap,
-                  window.__gameBootstrapWords
-                )
-              }
+              games: responseGames
             }
           });
         } else if (data && data.action === 'll_wordset_games_launch') {
@@ -1124,6 +1169,25 @@ async function mountGamesPage(page, {
                   'Bubble Pop',
                   'Hear the word. Pop the matching bubble.',
                   window.__gameBootstrapWords
+                )
+              }
+            });
+          } else if (slug === 'speaking-stack') {
+            const catalogEntry = getCatalogEntry('speaking-stack') || {};
+            const gameSettings = getGameSettings('speaking-stack');
+            deferred.resolve({
+              success: true,
+              data: {
+                wordset_id: 77,
+                game: buildLaunchEntry(
+                  'speaking-stack',
+                  catalogEntry.title || 'Word Stack',
+                  catalogEntry.description || 'Say the word before the stack gets too high.',
+                  window.__gameBootstrapWords,
+                  {
+                    provider: String(gameSettings.provider || 'audio_matcher'),
+                    target_field: String(gameSettings.targetField || 'title')
+                  }
                 )
               }
             });
@@ -1212,6 +1276,95 @@ test('games page shows a manager-only notice when speaking games stay hidden', a
     'Speaking games are hidden because speaking practice is turned off for this word set.'
   );
   await expect(page.locator('[data-ll-wordset-games-speaking-notice-link]')).toHaveAttribute('href', settingsUrl);
+});
+
+test('word stack fills empty columns before stacking and keeps images from overlapping across columns', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(6),
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-stack': {
+            slug: 'speaking-stack',
+            title: 'Word Stack',
+            description: 'Say the word before the stack gets too high.'
+          }
+        },
+        speakingStack: {
+          slug: 'speaking-stack',
+          provider: 'audio_matcher',
+          targetField: 'title',
+          cardCount: 3,
+          initialSpawnCount: 4,
+          maxLoadedWords: 6,
+          fallSpeed: 2600,
+          spawnGapMs: 20000,
+          initialSpawnDelayMs: 20000
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'speaking-stack')).toBeEnabled();
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('speaking-stack');
+  });
+
+  await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    if (!run || run.slug !== 'speaking-stack') {
+      return false;
+    }
+
+    const activeCards = (run.cardSnapshot || []).filter((card) => !card.exploding && !card.removedFromStack);
+    return activeCards.length === 4
+      && activeCards.every((card) => Math.abs(Number(card.y || 0) - Number(card.stackTargetY || 0)) <= 2);
+  });
+
+  const stackState = await page.evaluate(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    return {
+      slug: run ? run.slug : '',
+      activeCards: (run && Array.isArray(run.cardSnapshot))
+        ? run.cardSnapshot.filter((card) => !card.exploding && !card.removedFromStack)
+        : []
+    };
+  });
+
+  expect(stackState.slug).toBe('speaking-stack');
+  expect(stackState.activeCards).toHaveLength(4);
+
+  const slotGroups = new Map();
+  stackState.activeCards.forEach((card) => {
+    expect(card.stackSlotIndex).toBeGreaterThanOrEqual(0);
+    if (!slotGroups.has(card.stackSlotIndex)) {
+      slotGroups.set(card.stackSlotIndex, []);
+    }
+    slotGroups.get(card.stackSlotIndex).push(card);
+  });
+
+  expect(slotGroups.size).toBe(3);
+  expect([...slotGroups.values()].map((cards) => cards.length).sort((left, right) => left - right)).toEqual([1, 1, 2]);
+
+  for (let index = 0; index < stackState.activeCards.length; index += 1) {
+    const left = stackState.activeCards[index];
+    for (let compareIndex = index + 1; compareIndex < stackState.activeCards.length; compareIndex += 1) {
+      const right = stackState.activeCards[compareIndex];
+      if (left.stackSlotIndex === right.stackSlotIndex) {
+        const verticalGap = Math.abs(left.stackTargetY - right.stackTargetY) - ((left.height + right.height) / 2);
+        expect(verticalGap).toBeGreaterThanOrEqual(8);
+        expect(Math.abs(left.stackTargetX - right.stackTargetX)).toBeLessThanOrEqual(1);
+        continue;
+      }
+
+      const horizontalGap = Math.abs(left.stackTargetX - right.stackTargetX) - ((left.width + right.width) / 2);
+      expect(horizontalGap).toBeGreaterThanOrEqual(2);
+    }
+  }
+
+  await closeRunPopup(page);
 });
 
 test('games catalog keeps cards compact on wide screens and uses distinct launch themes for each game', async ({ page }) => {

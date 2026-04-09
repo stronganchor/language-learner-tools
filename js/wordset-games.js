@@ -2728,41 +2728,147 @@
         return Number(card && card.y) || 0;
     }
 
-    function getSpeakingStackHorizontalOverlapPx(card, targetX, supportCard) {
-        const cardWidth = Math.max(1, Number(card && card.width) || 1);
-        const supportWidth = Math.max(1, Number(supportCard && supportCard.width) || 1);
-        const supportX = isFinite(Number(supportCard && supportCard.stackTargetX))
-            ? Number(supportCard.stackTargetX)
-            : (Number(supportCard && supportCard.x) || 0);
-
-        const left = Math.max(targetX - (cardWidth / 2), supportX - (supportWidth / 2));
-        const right = Math.min(targetX + (cardWidth / 2), supportX + (supportWidth / 2));
-        return Math.max(0, right - left);
+    function getSpeakingStackCardSortValue(card) {
+        return getSpeakingStackReferenceY(card);
     }
 
-    function isSpeakingStackSupportingCard(card, targetX, supportCard) {
-        const minimumSupportPx = (Math.max(1, Number(card && card.width) || 1) * 0.5) + 0.5;
-        return getSpeakingStackHorizontalOverlapPx(card, targetX, supportCard) >= minimumSupportPx;
+    function getSpeakingStackIndex(value) {
+        const parsed = parseInt(value, 10);
+        return parsed >= 0 ? parsed : -1;
     }
 
-    function getSpeakingStackPlacementY(ctx, run, card, targetX, placedCards) {
+    function sortSpeakingStackCardsBottomFirst(left, right) {
+        const rightY = getSpeakingStackCardSortValue(right);
+        const leftY = getSpeakingStackCardSortValue(left);
+        if (Math.abs(rightY - leftY) > 0.5) {
+            return rightY - leftY;
+        }
+        return toInt(left && left.promptId) - toInt(right && right.promptId);
+    }
+
+    function getSpeakingStackSlotSpacing(run, cardWidth) {
+        const width = Math.max(1, Number(cardWidth) || Number(run && run.metrics && run.metrics.cardWidth) || 96);
+        return width + Math.max(14, Math.round(width * 0.12));
+    }
+
+    function getSpeakingStackSlotLayout(run) {
+        const baseCardWidth = Math.max(1, Number(run && run.metrics && run.metrics.cardWidth) || 96);
+        const bounds = getSpeakingStackHorizontalBounds(run, baseCardWidth);
+        const preferredSlotCount = Math.max(2, toInt(run && run.cardCount) || 4);
+        const slotSpacing = getSpeakingStackSlotSpacing(run, baseCardWidth);
+        const usableWidth = Math.max(0, bounds.maxX - bounds.minX);
+        const maxSlotCount = usableWidth > 0
+            ? Math.max(1, Math.floor(usableWidth / Math.max(1, slotSpacing)) + 1)
+            : 1;
+        const slotCount = Math.max(1, Math.min(preferredSlotCount, maxSlotCount));
+        const slotCenters = [];
+
+        if (slotCount === 1) {
+            slotCenters.push((bounds.minX + bounds.maxX) / 2);
+        } else {
+            const step = usableWidth / Math.max(1, slotCount - 1);
+            for (let index = 0; index < slotCount; index += 1) {
+                slotCenters.push(bounds.minX + (step * index));
+            }
+        }
+
+        return {
+            bounds: bounds,
+            slotCount: slotCount,
+            slotCenters: slotCenters,
+            slotSpacing: slotCount > 1 ? (usableWidth / Math.max(1, slotCount - 1)) : usableWidth,
+            centerIndex: (slotCount - 1) / 2
+        };
+    }
+
+    function getSpeakingStackSlotIndexForX(layout, x) {
+        const centers = Array.isArray(layout && layout.slotCenters) ? layout.slotCenters : [];
+        if (!centers.length) {
+            return 0;
+        }
+
+        const targetX = Number(x);
+        if (!isFinite(targetX)) {
+            return Math.max(0, Math.min(centers.length - 1, Math.round(Number(layout && layout.centerIndex) || 0)));
+        }
+
+        let bestIndex = 0;
+        let bestDistance = Math.abs(targetX - Number(centers[0] || 0));
+        for (let index = 1; index < centers.length; index += 1) {
+            const nextDistance = Math.abs(targetX - Number(centers[index] || 0));
+            if (nextDistance < bestDistance) {
+                bestDistance = nextDistance;
+                bestIndex = index;
+            }
+        }
+        return bestIndex;
+    }
+
+    function getSpeakingStackResolvedSlotIndex(run, card, layout) {
+        const explicitIndex = getSpeakingStackIndex(card && card.stackSlotIndex);
+        if (explicitIndex >= 0 && explicitIndex < Math.max(1, Number(layout && layout.slotCount) || 0)) {
+            return explicitIndex;
+        }
+
+        const referenceX = isFinite(Number(card && card.stackTargetX))
+            ? Number(card.stackTargetX)
+            : (isFinite(Number(card && card.lastSettledX))
+                ? Number(card.lastSettledX)
+                : Number(card && card.x));
+
+        return getSpeakingStackSlotIndexForX(layout, referenceX);
+    }
+
+    function createSpeakingStackSlotStates(ctx, run, layout) {
+        const groundTop = getSpeakingStackGroundTop(ctx, run);
+        const slotCenters = Array.isArray(layout && layout.slotCenters) ? layout.slotCenters : [];
+
+        return slotCenters.map(function (centerX, index) {
+            return {
+                index: index,
+                x: Number(centerX) || 0,
+                cardCount: 0,
+                nextSurfaceY: groundTop,
+                stackHeight: 0
+            };
+        });
+    }
+
+    function occupySpeakingStackSlot(ctx, run, slotState, card) {
         const gameConfig = getGameConfig(ctx, run) || {};
         const gap = Math.max(0, toInt(gameConfig.stackGapPx) || 12);
+        const groundTop = getSpeakingStackGroundTop(ctx, run);
         const cardHeight = Math.max(1, Number(card && card.height) || 1);
-        let settledY = getSpeakingStackGroundTop(ctx, run) - (cardHeight / 2);
-        const supports = Array.isArray(placedCards) ? placedCards : [];
+        const targetY = (Number(slotState && slotState.nextSurfaceY) || groundTop) - (cardHeight / 2);
 
-        supports.forEach(function (existingCard) {
-            if (!existingCard || !isSpeakingStackSupportingCard(card, targetX, existingCard)) {
+        slotState.cardCount += 1;
+        slotState.nextSurfaceY = targetY - (cardHeight / 2) - gap;
+        slotState.stackHeight = Math.max(0, groundTop - slotState.nextSurfaceY);
+
+        return targetY;
+    }
+
+    function buildSpeakingStackSlotStates(ctx, run, cards, layout) {
+        const slotLayout = layout || getSpeakingStackSlotLayout(run);
+        const slotStates = createSpeakingStackSlotStates(ctx, run, slotLayout);
+        const orderedCards = (Array.isArray(cards) ? cards : []).slice().sort(sortSpeakingStackCardsBottomFirst);
+
+        orderedCards.forEach(function (card) {
+            if (!card) {
                 return;
             }
 
-            const supportY = getSpeakingStackReferenceY(existingCard);
-            const requiredGap = (Math.max(1, Number(existingCard.height) || 1) / 2) + (cardHeight / 2) + gap;
-            settledY = Math.min(settledY, supportY - requiredGap);
+            const slotIndex = getSpeakingStackResolvedSlotIndex(run, card, slotLayout);
+            const slotState = slotStates[slotIndex] || slotStates[0];
+            if (!slotState) {
+                return;
+            }
+
+            card.stackSlotIndex = slotIndex;
+            occupySpeakingStackSlot(ctx, run, slotState, card);
         });
 
-        return settledY;
+        return slotStates;
     }
 
     function relayoutSpeakingStackCards(ctx, run, options) {
@@ -2771,101 +2877,104 @@
         }
 
         const opts = (options && typeof options === 'object') ? options : {};
-        const activeCards = getSpeakingStackActiveCards(run).slice().sort(function (left, right) {
-            const rightY = getSpeakingStackReferenceY(right);
-            const leftY = getSpeakingStackReferenceY(left);
-            if (Math.abs(rightY - leftY) > 0.5) {
-                return rightY - leftY;
-            }
-            return toInt(left && left.promptId) - toInt(right && right.promptId);
-        });
-        const settledCards = [];
+        const layout = getSpeakingStackSlotLayout(run);
+        const slotStates = createSpeakingStackSlotStates(ctx, run, layout);
+        const activeCards = getSpeakingStackActiveCards(run).slice().sort(sortSpeakingStackCardsBottomFirst);
 
         activeCards.forEach(function (card) {
             if (!card) {
                 return;
             }
 
-            const bounds = getSpeakingStackHorizontalBounds(run, Number(card.width) || 0);
-            const targetX = clamp(
-                isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : (Number(card.x) || 0),
-                bounds.minX,
-                bounds.maxX
-            );
-            const nextTargetY = getSpeakingStackPlacementY(ctx, run, card, targetX, settledCards);
+            const slotIndex = getSpeakingStackResolvedSlotIndex(run, card, layout);
+            const slotState = slotStates[slotIndex] || slotStates[0];
+            if (!slotState) {
+                return;
+            }
+
+            const targetX = Number(slotState.x) || 0;
+            const previousTargetX = isFinite(Number(card.stackTargetX))
+                ? Number(card.stackTargetX)
+                : (Number(card.x) || targetX);
             const previousTargetY = isFinite(Number(card.stackTargetY))
                 ? Number(card.stackTargetY)
                 : getSpeakingStackReferenceY(card);
+            const nextTargetY = occupySpeakingStackSlot(ctx, run, slotState, card);
 
+            card.stackSlotIndex = slotIndex;
             card.stackTargetX = targetX;
             card.stackTargetY = nextTargetY;
+            if (!isFinite(Number(card.stackRotation))) {
+                card.stackRotation = 0;
+            }
 
             if (opts.instant) {
                 card.x = targetX;
                 card.y = nextTargetY;
                 card.lastSettledX = targetX;
                 card.lastSettledY = nextTargetY;
-            } else if (Math.abs(nextTargetY - previousTargetY) > 0.5) {
-                card.entryStartX = Number(card.x) || targetX;
+            } else if (
+                Math.abs(targetX - previousTargetX) > 0.5
+                || Math.abs(nextTargetY - previousTargetY) > 0.5
+            ) {
+                card.entryStartX = Number(card.x) || previousTargetX;
                 card.entryStartY = Number(card.y) || previousTargetY;
             }
-
-            settledCards.push(card);
         });
     }
 
     function chooseSpeakingStackPlacement(ctx, run, card) {
-        const placedCards = getSpeakingStackPlacedCards(run);
-        const bounds = getSpeakingStackHorizontalBounds(run, Number(card && card.width) || 0);
-        const groundTop = getSpeakingStackGroundTop(ctx, run);
-        const previousPlacementX = Number(run && run.lastPlacementX);
-        const anchorX = (isFinite(previousPlacementX) && previousPlacementX > 0)
-            ? clamp(previousPlacementX, bounds.minX, bounds.maxX)
-            : ((bounds.minX + bounds.maxX) / 2);
-        const candidateXs = [];
+        const layout = getSpeakingStackSlotLayout(run);
+        const slotStates = buildSpeakingStackSlotStates(ctx, run, getSpeakingStackPlacedCards(run), layout);
+        const previousSlotIndex = getSpeakingStackIndex(run && run.lastPlacementSlotIndex);
+        const preferredSlotIndex = previousSlotIndex >= 0 && previousSlotIndex < Math.max(1, Number(layout && layout.slotCount) || 0)
+            ? previousSlotIndex
+            : Math.max(0, Math.min(Math.max(0, (Number(layout && layout.slotCount) || 1) - 1), Math.round(Number(layout && layout.centerIndex) || 0)));
+        const emptySlots = slotStates.filter(function (slotState) {
+            return (Number(slotState && slotState.cardCount) || 0) === 0;
+        });
+        const candidateSlots = emptySlots.length ? emptySlots : slotStates.slice();
 
-        for (let index = 0; index < 8; index += 1) {
-            candidateXs.push(clamp(
-                anchorX + randomBetween(-(Number(card.width) || 96) * 1.8, (Number(card.width) || 96) * 1.8),
-                bounds.minX,
-                bounds.maxX
-            ));
-        }
-        for (let index = 0; index < 6; index += 1) {
-            candidateXs.push(randomBetween(bounds.minX, bounds.maxX));
-        }
-        candidateXs.push(anchorX, (bounds.minX + bounds.maxX) / 2);
-
-        let best = null;
-        candidateXs.forEach(function (candidateX) {
-            const candidateY = getSpeakingStackPlacementY(ctx, run, card, candidateX, placedCards);
-            const edgeRatio = clamp(Math.abs(candidateX - (run.width / 2)) / Math.max(1, run.width / 2), 0, 1);
-            const heightPenalty = Math.max(0, groundTop - candidateY);
-            const repeatPenalty = Math.abs(candidateX - anchorX) < Math.max(20, (Number(card.width) || 96) * 0.3) ? 18 : 0;
-            const variationBonus = Math.min((Number(card.width) || 96) * 0.72, Math.abs(candidateX - anchorX));
-            const score = heightPenalty + (edgeRatio * 22) + repeatPenalty - (variationBonus * 0.12) + randomBetween(0, 14);
-
-            if (!best || score < best.score) {
-                best = {
-                    x: candidateX,
-                    y: candidateY,
-                    score: score
-                };
+        candidateSlots.sort(function (left, right) {
+            if (!emptySlots.length && Math.abs(Number(left && left.stackHeight) - Number(right && right.stackHeight)) > 0.5) {
+                return Number(left && left.stackHeight) - Number(right && right.stackHeight);
             }
+            if (!emptySlots.length && (Number(left && left.cardCount) || 0) !== (Number(right && right.cardCount) || 0)) {
+                return (Number(left && left.cardCount) || 0) - (Number(right && right.cardCount) || 0);
+            }
+
+            const leftPreferredDistance = Math.abs(getSpeakingStackIndex(left && left.index) - preferredSlotIndex);
+            const rightPreferredDistance = Math.abs(getSpeakingStackIndex(right && right.index) - preferredSlotIndex);
+            if (leftPreferredDistance !== rightPreferredDistance) {
+                return leftPreferredDistance - rightPreferredDistance;
+            }
+
+            const leftCenterDistance = Math.abs(Number(left && left.index) - Number(layout && layout.centerIndex));
+            const rightCenterDistance = Math.abs(Number(right && right.index) - Number(layout && layout.centerIndex));
+            if (Math.abs(leftCenterDistance - rightCenterDistance) > 0.01) {
+                return leftCenterDistance - rightCenterDistance;
+            }
+
+            return getSpeakingStackIndex(left && left.index) - getSpeakingStackIndex(right && right.index);
         });
 
+        const best = candidateSlots[0] || slotStates[0];
         if (!best) {
+            const fallbackX = Number(run && run.width) / 2;
+            const fallbackY = getSpeakingStackGroundTop(ctx, run) - ((Number(card && card.height) || 0) / 2);
             return {
-                x: (bounds.minX + bounds.maxX) / 2,
-                y: groundTop - ((Number(card.height) || 0) / 2),
+                slotIndex: 0,
+                x: fallbackX,
+                y: fallbackY,
                 rotation: 0
             };
         }
 
         return {
-            x: best.x,
-            y: best.y,
-            rotation: randomBetween(-0.06, 0.06)
+            slotIndex: getSpeakingStackIndex(best.index),
+            x: Number(best.x) || 0,
+            y: occupySpeakingStackSlot(ctx, run, $.extend({}, best), card),
+            rotation: randomBetween(-0.018, 0.018)
         };
     }
 
@@ -2955,14 +3064,20 @@
         const card = createCard(run, nextWord, 0, true, 0, 0);
         const fallSpeed = Math.max(80, toInt((getGameConfig(ctx, run) || {}).fallSpeed) || 176);
         const placement = chooseSpeakingStackPlacement(ctx, run, card);
-        const bounds = getSpeakingStackHorizontalBounds(run, Number(card && card.width) || 0);
+        const layout = getSpeakingStackSlotLayout(run);
+        const bounds = layout.bounds;
+        const maxEntryDrift = Math.min(
+            Math.max(10, (Number(layout && layout.slotSpacing) || Number(card && card.width) || 96) * 0.18),
+            Math.max(14, (Number(card && card.width) || 96) * 0.26)
+        );
         const startX = clamp(
-            placement.x + randomBetween(-(Number(card.width) || 96) * 1.15, (Number(card.width) || 96) * 1.15),
+            placement.x + randomBetween(-maxEntryDrift, maxEntryDrift),
             bounds.minX,
             bounds.maxX
         );
         const startY = -Math.max(card.height, run.metrics && run.metrics.cardHeight ? run.metrics.cardHeight : card.height);
         card.promptId = toInt(run.spawnedWordCount) + 1;
+        card.stackSlotIndex = getSpeakingStackIndex(placement.slotIndex);
         card.stackTargetX = placement.x;
         card.stackTargetY = placement.y;
         card.stackRotation = placement.rotation;
@@ -2979,6 +3094,7 @@
         run.spawnedWordCount += 1;
         run.lastSpawnedAt = Number(now) || currentTimestamp();
         run.lastPlacementX = placement.x;
+        run.lastPlacementSlotIndex = getSpeakingStackIndex(placement.slotIndex);
 
         ensureAudioLoaded(ctx, String(nextWord && nextWord.speaking_best_correct_audio_url || '')).catch(function () {});
 
@@ -8780,7 +8896,8 @@
             allWordsQueued: false,
             nextSpawnAt: launchedAt,
             spawnHoldUntil: launchedAt,
-            lastPlacementX: null
+            lastPlacementX: null,
+            lastPlacementSlotIndex: -1
         };
 
         syncCanvasSize(ctx);
@@ -9764,12 +9881,16 @@
                         wordId: toInt(card.word && card.word.id),
                         promptId: toInt(card.promptId),
                         categoryId: toInt(card.word && card.word.category_id),
+                        stackSlotIndex: getSpeakingStackIndex(card.stackSlotIndex),
+                        stackTargetX: Math.round(Number(card.stackTargetX) || 0),
+                        stackTargetY: Math.round(Number(card.stackTargetY) || 0),
                         x: Math.round(Number(card.x) || 0),
                         y: Math.round(Number(card.y) || 0),
                         speed: Math.round((Number(card.speed) || 0) * 100) / 100,
                         width: Math.round(Number(card.width) || 0),
                         height: Math.round(Number(card.height) || 0),
                         exploding: !!card.exploding,
+                        removedFromStack: !!card.removedFromStack,
                         resolvedFalling: !!card.resolvedFalling,
                         isTarget: !!card.isTarget
                     };
