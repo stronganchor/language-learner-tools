@@ -19,6 +19,18 @@ const vocabLessonScriptSource = fs.readFileSync(
 function buildDeferredLessonMarkup() {
   return `
     <div class="ll-vocab-lesson-page">
+      <div class="ll-vocab-lesson-bulk" data-ll-word-grid-bulk>
+        <select data-ll-bulk-pos>
+          <option value="">Part of speech</option>
+          <option value="noun">Noun</option>
+          <option value="verb">Verb</option>
+        </select>
+        <select data-ll-bulk-gender>
+          <option value="">Gender</option>
+          <option value="feminine">Feminine</option>
+          <option value="masculine">Masculine</option>
+        </select>
+      </div>
       <div class="ll-vocab-lesson-content">
         <div
           class="ll-vocab-lesson-grid-shell is-loading"
@@ -30,7 +42,7 @@ function buildDeferredLessonMarkup() {
           <div class="screen-reader-text" data-ll-vocab-lesson-grid-status role="status" aria-live="polite">
             Loading lesson words...
           </div>
-          <div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid>
+          <div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99">
             <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true"></article>
             <article class="word-item ll-vocab-lesson-skeleton-card" aria-hidden="true"></article>
           </div>
@@ -50,8 +62,9 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
     window.llToolsWordGridData = {
       ajaxUrl: '/wp-admin/admin-ajax.php',
       nonce: '',
-      isLoggedIn: false,
-      canEdit: false,
+      editNonce: 'edit-nonce',
+      isLoggedIn: true,
+      canEdit: true,
       state: {
         wordset_id: 1,
         category_ids: [],
@@ -83,7 +96,7 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
             deferred.resolve({
               success: true,
               data: {
-                html: '<div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid><div class="word-item" data-word-id="11"><div class="ll-word-title-row"><h3 class="word-title"><span class="ll-word-text" data-ll-word-text>Merhaba</span><span class="ll-word-translation" data-ll-word-translation>Hello</span></h3></div></div></div>'
+                html: '<div id="word-grid" class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="1" data-ll-category-id="99"><div class="word-item" data-word-id="11"><div class="ll-word-title-row"><h3 class="word-title"><span class="ll-word-text" data-ll-word-text>Merhaba</span><span class="ll-word-translation" data-ll-word-translation>Hello</span></h3></div><select data-ll-word-input="part_of_speech"><option value="noun" selected>Noun</option></select><select data-ll-word-input="gender"><option value="feminine" selected>Feminine</option></select></div><div class="word-item" data-word-id="12"><div class="ll-word-title-row"><h3 class="word-title"><span class="ll-word-text" data-ll-word-text>Dunya</span><span class="ll-word-translation" data-ll-word-translation>World</span></h3></div><select data-ll-word-input="part_of_speech"><option value="noun" selected>Noun</option></select><select data-ll-word-input="gender"><option value="feminine" selected>Feminine</option></select></div></div>'
               }
             });
           }, 20);
@@ -107,6 +120,8 @@ test('deferred vocab lesson shell hydrates word-grid markup', async ({ page }) =
   await expect(page.locator('.word-item[data-word-id="11"]')).toHaveCount(1);
   await expect(page.locator('.ll-vocab-lesson-skeleton-card')).toHaveCount(0);
   await expect(page.locator('[data-ll-vocab-lesson-grid-feedback]')).toHaveAttribute('hidden', 'hidden');
+  await expect(page.locator('[data-ll-bulk-pos]')).toHaveValue('noun');
+  await expect(page.locator('[data-ll-bulk-gender]')).toHaveValue('feminine');
 });
 
 test('hidden lesson feedback stays invisible when theme overrides hidden styling', async ({ page }) => {

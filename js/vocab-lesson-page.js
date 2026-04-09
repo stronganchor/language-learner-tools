@@ -170,7 +170,11 @@
             targetGrid.innerHTML = (html || '').toString();
         }
 
-        $(document).trigger('lltools:word-grid-rendered', [{ scope: $(targetGrid) }]);
+        try {
+            $(document).trigger('lltools:word-grid-rendered', [{ scope: $(targetGrid) }]);
+        } catch (error) {
+            console.error('LL Tools: lesson grid rendered event failed.', error);
+        }
         return true;
     }
 

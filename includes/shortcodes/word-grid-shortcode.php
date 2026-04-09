@@ -4348,6 +4348,12 @@ function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $ca
         return [];
     }
 
+    static $request_cache = [];
+    $cache_key = $wordset_id . ':' . $category_id;
+    if (array_key_exists($cache_key, $request_cache)) {
+        return $request_cache[$cache_key];
+    }
+
     $query = new WP_Query([
         'post_type'      => 'words',
         'post_status'    => 'publish',
@@ -4370,10 +4376,13 @@ function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $ca
 
     $word_ids = array_values(array_filter(array_map('intval', (array) $query->posts), function ($id) { return $id > 0; }));
     if (empty($word_ids)) {
+        $request_cache[$cache_key] = [];
         return [];
     }
 
-    if (function_exists('ll_get_deepest_categories')) {
+    if (function_exists('ll_tools_word_grid_filter_word_ids_to_deepest_category')) {
+        $word_ids = ll_tools_word_grid_filter_word_ids_to_deepest_category($word_ids, $category_id);
+    } elseif (function_exists('ll_get_deepest_categories')) {
         $filtered = [];
         foreach ($word_ids as $word_id) {
             $deepest_terms = ll_get_deepest_categories($word_id);
@@ -4388,6 +4397,7 @@ function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $ca
         $word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($word_ids);
     }
 
+    $request_cache[$cache_key] = $word_ids;
     return $word_ids;
 }
 

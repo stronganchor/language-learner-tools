@@ -159,80 +159,10 @@ if (have_posts()) {
         echo '<span class="ll-vocab-lesson-mode-icon" aria-hidden="true" data-emoji="' . esc_attr($icon) . '"></span>';
     };
 
-    $gender_quiz_available = false;
-    if ($wordset_id > 0 && $category && !is_wp_error($category)
-        && function_exists('ll_tools_wordset_has_grammatical_gender')
-        && ll_tools_wordset_has_grammatical_gender($wordset_id)
-        && function_exists('ll_get_words_by_category')
-    ) {
-        $min_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-        $gender_options = function_exists('ll_tools_wordset_get_gender_options')
-            ? ll_tools_wordset_get_gender_options($wordset_id)
-            : [];
-        $gender_lookup = [];
-        foreach ($gender_options as $option) {
-            $key = strtolower(trim((string) $option));
-            if (function_exists('ll_tools_wordset_strip_variation_selectors')) {
-                $key = ll_tools_wordset_strip_variation_selectors($key);
-            }
-            if ($key !== '') {
-                $gender_lookup[$key] = true;
-            }
-        }
-        if (!empty($gender_lookup)) {
-            $quiz_config = function_exists('ll_tools_get_category_quiz_config')
-                ? ll_tools_get_category_quiz_config($category)
-                : ['prompt_type' => 'audio', 'option_type' => 'image'];
-            $option_type = $quiz_config['option_type'] ?? 'image';
-            $gender_words = ll_get_words_by_category($category->name, $option_type, [$wordset_id], array_merge($quiz_config, [
-                '__skip_quiz_config_merge' => true,
-            ]));
-            if (count($gender_words) < $min_count && in_array($option_type, ['audio', 'text_audio'], true)) {
-                $fallback_config = $quiz_config;
-                $fallback_config['option_type'] = 'text_translation';
-                $fallback_config['__skip_quiz_config_merge'] = true;
-                $fallback_words = ll_get_words_by_category($category->name, 'text', [$wordset_id], $fallback_config);
-                if (count($fallback_words) >= $min_count) {
-                    $option_type = 'text_translation';
-                    $quiz_config['option_type'] = $option_type;
-                    $gender_words = $fallback_words;
-                }
-            }
-            $prompt_type = isset($quiz_config['prompt_type']) ? (string) $quiz_config['prompt_type'] : 'audio';
-            $requires_audio = function_exists('ll_tools_quiz_requires_audio')
-                ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
-                : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
-            $requires_image = ($prompt_type === 'image') || ($option_type === 'image');
-            $gender_count = 0;
-            foreach ($gender_words as $word) {
-                if (!is_array($word)) {
-                    continue;
-                }
-                $pos = $word['part_of_speech'] ?? [];
-                $pos = is_array($pos) ? $pos : [$pos];
-                $pos = array_map('strtolower', array_map('strval', $pos));
-                if (!in_array('noun', $pos, true)) {
-                    continue;
-                }
-                $gender_raw = (string) ($word['grammatical_gender'] ?? '');
-                $gender_label = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
-                    ? ll_tools_wordset_normalize_gender_value_for_options($gender_raw, $gender_options)
-                    : trim($gender_raw);
-                $gender = strtolower(trim($gender_label));
-                if ($gender === '' || !isset($gender_lookup[$gender])) {
-                    continue;
-                }
-                if (($requires_image && empty($word['has_image'])) || ($requires_audio && empty($word['has_audio']))) {
-                    continue;
-                }
-                $gender_count++;
-                if ($gender_count >= $min_count) {
-                    $gender_quiz_available = true;
-                    break;
-                }
-            }
-        }
-    }
+    $gender_quiz_available = $wordset_id > 0
+        && $category && !is_wp_error($category)
+        && function_exists('ll_tools_vocab_lesson_category_supports_gender_mode')
+        && ll_tools_vocab_lesson_category_supports_gender_mode($wordset_id, $category);
 
     $defer_grid = $wordset_id > 0
         && $category_id > 0
@@ -404,23 +334,11 @@ if (have_posts()) {
                             $verb_mood_options = $verb_mood_enabled && function_exists('ll_tools_wordset_get_verb_mood_options')
                                 ? ll_tools_wordset_get_verb_mood_options($wordset_id)
                                 : [];
-                            $lesson_word_ids = function_exists('ll_tools_get_lesson_word_ids_for_transcription')
-                                ? ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id)
-                                : [];
-                            $bulk_defaults = function_exists('ll_tools_word_grid_get_bulk_control_defaults')
-                                ? ll_tools_word_grid_get_bulk_control_defaults($wordset_id, $lesson_word_ids)
-                                : [
-                                    'part_of_speech' => '',
-                                    'grammatical_gender' => '',
-                                    'grammatical_plurality' => '',
-                                    'verb_tense' => '',
-                                    'verb_mood' => '',
-                                ];
-                            $bulk_pos_default = isset($bulk_defaults['part_of_speech']) ? (string) $bulk_defaults['part_of_speech'] : '';
-                            $bulk_gender_default = isset($bulk_defaults['grammatical_gender']) ? (string) $bulk_defaults['grammatical_gender'] : '';
-                            $bulk_plurality_default = isset($bulk_defaults['grammatical_plurality']) ? (string) $bulk_defaults['grammatical_plurality'] : '';
-                            $bulk_verb_tense_default = isset($bulk_defaults['verb_tense']) ? (string) $bulk_defaults['verb_tense'] : '';
-                            $bulk_verb_mood_default = isset($bulk_defaults['verb_mood']) ? (string) $bulk_defaults['verb_mood'] : '';
+                            $bulk_pos_default = '';
+                            $bulk_gender_default = '';
+                            $bulk_plurality_default = '';
+                            $bulk_verb_tense_default = '';
+                            $bulk_verb_mood_default = '';
                             $bulk_undo_aria = esc_attr__('Undo last bulk change', 'll-tools-text-domain');
                             $bulk_undo_text = esc_html__('Undo', 'll-tools-text-domain');
                             $lesson_prereq_editor = [

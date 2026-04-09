@@ -55,6 +55,150 @@ function ll_tools_get_study_launch_mode_order(bool $include_gender = false): arr
     return $modes;
 }
 
+function ll_tools_vocab_lesson_category_supports_gender_mode(int $wordset_id, $category): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return false;
+    }
+    if (!function_exists('ll_tools_wordset_has_grammatical_gender') || !ll_tools_wordset_has_grammatical_gender($wordset_id)) {
+        return false;
+    }
+
+    if (!($category instanceof WP_Term)) {
+        $category = get_term($category, 'word-category');
+    }
+    if (!($category instanceof WP_Term) || is_wp_error($category)) {
+        return false;
+    }
+
+    $category_id = (int) $category->term_id;
+    if ($category_id <= 0) {
+        return false;
+    }
+
+    $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+    $quiz_config = function_exists('ll_tools_resolve_effective_category_quiz_config')
+        ? ll_tools_resolve_effective_category_quiz_config($category, $min_word_count, [$wordset_id])
+        : (
+            function_exists('ll_tools_get_category_quiz_config')
+                ? ll_tools_get_category_quiz_config($category)
+                : ['prompt_type' => 'audio', 'option_type' => 'image']
+        );
+
+    $prompt_type = isset($quiz_config['prompt_type']) ? (string) $quiz_config['prompt_type'] : 'audio';
+    $option_type = isset($quiz_config['option_type']) ? (string) $quiz_config['option_type'] : 'image';
+    $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+        ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+        : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
+    $requires_image = function_exists('ll_tools_quiz_requires_image')
+        ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+        : (($prompt_type === 'image') || ($option_type === 'image'));
+
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+    $cache_key = 'll_tools_vocab_lesson_gender_' . md5(wp_json_encode([
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'prompt_type' => $prompt_type,
+        'option_type' => $option_type,
+        'category_epoch' => $category_epoch,
+        'wordset_epoch' => $wordset_epoch,
+        'min_word_count' => $min_word_count,
+    ]));
+    $cache_group = 'll_tools_vocab_lesson';
+    $cache_ttl = (int) apply_filters('ll_tools_vocab_lesson_gender_support_cache_ttl', 30 * MINUTE_IN_SECONDS);
+    if ($cache_ttl < MINUTE_IN_SECONDS) {
+        $cache_ttl = MINUTE_IN_SECONDS;
+    }
+
+    static $request_cache = [];
+    if (array_key_exists($cache_key, $request_cache)) {
+        return (bool) $request_cache[$cache_key];
+    }
+
+    $cached = wp_cache_get($cache_key, $cache_group);
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
+    if (is_array($cached) && array_key_exists('supported', $cached)) {
+        $request_cache[$cache_key] = !empty($cached['supported']);
+        return $request_cache[$cache_key];
+    }
+
+    $supported = false;
+    $word_ids = function_exists('ll_tools_get_lesson_word_ids_for_transcription')
+        ? ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id)
+        : [];
+    if (count($word_ids) >= $min_word_count) {
+        $gender_options = function_exists('ll_tools_wordset_get_gender_options')
+            ? ll_tools_wordset_get_gender_options($wordset_id)
+            : [];
+        $gender_lookup = [];
+        foreach ($gender_options as $option) {
+            $key = strtolower(trim((string) $option));
+            if (function_exists('ll_tools_wordset_strip_variation_selectors')) {
+                $key = ll_tools_wordset_strip_variation_selectors($key);
+            }
+            if ($key !== '') {
+                $gender_lookup[$key] = true;
+            }
+        }
+
+        if (!empty($gender_lookup) && function_exists('ll_tools_word_grid_collect_part_of_speech_terms')) {
+            $pos_map = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
+            $noun_ids = [];
+            foreach ($word_ids as $word_id) {
+                $pos_slug = isset($pos_map[$word_id]['slug']) ? strtolower(trim((string) $pos_map[$word_id]['slug'])) : '';
+                if ($pos_slug === 'noun') {
+                    $noun_ids[] = (int) $word_id;
+                }
+            }
+
+            if (count($noun_ids) >= $min_word_count) {
+                update_meta_cache('post', $noun_ids);
+                $audio_by_word = $requires_audio && function_exists('ll_tools_word_grid_collect_audio_files')
+                    ? ll_tools_word_grid_collect_audio_files($noun_ids)
+                    : [];
+
+                $supported_count = 0;
+                foreach ($noun_ids as $word_id) {
+                    $gender_raw = (string) get_post_meta($word_id, 'll_grammatical_gender', true);
+                    $gender_label = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
+                        ? ll_tools_wordset_normalize_gender_value_for_options($gender_raw, $gender_options)
+                        : trim($gender_raw);
+                    $gender_key = strtolower(trim($gender_label));
+                    if ($gender_key === '' || !isset($gender_lookup[$gender_key])) {
+                        continue;
+                    }
+                    if ($requires_image && !get_post_thumbnail_id($word_id)) {
+                        continue;
+                    }
+                    if ($requires_audio && empty($audio_by_word[$word_id])) {
+                        continue;
+                    }
+
+                    $supported_count++;
+                    if ($supported_count >= $min_word_count) {
+                        $supported = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    $payload = ['supported' => $supported ? 1 : 0];
+    $request_cache[$cache_key] = $supported;
+    wp_cache_set($cache_key, $payload, $cache_group, $cache_ttl);
+    set_transient($cache_key, $payload, $cache_ttl);
+
+    return $supported;
+}
+
 function ll_tools_get_vocab_lesson_trash_notice_state(): array {
     $raw = get_option(LL_TOOLS_VOCAB_LESSON_TRASH_NOTICE_OPTION, []);
     if (!is_array($raw)) {

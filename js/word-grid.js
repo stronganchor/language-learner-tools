@@ -793,7 +793,11 @@
             ? info.scope
             : $(info.scope || []);
         if (typeof initRenderedGridItems === 'function' && $scope.length) {
-            initRenderedGridItems($scope);
+            try {
+                initRenderedGridItems($scope);
+            } catch (error) {
+                console.error('LL Tools: failed to initialize rendered word grid items.', error);
+            }
         }
         updateAllStarToggles();
         updateStarModeButtons();
@@ -4869,6 +4873,30 @@
                 $select.val(nextValue);
             });
         }
+
+        $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+            const info = (detail && typeof detail === 'object') ? detail : {};
+            const $scope = info.scope && info.scope.jquery
+                ? info.scope
+                : $(info.scope || []);
+            if (!$scope.length || !$bulkEditors.length) {
+                return;
+            }
+
+            try {
+                $scope.each(function () {
+                    const $bulkWrap = $(this)
+                        .closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page')
+                        .find('[data-ll-word-grid-bulk]')
+                        .first();
+                    if ($bulkWrap.length) {
+                        syncBulkControlSelectDefaults($bulkWrap);
+                    }
+                });
+            } catch (error) {
+                console.error('LL Tools: failed to sync bulk defaults for rendered word grid.', error);
+            }
+        });
 
         function applyBulkUndoWords(context, words) {
             if (!context || !context.$grid || !Array.isArray(words)) { return; }
