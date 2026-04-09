@@ -407,6 +407,14 @@ function buildSpeakingStackWords(count = 6) {
   }));
 }
 
+function buildWideBubblePopWords(count = 6) {
+  const palette = ['#f59e0b', '#38bdf8', '#10b981', '#ef4444', '#8b5cf6', '#0ea5e9'];
+  return buildLargeSpaceShooterWords(Math.max(5, count)).map((word, index) => ({
+    ...word,
+    image: buildSvgImage(280, 60, palette[index % palette.length])
+  }));
+}
+
 function buildGamesConfig(isLoggedIn, overrides = null) {
   const config = {
     ajaxUrl: '/fake-admin-ajax.php',
@@ -2058,6 +2066,56 @@ test('bubble pop floats options upward and resolves clicks through the canvas', 
   expect(progressEvents[1].entry.payload.game_slug).toBe('bubble-pop');
   expect(progressEvents[1].entry.isCorrect).toBe(true);
   await expect(page.locator('[data-ll-wordset-game-coins]')).toHaveText('1');
+});
+
+test('bubble pop uses a white matte behind wide images inside the bubble', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildWideBubblePopWords(6)
+  });
+
+  await expect(gameLaunchButton(page, 'bubble-pop')).toBeEnabled();
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('bubble-pop');
+  });
+
+  await waitForActivePrompt(page, 'bubble-pop');
+
+  const sampledPixel = await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    const canvas = document.querySelector('[data-ll-wordset-game-canvas]');
+    if (!run || !canvas || !Array.isArray(run.cardSnapshot) || !run.cardSnapshot.length) {
+      return null;
+    }
+
+    const card = run.cardSnapshot.find((entry) => entry && !entry.exploding);
+    if (!card) {
+      return null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    const radius = Math.min(Number(card.width) || 0, Number(card.height) || 0) / 2;
+    const sampleX = Math.round(Number(card.x) || 0);
+    const sampleY = Math.round((Number(card.y) || 0) - (radius * 0.6));
+    const pixel = Array.from(ctx.getImageData(sampleX, sampleY, 1, 1).data);
+
+    if (!pixel.length) {
+      return null;
+    }
+
+    return {
+      pixel,
+      sampleX,
+      sampleY
+    };
+  });
+
+  const matteSample = await sampledPixel.jsonValue();
+  expect(matteSample).toBeTruthy();
+  expect(matteSample.pixel[0]).toBeGreaterThanOrEqual(248);
+  expect(matteSample.pixel[1]).toBeGreaterThanOrEqual(248);
+  expect(matteSample.pixel[2]).toBeGreaterThanOrEqual(248);
+  expect(matteSample.pixel[3]).toBeGreaterThanOrEqual(245);
 });
 
 test('bubble pop treats one touch press as one pop even when a synthetic mouse event follows', async ({ page }) => {

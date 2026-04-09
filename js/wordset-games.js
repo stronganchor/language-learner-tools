@@ -2307,6 +2307,10 @@
             context.beginPath();
             context.arc(0, 0, radius * 0.84, 0, Math.PI * 2);
             context.clip();
+            // Non-square images letterbox inside the bubble; white keeps common photo
+            // backgrounds looking like a natural extension of the source image.
+            context.fillStyle = '#FFFFFF';
+            context.fillRect(-radius, -radius, radius * 2, radius * 2);
             if (!drawImageContain(context, image, -radius * 0.84, -radius * 0.84, radius * 1.68, radius * 1.68)) {
                 const placeholder = context.createLinearGradient(-radius, -radius, radius, radius);
                 placeholder.addColorStop(0, '#F5FCFF');
