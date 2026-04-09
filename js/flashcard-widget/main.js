@@ -153,6 +153,12 @@
         return String(raw || 'Close this quiz? Your current progress in this popup will be lost.');
     }
 
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
+    }
+
     function pushFlashcardHistoryState() {
         if (!root.history || typeof root.history.pushState !== 'function') {
             return false;
@@ -1685,7 +1691,7 @@
                 type: 'button',
                 class: 'll-word-star ll-quiz-star-btn ll-tools-star-button',
                 'aria-pressed': 'false',
-                'aria-label': 'Star word'
+                'aria-label': getMessage('starWord')
             }).text('☆');
             return $starButton;
         }
@@ -2537,27 +2543,37 @@
     const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
         ModeConfig.getSwitchConfig() : {
             practice: {
-                label: 'Switch to Practice Mode',
+                label: getMessage('practiceSwitchLabel'),
+                resultsButtonText: getMessage('practiceModeText'),
+                modeLabel: getMessage('practiceModeShort'),
                 icon: '❓',
                 className: 'practice-mode'
             },
             learning: {
-                label: 'Switch to Learning Mode',
+                label: getMessage('learningSwitchLabel'),
+                resultsButtonText: getMessage('learningModeText'),
+                modeLabel: getMessage('learningModeShort'),
                 icon: '🎓',
                 className: 'learning-mode'
             },
             'self-check': {
-                label: 'Open Self Check',
+                label: getMessage('selfCheckSwitchLabel'),
+                resultsButtonText: getMessage('selfCheckModeText'),
+                modeLabel: getMessage('selfCheckModeShort'),
                 icon: '',
                 className: 'self-check-mode'
             },
             listening: {
-                label: 'Switch to Listening Mode',
+                label: getMessage('listeningSwitchLabel'),
+                resultsButtonText: getMessage('listeningModeText'),
+                modeLabel: getMessage('listeningModeShort'),
                 icon: '🎧',
                 className: 'listening-mode'
             },
             gender: {
-                label: 'Switch to Gender',
+                label: getMessage('genderSwitchLabel'),
+                resultsButtonText: getMessage('genderModeText'),
+                modeLabel: getMessage('genderModeShort'),
                 icon: '',
                 className: 'gender-mode'
             }

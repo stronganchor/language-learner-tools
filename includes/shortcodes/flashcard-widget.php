@@ -353,6 +353,26 @@ function ll_flashcards_get_messages(): array {
         'selfCheckMultipleAnswers'=> __('%d answers', 'll-tools-text-domain'),
         'soundRequiredContinue'   => __('Turn on sound to continue the quiz.', 'll-tools-text-domain'),
         'soundRequiredResume'     => __('Resume audio', 'll-tools-text-domain'),
+        'playAudio'               => __('Play audio', 'll-tools-text-domain'),
+        'playWordAudio'           => __('Play word audio', 'll-tools-text-domain'),
+        'playOptionAudio'         => __('Play option audio', 'll-tools-text-domain'),
+        'pauseAudio'              => __('Pause audio', 'll-tools-text-domain'),
+        'starWord'                => __('Star word', 'll-tools-text-domain'),
+        'practiceSwitchLabel'     => __('Switch to Practice Mode', 'll-tools-text-domain'),
+        'learningSwitchLabel'     => __('Switch to Learning Mode', 'll-tools-text-domain'),
+        'selfCheckSwitchLabel'    => __('Open Self Check', 'll-tools-text-domain'),
+        'listeningSwitchLabel'    => __('Switch to Listening Mode', 'll-tools-text-domain'),
+        'genderSwitchLabel'       => __('Switch to Gender', 'll-tools-text-domain'),
+        'practiceModeText'        => __('Practice Mode', 'll-tools-text-domain'),
+        'learningModeText'        => __('Learning Mode', 'll-tools-text-domain'),
+        'selfCheckModeText'       => __('Self Check', 'll-tools-text-domain'),
+        'listeningModeText'       => __('Listen', 'll-tools-text-domain'),
+        'genderModeText'          => __('Gender', 'll-tools-text-domain'),
+        'practiceModeShort'       => __('Practice', 'll-tools-text-domain'),
+        'learningModeShort'       => __('Learning', 'll-tools-text-domain'),
+        'selfCheckModeShort'      => __('Self check', 'll-tools-text-domain'),
+        'listeningModeShort'      => __('Listening', 'll-tools-text-domain'),
+        'genderModeShort'         => __('Gender', 'll-tools-text-domain'),
         'playAudioType'           => __('Play %s recording', 'll-tools-text-domain'),
         'recordingIsolation'      => __('Isolation', 'll-tools-text-domain'),
         'recordingIntroduction'   => __('Introduction', 'll-tools-text-domain'),
@@ -754,6 +774,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
 
     // Localize translatable messages (must happen after scripts are enqueued)
     $messages = ll_flashcards_get_messages();
+    wp_localize_script('ll-flc-mode-config', 'llToolsFlashcardsMessages', $messages);
     wp_localize_script('ll-flc-results', 'llToolsFlashcardsMessages', $messages);
     wp_localize_script('ll-flc-main',    'llToolsFlashcardsMessages', $messages);
 

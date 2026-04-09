@@ -64,14 +64,21 @@ function Get-CurrentBranch {
 
 function Get-CurrentVersionData {
     $content = [System.IO.File]::ReadAllText($pluginFile)
-    $match = [regex]::Match($content, '(?m)^Version:\s*([0-9]+(?:\.[0-9]+){2,})\s*$')
-    if (-not $match.Success) {
+    $headerMatch = [regex]::Match($content, '(?m)^Version:\s*([0-9]+(?:\.[0-9]+){2,})\s*$')
+    if (-not $headerMatch.Success) {
         throw "Could not find a Version header in $pluginFile."
     }
 
+    $constantMatch = [regex]::Match($content, "(?m)^define\('LL_TOOLS_VERSION',\s*'([0-9]+(?:\.[0-9]+){2,})'\);\s*$")
+    if (-not $constantMatch.Success) {
+        throw "Could not find an LL_TOOLS_VERSION constant in $pluginFile."
+    }
+
     return @{
-        Content = $content
-        Version = $match.Groups[1].Value
+        Content        = $content
+        Version        = $headerMatch.Groups[1].Value
+        InternalVersion = $constantMatch.Groups[1].Value
+        VersionsMatch  = ($headerMatch.Groups[1].Value -eq $constantMatch.Groups[1].Value)
     }
 }
 
@@ -209,6 +216,12 @@ function Write-UpdatedVersion {
         $OriginalContent,
         '(?m)^Version:\s*([0-9]+(?:\.[0-9]+){2,})\s*$',
         "Version: $NewVersion",
+        1
+    )
+    $updatedContent = [regex]::Replace(
+        $updatedContent,
+        "(?m)^define\('LL_TOOLS_VERSION',\s*'([0-9]+(?:\.[0-9]+){2,})'\);\s*$",
+        "define('LL_TOOLS_VERSION', '$NewVersion');",
         1
     )
 
@@ -499,9 +512,10 @@ function Invoke-BumpWorkflow {
     $currentContent = $versionData.Content
     $releaseVersion = Get-NextVersion -CurrentVersion $currentVersion -RequestedBump $Bump -RequestedVersion $Version
     $versionChanged = ($releaseVersion -ne $currentVersion)
+    $needsVersionWrite = $versionChanged -or -not $versionData.VersionsMatch
 
     $commitCreated = $false
-    if ($versionChanged) {
+    if ($needsVersionWrite) {
         Write-UpdatedVersion -OriginalContent $currentContent -NewVersion $releaseVersion
     }
 
@@ -556,6 +570,9 @@ function Invoke-PublishWorkflow {
     }
 
     $versionData = Get-CurrentVersionData
+    if (-not $versionData.VersionsMatch) {
+        throw "Publish mode requires the Version header and LL_TOOLS_VERSION to match. Run the bump workflow first to synchronize them."
+    }
     $versionToPublish = $versionData.Version
     $tagName = "v$versionToPublish"
     $repoSlug = Get-OriginRepoSlug

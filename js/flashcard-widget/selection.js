@@ -39,6 +39,12 @@
         return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
     }
 
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -1592,7 +1598,7 @@
             const $btn = $('<button>', {
                 type: 'button',
                 class: 'll-prompt-audio-button',
-                'aria-label': 'Play word audio'
+                'aria-label': getMessage('playWordAudio')
             });
             const $ui = $('<span>', { class: 'll-repeat-audio-ui' });
             const $iconWrap = $('<span>', { class: 'll-repeat-icon-wrap', 'aria-hidden': 'true' });

@@ -1,6 +1,32 @@
 (function (root) {
     'use strict';
     const Util = {
+        getMessage(key, fallback) {
+            const messages = (root.llToolsFlashcardsMessages && typeof root.llToolsFlashcardsMessages === 'object')
+                ? root.llToolsFlashcardsMessages
+                : {};
+            const messageKey = String(key || '').trim();
+            const fallbackText = String(fallback || '').trim();
+
+            if (messageKey) {
+                if (Object.prototype.hasOwnProperty.call(messages, messageKey)) {
+                    const value = String(messages[messageKey] || '').trim();
+                    if (value) {
+                        return value;
+                    }
+                }
+
+                const snakeKey = messageKey.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+                if (snakeKey !== messageKey && Object.prototype.hasOwnProperty.call(messages, snakeKey)) {
+                    const snakeValue = String(messages[snakeKey] || '').trim();
+                    if (snakeValue) {
+                        return snakeValue;
+                    }
+                }
+            }
+
+            return fallbackText;
+        },
         randomlySort(arr) {
             if (!Array.isArray(arr)) {
                 return arr;

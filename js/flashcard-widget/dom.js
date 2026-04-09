@@ -59,6 +59,12 @@
             : {};
     }
 
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
+    }
+
     function isSoundGateAudioMuted(audio) {
         if (!audio) {
             return false;
@@ -512,7 +518,7 @@
         $btn.toggleClass('stop-mode', isPlaying);
         $btn.toggleClass('ll-repeat-playing', isPlaying);
         $btn.find('.ll-audio-mini-visualizer').toggleClass('active', isPlaying);
-        $btn.attr('aria-label', isPlaying ? 'Pause audio' : 'Play audio');
+        $btn.attr('aria-label', isPlaying ? getMessage('pauseAudio') : getMessage('playAudio'));
         $btn.show();
     }
 

@@ -16,6 +16,78 @@
  *
  * @return string The HTML form for uploading audio files.
  */
+function ll_audio_upload_user_can_assign_other_speakers() {
+    return current_user_can('manage_options')
+        || current_user_can('promote_users')
+        || current_user_can('edit_users')
+        || current_user_can('list_users');
+}
+
+function ll_audio_upload_get_assignable_speaker_users() {
+    if (!ll_audio_upload_user_can_assign_other_speakers()) {
+        return [];
+    }
+
+    $users = get_users([
+        'orderby' => 'display_name',
+        'order' => 'ASC',
+    ]);
+    if (empty($users)) {
+        return [];
+    }
+
+    return array_values(array_filter($users, static function ($user) {
+        return $user instanceof WP_User
+            && (
+                user_can($user, 'manage_options')
+                || (user_can($user, 'upload_files') && user_can($user, 'view_ll_tools'))
+            );
+    }));
+}
+
+function ll_audio_upload_format_speaker_user_label(WP_User $user): string {
+    $display_name = trim((string) $user->display_name);
+    if ($display_name !== '') {
+        return $display_name;
+    }
+
+    return (string) $user->user_login;
+}
+
+function ll_audio_upload_resolve_speaker_user_id($speaker_assignment): int {
+    $current_user_id = (int) get_current_user_id();
+
+    if ($speaker_assignment === 'unassigned') {
+        return 0;
+    }
+
+    if ($speaker_assignment === 'current' || $speaker_assignment === null || $speaker_assignment === '') {
+        return $current_user_id;
+    }
+
+    if (!is_numeric($speaker_assignment)) {
+        return $current_user_id;
+    }
+
+    $speaker_user_id = (int) $speaker_assignment;
+    if ($speaker_user_id <= 0) {
+        return $current_user_id;
+    }
+
+    if (!ll_audio_upload_user_can_assign_other_speakers()) {
+        return $current_user_id;
+    }
+
+    $assignable_users = ll_audio_upload_get_assignable_speaker_users();
+    foreach ($assignable_users as $user) {
+        if ((int) $user->ID === $speaker_user_id) {
+            return $speaker_user_id;
+        }
+    }
+
+    return $current_user_id;
+}
+
 function ll_audio_upload_form_shortcode($atts = []) {
     if (!current_user_can('upload_files') || !current_user_can('view_ll_tools')) {
         return esc_html__('You do not have permission to upload files.', 'll-tools-text-domain');
@@ -43,11 +115,7 @@ function ll_audio_upload_form_shortcode($atts = []) {
         'hide_empty' => false,
     ]);
 
-    // Get users for speaker assignment
-    $users = get_users([
-        'orderby' => 'display_name',
-        'order' => 'ASC',
-    ]);
+    $users = ll_audio_upload_get_assignable_speaker_users();
 
     $wsets = get_terms([
         'taxonomy' => 'wordset',
@@ -143,7 +211,7 @@ function ll_audio_upload_form_shortcode($atts = []) {
                         <?php foreach ($users as $user): ?>
                             <?php if ($user->ID !== get_current_user_id()): ?>
                                 <option value="<?php echo esc_attr($user->ID); ?>">
-                                    <?php echo esc_html($user->display_name . ' (' . $user->user_email . ')'); ?>
+                                    <?php echo esc_html(ll_audio_upload_format_speaker_user_label($user)); ?>
                                 </option>
                             <?php endif; ?>
                         <?php endforeach; ?>
@@ -494,16 +562,8 @@ function ll_format_title( $original_name, array $wordset_ids = [] ) {
  * @param array  $post_data      (Optional) $_POST from the form for speaker/type.
  */
 function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []) {
-    // Speaker assignment (same logic as create-new path)
     $speaker_assignment = isset($post_data['ll_speaker_assignment']) ? $post_data['ll_speaker_assignment'] : 'current';
-    $speaker_user_id = null;
-    if ($speaker_assignment === 'current') {
-        $speaker_user_id = get_current_user_id();
-    } elseif ($speaker_assignment === 'unassigned') {
-        $speaker_user_id = null;
-    } elseif (is_numeric($speaker_assignment)) {
-        $speaker_user_id = (int) $speaker_assignment;
-    }
+    $speaker_user_id = ll_audio_upload_resolve_speaker_user_id($speaker_assignment);
 
     // Recording type (default to isolation)
     $recording_type = isset($post_data['ll_recording_type'])
@@ -517,7 +577,7 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
         'post_status' => 'draft',
         'post_parent' => $post_id,
     ];
-    if ($speaker_user_id) {
+    if ($speaker_user_id > 0) {
         $audio_post_args['post_author'] = $speaker_user_id;
     }
 
@@ -529,7 +589,7 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
 
     // Store file + review flags on the word_audio child
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
-    if ($speaker_user_id) {
+    if ($speaker_user_id > 0) {
         update_post_meta($audio_post_id, 'speaker_user_id', $speaker_user_id);
     }
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
@@ -560,17 +620,8 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     ]);
 
     if ($post_id && !is_wp_error($post_id)) {
-        // Determine speaker assignment
         $speaker_assignment = isset($post_data['ll_speaker_assignment']) ? $post_data['ll_speaker_assignment'] : 'current';
-        $speaker_user_id = null;
-
-        if ($speaker_assignment === 'current') {
-            $speaker_user_id = get_current_user_id();
-        } elseif ($speaker_assignment === 'unassigned') {
-            $speaker_user_id = null;
-        } elseif (is_numeric($speaker_assignment)) {
-            $speaker_user_id = (int) $speaker_assignment;
-        }
+        $speaker_user_id = ll_audio_upload_resolve_speaker_user_id($speaker_assignment);
 
         // Get selected recording type
         $recording_type = isset($post_data['ll_recording_type']) ? sanitize_text_field($post_data['ll_recording_type']) : 'isolation';
@@ -584,7 +635,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         ];
 
         // Only set post_author if speaker is assigned
-        if ($speaker_user_id) {
+        if ($speaker_user_id > 0) {
             $audio_post_args['post_author'] = $speaker_user_id;
         }
 
@@ -596,7 +647,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
 
             // Store speaker_user_id (can be null for unassigned)
-            if ($speaker_user_id) {
+            if ($speaker_user_id > 0) {
                 update_post_meta($audio_post_id, 'speaker_user_id', $speaker_user_id);
             }
 

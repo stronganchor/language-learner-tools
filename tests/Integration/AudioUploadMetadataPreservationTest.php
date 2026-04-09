@@ -6,7 +6,7 @@ final class AudioUploadMetadataPreservationTest extends LL_Tools_TestCase
     public function test_create_new_word_post_preserves_selected_speaker_and_recording_type(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
-        $speaker_id = self::factory()->user->create(['role' => 'author']);
+        $speaker_id = self::factory()->user->create(['role' => 'audio_recorder']);
         wp_set_current_user($admin_id);
 
         $question_term = get_term_by('slug', 'question', 'recording_type');
@@ -52,4 +52,3 @@ final class AudioUploadMetadataPreservationTest extends LL_Tools_TestCase
         $this->assertSame(['question'], $type_slugs);
     }
 }
-

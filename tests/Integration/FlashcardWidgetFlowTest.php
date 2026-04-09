@@ -56,6 +56,19 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertIsString($localized_messages);
             $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_messages);
             $this->assertStringContainsString('closeQuizConfirm', $localized_messages);
+            $this->assertStringContainsString('playAudio', $localized_messages);
+            $this->assertStringContainsString('playWordAudio', $localized_messages);
+            $this->assertStringContainsString('playOptionAudio', $localized_messages);
+            $this->assertStringContainsString('pauseAudio', $localized_messages);
+            $this->assertStringContainsString('starWord', $localized_messages);
+            $this->assertStringContainsString('practiceSwitchLabel', $localized_messages);
+            $this->assertStringContainsString('learningModeText', $localized_messages);
+            $this->assertStringContainsString('practiceModeShort', $localized_messages);
+
+            $localized_mode_config = wp_scripts()->get_data('ll-flc-mode-config', 'data');
+            $this->assertIsString($localized_mode_config);
+            $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_mode_config);
+            $this->assertStringContainsString('selfCheckSwitchLabel', $localized_mode_config);
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }

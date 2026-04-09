@@ -1,6 +1,6 @@
 (function (root, $) {
     'use strict';
-    const { State, Dom, Effects } = root.LLFlashcards;
+    const { State, Dom, Effects, Util } = root.LLFlashcards;
     const DEFAULT_RESULTS_CATEGORY_PREVIEW_LIMIT = 3;
 
     const CHECKMARK_SVG = `
@@ -35,6 +35,12 @@
                 default: return char;
             }
         });
+    }
+
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
     }
 
     function getCategoryNamesForDisplay(preferredNames) {
@@ -219,13 +225,13 @@
     function getDefaultLearningButtonLabel() {
         const modeUi = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.modeUi) || {};
         const learningUi = modeUi.learning || {};
-        return learningUi.resultsButtonText || 'Learning Mode';
+        return learningUi.resultsButtonText || getMessage('learningModeText');
     }
 
     function getDefaultGenderButtonLabel() {
         const modeUi = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.modeUi) || {};
         const genderUi = modeUi.gender || {};
-        return genderUi.resultsButtonText || 'Gender';
+        return genderUi.resultsButtonText || getMessage('genderModeText');
     }
 
     function getLearningResultsLabelElement() {
@@ -338,12 +344,12 @@
         const text = String(ui.resultsButtonText || '').trim();
         if (text) { return text; }
         const key = normalizeProgressMode(mode);
-        if (key === 'learning') { return 'Learning'; }
-        if (key === 'practice') { return 'Practice'; }
-        if (key === 'listening') { return 'Listening'; }
-        if (key === 'gender') { return 'Gender'; }
-        if (key === 'self-check') { return 'Self check'; }
-        return 'Practice';
+        if (key === 'learning') { return getMessage('learningModeShort'); }
+        if (key === 'practice') { return getMessage('practiceModeShort'); }
+        if (key === 'listening') { return getMessage('listeningModeShort'); }
+        if (key === 'gender') { return getMessage('genderModeShort'); }
+        if (key === 'self-check') { return getMessage('selfCheckModeShort'); }
+        return getMessage('practiceModeShort');
     }
 
     function trackModeSessionCompletionForProgress(mode) {

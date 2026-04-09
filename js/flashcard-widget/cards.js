@@ -32,6 +32,12 @@
         return Math.max(min, Math.min(max, parsed));
     }
 
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
+    }
+
     function getAnswerOptionTextStyleConfig() {
         const raw = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object' && root.llToolsFlashcardsData.answerOptionTextStyle && typeof root.llToolsFlashcardsData.answerOptionTextStyle === 'object')
             ? root.llToolsFlashcardsData.answerOptionTextStyle
@@ -462,7 +468,7 @@
         const $btn = $('<button>', {
             type: 'button',
             class: 'll-audio-play',
-            'aria-label': 'Play option audio'
+            'aria-label': getMessage('playOptionAudio')
         }).append(
             $('<span>', { class: 'll-audio-play-icon', 'aria-hidden': 'true' }).append(
                 '<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true"><path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/></svg>'
