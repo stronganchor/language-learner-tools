@@ -3673,35 +3673,167 @@ function ll_tools_word_has_audio($word_id, $statuses = ['publish']) {
 }
 
 /**
+ * Normalize a recording type slug for audio selection comparisons.
+ */
+function ll_tools_normalize_word_audio_recording_type_slug($type): string {
+    $type = trim((string) $type);
+    if ($type === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_normalize_practice_recording_type_slug')) {
+        return (string) ll_tools_normalize_practice_recording_type_slug($type);
+    }
+
+    return sanitize_title($type);
+}
+
+/**
+ * Check whether a word_audio post has an allowed post status.
+ *
+ * @param WP_Post $audio_post
+ * @param string|array $post_status
+ */
+function ll_tools_word_audio_post_matches_status(WP_Post $audio_post, $post_status): bool {
+    $current_status = (string) $audio_post->post_status;
+
+    if (is_string($post_status)) {
+        if ($post_status === '' || $post_status === 'any') {
+            return true;
+        }
+
+        return $current_status === $post_status;
+    }
+
+    $allowed_statuses = array_values(array_filter(array_map('strval', (array) $post_status)));
+    if (empty($allowed_statuses) || in_array('any', $allowed_statuses, true)) {
+        return true;
+    }
+
+    return in_array($current_status, $allowed_statuses, true);
+}
+
+/**
+ * Resolve the selected word_audio post for a word.
+ *
+ * Supports explicit recording selection by exact word_audio post ID or
+ * recording type slug. Explicit selectors do not silently fall back to
+ * another recording when no match exists.
+ *
+ * @param int $word_id Parent word post ID. Can be 0 when selecting by exact word_audio ID.
+ * @param array $args {
+ *     Optional selection arguments.
+ *
+ *     @type int          $word_audio_id      Exact word_audio post ID to use.
+ *     @type string       $recording_type     Recording type slug to use.
+ *     @type string|array $post_status        Allowed post status or statuses. Default 'publish'.
+ *     @type int|null     $preferred_speaker  Preferred speaker ID for tie-breaking.
+ * }
+ * @return WP_Post|null
+ */
+function ll_get_word_audio_post($word_id, array $args = []) {
+    $word_id = (int) $word_id;
+    $args = wp_parse_args($args, [
+        'word_audio_id' => 0,
+        'recording_type' => '',
+        'post_status' => 'publish',
+        'preferred_speaker' => null,
+    ]);
+
+    $word_audio_id = (int) ($args['word_audio_id'] ?? 0);
+    if ($word_audio_id > 0) {
+        $audio_post = get_post($word_audio_id);
+        if (
+            !($audio_post instanceof WP_Post)
+            || $audio_post->post_type !== 'word_audio'
+            || !ll_tools_word_audio_post_matches_status($audio_post, $args['post_status'])
+        ) {
+            return null;
+        }
+
+        if ($word_id > 0 && (int) $audio_post->post_parent !== $word_id) {
+            return null;
+        }
+
+        return $audio_post;
+    }
+
+    if ($word_id <= 0) {
+        return null;
+    }
+
+    $audio_posts = get_posts([
+        'post_type' => 'word_audio',
+        'post_parent' => $word_id,
+        'post_status' => $args['post_status'],
+        'posts_per_page' => -1,
+        'orderby' => 'date',
+        'order' => 'DESC',
+    ]);
+
+    if (empty($audio_posts)) {
+        return null;
+    }
+
+    $recording_type = ll_tools_normalize_word_audio_recording_type_slug($args['recording_type'] ?? '');
+    if ($recording_type !== '') {
+        $matching_audio_posts = [];
+
+        foreach ($audio_posts as $audio_post) {
+            $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+            if (is_wp_error($recording_types) || empty($recording_types)) {
+                continue;
+            }
+
+            foreach ((array) $recording_types as $type_slug) {
+                if (ll_tools_normalize_word_audio_recording_type_slug($type_slug) === $recording_type) {
+                    $matching_audio_posts[] = $audio_post;
+                    break;
+                }
+            }
+        }
+
+        if (empty($matching_audio_posts)) {
+            return null;
+        }
+
+        $audio_posts = $matching_audio_posts;
+    }
+
+    $preferred_speaker = $args['preferred_speaker'];
+    if ($preferred_speaker === null || $preferred_speaker === '') {
+        $preferred_speaker = null;
+    } else {
+        $preferred_speaker = (int) $preferred_speaker;
+    }
+
+    return ll_get_prioritized_audio($audio_posts, $preferred_speaker);
+}
+
+/**
  * Get a default audio URL for a word.
  *
  * Default priority is isolation-first for non-practice flows:
  * isolation > introduction > question > in sentence > any other.
  *
  * Practice prompt audio ordering is handled in the flashcard JS mode layer.
+ *
+ * @param int $word_id
+ * @param array $args Optional selection arguments accepted by ll_get_word_audio_post().
+ * @return string
  */
-function ll_get_word_audio_url($word_id) {
-    // Get all word_audio child posts
-    $audio_posts = get_posts([
-        'post_type' => 'word_audio',
-        'post_parent' => $word_id,
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'orderby' => 'date',
-        'order' => 'DESC',
-    ]);
-
-    if (!empty($audio_posts)) {
-        $prioritized_audio = ll_get_prioritized_audio($audio_posts);
-        if ($prioritized_audio) {
-            $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
-            if ($audio_path) {
-                return ll_tools_resolve_audio_file_url($audio_path);
-            }
-        }
+function ll_get_word_audio_url($word_id, array $args = []) {
+    $audio_post = ll_get_word_audio_post($word_id, $args);
+    if (!$audio_post instanceof WP_Post) {
+        return '';
     }
 
-    return '';
+    $audio_path = get_post_meta($audio_post->ID, 'audio_file_path', true);
+    if (!$audio_path) {
+        return '';
+    }
+
+    return ll_tools_resolve_audio_file_url($audio_path);
 }
 
 /**

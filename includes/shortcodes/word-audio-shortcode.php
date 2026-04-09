@@ -94,7 +94,13 @@ function ll_word_audio_extract_context($atts, $content) {
     $attributes = shortcode_atts(array(
         'translate' => 'yes', // Default is to provide a translation in parentheses
         'id' => null, // If set, it will look up the word post by ID
+        'recording_type' => '', // Optional recording type slug to use
+        'word_audio_id' => null, // Optional exact word_audio post ID to use
     ), $atts);
+
+    $attributes['translate'] = sanitize_key((string) $attributes['translate']);
+    $attributes['recording_type'] = sanitize_title((string) $attributes['recording_type']);
+    $attributes['word_audio_id'] = !empty($attributes['word_audio_id']) ? (int) $attributes['word_audio_id'] : 0;
 
     // Store the unmodified content for later
     $original_content = $content;
@@ -116,10 +122,34 @@ function ll_word_audio_extract_context($atts, $content) {
         $word_post = ll_find_post_by_exact_title($normalized_content, 'words');
     }
 
+    if (
+        !$word_post
+        && $attributes['word_audio_id'] > 0
+        && function_exists('ll_get_word_audio_post')
+    ) {
+        $selected_audio_post = ll_get_word_audio_post(0, [
+            'word_audio_id' => $attributes['word_audio_id'],
+        ]);
+
+        if ($selected_audio_post instanceof WP_Post && (int) $selected_audio_post->post_parent > 0) {
+            $parent_word_post = get_post((int) $selected_audio_post->post_parent);
+            if ($parent_word_post instanceof WP_Post && $parent_word_post->post_type === 'words') {
+                $word_post = $parent_word_post;
+            }
+        }
+    }
+
     // Retrieve the audio file for this word (prefer processed word_audio posts).
     $audio_file = '';
     if (!empty($word_post) && function_exists('ll_get_word_audio_url')) {
-        $audio_file = ll_get_word_audio_url($word_post->ID);
+        $audio_file = ll_get_word_audio_url($word_post->ID, array(
+            'recording_type' => $attributes['recording_type'],
+            'word_audio_id' => $attributes['word_audio_id'],
+        ));
+    } elseif ($attributes['word_audio_id'] > 0 && function_exists('ll_get_word_audio_url')) {
+        $audio_file = ll_get_word_audio_url(0, array(
+            'word_audio_id' => $attributes['word_audio_id'],
+        ));
     }
 
     return array(

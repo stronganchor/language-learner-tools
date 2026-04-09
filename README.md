@@ -139,6 +139,8 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 - **Attributes**:
   - `id`: the Word post ID.
   - `translate`: `yes|no` (show the translation next to the audio button).
+  - `recording_type`: specific `recording_type` slug to play, such as `introduction`.
+  - `word_audio_id`: exact `word_audio` post ID to play.
 
 ### `[image_copyright_grid]`
 - **Attributes**:
