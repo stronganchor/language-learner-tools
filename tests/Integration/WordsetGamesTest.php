@@ -25,6 +25,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $_SERVER = $this->serverBackup;
         set_query_var('ll_wordset_view', null);
         set_query_var('ll_wordset_page', null);
+        unset($GLOBALS['ll_tools_vocab_lesson_request']);
         parent::tearDown();
     }
 
@@ -115,6 +116,32 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringStartsWith(ll_tools_wordset_page_get_pretty_view_url($wordset, 'settings'), $redirectUrl);
         $this->assertSame('transcription', $this->getQueryArgFromUrl($redirectUrl, 'll_wordset_tool'));
         $this->assertSame($expectedBack, $this->getQueryArgFromUrl($redirectUrl, 'll_wordset_back'));
+    }
+
+    public function test_reserved_wordset_subpage_slugs_are_not_treated_as_vocab_lesson_categories(): void
+    {
+        $term = wp_insert_term('Reserved Subpage Routes ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        foreach (['progress', 'settings', 'games', 'hidden-categories'] as $view) {
+            $queryVars = ll_tools_route_vocab_lesson_request([
+                'll_vocab_lesson_wordset' => (string) $wordset->slug,
+                'll_vocab_lesson_category' => $view,
+            ]);
+
+            $this->assertSame((string) $wordset->slug, (string) ($queryVars['ll_wordset_page'] ?? ''));
+            $this->assertSame($view, (string) ($queryVars['ll_wordset_view'] ?? ''));
+            $this->assertArrayNotHasKey('ll_vocab_lesson_wordset', $queryVars);
+            $this->assertArrayNotHasKey('ll_vocab_lesson_category', $queryVars);
+            $this->assertArrayNotHasKey('post_type', $queryVars);
+            $this->assertArrayNotHasKey('error', $queryVars);
+        }
+
+        $this->assertArrayNotHasKey('ll_tools_vocab_lesson_request', $GLOBALS);
     }
 
     public function test_wordset_page_render_outputs_games_navigation_and_games_view_shell(): void

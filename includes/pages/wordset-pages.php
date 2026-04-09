@@ -6720,7 +6720,7 @@ function ll_tools_register_wordset_page_rewrite_rules() {
         delete_transient('ll_tools_vocab_lesson_flush_rewrite');
     }
 }
-add_action('init', 'll_tools_register_wordset_page_rewrite_rules', 21);
+add_action('init', 'll_tools_register_wordset_page_rewrite_rules', 19);
 
 function ll_tools_wordset_page_maybe_redirect_query_request(): void {
     $redirect_url = ll_tools_wordset_page_get_query_request_redirect_url();

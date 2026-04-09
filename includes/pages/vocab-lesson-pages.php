@@ -1058,6 +1058,29 @@ function ll_tools_find_vocab_lesson_post_id(string $wordset_slug, string $catego
     return !empty($posts) ? (int) $posts[0] : 0;
 }
 
+function ll_tools_vocab_lesson_reserved_wordset_view(string $wordset_slug, string $category_slug): string {
+    $wordset_slug = sanitize_title($wordset_slug);
+    $category_slug = sanitize_title($category_slug);
+    if ($wordset_slug === '' || $category_slug === '') {
+        return '';
+    }
+
+    $allowed_views = function_exists('ll_tools_get_wordset_page_allowed_views')
+        ? ll_tools_get_wordset_page_allowed_views()
+        : ['progress', 'hidden-categories', 'settings', 'games'];
+    $allowed_views = array_values(array_filter(array_map('sanitize_title', (array) $allowed_views)));
+    if (!in_array($category_slug, $allowed_views, true)) {
+        return '';
+    }
+
+    $wordset = get_term_by('slug', $wordset_slug, 'wordset');
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+        return '';
+    }
+
+    return $category_slug;
+}
+
 function ll_tools_route_vocab_lesson_request($query_vars) {
     if (is_admin()) {
         return $query_vars;
@@ -1081,6 +1104,19 @@ function ll_tools_route_vocab_lesson_request($query_vars) {
             $query_vars['error'] = '404';
             return $query_vars;
         }
+        return $query_vars;
+    }
+
+    $reserved_wordset_view = ll_tools_vocab_lesson_reserved_wordset_view((string) $wordset_slug, (string) $category_slug);
+    if ($reserved_wordset_view !== '') {
+        unset(
+            $query_vars['ll_vocab_lesson_wordset'],
+            $query_vars['ll_vocab_lesson_category'],
+            $query_vars['post_type'],
+            $query_vars['error']
+        );
+        $query_vars['ll_wordset_page'] = sanitize_title((string) $wordset_slug);
+        $query_vars['ll_wordset_view'] = $reserved_wordset_view;
         return $query_vars;
     }
 
