@@ -2613,6 +2613,60 @@ test('space shooter only deducts one life when buffered shots hit wrong cards in
   expect(postCollisionState.fireHeld).toBe(false);
 });
 
+test('space shooter uses larger rendered picture cards when the run is configured for three cards', async ({ page }) => {
+  const readActiveCardMetrics = async () => page.evaluate(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    if (!run) {
+      return null;
+    }
+
+    const activeCards = Array.isArray(run.cardSnapshot)
+      ? run.cardSnapshot.filter((card) => card.promptId === run.promptId && !card.exploding)
+      : [];
+    const widths = activeCards.map((card) => Number(card.width) || 0);
+    const heights = activeCards.map((card) => Number(card.height) || 0);
+
+    return {
+      activeCardCount: run.activeCardCount,
+      maxWidth: widths.length ? Math.max(...widths) : 0,
+      maxHeight: heights.length ? Math.max(...heights) : 0
+    };
+  });
+
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildLargeSpaceShooterWords(8)
+  });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  const defaultMetrics = await readActiveCardMetrics();
+  expect(defaultMetrics).not.toBeNull();
+  expect(defaultMetrics.activeCardCount).toBe(4);
+
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildLargeSpaceShooterWords(8),
+    spaceShooterOverrides: {
+      cardCount: 3
+    }
+  });
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('space-shooter');
+  });
+  await waitForActivePrompt(page, 'space-shooter');
+
+  const largeMetrics = await readActiveCardMetrics();
+  expect(largeMetrics).not.toBeNull();
+  expect(largeMetrics.activeCardCount).toBe(3);
+  expect(largeMetrics.maxWidth).toBeGreaterThan(defaultMetrics.maxWidth + 20);
+  expect(largeMetrics.maxHeight).toBeGreaterThan(defaultMetrics.maxHeight + 20);
+});
+
 test('space shooter recovers when the active target card disappears unexpectedly', async ({ page }) => {
   await mountGamesPage(page, { isLoggedIn: true });
 

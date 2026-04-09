@@ -423,6 +423,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
         update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
 
         $expectedIds = [];
         for ($index = 1; $index <= 5; $index++) {
@@ -543,6 +544,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
         update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
 
         $expectedIds = [];
         for ($index = 1; $index <= 3; $index++) {
@@ -634,6 +636,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         foreach ([$rootAId, $rootBId, $advancedId] as $categoryId) {
             update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
             update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+            $this->setCategoryEnabledGames($categoryId);
         }
 
         update_term_meta($wordsetId, 'll_wordset_category_ordering_mode', 'prerequisite');
@@ -691,6 +694,174 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($pool['launchable'] ?? false));
         $this->assertSame($expectedIds, $returnedIds);
         $this->assertSame([$rootAId, $rootBId], $returnedCategoryIds);
+    }
+
+    public function test_categories_are_disabled_for_games_by_default_until_enabled(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Disabled Default ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Games Disabled Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+
+        for ($index = 1; $index <= 5; $index++) {
+            $wordId = $this->createWordWithGameMedia(
+                'Disabled Default Word ' . $index,
+                'Disabled Default Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['question' => 'Disabled default ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+        }
+
+        wp_set_current_user($userId);
+
+        $this->assertSame([], ll_tools_get_category_enabled_games($categoryId));
+        $this->assertFalse(ll_tools_is_category_enabled_for_game($categoryId, 'space-shooter'));
+        $this->assertSame([], ll_tools_wordset_games_visible_category_ids($wordsetId, $userId, 'space-shooter'));
+
+        $pool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+
+        $this->assertSame(0, (int) ($pool['available_word_count'] ?? -1));
+        $this->assertFalse((bool) ($pool['launchable'] ?? true));
+        $this->assertSame([], (array) ($pool['words'] ?? []));
+    }
+
+    public function test_category_game_availability_can_be_cherry_picked_per_game(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Games Cherry Pick Wordset ' . wp_generate_password(6, false), 'wordset');
+        $spaceCategory = wp_insert_term('Games Space Only ' . wp_generate_password(6, false), 'word-category');
+        $bubbleCategory = wp_insert_term('Games Bubble Only ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($spaceCategory));
+        $this->assertFalse(is_wp_error($bubbleCategory));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($spaceCategory);
+        $this->assertIsArray($bubbleCategory);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $spaceCategoryId = (int) $spaceCategory['term_id'];
+        $bubbleCategoryId = (int) $bubbleCategory['term_id'];
+
+        foreach ([$spaceCategoryId, $bubbleCategoryId] as $categoryId) {
+            update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        }
+
+        $this->setCategoryEnabledGames($spaceCategoryId, ['space-shooter']);
+        $this->setCategoryEnabledGames($bubbleCategoryId, ['bubble-pop']);
+
+        $spaceExpectedIds = [];
+        $bubbleExpectedIds = [];
+
+        for ($index = 1; $index <= 5; $index++) {
+            $spaceWordId = $this->createWordWithGameMedia(
+                'Space Only Word ' . $index,
+                'Space Only Translation ' . $index,
+                $spaceCategoryId,
+                $wordsetId,
+                true,
+                ['question' => 'Space only ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $spaceWordId, $spaceCategoryId, $wordsetId, [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+            $spaceExpectedIds[] = $spaceWordId;
+
+            $bubbleWordId = $this->createWordWithGameMedia(
+                'Bubble Only Word ' . $index,
+                'Bubble Only Translation ' . $index,
+                $bubbleCategoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Bubble only ' . $index]
+            );
+            $this->seedWordProgressRow($userId, $bubbleWordId, $bubbleCategoryId, $wordsetId, [
+                'total_coverage' => 3,
+                'coverage_practice' => 3,
+                'correct_clean' => 1,
+                'incorrect' => 1,
+                'stage' => 1,
+            ]);
+            $bubbleExpectedIds[] = $bubbleWordId;
+        }
+
+        wp_set_current_user($userId);
+
+        $spacePool = ll_tools_wordset_games_build_space_shooter_pool($wordsetId, $userId);
+        $bubblePool = ll_tools_wordset_games_build_bubble_pop_pool($wordsetId, $userId);
+
+        $spaceReturnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($spacePool['words'] ?? []))));
+        $bubbleReturnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($bubblePool['words'] ?? []))));
+
+        sort($spaceExpectedIds);
+        sort($bubbleExpectedIds);
+        sort($spaceReturnedIds);
+        sort($bubbleReturnedIds);
+
+        $this->assertSame([$spaceCategoryId], ll_tools_wordset_games_visible_category_ids($wordsetId, $userId, 'space-shooter'));
+        $this->assertSame([$bubbleCategoryId], ll_tools_wordset_games_visible_category_ids($wordsetId, $userId, 'bubble-pop'));
+        $this->assertSame(5, (int) ($spacePool['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($bubblePool['available_word_count'] ?? 0));
+        $this->assertTrue((bool) ($spacePool['launchable'] ?? false));
+        $this->assertTrue((bool) ($bubblePool['launchable'] ?? false));
+        $this->assertSame($spaceExpectedIds, $spaceReturnedIds);
+        $this->assertSame($bubbleExpectedIds, $bubbleReturnedIds);
+        $this->assertSame([$spaceCategoryId], array_values(array_unique(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['category_id'] ?? 0) : 0;
+        }, (array) ($spacePool['words'] ?? [])))));
+        $this->assertSame([$bubbleCategoryId], array_values(array_unique(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['category_id'] ?? 0) : 0;
+        }, (array) ($bubblePool['words'] ?? [])))));
+    }
+
+    public function test_wordset_games_frontend_config_uses_three_cards_for_large_image_wordsets(): void
+    {
+        $wordset = wp_insert_term('Games Large Images ' . wp_generate_password(6, false), 'wordset');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        $wordsetId = (int) $wordset['term_id'];
+
+        $defaultConfig = ll_tools_get_wordset_games_frontend_config($wordsetId);
+        $this->assertSame(4, (int) ($defaultConfig['spaceShooter']['cardCount'] ?? 0));
+        $this->assertSame(4, (int) ($defaultConfig['bubblePop']['cardCount'] ?? 0));
+
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, 'large');
+
+        $largeConfig = ll_tools_get_wordset_games_frontend_config($wordsetId);
+        $this->assertSame('large', ll_tools_get_wordset_games_image_size($wordsetId));
+        $this->assertSame(3, ll_tools_wordset_get_image_game_card_count($wordsetId));
+        $this->assertSame(3, (int) ($largeConfig['spaceShooter']['cardCount'] ?? 0));
+        $this->assertSame(3, (int) ($largeConfig['bubblePop']['cardCount'] ?? 0));
     }
 
     public function test_games_bootstrap_ajax_enforces_login_and_permission_and_returns_catalog(): void
@@ -828,6 +999,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $categoryId = (int) $category['term_id'];
         update_term_meta($categoryId, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($categoryId, 'll_quiz_option_type', 'text_title');
+        $this->setCategoryEnabledGames($categoryId);
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
@@ -888,6 +1060,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $categoryId = (int) $category['term_id'];
         update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
         update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
@@ -966,6 +1139,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $categoryId = (int) $category['term_id'];
         update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
         update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'http://127.0.0.1:8765/transcribe');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_ipa');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
@@ -1069,6 +1243,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
         update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
 
         $eligibleWordIds = [];
         for ($index = 1; $index <= $eligibleCount; $index++) {
@@ -1182,6 +1357,23 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'new_word_id' => $newWordId,
             'out_of_scope_word_id' => $outOfScopeWordId,
         ];
+    }
+
+    /**
+     * @param string[]|null $games
+     */
+    private function setCategoryEnabledGames(int $categoryId, ?array $games = null): void
+    {
+        $games = $games ?? (
+            function_exists('ll_tools_get_category_game_slugs')
+                ? ll_tools_get_category_game_slugs()
+                : ['space-shooter', 'bubble-pop', 'speaking-practice', 'speaking-stack']
+        );
+        $normalizedGames = function_exists('ll_tools_normalize_category_enabled_games')
+            ? ll_tools_normalize_category_enabled_games($games)
+            : array_values(array_unique(array_filter(array_map('sanitize_key', $games))));
+
+        update_term_meta($categoryId, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, $normalizedGames);
     }
 
     /**

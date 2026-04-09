@@ -17,6 +17,9 @@ if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_WEIGHT_META_KEY_V2')) {
 if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY')) {
     define('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY', 'll_wordset_answer_option_text_font_size_px');
 }
+if (!defined('LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY')) {
+    define('LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY', 'll_wordset_games_image_size');
+}
 
 function ll_tools_normalize_wordset_visibility($value): string {
     $visibility = sanitize_key((string) $value);
@@ -68,6 +71,25 @@ function ll_tools_get_wordset_visibility($wordset): string {
 
 function ll_tools_is_wordset_private($wordset): bool {
     return ll_tools_get_wordset_visibility($wordset) === 'private';
+}
+
+function ll_tools_normalize_wordset_games_image_size($value): string {
+    $size = sanitize_key((string) $value);
+    return in_array($size, ['default', 'large'], true) ? $size : 'default';
+}
+
+function ll_tools_get_wordset_games_image_size(int $wordset_id): string {
+    if ($wordset_id <= 0) {
+        return 'default';
+    }
+
+    return ll_tools_normalize_wordset_games_image_size(
+        get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true)
+    );
+}
+
+function ll_tools_wordset_get_image_game_card_count(int $wordset_id): int {
+    return ll_tools_get_wordset_games_image_size($wordset_id) === 'large' ? 3 : 4;
 }
 
 function ll_tools_should_autoplay_text_audio_answer_options($wordset_ids = []): bool {
@@ -1995,6 +2017,7 @@ function ll_add_wordset_language_field($term) {
     $wordset_visibility = 'public';
     $autoplay_text_audio_answer_options = false;
     $hide_lesson_text_for_non_text_quiz = false;
+    $games_image_size = 'default';
     $has_gender = false;
     $has_plurality = false;
     $has_verb_tense = false;
@@ -2041,6 +2064,9 @@ function ll_add_wordset_language_field($term) {
             ? ll_tools_should_autoplay_text_audio_answer_options([$term_id])
             : false;
         $hide_lesson_text_for_non_text_quiz = (bool) get_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true);
+        $games_image_size = function_exists('ll_tools_get_wordset_games_image_size')
+            ? ll_tools_get_wordset_games_image_size($term_id)
+            : 'default';
         $has_gender = (bool) get_term_meta($term_id, 'll_wordset_has_gender', true);
         $has_plurality = (bool) get_term_meta($term_id, 'll_wordset_has_plurality', true);
         $has_verb_tense = (bool) get_term_meta($term_id, 'll_wordset_has_verb_tense', true);
@@ -2195,6 +2221,18 @@ function ll_add_wordset_language_field($term) {
         '<label><input type="checkbox" id="ll-wordset-autoplay-text-audio-options" name="ll_wordset_autoplay_text_audio_answer_options" value="1" ' . checked($autoplay_text_audio_answer_options, true, false) . ' /> ' . esc_html__('Automatically play the audio for text + audio answer options during quizzes.', 'll-tools-text-domain') . '</label>',
         'll-wordset-autoplay-text-audio-options',
         __('When this is off, learners can play text + audio answer options manually. Audio-only answer options still auto-play.', 'll-tools-text-domain')
+    );
+
+    ll_tools_wordset_render_admin_field(
+        $is_edit,
+        'term-games-image-size-wrap',
+        __('Word games image size', 'll-tools-text-domain'),
+        '<select id="ll-wordset-games-image-size" name="ll_wordset_games_image_size">'
+            . '<option value="default" ' . selected($games_image_size, 'default', false) . '>' . esc_html__('Default (4 picture cards)', 'll-tools-text-domain') . '</option>'
+            . '<option value="large" ' . selected($games_image_size, 'large', false) . '>' . esc_html__('Large (3 picture cards)', 'll-tools-text-domain') . '</option>'
+            . '</select>',
+        'll-wordset-games-image-size',
+        __('Controls Space Shooter and Bubble Pop. Large uses 3 picture cards at a time instead of 4 so images can render bigger.', 'll-tools-text-domain')
     );
 
     $answer_option_font_family_field_html = '<select id="ll-wordset-answer-option-font-family" name="ll_wordset_answer_option_text_font_family"';
@@ -2490,6 +2528,7 @@ function ll_save_wordset_language($term_id) {
         || isset($_POST['ll_wordset_visibility'])
         || isset($_POST['ll_wordset_autoplay_text_audio_answer_options'])
         || isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz'])
+        || isset($_POST['ll_wordset_games_image_size'])
         || isset($_POST['ll_wordset_answer_option_text_font_family'])
         || isset($_POST['ll_wordset_answer_option_text_font_weight'])
         || isset($_POST['ll_wordset_answer_option_text_font_size_px'])
@@ -2583,6 +2622,17 @@ function ll_save_wordset_language($term_id) {
 
         $hide_lesson_text_for_non_text_quiz = isset($_POST['ll_wordset_hide_lesson_text_for_non_text_quiz']) ? 1 : 0;
         update_term_meta($term_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', $hide_lesson_text_for_non_text_quiz);
+
+        if (array_key_exists('ll_wordset_games_image_size', $_POST)) {
+            $games_image_size = ll_tools_normalize_wordset_games_image_size(
+                wp_unslash((string) $_POST['ll_wordset_games_image_size'])
+            );
+            if ($games_image_size === 'default') {
+                delete_term_meta($term_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY);
+            } else {
+                update_term_meta($term_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, $games_image_size);
+            }
+        }
 
         $answer_style_defaults = ll_tools_wordset_get_answer_option_text_style_defaults();
         if (array_key_exists('ll_wordset_answer_option_text_font_family', $_POST)) {

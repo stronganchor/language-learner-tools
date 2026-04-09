@@ -987,9 +987,19 @@
         const width = Math.max(280, run.width || 720);
         const height = Math.max(360, run.height || 720);
         const laneCount = run.cardCount || 4;
-        const cardWidth = clamp(width * 0.185, 84, 132);
-        const cardHeight = clamp(cardWidth * 1.28, 112, 180);
+        const gameSlug = normalizeGameSlug(run && run.slug);
         const laneWidth = width / laneCount;
+        const defaultCardWidth = clamp(width * 0.185, 84, 132);
+        const useExpandedImageCards = (
+            (gameSlug === DEFAULT_GAME_SLUG || gameSlug === BUBBLE_POP_GAME_SLUG)
+            && laneCount <= 3
+        );
+        const cardWidth = useExpandedImageCards
+            ? clamp(laneWidth * 0.88, defaultCardWidth, 188)
+            : defaultCardWidth;
+        const cardHeight = useExpandedImageCards
+            ? clamp(cardWidth * 1.28, 140, 236)
+            : clamp(cardWidth * 1.28, 112, 180);
         const shipWidth = clamp(width * 0.14, 54, 90);
         const shipHeight = shipWidth * 0.58;
         return {

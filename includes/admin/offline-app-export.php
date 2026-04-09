@@ -398,7 +398,7 @@ function ll_tools_offline_app_resolve_wordset_stt_bundle(int $wordset_id, WP_Ter
 
 function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $wordset_term, array $allowed_category_ids, array $offline_category_data = [], array $stt_bundle_manifest = [], array &$warnings = []): array {
     $frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
-        ? ll_tools_get_wordset_games_frontend_config()
+        ? ll_tools_get_wordset_games_frontend_config($wordset_id)
         : [];
     $frontend_config = ll_tools_offline_app_rewrite_games_frontend_config($frontend_config);
     $games_i18n = function_exists('ll_tools_get_wordset_games_i18n_messages')

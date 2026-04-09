@@ -6,6 +6,9 @@ if (!defined('LL_TOOLS_CATEGORY_VISIBILITY_META_KEY')) {
 if (!defined('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY')) {
     define('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY', 'll_category_access_user_ids');
 }
+if (!defined('LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY', 'll_category_enabled_games');
+}
 
 function ll_tools_normalize_category_visibility($value): string {
     $visibility = sanitize_key((string) $value);
@@ -364,6 +367,10 @@ function ll_tools_initialize_word_category_meta_fields() {
     add_action('word-category_edit_form_fields', 'll_edit_quiz_prompt_option_fields');
     add_action('created_word-category', 'll_save_quiz_prompt_option_fields', 10, 2);
     add_action('edited_word-category', 'll_save_quiz_prompt_option_fields', 10, 2);
+    add_action('word-category_add_form_fields', 'll_tools_add_category_game_availability_field');
+    add_action('word-category_edit_form_fields', 'll_tools_edit_category_game_availability_field');
+    add_action('created_word-category', 'll_tools_save_category_game_availability_field', 10, 2);
+    add_action('edited_word-category', 'll_tools_save_category_game_availability_field', 10, 2);
 
     // Bulk‑add form display and processing hooks
     add_action('admin_notices', 'll_render_bulk_add_categories_form');
@@ -962,6 +969,122 @@ function ll_tools_quiz_requires_image(array $config, string $display_mode = ''):
     return ll_tools_quiz_prompt_type_has_image($prompt_type) || $option_type === 'image';
 }
 
+function ll_tools_get_category_game_definitions(): array {
+    return [
+        'space-shooter' => [
+            'slug' => 'space-shooter',
+            'label' => __('Space Shooter', 'll-tools-text-domain'),
+        ],
+        'bubble-pop' => [
+            'slug' => 'bubble-pop',
+            'label' => __('Bubble Pop', 'll-tools-text-domain'),
+        ],
+        'speaking-practice' => [
+            'slug' => 'speaking-practice',
+            'label' => __('Speaking Practice', 'll-tools-text-domain'),
+        ],
+        'speaking-stack' => [
+            'slug' => 'speaking-stack',
+            'label' => __('Word Stack', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+function ll_tools_get_category_game_slugs(): array {
+    return array_values(array_keys(ll_tools_get_category_game_definitions()));
+}
+
+function ll_tools_normalize_category_enabled_games($value): array {
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        if ($trimmed[0] === '[' || $trimmed[0] === '{') {
+            $decoded = json_decode($trimmed, true);
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $value = preg_split('/\s*,\s*/', $trimmed);
+            }
+        } else {
+            $value = preg_split('/\s*,\s*/', $trimmed);
+        }
+    }
+
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $allowed = array_fill_keys(ll_tools_get_category_game_slugs(), true);
+    $enabled = [];
+    foreach ($value as $raw_slug) {
+        $slug = sanitize_key((string) $raw_slug);
+        if ($slug === '' || empty($allowed[$slug])) {
+            continue;
+        }
+        $enabled[$slug] = $slug;
+    }
+
+    return array_values($enabled);
+}
+
+function ll_tools_get_category_enabled_games($term): array {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return [];
+    }
+
+    return ll_tools_normalize_category_enabled_games(
+        get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, true)
+    );
+}
+
+function ll_tools_is_category_enabled_for_game($term, string $game_slug): bool {
+    $game_slug = sanitize_key($game_slug);
+    if ($game_slug === '') {
+        return false;
+    }
+
+    return in_array($game_slug, ll_tools_get_category_enabled_games($term), true);
+}
+
+function ll_tools_seed_existing_categories_enabled_games(): void {
+    if (!is_admin()) {
+        return;
+    }
+    if (get_option('ll_seeded_category_enabled_games_v1', false)) {
+        return;
+    }
+
+    $enabled_games = ll_tools_get_category_game_slugs();
+    $term_ids = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'fields' => 'ids',
+    ]);
+
+    if (is_wp_error($term_ids) || empty($term_ids)) {
+        update_option('ll_seeded_category_enabled_games_v1', 1);
+        return;
+    }
+
+    foreach ((array) $term_ids as $term_id) {
+        $term_id = (int) $term_id;
+        if ($term_id <= 0 || metadata_exists('term', $term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY)) {
+            continue;
+        }
+
+        update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, $enabled_games);
+    }
+
+    update_option('ll_seeded_category_enabled_games_v1', 1);
+}
+add_action('admin_init', 'll_tools_seed_existing_categories_enabled_games');
+
 function ll_tools_get_category_lesson_grid_text_visibility_override($term): string {
     if (!($term instanceof WP_Term)) {
         $term = get_term($term, 'word-category');
@@ -1208,6 +1331,49 @@ function ll_edit_quiz_prompt_option_fields($term) {
     <?php
 }
 
+function ll_tools_add_category_game_availability_field(): void {
+    $game_definitions = ll_tools_get_category_game_definitions();
+    ?>
+    <input type="hidden" name="ll_category_enabled_games_submitted" value="1">
+    <div class="form-field term-category-enabled-games-wrap">
+        <label><?php esc_html_e('Enabled Games', 'll-tools-text-domain'); ?></label>
+        <div style="max-height:180px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
+            <?php foreach ($game_definitions as $game_slug => $game_definition) : ?>
+                <label style="display:block; margin:2px 0;">
+                    <input type="checkbox" name="ll_category_enabled_games[]" value="<?php echo esc_attr($game_slug); ?>">
+                    <?php echo esc_html((string) ($game_definition['label'] ?? $game_slug)); ?>
+                </label>
+            <?php endforeach; ?>
+        </div>
+        <p class="description"><?php esc_html_e('Select which games may use words from this category. Leave all unchecked to keep this category out of every game. New categories default to disabled for all games.', 'll-tools-text-domain'); ?></p>
+    </div>
+    <?php
+}
+
+function ll_tools_edit_category_game_availability_field($term): void {
+    $enabled_games = array_fill_keys(ll_tools_get_category_enabled_games($term), true);
+    $game_definitions = ll_tools_get_category_game_definitions();
+    ?>
+    <input type="hidden" name="ll_category_enabled_games_submitted" value="1">
+    <tr class="form-field term-category-enabled-games-wrap">
+        <th scope="row" valign="top">
+            <label><?php esc_html_e('Enabled Games', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <div style="max-height:180px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
+                <?php foreach ($game_definitions as $game_slug => $game_definition) : ?>
+                    <label style="display:block; margin:2px 0;">
+                        <input type="checkbox" name="ll_category_enabled_games[]" value="<?php echo esc_attr($game_slug); ?>" <?php checked(!empty($enabled_games[$game_slug])); ?>>
+                        <?php echo esc_html((string) ($game_definition['label'] ?? $game_slug)); ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            <p class="description"><?php esc_html_e('Select which games may use words from this category. Leave all unchecked to keep this category out of every game.', 'll-tools-text-domain'); ?></p>
+        </td>
+    </tr>
+    <?php
+}
+
 /**
  * Save prompt + answer option preferences.
  */
@@ -1244,6 +1410,35 @@ function ll_save_quiz_prompt_option_fields($term_id, $taxonomy) {
             update_term_meta($term_id, 'll_lesson_grid_text_visibility_override', $visibility_override);
         }
     }
+}
+
+function ll_tools_save_category_game_availability_field($term_id): void {
+    if (!isset($_POST['ll_category_enabled_games_submitted'])) {
+        return;
+    }
+
+    $term_id = (int) $term_id;
+    if ($term_id <= 0) {
+        return;
+    }
+
+    $add_nonce = isset($_POST['_wpnonce_add-tag'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce_add-tag']))
+        : '';
+    $edit_nonce = isset($_POST['_wpnonce'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce']))
+        : '';
+    $nonce_valid = ($add_nonce !== '' && wp_verify_nonce($add_nonce, 'add-tag'))
+        || ($edit_nonce !== '' && wp_verify_nonce($edit_nonce, 'update-tag_' . $term_id));
+    if (!$nonce_valid) {
+        return;
+    }
+
+    $enabled_games = isset($_POST['ll_category_enabled_games'])
+        ? ll_tools_normalize_category_enabled_games(wp_unslash($_POST['ll_category_enabled_games']))
+        : [];
+
+    update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, $enabled_games);
 }
 
 /**

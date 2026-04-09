@@ -2449,13 +2449,16 @@ function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-sp
         . '</svg>';
 }
 
-function ll_tools_get_wordset_games_frontend_config(): array {
+function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array {
     $round_options = function_exists('ll_tools_wordset_games_round_options')
         ? ll_tools_wordset_games_round_options()
         : [20, 50, 100, 'all'];
     $default_round_option = function_exists('ll_tools_wordset_games_default_round_option')
         ? ll_tools_wordset_games_default_round_option()
         : 50;
+    $image_game_card_count = function_exists('ll_tools_wordset_get_image_game_card_count')
+        ? ll_tools_wordset_get_image_game_card_count($wordset_id)
+        : 4;
 
     return [
         'bootstrapAction' => 'll_wordset_games_bootstrap',
@@ -2471,7 +2474,7 @@ function ll_tools_get_wordset_games_frontend_config(): array {
         'spaceShooter' => [
             'slug' => 'space-shooter',
             'lives' => 3,
-            'cardCount' => 4,
+            'cardCount' => $image_game_card_count,
             'maxLoadedWords' => function_exists('ll_tools_wordset_games_space_shooter_launch_word_cap')
                 ? ll_tools_wordset_games_space_shooter_launch_word_cap()
                 : 60,
@@ -2499,7 +2502,7 @@ function ll_tools_get_wordset_games_frontend_config(): array {
         'bubblePop' => [
             'slug' => 'bubble-pop',
             'lives' => 3,
-            'cardCount' => 4,
+            'cardCount' => $image_game_card_count,
             'maxLoadedWords' => function_exists('ll_tools_wordset_games_bubble_pop_launch_word_cap')
                 ? ll_tools_wordset_games_bubble_pop_launch_word_cap()
                 : 60,
@@ -5524,7 +5527,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     }, $enhanced_categories);
 
     $games_frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
-        ? ll_tools_get_wordset_games_frontend_config()
+        ? ll_tools_get_wordset_games_frontend_config($wordset_id)
         : [];
     $games_i18n = function_exists('ll_tools_get_wordset_games_i18n_messages')
         ? ll_tools_get_wordset_games_i18n_messages()
