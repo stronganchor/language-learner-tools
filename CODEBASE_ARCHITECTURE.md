@@ -49,7 +49,7 @@ read_first:
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
-  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/user-progress.php`, and `includes/login-window.php`.
+  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/user-progress.php`, `includes/privacy.php`, and `includes/login-window.php`.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
@@ -79,6 +79,7 @@ language-learner-tools.php    # Bootstrap, constants, updates, /embed rewrite
 includes/
   assets.php                  # Versioned enqueue helper + public assets
   bootstrap.php               # Central includes
+  privacy.php                 # Progress privacy controls, exporter/eraser hooks, policy text, retention cleanup
   template-loader.php         # Theme override resolver
   lib/
     sort.php                  # Shared sorting helpers
@@ -121,6 +122,7 @@ includes/
   admin/
     admin-dashboard-menu.php
     settings.php
+    user-progress-report.php  # Admin-only learner progress/usage report
     audio-processor-admin.php
     audio-image-matcher.php
     missing-audio-admin-page.php
@@ -239,6 +241,7 @@ Core settings live in `includes/admin/settings.php`:
 - `ll_hide_recording_titles` (recording UI).
 - `ll_quiz_font` and `ll_quiz_font_url` (font selection; fonts must already be enqueued by theme/plugin).
 - `ll_update_branch` (`main` stable release asset channel, `dev` branch-testing channel).
+- `ll_user_progress_events_retention_days` (retention for detailed learner activity events; summary progress stays until erasure/deletion).
 
 # Public UI surfaces and routes
 ## Shortcodes (user-facing)

@@ -582,6 +582,10 @@ register_deactivation_hook(__FILE__, function () {
     if ($role) {
         $role->remove_cap('view_ll_tools');
     }
+
+    if (function_exists('ll_tools_clear_user_progress_retention_schedule')) {
+        ll_tools_clear_user_progress_retention_schedule();
+    }
 });
 
 /**

@@ -1207,11 +1207,20 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         }
     }
 
-    if ($device_id !== '' && !array_key_exists('device_id', $payload)) {
+    $store_client_identity = function_exists('ll_tools_user_progress_event_identity_storage_enabled')
+        ? ll_tools_user_progress_event_identity_storage_enabled()
+        : false;
+
+    if ($store_client_identity && $device_id !== '' && !array_key_exists('device_id', $payload)) {
         $payload['device_id'] = $device_id;
     }
-    if ($profile_id !== '' && !array_key_exists('profile_id', $payload)) {
+    if ($store_client_identity && $profile_id !== '' && !array_key_exists('profile_id', $payload)) {
         $payload['profile_id'] = $profile_id;
+    }
+
+    if (!$store_client_identity) {
+        $device_id = '';
+        $profile_id = '';
     }
 
     return [

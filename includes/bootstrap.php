@@ -44,6 +44,7 @@ require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/user-study.php');
 require_once(__DIR__ . '/offline-app-sync.php');
+require_once(__DIR__ . '/privacy.php');
 
 // Include API integrations (used by recorder flows on public pages)
 require_once(__DIR__ . '/admin/api/deepl-api.php');
@@ -80,6 +81,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
     require_once(__DIR__ . '/admin/offline-app-export.php');
+    require_once(__DIR__ . '/admin/user-progress-report.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/example-sentence-migration.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
