@@ -140,7 +140,14 @@
         if (Util && typeof Util.randomlySort === 'function') {
             return Util.randomlySort(list);
         }
-        return list.slice().sort(function () { return Math.random() - 0.5; });
+        const items = list.slice();
+        for (let idx = items.length - 1; idx > 0; idx -= 1) {
+            const swapIndex = Math.floor(Math.random() * (idx + 1));
+            const current = items[idx];
+            items[idx] = items[swapIndex];
+            items[swapIndex] = current;
+        }
+        return items;
     }
 
     function clamp(num, min, max) {
@@ -620,27 +627,32 @@
     }
 
     function sortWordsForLevel(words, level) {
-        const list = Array.isArray(words) ? words.slice() : [];
+        const seeded = shuffle(Array.isArray(words) ? words : []).map(function (word, index) {
+            return {
+                word: word,
+                tieBreak: index
+            };
+        });
         if (level === LEVEL_ONE) {
-            list.sort(function (left, right) {
-                const a = getWordProgress(left.id);
-                const b = getWordProgress(right.id);
+            seeded.sort(function (left, right) {
+                const a = getWordProgress(left.word.id);
+                const b = getWordProgress(right.word.id);
                 if (a.seen_total !== b.seen_total) return a.seen_total - b.seen_total;
-                return Math.random() - 0.5;
+                return left.tieBreak - right.tieBreak;
             });
-            return list;
+            return seeded.map(function (entry) { return entry.word; });
         }
 
-        list.sort(function (left, right) {
-            const a = getWordProgress(left.id);
-            const b = getWordProgress(right.id);
+        seeded.sort(function (left, right) {
+            const a = getWordProgress(left.word.id);
+            const b = getWordProgress(right.word.id);
             if (a.confidence !== b.confidence) return a.confidence - b.confidence;
             const aWrong = (level === LEVEL_TWO) ? a.level2_wrong : a.level3_wrong;
             const bWrong = (level === LEVEL_TWO) ? b.level2_wrong : b.level3_wrong;
             if (aWrong !== bWrong) return bWrong - aWrong;
-            return Math.random() - 0.5;
+            return left.tieBreak - right.tieBreak;
         });
-        return list;
+        return seeded.map(function (entry) { return entry.word; });
     }
 
     function pickChunkWordIds(words, chunkSize, mixCategories) {

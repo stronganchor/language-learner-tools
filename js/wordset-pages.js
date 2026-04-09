@@ -10425,6 +10425,13 @@
                 return;
             }
 
+            const priorityFocus = normalizePriorityFocus(launchDetails.priority_focus || '');
+            const shouldImplicitlyRandomizeSessionCategoryOrder = !preserveCategoryOrder &&
+                finalMode === 'practice' &&
+                effectiveSessionIds.length > 0 &&
+                !randomizeSessionCategoryOrder &&
+                priorityFocus === 'hard';
+
             if (preserveCategoryOrder) {
                 const categoryOrder = {};
                 launchCategoryIds.forEach(function (categoryId, index) {
@@ -10444,7 +10451,7 @@
                     }
                     return (parseInt(left.id, 10) || 0) - (parseInt(right.id, 10) || 0);
                 });
-            } else if (effectiveSessionIds.length && !randomizeSessionCategoryOrder) {
+            } else if (effectiveSessionIds.length && !randomizeSessionCategoryOrder && !shouldImplicitlyRandomizeSessionCategoryOrder) {
                 selectedCats = selectedCats
                     .map(function (cat, index) {
                         return {

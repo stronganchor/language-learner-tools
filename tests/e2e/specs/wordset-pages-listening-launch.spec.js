@@ -590,6 +590,63 @@ test('logged-in practice top launch falls back to visible categories when recomm
   expect(alerts).toEqual([]);
 });
 
+test('hard-word practice recommendations randomize the starting category order for session launches', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 5, 'A'),
+    22: buildCategoryWordRows(22, 5, 'B'),
+    33: buildCategoryWordRows(33, 5, 'C')
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      nextActivity: {
+        mode: 'practice',
+        category_ids: [11, 22, 33],
+        session_word_ids: [1101, 1102, 1103, 2201, 2202, 3301],
+        type: 'priority_focus',
+        reason_code: 'priority_focus',
+        details: {
+          chunk_size: 6,
+          priority_focus: 'hard'
+        }
+      },
+      recommendationQueue: []
+    }
+  });
+
+  await page.evaluate(() => {
+    const values = [0.8, 0.1];
+    let index = 0;
+    Math.random = function () {
+      const fallback = values[values.length - 1];
+      const next = index < values.length ? values[index] : fallback;
+      index += 1;
+      return next;
+    };
+  });
+
+  await page.locator('[data-ll-wordset-start-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      return Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0;
+    });
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_top_start_queue');
+  expect(launch.sessionWordIds).toEqual([1101, 1102, 1103, 2201, 2202, 3301]);
+  expect(launch.categoryIds).toEqual([22, 11, 33]);
+  expect(launch.catNames).toEqual(['Cat B', 'Cat A', 'Cat C']);
+});
+
 test('gender top launch does not downgrade to practice when queued recommendations target non-gender categories', async ({ page }) => {
   const wordsByCategory = {
     11: buildCategoryWordRows(11, 5, 'A'),

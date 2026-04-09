@@ -153,7 +153,14 @@
             if (!Array.isArray(inputArray)) {
                 return inputArray;
             }
-            return [...inputArray].sort(() => 0.5 - Math.random());
+            const items = inputArray.slice();
+            for (let idx = items.length - 1; idx > 0; idx -= 1) {
+                const swapIndex = Math.floor(Math.random() * (idx + 1));
+                const current = items[idx];
+                items[idx] = items[swapIndex];
+                items[swapIndex] = current;
+            }
+            return items;
         }
 
         function getRetryCount(raw, fallback) {
