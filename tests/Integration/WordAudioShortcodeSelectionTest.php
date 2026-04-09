@@ -14,10 +14,23 @@ final class WordAudioShortcodeSelectionTest extends LL_Tools_TestCase
         $this->createAudioRecording($word_id, 'isolation', '/wp-content/uploads/shortcode-audio-isolation.mp3');
         $this->createAudioRecording($word_id, 'introduction', '/wp-content/uploads/shortcode-audio-introduction.mp3');
 
+        ll_enqueue_word_audio_js();
         $output = do_shortcode('[word_audio recording_type="introduction"]Shortcode Audio Word[/word_audio]');
 
+        $this->assertStringContainsString('class="ll-word-audio__button"', $output);
+        $this->assertStringContainsString('aria-label="Play audio"', $output);
+        $this->assertStringContainsString('class="ll-word-audio__audio"', $output);
+        $this->assertStringContainsString('hidden', $output);
+        $this->assertStringNotContainsString('onclick=', $output);
+        $this->assertStringNotContainsString('style=', $output);
         $this->assertStringContainsString('shortcode-audio-introduction.mp3', $output);
         $this->assertStringNotContainsString('shortcode-audio-isolation.mp3', $output);
+
+        $localized = wp_scripts()->get_data('ll-word-audio', 'data');
+        $this->assertIsString($localized);
+        $this->assertStringContainsString('ll_word_audio_data', $localized);
+        $this->assertStringContainsString('Play audio', $localized);
+        $this->assertStringContainsString('Pause audio', $localized);
     }
 
     public function test_shortcode_can_select_audio_by_exact_word_audio_id_without_word_lookup(): void
@@ -36,6 +49,7 @@ final class WordAudioShortcodeSelectionTest extends LL_Tools_TestCase
             $target_audio_id
         ));
 
+        $this->assertStringContainsString('class="ll-word-audio__button"', $output);
         $this->assertStringContainsString('mapped-parent-introduction.mp3', $output);
         $this->assertStringNotContainsString('mapped-parent-isolation.mp3', $output);
         $this->assertStringContainsString('Custom Label', $output);

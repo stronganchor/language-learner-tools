@@ -14,12 +14,60 @@
 
 /* Audio Playback Styles */
 .ll-word-audio {
-    display: inline;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    vertical-align: baseline;
 }
 
 p:has(.ll-word-audio) {
     margin: 0;
     display: inline;
+}
+
+.ll-word-audio__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25em;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.ll-word-audio__button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.ll-word-audio__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    flex: 0 0 1.5rem;
+}
+
+.ll-word-audio__icon-image {
+    display: block;
+    width: 10px;
+    height: 10px;
+}
+
+.ll-word-audio__audio {
+    display: none;
 }
 
 /* Word Post Styles */

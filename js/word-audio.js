@@ -1,55 +1,97 @@
-var activeAudioPlayers = [];
+(function () {
+    'use strict';
 
-// Use the plugin's directory URL to construct the paths for the SVG files
-var pluginDirUrl = ll_word_audio_data.plugin_dir_url;
-var play_icon = '<img src="' + pluginDirUrl + 'media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1">';
-var stop_icon = '<img src="' + pluginDirUrl + 'media/stop-symbol.svg" width="9" height="9" alt="Stop" data-no-lazy="1">';
+    var data = window.ll_word_audio_data || {};
+    var controls = data.controls || {};
+    var playLabel = controls.playLabel || 'Play audio';
+    var pauseLabel = controls.pauseLabel || 'Pause audio';
+    var playIconUrl = controls.playIconUrl || '';
+    var pauseIconUrl = controls.pauseIconUrl || playIconUrl;
 
-function ll_toggleAudio(audioId) {
-    var audio = document.getElementById(audioId);
-    var icon = document.getElementById(audioId + '_icon');
-    if (!audio.paused) {
-        audio.pause();
-        audio.currentTime = 0; // Stop the audio
-        icon.innerHTML = play_icon;
-    } else {
-        audio.play();
-    }
-}
+    function setButtonState(button, isPlaying) {
+        var audioId = button.getAttribute('aria-controls');
+        var audio = audioId ? document.getElementById(audioId) : null;
+        var icon = button.querySelector('.ll-word-audio__icon-image');
+        var label = button.querySelector('.ll-word-audio__label');
 
-function ll_audioPlaying(audioId) {
-    var icon = document.getElementById(audioId + '_icon');
-    icon.innerHTML = stop_icon;
-}
+        if (!audio) {
+            return;
+        }
 
-function ll_audioEnded(audioId) {
-    var icon = document.getElementById(audioId + '_icon');
-    icon.innerHTML = play_icon;
-}
-
-function pauseAllAudioPlayers() {
-    activeAudioPlayers.forEach(function (audioPlayer) {
-        audioPlayer.pause();
-    });
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-    var wordElements = document.querySelectorAll('.ll-word-audio');
-
-    wordElements.forEach(function (wordElement) {
-        wordElement.addEventListener('click', function () {
-            var audioPlayer = activeAudioPlayers.find(function (player) {
-                return player.src === wordElement.getAttribute('data-audio-url');
-            });
-
-            if (audioPlayer) {
-                if (audioPlayer.paused) {
-                    pauseAllAudioPlayers();
-                    audioPlayer.play();
-                } else {
-                    audioPlayer.pause();
-                }
+        if (isPlaying) {
+            button.setAttribute('aria-label', pauseLabel);
+            if (label) {
+                label.textContent = pauseLabel;
             }
+            if (icon && pauseIconUrl) {
+                icon.src = pauseIconUrl;
+            }
+            return;
+        }
+
+        button.setAttribute('aria-label', playLabel);
+        if (label) {
+            label.textContent = playLabel;
+        }
+        if (icon && playIconUrl) {
+            icon.src = playIconUrl;
+        }
+    }
+
+    function stopAudio(audio) {
+        audio.pause();
+        audio.currentTime = 0;
+    }
+
+    function toggleAudio(button) {
+        var audioId = button.getAttribute('aria-controls');
+        var audio = audioId ? document.getElementById(audioId) : null;
+
+        if (!audio) {
+            return;
+        }
+
+        if (audio.paused) {
+            audio.play();
+            return;
+        }
+
+        stopAudio(audio);
+    }
+
+    function bindWordAudio(button) {
+        var audioId = button.getAttribute('aria-controls');
+        var audio = audioId ? document.getElementById(audioId) : null;
+
+        if (!audio) {
+            return;
+        }
+
+        button.addEventListener('click', function () {
+            toggleAudio(button);
+        });
+
+        audio.addEventListener('play', function () {
+            setButtonState(button, true);
+        });
+
+        audio.addEventListener('pause', function () {
+            setButtonState(button, false);
+        });
+
+        audio.addEventListener('ended', function () {
+            stopAudio(audio);
+            setButtonState(button, false);
+        });
+
+        setButtonState(button, !audio.paused);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var buttons = document.querySelectorAll('.ll-word-audio__button[data-audio-id]');
+
+        buttons.forEach(function (button) {
+            bindWordAudio(button);
         });
     });
-});
+}());

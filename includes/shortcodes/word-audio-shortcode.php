@@ -55,16 +55,26 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     	$english_meaning = get_post_meta($word_post->ID, 'word_english_meaning', true);
 	}
 	
+    $controls = ll_word_audio_get_controls_data();
+
     // Generate unique ID for the audio element
     $audio_id = uniqid('audio_');
-
-    $play_icon = '<img src="' . LL_TOOLS_BASE_URL . 'media/play-symbol.svg" width="10" height="10" alt="' . esc_attr__('Play', 'll-tools-text-domain') . '" data-no-lazy="1"/>';
 
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
     if (!empty($audio_file)) {
-        $output .= "<div id='{$audio_id}_icon' class='ll-audio-icon' style='width: 20px; display: inline-flex; cursor: pointer;' onclick='ll_toggleAudio(\"{$audio_id}\")'>". $play_icon . "</div>";
-        $output .= "<audio id='{$audio_id}' onplay='ll_audioPlaying(\"{$audio_id}\")' onended='ll_audioEnded(\"{$audio_id}\")' style='display:none;'><source src='" . esc_url($audio_file) . "' type='audio/mpeg'></audio>";
+        $output .= sprintf(
+            '<button type="button" id="%1$s_button" class="ll-word-audio__button" aria-controls="%1$s" aria-label="%2$s" data-audio-id="%1$s"><span class="ll-word-audio__icon" aria-hidden="true"><img id="%1$s_icon" class="ll-word-audio__icon-image" src="%3$s" width="10" height="10" alt="" data-no-lazy="1" /></span><span id="%1$s_label" class="screen-reader-text ll-word-audio__label">%4$s</span></button>',
+            esc_attr($audio_id),
+            esc_attr($controls['playLabel']),
+            esc_url($controls['playIconUrl']),
+            esc_html($controls['playLabel'])
+        );
+        $output .= sprintf(
+            '<audio id="%1$s" class="ll-word-audio__audio" preload="none" hidden><source src="%2$s" type="audio/mpeg"></audio>',
+            esc_attr($audio_id),
+            esc_url($audio_file)
+        );
     }
     $output .= do_shortcode($original_content);
     if (!empty($english_meaning)) {
@@ -163,6 +173,20 @@ function ll_word_audio_extract_context($atts, $content) {
 }
 
 /**
+ * Returns the localized labels and assets used by the word audio controls.
+ *
+ * @return array<string, string>
+ */
+function ll_word_audio_get_controls_data() {
+    return array(
+        'playLabel' => __('Play audio', 'll-tools-text-domain'),
+        'pauseLabel' => __('Pause audio', 'll-tools-text-domain'),
+        'playIconUrl' => LL_TOOLS_BASE_URL . 'media/play-symbol.svg',
+        'pauseIconUrl' => LL_TOOLS_BASE_URL . 'media/stop-symbol.svg',
+    );
+}
+
+/**
  * Resolve the post ID hosting this shortcode, cached per request to avoid cross-shortcode contamination.
  *
  * @return int
@@ -202,7 +226,7 @@ function ll_enqueue_word_audio_js() {
 
     // Pass the plugin ROOT url to JS so it can find /media/*.svg reliably
     wp_localize_script('ll-word-audio', 'll_word_audio_data', array(
-        'plugin_dir_url' => LL_TOOLS_BASE_URL,
+        'controls' => ll_word_audio_get_controls_data(),
     ));
 }
 add_action('wp_enqueue_scripts', 'll_enqueue_word_audio_js');
