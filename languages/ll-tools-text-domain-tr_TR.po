@@ -6098,6 +6098,18 @@ msgstr "%s kaydını oynat"
 msgid "Play audio"
 msgstr "Sesi çal"
 
+#: includes/shortcodes/flashcard-widget.php:343
+msgid "Pause audio"
+msgstr "Sesi duraklat"
+
+#: includes/shortcodes/flashcard-widget.php:346
+msgid "Play word audio"
+msgstr "Kelime sesini çal"
+
+#: includes/shortcodes/flashcard-widget.php:349
+msgid "Play option audio"
+msgstr "Seçenek sesini çal"
+
 msgid "Space Shooter"
 msgstr "Uzay Nişancısı"
 
@@ -6270,6 +6282,30 @@ msgstr "Tekrarla"
 #: templates/flashcard-widget-template.php:125
 msgid "Practice Mode"
 msgstr "Tekrar Modu"
+
+#: includes/shortcodes/flashcard-widget.php:431
+msgid "Learning"
+msgstr "Öğrenme"
+
+#: includes/shortcodes/flashcard-widget.php:432
+msgid "Self-check"
+msgstr "Öz kontrol"
+
+#: includes/shortcodes/flashcard-widget.php:433
+msgid "Listening"
+msgstr "Dinleme"
+
+#: includes/shortcodes/flashcard-widget.php:434
+msgid "Learning Mode"
+msgstr "Öğrenme Modu"
+
+#: includes/shortcodes/flashcard-widget.php:435
+msgid "Self-check Mode"
+msgstr "Öz Kontrol Modu"
+
+#: includes/shortcodes/flashcard-widget.php:436
+msgid "Listening Mode"
+msgstr "Dinleme Modu"
 
 #: includes/taxonomies/wordset-taxonomy.php:2091
 msgid ""
@@ -7805,7 +7841,7 @@ msgstr "Atlama."
 #: includes/admin/recording-types-admin.php:119
 #: includes/admin/recording-types-admin.php:138
 msgid "Slug"
-msgstr "Sümüklüböcek"
+msgstr "Kısa ad"
 
 #: includes/admin/recording-types-admin.php:216
 msgid "Slugs should be lowercase and use hyphens instead of spaces"
@@ -7969,7 +8005,7 @@ msgstr "Tümünü işaretle"
 #: includes/shortcodes/word-grid-shortcode.php:2119
 #: includes/shortcodes/word-grid-shortcode.php:3099
 msgid "Star word"
-msgstr "Yıldız kelimesi"
+msgstr "Kelimeyi yıldızla"
 
 #: includes/pages/wordset-pages.php:3217 includes/pages/wordset-pages.php:3234
 #: includes/pages/wordset-pages.php:3476
