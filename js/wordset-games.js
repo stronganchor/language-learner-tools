@@ -5588,35 +5588,41 @@
             return;
         }
 
-        const dt = Math.min(40, Math.max(0, dtMs || 0)) / 1000;
+        const simulationWindowMs = Math.min(160, Math.max(0, dtMs || 0));
         if (!run.allWordsQueued && now >= Number(run.nextSpawnAt || 0) && !isSpeakingStackSpawnBlocked(ctx, run, now)) {
             spawnSpeakingStackCard(ctx, run, now);
             scheduleNextSpeakingStackSpawn(ctx, run, now);
             setSpeakingStackProgressFromRun(ctx, run);
         }
 
-        run.cards.forEach(function (card) {
-            if (!card || card.exploding) {
-                return;
-            }
+        // Catch up through short main-thread stalls without turning a dropped frame into slow-motion falling.
+        let remainingMs = simulationWindowMs;
+        while (remainingMs > 0.01) {
+            const dt = Math.min(40, remainingMs) / 1000;
+            run.cards.forEach(function (card) {
+                if (!card || card.exploding) {
+                    return;
+                }
 
-            const targetX = isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : Number(card.x || 0);
-            const targetY = isFinite(Number(card.stackTargetY)) ? Number(card.stackTargetY) : Number(card.y || 0);
-            if (Number(card.y) < targetY) {
-                const nextY = Math.min(targetY, Number(card.y || 0) + ((Number(card.speed) || 0) * dt));
-                const startY = isFinite(Number(card.entryStartY)) ? Number(card.entryStartY) : nextY;
-                const startX = isFinite(Number(card.entryStartX)) ? Number(card.entryStartX) : targetX;
-                const fallProgress = clamp((nextY - startY) / Math.max(1, targetY - startY), 0, 1);
+                const targetX = isFinite(Number(card.stackTargetX)) ? Number(card.stackTargetX) : Number(card.x || 0);
+                const targetY = isFinite(Number(card.stackTargetY)) ? Number(card.stackTargetY) : Number(card.y || 0);
+                if (Number(card.y) < targetY) {
+                    const nextY = Math.min(targetY, Number(card.y || 0) + ((Number(card.speed) || 0) * dt));
+                    const startY = isFinite(Number(card.entryStartY)) ? Number(card.entryStartY) : nextY;
+                    const startX = isFinite(Number(card.entryStartX)) ? Number(card.entryStartX) : targetX;
+                    const fallProgress = clamp((nextY - startY) / Math.max(1, targetY - startY), 0, 1);
 
-                card.y = nextY;
-                card.x = lerp(startX, targetX, easeOutCubic(fallProgress));
-            } else {
-                card.y = targetY;
-                card.x = targetX;
-                card.lastSettledX = targetX;
-                card.lastSettledY = targetY;
-            }
-        });
+                    card.y = nextY;
+                    card.x = lerp(startX, targetX, easeOutCubic(fallProgress));
+                } else {
+                    card.y = targetY;
+                    card.x = targetX;
+                    card.lastSettledX = targetX;
+                    card.lastSettledY = targetY;
+                }
+            });
+            remainingMs -= 40;
+        }
 
         if (run.allWordsQueued && !getSpeakingStackActiveCards(run).length && !run.cards.some(function (card) { return !!(card && card.exploding); })) {
             finishSpeakingStackRun(ctx, 'win');
