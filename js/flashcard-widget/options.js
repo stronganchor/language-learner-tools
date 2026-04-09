@@ -17,6 +17,35 @@
         return IMAGE_SIZE_OPTIONS.includes(configured) ? configured : 'small';
     })();
 
+    function normalizeCategoryLookupKey(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function findCategoryConfigFallback(categoryName) {
+        const target = normalizeCategoryLookupKey(categoryName);
+        const categories = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
+            ? window.llToolsFlashcardsData.categories
+            : [];
+        if (!target) {
+            return null;
+        }
+
+        for (let idx = 0; idx < categories.length; idx += 1) {
+            const category = categories[idx];
+            if (!category || typeof category !== 'object') {
+                continue;
+            }
+
+            const name = normalizeCategoryLookupKey(category.name);
+            const slug = normalizeCategoryLookupKey(category.slug);
+            if ((slug && slug === target) || (name && name === target)) {
+                return category;
+            }
+        }
+
+        return null;
+    }
+
     function determineResponsiveImageSize(baseSize) {
         if (typeof window === 'undefined') {
             return baseSize;
@@ -217,9 +246,9 @@
                     optionTypeFromConfig = cfg.option_type || cfg.mode || mode;
                 } catch (_) { /* no-op */ }
             } else if (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories)) {
-                const cfg = window.llToolsFlashcardsData.categories.find(function (c) {
-                    return c && c.name === categoryName;
-                }) || {};
+                const cfg = (Util && typeof Util.getCategoryConfig === 'function')
+                    ? (Util.getCategoryConfig(categoryName) || findCategoryConfigFallback(categoryName) || {})
+                    : (findCategoryConfigFallback(categoryName) || {});
                 promptType = cfg.prompt_type || null;
                 optionTypeFromConfig = cfg.option_type || cfg.mode || mode;
             }

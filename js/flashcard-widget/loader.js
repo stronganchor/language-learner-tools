@@ -27,6 +27,36 @@
         const AUDIO_LOAD_MAX_RETRIES = 1;
         const IMAGE_LOAD_TIMEOUT_MS = 3500;
         const IMAGE_LOAD_MAX_RETRIES = 1;
+
+        function normalizeCategoryLookupKey(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function findCategoryConfigFallback(name) {
+            const target = normalizeCategoryLookupKey(name);
+            const categories = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
+                ? window.llToolsFlashcardsData.categories
+                : [];
+            if (!target) {
+                return null;
+            }
+
+            for (let idx = 0; idx < categories.length; idx += 1) {
+                const category = categories[idx];
+                if (!category || typeof category !== 'object') {
+                    continue;
+                }
+
+                const categoryName = normalizeCategoryLookupKey(category.name);
+                const categorySlug = normalizeCategoryLookupKey(category.slug);
+                if ((categorySlug && categorySlug === target) || (categoryName && categoryName === target)) {
+                    return category;
+                }
+            }
+
+            return null;
+        }
+
         function getAllowedWordsetIds() {
             const ids = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.wordsetIds))
                 ? window.llToolsFlashcardsData.wordsetIds
@@ -83,10 +113,9 @@
         }
 
         function getCategoryConfig(name) {
-            const cats = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
-                ? window.llToolsFlashcardsData.categories
-                : [];
-            const found = cats.find(c => c && c.name === name);
+            const found = (Util && typeof Util.getCategoryConfig === 'function')
+                ? (Util.getCategoryConfig(name) || findCategoryConfigFallback(name))
+                : findCategoryConfigFallback(name);
             return Object.assign({}, defaultConfig, found || {});
         }
 
@@ -710,7 +739,11 @@
 
             if (getRuntimeMode() === 'offline') {
                 const offlineCategoryData = getOfflineCategoryData();
-                const words = Array.isArray(offlineCategoryData[categoryName]) ? offlineCategoryData[categoryName] : null;
+                const offlineCategoryKey = categoryName;
+                const offlineFallbackKey = String((getCategoryConfig(categoryName) || {}).name || '').trim();
+                const words = Array.isArray(offlineCategoryData[offlineCategoryKey])
+                    ? offlineCategoryData[offlineCategoryKey]
+                    : (Array.isArray(offlineCategoryData[offlineFallbackKey]) ? offlineCategoryData[offlineFallbackKey] : null);
                 let callbackInvoked = false;
                 const invokeCallbackOnce = function () {
                     if (callbackInvoked) {
@@ -755,7 +788,8 @@
 
             const payload = {
                 action: 'll_get_words_by_category',
-                category: categoryName,
+                category: String(cfg.name || categoryName || '').trim(),
+                category_slug: String(cfg.slug || '').trim(),
                 display_mode: displayMode,
                 wordset: wordset,  // This ensures wordset is always passed
                 wordset_fallback: wsFallback ? '1' : '0',

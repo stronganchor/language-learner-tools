@@ -172,7 +172,7 @@ function ll_image_upload_render_parent_category_options($terms, $selected_id = 0
  * @return string The HTML form for uploading image files.
  */
 function ll_image_upload_form_shortcode($atts = []) {
-    if (!ll_image_upload_user_can_access()) {
+    if (!ll_image_upload_user_can_access_admin_tool()) {
         return esc_html__('You do not have permission to upload files.', 'll-tools-text-domain');
     }
 

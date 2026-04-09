@@ -91,19 +91,11 @@
 
     function getCategoryDisplayLabel(categoryName) {
         const fallback = String(categoryName || '').trim();
-        const data = root.llToolsFlashcardsData || {};
-        const categories = Array.isArray(data.categories) ? data.categories : [];
-        const match = categories.find(function (cat) {
-            return cat && cat.name === categoryName;
-        });
-        if (match) {
-            const translated = String(match.translation || '').trim();
-            if (translated) {
-                return translated;
-            }
-            const name = String(match.name || '').trim();
-            if (name) {
-                return name;
+        const util = (root.LLFlashcards && root.LLFlashcards.Util) || {};
+        if (util && typeof util.getCategoryDisplayLabel === 'function') {
+            const resolved = util.getCategoryDisplayLabel(categoryName, fallback);
+            if (resolved) {
+                return resolved;
             }
         }
         return fallback;

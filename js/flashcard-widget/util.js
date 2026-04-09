@@ -27,6 +27,57 @@
 
             return fallbackText;
         },
+        normalizeCategoryKey(value) {
+            return String(value || '').trim().toLowerCase();
+        },
+        getCategoryConfig(categoryKey) {
+            const target = Util.normalizeCategoryKey(categoryKey);
+            const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+                ? root.llToolsFlashcardsData.categories
+                : [];
+            if (!target) {
+                return null;
+            }
+
+            for (let idx = 0; idx < categories.length; idx += 1) {
+                const category = categories[idx];
+                if (!category || typeof category !== 'object') {
+                    continue;
+                }
+
+                const name = Util.normalizeCategoryKey(category.name);
+                const slug = Util.normalizeCategoryKey(category.slug);
+                if ((slug && slug === target) || (name && name === target)) {
+                    return category;
+                }
+            }
+
+            return null;
+        },
+        getCategoryDisplayLabel(categoryKey, fallback) {
+            const category = Util.getCategoryConfig(categoryKey);
+            if (category && typeof category === 'object') {
+                const translated = String(category.translation || '').trim();
+                if (translated) {
+                    return translated;
+                }
+                const name = String(category.name || '').trim();
+                if (name) {
+                    return name;
+                }
+            }
+            return String(fallback || categoryKey || '').trim();
+        },
+        getCategorySelectionValue(category) {
+            if (!category || typeof category !== 'object') {
+                return '';
+            }
+            const slug = String(category.slug || '').trim();
+            if (slug) {
+                return slug;
+            }
+            return String(category.name || '').trim();
+        },
         randomlySort(arr) {
             if (!Array.isArray(arr)) {
                 return arr;

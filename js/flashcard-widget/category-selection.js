@@ -161,8 +161,12 @@
         $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
         $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
 
+        var util = (window.LLFlashcards && window.LLFlashcards.Util) || {};
         var categories = data.categories.map(function (category) {
-            return category.name;
+            if (util && typeof util.getCategorySelectionValue === 'function') {
+                return util.getCategorySelectionValue(category);
+            }
+            return category.slug || category.name;
         }).filter(Boolean);
         if (!categories.length) return;
 
@@ -193,12 +197,15 @@
         categories.forEach(function (category, index) {
             var displayName = category.translation || category.name;
             var checkboxId = 'category-' + category.slug;
+            var checkboxValue = (window.LLFlashcards && window.LLFlashcards.Util && typeof window.LLFlashcards.Util.getCategorySelectionValue === 'function')
+                ? window.LLFlashcards.Util.getCategorySelectionValue(category)
+                : (category.slug || category.name);
 
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
                     id: checkboxId,
-                    value: category.name,
+                    value: checkboxValue,
                     checked: false,
                     'data-preloaded': index === 0 // Preload only the first category
                 }),
@@ -246,9 +253,12 @@
         $('body').addClass('ll-tools-flashcard-open');
         $('#ll-tools-flashcard-popup').show();
 
-        // Prepare categoriesPreselected with untranslated names
+        // Prepare categoriesPreselected with stable category identifiers
         var preselectedCategories = llToolsFlashcardsData.categories.map(function (category) {
-            return category.name; // Always use the untranslated name
+            if (window.LLFlashcards && window.LLFlashcards.Util && typeof window.LLFlashcards.Util.getCategorySelectionValue === 'function') {
+                return window.LLFlashcards.Util.getCategorySelectionValue(category);
+            }
+            return category.slug || category.name;
         });
 
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {

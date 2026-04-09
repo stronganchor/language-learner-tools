@@ -2210,18 +2210,11 @@
 
     function categoryNamesToIds(categoryNames) {
         const names = Array.isArray(categoryNames) ? categoryNames : [];
-        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
-            ? root.llToolsFlashcardsData.categories
-            : [];
-        const byName = {};
-        categories.forEach(function (cat) {
-            if (!cat || !cat.name) { return; }
-            byName[String(cat.name)] = parseInt(cat.id, 10) || 0;
-        });
         const seen = {};
         const out = [];
         names.forEach(function (name) {
-            const id = parseInt(byName[String(name)] || 0, 10) || 0;
+            const cfg = findCategoryConfigByName(name);
+            const id = cfg ? (parseInt(cfg.id, 10) || 0) : 0;
             if (!id || seen[id]) { return; }
             seen[id] = true;
             out.push(id);
@@ -2380,9 +2373,10 @@
         const categoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
             ? (Selection.getTargetCategoryName(word) || fallbackCategoryName || State.currentCategoryName || '')
             : (fallbackCategoryName || State.currentCategoryName || '');
+        const config = findCategoryConfigByName(categoryName);
         return {
             category_id: resolveCategoryIdByName(categoryName),
-            category_name: categoryName
+            category_name: config ? String(config.name || categoryName || '') : categoryName
         };
     }
 

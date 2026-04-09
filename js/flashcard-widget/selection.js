@@ -61,6 +61,35 @@
         return !!raw;
     }
 
+    function normalizeCategoryLookupKey(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function findCategoryConfigFallback(name) {
+        const target = normalizeCategoryLookupKey(name);
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        if (!target) {
+            return null;
+        }
+
+        for (let idx = 0; idx < categories.length; idx += 1) {
+            const category = categories[idx];
+            if (!category || typeof category !== 'object') {
+                continue;
+            }
+
+            const categoryName = normalizeCategoryLookupKey(category.name);
+            const categorySlug = normalizeCategoryLookupKey(category.slug);
+            if ((categorySlug && categorySlug === target) || (categoryName && categoryName === target)) {
+                return category;
+            }
+        }
+
+        return null;
+    }
+
     function getRawCategoryConfig(name) {
         const base = {
             prompt_type: 'audio',
@@ -68,10 +97,9 @@
             learning_supported: true,
         };
         if (!name) return base;
-        const cats = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
-            ? root.llToolsFlashcardsData.categories
-            : [];
-        const found = cats.find(c => c && c.name === name);
+        const found = (Util && typeof Util.getCategoryConfig === 'function')
+            ? (Util.getCategoryConfig(name) || findCategoryConfigFallback(name))
+            : findCategoryConfigFallback(name);
         return Object.assign({}, base, found || {});
     }
 

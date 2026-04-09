@@ -3275,6 +3275,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 
         $word_ids_for_category = get_posts($word_image_word_query);
         if (!empty($word_ids_for_category)) {
+            ll_prime_post_thumbnail_meta((array) $word_ids_for_category);
             $thumb_ids = [];
             foreach ($word_ids_for_category as $wid) {
                 $thumb_id = (int) get_post_thumbnail_id((int) $wid);
@@ -3307,8 +3308,21 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
     }
 
+    $image_word_ids_to_prime = [];
+    $image_word_map = [];
+    foreach ((array) $image_posts as $img_id) {
+        $resolved_word_id = ll_get_word_for_image_in_wordset((int) $img_id, $wordset_term_ids);
+        $image_word_map[(int) $img_id] = (int) $resolved_word_id;
+        if ((int) $resolved_word_id > 0) {
+            $image_word_ids_to_prime[(int) $resolved_word_id] = (int) $resolved_word_id;
+        }
+    }
+    if (!empty($image_word_ids_to_prime)) {
+        ll_prime_recording_type_cache_for_words(array_values($image_word_ids_to_prime), $current_uid);
+    }
+
     foreach ($image_posts as $img_id) {
-        $word_id = ll_get_word_for_image_in_wordset($img_id, $wordset_term_ids);
+        $word_id = (int) ($image_word_map[(int) $img_id] ?? 0);
 
         // NEW: Enrich with word display data (title or translation)
         $word_title = null;
@@ -3529,6 +3543,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     }
 
     $text_words = get_posts($word_args);
+    if (!empty($text_words)) {
+        ll_prime_recording_type_cache_for_words((array) $text_words, $current_uid);
+    }
 
     foreach ($text_words as $word_id) {
         // Respect category-specific desired types when a category is targeted
@@ -3766,6 +3783,17 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 /**
  * Return the first "words" post (ID) in the given wordset(s) that uses this image.
  */
+function ll_prime_post_thumbnail_meta(array $post_ids): void {
+    $post_ids = array_values(array_unique(array_filter(array_map('intval', $post_ids), static function ($post_id): bool {
+        return $post_id > 0;
+    })));
+    if (empty($post_ids)) {
+        return;
+    }
+
+    update_postmeta_cache($post_ids);
+}
+
 function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_term_ids) {
     $attachment_id = get_post_thumbnail_id($image_post_id);
     if (!$attachment_id) {
@@ -3806,6 +3834,7 @@ function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_ter
         }
 
         $word_ids = get_posts($query_args);
+        ll_prime_post_thumbnail_meta((array) $word_ids);
         $map = [];
         foreach ((array) $word_ids as $word_id) {
             $thumb_id = (int) get_post_thumbnail_id((int) $word_id);
@@ -3823,8 +3852,140 @@ function ll_get_word_for_image_in_wordset(int $image_post_id, array $wordset_ter
 /**
  * For a given word (parent of word_audio), return the recording_type slugs already present.
  */
-function ll_get_existing_recording_types_for_word(int $word_id): array {
+function &ll_existing_recording_types_cache_store(): array {
     static $cache = [];
+    return $cache;
+}
+
+function &ll_existing_recording_types_by_user_cache_store(): array {
+    static $cache = [];
+    return $cache;
+}
+
+function ll_prime_recording_type_cache_for_words(array $word_ids, int $user_id = 0): void {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function ($word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return;
+    }
+
+    $all_cache =& ll_existing_recording_types_cache_store();
+    $user_cache =& ll_existing_recording_types_by_user_cache_store();
+
+    $words_to_prime = [];
+    foreach ($word_ids as $word_id) {
+        $all_cached = array_key_exists($word_id, $all_cache);
+        $user_cached = ($user_id <= 0) || array_key_exists($word_id . ':' . $user_id, $user_cache);
+        if (!$all_cached || !$user_cached) {
+            $words_to_prime[] = $word_id;
+        }
+    }
+
+    if (empty($words_to_prime)) {
+        return;
+    }
+
+    foreach ($words_to_prime as $word_id) {
+        if (!array_key_exists($word_id, $all_cache)) {
+            $all_cache[$word_id] = [];
+        }
+        if ($user_id > 0 && !array_key_exists($word_id . ':' . $user_id, $user_cache)) {
+            $user_cache[$word_id . ':' . $user_id] = [];
+        }
+    }
+
+    $audio_posts = get_posts([
+        'post_type'      => 'word_audio',
+        'post_status'    => ['draft', 'pending', 'publish', 'private', 'inherit'],
+        'perm'           => 'any',
+        'posts_per_page' => -1,
+        'post_parent__in'=> $words_to_prime,
+        'no_found_rows'  => true,
+    ]);
+    if (empty($audio_posts)) {
+        return;
+    }
+
+    $audio_post_ids = [];
+    $audio_posts_by_id = [];
+    foreach ((array) $audio_posts as $audio_post) {
+        if (!$audio_post instanceof WP_Post) {
+            continue;
+        }
+        $audio_post_id = (int) $audio_post->ID;
+        if ($audio_post_id <= 0) {
+            continue;
+        }
+        $audio_post_ids[] = $audio_post_id;
+        $audio_posts_by_id[$audio_post_id] = $audio_post;
+    }
+    if (empty($audio_post_ids)) {
+        return;
+    }
+
+    $terms = wp_get_object_terms($audio_post_ids, 'recording_type', ['fields' => 'all_with_object_id']);
+    if (is_wp_error($terms) || empty($terms)) {
+        return;
+    }
+
+    $slugs_by_audio_post = [];
+    foreach ((array) $terms as $term) {
+        if (!$term instanceof WP_Term) {
+            continue;
+        }
+        $audio_post_id = isset($term->object_id) ? (int) $term->object_id : 0;
+        $slug = sanitize_key($term->slug);
+        if ($audio_post_id <= 0 || $slug === '') {
+            continue;
+        }
+        if (!isset($slugs_by_audio_post[$audio_post_id])) {
+            $slugs_by_audio_post[$audio_post_id] = [];
+        }
+        $slugs_by_audio_post[$audio_post_id][$slug] = true;
+    }
+
+    $all_types_by_word = [];
+    $user_types_by_word = [];
+    foreach ($audio_posts_by_id as $audio_post_id => $audio_post) {
+        $word_id = (int) $audio_post->post_parent;
+        if ($word_id <= 0 || !in_array($word_id, $words_to_prime, true)) {
+            continue;
+        }
+        $slugs = array_keys($slugs_by_audio_post[$audio_post_id] ?? []);
+        if (empty($slugs)) {
+            continue;
+        }
+
+        if (!isset($all_types_by_word[$word_id])) {
+            $all_types_by_word[$word_id] = [];
+        }
+        foreach ($slugs as $slug) {
+            $all_types_by_word[$word_id][$slug] = true;
+            if ($user_id > 0 && (int) $audio_post->post_author === $user_id) {
+                if (!isset($user_types_by_word[$word_id])) {
+                    $user_types_by_word[$word_id] = [];
+                }
+                $user_types_by_word[$word_id][$slug] = true;
+            }
+        }
+    }
+
+    foreach ($words_to_prime as $word_id) {
+        $all_cache[$word_id] = ll_sort_recording_type_slugs(array_keys($all_types_by_word[$word_id] ?? []));
+        if ($user_id > 0) {
+            $user_cache[$word_id . ':' . $user_id] = ll_sort_recording_type_slugs(array_keys($user_types_by_word[$word_id] ?? []));
+        }
+    }
+}
+
+function ll_get_existing_recording_types_for_word(int $word_id): array {
+    $cache =& ll_existing_recording_types_cache_store();
+    if (isset($cache[$word_id])) {
+        return $cache[$word_id];
+    }
+
+    ll_prime_recording_type_cache_for_words([$word_id]);
     if (isset($cache[$word_id])) {
         return $cache[$word_id];
     }
@@ -3876,7 +4037,12 @@ function ll_get_existing_recording_types_for_word_by_user(int $word_id, int $use
     if (!$user_id) { return []; }
 
     $cache_key = $word_id . ':' . $user_id;
-    static $cache = [];
+    $cache =& ll_existing_recording_types_by_user_cache_store();
+    if (isset($cache[$cache_key])) {
+        return $cache[$cache_key];
+    }
+
+    ll_prime_recording_type_cache_for_words([$word_id], $user_id);
     if (isset($cache[$cache_key])) {
         return $cache[$cache_key];
     }

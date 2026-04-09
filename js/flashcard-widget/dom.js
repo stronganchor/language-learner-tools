@@ -676,14 +676,9 @@
             }
             if (!name) return;
 
-            // Look up translation if available
-            let displayName = name;
-            if (flashData.categories) {
-                const category = flashData.categories.find(c => c.name === name);
-                if (category && category.translation) {
-                    displayName = category.translation;
-                }
-            }
+            const displayName = (Util && typeof Util.getCategoryDisplayLabel === 'function')
+                ? Util.getCategoryDisplayLabel(name, name)
+                : name;
 
             $el.text(protectMaqafNoBreak(String(displayName)));
         },

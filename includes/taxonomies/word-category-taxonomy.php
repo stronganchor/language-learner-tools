@@ -48,6 +48,45 @@ function ll_tools_resolve_word_category_term_id($category): int {
     return ($term instanceof WP_Term) ? (int) $term->term_id : 0;
 }
 
+/**
+ * Normalize a category reference for quiz/count queries.
+ *
+ * @param mixed $category Category term object, term ID, slug, or display name.
+ * @return array{
+ *     term:?WP_Term,
+ *     term_id:int,
+ *     slug:string,
+ *     label:string,
+ *     query_field:string,
+ *     query_terms:mixed
+ * }
+ */
+function ll_tools_get_word_category_query_context($category): array {
+    $term = ll_tools_resolve_word_category_term($category);
+    if ($term instanceof WP_Term) {
+        $term_id = (int) $term->term_id;
+        return [
+            'term' => $term,
+            'term_id' => $term_id,
+            'slug' => (string) $term->slug,
+            'label' => (string) $term->name,
+            'query_field' => 'term_id',
+            'query_terms' => [$term_id],
+        ];
+    }
+
+    $raw_label = is_scalar($category) ? trim((string) $category) : '';
+
+    return [
+        'term' => null,
+        'term_id' => 0,
+        'slug' => sanitize_title($raw_label),
+        'label' => $raw_label,
+        'query_field' => 'name',
+        'query_terms' => $raw_label,
+    ];
+}
+
 function ll_tools_get_category_visibility($category): string {
     $term_id = ll_tools_resolve_word_category_term_id($category);
     if ($term_id <= 0) {
@@ -2776,10 +2815,11 @@ function ll_tools_normalize_words_audio_urls(array $rows): array {
  * need counts to decide eligibility or fallback modes.
  */
 function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
-    $term = get_term_by('name', $categoryName, 'word-category');
+    $category_context = ll_tools_get_word_category_query_context($categoryName);
+    $term = $category_context['term'];
     $config = $quiz_config;
     $skip_merge = !empty($quiz_config['__skip_quiz_config_merge']);
-    if ($term && !is_wp_error($term) && !$skip_merge) {
+    if ($term instanceof WP_Term && !$skip_merge) {
         $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
     }
 
@@ -2799,13 +2839,13 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         }));
     }
 
-    $term_id = ($term && !is_wp_error($term)) ? (int) $term->term_id : 0;
+    $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
         'require_audio'        => $require_audio,
         'require_prompt_image' => $require_prompt_image,
         'require_option_image' => $require_option_image,
         'use_titles'           => $use_titles,
-        'term_slug'            => ($term && !is_wp_error($term)) ? (string) $term->slug : '',
+        'term_slug'            => (string) ($category_context['slug'] ?? ''),
         'text_label_schema'    => 4,
         'masked_image_url'     => function_exists('ll_tools_should_use_masked_image_proxy')
             ? ll_tools_should_use_masked_image_proxy()
@@ -2897,9 +2937,6 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         return (int) $count;
     }
 
-    $category_tax_field = ($term_id > 0) ? 'term_id' : 'name';
-    $category_tax_terms = ($term_id > 0) ? [$term_id] : $categoryName;
-
     $args = [
         'post_type'      => 'words',
         'post_status'    => 'publish',
@@ -2909,8 +2946,8 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         'update_post_term_cache' => false,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
-            'field'    => $category_tax_field,
-            'terms'    => $category_tax_terms,
+            'field'    => (string) ($category_context['query_field'] ?? 'name'),
+            'terms'    => $category_context['query_terms'] ?? '',
         ]],
         'fields'         => 'all',
         'no_found_rows'  => true,
@@ -3117,8 +3154,9 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
 }
 
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
-    $term = get_term_by('name', $categoryName, 'word-category');
-    if ($term instanceof WP_Term && !is_wp_error($term) && function_exists('ll_tools_user_can_view_category')) {
+    $category_context = ll_tools_get_word_category_query_context($categoryName);
+    $term = $category_context['term'];
+    if ($term instanceof WP_Term && function_exists('ll_tools_user_can_view_category')) {
         if (!ll_tools_user_can_view_category($term)) {
             return [];
         }
@@ -3126,7 +3164,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
     $config = $quiz_config;
     $skip_merge = !empty($quiz_config['__skip_quiz_config_merge']);
-    if ($term && !is_wp_error($term) && !$skip_merge) {
+    if ($term instanceof WP_Term && !$skip_merge) {
         $config = array_merge(ll_tools_get_category_quiz_config($term), (array) $quiz_config);
     }
 
@@ -3144,7 +3182,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $wordset_terms = array_filter($wordset_terms, function ($id) { return $id > 0; });
     }
 
-    $term_id = ($term && !is_wp_error($term)) ? (int) $term->term_id : 0;
+    $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
         'require_audio'        => $require_audio,
         'require_prompt_image' => $require_prompt_image,
@@ -3152,7 +3190,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'use_titles'           => $use_titles,
         // Include term identity so in-request static cache rows do not bleed across
         // test cases when term IDs are recycled after DB resets.
-        'term_slug'            => ($term && !is_wp_error($term)) ? (string) $term->slug : '',
+        'term_slug'            => (string) ($category_context['slug'] ?? ''),
         // Bump when text label source-selection logic changes so stale cached rows are bypassed.
         'text_label_schema'    => 4,
         'image_animation_meta' => true,
@@ -3201,9 +3239,6 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         return $normalized_cached_rows;
     }
 
-    $category_tax_field = ($term_id > 0) ? 'term_id' : 'name';
-    $category_tax_terms = ($term_id > 0) ? [$term_id] : $categoryName;
-
     $args = [
         'post_type'      => 'words',
         'post_status'    => 'publish',
@@ -3213,8 +3248,8 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'update_post_term_cache' => true,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
-            'field'    => $category_tax_field,
-            'terms'    => $category_tax_terms,
+            'field'    => (string) ($category_context['query_field'] ?? 'name'),
+            'terms'    => $category_context['query_terms'] ?? '',
         ]],
         'fields'         => 'all',
         'no_found_rows'  => true,
@@ -4414,6 +4449,14 @@ function ll_handle_bulk_category_edit($post_id, $post_type) {
         return;
     }
 
+    $bulk_nonce = isset($_REQUEST['_wpnonce']) ? sanitize_text_field(wp_unslash((string) $_REQUEST['_wpnonce'])) : '';
+    $inline_nonce = isset($_REQUEST['_inline_edit']) ? sanitize_text_field(wp_unslash((string) $_REQUEST['_inline_edit'])) : '';
+    $has_valid_nonce = ($bulk_nonce !== '' && wp_verify_nonce($bulk_nonce, 'bulk-posts'))
+        || ($inline_nonce !== '' && wp_verify_nonce($inline_nonce, 'inlineeditnonce'));
+    if (!$has_valid_nonce) {
+        return;
+    }
+
     // Only for specified post type
     $post = get_post($post_id);
     if (!$post || $post->post_type !== $post_type) {
@@ -4430,7 +4473,7 @@ function ll_handle_bulk_category_edit($post_id, $post_type) {
         return;
     }
 
-    $categories_to_remove = array_map('intval', (array)$_REQUEST['ll_bulk_categories_to_remove']);
+    $categories_to_remove = array_map('intval', (array) wp_unslash($_REQUEST['ll_bulk_categories_to_remove']));
 
     if (empty($categories_to_remove)) {
         return;
