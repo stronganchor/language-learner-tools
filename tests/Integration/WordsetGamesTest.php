@@ -1241,6 +1241,46 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('right', (string) ($response['data']['bucket'] ?? ''));
     }
 
+    public function test_speaking_score_treats_capitalization_only_text_differences_as_exact_matches(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Speaking Case Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Speaking Case Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'hosted_api');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_text');
+
+        $wordId = $this->createWordWithGameMedia(
+            'Speaking Case Word',
+            'Speaking Case Prompt',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'Her']
+        );
+
+        wp_set_current_user($userId);
+
+        $result = ll_tools_wordset_games_score_speaking_transcript($wordsetId, $wordId, 'her', 'recording_text');
+
+        $this->assertIsArray($result);
+        $this->assertSame('right', (string) ($result['bucket'] ?? ''));
+        $this->assertSame(100.0, (float) ($result['score'] ?? 0.0));
+        $this->assertSame('her', (string) ($result['normalized_target_text'] ?? ''));
+        $this->assertSame('her', (string) ($result['normalized_transcript_text'] ?? ''));
+    }
+
     public function test_best_speaking_match_scores_active_words_and_returns_no_match_for_distant_transcripts(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);

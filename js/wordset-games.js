@@ -2999,6 +2999,46 @@
         ));
     }
 
+    function getSpeakingStackBaseFallSpeed(ctx, run) {
+        return Math.max(80, toInt((getGameConfig(ctx, run) || {}).fallSpeed) || 176);
+    }
+
+    function getSpeakingStackPreFirstAttemptFallSpeed(ctx, run) {
+        const baseSpeed = getSpeakingStackBaseFallSpeed(ctx, run);
+        const configuredSpeed = Math.max(
+            28,
+            toInt((getGameConfig(ctx, run) || {}).preFirstAttemptFallSpeed) || 64
+        );
+
+        return Math.min(baseSpeed, configuredSpeed);
+    }
+
+    function getSpeakingStackCurrentFallSpeed(ctx, run) {
+        if (run && run.hasStartedFirstTranscriptionAttempt) {
+            return getSpeakingStackBaseFallSpeed(ctx, run);
+        }
+
+        return getSpeakingStackPreFirstAttemptFallSpeed(ctx, run);
+    }
+
+    function syncSpeakingStackCardSpeeds(ctx, run) {
+        if (!run || !Array.isArray(run.cards)) {
+            return;
+        }
+
+        const fallSpeed = getSpeakingStackCurrentFallSpeed(ctx, run);
+        run.cards.forEach(function (card) {
+            if (!card || card.exploding) {
+                return;
+            }
+
+            const speedFactor = isFinite(Number(card.stackFallSpeedFactor))
+                ? Number(card.stackFallSpeedFactor)
+                : 1;
+            card.speed = fallSpeed * speedFactor;
+        });
+    }
+
     function getSpeakingStackSpawnGapMs(ctx, run, options) {
         const gameConfig = getGameConfig(ctx, run) || {};
         const opts = (options && typeof options === 'object') ? options : {};
@@ -3062,7 +3102,6 @@
         }
 
         const card = createCard(run, nextWord, 0, true, 0, 0);
-        const fallSpeed = Math.max(80, toInt((getGameConfig(ctx, run) || {}).fallSpeed) || 176);
         const placement = chooseSpeakingStackPlacement(ctx, run, card);
         const layout = getSpeakingStackSlotLayout(run);
         const bounds = layout.bounds;
@@ -3082,7 +3121,8 @@
         card.stackTargetY = placement.y;
         card.stackRotation = placement.rotation;
         card.removedFromStack = false;
-        card.speed = fallSpeed * randomBetween(0.94, 1.07);
+        card.stackFallSpeedFactor = randomBetween(0.94, 1.07);
+        card.speed = getSpeakingStackCurrentFallSpeed(ctx, run) * card.stackFallSpeedFactor;
         card.entryStartX = startX;
         card.entryStartY = startY;
         card.x = startX;
@@ -8533,6 +8573,11 @@
             return;
         }
 
+        if (!run.hasStartedFirstTranscriptionAttempt) {
+            run.hasStartedFirstTranscriptionAttempt = true;
+            syncSpeakingStackCardSpeeds(ctx, run);
+        }
+
         const processingStartedAt = currentTimestamp();
         const transcribeStartedAt = processingStartedAt;
         run.lastCorrectAudioDurationMs = 0;
@@ -8902,6 +8947,7 @@
             allWordsQueued: false,
             nextSpawnAt: launchedAt,
             spawnHoldUntil: launchedAt,
+            hasStartedFirstTranscriptionAttempt: false,
             lastPlacementX: null,
             lastPlacementSlotIndex: -1
         };
@@ -9489,6 +9535,11 @@
         const speakingStack = (gamesCfg.speakingStack && typeof gamesCfg.speakingStack === 'object')
             ? gamesCfg.speakingStack
             : {};
+        const speakingStackFallSpeed = Math.max(80, toInt(speakingStack.fallSpeed) || 176);
+        const speakingStackPreFirstAttemptFallSpeed = Math.min(
+            speakingStackFallSpeed,
+            Math.max(28, toInt(speakingStack.preFirstAttemptFallSpeed) || 64)
+        );
         const runtimeMode = String(cfg.runtimeMode || gamesCfg.runtimeMode || '').trim().toLowerCase();
         const offlineMode = runtimeMode === 'offline';
         const staticCatalog = resolveStaticCatalog(gamesCfg, offlineMode);
@@ -9610,7 +9661,8 @@
             initialSpawnCount: Math.max(1, toInt(speakingStack.initialSpawnCount) || 3),
             initialSpawnDelayMs: Math.max(3500, toInt(speakingStack.initialSpawnDelayMs) || 5200),
             spawnGapMs: Math.max(4000, toInt(speakingStack.spawnGapMs) || 4500),
-            fallSpeed: Math.max(80, toInt(speakingStack.fallSpeed) || 176),
+            fallSpeed: speakingStackFallSpeed,
+            preFirstAttemptFallSpeed: speakingStackPreFirstAttemptFallSpeed,
             stackGapPx: Math.max(0, toInt(speakingStack.stackGapPx) || 12),
             groundPaddingPx: Math.max(12, toInt(speakingStack.groundPaddingPx) || 34),
             topDangerPaddingPx: Math.max(0, toInt(speakingStack.topDangerPaddingPx) || 14),

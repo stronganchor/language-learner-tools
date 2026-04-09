@@ -1299,6 +1299,7 @@ test('word stack fills empty columns before stacking and keeps images from overl
           initialSpawnCount: 4,
           maxLoadedWords: 6,
           fallSpeed: 2600,
+          preFirstAttemptFallSpeed: 2600,
           spawnGapMs: 20000,
           initialSpawnDelayMs: 20000
         }
@@ -1363,6 +1364,58 @@ test('word stack fills empty columns before stacking and keeps images from overl
       expect(horizontalGap).toBeGreaterThanOrEqual(2);
     }
   }
+
+  await closeRunPopup(page);
+});
+
+test('word stack starts with a much slower fall speed before the first transcription attempt', async ({ page }) => {
+  await mountGamesPage(page, {
+    isLoggedIn: true,
+    words: buildSpeakingStackWords(6),
+    configOverrides: {
+      games: {
+        catalog: {
+          'speaking-stack': {
+            slug: 'speaking-stack',
+            title: 'Word Stack',
+            description: 'Say the word before the stack gets too high.'
+          }
+        },
+        speakingStack: {
+          slug: 'speaking-stack',
+          provider: 'audio_matcher',
+          targetField: 'title',
+          cardCount: 3,
+          initialSpawnCount: 3,
+          maxLoadedWords: 6,
+          fallSpeed: 240,
+          preFirstAttemptFallSpeed: 52,
+          spawnGapMs: 20000,
+          initialSpawnDelayMs: 20000
+        }
+      }
+    }
+  });
+
+  await expect(gameLaunchButton(page, 'speaking-stack')).toBeEnabled();
+
+  await page.evaluate(() => {
+    window.LLWordsetGames.__debug.launch('speaking-stack');
+  });
+
+  const stackState = await page.waitForFunction(() => {
+    const run = window.LLWordsetGames.__debug.getRunState();
+    if (!run || run.slug !== 'speaking-stack') {
+      return null;
+    }
+
+    const activeCards = (run.cardSnapshot || []).filter((card) => !card.exploding && !card.removedFromStack);
+    return activeCards.length === 3 ? activeCards : null;
+  });
+
+  const activeCards = await stackState.jsonValue();
+  expect(activeCards).toHaveLength(3);
+  expect(activeCards.every((card) => card.speed >= 45 && card.speed <= 60)).toBe(true);
 
   await closeRunPopup(page);
 });
