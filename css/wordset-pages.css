@@ -1596,9 +1596,22 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-grid-tools {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
     padding-right: var(--ll-wordset-grid-right-offset, 0px);
     margin-bottom: 10px;
+}
+
+.ll-wordset-grid-tools .ll-wordset-progress-search--wordset-page {
+    margin-bottom: 0;
+    flex: 1 1 420px;
+    min-width: min(100%, 260px);
+}
+
+.ll-wordset-grid-tools .ll-wordset-progress-select-all {
+    margin-left: auto;
 }
 
 .ll-wordset-page.ll-wordset-page--single-category .ll-wordset-hero {
@@ -1677,6 +1690,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: var(--ll-wp-card);
     box-shadow: 0 8px 18px rgba(46, 42, 36, 0.08);
     min-height: 100%;
+    transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease;
 }
 
 .ll-wordset-card.is-removing {
@@ -1686,6 +1700,26 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     filter: saturate(0.8);
     transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), filter 0.18s ease;
     will-change: transform, opacity, filter;
+}
+
+.ll-wordset-card[hidden],
+.ll-wordset-card.is-search-filtered-out {
+    display: none !important;
+}
+
+.ll-wordset-page.is-category-search-loading .ll-wordset-card:not([hidden]) {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    pointer-events: none;
+}
+
+.ll-wordset-page.is-category-search-empty .ll-wordset-grid {
+    margin-bottom: 18px;
+}
+
+.ll-wordset-empty--search {
+    margin-top: 0;
+    margin-bottom: 84px;
 }
 
 .ll-wordset-card--hide-flight-clone {
@@ -3762,6 +3796,16 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         order: 2;
         width: 100%;
         flex: 1 1 auto;
+    }
+
+    .ll-wordset-grid-tools .ll-wordset-progress-search--wordset-page {
+        width: 100%;
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .ll-wordset-grid-tools .ll-wordset-progress-select-all {
+        margin-left: 0;
     }
 }
 

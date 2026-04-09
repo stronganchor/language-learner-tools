@@ -44,6 +44,10 @@
     let selectionPriorityOnly = false;
     let selectionStarredOnly = false;
     let selectionHardOnly = false;
+    let mainCategorySearchQuery = '';
+    let mainCategorySearchRenderTimer = null;
+    let mainCategorySearchLoadingTimer = null;
+    let mainCategorySearchRenderToken = 0;
     let saveStateTimer = null;
     let stateSaveInFlightRequest = null;
     let stateSaveQueued = false;
@@ -265,6 +269,9 @@
     const $topModeButtons = $root.find('[data-ll-wordset-start-mode]');
     const $grid = $root.find('.ll-wordset-grid').first();
     const $selectAllButton = $root.find('[data-ll-wordset-select-all]');
+    const $mainCategorySearchInput = $root.find('[data-ll-wordset-page-search]');
+    const $mainCategorySearchLoading = $root.find('[data-ll-wordset-page-search-loading]');
+    const $mainCategorySearchEmpty = $root.find('[data-ll-wordset-page-search-empty]');
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
     const $selectionText = $root.find('[data-ll-wordset-selection-text]');
     const $selectionPriorityToggle = $root.find('[data-ll-wordset-selection-priority-only]');
@@ -569,6 +576,7 @@
                     : true,
                 gender_supported: !!(cat && cat.gender_supported),
                 hidden: !!(cat && cat.hidden),
+                search_text: String((cat && cat.search_text) || ''),
                 preview: normalizeCategoryPreview(cat && cat.preview)
             };
         }).filter(Boolean);
@@ -5594,11 +5602,131 @@
         const ids = [];
         $root.find('[data-ll-wordset-select]').each(function () {
             const id = parseInt($(this).val(), 10) || 0;
+            const $card = $(this).closest('.ll-wordset-card');
+            if ($card.length && $card.prop('hidden')) {
+                return;
+            }
             if (id > 0 && !isCategoryHidden(id)) {
                 ids.push(id);
             }
         });
         return uniqueIntList(ids);
+    }
+
+    function mainCategoryMatchesSearch(category, query) {
+        const normalizedQuery = String(query || '').trim().toLowerCase();
+        if (!normalizedQuery) {
+            return true;
+        }
+        const cat = (category && typeof category === 'object') ? category : {};
+        const searchText = String(cat.search_text || '').toLowerCase();
+        if (searchText.indexOf(normalizedQuery) !== -1) {
+            return true;
+        }
+        const label = String(cat.translation || cat.name || '').toLowerCase();
+        if (label.indexOf(normalizedQuery) !== -1) {
+            return true;
+        }
+        const rawName = String(cat.name || '').toLowerCase();
+        return rawName.indexOf(normalizedQuery) !== -1;
+    }
+
+    function setMainCategorySearchLoading(isLoading, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const loading = !!isLoading;
+        const showSpinner = loading && opts.showSpinner !== false;
+        $root.toggleClass('is-category-search-loading', loading);
+        if ($mainCategorySearchLoading.length) {
+            $mainCategorySearchLoading.prop('hidden', !showSpinner);
+        }
+        if (loading) {
+            if ($mainCategorySearchEmpty.length) {
+                $mainCategorySearchEmpty.prop('hidden', true);
+            }
+            return;
+        }
+        if ($mainCategorySearchLoading.length) {
+            $mainCategorySearchLoading.prop('hidden', true);
+        }
+    }
+
+    function renderMainCategorySearch() {
+        if (!$grid.length) {
+            setMainCategorySearchLoading(false);
+            return;
+        }
+
+        const query = String(mainCategorySearchQuery || '').trim().toLowerCase();
+        const visibleLookup = {};
+        categories.forEach(function (category) {
+            const id = parseInt(category && category.id, 10) || 0;
+            if (!id || isCategoryHidden(id)) {
+                return;
+            }
+            visibleLookup[id] = mainCategoryMatchesSearch(category, query);
+        });
+
+        let visibleCount = 0;
+        let selectionChanged = false;
+        $root.find('.ll-wordset-card[data-cat-id]').each(function () {
+            const $card = $(this);
+            const categoryId = parseInt($card.attr('data-cat-id'), 10) || 0;
+            const isVisible = !!visibleLookup[categoryId];
+            $card
+                .prop('hidden', !isVisible)
+                .toggleClass('is-search-filtered-out', !isVisible)
+                .attr('aria-hidden', isVisible ? 'false' : 'true');
+
+            if (!isVisible) {
+                const $checkbox = $card.find('[data-ll-wordset-select]').first();
+                if ($checkbox.length && $checkbox.prop('checked')) {
+                    $checkbox.prop('checked', false);
+                    selectionChanged = true;
+                }
+                return;
+            }
+            visibleCount += 1;
+        });
+
+        if (selectionChanged) {
+            selectedCategoryIds = getCategoryIdsFromCheckedUI();
+            renderSelectionBar();
+        } else {
+            syncSelectAllButton();
+            scheduleSelectAllAlignment();
+        }
+
+        if ($mainCategorySearchEmpty.length) {
+            $mainCategorySearchEmpty.prop('hidden', !(query && visibleCount === 0));
+        }
+        $root.toggleClass('is-category-search-empty', !!query && visibleCount === 0);
+
+        setMainCategorySearchLoading(false);
+    }
+
+    function scheduleMainCategorySearchRender(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const shouldShowLoading = !!opts.showLoading;
+        const token = ++mainCategorySearchRenderToken;
+        clearTimeout(mainCategorySearchRenderTimer);
+        clearTimeout(mainCategorySearchLoadingTimer);
+
+        if (shouldShowLoading) {
+            setMainCategorySearchLoading(true, { showSpinner: false });
+            mainCategorySearchLoadingTimer = setTimeout(function () {
+                if (token !== mainCategorySearchRenderToken) { return; }
+                setMainCategorySearchLoading(true, { showSpinner: true });
+            }, 80);
+        } else {
+            setMainCategorySearchLoading(false);
+        }
+
+        mainCategorySearchRenderTimer = setTimeout(function () {
+            if (token !== mainCategorySearchRenderToken) { return; }
+            renderMainCategorySearch();
+            clearTimeout(mainCategorySearchLoadingTimer);
+            mainCategorySearchLoadingTimer = null;
+        }, shouldShowLoading ? 95 : 0);
     }
 
     function setSummaryMetricsLoadingState(isLoading) {
@@ -10763,9 +10891,19 @@
             scheduleSelectAllAlignment();
         });
 
+        if ($mainCategorySearchInput.length) {
+            mainCategorySearchQuery = String($mainCategorySearchInput.val() || '');
+            renderMainCategorySearch();
+        }
+
         $root.on('change', '[data-ll-wordset-select]', function () {
             selectedCategoryIds = getCategoryIdsFromCheckedUI();
             renderSelectionBar();
+        });
+
+        $root.on('input', '[data-ll-wordset-page-search]', function () {
+            mainCategorySearchQuery = String($(this).val() || '');
+            scheduleMainCategorySearchRender({ showLoading: true });
         });
 
         $root.on('change', '[data-ll-wordset-selection-priority-only]', function () {

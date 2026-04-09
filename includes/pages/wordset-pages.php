@@ -754,6 +754,187 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
     return apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
 }
 
+function ll_tools_wordset_page_normalize_search_text(string $value): string {
+    $text = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
+    $text = wp_strip_all_tags($text);
+    $text = preg_replace('/\s+/u', ' ', $text);
+    return is_string($text) ? trim($text) : '';
+}
+
+function ll_tools_wordset_page_get_category_depth_cached(int $category_id): int {
+    static $depth_cache = [];
+
+    $category_id = (int) $category_id;
+    if ($category_id <= 0) {
+        return 0;
+    }
+    if (array_key_exists($category_id, $depth_cache)) {
+        return $depth_cache[$category_id];
+    }
+
+    if (function_exists('ll_get_category_depth')) {
+        $depth_cache[$category_id] = (int) ll_get_category_depth($category_id);
+        return $depth_cache[$category_id];
+    }
+
+    $depth = 0;
+    $seen = [];
+    $current_id = $category_id;
+    while ($current_id > 0 && empty($seen[$current_id])) {
+        $seen[$current_id] = true;
+        $parent_id = (int) get_term_field('parent', $current_id, 'word-category');
+        if ($parent_id <= 0) {
+            break;
+        }
+        $depth++;
+        $current_id = $parent_id;
+    }
+
+    $depth_cache[$category_id] = $depth;
+    return $depth;
+}
+
+function ll_tools_get_wordset_page_category_search_index(int $wordset_id, array $allowed_category_ids = []): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    $allowed_category_ids = array_values(array_filter(array_unique(array_map('intval', $allowed_category_ids)), static function ($id): bool {
+        return $id > 0;
+    }));
+    if ($wordset_id <= 0 || empty($allowed_category_ids)) {
+        return [];
+    }
+
+    $cache_key = 'll_wordset_page_cat_search_' . $wordset_id . '_' . md5(implode(',', $allowed_category_ids));
+    $cached = wp_cache_get($cache_key, 'll_tools');
+    if (is_array($cached)) {
+        return $cached;
+    }
+
+    $posts_table = $wpdb->posts;
+    $term_relationships_table = $wpdb->term_relationships;
+    $term_taxonomy_table = $wpdb->term_taxonomy;
+    $postmeta_table = $wpdb->postmeta;
+
+    $sql = "
+        SELECT
+            posts.ID AS word_id,
+            posts.post_title AS word_title,
+            category_taxonomy.term_id AS category_id,
+            translation_meta.meta_value AS translation_value,
+            legacy_translation_meta.meta_value AS legacy_translation_value
+        FROM {$posts_table} AS posts
+        INNER JOIN {$term_relationships_table} AS wordset_relationships
+            ON wordset_relationships.object_id = posts.ID
+        INNER JOIN {$term_taxonomy_table} AS wordset_taxonomy
+            ON wordset_taxonomy.term_taxonomy_id = wordset_relationships.term_taxonomy_id
+            AND wordset_taxonomy.taxonomy = 'wordset'
+        INNER JOIN {$term_relationships_table} AS category_relationships
+            ON category_relationships.object_id = posts.ID
+        INNER JOIN {$term_taxonomy_table} AS category_taxonomy
+            ON category_taxonomy.term_taxonomy_id = category_relationships.term_taxonomy_id
+            AND category_taxonomy.taxonomy = 'word-category'
+        LEFT JOIN {$postmeta_table} AS translation_meta
+            ON translation_meta.post_id = posts.ID
+            AND translation_meta.meta_key = 'word_translation'
+        LEFT JOIN {$postmeta_table} AS legacy_translation_meta
+            ON legacy_translation_meta.post_id = posts.ID
+            AND legacy_translation_meta.meta_key = 'word_english_meaning'
+        WHERE posts.post_type = 'words'
+            AND posts.post_status = 'publish'
+            AND wordset_taxonomy.term_id = %d
+        ORDER BY posts.ID ASC
+    ";
+
+    $rows = $wpdb->get_results($wpdb->prepare($sql, $wordset_id), ARRAY_A);
+    if (empty($rows)) {
+        wp_cache_set($cache_key, [], 'll_tools', 10 * MINUTE_IN_SECONDS);
+        return [];
+    }
+
+    $allowed_lookup = array_fill_keys($allowed_category_ids, true);
+    $word_terms = [];
+    $word_strings = [];
+    foreach ((array) $rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $word_id = isset($row['word_id']) ? (int) $row['word_id'] : 0;
+        $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+        if ($word_id <= 0 || $category_id <= 0) {
+            continue;
+        }
+
+        $word_terms[$word_id][$category_id] = true;
+        if (!isset($word_strings[$word_id])) {
+            $word_title = ll_tools_wordset_page_normalize_search_text((string) ($row['word_title'] ?? ''));
+            $translation = ll_tools_wordset_page_normalize_search_text((string) ($row['translation_value'] ?? ''));
+            if ($translation === '') {
+                $translation = ll_tools_wordset_page_normalize_search_text((string) ($row['legacy_translation_value'] ?? ''));
+            }
+            $word_strings[$word_id] = array_values(array_filter([$word_title, $translation], static function ($value): bool {
+                return is_string($value) && $value !== '';
+            }));
+        }
+    }
+
+    $category_tokens = [];
+    foreach ($word_terms as $word_id => $term_lookup) {
+        $term_ids = array_values(array_filter(array_map('intval', array_keys((array) $term_lookup)), static function ($id): bool {
+            return $id > 0;
+        }));
+        if (empty($term_ids)) {
+            continue;
+        }
+
+        $deepest_term_ids = [];
+        $max_depth = -1;
+        foreach ($term_ids as $term_id) {
+            $depth = ll_tools_wordset_page_get_category_depth_cached($term_id);
+            if ($depth > $max_depth) {
+                $max_depth = $depth;
+                $deepest_term_ids = [$term_id];
+            } elseif ($depth === $max_depth) {
+                $deepest_term_ids[] = $term_id;
+            }
+        }
+
+        $search_terms = isset($word_strings[$word_id]) && is_array($word_strings[$word_id]) ? $word_strings[$word_id] : [];
+        if (empty($search_terms)) {
+            continue;
+        }
+
+        foreach ($deepest_term_ids as $term_id) {
+            if (empty($allowed_lookup[$term_id])) {
+                continue;
+            }
+            if (!isset($category_tokens[$term_id])) {
+                $category_tokens[$term_id] = [];
+            }
+            foreach ($search_terms as $search_term) {
+                $normalized_search_term = ll_tools_wordset_page_normalize_search_text((string) $search_term);
+                if ($normalized_search_term === '') {
+                    continue;
+                }
+                $category_tokens[$term_id][$normalized_search_term] = true;
+            }
+        }
+    }
+
+    $search_index = [];
+    foreach ($allowed_category_ids as $category_id) {
+        $token_map = isset($category_tokens[$category_id]) && is_array($category_tokens[$category_id])
+            ? $category_tokens[$category_id]
+            : [];
+        $search_index[$category_id] = [
+            'search_text' => implode("\n", array_keys($token_map)),
+        ];
+    }
+
+    wp_cache_set($cache_key, $search_index, 'll_tools', 10 * MINUTE_IN_SECONDS);
+    return $search_index;
+}
+
 function ll_tools_get_wordset_page_view(): string {
     $raw = ll_tools_get_requested_wordset_page_view_raw();
     $view = sanitize_key($raw);
@@ -5484,7 +5665,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
 
-    $script_categories = array_map(function (array $cat): array {
+    $category_search_index = ll_tools_get_wordset_page_category_search_index(
+        $wordset_id,
+        array_values(array_map('intval', wp_list_pluck($enhanced_categories, 'id')))
+    );
+
+    $script_categories = array_map(function (array $cat) use ($category_search_index): array {
         $preview_items = array_values((array) ($cat['preview'] ?? []));
         $preview_items = array_slice($preview_items, 0, 2);
         $preview_payload = [];
@@ -5523,6 +5709,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'hidden' => !empty($cat['hidden']),
             'preview' => $preview_payload,
             'has_images' => !empty($cat['has_images']),
+            'search_text' => (string) ($category_search_index[(int) ($cat['id'] ?? 0)]['search_text'] ?? ''),
         ];
     }, $enhanced_categories);
 
@@ -6475,6 +6662,18 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <?php else : ?>
                 <?php if ($visible_category_count > 1) : ?>
                     <div class="ll-wordset-grid-tools">
+                        <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
+                            <label class="screen-reader-text" for="ll-wordset-page-search-input"><?php echo esc_html__('Search words or translations', 'll-tools-text-domain'); ?></label>
+                            <input
+                                id="ll-wordset-page-search-input"
+                                class="ll-wordset-progress-search__input"
+                                type="search"
+                                data-ll-wordset-page-search
+                                placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
+                                autocomplete="off"
+                            />
+                            <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
+                        </div>
                         <button
                             type="button"
                             class="ll-wordset-select-all ll-wordset-progress-select-all<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>"
@@ -6603,6 +6802,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                         </article>
                     <?php endforeach; ?>
                 </div>
+                <?php if ($visible_category_count > 1) : ?>
+                    <div class="ll-wordset-empty ll-wordset-empty--search" data-ll-wordset-page-search-empty hidden>
+                        <?php echo esc_html__('No categories match this search.', 'll-tools-text-domain'); ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
 
             <?php
