@@ -1137,6 +1137,9 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
     }, $words), static function (int $id): bool {
         return $id > 0;
     }));
+    $progress_rows = (!empty($word_ids) && function_exists('ll_tools_get_user_word_progress_rows'))
+        ? ll_tools_get_user_word_progress_rows($uid, $word_ids)
+        : [];
 
     $eligible_words = [];
     foreach ($words as $word) {
@@ -1146,6 +1149,16 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
 
         $word_id = (int) ($word['id'] ?? 0);
         if ($word_id <= 0) {
+            continue;
+        }
+
+        $progress = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
+            ? $progress_rows[$word_id]
+            : [];
+        $status = function_exists('ll_tools_user_progress_word_status')
+            ? ll_tools_user_progress_word_status($progress)
+            : (!empty($progress) ? 'studied' : 'new');
+        if ($status !== 'mastered') {
             continue;
         }
 
@@ -1183,7 +1196,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         $word['speaking_prompt_type'] = !empty($word['image']) ? 'image' : 'text';
         $word['speaking_display_texts'] = $display_texts;
         $word['speaking_best_correct_audio_url'] = $best_correct_audio_url;
-        $word['progress_status'] = sanitize_key((string) ($word['progress_status'] ?? ''));
+        $word['progress_status'] = $status;
         $eligible_words[] = $word;
     }
 
@@ -1193,7 +1206,7 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
 
     return [
         'minimum_word_count' => $minimum_word_count,
-        'pool_source' => 'speaking_practice',
+        'pool_source' => 'mastered',
         'category_ids' => isset($collected['category_ids']) && is_array($collected['category_ids']) ? $collected['category_ids'] : [],
         'words' => array_values($eligible_words),
         'target_field' => $target_field,

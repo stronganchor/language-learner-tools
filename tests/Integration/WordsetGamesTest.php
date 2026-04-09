@@ -984,7 +984,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($response['data']['game']['launchable'] ?? false));
     }
 
-    public function test_speaking_practice_catalog_accepts_taxonomy_only_isolation_audio_for_text_prompt_words(): void
+    public function test_speaking_practice_catalog_only_uses_learned_text_prompt_words(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
         $wordset = wp_insert_term('Speaking Games Wordset ' . wp_generate_password(6, false), 'wordset');
@@ -1027,7 +1027,62 @@ final class WordsetGamesTest extends LL_Tools_TestCase
                 $this->assertInstanceOf(WP_Post::class, $audioPost);
                 update_post_meta((int) $audioPost->ID, 'recording_ipa', 'ipa ' . $index);
             }
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 6,
+                'coverage_practice' => 6,
+                'correct_clean' => 4,
+                'incorrect' => 0,
+                'lapse_count' => 0,
+                'stage' => 6,
+            ]);
             $wordIds[] = $wordId;
+        }
+
+        $studiedWordId = $this->createWordWithGameMedia(
+            'Speaking Studied Word',
+            'Speaking Studied Prompt',
+            $categoryId,
+            $wordsetId,
+            false,
+            ['isolation' => 'Speaking studied isolation']
+        );
+        $studiedAudioPosts = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $studiedWordId,
+            'posts_per_page' => -1,
+        ]);
+        $this->assertNotEmpty($studiedAudioPosts);
+        foreach ($studiedAudioPosts as $audioPost) {
+            $this->assertInstanceOf(WP_Post::class, $audioPost);
+            update_post_meta((int) $audioPost->ID, 'recording_ipa', 'ipa studied');
+        }
+        $this->seedWordProgressRow($userId, $studiedWordId, $categoryId, $wordsetId, [
+            'total_coverage' => 2,
+            'coverage_practice' => 2,
+            'correct_clean' => 1,
+            'incorrect' => 1,
+            'stage' => 1,
+        ]);
+
+        $newWordId = $this->createWordWithGameMedia(
+            'Speaking New Word',
+            'Speaking New Prompt',
+            $categoryId,
+            $wordsetId,
+            false,
+            ['isolation' => 'Speaking new isolation']
+        );
+        $newAudioPosts = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $newWordId,
+            'posts_per_page' => -1,
+        ]);
+        $this->assertNotEmpty($newAudioPosts);
+        foreach ($newAudioPosts as $audioPost) {
+            $this->assertInstanceOf(WP_Post::class, $audioPost);
+            update_post_meta((int) $audioPost->ID, 'recording_ipa', 'ipa new');
         }
 
         wp_set_current_user($userId);
@@ -1043,9 +1098,21 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertCount(5, (array) ($catalog['speaking-practice']['words'] ?? []));
         $this->assertSame('recording_ipa', (string) ($catalog['speaking-practice']['target_field'] ?? ''));
         $this->assertSame('text', (string) ($catalog['speaking-practice']['words'][0]['speaking_prompt_type'] ?? ''));
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($catalog['speaking-practice']['words'] ?? []))));
+        sort($returnedIds);
+        $expectedIds = array_map('intval', $wordIds);
+        sort($expectedIds);
+        $this->assertSame($expectedIds, $returnedIds);
+        $this->assertNotContains($studiedWordId, $returnedIds);
+        $this->assertNotContains($newWordId, $returnedIds);
+        foreach ((array) ($catalog['speaking-practice']['words'] ?? []) as $wordRow) {
+            $this->assertSame('mastered', (string) ($wordRow['progress_status'] ?? ''));
+        }
     }
 
-    public function test_speaking_stack_catalog_requires_stt_enabled_image_words(): void
+    public function test_speaking_stack_catalog_only_uses_learned_image_words(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
         $wordset = wp_insert_term('Speaking Stack Wordset ' . wp_generate_password(6, false), 'wordset');
@@ -1067,6 +1134,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'local_browser');
         update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_ipa');
 
+        $learnedWordIds = [];
         for ($index = 1; $index <= 5; $index++) {
             $wordId = $this->createWordWithGameMedia(
                 'Speaking Stack Word ' . $index,
@@ -1087,6 +1155,15 @@ final class WordsetGamesTest extends LL_Tools_TestCase
                 $this->assertInstanceOf(WP_Post::class, $audioPost);
                 update_post_meta((int) $audioPost->ID, 'recording_ipa', 'stack ipa ' . $index);
             }
+            $this->seedWordProgressRow($userId, $wordId, $categoryId, $wordsetId, [
+                'total_coverage' => 6,
+                'coverage_practice' => 6,
+                'correct_clean' => 4,
+                'incorrect' => 0,
+                'lapse_count' => 0,
+                'stage' => 6,
+            ]);
+            $learnedWordIds[] = $wordId;
         }
 
         $imageLessWordId = $this->createWordWithGameMedia(
@@ -1109,6 +1186,33 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             update_post_meta((int) $audioPost->ID, 'recording_ipa', 'stack ipa no image');
         }
 
+        $studiedImageWordId = $this->createWordWithGameMedia(
+            'Speaking Stack Studied Image',
+            'Stack Prompt Studied Image',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'Stack isolation studied image']
+        );
+        $studiedAudioPosts = get_posts([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $studiedImageWordId,
+            'posts_per_page' => -1,
+        ]);
+        $this->assertNotEmpty($studiedAudioPosts);
+        foreach ($studiedAudioPosts as $audioPost) {
+            $this->assertInstanceOf(WP_Post::class, $audioPost);
+            update_post_meta((int) $audioPost->ID, 'recording_ipa', 'stack ipa studied image');
+        }
+        $this->seedWordProgressRow($userId, $studiedImageWordId, $categoryId, $wordsetId, [
+            'total_coverage' => 2,
+            'coverage_practice' => 2,
+            'correct_clean' => 1,
+            'incorrect' => 1,
+            'stage' => 1,
+        ]);
+
         wp_set_current_user($userId);
 
         $catalog = ll_tools_wordset_games_build_catalog($wordsetId, $userId);
@@ -1117,10 +1221,19 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($catalog['speaking-stack']['launchable'] ?? false));
         $this->assertCount(5, (array) ($catalog['speaking-stack']['words'] ?? []));
         $this->assertSame('recording_ipa', (string) ($catalog['speaking-stack']['target_field'] ?? ''));
+        $returnedIds = array_values(array_filter(array_map(static function ($row): int {
+            return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        }, (array) ($catalog['speaking-stack']['words'] ?? []))));
+        sort($returnedIds);
+        sort($learnedWordIds);
+        $this->assertSame($learnedWordIds, $returnedIds);
+        $this->assertNotContains($imageLessWordId, $returnedIds);
+        $this->assertNotContains($studiedImageWordId, $returnedIds);
 
         foreach ((array) ($catalog['speaking-stack']['words'] ?? []) as $wordRow) {
             $this->assertIsArray($wordRow);
             $this->assertNotSame('', trim((string) ($wordRow['image'] ?? '')));
+            $this->assertSame('mastered', (string) ($wordRow['progress_status'] ?? ''));
         }
     }
 
