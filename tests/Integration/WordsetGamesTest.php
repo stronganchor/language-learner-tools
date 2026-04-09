@@ -1124,6 +1124,123 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_speaking_games_can_be_restricted_to_managers_and_hidden_from_learners(): void
+    {
+        $managerId = self::factory()->user->create(['role' => 'administrator']);
+        $learnerId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Speaking Access Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Speaking Access Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'audio_matcher');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_text');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY, 'managers');
+
+        for ($index = 1; $index <= 5; $index++) {
+            $this->createWordWithGameMedia(
+                'Speaking Access Word ' . $index,
+                'Speaking Access Prompt ' . $index,
+                $categoryId,
+                $wordsetId,
+                true,
+                ['isolation' => 'Speaking access ' . $index]
+            );
+        }
+
+        $wordsetTerm = get_term($wordsetId, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordsetTerm);
+        $this->setValidWordsetRewriteRules((string) $wordsetTerm->slug);
+        set_query_var('ll_wordset_page', (string) $wordsetTerm->slug);
+        set_query_var('ll_wordset_view', 'games');
+
+        $this->assertFalse(ll_tools_user_can_access_wordset_speaking_games($wordsetId, $learnerId));
+        $this->assertTrue(ll_tools_user_can_access_wordset_speaking_games($wordsetId, $managerId));
+
+        wp_set_current_user($learnerId);
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordsetTerm, 'games'));
+        $learnerCatalog = ll_tools_wordset_games_build_catalog($wordsetId, $learnerId);
+        $learnerHtml = ll_tools_render_wordset_page_content($wordsetId);
+
+        $this->assertArrayNotHasKey('speaking-practice', $learnerCatalog);
+        $this->assertArrayNotHasKey('speaking-stack', $learnerCatalog);
+        $this->assertStringNotContainsString('data-game-slug="speaking-practice"', $learnerHtml);
+        $this->assertStringNotContainsString('data-game-slug="speaking-stack"', $learnerHtml);
+
+        wp_set_current_user($managerId);
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordsetTerm, 'games'));
+        $managerCatalog = ll_tools_wordset_games_build_catalog($wordsetId, $managerId);
+        $managerHtml = ll_tools_render_wordset_page_content($wordsetId);
+
+        $this->assertArrayHasKey('speaking-practice', $managerCatalog);
+        $this->assertArrayHasKey('speaking-stack', $managerCatalog);
+        $this->assertStringContainsString('data-game-slug="speaking-practice"', $managerHtml);
+        $this->assertStringContainsString('data-game-slug="speaking-stack"', $managerHtml);
+    }
+
+    public function test_speaking_score_endpoint_allows_study_users_when_wordset_access_is_learners(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Speaking Endpoint Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Speaking Endpoint Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'audio_matcher');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_text');
+
+        $wordId = $this->createWordWithGameMedia(
+            'Speaking Endpoint Word',
+            'Speaking Endpoint Prompt',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'cat']
+        );
+
+        wp_set_current_user($userId);
+        $nonce = wp_create_nonce('ll_user_study');
+        $_POST = [
+            'nonce' => $nonce,
+            'wordset_id' => $wordsetId,
+            'word_id' => $wordId,
+            'transcript' => 'cat',
+            'target_field' => 'recording_text',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_games_score_attempt_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame($wordId, (int) ($response['data']['word_id'] ?? 0));
+        $this->assertSame('right', (string) ($response['data']['bucket'] ?? ''));
+    }
+
     public function test_best_speaking_match_scores_active_words_and_returns_no_match_for_distant_transcripts(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);

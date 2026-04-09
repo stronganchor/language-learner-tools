@@ -1068,9 +1068,10 @@ function ll_tools_wordset_games_get_speaking_prompt_text(array $word): string {
 function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, int $user_id = 0, string $game_slug = 'speaking-practice'): array {
     $wordset_id = max(0, $wordset_id);
     $uid = (int) ($user_id ?: get_current_user_id());
+    $minimum_word_count = ll_tools_wordset_games_min_word_count();
     if ($wordset_id <= 0) {
         return [
-            'minimum_word_count' => ll_tools_wordset_games_min_word_count(),
+            'minimum_word_count' => $minimum_word_count,
             'pool_source' => 'disabled',
             'category_ids' => [],
             'words' => [],
@@ -1095,7 +1096,21 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         ];
     $target_field = sanitize_key((string) ($config['target'] ?? 'recording_text'));
     $target_label = (string) ($config['target_label'] ?? __('Written text', 'll-tools-text-domain'));
-    $minimum_word_count = ll_tools_wordset_games_min_word_count();
+    if (function_exists('ll_tools_user_can_access_wordset_speaking_games') && !ll_tools_user_can_access_wordset_speaking_games($wordset_id, $uid)) {
+        return [
+            'minimum_word_count' => $minimum_word_count,
+            'pool_source' => 'access_restricted',
+            'category_ids' => [],
+            'words' => [],
+            'target_field' => $target_field,
+            'target_label' => $target_label,
+            'enabled' => false,
+            'reason_code' => 'speaking_access_restricted',
+            'provider' => (string) ($config['provider'] ?? ''),
+            'provider_label' => (string) ($config['provider_label'] ?? ''),
+            'service_enabled' => !empty($config['service_enabled']),
+        ];
+    }
     if (empty($config['enabled'])) {
         return [
             'minimum_word_count' => $minimum_word_count,
@@ -2719,10 +2734,11 @@ function ll_tools_wordset_games_require_speaking_permissions(): void {
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
     }
-    if (!(current_user_can('view_ll_tools') || current_user_can('manage_options'))) {
-        wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
-    }
-    if (function_exists('ll_tools_user_study_can_access') && !ll_tools_user_study_can_access()) {
+    if (function_exists('ll_tools_user_study_can_access')) {
+        if (!ll_tools_user_study_can_access()) {
+            wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
+        }
+    } elseif (!current_user_can('read')) {
         wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
     }
     check_ajax_referer('ll_user_study', 'nonce');
@@ -2740,6 +2756,9 @@ function ll_tools_wordset_games_validate_speaking_wordset_request(): array {
     }
 
     if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_term)) {
+        return [null, new WP_Error('forbidden', __('You do not have permission.', 'll-tools-text-domain'))];
+    }
+    if (function_exists('ll_tools_user_can_access_wordset_speaking_games') && !ll_tools_user_can_access_wordset_speaking_games($wordset_term, get_current_user_id())) {
         return [null, new WP_Error('forbidden', __('You do not have permission.', 'll-tools-text-domain'))];
     }
 

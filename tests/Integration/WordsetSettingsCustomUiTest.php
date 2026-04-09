@@ -136,6 +136,48 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true));
     }
 
+    public function test_transcription_settings_action_updates_speaking_game_access(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_settings_action' => 'save',
+            'll_wordset_manager_settings_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_settings_nonce' => wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'transcription',
+            'll_wordset_transcription_provider' => 'local_browser',
+            'll_wordset_local_transcription_target' => 'recording_ipa',
+            'll_wordset_local_transcription_endpoint' => 'http://127.0.0.1:8765/transcribe',
+            'll_wordset_speaking_game_enabled' => '1',
+            'll_wordset_speaking_game_provider' => 'audio_matcher',
+            'll_wordset_speaking_game_access' => 'managers',
+            'll_wordset_speaking_game_target' => 'recording_text',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('transcription', (string) ($query['ll_wordset_tool'] ?? ''));
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame('managers', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY, true));
+    }
+
     public function test_offline_app_tool_renders_frontend_export_form_for_current_wordset(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

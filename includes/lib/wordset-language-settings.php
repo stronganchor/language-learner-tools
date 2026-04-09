@@ -45,6 +45,9 @@ if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY')) {
     define('LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY', 'll_wordset_speaking_game_assemblyai_profile');
 }
+if (!defined('LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY')) {
+    define('LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY', 'll_wordset_speaking_game_access');
+}
 if (!defined('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION')) {
     define('LL_TOOLS_WORDSET_LANGUAGE_SETTINGS_MIGRATION_OPTION', 'll_tools_wordset_language_settings_migrated_version');
 }
@@ -76,6 +79,11 @@ function ll_tools_sanitize_wordset_transcription_provider($value): string {
 function ll_tools_sanitize_wordset_speaking_game_provider($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['assemblyai', 'local_browser', 'hosted_api', 'audio_matcher'], true) ? $value : '';
+}
+
+function ll_tools_sanitize_wordset_speaking_game_access($value): string {
+    $value = sanitize_key((string) $value);
+    return in_array($value, ['learners', 'managers'], true) ? $value : 'learners';
 }
 
 function ll_tools_sanitize_wordset_local_transcription_target($value): string {
@@ -465,6 +473,21 @@ function ll_tools_get_wordset_speaking_game_enabled($wordset_ids = [], bool $fal
     return $fallback_to_default ? false : false;
 }
 
+function ll_tools_get_wordset_speaking_game_access($wordset_ids = [], bool $fallback_to_default = true): string {
+    $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
+    foreach ($ids as $wordset_id) {
+        if (!metadata_exists('term', $wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY)) {
+            continue;
+        }
+
+        return ll_tools_sanitize_wordset_speaking_game_access(
+            get_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY, true)
+        );
+    }
+
+    return $fallback_to_default ? 'learners' : '';
+}
+
 function ll_tools_get_wordset_speaking_game_provider($wordset_ids = [], bool $fallback_to_default = true): string {
     $ids = ll_tools_normalize_wordset_setting_ids($wordset_ids);
     foreach ($ids as $wordset_id) {
@@ -542,6 +565,30 @@ function ll_tools_get_wordset_speaking_game_target_label(string $target, $wordse
     }
 
     return __('Written text', 'll-tools-text-domain');
+}
+
+function ll_tools_get_wordset_speaking_game_access_options(): array {
+    return [
+        'learners' => [
+            'label' => __('Any learner who can view this word set', 'll-tools-text-domain'),
+        ],
+        'managers' => [
+            'label' => __('Managers and admins only', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+function ll_tools_get_wordset_speaking_game_access_label(string $access): string {
+    $access = ll_tools_sanitize_wordset_speaking_game_access($access);
+    $options = ll_tools_get_wordset_speaking_game_access_options();
+    $row = isset($options[$access]) && is_array($options[$access]) ? $options[$access] : [];
+    $label = trim((string) ($row['label'] ?? ''));
+
+    if ($label !== '') {
+        return $label;
+    }
+
+    return __('Any learner who can view this word set', 'll-tools-text-domain');
 }
 
 function ll_tools_get_wordset_speaking_game_target_options(): array {
@@ -622,6 +669,7 @@ function ll_tools_get_wordset_speaking_game_assemblyai_request_config($wordset_i
 
 function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fallback_to_default = true): array {
     $enabled_flag = ll_tools_get_wordset_speaking_game_enabled($wordset_ids, $fallback_to_default);
+    $access = ll_tools_get_wordset_speaking_game_access($wordset_ids, $fallback_to_default);
     $provider = ll_tools_get_wordset_speaking_game_provider($wordset_ids, $fallback_to_default);
     if ($enabled_flag && $provider === '') {
         $provider = 'audio_matcher';
@@ -685,6 +733,8 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
     return [
         'enabled_flag' => $enabled_flag,
         'enabled' => $enabled,
+        'access' => $access,
+        'access_label' => ll_tools_get_wordset_speaking_game_access_label($access),
         'provider' => $provider,
         'provider_label' => ll_tools_get_wordset_transcription_provider_label($provider),
         'uses_audio_matcher' => ($provider === 'audio_matcher'),
@@ -709,6 +759,39 @@ function ll_tools_get_wordset_speaking_game_config($wordset_ids = [], bool $fall
 function ll_tools_is_wordset_speaking_game_available($wordset_ids = [], bool $fallback_to_default = true): bool {
     $config = ll_tools_get_wordset_speaking_game_config($wordset_ids, $fallback_to_default);
     return !empty($config['enabled']);
+}
+
+function ll_tools_user_can_access_wordset_speaking_games($wordset, int $user_id = 0): bool {
+    $wordset_id = function_exists('ll_tools_resolve_wordset_term_id')
+        ? ll_tools_resolve_wordset_term_id($wordset)
+        : (int) $wordset;
+    $uid = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+
+    if ($wordset_id <= 0 || $uid <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_user_study_can_access')) {
+        if (!ll_tools_user_study_can_access($uid)) {
+            return false;
+        }
+    } elseif (!user_can($uid, 'read')) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_id, $uid)) {
+        return false;
+    }
+
+    if (ll_tools_get_wordset_speaking_game_access([$wordset_id], true) === 'managers') {
+        if (function_exists('ll_tools_user_can_manage_wordset_content')) {
+            return ll_tools_user_can_manage_wordset_content($wordset_id, $uid);
+        }
+
+        return user_can($uid, 'manage_options');
+    }
+
+    return true;
 }
 
 function ll_tools_get_wordset_speaking_game_target_value(int $word_id, string $target = 'recording_text', array $word_data = []): string {

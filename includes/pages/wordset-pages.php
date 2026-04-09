@@ -1651,6 +1651,9 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $speaking_provider = isset($_POST['ll_wordset_speaking_game_provider'])
             ? ll_tools_sanitize_wordset_speaking_game_provider(wp_unslash((string) $_POST['ll_wordset_speaking_game_provider']))
             : '';
+        $speaking_access = isset($_POST['ll_wordset_speaking_game_access'])
+            ? ll_tools_sanitize_wordset_speaking_game_access(wp_unslash((string) $_POST['ll_wordset_speaking_game_access']))
+            : 'learners';
         $speaking_target = isset($_POST['ll_wordset_speaking_game_target'])
             ? ll_tools_sanitize_wordset_speaking_game_target(wp_unslash((string) $_POST['ll_wordset_speaking_game_target']))
             : 'recording_text';
@@ -1677,6 +1680,7 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         }
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, $speaking_enabled);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, $speaking_provider);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY, $speaking_access);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, $speaking_target);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY, $speaking_assemblyai_profile);
     } elseif ($submitted_tool === 'study') {
@@ -3975,6 +3979,15 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
         ];
     $speaking_enabled = !empty($speaking_game_config['enabled_flag']);
     $speaking_provider = ll_tools_sanitize_wordset_speaking_game_provider((string) ($speaking_game_config['provider'] ?? ''));
+    $speaking_access = function_exists('ll_tools_get_wordset_speaking_game_access')
+        ? ll_tools_get_wordset_speaking_game_access([$wordset_id], true)
+        : 'learners';
+    $speaking_access_options = function_exists('ll_tools_get_wordset_speaking_game_access_options')
+        ? ll_tools_get_wordset_speaking_game_access_options()
+        : [
+            'learners' => ['label' => __('Any learner who can view this word set', 'll-tools-text-domain')],
+            'managers' => ['label' => __('Managers and admins only', 'll-tools-text-domain')],
+        ];
     $speaking_target = ll_tools_sanitize_wordset_speaking_game_target((string) ($speaking_game_config['target'] ?? 'recording_text'));
     $speaking_target_options = is_array($speaking_game_config['target_options'] ?? null)
         ? $speaking_game_config['target_options']
@@ -4107,6 +4120,20 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                     </label>
                     <p class="description" style="margin-top:0;">
                         <?php echo esc_html__('This game shows a picture or prompt text, listens for the learner to say the word, runs STT, and compares the result to the chosen target.', 'll-tools-text-domain'); ?>
+                    </p>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Speaking Games Access', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-settings-speaking-access" class="screen-reader-text"><?php echo esc_html__('Who can view speaking games', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-wordset-settings-speaking-access" name="ll_wordset_speaking_game_access" class="ll-tools-settings-select" style="max-width: 360px;">
+                        <?php foreach ($speaking_access_options as $access_key => $access_row) : ?>
+                            <?php $access_label = is_array($access_row) ? (string) ($access_row['label'] ?? $access_key) : (string) $access_row; ?>
+                            <option value="<?php echo esc_attr((string) $access_key); ?>" <?php selected($speaking_access, (string) $access_key); ?>><?php echo esc_html($access_label); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Users who do not match this access setting will not see speaking games on the Games page.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
