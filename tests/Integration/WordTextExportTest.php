@@ -48,14 +48,29 @@ final class WordTextExportTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Word Text CSV');
         $word_id = $this->createWord($wordset_id, 'Merheba', 'Hello');
+        $category = wp_insert_term('Greetings', 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+
         update_post_meta($word_id, 'word_example_sentence', 'Merheba dunya');
         update_post_meta($word_id, 'word_example_sentence_translation', 'Hello world');
+        $speaker_id = self::factory()->user->create([
+            'role' => 'administrator',
+            'display_name' => 'Speaker Export',
+        ]);
 
-        $this->createAudioRecording($word_id, [
+        $recording_id = $this->createAudioRecording($word_id, [
             'recording_text' => 'Merheba sentence',
             'recording_translation' => 'Hello sentence',
             'recording_ipa' => 'mer.he.ba',
             'recording_type' => 'isolation',
+            'speaker_user_id' => (string) $speaker_id,
+            'audio_filename' => 'word-text-export.mp3',
+            'duration_seconds' => '1.234',
         ]);
 
         $rows = ll_tools_export_build_wordset_csv_rows(
@@ -69,14 +84,74 @@ final class WordTextExportTest extends LL_Tools_TestCase
             'Selected Source'
         );
 
+        $header = ll_tools_export_build_wordset_csv_header(['en']);
+        $this->assertSame([
+            'Lexeme',
+            'PhoneticForm',
+            'Gloss_en',
+            'Dialect',
+            'Source',
+            'Notes',
+            'word_id',
+            'recording_id',
+            'word_audio_id',
+            'recording_type',
+            'category_slug',
+            'category_name',
+            'speaker_user_id',
+            'speaker_name',
+            'recording_text',
+            'recording_ipa',
+            'review-status',
+            'audio_url',
+            'duration_seconds',
+        ], $header);
+
+        $rows_by_key = [];
+        foreach ($rows as $row) {
+            $assoc_row = array_combine($header, $row);
+            $this->assertIsArray($assoc_row);
+            $rows_by_key[((string) $assoc_row['Lexeme']) . '|' . ((string) $assoc_row['Gloss_en'])] = $assoc_row;
+        }
+
         $this->assertCount(7, $rows);
-        $this->assertContains(['Merheba', 'mer.he.ba', 'Hello', 'Selected Dialect', 'Selected Source', ''], $rows);
-        $this->assertContains(['Hello', 'mer.he.ba', 'Merheba', 'Selected Dialect', 'Selected Source', ''], $rows);
-        $this->assertContains(['Merheba dunya', '', 'Hello world', 'Selected Dialect', 'Selected Source', ''], $rows);
-        $this->assertContains(['Hello world', '', 'Merheba dunya', 'Selected Dialect', 'Selected Source', ''], $rows);
-        $this->assertContains(['Merheba sentence', 'mer.he.ba', 'Hello sentence', 'Selected Dialect', 'Selected Source', ''], $rows);
-        $this->assertContains(['Hello sentence', 'mer.he.ba', 'Merheba sentence', 'Selected Dialect', 'Selected Source', ''], $rows);
-        $this->assertContains(['mer.he.ba', 'mer.he.ba', 'Merheba sentence', 'Selected Dialect', 'Selected Source', ''], $rows);
+
+        $title_row = $rows_by_key['Merheba|Hello'] ?? null;
+        $this->assertIsArray($title_row);
+        $this->assertSame('mer.he.ba', (string) $title_row['PhoneticForm']);
+        $this->assertSame((string) $word_id, (string) $title_row['word_id']);
+        $this->assertSame('', (string) $title_row['recording_id']);
+        $this->assertSame('', (string) $title_row['word_audio_id']);
+        $this->assertSame('', (string) $title_row['recording_type']);
+        $this->assertSame((string) $category_term->slug, (string) $title_row['category_slug']);
+        $this->assertSame((string) $category_term->name, (string) $title_row['category_name']);
+        $this->assertSame('', (string) $title_row['speaker_user_id']);
+        $this->assertSame('', (string) $title_row['speaker_name']);
+        $this->assertSame('', (string) $title_row['recording_text']);
+        $this->assertSame('', (string) $title_row['recording_ipa']);
+        $this->assertSame('', (string) $title_row['review-status']);
+        $this->assertSame('', (string) $title_row['audio_url']);
+        $this->assertSame('', (string) $title_row['duration_seconds']);
+
+        $recording_row = $rows_by_key['Merheba sentence|Hello sentence'] ?? null;
+        $this->assertIsArray($recording_row);
+        $this->assertSame('mer.he.ba', (string) $recording_row['PhoneticForm']);
+        $this->assertSame((string) $word_id, (string) $recording_row['word_id']);
+        $this->assertSame((string) $recording_id, (string) $recording_row['recording_id']);
+        $this->assertSame((string) $recording_id, (string) $recording_row['word_audio_id']);
+        $this->assertSame('isolation', (string) $recording_row['recording_type']);
+        $this->assertSame((string) $category_term->slug, (string) $recording_row['category_slug']);
+        $this->assertSame((string) $category_term->name, (string) $recording_row['category_name']);
+        $this->assertSame((string) $speaker_id, (string) $recording_row['speaker_user_id']);
+        $this->assertSame('Speaker Export', (string) $recording_row['speaker_name']);
+        $this->assertSame('Merheba sentence', (string) $recording_row['recording_text']);
+        $this->assertSame('mer.he.ba', (string) $recording_row['recording_ipa']);
+        $this->assertSame('reviewed', (string) $recording_row['review-status']);
+        $this->assertSame(
+            ll_tools_resolve_audio_file_url((string) get_post_meta($recording_id, 'audio_file_path', true)),
+            (string) $recording_row['audio_url']
+        );
+        $this->assertSame('1.234', (string) $recording_row['duration_seconds']);
     }
 
     private function createWordset(string $name): int
@@ -122,12 +197,45 @@ final class WordTextExportTest extends LL_Tools_TestCase
         if (isset($meta['recording_ipa'])) {
             update_post_meta($recording_id, 'recording_ipa', $meta['recording_ipa']);
         }
+        if (isset($meta['speaker_user_id'])) {
+            update_post_meta($recording_id, 'speaker_user_id', (int) $meta['speaker_user_id']);
+        }
+        if (isset($meta['speaker_name'])) {
+            update_post_meta($recording_id, 'speaker_name', (string) $meta['speaker_name']);
+        }
+        if (!empty($meta['audio_filename'])) {
+            $file_path = $this->createAudioUploadFile((string) $meta['audio_filename']);
+            update_post_meta($recording_id, 'audio_file_path', $file_path);
+
+            if (isset($meta['duration_seconds']) && $meta['duration_seconds'] !== '') {
+                $signature = ll_tools_wordset_games_build_audio_duration_signature($file_path);
+                update_post_meta($recording_id, ll_tools_wordset_games_get_audio_duration_cache_meta_key(), (string) $meta['duration_seconds']);
+                update_post_meta($recording_id, ll_tools_wordset_games_get_audio_duration_signature_meta_key(), $signature);
+            }
+        }
+        if (!empty($meta['needs_review'])) {
+            update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');
+        }
         if (!empty($meta['recording_type'])) {
             $recording_type_id = $this->ensureRecordingType((string) $meta['recording_type']);
             wp_set_post_terms($recording_id, [$recording_type_id], 'recording_type', false);
         }
 
         return (int) $recording_id;
+    }
+
+    private function createAudioUploadFile(string $filename): string
+    {
+        $upload = wp_upload_bits($filename, null, "fake audio bytes\n");
+        $this->assertIsArray($upload);
+        $this->assertArrayHasKey('error', $upload);
+        $this->assertSame('', (string) $upload['error']);
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        return wp_normalize_path($file_path);
     }
 
     private function ensureRecordingType(string $slug): int

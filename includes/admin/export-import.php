@@ -2749,11 +2749,8 @@ function ll_tools_handle_export_wordset_csv() {
         wp_die(__('No words found for the selected word set.', 'll-tools-text-domain'));
     }
 
-    $gloss_headers = array_map(function ($code) {
-        return 'Gloss_' . $code;
-    }, $gloss_languages);
-    $gloss_count = count($gloss_headers);
-    $header = array_merge(['Lexeme', 'PhoneticForm'], $gloss_headers, ['Dialect', 'Source', 'Notes']);
+    $gloss_count = count($gloss_languages);
+    $header = ll_tools_export_build_wordset_csv_header($gloss_languages);
     $rows = ll_tools_export_build_wordset_csv_rows(
         $wordset_id,
         $word_sources,
@@ -8120,10 +8117,28 @@ function ll_tools_export_collect_audio_entries(array $word_ids): array {
             continue;
         }
 
+        $stored_audio_path = (string) get_post_meta($audio_post->ID, 'audio_file_path', true);
+        $speaker_user_id = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
+        $speaker_name = ll_tools_export_normalize_manifest_text((string) get_post_meta($audio_post->ID, 'speaker_name', true));
+        if ($speaker_name === '' && $speaker_user_id > 0) {
+            $speaker_user = get_userdata($speaker_user_id);
+            if ($speaker_user instanceof WP_User) {
+                $speaker_name = ll_tools_export_normalize_manifest_text((string) $speaker_user->display_name);
+            }
+        }
+        $needs_review = ll_tools_export_recording_ipa_needs_review((int) $audio_post->ID);
+
         $entry = [
+            'recording_id'          => (int) $audio_post->ID,
+            'word_audio_id'         => (int) $audio_post->ID,
             'recording_text'        => (string) get_post_meta($audio_post->ID, 'recording_text', true),
             'recording_translation' => (string) get_post_meta($audio_post->ID, 'recording_translation', true),
             'recording_ipa'         => (string) get_post_meta($audio_post->ID, 'recording_ipa', true),
+            'speaker_user_id'       => $speaker_user_id,
+            'speaker_name'          => $speaker_name,
+            'review_status'         => ll_tools_export_get_stt_review_status($needs_review),
+            'audio_url'             => ll_tools_export_get_stt_recording_audio_url($stored_audio_path),
+            'duration_seconds'      => ll_tools_export_get_stt_recording_duration_seconds((int) $audio_post->ID, $stored_audio_path),
         ];
 
         foreach ($recording_types as $recording_type) {
@@ -8174,7 +8189,75 @@ function ll_tools_export_get_word_translation(int $word_id): string {
     return trim($translation);
 }
 
-function ll_tools_export_build_csv_row(string $lexeme, string $phonetic, string $gloss, int $gloss_count, string $dialect, string $source): array {
+function ll_tools_export_get_wordset_csv_metadata_headers(): array {
+    return [
+        'word_id',
+        'recording_id',
+        'word_audio_id',
+        'recording_type',
+        'category_slug',
+        'category_name',
+        'speaker_user_id',
+        'speaker_name',
+        'recording_text',
+        'recording_ipa',
+        'review-status',
+        'audio_url',
+        'duration_seconds',
+    ];
+}
+
+function ll_tools_export_build_wordset_csv_header(array $gloss_languages): array {
+    $gloss_headers = array_map(static function ($code) {
+        return 'Gloss_' . $code;
+    }, $gloss_languages);
+
+    return array_merge(
+        ['Lexeme', 'PhoneticForm'],
+        $gloss_headers,
+        ['Dialect', 'Source', 'Notes'],
+        ll_tools_export_get_wordset_csv_metadata_headers()
+    );
+}
+
+function ll_tools_export_normalize_wordset_csv_metadata(array $metadata): array {
+    $normalized = array_fill_keys(ll_tools_export_get_wordset_csv_metadata_headers(), '');
+
+    foreach ($normalized as $key => $unused) {
+        if (array_key_exists($key, $metadata)) {
+            $normalized[$key] = $metadata[$key];
+            continue;
+        }
+
+        if ($key === 'review-status' && array_key_exists('review_status', $metadata)) {
+            $normalized[$key] = $metadata['review_status'];
+        }
+    }
+
+    if ($normalized['duration_seconds'] !== '' && $normalized['duration_seconds'] !== null) {
+        $normalized['duration_seconds'] = (string) round((float) $normalized['duration_seconds'], 3);
+    } else {
+        $normalized['duration_seconds'] = '';
+    }
+
+    foreach ($normalized as $key => $value) {
+        if ($value === null) {
+            $normalized[$key] = '';
+        }
+    }
+
+    return array_values($normalized);
+}
+
+function ll_tools_export_build_csv_row(
+    string $lexeme,
+    string $phonetic,
+    string $gloss,
+    int $gloss_count,
+    string $dialect,
+    string $source,
+    array $metadata = []
+): array {
     $row = [$lexeme, $phonetic];
     for ($i = 0; $i < $gloss_count; $i++) {
         $row[] = $gloss;
@@ -8182,7 +8265,8 @@ function ll_tools_export_build_csv_row(string $lexeme, string $phonetic, string 
     $row[] = $dialect;
     $row[] = $source;
     $row[] = '';
-    return $row;
+
+    return array_merge($row, ll_tools_export_normalize_wordset_csv_metadata($metadata));
 }
 
 function ll_tools_export_build_wordset_csv_rows(
@@ -8223,21 +8307,27 @@ function ll_tools_export_build_wordset_csv_rows(
         $example_sentence = trim((string) get_post_meta($word_id, 'word_example_sentence', true));
         $example_sentence_translation = trim((string) get_post_meta($word_id, 'word_example_sentence_translation', true));
         $word_ipa = ll_tools_export_pick_word_ipa($audio_by_word[$word_id] ?? []);
+        $category_fields = ll_tools_export_collect_word_category_manifest_fields($word_id);
+        $word_row_metadata = [
+            'word_id' => $word_id,
+            'category_slug' => (string) ($category_fields['category_slug'] ?? ''),
+            'category_name' => (string) ($category_fields['category_name'] ?? ''),
+        ];
 
         if (in_array('title', $word_sources, true) && $title !== '') {
-            $rows[] = ll_tools_export_build_csv_row($title, $word_ipa, $translation, $gloss_count, $dialect, $source);
+            $rows[] = ll_tools_export_build_csv_row($title, $word_ipa, $translation, $gloss_count, $dialect, $source, $word_row_metadata);
         }
 
         if (in_array('translation', $word_sources, true) && $translation !== '') {
-            $rows[] = ll_tools_export_build_csv_row($translation, $word_ipa, $title, $gloss_count, $dialect, $source);
+            $rows[] = ll_tools_export_build_csv_row($translation, $word_ipa, $title, $gloss_count, $dialect, $source, $word_row_metadata);
         }
 
         if (in_array('example_sentence', $word_sources, true) && $example_sentence !== '') {
-            $rows[] = ll_tools_export_build_csv_row($example_sentence, '', $example_sentence_translation, $gloss_count, $dialect, $source);
+            $rows[] = ll_tools_export_build_csv_row($example_sentence, '', $example_sentence_translation, $gloss_count, $dialect, $source, $word_row_metadata);
         }
 
         if (in_array('example_sentence_translation', $word_sources, true) && $example_sentence_translation !== '') {
-            $rows[] = ll_tools_export_build_csv_row($example_sentence_translation, '', $example_sentence, $gloss_count, $dialect, $source);
+            $rows[] = ll_tools_export_build_csv_row($example_sentence_translation, '', $example_sentence, $gloss_count, $dialect, $source, $word_row_metadata);
         }
 
         if (empty($audio_by_word[$word_id])) {
@@ -8253,13 +8343,25 @@ function ll_tools_export_build_wordset_csv_rows(
             $recording_text = trim((string) ($recording['recording_text'] ?? ''));
             $recording_translation = trim((string) ($recording['recording_translation'] ?? ''));
             $recording_ipa = trim((string) ($recording['recording_ipa'] ?? ''));
+            $recording_row_metadata = array_merge($word_row_metadata, [
+                'recording_id' => !empty($recording['recording_id']) ? (int) $recording['recording_id'] : '',
+                'word_audio_id' => !empty($recording['word_audio_id']) ? (int) $recording['word_audio_id'] : '',
+                'recording_type' => $recording_type,
+                'speaker_user_id' => !empty($recording['speaker_user_id']) ? (int) $recording['speaker_user_id'] : '',
+                'speaker_name' => trim((string) ($recording['speaker_name'] ?? '')),
+                'recording_text' => $recording_text,
+                'recording_ipa' => $recording_ipa,
+                'review-status' => trim((string) ($recording['review_status'] ?? '')),
+                'audio_url' => trim((string) ($recording['audio_url'] ?? '')),
+                'duration_seconds' => $recording['duration_seconds'] ?? '',
+            ]);
 
             if (in_array('text', $recording_sources[$recording_type], true) && $recording_text !== '') {
-                $rows[] = ll_tools_export_build_csv_row($recording_text, $recording_ipa, $recording_translation, $gloss_count, $dialect, $source);
+                $rows[] = ll_tools_export_build_csv_row($recording_text, $recording_ipa, $recording_translation, $gloss_count, $dialect, $source, $recording_row_metadata);
             }
 
             if (in_array('translation', $recording_sources[$recording_type], true) && $recording_translation !== '') {
-                $rows[] = ll_tools_export_build_csv_row($recording_translation, $recording_ipa, $recording_text, $gloss_count, $dialect, $source);
+                $rows[] = ll_tools_export_build_csv_row($recording_translation, $recording_ipa, $recording_text, $gloss_count, $dialect, $source, $recording_row_metadata);
             }
 
             if (in_array('transcription', $recording_sources[$recording_type], true) && $recording_ipa !== '') {
@@ -8269,7 +8371,8 @@ function ll_tools_export_build_wordset_csv_rows(
                     $recording_text !== '' ? $recording_text : $recording_translation,
                     $gloss_count,
                     $dialect,
-                    $source
+                    $source,
+                    $recording_row_metadata
                 );
             }
         }
