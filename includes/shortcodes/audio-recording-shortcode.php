@@ -4106,7 +4106,8 @@ function ll_enqueue_recording_assets($auto_process_recordings = false) {
         ll_enqueue_asset_by_timestamp('/css/audio-processor.css', 'll-audio-processor-css', ['ll-recording-interface']);
     }
 
-    ll_enqueue_asset_by_timestamp('/js/audio-recorder.js', 'll-audio-recorder', [], true);
+    ll_enqueue_asset_by_timestamp('/js/locale-sort.js', 'll-tools-locale-sort', [], true);
+    ll_enqueue_asset_by_timestamp('/js/audio-recorder.js', 'll-audio-recorder', ['ll-tools-locale-sort'], true);
 }
 
 /**

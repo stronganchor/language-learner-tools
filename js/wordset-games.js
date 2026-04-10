@@ -1419,12 +1419,17 @@
 
             const onLoad = function () {
                 const run = ctx && ctx.run;
+                let speakingStackLayoutChanged = false;
                 if (run && Array.isArray(run.cards)) {
                     run.cards.forEach(function (card) {
                         if (toInt(card && card.word && card.word.id) === toInt(word && word.id)) {
                             applyCardDimensions(ctx, run, card);
+                            speakingStackLayoutChanged = speakingStackLayoutChanged || isSpeakingStackRun(ctx, run);
                         }
                     });
+                    if (speakingStackLayoutChanged) {
+                        relayoutSpeakingStackCards(ctx, run);
+                    }
                 }
                 finish(image.naturalWidth > 0 && image.naturalHeight > 0);
             };
@@ -9952,6 +9957,8 @@
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),
                 promptRecordingType: run.prompt ? String(run.prompt.recordingType || '') : '',
+                metricCardWidth: Math.round(Number(run.metrics && run.metrics.cardWidth) || 0),
+                metricCardHeight: Math.round(Number(run.metrics && run.metrics.cardHeight) || 0),
                 activeCardCount: cards.filter(function (card) {
                     return isActivePromptCard(run, card) && !card.exploding;
                 }).length,

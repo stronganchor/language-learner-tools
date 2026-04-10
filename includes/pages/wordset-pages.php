@@ -3150,6 +3150,8 @@ function ll_tools_wordset_page_enqueue_scripts(): void {
         $deps[] = 'll-wordset-games-js';
     }
 
+    ll_enqueue_asset_by_timestamp('/js/locale-sort.js', 'll-tools-locale-sort', [], true);
+    $deps[] = 'll-tools-locale-sort';
     ll_enqueue_asset_by_timestamp('/js/wordset-pages.js', 'll-wordset-pages-js', $deps, true);
 }
 

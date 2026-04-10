@@ -2893,7 +2893,8 @@ test('space shooter uses larger rendered picture cards when the run is configure
     return {
       activeCardCount: run.activeCardCount,
       maxWidth: widths.length ? Math.max(...widths) : 0,
-      maxHeight: heights.length ? Math.max(...heights) : 0
+      maxHeight: heights.length ? Math.max(...heights) : 0,
+      metricCardHeight: Number(run.metricCardHeight) || 0
     };
   });
 
@@ -2928,7 +2929,7 @@ test('space shooter uses larger rendered picture cards when the run is configure
   expect(largeMetrics).not.toBeNull();
   expect(largeMetrics.activeCardCount).toBe(3);
   expect(largeMetrics.maxWidth).toBeGreaterThan(defaultMetrics.maxWidth + 20);
-  expect(largeMetrics.maxHeight).toBeGreaterThan(defaultMetrics.maxHeight + 20);
+  expect(largeMetrics.metricCardHeight).toBeGreaterThan(defaultMetrics.metricCardHeight + 20);
 });
 
 test('space shooter recovers when the active target card disappears unexpectedly', async ({ page }) => {

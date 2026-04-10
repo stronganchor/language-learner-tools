@@ -42,6 +42,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - Bulk **audio** and **image** uploaders that can create/update posts and try to match media to posts by name.
   - **Audio Processor**: Batch-process uploaded audio files and attach them to words.
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
+  - **Offline App Export**: Build a single-wordset offline quiz bundle with media, optional local STT games, and local-first progress sync back to the site.
   - Wordset manager workflows via the plugin’s custom wordset pages.
   - Settings page (translations, browser-language auto-switch, DeepL API key, image size, font, option caps, etc.).
 
@@ -212,6 +213,25 @@ Or link to: `/quiz/animals?mode=learning`
 3. **Recording Types Admin** (`Tools → Recording Types`):
    - Manage the recording type taxonomy.
    - Categorize audio for contextual use.
+
+---
+
+## Offline App Export & Sync
+
+- **Offline bundle export** (`Tools → Offline App Export`)
+  - Exports exactly one word set per bundle.
+  - Stages the standalone offline shell, quiz/game runtime assets, and bundled media needed for supported modes.
+  - Can include local STT-backed game content when the selected word set has an offline model bundle configured.
+
+- **Local-first progress**
+  - Learners can keep using the exported app while fully offline.
+  - Progress is stored locally in the app until the learner reconnects.
+  - The app can later sign in against the source site and sync saved progress back through the plugin’s offline sync endpoint.
+
+- **What to verify after export**
+  - The selected word set has enough usable media for the intended quiz/game modes.
+  - The generated zip includes the offline shell plus plugin media assets, not the full repository.
+  - If sync is intended, the source site remains reachable and the learner has an account with access to the same word set.
 
 ---
 

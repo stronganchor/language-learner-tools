@@ -592,6 +592,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/self-check.js', 'll-flc-mode-self-check', ['ll-flc-selection', 'll-tools-self-check-shared-script', 'll-flc-progress-tracker'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/listening.js', 'll-flc-mode-listening', ['ll-flc-selection', 'll-flc-audio-visualizer', 'll-flc-progress-tracker'], true);
     ll_enqueue_asset_by_timestamp($shortcode_folder . 'modes/gender.js',    'll-flc-mode-gender',    ['ll-flc-selection', 'll-flc-progress-tracker'], true);
+    ll_enqueue_asset_by_timestamp('/js/locale-sort.js', 'll-tools-locale-sort', [], true);
 
     // Main orchestrator depends on the mode modules as well
     ll_enqueue_asset_by_timestamp(
@@ -617,7 +618,7 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ll_enqueue_asset_by_timestamp(
         $shortcode_folder . 'category-selection.js',
         'll-tools-category-selection-script',
-        ['jquery', 'll-flc-main'],
+        ['jquery', 'll-flc-main', 'll-tools-locale-sort'],
         true
     );
 

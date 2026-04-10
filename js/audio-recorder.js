@@ -52,9 +52,25 @@
     const requireAll = !!window.ll_recorder_data?.require_all_types;
     const allowNewWords = !!window.ll_recorder_data?.allow_new_words;
     const i18n = window.ll_recorder_data?.i18n || {};
-    const sortLocales = buildSortLocales(window.ll_recorder_data?.sort_locale || document.documentElement.lang || '');
-    const turkishSortLocales = withTurkishSortLocales(sortLocales);
     const requestLocale = String(window.ll_recorder_data?.sort_locale || '').trim();
+    const localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.createTextComparer === 'function')
+        ? window.LLToolsLocaleSort
+        : null;
+    const localeTextCompare = localeSort
+        ? localeSort.createTextComparer(window.ll_recorder_data?.sort_locale || document.documentElement.lang || '')
+        : function (left, right, options) {
+            const a = String(left || '');
+            const b = String(right || '');
+            if (a === b) { return 0; }
+            try {
+                return a.localeCompare(b, undefined, Object.assign({
+                    numeric: true,
+                    sensitivity: 'base'
+                }, (options && typeof options === 'object') ? options : {}));
+            } catch (_) {
+                return a < b ? -1 : (a > b ? 1 : 0);
+            }
+        };
     const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
     const hasAssemblyAI = !!window.ll_recorder_data?.assembly_enabled;
     const hasDeepl = !!window.ll_recorder_data?.deepl_enabled;
@@ -132,69 +148,6 @@
     };
 
     document.addEventListener('DOMContentLoaded', init);
-
-    function buildSortLocales(rawLocale) {
-        const value = String(rawLocale || '').trim().replace('_', '-');
-        const locales = [];
-        const pushLocale = function (locale) {
-            const normalized = String(locale || '').trim();
-            if (!normalized || locales.indexOf(normalized) !== -1) { return; }
-            locales.push(normalized);
-        };
-
-        if (value) {
-            pushLocale(value);
-            const primary = value.split('-')[0];
-            if (primary) {
-                pushLocale(primary);
-                if (primary.toLowerCase() === 'tr') {
-                    pushLocale('tr-TR');
-                }
-            }
-        }
-        pushLocale('en-US');
-        return locales;
-    }
-
-    function withTurkishSortLocales(baseLocales) {
-        const combined = [];
-        const pushLocale = function (value) {
-            const normalized = String(value || '').trim();
-            if (!normalized || combined.indexOf(normalized) !== -1) { return; }
-            combined.push(normalized);
-        };
-        pushLocale('tr-TR');
-        pushLocale('tr');
-        (Array.isArray(baseLocales) ? baseLocales : []).forEach(pushLocale);
-        return combined;
-    }
-
-    function textHasTurkishCharacters(value) {
-        return /[çğıöşüÇĞİÖŞÜıİ]/.test(String(value || ''));
-    }
-
-    function localeTextCompare(left, right, options) {
-        const a = String(left || '');
-        const b = String(right || '');
-        if (a === b) { return 0; }
-        const opts = Object.assign({
-            numeric: true,
-            sensitivity: 'base'
-        }, (options && typeof options === 'object') ? options : {});
-        const locales = (textHasTurkishCharacters(a) || textHasTurkishCharacters(b))
-            ? turkishSortLocales
-            : sortLocales;
-
-        try {
-            return a.localeCompare(b, locales, opts);
-        } catch (_) {
-            try {
-                return a.localeCompare(b, undefined, opts);
-            } catch (_) {
-                return a < b ? -1 : (a > b ? 1 : 0);
-            }
-        }
-    }
 
     function appendRequestLocale(formData) {
         if (!formData || !requestLocale) return;

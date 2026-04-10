@@ -2432,7 +2432,8 @@ function ll_enqueue_wordsets_script() {
     if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
         ll_tools_enqueue_jquery_ui_autocomplete_assets();
     }
-    ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable'), true);
+    ll_enqueue_asset_by_timestamp('/js/locale-sort.js', 'll-tools-locale-sort', array(), true);
+    ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable', 'll-tools-locale-sort'), true);
 
     $languages = get_terms([
         'taxonomy' => 'language',
@@ -2447,37 +2448,9 @@ function ll_enqueue_wordsets_script() {
 
     wp_localize_script('manage-wordsets-script', 'manageWordSetData', array(
         'availableLanguages' => $language_data,
-		'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('create_wordset_nonce'),
     ));
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_wordsets_script');
-
-// AJAX handler for language suggestions
-function ll_suggest_languages() {
-    if (!current_user_can('edit_wordsets')) {
-        wp_send_json_error(['message' => __('Forbidden', 'll-tools-text-domain')], 403);
-    }
-    check_ajax_referer('create_wordset_nonce', 'nonce');
-
-    $search = isset($_REQUEST['q']) ? sanitize_text_field($_REQUEST['q']) : '';
-    $languages = get_terms([
-        'taxonomy' => 'language',
-        'hide_empty' => false,
-        'search' => $search,
-    ]);
-
-    $suggestions = [];
-    foreach ($languages as $language) {
-        $suggestions[] = [
-            'label' => $language->name,
-            'value' => $language->term_id,
-        ];
-    }
-
-    wp_send_json($suggestions);
-}
-add_action('wp_ajax_ll_suggest_languages', 'll_suggest_languages');
 
 function ll_tools_wordset_verify_core_term_form_nonce(array $request): bool {
     if (!isset($request['_wpnonce'])) {

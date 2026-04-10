@@ -4,54 +4,22 @@
  * Handles the autocomplete functionality for the Word Set language selection input.
  */
 jQuery(document).ready(function ($) {
-    var sortLocale = String(document.documentElement.lang || '').trim().replace('_', '-');
-    var sortLocales = [];
-    if (sortLocale) {
-        sortLocales.push(sortLocale);
-        var primaryLocale = sortLocale.split('-')[0];
-        if (primaryLocale && sortLocales.indexOf(primaryLocale) === -1) {
-            sortLocales.push(primaryLocale);
-        }
-        if (primaryLocale && primaryLocale.toLowerCase() === 'tr' && sortLocales.indexOf('tr-TR') === -1) {
-            sortLocales.push('tr-TR');
-        }
-    }
-    sortLocales.push('en-US');
-    var turkishSortLocales = (function (baseLocales) {
-        var combined = [];
-        var pushLocale = function (value) {
-            var normalized = String(value || '').trim();
-            if (!normalized || combined.indexOf(normalized) !== -1) { return; }
-            combined.push(normalized);
-        };
-        pushLocale('tr-TR');
-        pushLocale('tr');
-        (Array.isArray(baseLocales) ? baseLocales : []).forEach(pushLocale);
-        return combined;
-    })(sortLocales);
-
-    function textHasTurkishCharacters(value) {
-        return /[çğıöşüÇĞİÖŞÜıİ]/.test(String(value || ''));
-    }
-
-    function localeTextCompare(left, right) {
+    function fallbackLocaleTextCompare(left, right) {
         var a = String(left || '');
         var b = String(right || '');
         if (a === b) { return 0; }
-        var opts = { numeric: true, sensitivity: 'base' };
-        var locales = (textHasTurkishCharacters(a) || textHasTurkishCharacters(b))
-            ? turkishSortLocales
-            : sortLocales;
         try {
-            return a.localeCompare(b, locales, opts);
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         } catch (_) {
-            try {
-                return a.localeCompare(b, undefined, opts);
-            } catch (_) {
-                return a < b ? -1 : (a > b ? 1 : 0);
-            }
+            return a < b ? -1 : (a > b ? 1 : 0);
         }
     }
+    var localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.createTextComparer === 'function')
+        ? window.LLToolsLocaleSort
+        : null;
+    var localeTextCompare = localeSort
+        ? localeSort.createTextComparer(document.documentElement.lang || '')
+        : fallbackLocaleTextCompare;
 
     /**
      * Initializes the autocomplete feature on the #wordset-language input field.

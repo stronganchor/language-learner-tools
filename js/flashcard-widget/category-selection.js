@@ -92,63 +92,26 @@
         }
     }
 
-    function getSortLocales() {
+    function getSortLocale() {
         var data = window.llToolsFlashcardsData || {};
-        var rawLocale = String(data.sortLocale || document.documentElement.lang || '').trim().replace('_', '-');
-        var locales = [];
-        function pushLocale(value) {
-            var normalized = String(value || '').trim();
-            if (!normalized || locales.indexOf(normalized) !== -1) { return; }
-            locales.push(normalized);
-        }
-        if (rawLocale) {
-            pushLocale(rawLocale);
-            var primary = rawLocale.split('-')[0];
-            if (primary) {
-                pushLocale(primary);
-                if (primary.toLowerCase() === 'tr') {
-                    pushLocale('tr-TR');
-                }
-            }
-        }
-        pushLocale('en-US');
-        return locales;
+        return String(data.sortLocale || document.documentElement.lang || '').trim();
     }
 
-    function withTurkishSortLocales(baseLocales) {
-        var combined = [];
-        var pushLocale = function (value) {
-            var normalized = String(value || '').trim();
-            if (!normalized || combined.indexOf(normalized) !== -1) { return; }
-            combined.push(normalized);
-        };
-        pushLocale('tr-TR');
-        pushLocale('tr');
-        (Array.isArray(baseLocales) ? baseLocales : []).forEach(pushLocale);
-        return combined;
-    }
-
-    function textHasTurkishCharacters(value) {
-        return /[çğıöşüÇĞİÖŞÜıİ]/.test(String(value || ''));
-    }
+    var localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.compareText === 'function')
+        ? window.LLToolsLocaleSort
+        : null;
 
     function localeTextCompare(left, right) {
+        if (localeSort) {
+            return localeSort.compareText(left, right, getSortLocale());
+        }
         var a = String(left || '');
         var b = String(right || '');
         if (a === b) { return 0; }
-        var baseLocales = getSortLocales();
-        var locales = (textHasTurkishCharacters(a) || textHasTurkishCharacters(b))
-            ? withTurkishSortLocales(baseLocales)
-            : baseLocales;
-        var opts = { numeric: true, sensitivity: 'base' };
         try {
-            return a.localeCompare(b, locales, opts);
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         } catch (_) {
-            try {
-                return a.localeCompare(b, undefined, opts);
-            } catch (_) {
-                return a < b ? -1 : (a > b ? 1 : 0);
-            }
+            return a < b ? -1 : (a > b ? 1 : 0);
         }
     }
 

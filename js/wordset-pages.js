@@ -19,8 +19,26 @@
     const genderCfg = (cfg.gender && typeof cfg.gender === 'object') ? cfg.gender : {};
     const progressResetCfg = (cfg.progressReset && typeof cfg.progressReset === 'object') ? cfg.progressReset : {};
     const progressIncludeHidden = !!cfg.progressIncludeHidden;
-    const sortLocales = buildSortLocales(cfg.sortLocale || document.documentElement.lang || '');
-    const turkishSortLocales = withTurkishSortLocales(sortLocales);
+    const localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.createTextComparer === 'function')
+        ? window.LLToolsLocaleSort
+        : null;
+    const localeTextCompare = localeSort
+        ? localeSort.createTextComparer(cfg.sortLocale || document.documentElement.lang || '')
+        : function (left, right, options) {
+            const a = String(left || '');
+            const b = String(right || '');
+            if (a === b) { return 0; }
+            try {
+                return a.localeCompare(b, undefined, Object.assign({
+                    numeric: true,
+                    sensitivity: 'base'
+                }, (options && typeof options === 'object') ? options : {}));
+            } catch (_) {
+                if (a < b) { return -1; }
+                if (a > b) { return 1; }
+                return 0;
+            }
+        };
 
     const CHUNK_SIZE = 15;
     const MIN_ACTIVITY_WORDS = 5;
@@ -1178,73 +1196,6 @@
             lowered = prepared.toLowerCase();
         }
         return lowered.replace(/\u0307/g, '');
-    }
-
-    function buildSortLocales(rawLocale) {
-        const fromConfig = String(rawLocale || '').trim().replace('_', '-');
-        const locales = [];
-        const pushLocale = function (value) {
-            const normalized = String(value || '').trim();
-            if (!normalized) { return; }
-            if (locales.indexOf(normalized) === -1) {
-                locales.push(normalized);
-            }
-        };
-
-        if (fromConfig) {
-            pushLocale(fromConfig);
-            const primary = fromConfig.split('-')[0];
-            if (primary) {
-                pushLocale(primary);
-                if (primary.toLowerCase() === 'tr') {
-                    pushLocale('tr-TR');
-                }
-            }
-        }
-        pushLocale('en-US');
-        return locales;
-    }
-
-    function withTurkishSortLocales(baseLocales) {
-        const combined = [];
-        const pushLocale = function (value) {
-            const normalized = String(value || '').trim();
-            if (!normalized || combined.indexOf(normalized) !== -1) { return; }
-            combined.push(normalized);
-        };
-        pushLocale('tr-TR');
-        pushLocale('tr');
-        (Array.isArray(baseLocales) ? baseLocales : []).forEach(pushLocale);
-        return combined;
-    }
-
-    function textHasTurkishCharacters(value) {
-        return /[çğıöşüÇĞİÖŞÜıİ]/.test(String(value || ''));
-    }
-
-    function localeTextCompare(left, right, options) {
-        const a = String(left || '');
-        const b = String(right || '');
-        if (a === b) { return 0; }
-        const opts = Object.assign({
-            numeric: true,
-            sensitivity: 'base'
-        }, (options && typeof options === 'object') ? options : {});
-        const locales = (textHasTurkishCharacters(a) || textHasTurkishCharacters(b))
-            ? turkishSortLocales
-            : sortLocales;
-
-        try {
-            return a.localeCompare(b, locales, opts);
-        } catch (_) {
-            try {
-                return a.localeCompare(b, undefined, opts);
-            } catch (_) {
-                if (a < b) { return -1; }
-                if (a > b) { return 1; }
-                return 0;
-            }
-        }
     }
 
     function shuffleList(list) {
