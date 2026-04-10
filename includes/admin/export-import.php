@@ -8357,6 +8357,22 @@ function ll_tools_export_get_stt_entry_text(array $entry, string $text_field): s
     return ll_tools_export_normalize_manifest_text($value);
 }
 
+function ll_tools_export_recording_ipa_needs_review(int $recording_id): bool {
+    if ($recording_id <= 0) {
+        return false;
+    }
+
+    if (function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')) {
+        return ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id);
+    }
+
+    $review_meta_key = function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
+        ? ll_tools_ipa_keyboard_auto_review_meta_key()
+        : 'll_auto_transcription_needs_review';
+
+    return ((string) get_post_meta($recording_id, $review_meta_key, true) === '1');
+}
+
 function ll_tools_export_should_include_stt_recording(int $recording_id, bool $reviewed_only = true): bool {
     if ($recording_id <= 0) {
         return false;
@@ -8366,15 +8382,7 @@ function ll_tools_export_should_include_stt_recording(int $recording_id, bool $r
         return true;
     }
 
-    if (function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')) {
-        return !ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id);
-    }
-
-    $review_meta_key = function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
-        ? ll_tools_ipa_keyboard_auto_review_meta_key()
-        : 'll_auto_transcription_needs_review';
-
-    return ((string) get_post_meta($recording_id, $review_meta_key, true) !== '1');
+    return !ll_tools_export_recording_ipa_needs_review($recording_id);
 }
 
 function ll_tools_export_build_stt_training_entries(int $wordset_id, string $text_field, bool $reviewed_only = true): array {
@@ -8470,6 +8478,7 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
 
             $filetype = wp_check_filetype($audio_basename, null);
             $mime_type = isset($filetype['type']) ? (string) $filetype['type'] : '';
+            $needs_review = ll_tools_export_recording_ipa_needs_review((int) $audio_post->ID);
 
             $entries[] = [
                 'audio' => 'audio/' . (int) $audio_post->ID . '-' . $audio_basename,
@@ -8488,6 +8497,7 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
                 'recording_text' => $recording_text,
                 'recording_translation' => $recording_translation,
                 'recording_ipa' => $recording_ipa,
+                'needs_review' => $needs_review,
                 'mime_type' => $mime_type,
                 'source_path' => $resolved_audio_path,
             ];
@@ -8570,6 +8580,7 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
         'recording_text',
         'recording_translation',
         'recording_ipa',
+        'needs_review',
         'mime_type',
     ];
     $csv_rows = [];
@@ -8622,6 +8633,7 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             (string) ($entry['recording_text'] ?? ''),
             (string) ($entry['recording_translation'] ?? ''),
             (string) ($entry['recording_ipa'] ?? ''),
+            !empty($entry['needs_review']) ? '1' : '0',
             (string) ($entry['mime_type'] ?? ''),
         ];
 
@@ -8643,6 +8655,7 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             'recording_text' => (string) ($entry['recording_text'] ?? ''),
             'recording_translation' => (string) ($entry['recording_translation'] ?? ''),
             'recording_ipa' => (string) ($entry['recording_ipa'] ?? ''),
+            'needs_review' => !empty($entry['needs_review']),
             'mime_type' => (string) ($entry['mime_type'] ?? ''),
         ];
         $json_line = wp_json_encode($json_entry);

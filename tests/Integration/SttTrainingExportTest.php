@@ -67,12 +67,21 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
 
         $this->assertCount(1, $default_entries);
         $this->assertSame($reviewed_recording_id, (int) $default_entries[0]['recording_id']);
+        $this->assertFalse((bool) $default_entries[0]['needs_review']);
 
         $this->assertCount(2, $all_entries);
         $this->assertSame(
             [$reviewed_recording_id, $flagged_recording_id],
             array_map('intval', array_column($all_entries, 'recording_id'))
         );
+
+        $entries_by_id = [];
+        foreach ($all_entries as $entry) {
+            $entries_by_id[(int) ($entry['recording_id'] ?? 0)] = $entry;
+        }
+
+        $this->assertFalse((bool) ($entries_by_id[$reviewed_recording_id]['needs_review'] ?? true));
+        $this->assertTrue((bool) ($entries_by_id[$flagged_recording_id]['needs_review'] ?? false));
     }
 
     public function test_stt_training_zip_contains_metadata_and_audio_files(): void
@@ -85,11 +94,14 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $recording_id = $this->createAudioRecording($word_id, 'stt-zip.mp3', [
             'recording_text' => 'Bravo text',
             'recording_ipa' => 'bɹa.vo',
+            'needs_review' => '1',
             'recording_type' => 'isolation',
         ]);
 
-        $entries = ll_tools_export_build_stt_training_entries($wordset_id, 'recording_text');
+        $entries = ll_tools_export_build_stt_training_entries($wordset_id, 'recording_text', false);
         $this->assertCount(1, $entries);
+        $this->assertSame($recording_id, (int) $entries[0]['recording_id']);
+        $this->assertTrue((bool) $entries[0]['needs_review']);
 
         $zip_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-stt-test-' . wp_generate_password(10, false, false) . '.zip');
         @unlink($zip_path);
@@ -109,11 +121,31 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertNotSame('', $metadata_csv);
             $this->assertNotSame('', $metadata_jsonl);
             $this->assertNotFalse($zip->locateName($audio_entry));
-            $this->assertStringContainsString('audio,text,text_field', $metadata_csv);
-            $this->assertStringContainsString('Bravo text', $metadata_csv);
-            $this->assertStringContainsString('"audio":"' . str_replace('/', '\/', $audio_entry) . '"', $metadata_jsonl);
-            $this->assertStringContainsString('"text":"Bravo text"', $metadata_jsonl);
-            $this->assertStringContainsString('"recording_types":["isolation"]', $metadata_jsonl);
+            $csv_rows = array_map(
+                static function (string $row): array {
+                    return str_getcsv($row, ',', '"', '\\');
+                },
+                preg_split('/\r\n|\r|\n/', trim($metadata_csv))
+            );
+            $this->assertNotEmpty($csv_rows);
+            $csv_header = array_shift($csv_rows);
+            $this->assertIsArray($csv_header);
+            $this->assertNotEmpty($csv_rows);
+            $csv_entry = array_combine($csv_header, $csv_rows[0]);
+            $this->assertIsArray($csv_entry);
+            $this->assertSame($audio_entry, (string) ($csv_entry['audio'] ?? ''));
+            $this->assertSame('Bravo text', (string) ($csv_entry['text'] ?? ''));
+            $this->assertSame('1', (string) ($csv_entry['needs_review'] ?? ''));
+
+            $jsonl_rows = preg_split('/\r\n|\r|\n/', trim($metadata_jsonl));
+            $this->assertIsArray($jsonl_rows);
+            $this->assertCount(1, $jsonl_rows);
+            $json_entry = json_decode((string) $jsonl_rows[0], true);
+            $this->assertIsArray($json_entry);
+            $this->assertSame($audio_entry, (string) ($json_entry['audio'] ?? ''));
+            $this->assertSame('Bravo text', (string) ($json_entry['text'] ?? ''));
+            $this->assertSame(['isolation'], $json_entry['recording_types'] ?? []);
+            $this->assertTrue((bool) ($json_entry['needs_review'] ?? false));
 
             $zip->close();
         } finally {
