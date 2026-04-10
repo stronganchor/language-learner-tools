@@ -291,4 +291,49 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
             @unlink($file_path);
         }
     }
+
+    public function test_process_metadata_update_accepts_verbose_stt_export_schema_columns(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Verbose Word',
+            'post_name' => 'verbose-word',
+        ]);
+        update_post_meta($word_id, 'word_translation', 'Old Translation');
+        update_post_meta($word_id, 'word_english_meaning', 'Old Translation');
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Verbose Recording',
+            'post_name' => 'verbose-recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'Old Recording Text');
+        update_post_meta($recording_id, 'recording_ipa', 'old.ipa');
+
+        $csv = implode("\n", [
+            'audio,audio_url,duration_seconds,text,text_field,text_field_label,wordset_id,wordset_slug,wordset_name,word_id,word_title,word_translation,category_slug,category_name,word_audio_id,recording_type,recording_types,speaker_user_id,speaker_name,recording_text,recording_translation,recording_ipa,review-status,needs_review,mime_type',
+            'audio/' . $recording_id . '-verbose.mp3,https://example.com/verbose.mp3,1.234,New Recording Text,recording_text,Recording text,0,,,' . $word_id . ',Verbose Word,New Translation,food,Food,' . $recording_id . ',isolation,isolation,123,Speaker Export,New Recording Text,,new.ipa,needs_review,1,audio/mpeg',
+        ]) . "\n";
+
+        $file_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-metadata-update-' . wp_generate_password(8, false, false) . '.csv');
+        file_put_contents($file_path, $csv);
+
+        try {
+            $result = ll_tools_process_metadata_updates_file($file_path, 'verbose-export.csv');
+
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_rows_applied'] ?? 0));
+            $this->assertSame('New Translation', (string) get_post_meta($word_id, 'word_translation', true));
+            $this->assertSame('New Recording Text', (string) get_post_meta($recording_id, 'recording_text', true));
+            $this->assertSame('new.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        } finally {
+            @unlink($file_path);
+        }
+    }
 }

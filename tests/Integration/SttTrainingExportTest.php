@@ -91,17 +91,48 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Term::class, $wordset);
 
         $word_id = $this->createWord($wordset_id, 'Bravo', 'Bravo translation');
+        $category = wp_insert_term('STT Zip Category', 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+        $category_term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $category_term);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+
         $recording_id = $this->createAudioRecording($word_id, 'stt-zip.mp3', [
             'recording_text' => 'Bravo text',
             'recording_ipa' => 'bɹa.vo',
             'needs_review' => '1',
             'recording_type' => 'isolation',
         ]);
+        $speaker_id = self::factory()->user->create([
+            'role' => 'administrator',
+            'display_name' => 'Speaker Bravo',
+        ]);
+        update_post_meta($recording_id, 'speaker_user_id', $speaker_id);
+
+        $stored_audio_path = (string) get_post_meta($recording_id, 'audio_file_path', true);
+        $this->assertNotSame('', $stored_audio_path);
+        $duration_signature = ll_tools_wordset_games_build_audio_duration_signature($stored_audio_path);
+        update_post_meta($recording_id, ll_tools_wordset_games_get_audio_duration_cache_meta_key(), '1.234');
+        update_post_meta($recording_id, ll_tools_wordset_games_get_audio_duration_signature_meta_key(), $duration_signature);
 
         $entries = ll_tools_export_build_stt_training_entries($wordset_id, 'recording_text', false);
         $this->assertCount(1, $entries);
         $this->assertSame($recording_id, (int) $entries[0]['recording_id']);
+        $this->assertSame($recording_id, (int) $entries[0]['word_audio_id']);
         $this->assertTrue((bool) $entries[0]['needs_review']);
+        $this->assertSame('needs_review', (string) $entries[0]['review_status']);
+        $this->assertSame('isolation', (string) $entries[0]['recording_type']);
+        $this->assertSame((string) $category_term->slug, (string) $entries[0]['category_slug']);
+        $this->assertSame((string) $category_term->name, (string) $entries[0]['category_name']);
+        $this->assertSame($speaker_id, (int) $entries[0]['speaker_user_id']);
+        $this->assertSame('Speaker Bravo', (string) $entries[0]['speaker_name']);
+        $this->assertSame(
+            ll_tools_resolve_audio_file_url($stored_audio_path),
+            (string) $entries[0]['audio_url']
+        );
+        $this->assertSame(1.234, (float) $entries[0]['duration_seconds']);
 
         $zip_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-stt-test-' . wp_generate_password(10, false, false) . '.zip');
         @unlink($zip_path);
@@ -135,6 +166,19 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertIsArray($csv_entry);
             $this->assertSame($audio_entry, (string) ($csv_entry['audio'] ?? ''));
             $this->assertSame('Bravo text', (string) ($csv_entry['text'] ?? ''));
+            $this->assertSame(ll_tools_resolve_audio_file_url($stored_audio_path), (string) ($csv_entry['audio_url'] ?? ''));
+            $this->assertSame('1.234', (string) ($csv_entry['duration_seconds'] ?? ''));
+            $this->assertSame((string) $word_id, (string) ($csv_entry['word_id'] ?? ''));
+            $this->assertSame((string) $recording_id, (string) ($csv_entry['recording_id'] ?? ''));
+            $this->assertSame((string) $recording_id, (string) ($csv_entry['word_audio_id'] ?? ''));
+            $this->assertSame('isolation', (string) ($csv_entry['recording_type'] ?? ''));
+            $this->assertSame((string) $category_term->slug, (string) ($csv_entry['category_slug'] ?? ''));
+            $this->assertSame((string) $category_term->name, (string) ($csv_entry['category_name'] ?? ''));
+            $this->assertSame((string) $speaker_id, (string) ($csv_entry['speaker_user_id'] ?? ''));
+            $this->assertSame('Speaker Bravo', (string) ($csv_entry['speaker_name'] ?? ''));
+            $this->assertSame('Bravo text', (string) ($csv_entry['recording_text'] ?? ''));
+            $this->assertSame('bɹa.vo', (string) ($csv_entry['recording_ipa'] ?? ''));
+            $this->assertSame('needs_review', (string) ($csv_entry['review-status'] ?? ''));
             $this->assertSame('1', (string) ($csv_entry['needs_review'] ?? ''));
 
             $jsonl_rows = preg_split('/\r\n|\r|\n/', trim($metadata_jsonl));
@@ -144,7 +188,16 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertIsArray($json_entry);
             $this->assertSame($audio_entry, (string) ($json_entry['audio'] ?? ''));
             $this->assertSame('Bravo text', (string) ($json_entry['text'] ?? ''));
+            $this->assertSame(ll_tools_resolve_audio_file_url($stored_audio_path), (string) ($json_entry['audio_url'] ?? ''));
+            $this->assertSame(1.234, (float) ($json_entry['duration_seconds'] ?? 0));
+            $this->assertSame($recording_id, (int) ($json_entry['word_audio_id'] ?? 0));
+            $this->assertSame('isolation', (string) ($json_entry['recording_type'] ?? ''));
             $this->assertSame(['isolation'], $json_entry['recording_types'] ?? []);
+            $this->assertSame((string) $category_term->slug, (string) ($json_entry['category_slug'] ?? ''));
+            $this->assertSame((string) $category_term->name, (string) ($json_entry['category_name'] ?? ''));
+            $this->assertSame($speaker_id, (int) ($json_entry['speaker_user_id'] ?? 0));
+            $this->assertSame('Speaker Bravo', (string) ($json_entry['speaker_name'] ?? ''));
+            $this->assertSame('needs_review', (string) ($json_entry['review_status'] ?? ''));
             $this->assertTrue((bool) ($json_entry['needs_review'] ?? false));
 
             $zip->close();

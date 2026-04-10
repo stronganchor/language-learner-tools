@@ -8357,6 +8357,94 @@ function ll_tools_export_get_stt_entry_text(array $entry, string $text_field): s
     return ll_tools_export_normalize_manifest_text($value);
 }
 
+function ll_tools_export_collect_word_category_manifest_fields(int $word_id): array {
+    if ($word_id <= 0) {
+        return [
+            'category_slug' => '',
+            'category_name' => '',
+        ];
+    }
+
+    $terms = wp_get_post_terms($word_id, 'word-category', [
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [
+            'category_slug' => '',
+            'category_name' => '',
+        ];
+    }
+
+    $slugs = [];
+    $names = [];
+    foreach ($terms as $term) {
+        if (!($term instanceof WP_Term)) {
+            continue;
+        }
+
+        $slug = sanitize_title((string) $term->slug);
+        if ($slug !== '') {
+            $slugs[$slug] = true;
+        }
+
+        $name = ll_tools_export_normalize_manifest_text((string) $term->name);
+        if ($name !== '') {
+            $names[$name] = true;
+        }
+    }
+
+    return [
+        'category_slug' => implode('|', array_keys($slugs)),
+        'category_name' => implode('|', array_keys($names)),
+    ];
+}
+
+function ll_tools_export_pick_primary_recording_type(array $recording_types): string {
+    foreach ($recording_types as $recording_type) {
+        $recording_type = sanitize_title((string) $recording_type);
+        if ($recording_type !== '') {
+            return $recording_type;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_export_get_stt_recording_audio_url(string $stored_audio_path): string {
+    $stored_audio_path = trim($stored_audio_path);
+    if ($stored_audio_path === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_resolve_audio_file_url')) {
+        return trim((string) ll_tools_resolve_audio_file_url($stored_audio_path));
+    }
+
+    if (preg_match('#^https?://#i', $stored_audio_path)) {
+        return $stored_audio_path;
+    }
+
+    return trim((string) site_url($stored_audio_path));
+}
+
+function ll_tools_export_get_stt_recording_duration_seconds(int $recording_id, string $stored_audio_path = ''): ?float {
+    if ($recording_id <= 0 || !function_exists('ll_tools_wordset_games_get_audio_duration_seconds')) {
+        return null;
+    }
+
+    $duration_seconds = ll_tools_wordset_games_get_audio_duration_seconds($recording_id, $stored_audio_path);
+    if ($duration_seconds === null || $duration_seconds <= 0) {
+        return null;
+    }
+
+    return round((float) $duration_seconds, 3);
+}
+
+function ll_tools_export_get_stt_review_status(bool $needs_review): string {
+    return $needs_review ? 'needs_review' : 'reviewed';
+}
+
 function ll_tools_export_recording_ipa_needs_review(int $recording_id): bool {
     if ($recording_id <= 0) {
         return false;
@@ -8434,15 +8522,15 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
 
         $word_title = ll_tools_export_normalize_manifest_text((string) get_the_title($word_id));
         $word_translation = ll_tools_export_normalize_manifest_text(ll_tools_export_get_word_translation($word_id));
+        $category_fields = ll_tools_export_collect_word_category_manifest_fields($word_id);
 
         foreach ($audio_by_word[$word_id] as $audio_post) {
             if (!ll_tools_export_should_include_stt_recording((int) $audio_post->ID, $reviewed_only)) {
                 continue;
             }
 
-            $resolved_audio_path = ll_tools_export_resolve_audio_source_path(
-                (string) get_post_meta($audio_post->ID, 'audio_file_path', true)
-            );
+            $stored_audio_path = (string) get_post_meta($audio_post->ID, 'audio_file_path', true);
+            $resolved_audio_path = ll_tools_export_resolve_audio_source_path($stored_audio_path);
             if ($resolved_audio_path === '' || !is_file($resolved_audio_path)) {
                 continue;
             }
@@ -8478,10 +8566,13 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
 
             $filetype = wp_check_filetype($audio_basename, null);
             $mime_type = isset($filetype['type']) ? (string) $filetype['type'] : '';
+            $recording_types = ll_tools_export_collect_post_term_slugs($audio_post->ID, 'recording_type');
             $needs_review = ll_tools_export_recording_ipa_needs_review((int) $audio_post->ID);
+            $duration_seconds = ll_tools_export_get_stt_recording_duration_seconds((int) $audio_post->ID, $stored_audio_path);
 
             $entries[] = [
                 'audio' => 'audio/' . (int) $audio_post->ID . '-' . $audio_basename,
+                'audio_url' => ll_tools_export_get_stt_recording_audio_url($stored_audio_path),
                 'text' => $text,
                 'text_field' => $text_field,
                 'wordset_id' => $wordset_id,
@@ -8491,13 +8582,19 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
                 'word_title' => $word_title,
                 'word_translation' => $word_translation,
                 'recording_id' => (int) $audio_post->ID,
-                'recording_types' => ll_tools_export_collect_post_term_slugs($audio_post->ID, 'recording_type'),
+                'word_audio_id' => (int) $audio_post->ID,
+                'recording_type' => ll_tools_export_pick_primary_recording_type($recording_types),
+                'recording_types' => $recording_types,
+                'category_slug' => (string) ($category_fields['category_slug'] ?? ''),
+                'category_name' => (string) ($category_fields['category_name'] ?? ''),
                 'speaker_user_id' => $speaker_user_id,
                 'speaker_name' => $speaker_name,
                 'recording_text' => $recording_text,
                 'recording_translation' => $recording_translation,
                 'recording_ipa' => $recording_ipa,
+                'review_status' => ll_tools_export_get_stt_review_status($needs_review),
                 'needs_review' => $needs_review,
+                'duration_seconds' => $duration_seconds,
                 'mime_type' => $mime_type,
                 'source_path' => $resolved_audio_path,
             ];
@@ -8564,6 +8661,8 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
 
     $csv_header = [
         'audio',
+        'audio_url',
+        'duration_seconds',
         'text',
         'text_field',
         'text_field_label',
@@ -8574,12 +8673,17 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
         'word_title',
         'word_translation',
         'recording_id',
+        'word_audio_id',
+        'recording_type',
         'recording_types',
+        'category_slug',
+        'category_name',
         'speaker_user_id',
         'speaker_name',
         'recording_text',
         'recording_translation',
         'recording_ipa',
+        'review-status',
         'needs_review',
         'mime_type',
     ];
@@ -8614,9 +8718,22 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
         $recording_types = isset($entry['recording_types']) && is_array($entry['recording_types'])
             ? array_values(array_filter(array_map('sanitize_title', $entry['recording_types'])))
             : [];
+        $recording_type = sanitize_title((string) ($entry['recording_type'] ?? ''));
+        if ($recording_type === '') {
+            $recording_type = ll_tools_export_pick_primary_recording_type($recording_types);
+        }
+        $duration_seconds = isset($entry['duration_seconds']) && $entry['duration_seconds'] !== null
+            ? round((float) $entry['duration_seconds'], 3)
+            : null;
+        $review_status = trim((string) ($entry['review_status'] ?? ''));
+        if ($review_status === '') {
+            $review_status = ll_tools_export_get_stt_review_status(!empty($entry['needs_review']));
+        }
 
         $csv_rows[] = [
             $audio_path,
+            trim((string) ($entry['audio_url'] ?? '')),
+            $duration_seconds === null ? '' : (string) $duration_seconds,
             (string) ($entry['text'] ?? ''),
             $text_field,
             $text_field_label,
@@ -8627,18 +8744,25 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             (string) ($entry['word_title'] ?? ''),
             (string) ($entry['word_translation'] ?? ''),
             (int) ($entry['recording_id'] ?? 0),
+            (int) ($entry['word_audio_id'] ?? ($entry['recording_id'] ?? 0)),
+            $recording_type,
             implode('|', $recording_types),
+            (string) ($entry['category_slug'] ?? ''),
+            (string) ($entry['category_name'] ?? ''),
             (int) ($entry['speaker_user_id'] ?? 0),
             (string) ($entry['speaker_name'] ?? ''),
             (string) ($entry['recording_text'] ?? ''),
             (string) ($entry['recording_translation'] ?? ''),
             (string) ($entry['recording_ipa'] ?? ''),
+            $review_status,
             !empty($entry['needs_review']) ? '1' : '0',
             (string) ($entry['mime_type'] ?? ''),
         ];
 
         $json_entry = [
             'audio' => $audio_path,
+            'audio_url' => trim((string) ($entry['audio_url'] ?? '')),
+            'duration_seconds' => $duration_seconds,
             'text' => (string) ($entry['text'] ?? ''),
             'text_field' => $text_field,
             'text_field_label' => $text_field_label,
@@ -8649,12 +8773,17 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             'word_title' => (string) ($entry['word_title'] ?? ''),
             'word_translation' => (string) ($entry['word_translation'] ?? ''),
             'recording_id' => (int) ($entry['recording_id'] ?? 0),
+            'word_audio_id' => (int) ($entry['word_audio_id'] ?? ($entry['recording_id'] ?? 0)),
+            'recording_type' => $recording_type,
             'recording_types' => $recording_types,
+            'category_slug' => (string) ($entry['category_slug'] ?? ''),
+            'category_name' => (string) ($entry['category_name'] ?? ''),
             'speaker_user_id' => (int) ($entry['speaker_user_id'] ?? 0),
             'speaker_name' => (string) ($entry['speaker_name'] ?? ''),
             'recording_text' => (string) ($entry['recording_text'] ?? ''),
             'recording_translation' => (string) ($entry['recording_translation'] ?? ''),
             'recording_ipa' => (string) ($entry['recording_ipa'] ?? ''),
+            'review_status' => $review_status,
             'needs_review' => !empty($entry['needs_review']),
             'mime_type' => (string) ($entry['mime_type'] ?? ''),
         ];
