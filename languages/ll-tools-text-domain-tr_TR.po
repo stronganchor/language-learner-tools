@@ -8,7 +8,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "POT-Creation-Date: 2024-03-01 06:34+0000\n"
-"PO-Revision-Date: 2026-03-24 12:00+0300\n"
+"PO-Revision-Date: 2026-04-10 09:30+0300\n"
 "Language: tr_TR\n"
 "Plural-Forms: nplurals=2; plural=n != 1;\n"
 "X-Generator: Loco https://localise.biz/\n"
@@ -2189,10 +2189,8 @@ msgstr "Özel oran"
 
 #: includes/user-roles/audio-recorder-role.php:181
 #: includes/user-roles/audio-recorder-role.php:306
-#, fuzzy
-#| msgid "Custom Recording Page URL"
 msgid "Custom Recording Page"
-msgstr "Özel Kayıt Sayfası URL'si"
+msgstr "Özel Kayıt Sayfası"
 
 #: includes/shortcodes/word-grid-shortcode.php:2161
 msgid "Cycle"
@@ -4174,10 +4172,8 @@ msgid "Language Learner Tools - Recording Types"
 msgstr "Dil Öğrenici Araçları - Kayıt Türleri"
 
 #: includes/admin/word-option-rules-admin.php:8
-#, fuzzy
-#| msgid "Language Learner Tools - Word Options"
 msgid "Language Learner Tools - Word Option Rules"
-msgstr "Dil Öğrenici Araçları - Kelime Seçenekleri"
+msgstr "Dil Öğrenici Araçları - Kelime Seçeneği Kuralları"
 
 #. translators: %s: available plugin version
 #: language-learner-tools.php:387
@@ -4598,11 +4594,11 @@ msgstr "Bir sonraki öneri yükleniyor..."
 
 #: includes/pages/wordset-pages.php:3210 includes/pages/wordset-pages.php:3333
 msgid "Loading progress..."
-msgstr "Yükleme ilerliyor..."
+msgstr "İlerleme yükleniyor..."
 
 #: includes/pages/wordset-pages.php:3182
 msgid "Loading recommendation..."
-msgstr "Tavsiye yükleniyor..."
+msgstr "Öneri yükleniyor..."
 
 #: includes/post-types/word-audio-post-type.php:276
 msgid "Loading shared recording types..."
@@ -4611,7 +4607,7 @@ msgstr "Paylaşılan kayıt türleri yükleniyor..."
 #: includes/admin/audio-image-matcher.php:73
 #: includes/shortcodes/editor-hub-shortcode.php:978
 msgid "Loading…"
-msgstr "Yükleniyor.."
+msgstr "Yükleniyor…"
 
 #: includes/admin/word-option-rules-admin.php:1291
 msgid "Locked"
@@ -5445,14 +5441,14 @@ msgstr "Kayıt türü bulunamadı."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1810
 msgid "No recording word set is assigned for this account."
-msgstr "Bu hesap için herhangi bir kayıt kelime seti atanmamıştır."
+msgstr "Bu hesaba kayıt için bir kelime seti atanmadı."
 
 #: includes/shortcodes/audio-recording-shortcode.php:983
 msgid ""
 "No recording word set is assigned for this account. Ask the word set manager "
 "to assign a private word set."
 msgstr ""
-"Bu hesap için kayıt kelime seti atanmamış. Kelime seti yöneticisinden özel "
+"Bu hesaba kayıt için bir kelime seti atanmadı. Kelime seti yöneticisinden özel "
 "bir kelime seti atamasını iste."
 
 #: includes/shortcodes/word-grid-shortcode.php:2171
@@ -7324,7 +7320,7 @@ msgstr "Bir quiz seç.."
 
 #: includes/pages/wordset-pages.php:3932
 msgid "Select a recorder user"
-msgstr "Bir kaydedici kullanıcısı seç"
+msgstr "Bir ses kaydedici seç"
 
 #: includes/admin/duplicate-category-words-admin.php:108
 msgid "Select a valid source category."
@@ -7836,7 +7832,7 @@ msgstr "Dosya yolu geçersiz olduğu için \"%s\" için küçük resim atlandı.
 
 #: includes/shortcodes/audio-recording-shortcode.php:1126
 msgid "Skipping..."
-msgstr "Atlama."
+msgstr "Atlanıyor..."
 
 #: includes/admin/recording-types-admin.php:119
 #: includes/admin/recording-types-admin.php:138
@@ -8764,7 +8760,7 @@ msgstr "Ders sayfaları şu anda etkinleştirilemiyor."
 
 #: includes/pages/wordset-pages.php:1709
 msgid "Unable to find that recorder user."
-msgstr "Ses kaydedici kullanıcısı bulunamıyor."
+msgstr "Bu ses kaydedici bulunamadı."
 
 #: includes/pages/wordset-pages.php:1113 includes/pages/wordset-pages.php:1157
 #: includes/pages/wordset-pages.php:1328 includes/pages/wordset-pages.php:1703
@@ -9136,7 +9132,7 @@ msgstr "Devam etmek için editör erişimi olan bir hesap kullan."
 
 #: includes/shortcodes/audio-recording-shortcode.php:943
 msgid "Use an account with recording access to continue."
-msgstr "Devam etmek için kayıt erişimi olan bir hesap kullan."
+msgstr "Devam etmek için kayıt erişimi olan bir hesapla giriş yap."
 
 #: includes/admin/image-aspect-normalizer-admin.php:105
 msgid "Use as canonical"
@@ -9871,7 +9867,7 @@ msgstr "Dosya yüklemek için iznin yok."
 #: includes/shortcodes/audio-recording-shortcode.php:4429
 #: includes/shortcodes/audio-recording-shortcode.php:4432
 msgid "You do not have permission to upload recordings"
-msgstr "Kayıtları yüklemek için iznin yok"
+msgstr "Ses kayıtlarını yüklemek için iznin yok."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2818
 msgid "You do not have permission to verify recordings."
@@ -9927,7 +9923,7 @@ msgstr "Kayıtları atlamak için giriş yapmış olman gerekir."
 
 #: includes/shortcodes/audio-recording-shortcode.php:4426
 msgid "You must be logged in to upload recordings"
-msgstr "Kayıtları yüklemek için giriş yapmış olmalısın"
+msgstr "Ses kayıtlarını yüklemek için giriş yapmış olman gerekir."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2815
 msgid "You must be logged in to verify recordings."
