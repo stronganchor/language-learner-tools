@@ -3323,25 +3323,50 @@
         }
 
         const shuffledWords = shuffle(selected);
-        const stagger = shuffle([0.1, 0.38, 0.72, 1.02]);
         const cards = shuffledWords.map(function (word, index) {
             const card = createCard(
                 run,
                 word,
                 index,
                 toInt(word.id) === toInt(targetWord.id),
-                stagger[index] || (index * 0.28),
+                0,
                 promptId
             );
             applyCardDimensions(ctx, run, card);
             return card;
         });
 
+        assignPromptCardDepths(cards);
+
         if (isBubblePopRun(ctx, run)) {
             placeBubblePromptCards(run, cards);
         }
 
         return cards;
+    }
+
+    function assignPromptCardDepths(cards) {
+        const promptDepths = [0.1, 0.38, 0.72, 1.02];
+        const depthJitterByIndex = [0.006, 0.02, 0.038, 0.056];
+        const ordered = (Array.isArray(cards) ? cards.slice() : []).sort(function (left, right) {
+            const leftHeight = Number(left && left.height) || 0;
+            const rightHeight = Number(right && right.height) || 0;
+            if (leftHeight !== rightHeight) {
+                return leftHeight - rightHeight;
+            }
+
+            return toInt(left && left.word && left.word.id) - toInt(right && right.word && right.word.id);
+        });
+
+        ordered.forEach(function (card, index) {
+            if (!card) {
+                return;
+            }
+
+            const normalizedIndex = Math.min(index, promptDepths.length - 1);
+            card.entryOffsetFactor = promptDepths[normalizedIndex];
+            card.entryDepthJitter = depthJitterByIndex[normalizedIndex];
+        });
     }
 
     function findPlayableTargets(words, cardCount) {
@@ -9915,7 +9940,8 @@
                 awaitingPrompt: !!run.awaitingPrompt,
                 currentPromptHadUserActivity: !!(run.prompt && run.prompt.hadUserActivity),
                 lastResolvedPromptHadUserActivity: !!run.lastResolvedPromptHadUserActivity,
-                cardSpeed: Math.round(Number(run.prompt && run.prompt.cardSpeed ? run.prompt.cardSpeed : run.cardSpeed) || 0),
+                cardSpeed: Math.round(Number(run.cardSpeed) || 0),
+                promptCardSpeed: Math.round(Number(run.prompt && run.prompt.cardSpeed ? run.prompt.cardSpeed : run.cardSpeed) || 0),
                 promptAudioDurationMs: Math.round(Number(run.prompt && run.prompt.audioDurationMs) || 0),
                 promptAutoReplayDelayMs: Math.round(Number(run.prompt && run.prompt.autoReplayDelayMs) || 0),
                 promptAutoReplayBaseDelayMs: Math.round(Number(run.prompt && run.prompt.autoReplayBaseDelayMs) || 0),
