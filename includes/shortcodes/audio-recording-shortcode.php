@@ -2164,13 +2164,9 @@ function ll_prepare_new_word_recording_handler() {
         if ($new_category_name === '') {
             wp_send_json_error(__('Missing new category name.', 'll-tools-text-domain'));
         }
-        $existing = term_exists($new_category_name, 'word-category');
-        if (is_array($existing)) {
-            $category_term_id = (int) $existing['term_id'];
-        } elseif ($existing) {
-            $category_term_id = (int) $existing;
-        } else {
-            $created = wp_insert_term($new_category_name, 'word-category');
+        $target_wordset_id = (int) ($posted_ids[0] ?? 0);
+        if (function_exists('ll_tools_create_or_get_wordset_category')) {
+            $created = ll_tools_create_or_get_wordset_category($new_category_name, $target_wordset_id);
             if (is_wp_error($created)) {
                 wp_send_json_error(sprintf(
                     /* translators: %s: category creation error message */
@@ -2178,8 +2174,26 @@ function ll_prepare_new_word_recording_handler() {
                     $created->get_error_message()
                 ));
             }
-            $category_term_id = (int) $created['term_id'];
-            $created_category = true;
+            $category_term_id = (int) $created;
+            $created_category = ($category_term_id > 0);
+        } else {
+            $existing = term_exists($new_category_name, 'word-category');
+            if (is_array($existing)) {
+                $category_term_id = (int) $existing['term_id'];
+            } elseif ($existing) {
+                $category_term_id = (int) $existing;
+            } else {
+                $created = wp_insert_term($new_category_name, 'word-category');
+                if (is_wp_error($created)) {
+                    wp_send_json_error(sprintf(
+                        /* translators: %s: category creation error message */
+                        __('Failed to create category: %s', 'll-tools-text-domain'),
+                        $created->get_error_message()
+                    ));
+                }
+                $category_term_id = (int) $created['term_id'];
+                $created_category = true;
+            }
         }
 
         if (!$created_category && $category_term_id > 0 && function_exists('ll_tools_user_can_view_category')) {
@@ -3224,6 +3238,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         'order'          => 'ASC',
         'fields'         => 'ids',
     ];
+    if (!empty($wordset_term_ids) && function_exists('ll_tools_is_wordset_isolation_enabled') && ll_tools_is_wordset_isolation_enabled() && function_exists('ll_tools_get_word_image_owner_meta_query')) {
+        $image_args['meta_query'] = ll_tools_get_word_image_owner_meta_query(array_map('intval', (array) $wordset_term_ids), true);
+    }
 
     if (!empty($category_slug) && !$is_uncategorized_request) {
         $image_args['tax_query'] = [[
@@ -3286,7 +3303,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             $thumb_ids = array_keys($thumb_ids);
 
             if (!empty($thumb_ids)) {
-                $fallback_image_posts = get_posts([
+                $fallback_query = [
                     'post_type'      => 'word_images',
                     'post_status'    => 'publish',
                     'posts_per_page' => -1,
@@ -3297,7 +3314,19 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                         'value'   => array_map('intval', $thumb_ids),
                         'compare' => 'IN',
                     ]],
-                ]);
+                ];
+                if (!empty($wordset_term_ids) && function_exists('ll_tools_is_wordset_isolation_enabled') && ll_tools_is_wordset_isolation_enabled() && function_exists('ll_tools_get_word_image_owner_meta_query')) {
+                    $fallback_query['meta_query'] = [
+                        'relation' => 'AND',
+                        [
+                            'key'     => '_thumbnail_id',
+                            'value'   => array_map('intval', $thumb_ids),
+                            'compare' => 'IN',
+                        ],
+                        ll_tools_get_word_image_owner_meta_query(array_map('intval', (array) $wordset_term_ids), true),
+                    ];
+                }
+                $fallback_image_posts = get_posts($fallback_query);
                 if (!empty($fallback_image_posts)) {
                     $image_posts = array_values(array_unique(array_merge(
                         array_map('intval', (array) $image_posts),
@@ -3667,30 +3696,37 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                     $missing_types = $types_for_missing;
                     $my_existing_types = [];
 
-                    if (function_exists('ll_find_post_by_exact_title')) {
+                    $requested_wordset_ids = function_exists('ll_tools_get_recording_wordset_ids_from_request')
+                        ? ll_tools_get_recording_wordset_ids_from_request()
+                        : [];
+                    if (function_exists('ll_tools_find_existing_word_post_by_title_in_wordsets') && !empty($requested_wordset_ids)) {
+                        $maybe_word = ll_tools_find_existing_word_post_by_title_in_wordsets($word_title, $requested_wordset_ids);
+                    } elseif (function_exists('ll_find_post_by_exact_title')) {
                         $maybe_word = ll_find_post_by_exact_title($word_title, 'words');
-                        if ($maybe_word) {
-                            $word_id = (int) $maybe_word->ID;
-                            if (function_exists('ll_tools_recorder_resolve_accessible_category_context')) {
-                                $missing_context = ll_tools_recorder_resolve_accessible_category_context($word_id, 0, $current_uid);
-                                if (empty($missing_context)) {
-                                    continue;
-                                }
-                            }
-                            $main_types = ll_tools_get_main_recording_types();
-                            $types_equal_main = empty(array_diff($types_for_missing, $main_types)) && empty(array_diff($main_types, $types_for_missing));
-                            if ($types_equal_main && ll_tools_get_preferred_speaker_for_word($word_id)) {
+                    } else {
+                        $maybe_word = null;
+                    }
+                    if ($maybe_word) {
+                        $word_id = (int) $maybe_word->ID;
+                        if (function_exists('ll_tools_recorder_resolve_accessible_category_context')) {
+                            $missing_context = ll_tools_recorder_resolve_accessible_category_context($word_id, 0, $current_uid);
+                            if (empty($missing_context)) {
                                 continue;
                             }
-                            if ($types_equal_main) {
-                                $missing_types = ll_get_user_missing_recording_types_for_word($word_id, $types_for_missing, $current_uid);
-                            } else {
-                                $missing_types = ll_get_missing_recording_types_for_word($word_id, $types_for_missing);
-                            }
-                            $existing_types = ll_get_existing_recording_types_for_word($word_id);
-                            $my_existing_types = ll_get_existing_recording_types_for_word_by_user($word_id, $current_uid);
-                            $my_existing_types = ll_sort_recording_type_slugs(array_values(array_intersect($types_for_missing, $my_existing_types)));
                         }
+                        $main_types = ll_tools_get_main_recording_types();
+                        $types_equal_main = empty(array_diff($types_for_missing, $main_types)) && empty(array_diff($main_types, $types_for_missing));
+                        if ($types_equal_main && ll_tools_get_preferred_speaker_for_word($word_id)) {
+                            continue;
+                        }
+                        if ($types_equal_main) {
+                            $missing_types = ll_get_user_missing_recording_types_for_word($word_id, $types_for_missing, $current_uid);
+                        } else {
+                            $missing_types = ll_get_missing_recording_types_for_word($word_id, $types_for_missing);
+                        }
+                        $existing_types = ll_get_existing_recording_types_for_word($word_id);
+                        $my_existing_types = ll_get_existing_recording_types_for_word_by_user($word_id, $current_uid);
+                        $my_existing_types = ll_sort_recording_type_slugs(array_values(array_intersect($types_for_missing, $my_existing_types)));
                     }
                     $missing_types = ll_sort_recording_type_slugs($missing_types);
                     $existing_types = ll_sort_recording_type_slugs($existing_types);
@@ -5061,6 +5097,18 @@ function ll_handle_recording_upload() {
  * Find existing word post for an image, or create one
  */
 function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) {
+    $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    $primary_wordset_id = (int) ($wordset_ids[0] ?? 0);
+    if ($primary_wordset_id > 0 && function_exists('ll_tools_get_effective_word_image_id_for_wordset')) {
+        $effective_image_id = (int) ll_tools_get_effective_word_image_id_for_wordset((int) $image_id, $primary_wordset_id);
+        if ($effective_image_id > 0) {
+            $image_id = $effective_image_id;
+            $image_post = get_post($image_id);
+        }
+    }
+
     $attachment_id = get_post_thumbnail_id($image_id);
 
     if (!$attachment_id) {
@@ -5091,7 +5139,14 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     $existing_words = get_posts($query_args);
 
     if (!empty($existing_words)) {
-        return (int) $existing_words[0];
+        $existing_word_id = (int) $existing_words[0];
+        if ($existing_word_id > 0 && function_exists('ll_tools_normalize_word_categories_for_isolation')) {
+            ll_tools_normalize_word_categories_for_isolation($existing_word_id);
+        }
+        if ($existing_word_id > 0 && $image_id > 0) {
+            update_post_meta($existing_word_id, '_ll_autopicked_image_id', (int) $image_id);
+        }
+        return $existing_word_id;
     }
 
     // Create new word post
@@ -5111,6 +5166,9 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     // Copy categories from image to word
     $categories = wp_get_post_terms($image_id, 'word-category', ['fields' => 'ids']);
     if (!is_wp_error($categories) && !empty($categories)) {
+        if ($primary_wordset_id > 0 && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
+            $categories = ll_tools_get_isolated_category_ids_for_wordsets(array_map('intval', (array) $categories), [$primary_wordset_id]);
+        }
         if (function_exists('ll_tools_filter_category_ids_for_user')) {
             $categories = ll_tools_filter_category_ids_for_user(array_map('intval', (array) $categories), get_current_user_id());
         }
@@ -5126,6 +5184,10 @@ function ll_find_or_create_word_for_image($image_id, $image_post, $wordset_ids) 
     // Assign to wordset
     if (!empty($wordset_ids)) {
         wp_set_object_terms($word_id, $wordset_ids, 'wordset');
+    }
+
+    if ($image_id > 0) {
+        update_post_meta($word_id, '_ll_autopicked_image_id', (int) $image_id);
     }
 
     return $word_id;
@@ -5144,15 +5206,26 @@ function ll_find_or_create_word_by_title($word_title, $wordset_ids = []) {
         return new WP_Error('empty_title', __('Missing word title', 'll-tools-text-domain'));
     }
 
+    $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+
     // Try to find existing by exact title
-    if (function_exists('ll_find_post_by_exact_title')) {
-        $maybe = ll_find_post_by_exact_title($word_title, 'words');
-        if ($maybe) {
-            $word_id = (int) $maybe->ID;
-            if (!empty($wordset_ids)) {
-                wp_set_object_terms($word_id, $wordset_ids, 'wordset', true);
+    if (!empty($wordset_ids) && function_exists('ll_tools_find_existing_word_post_by_title_in_wordsets')) {
+        $matching_post = ll_tools_find_existing_word_post_by_title_in_wordsets($word_title, $wordset_ids);
+        if ($matching_post instanceof WP_Post) {
+            $word_id = (int) $matching_post->ID;
+            if ($word_id > 0 && function_exists('ll_tools_normalize_word_categories_for_isolation')) {
+                ll_tools_normalize_word_categories_for_isolation($word_id);
             }
             return $word_id;
+        }
+    }
+
+    if (empty($wordset_ids) && function_exists('ll_find_post_by_exact_title')) {
+        $maybe = ll_find_post_by_exact_title($word_title, 'words');
+        if ($maybe) {
+            return (int) $maybe->ID;
         }
     }
 

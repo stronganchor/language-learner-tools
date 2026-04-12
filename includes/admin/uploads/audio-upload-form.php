@@ -343,7 +343,14 @@ function ll_handle_audio_file_uploads() {
                     }
                 }
             }
-            if (!$existing_post) {
+            if (
+                !$existing_post
+                && (
+                    $selected_wordset_id <= 0
+                    || !function_exists('ll_tools_is_wordset_isolation_enabled')
+                    || !ll_tools_is_wordset_isolation_enabled()
+                )
+            ) {
                 $existing_post = ll_find_post_by_exact_title($formatted_title);
             }
             if ($existing_post) {
@@ -612,6 +619,10 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
  * @return int|WP_Error New post ID or WP_Error on failure.
  */
 function ll_create_new_word_post($title, $relative_path, $post_data, $selected_categories, $upload_dir) {
+    $selected_categories = array_values(array_filter(array_map('intval', (array) $selected_categories), static function ($term_id) {
+        return $term_id > 0;
+    }));
+
     $post_id = wp_insert_post([
         'post_title'    => $title,
         'post_content'  => '',
@@ -685,6 +696,9 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         }
 
         // 4) (Existing code) — translations, categories, part of speech, image matching, etc.
+        if ($wordset_id > 0 && !empty($selected_categories) && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
+            $selected_categories = ll_tools_get_isolated_category_ids_for_wordsets($selected_categories, [$wordset_id]);
+        }
 
         // Assign selected categories to the post
         if (!empty($selected_categories)) {
@@ -708,8 +722,17 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         }
 
         // Try to find a relevant image and assign it as the featured image
-        $matching_image = ll_find_matching_image_conservative($image_search_string, $selected_categories);
+        $matching_image = ll_find_matching_image_conservative($image_search_string, $selected_categories, $wordset_id > 0 ? [$wordset_id] : []);
         if ($matching_image) {
+            if ($wordset_id > 0 && function_exists('ll_tools_get_effective_word_image_id_for_wordset')) {
+                $effective_image_id = (int) ll_tools_get_effective_word_image_id_for_wordset((int) $matching_image->ID, $wordset_id);
+                if ($effective_image_id > 0) {
+                    $maybe_effective = get_post($effective_image_id);
+                    if ($maybe_effective instanceof WP_Post && $maybe_effective->post_type === 'word_images') {
+                        $matching_image = $maybe_effective;
+                    }
+                }
+            }
             $matching_image_attachment_id = get_post_thumbnail_id($matching_image->ID);
             if ($matching_image_attachment_id) {
                 set_post_thumbnail($post_id, $matching_image_attachment_id);
@@ -839,11 +862,22 @@ if (!function_exists('ll_find_matching_image_conservative')) {
      * Conservative image finder scoped to the given categories.
      * Returns a WP_Post (word_images) only if the final confidence gate passes.
      */
-    function ll_find_matching_image_conservative($audio_like_name, $categories) {
+    function ll_find_matching_image_conservative($audio_like_name, $categories, $wordset_ids = []) {
         $audio_norm = ll_sim_normalize($audio_like_name);
         if ($audio_norm === '') return null;
 
-        $image_posts = get_posts([
+        $categories = array_values(array_filter(array_map('intval', (array) $categories), static function ($term_id) {
+            return $term_id > 0;
+        }));
+        $wordset_ids = array_values(array_filter(array_map('intval', (array) $wordset_ids), static function ($term_id) {
+            return $term_id > 0;
+        }));
+        if (!empty($wordset_ids) && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
+            $categories = ll_tools_get_isolated_category_ids_for_wordsets($categories, $wordset_ids);
+        }
+        if (empty($categories)) return null;
+
+        $query_args = [
             'post_type'      => 'word_images',
             'posts_per_page' => -1,
             'tax_query'      => [[
@@ -853,7 +887,15 @@ if (!function_exists('ll_find_matching_image_conservative')) {
             ]],
             'orderby' => 'title',
             'order'   => 'ASC',
-        ]);
+        ];
+        if (!empty($wordset_ids) && function_exists('ll_tools_get_word_image_owner_meta_query')) {
+            $meta_query = ll_tools_get_word_image_owner_meta_query($wordset_ids, true);
+            if (!empty($meta_query)) {
+                $query_args['meta_query'] = $meta_query;
+            }
+        }
+
+        $image_posts = get_posts($query_args);
         if (empty($image_posts)) return null;
 
         $best   = null;

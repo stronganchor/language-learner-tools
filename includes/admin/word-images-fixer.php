@@ -30,50 +30,29 @@ function ll_find_words_missing_word_images(): array {
     foreach ($words as $wid) {
         $att_id = (int) get_post_thumbnail_id($wid);
         if (!$att_id) { continue; }
-        if (isset($seen_attachment[$att_id])) { continue; }
+        $primary_wordset_id = function_exists('ll_tools_get_primary_wordset_id_for_post')
+            ? (int) ll_tools_get_primary_wordset_id_for_post((int) $wid)
+            : 0;
+        $dedupe_key = $att_id . '|' . $primary_wordset_id;
+        if (isset($seen_attachment[$dedupe_key])) { continue; }
 
-        // Does a word_images post exist with this attachment as its featured image?
-        $candidates = get_posts([
-            'post_type'      => 'word_images',
-            'post_status'    => ['publish','draft','pending'],
-            'posts_per_page' => 1,
-            'fields'         => 'ids',
-            'meta_query'     => [[ 'key' => '_thumbnail_id', 'value' => $att_id ]],
-        ]);
-        if (empty($candidates)) {
+        $linked_image_id = function_exists('ll_tools_get_linked_word_image_post_id_for_word')
+            ? (int) ll_tools_get_linked_word_image_post_id_for_word((int) $wid)
+            : 0;
+        if ($linked_image_id <= 0) {
             $missing[] = [ 'word_id' => $wid, 'attachment_id' => $att_id ];
-            $seen_attachment[$att_id] = true;
+            $seen_attachment[$dedupe_key] = true;
         }
     }
     return $missing;
 }
 
 function ll_create_word_image_from_word($word_id, $attachment_id) {
-    $word = get_post($word_id);
-    if (!$word || $word->post_type !== 'words') { return new WP_Error('invalid_word', 'Invalid word ID'); }
+    if (!function_exists('ll_tools_ensure_word_image_post_for_word')) {
+        return new WP_Error('missing_helper', 'Word image helper is not available');
+    }
 
-    $title = get_the_title($word_id);
-    $image_post_id = wp_insert_post([
-        'post_type'   => 'word_images',
-        'post_title'  => $title,
-        'post_status' => 'draft',
-    ]);
-    if (is_wp_error($image_post_id)) { return $image_post_id; }
-
-    // Set featured image
-    set_post_thumbnail($image_post_id, $attachment_id);
-
-    // Copy categories
-    $cats = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
-    if (!is_wp_error($cats) && !empty($cats)) { wp_set_object_terms($image_post_id, $cats, 'word-category'); }
-
-    // Copy translation/meta
-    $translation = get_post_meta($word_id, 'word_translation', true);
-    if (!empty($translation)) { update_post_meta($image_post_id, 'word_translation', $translation); }
-    $meaning = get_post_meta($word_id, 'word_english_meaning', true);
-    if (!empty($meaning)) { update_post_meta($image_post_id, 'word_english_meaning', $meaning); }
-
-    return (int) $image_post_id;
+    return ll_tools_ensure_word_image_post_for_word((int) $word_id);
 }
 
 function ll_render_word_images_fixer_page() {
@@ -111,4 +90,3 @@ function ll_render_word_images_fixer_page() {
     </div>
     <?php
 }
-

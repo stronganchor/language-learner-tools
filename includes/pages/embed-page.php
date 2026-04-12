@@ -80,7 +80,7 @@ if ($term && !is_wp_error($term)) {
         <?php
         if ($term && !is_wp_error($term)) {
             if (empty($wordset) && function_exists('ll_get_default_wordset_id_for_category')) {
-                $default_ws_id = ll_get_default_wordset_id_for_category($term->name, LL_TOOLS_MIN_WORDS_PER_QUIZ);
+                $default_ws_id = ll_get_default_wordset_id_for_category($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
                 if ($default_ws_id > 0) {
                     $ws_term = get_term($default_ws_id, 'wordset');
                     if ($ws_term && !is_wp_error($ws_term)) {

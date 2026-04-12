@@ -1922,9 +1922,9 @@ function ll_tools_default_option_type_for_category($term, $min_word_count = LL_T
     $cfg_text_translation = array_merge($base, ['option_type' => 'text_translation']);
     $cfg_text_title = array_merge($base, ['option_type' => 'text_title']);
 
-    $image_count = ll_get_words_by_category_count($term->name, 'image', $wordset_ids, $cfg_image);
-    $text_title_count = ll_get_words_by_category_count($term->name, 'text', $wordset_ids, $cfg_text_title);
-    $text_translation_count = ll_get_words_by_category_count($term->name, 'text', $wordset_ids, $cfg_text_translation);
+    $image_count = ll_get_words_by_category_count($term, 'image', $wordset_ids, $cfg_image);
+    $text_title_count = ll_get_words_by_category_count($term, 'text', $wordset_ids, $cfg_text_title);
+    $text_translation_count = ll_get_words_by_category_count($term, 'text', $wordset_ids, $cfg_text_translation);
 
     try {
         if ($use_titles && $text_title_count >= $min_word_count) {
@@ -2233,9 +2233,9 @@ function ll_tools_get_audio_prompt_category_option_counts($term, $wordset_ids = 
     ];
 
     $request_cache[$request_cache_key] = [
-        'image' => ll_get_words_by_category_count($term->name, 'image', $wordset_ids, array_merge($base_config, ['option_type' => 'image'])),
-        'text_translation' => ll_get_words_by_category_count($term->name, 'text', $wordset_ids, array_merge($base_config, ['option_type' => 'text_translation'])),
-        'text_title' => ll_get_words_by_category_count($term->name, 'text', $wordset_ids, array_merge($base_config, ['option_type' => 'text_title'])),
+        'image' => ll_get_words_by_category_count($term, 'image', $wordset_ids, array_merge($base_config, ['option_type' => 'image'])),
+        'text_translation' => ll_get_words_by_category_count($term, 'text', $wordset_ids, array_merge($base_config, ['option_type' => 'text_translation'])),
+        'text_title' => ll_get_words_by_category_count($term, 'text', $wordset_ids, array_merge($base_config, ['option_type' => 'text_title'])),
     ];
 
     return $request_cache[$request_cache_key];
@@ -4236,7 +4236,7 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
         $option_type = ll_tools_default_option_type_for_category($term, $min_word_count, $wordset_ids);
     }
 
-    $primary_count = ll_get_words_by_category_count($term->name, $option_type, $wordset_ids, $config);
+    $primary_count = ll_get_words_by_category_count($term, $option_type, $wordset_ids, $config);
     if ($primary_count >= $min_word_count) {
         $request_cache[$request_cache_key] = true;
         $payload = ['can_generate' => true];
@@ -4249,7 +4249,7 @@ function ll_can_category_generate_quiz($category, $min_word_count = 5, $wordset_
     if (in_array($option_type, ['audio', 'text_audio'], true)) {
         $fallback_config = $config;
         $fallback_config['option_type'] = 'text_translation';
-        $text_count = ll_get_words_by_category_count($term->name, 'text', $wordset_ids, $fallback_config);
+        $text_count = ll_get_words_by_category_count($term, 'text', $wordset_ids, $fallback_config);
         if ($text_count >= $min_word_count) {
             $request_cache[$request_cache_key] = true;
             $payload = ['can_generate' => true];

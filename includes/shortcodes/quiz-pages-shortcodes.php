@@ -395,15 +395,19 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
 /**
  * Finds the wordset ID with the earliest creation date (lowest term_id) that has enough published words for a category.
- * @param string $category_name
+ * @param mixed $category
  * @param int $min_word_count Minimum words required
  * @return int Wordset ID or 0 if none found
  */
-function ll_get_default_wordset_id_for_category(string $category_name, int $min_word_count = 5): int {
+function ll_get_default_wordset_id_for_category($category, int $min_word_count = 5): int {
     global $wpdb;
-    $cat_term = get_term_by('name', $category_name, 'word-category');
-    if (!$cat_term) return 0;
-    $cat_id = (int)$cat_term->term_id;
+    $cat_term = function_exists('ll_tools_resolve_word_category_term')
+        ? ll_tools_resolve_word_category_term($category)
+        : get_term($category, 'word-category');
+    if (!($cat_term instanceof WP_Term) || is_wp_error($cat_term)) {
+        return 0;
+    }
+    $cat_id = (int) $cat_term->term_id;
 
     // Get all wordset IDs ordered by term_id (assuming lower IDs are older)
     $wordsets = get_terms([

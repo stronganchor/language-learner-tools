@@ -272,7 +272,7 @@ function ll_tools_user_study_words(array $category_ids, $wordset_id): array {
             'option_type' => $option_type,
             'prompt_type' => $prompt_type,
         ]);
-        $words_raw = ll_get_words_by_category($term->name, $option_type, $wordset_ids, $merged_config);
+        $words_raw = ll_get_words_by_category($term, $option_type, $wordset_ids, $merged_config);
         $word_ids = array_values(array_filter(array_map(function ($w) {
             return (int) ($w['id'] ?? 0);
         }, (array) $words_raw), function ($id) {

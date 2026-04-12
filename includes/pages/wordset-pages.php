@@ -2096,15 +2096,26 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
 
     $category_id = 0;
     if ($new_category_name !== '') {
-        $existing = term_exists($new_category_name, 'word-category');
-        if ($existing) {
-            $category_id = (int) (is_array($existing) ? ($existing['term_id'] ?? 0) : $existing);
-        } else {
-            $inserted_category = wp_insert_term($new_category_name, 'word-category');
-            if (is_wp_error($inserted_category)) {
+        if (function_exists('ll_tools_create_or_get_wordset_category')) {
+            $created_category = ll_tools_create_or_get_wordset_category($new_category_name, $wordset_id);
+            if (is_wp_error($created_category) || (int) $created_category <= 0) {
                 $redirect_error('category');
             }
-            $category_id = (int) ($inserted_category['term_id'] ?? 0);
+            $category_id = (int) $created_category;
+        } else {
+            $existing = term_exists($new_category_name, 'word-category');
+            if ($existing) {
+                $category_id = (int) (is_array($existing) ? ($existing['term_id'] ?? 0) : $existing);
+            } else {
+                $inserted_category = wp_insert_term($new_category_name, 'word-category');
+                if (is_wp_error($inserted_category)) {
+                    $redirect_error('category');
+                }
+                $category_id = (int) ($inserted_category['term_id'] ?? 0);
+            }
+        }
+        if ($category_id <= 0) {
+            $redirect_error('category');
         }
     } elseif ($selected_category_id > 0) {
         $category_term = get_term($selected_category_id, 'word-category');

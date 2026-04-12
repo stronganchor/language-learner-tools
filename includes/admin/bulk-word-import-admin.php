@@ -102,30 +102,30 @@ function ll_tools_render_bulk_word_import_page() {
         $category_id = 0;
 
         if ($new_category_name !== '') {
-            $existing = term_exists($new_category_name, 'word-category');
-            if ($existing) {
-                $category_id = (int) (is_array($existing) ? $existing['term_id'] : $existing);
-                $messages[] = [
-                    'type' => 'info',
-                    'text' => sprintf(
-                        __('Category "%s" already exists and will be used.', 'll-tools-text-domain'),
-                        esc_html($new_category_name)
-                    ),
-                ];
+            if (function_exists('ll_tools_create_or_get_wordset_category')) {
+                $result = ll_tools_create_or_get_wordset_category($new_category_name, $selected_wordset);
             } else {
-                $result = wp_insert_term($new_category_name, 'word-category');
-                if (is_wp_error($result)) {
-                    $errors[] = sprintf(
-                        __('Could not create the "%1$s" category: %2$s', 'll-tools-text-domain'),
-                        esc_html($new_category_name),
-                        esc_html($result->get_error_message())
-                    );
+                $existing = term_exists($new_category_name, 'word-category');
+                if ($existing) {
+                    $result = (int) (is_array($existing) ? $existing['term_id'] : $existing);
                 } else {
-                    $category_id = (int) $result['term_id'];
+                    $result = wp_insert_term($new_category_name, 'word-category');
+                }
+            }
+
+            if (is_wp_error($result)) {
+                $errors[] = sprintf(
+                    __('Could not create the "%1$s" category: %2$s', 'll-tools-text-domain'),
+                    esc_html($new_category_name),
+                    esc_html($result->get_error_message())
+                );
+            } else {
+                $category_id = (int) (is_array($result) ? ($result['term_id'] ?? 0) : $result);
+                if ($category_id > 0) {
                     $messages[] = [
                         'type' => 'success',
                         'text' => sprintf(
-                            __('Created new category "%s".', 'll-tools-text-domain'),
+                            __('Created or reused category "%s".', 'll-tools-text-domain'),
                             esc_html($new_category_name)
                         ),
                     ];
@@ -340,6 +340,10 @@ function ll_tools_render_bulk_word_import_page() {
  * Returns an array of post IDs.
  */
 function ll_tools_find_existing_word_ids_by_title_in_wordset($title, $wordset_term_id = 0) {
+    if (function_exists('ll_tools_lookup_existing_word_ids_by_title_in_wordset')) {
+        return ll_tools_lookup_existing_word_ids_by_title_in_wordset((string) $title, (int) $wordset_term_id);
+    }
+
     global $wpdb;
     $title = (string) $title;
     $wordset_term_id = (int) $wordset_term_id;

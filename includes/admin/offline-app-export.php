@@ -2657,7 +2657,7 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             : ll_tools_get_category_quiz_config($term);
         $option_type = (string) ($config['option_type'] ?? 'image');
         $words_in_mode = ll_tools_offline_app_filter_words_to_wordset(
-            ll_get_words_by_category((string) $term->name, $option_type, [], $config),
+            ll_get_words_by_category($term, $option_type, [], $config),
             $wordset_id
         );
         $word_count = count($words_in_mode);

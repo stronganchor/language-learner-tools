@@ -136,7 +136,7 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
     $src          = home_url('/embed/' . $term->slug);
 
     if (function_exists('ll_get_default_wordset_id_for_category')) {
-        $default_ws_id = ll_get_default_wordset_id_for_category($term->name, 5);
+        $default_ws_id = ll_get_default_wordset_id_for_category($term, 5);
         if ($default_ws_id > 0) {
             $wordset_term = get_term($default_ws_id, 'wordset');
             if ($wordset_term && !is_wp_error($wordset_term)) {

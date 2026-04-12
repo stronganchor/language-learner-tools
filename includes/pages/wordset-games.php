@@ -530,7 +530,7 @@ function ll_tools_wordset_games_collect_visible_words(int $wordset_id, int $user
             'option_type' => 'image',
         ]);
 
-        $words = ll_get_words_by_category((string) $term->name, 'image', $wordset_ids, $merged_config);
+        $words = ll_get_words_by_category($term, 'image', $wordset_ids, $merged_config);
         foreach ((array) $words as $word) {
             if (!is_array($word)) {
                 continue;
@@ -625,7 +625,7 @@ function ll_tools_wordset_games_collect_visible_speaking_words(int $wordset_id, 
             'option_type' => 'text_title',
         ]);
 
-        $words = ll_get_words_by_category((string) $term->name, 'text_title', $wordset_ids, $merged_config);
+        $words = ll_get_words_by_category($term, 'text_title', $wordset_ids, $merged_config);
         foreach ((array) $words as $word) {
             if (!is_array($word)) {
                 continue;
