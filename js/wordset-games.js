@@ -3924,8 +3924,8 @@
         return ctx.feedbackAudio;
     }
 
-    function getFeedbackAudioSources(ctx, type) {
-        const gameConfig = getGameConfig(ctx, ctx && ctx.run);
+    function getFeedbackAudioSources(ctx, type, slugOrRun) {
+        const gameConfig = getGameConfig(ctx, slugOrRun || (ctx && ctx.run));
         return type === 'correct'
             ? normalizeUrlList(gameConfig && gameConfig.correctHitAudioSources)
             : normalizeUrlList(gameConfig && gameConfig.wrongHitAudioSources);
@@ -4095,6 +4095,17 @@
         });
 
         return chain;
+    }
+
+    function warmFeedbackAudioSources(ctx, slugOrRun) {
+        ['correct', 'wrong'].forEach(function (soundType) {
+            const sources = getFeedbackAudioSources(ctx, soundType, slugOrRun);
+            const cacheKey = getFeedbackAudioCacheKey(ctx, soundType, slugOrRun);
+            if (!sources.length || !cacheKey) {
+                return;
+            }
+            resolveReadyAudioSource(ctx, sources, cacheKey).catch(function () {});
+        });
     }
 
     function waitForFeedbackAudioToFinish(ctx, audio, sequenceVersion, fallbackMs) {
@@ -5298,6 +5309,7 @@
         }
         const gameConfig = getGameConfig(ctx, run);
         const isBubbleGame = isBubblePopRun(ctx, run);
+        const feedbackPlayback = playFeedbackSound(ctx, 'correct');
 
         queueExposureOnce(ctx, run.prompt);
         queueOutcome(ctx, run.prompt, true, !!run.prompt.hadWrongBefore, { event_source: getRunEventSource(run) });
@@ -5325,7 +5337,7 @@
             applyBubbleBlastImpulse(run, card.x, card.y, getBubbleRadius(card), card);
             boostBubbleResolvedPromptExit(run, card.promptId, card.x, card.y);
         }
-        playFeedbackSound(ctx, 'correct').finally(function () {
+        feedbackPlayback.finally(function () {
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
             }
@@ -5347,6 +5359,7 @@
         if (isWrongHitRecoveryActive(run, now)) {
             return;
         }
+        const feedbackPlayback = playFeedbackSound(ctx, 'wrong');
 
         queueExposureOnce(ctx, run.prompt);
         queueOutcome(ctx, run.prompt, false, false, { event_source: getRunEventSource(run), wrong_hit: true });
@@ -5423,7 +5436,6 @@
             });
         }
 
-        const feedbackPlayback = playFeedbackSound(ctx, 'wrong');
         if (run.lives <= 0) {
             markPromptResolved(run);
             resetRunControls(run);
@@ -6295,6 +6307,7 @@
         updatePauseUi(ctx);
         setTrackerContext(ctx);
         scrollStageIntoView(ctx);
+        warmFeedbackAudioSources(ctx, gameSlug);
         startNextPrompt(ctx);
         ctx.run.rafId = root.requestAnimationFrame(function (timestamp) {
             runLoop(ctx, timestamp);
