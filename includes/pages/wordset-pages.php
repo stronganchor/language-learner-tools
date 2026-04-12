@@ -1926,6 +1926,117 @@ function ll_tools_wordset_page_manager_import_notice(): ?array {
     ];
 }
 
+function ll_tools_wordset_page_manager_template_notice(): ?array {
+    $status = isset($_GET['ll_wordset_manager_template'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_template']))
+        : '';
+    if ($status === '') {
+        return null;
+    }
+
+    $categories_created = isset($_GET['ll_wordset_manager_template_categories'])
+        ? max(0, (int) wp_unslash((string) $_GET['ll_wordset_manager_template_categories']))
+        : 0;
+    $images_created = isset($_GET['ll_wordset_manager_template_images'])
+        ? max(0, (int) wp_unslash((string) $_GET['ll_wordset_manager_template_images']))
+        : 0;
+    $failed_categories = isset($_GET['ll_wordset_manager_template_failed_categories'])
+        ? max(0, (int) wp_unslash((string) $_GET['ll_wordset_manager_template_failed_categories']))
+        : 0;
+    $failed_images = isset($_GET['ll_wordset_manager_template_failed_images'])
+        ? max(0, (int) wp_unslash((string) $_GET['ll_wordset_manager_template_failed_images']))
+        : 0;
+    $copied_settings = isset($_GET['ll_wordset_manager_template_settings'])
+        ? max(0, (int) wp_unslash((string) $_GET['ll_wordset_manager_template_settings']))
+        : 0;
+
+    if ($status === 'ok' || $status === 'partial') {
+        $message_parts = [
+            __('New word set created from this template.', 'll-tools-text-domain'),
+        ];
+
+        if ($categories_created > 0) {
+            $message_parts[] = sprintf(
+                _n('%d category copied.', '%d categories copied.', $categories_created, 'll-tools-text-domain'),
+                $categories_created
+            );
+        }
+        if ($images_created > 0) {
+            $message_parts[] = sprintf(
+                _n('%d image copied.', '%d images copied.', $images_created, 'll-tools-text-domain'),
+                $images_created
+            );
+        }
+        if ($copied_settings > 0) {
+            $message_parts[] = __('Non-language word set settings were copied too.', 'll-tools-text-domain');
+        }
+        if ($failed_categories > 0) {
+            $message_parts[] = sprintf(
+                _n('%d category could not be copied.', '%d categories could not be copied.', $failed_categories, 'll-tools-text-domain'),
+                $failed_categories
+            );
+        }
+        if ($failed_images > 0) {
+            $message_parts[] = sprintf(
+                _n('%d image could not be copied.', '%d images could not be copied.', $failed_images, 'll-tools-text-domain'),
+                $failed_images
+            );
+        }
+        if ($status === 'ok') {
+            $message_parts[] = __('Set the new word set language next.', 'll-tools-text-domain');
+        }
+
+        return [
+            'type' => $status === 'ok' ? 'success' : 'error',
+            'message' => implode(' ', $message_parts),
+        ];
+    }
+
+    $message = isset($_GET['ll_wordset_manager_template_message'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_template_message']))
+        : '';
+    if ($message !== '') {
+        return [
+            'type' => 'error',
+            'message' => $message,
+        ];
+    }
+
+    $error = isset($_GET['ll_wordset_manager_template_error'])
+        ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_template_error']))
+        : '';
+
+    if ($error === 'permission') {
+        return [
+            'type' => 'error',
+            'message' => __('You do not have permission to create a new word set from this template.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'nonce') {
+        return [
+            'type' => 'error',
+            'message' => __('Your session expired. Please try again.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'wordset') {
+        return [
+            'type' => 'error',
+            'message' => __('Unable to find that template word set.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($error === 'name') {
+        return [
+            'type' => 'error',
+            'message' => __('Enter a name for the new word set.', 'll-tools-text-domain'),
+        ];
+    }
+
+    return [
+        'type' => 'error',
+        'message' => __('Unable to create a word set from this template right now.', 'll-tools-text-domain'),
+    ];
+}
+
 function ll_tools_wordset_page_parse_manager_import_pairs(string $raw_pairs): array {
     $rows = [];
     $skipped_empty = 0;
@@ -2241,6 +2352,115 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
     ]);
 }
 add_action('template_redirect', 'll_tools_wordset_page_handle_manager_import_action', 6);
+
+function ll_tools_wordset_page_handle_manager_template_action(): void {
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
+        return;
+    }
+    if (!ll_tools_is_wordset_page_context()) {
+        return;
+    }
+
+    $action = isset($_POST['ll_wordset_manager_template_action'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_manager_template_action']))
+        : '';
+    if ($action !== 'create') {
+        return;
+    }
+
+    $wordset_term = ll_tools_get_wordset_page_term();
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $submitted_wordset_id = isset($_POST['ll_wordset_manager_template_wordset_id'])
+        ? (int) wp_unslash((string) $_POST['ll_wordset_manager_template_wordset_id'])
+        : 0;
+    $nonce = isset($_POST['ll_wordset_manager_template_nonce'])
+        ? wp_unslash((string) $_POST['ll_wordset_manager_template_nonce'])
+        : '';
+    $submitted_tool = ll_tools_get_wordset_settings_tool();
+    $new_wordset_name = isset($_POST['ll_wordset_manager_template_name'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['ll_wordset_manager_template_name']))
+        : '';
+    $new_wordset_slug = isset($_POST['ll_wordset_manager_template_slug'])
+        ? sanitize_title(wp_unslash((string) $_POST['ll_wordset_manager_template_slug']))
+        : '';
+    $copy_settings = !empty($_POST['ll_wordset_manager_template_copy_settings']);
+
+    $base_redirect = ll_tools_get_wordset_settings_tool_url(
+        $wordset_term,
+        $submitted_tool !== '' ? $submitted_tool : 'template',
+        ll_tools_wordset_page_resolve_back_url($wordset_term)
+    );
+
+    $redirect_error = static function (string $error, string $message = '') use ($base_redirect): void {
+        $args = [
+            'll_wordset_manager_template' => 'error',
+            'll_wordset_manager_template_error' => $error,
+        ];
+        if ($message !== '') {
+            $args['ll_wordset_manager_template_message'] = $message;
+        }
+        wp_safe_redirect(add_query_arg($args, $base_redirect));
+        exit;
+    };
+
+    if ($submitted_wordset_id !== $wordset_id) {
+        $redirect_error('wordset');
+    }
+    if (!function_exists('ll_tools_current_user_can_manage_wordset_content') || !ll_tools_current_user_can_manage_wordset_content($wordset_id)) {
+        $redirect_error('permission');
+    }
+    if (!wp_verify_nonce($nonce, 'll_wordset_manager_template_' . $wordset_id)) {
+        $redirect_error('nonce');
+    }
+    if (trim($new_wordset_name) === '') {
+        $redirect_error('name');
+    }
+    if (!function_exists('ll_tools_create_wordset_from_template')) {
+        $redirect_error('', __('Template creation is not available right now.', 'll-tools-text-domain'));
+    }
+
+    $created = ll_tools_create_wordset_from_template($wordset_id, [
+        'name' => $new_wordset_name,
+        'slug' => $new_wordset_slug,
+        'copy_settings' => $copy_settings,
+        'manager_user_id' => get_current_user_id(),
+    ]);
+    if (is_wp_error($created)) {
+        $error_code = sanitize_key((string) $created->get_error_code());
+        if ($error_code === 'll_wordset_template_missing_name') {
+            $redirect_error('name');
+        }
+
+        $redirect_error($error_code !== '' ? $error_code : 'create', $created->get_error_message());
+    }
+
+    $target_wordset_term = (isset($created['wordset_term']) && $created['wordset_term'] instanceof WP_Term)
+        ? $created['wordset_term']
+        : get_term((int) ($created['wordset_id'] ?? 0), 'wordset');
+    if (!($target_wordset_term instanceof WP_Term) || is_wp_error($target_wordset_term)) {
+        $redirect_error('create', __('The new word set was created, but it could not be opened automatically.', 'll-tools-text-domain'));
+    }
+
+    $failed_categories = max(0, (int) ($created['failed_categories'] ?? 0));
+    $failed_images = max(0, (int) ($created['failed_images'] ?? 0));
+    $status = ($failed_categories > 0 || $failed_images > 0) ? 'partial' : 'ok';
+    $target_redirect = ll_tools_get_wordset_settings_tool_url($target_wordset_term, 'language');
+
+    wp_safe_redirect(add_query_arg([
+        'll_wordset_manager_template' => $status,
+        'll_wordset_manager_template_categories' => max(0, (int) ($created['categories_created'] ?? 0)),
+        'll_wordset_manager_template_images' => max(0, (int) ($created['images_created'] ?? 0)),
+        'll_wordset_manager_template_failed_categories' => $failed_categories,
+        'll_wordset_manager_template_failed_images' => $failed_images,
+        'll_wordset_manager_template_settings' => max(0, (int) ($created['copied_settings'] ?? 0)),
+    ], $target_redirect));
+    exit;
+}
+add_action('template_redirect', 'll_tools_wordset_page_handle_manager_template_action', 6);
 
 function ll_tools_wordset_page_manager_recorder_notice(): ?array {
     $status = isset($_GET['ll_wordset_manager_recorder'])
@@ -3495,7 +3715,7 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
 }
 
 function ll_tools_get_wordset_settings_tool_keys(): array {
-    return ['study', 'language', 'visibility', 'import', 'recorder', 'transcription', 'offline-app', 'image-upload', 'audio-upload'];
+    return ['study', 'language', 'visibility', 'import', 'template', 'recorder', 'transcription', 'offline-app', 'image-upload', 'audio-upload'];
 }
 
 function ll_tools_get_wordset_settings_tool(): string {
@@ -3538,6 +3758,9 @@ function ll_tools_wordset_settings_tool_label(string $tool): string {
     if ($tool === 'import') {
         return __('Import', 'll-tools-text-domain');
     }
+    if ($tool === 'template') {
+        return __('Template', 'll-tools-text-domain');
+    }
     if ($tool === 'recorder') {
         return __('Recorder', 'll-tools-text-domain');
     }
@@ -3571,6 +3794,9 @@ function ll_tools_wordset_settings_tool_title(string $tool): string {
     if ($tool === 'import') {
         return __('Import Words', 'll-tools-text-domain');
     }
+    if ($tool === 'template') {
+        return __('Create Word Set From Template', 'll-tools-text-domain');
+    }
     if ($tool === 'recorder') {
         return __('Recorder Access', 'll-tools-text-domain');
     }
@@ -3603,6 +3829,9 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
     }
     if ($tool === 'import') {
         return __('Create words quickly from pasted prompt and answer pairs.', 'll-tools-text-domain');
+    }
+    if ($tool === 'template') {
+        return __('Copy this word set\'s isolated categories and images into a new word set.', 'll-tools-text-domain');
     }
     if ($tool === 'recorder') {
         return __('Assign and review audio recorder access for this word set.', 'll-tools-text-domain');
@@ -3664,6 +3893,13 @@ function ll_tools_wordset_page_render_settings_tool_icon(string $tool, string $c
             . '<path d="M12 4v10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
             . '<path d="m8.5 10.5 3.5 3.5 3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
             . '<path d="M5 16.5v1.75A1.75 1.75 0 0 0 6.75 20h10.5A1.75 1.75 0 0 0 19 18.25V16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '</svg>';
+    }
+    if ($tool === 'template') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+            . '<path d="M8 5.75h8a2.25 2.25 0 0 1 2.25 2.25v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<rect x="5.75" y="8" width="10.5" height="10.25" rx="2" stroke="currentColor" stroke-width="1.8"/>'
+            . '<path d="M17.5 5v4.5M15.25 7.25h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
             . '</svg>';
     }
     if ($tool === 'recorder') {
@@ -4314,6 +4550,103 @@ function ll_tools_wordset_page_render_settings_import_tool(WP_Term $wordset_term
                     </p>
                     <div style="margin-top:10px;">
                         <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button"><?php echo esc_html__('Import Words', 'll-tools-text-domain'); ?></button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_render_settings_template_tool(
+    WP_Term $wordset_term,
+    int $wordset_id,
+    string $back_url,
+    int $template_category_count,
+    int $template_image_count
+): string {
+    $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'template', $back_url);
+    $has_template_content = ($template_category_count > 0 || $template_image_count > 0);
+
+    ob_start();
+    ?>
+    <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
+        <div class="ll-wordset-settings-card">
+            <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Create New Word Set', 'll-tools-text-domain'); ?></h2>
+            <p class="description">
+                <?php
+                echo esc_html(sprintf(
+                    __('This template currently includes %1$d categories and %2$d images. Words, audio, and learner progress are not copied.', 'll-tools-text-domain'),
+                    $template_category_count,
+                    $template_image_count
+                ));
+                ?>
+            </p>
+
+            <?php if (!$has_template_content) : ?>
+                <p class="ll-wordset-settings-empty"><?php echo esc_html__('Add isolated categories or word images to this word set before using it as a template.', 'll-tools-text-domain'); ?></p>
+            <?php endif; ?>
+
+            <form method="post" action="<?php echo esc_url($action_url); ?>">
+                <input type="hidden" name="ll_wordset_manager_template_action" value="create" />
+                <input type="hidden" name="ll_wordset_manager_template_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                <input type="hidden" name="ll_wordset_page" value="<?php echo esc_attr((string) $wordset_term->slug); ?>" />
+                <input type="hidden" name="ll_wordset_view" value="settings" />
+                <input type="hidden" name="ll_wordset_tool" value="template" />
+                <?php wp_nonce_field('ll_wordset_manager_template_' . $wordset_id, 'll_wordset_manager_template_nonce'); ?>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('New word set details', 'll-tools-text-domain'); ?></h3>
+                    <div class="ll-wordset-settings-card__field-grid">
+                        <div class="ll-wordset-settings-card__field">
+                            <label for="ll-wordset-manager-template-name">
+                                <span><?php echo esc_html__('Word set name', 'll-tools-text-domain'); ?></span>
+                                <input
+                                    type="text"
+                                    id="ll-wordset-manager-template-name"
+                                    name="ll_wordset_manager_template_name"
+                                    class="regular-text"
+                                    style="max-width:420px;width:100%;"
+                                    required
+                                />
+                            </label>
+                        </div>
+                        <div class="ll-wordset-settings-card__field">
+                            <label for="ll-wordset-manager-template-slug">
+                                <span><?php echo esc_html__('Slug (optional)', 'll-tools-text-domain'); ?></span>
+                                <input
+                                    type="text"
+                                    id="ll-wordset-manager-template-slug"
+                                    name="ll_wordset_manager_template_slug"
+                                    class="regular-text"
+                                    style="max-width:420px;width:100%;"
+                                    placeholder="<?php echo esc_attr__('new-word-set', 'll-tools-text-domain'); ?>"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Copy options', 'll-tools-text-domain'); ?></h3>
+                    <label for="ll-wordset-manager-template-copy-settings" style="display:flex;align-items:flex-start;gap:8px;">
+                        <input
+                            type="checkbox"
+                            id="ll-wordset-manager-template-copy-settings"
+                            name="ll_wordset_manager_template_copy_settings"
+                            value="1"
+                            checked
+                        />
+                        <span><?php echo esc_html__('Copy non-language word set settings too (visibility, study tools, category order, and transcription settings).', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description" style="margin-top:8px;">
+                        <?php echo esc_html__('Language, translation labels, and category translation settings are intentionally left blank on the new word set.', 'll-tools-text-domain'); ?>
+                    </p>
+                    <div style="margin-top:10px;">
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button" <?php disabled(!$has_template_content); ?>><?php echo esc_html__('Create Word Set From Template', 'll-tools-text-domain'); ?></button>
                     </div>
                 </div>
             </form>
@@ -5025,7 +5358,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'settings_url' => $speaking_settings_url,
         ])
         : [];
-    if (!$can_manage_wordset_content && in_array($settings_tool, ['language', 'visibility', 'import', 'recorder', 'transcription', 'offline-app', 'image-upload', 'audio-upload'], true)) {
+    if (!$can_manage_wordset_content && in_array($settings_tool, ['language', 'visibility', 'import', 'template', 'recorder', 'transcription', 'offline-app', 'image-upload', 'audio-upload'], true)) {
         $settings_tool = '';
     }
     if (!$can_manage_offline_app_export && $settings_tool === 'offline-app') {
@@ -5043,6 +5376,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'language' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'language', $settings_navigation_back_url),
         'visibility' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'visibility', $settings_navigation_back_url),
         'import' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'import', $settings_navigation_back_url),
+        'template' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'template', $settings_navigation_back_url),
         'recorder' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder', $settings_navigation_back_url),
         'transcription' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'transcription', $settings_navigation_back_url),
         'offline-app' => ll_tools_get_wordset_settings_tool_url($wordset_term, 'offline-app', $settings_navigation_back_url),
@@ -5470,6 +5804,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $manager_settings_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_settings_notice() : null;
     $manager_offline_export_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_offline_export_notice() : null;
     $manager_import_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_import_notice() : null;
+    $manager_template_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_template_notice() : null;
     $manager_recorder_notice = ($view === 'settings') ? ll_tools_wordset_page_manager_recorder_notice() : null;
     $manager_audio_upload_notice = ($view === 'settings') ? ll_tools_wordset_page_audio_upload_notice() : null;
     $manager_image_upload_notice = ($view === 'settings') ? ll_tools_wordset_page_image_upload_notice() : null;
@@ -5478,6 +5813,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     if ($view === 'settings' && $can_manage_wordset_content && function_exists('ll_tools_offline_app_get_wordset_category_options')) {
         $offline_export_category_options = ll_tools_offline_app_get_wordset_category_options($wordset_id);
     }
+    $template_category_count = ($view === 'settings' && function_exists('ll_tools_get_wordset_template_category_ids'))
+        ? count(ll_tools_get_wordset_template_category_ids($wordset_id))
+        : 0;
+    $template_image_count = ($view === 'settings' && function_exists('ll_tools_get_wordset_template_word_image_ids'))
+        ? count(ll_tools_get_wordset_template_word_image_ids($wordset_id))
+        : 0;
     $manager_audio_upload_shortcode = '';
     $manager_image_upload_shortcode = '';
     if ($view === 'settings' && $can_manage_wordset_uploads) {
@@ -5604,6 +5945,30 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 : __('No categories yet', 'll-tools-text-domain'),
             'url' => $settings_tool_urls['import'],
             'enabled' => true,
+        ];
+
+        $template_status_parts = [];
+        if ($template_category_count > 0) {
+            $template_status_parts[] = sprintf(
+                _n('%d category', '%d categories', $template_category_count, 'll-tools-text-domain'),
+                $template_category_count
+            );
+        }
+        if ($template_image_count > 0) {
+            $template_status_parts[] = sprintf(
+                _n('%d image', '%d images', $template_image_count, 'll-tools-text-domain'),
+                $template_image_count
+            );
+        }
+        $settings_hub_cards[] = [
+            'tool' => 'template',
+            'label' => ll_tools_wordset_settings_tool_label('template'),
+            'description' => ll_tools_wordset_settings_tool_description('template'),
+            'status' => !empty($template_status_parts)
+                ? implode(' · ', $template_status_parts)
+                : __('No template content yet', 'll-tools-text-domain'),
+            'url' => ($template_category_count > 0 || $template_image_count > 0) ? $settings_tool_urls['template'] : '',
+            'enabled' => ($template_category_count > 0 || $template_image_count > 0),
         ];
 
         $assigned_recorder_count = count($assigned_audio_recorders);
@@ -6449,6 +6814,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && ($settings_tool === '' || in_array($settings_tool, ['study', 'language', 'visibility', 'transcription'], true))) {
                 $settings_notices[] = $manager_settings_notice;
             }
+            if (is_array($manager_template_notice) && !empty($manager_template_notice['message']) && ($settings_tool === '' || in_array($settings_tool, ['template', 'language'], true))) {
+                $settings_notices[] = $manager_template_notice;
+            }
             if (is_array($manager_import_notice) && !empty($manager_import_notice['message']) && ($settings_tool === '' || $settings_tool === 'import')) {
                 $settings_notices[] = $manager_import_notice;
             }
@@ -6517,6 +6885,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 <?php echo ll_tools_wordset_page_render_settings_transcription_tool($wordset_term, $wordset_id, $back_url, $transcription_settings, $secondary_transcription_config); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'import' && $can_manage_wordset_content) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_import_tool($wordset_term, $wordset_id, $back_url, $enhanced_categories); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+            <?php elseif ($settings_tool === 'template' && $can_manage_wordset_content) : ?>
+                <?php echo ll_tools_wordset_page_render_settings_template_tool($wordset_term, $wordset_id, $back_url, $template_category_count, $template_image_count); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'recorder' && $can_manage_wordset_content) : ?>
                 <?php echo ll_tools_wordset_page_render_settings_recorder_tool($wordset_term, $wordset_id, $back_url, $assigned_audio_recorders, $available_audio_recorders); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php elseif ($settings_tool === 'offline-app' && $can_manage_offline_app_export) : ?>

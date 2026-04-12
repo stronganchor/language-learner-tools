@@ -48,8 +48,34 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Language', $html);
         $this->assertStringContainsString('ll_wordset_tool=language', $html);
+        $this->assertStringContainsString('Template', $html);
+        $this->assertStringContainsString('ll_wordset_tool=template', $html);
         $this->assertStringContainsString('Offline App', $html);
         $this->assertStringContainsString('ll_wordset_tool=offline-app', $html);
+    }
+
+    public function test_template_tool_renders_create_wordset_form_for_managers(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [
+            'll_wordset_tool' => 'template',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'template'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+
+        $this->assertStringContainsString('Create Word Set From Template', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_template_action" value="create"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_template_name"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_template_copy_settings"', $html);
     }
 
     public function test_language_settings_action_updates_wordset_meta_and_redirects_back_to_language_tool(): void
@@ -203,7 +229,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
     }
 
     /**
-     * @return array{wordset_id:int,wordset_slug:string,category_id:int,category_name:string}
+     * @return array{wordset_id:int,wordset_slug:string,category_id:int,category_name:string,template_image_id:int}
      */
     private function createWordsetFixtureWithCategory(): array
     {
@@ -223,6 +249,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $category_id = (int) $category['term_id'];
         update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
 
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -237,11 +264,20 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'post_status' => 'publish',
         ]);
 
+        $template_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Custom Settings Template Image ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($template_image_id, [$category_id], 'word-category', false);
+        ll_tools_set_word_image_wordset_owner($template_image_id, $wordset_id, $template_image_id);
+
         return [
             'wordset_id' => $wordset_id,
             'wordset_slug' => $wordset_slug,
             'category_id' => $category_id,
             'category_name' => $category_name,
+            'template_image_id' => $template_image_id,
         ];
     }
 
