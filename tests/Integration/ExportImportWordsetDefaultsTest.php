@@ -48,5 +48,21 @@ final class ExportImportWordsetDefaultsTest extends LL_Tools_TestCase
         $this->assertSame('create_from_export', (string) ($defaults['wordset_mode'] ?? ''));
         $this->assertSame(0, (int) ($defaults['target_wordset_id'] ?? 0));
     }
-}
 
+    public function test_preview_defaults_keep_template_bundles_in_create_mode(): void
+    {
+        $payload = [
+            'bundle_type' => 'wordset_template',
+            'wordsets' => [[
+                'slug' => 'template-wordset-' . wp_generate_password(6, false, false),
+                'name' => 'Template Wordset',
+            ]],
+            'words' => [],
+        ];
+
+        $defaults = ll_tools_build_import_preview_default_options($payload);
+
+        $this->assertSame('create_from_export', (string) ($defaults['wordset_mode'] ?? ''));
+        $this->assertSame(0, (int) ($defaults['target_wordset_id'] ?? 0));
+    }
+}

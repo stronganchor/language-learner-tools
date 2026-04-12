@@ -390,16 +390,40 @@
     function initExportFullBundleCategoryUi() {
         var includeFull = document.getElementById('ll_export_include_full');
         var multiCategorySelect = document.getElementById('ll_full_export_category_ids');
+        var fullWordsetSelect = document.getElementById('ll_full_export_wordset_id');
+        var exportTemplate = document.getElementById('ll_export_wordset_template');
+        var templateWordsetSelect = document.getElementById('ll_template_export_wordset_id');
         if (!includeFull || !multiCategorySelect) {
             return;
         }
 
         function syncUi() {
+            var templateEnabled = !!(exportTemplate && exportTemplate.checked);
             var noCategories = multiCategorySelect.getAttribute('data-no-categories') === '1';
-            multiCategorySelect.disabled = noCategories || !includeFull.checked;
+            if (exportTemplate) {
+                includeFull.disabled = templateEnabled;
+                if (templateEnabled) {
+                    includeFull.checked = false;
+                }
+            }
+
+            if (templateWordsetSelect) {
+                var noWordsetsForTemplate = templateWordsetSelect.getAttribute('data-no-wordsets') === '1';
+                templateWordsetSelect.disabled = noWordsetsForTemplate || !templateEnabled;
+            }
+
+            if (fullWordsetSelect) {
+                var noWordsetsForFull = fullWordsetSelect.getAttribute('data-no-wordsets') === '1';
+                fullWordsetSelect.disabled = noWordsetsForFull || !includeFull.checked || templateEnabled;
+            }
+
+            multiCategorySelect.disabled = noCategories || !includeFull.checked || templateEnabled;
         }
 
         includeFull.addEventListener('change', syncUi);
+        if (exportTemplate) {
+            exportTemplate.addEventListener('change', syncUi);
+        }
         syncUi();
     }
 
