@@ -118,6 +118,107 @@ final class ExportBundleRegressionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_full_bundle_can_be_built_in_multiple_export_batches_and_finish_as_one_zip(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is not available in this test environment.');
+        }
+
+        $fixture = $this->create_full_bundle_fixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+        $token = '';
+        $zip_path = '';
+
+        $filters = [
+            'll_tools_export_batch_max_files_per_request' => static function (): int {
+                return 1;
+            },
+            'll_tools_export_batch_max_bytes_per_request' => static function (): int {
+                return 64 * MB_IN_BYTES;
+            },
+        ];
+
+        foreach ($filters as $hook => $callback) {
+            add_filter($hook, $callback);
+        }
+
+        try {
+            $start = ll_tools_export_prepare_batch_job([
+                'll_word_category' => (string) $category_id,
+                'll_export_include_full' => '1',
+                'll_full_export_wordset_id' => (string) $wordset_id,
+                'll_allow_large_export' => '1',
+            ]);
+
+            $this->assertFalse(is_wp_error($start), is_wp_error($start) ? $start->get_error_message() : '');
+            $this->assertIsArray($start);
+            $this->assertSame('processing', (string) ($start['status'] ?? ''));
+
+            $token = (string) ($start['token'] ?? '');
+            $this->assertNotSame('', $token);
+
+            $result = $start;
+            $iterations = 0;
+            while ((string) ($result['status'] ?? '') !== 'completed' && $iterations < 10) {
+                $result = ll_tools_export_run_batch_job($token);
+                $this->assertFalse(is_wp_error($result), is_wp_error($result) ? $result->get_error_message() : '');
+                $this->assertIsArray($result);
+                $iterations++;
+            }
+
+            $this->assertSame('completed', (string) ($result['status'] ?? ''));
+            $this->assertGreaterThan(1, $iterations, 'Expected multiple export batch requests.');
+            $this->assertSame(1.0, (float) ($result['progressRatio'] ?? 0));
+            $this->assertNotSame('', (string) ($result['downloadUrl'] ?? ''));
+
+            $download_manifest = get_transient(ll_tools_export_download_transient_key($token));
+            $this->assertIsArray($download_manifest);
+            $zip_path = isset($download_manifest['zip_path']) ? wp_normalize_path((string) $download_manifest['zip_path']) : '';
+            $this->assertNotSame('', $zip_path);
+            $this->assertFileExists($zip_path);
+
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($zip_path) === true);
+            $this->assertNotFalse($zip->locateName('data.json'));
+
+            $entry_names = [];
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $stat = $zip->statIndex($index);
+                if (is_array($stat) && isset($stat['name'])) {
+                    $entry_names[] = (string) $stat['name'];
+                }
+            }
+            $zip->close();
+
+            $has_audio_entry = false;
+            $has_image_entry = false;
+            foreach ($entry_names as $entry_name) {
+                if (strpos($entry_name, 'audio/') === 0) {
+                    $has_audio_entry = true;
+                }
+                if (strpos($entry_name, 'media/') === 0) {
+                    $has_image_entry = true;
+                }
+            }
+
+            $this->assertTrue($has_audio_entry, 'Expected at least one exported audio file in batched zip.');
+            $this->assertTrue($has_image_entry, 'Expected at least one exported image file in batched zip.');
+        } finally {
+            foreach ($filters as $hook => $callback) {
+                remove_filter($hook, $callback);
+            }
+
+            if ($token !== '') {
+                delete_transient(ll_tools_export_download_transient_key($token));
+                delete_transient(ll_tools_export_batch_job_transient_key($token));
+            }
+            if ($zip_path !== '' && is_file($zip_path)) {
+                @unlink($zip_path);
+            }
+        }
+    }
+
     /**
      * @return array{wordset_id:int,category_id:int}
      */

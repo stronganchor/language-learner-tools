@@ -678,6 +678,13 @@
   animation: ll-tools-import-progress-slide 1.4s ease-in-out infinite;
 }
 
+.ll-tools-import-processing-progress.is-determinate .ll-tools-import-processing-progress-bar {
+  inset: 0 auto 0 0;
+  width: 0;
+  animation: none;
+  transition: width 0.18s ease-out;
+}
+
 .ll-tools-import-processing-status {
   margin: 0 0 8px;
   font-weight: 600;

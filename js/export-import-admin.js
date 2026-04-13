@@ -1,9 +1,11 @@
 (function () {
     'use strict';
 
-    function getImportUiConfig() {
+    function getAdminUiConfig() {
         var cfg = window.llToolsImportUi || {};
         return {
+            ajaxUrl: typeof cfg.ajaxUrl === 'string' ? cfg.ajaxUrl : '',
+            exportPageUrl: typeof cfg.exportPageUrl === 'string' ? cfg.exportPageUrl : '',
             importPageUrl: typeof cfg.importPageUrl === 'string' ? cfg.importPageUrl : '',
             processingTitle: typeof cfg.processingTitle === 'string' ? cfg.processingTitle : '',
             processingMessageKeepOpen: typeof cfg.processingMessageKeepOpen === 'string' ? cfg.processingMessageKeepOpen : '',
@@ -12,8 +14,41 @@
             processingDone: typeof cfg.processingDone === 'string' ? cfg.processingDone : '',
             processingFailed: typeof cfg.processingFailed === 'string' ? cfg.processingFailed : '',
             processingReload: typeof cfg.processingReload === 'string' ? cfg.processingReload : '',
+            exportProcessingTitle: typeof cfg.exportProcessingTitle === 'string' ? cfg.exportProcessingTitle : '',
+            exportProcessingMessageKeepOpen: typeof cfg.exportProcessingMessageKeepOpen === 'string' ? cfg.exportProcessingMessageKeepOpen : '',
+            exportProcessingMessageBackground: typeof cfg.exportProcessingMessageBackground === 'string' ? cfg.exportProcessingMessageBackground : '',
+            exportProcessingProgressLabel: typeof cfg.exportProcessingProgressLabel === 'string' ? cfg.exportProcessingProgressLabel : '',
+            exportProcessingDone: typeof cfg.exportProcessingDone === 'string' ? cfg.exportProcessingDone : '',
+            exportProcessingFailed: typeof cfg.exportProcessingFailed === 'string' ? cfg.exportProcessingFailed : '',
+            exportProcessingReload: typeof cfg.exportProcessingReload === 'string' ? cfg.exportProcessingReload : '',
             copyButtonCopied: typeof cfg.copyButtonCopied === 'string' ? cfg.copyButtonCopied : 'Copied',
             copyButtonFailed: typeof cfg.copyButtonFailed === 'string' ? cfg.copyButtonFailed : 'Copy failed'
+        };
+    }
+
+    function getProcessingScreenConfig(config, mode) {
+        if (mode === 'export') {
+            return {
+                pageUrl: config.exportPageUrl,
+                processingTitle: config.exportProcessingTitle,
+                processingMessageKeepOpen: config.exportProcessingMessageKeepOpen,
+                processingMessageBackground: config.exportProcessingMessageBackground,
+                processingProgressLabel: config.exportProcessingProgressLabel,
+                processingDone: config.exportProcessingDone,
+                processingFailed: config.exportProcessingFailed,
+                processingReload: config.exportProcessingReload
+            };
+        }
+
+        return {
+            pageUrl: config.importPageUrl,
+            processingTitle: config.processingTitle,
+            processingMessageKeepOpen: config.processingMessageKeepOpen,
+            processingMessageBackground: config.processingMessageBackground,
+            processingProgressLabel: config.processingProgressLabel,
+            processingDone: config.processingDone,
+            processingFailed: config.processingFailed,
+            processingReload: config.processingReload
         };
     }
 
@@ -23,7 +58,7 @@
             return;
         }
 
-        var config = getImportUiConfig();
+        var config = getAdminUiConfig();
 
         function copyText(text) {
             if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
@@ -88,11 +123,13 @@
         }
     }
 
-    function ensureImportProcessingScreen(config) {
+    function ensureProcessingScreen(config) {
         var existing = document.getElementById('ll-tools-import-processing-screen');
         if (existing) {
             return {
                 root: existing,
+                progressWrap: existing.querySelector('.ll-tools-import-processing-progress'),
+                progressBar: existing.querySelector('.ll-tools-import-processing-progress-bar'),
                 status: existing.querySelector('.ll-tools-import-processing-status'),
                 error: existing.querySelector('.ll-tools-import-processing-error'),
                 reloadButton: existing.querySelector('.ll-tools-import-processing-reload')
@@ -146,7 +183,7 @@
         reloadButton.textContent = config.processingReload;
         reloadButton.hidden = true;
         reloadButton.addEventListener('click', function () {
-            var target = config.importPageUrl || window.location.href;
+            var target = config.pageUrl || window.location.href;
             window.location.assign(target);
         });
         card.appendChild(reloadButton);
@@ -156,10 +193,69 @@
 
         return {
             root: root,
+            progressWrap: progressWrap,
+            progressBar: progressBar,
             status: status,
             error: error,
             reloadButton: reloadButton
         };
+    }
+
+    function updateProcessingProgress(screen, progressRatio) {
+        if (!screen || !screen.progressWrap || !screen.progressBar) {
+            return;
+        }
+
+        if (typeof progressRatio !== 'number' || !isFinite(progressRatio) || progressRatio <= 0 || progressRatio >= 1) {
+            screen.progressWrap.classList.remove('is-determinate');
+            screen.progressBar.style.width = '';
+            return;
+        }
+
+        screen.progressWrap.classList.add('is-determinate');
+        screen.progressBar.style.width = Math.max(4, Math.round(progressRatio * 100)) + '%';
+    }
+
+    function resetProcessingScreen(screen, config) {
+        if (!screen) {
+            return;
+        }
+
+        if (screen.error) {
+            screen.error.hidden = true;
+            screen.error.textContent = '';
+        }
+        if (screen.reloadButton) {
+            screen.reloadButton.hidden = true;
+        }
+        if (screen.status) {
+            screen.status.textContent = config.processingProgressLabel;
+        }
+        updateProcessingProgress(screen, NaN);
+    }
+
+    function readJsonResponse(response) {
+        return response.text().then(function (body) {
+            var payload = {};
+
+            if (body) {
+                try {
+                    payload = JSON.parse(body);
+                } catch (error) {
+                    payload = {};
+                }
+            }
+
+            if (!response.ok || !payload || payload.success !== true) {
+                var message = '';
+                if (payload && payload.data && typeof payload.data.message === 'string') {
+                    message = payload.data.message;
+                }
+                throw new Error(message || ('request_failed_' + response.status));
+            }
+
+            return payload.data || {};
+        });
     }
 
     function initImportConfirmProgressUi() {
@@ -168,7 +264,8 @@
             return;
         }
 
-        var config = getImportUiConfig();
+        var adminConfig = getAdminUiConfig();
+        var config = getProcessingScreenConfig(adminConfig, 'import');
 
         for (var i = 0; i < forms.length; i++) {
             (function (form) {
@@ -195,17 +292,8 @@
                         submitButtons[btnIdx].disabled = true;
                     }
 
-                    var screen = ensureImportProcessingScreen(config);
-                    if (screen.error) {
-                        screen.error.hidden = true;
-                        screen.error.textContent = '';
-                    }
-                    if (screen.reloadButton) {
-                        screen.reloadButton.hidden = true;
-                    }
-                    if (screen.status) {
-                        screen.status.textContent = config.processingProgressLabel;
-                    }
+                    var screen = ensureProcessingScreen(config);
+                    resetProcessingScreen(screen, config);
                     document.documentElement.classList.add('ll-tools-import-processing');
 
                     var requestUrl = form.getAttribute('action') || window.location.href;
@@ -221,8 +309,9 @@
                         if (screen.status) {
                             screen.status.textContent = config.processingDone;
                         }
+                        updateProcessingProgress(screen, 1);
 
-                        var redirectTarget = response.url || config.importPageUrl || window.location.href;
+                        var redirectTarget = response.url || config.pageUrl || window.location.href;
                         window.setTimeout(function () {
                             window.location.assign(redirectTarget);
                         }, 250);
@@ -238,6 +327,123 @@
                         if (screen.reloadButton) {
                             screen.reloadButton.hidden = false;
                         }
+                    });
+                });
+            })(forms[i]);
+        }
+    }
+
+    function initExportBatchProgressUi() {
+        var forms = document.querySelectorAll('form');
+        if (!forms.length || !window.fetch || !window.FormData) {
+            return;
+        }
+
+        var adminConfig = getAdminUiConfig();
+        var config = getProcessingScreenConfig(adminConfig, 'export');
+        if (!adminConfig.ajaxUrl) {
+            return;
+        }
+
+        function setFailureState(form, submitButtons, screen, message) {
+            form.removeAttribute('data-ll-tools-export-submitting');
+            for (var idx = 0; idx < submitButtons.length; idx++) {
+                submitButtons[idx].disabled = false;
+            }
+
+            if (screen.error) {
+                screen.error.hidden = false;
+                screen.error.textContent = message || config.processingFailed;
+            }
+            if (screen.reloadButton) {
+                screen.reloadButton.hidden = false;
+            }
+            updateProcessingProgress(screen, NaN);
+        }
+
+        for (var i = 0; i < forms.length; i++) {
+            (function (form) {
+                var actionInput = form.querySelector('input[name="action"]');
+                if (!actionInput || actionInput.value !== 'll_tools_export_bundle') {
+                    return;
+                }
+
+                form.addEventListener('submit', function (event) {
+                    if (form.getAttribute('data-ll-tools-export-submitting') === '1') {
+                        event.preventDefault();
+                        return;
+                    }
+
+                    event.preventDefault();
+                    form.setAttribute('data-ll-tools-export-submitting', '1');
+
+                    var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+                    for (var btnIdx = 0; btnIdx < submitButtons.length; btnIdx++) {
+                        submitButtons[btnIdx].disabled = true;
+                    }
+
+                    var screen = ensureProcessingScreen(config);
+                    resetProcessingScreen(screen, config);
+                    document.documentElement.classList.add('ll-tools-import-processing');
+
+                    var startData = new FormData(form);
+                    startData.set('action', 'll_tools_start_export_bundle');
+
+                    var runBatch = function (token, batchNonce) {
+                        var batchData = new FormData();
+                        batchData.set('action', 'll_tools_run_export_bundle_batch');
+                        batchData.set('ll_export_token', token);
+                        batchData.set('_wpnonce', batchNonce);
+
+                        return fetch(adminConfig.ajaxUrl, {
+                            method: 'POST',
+                            body: batchData,
+                            credentials: 'same-origin'
+                        }).then(readJsonResponse).then(function (payload) {
+                            if (screen.status && typeof payload.statusText === 'string' && payload.statusText) {
+                                screen.status.textContent = payload.statusText;
+                            }
+                            updateProcessingProgress(screen, Number(payload.progressRatio));
+
+                            if (payload.status === 'completed' && typeof payload.downloadUrl === 'string' && payload.downloadUrl) {
+                                if (screen.status && config.processingDone) {
+                                    screen.status.textContent = config.processingDone;
+                                }
+                                updateProcessingProgress(screen, 1);
+                                window.setTimeout(function () {
+                                    window.location.assign(payload.downloadUrl);
+                                }, 250);
+                                return;
+                            }
+
+                            window.setTimeout(function () {
+                                runBatch(token, batchNonce).catch(function (error) {
+                                    setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+                                });
+                            }, 40);
+                        });
+                    };
+
+                    fetch(adminConfig.ajaxUrl, {
+                        method: 'POST',
+                        body: startData,
+                        credentials: 'same-origin'
+                    }).then(readJsonResponse).then(function (payload) {
+                        var token = typeof payload.token === 'string' ? payload.token : '';
+                        var batchNonce = typeof payload.batchNonce === 'string' ? payload.batchNonce : '';
+
+                        if (screen.status && typeof payload.statusText === 'string' && payload.statusText) {
+                            screen.status.textContent = payload.statusText;
+                        }
+                        updateProcessingProgress(screen, Number(payload.progressRatio));
+
+                        if (!token || !batchNonce) {
+                            throw new Error(config.processingFailed);
+                        }
+
+                        return runBatch(token, batchNonce);
+                    }).catch(function (error) {
+                        setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
                     });
                 });
             })(forms[i]);
@@ -480,6 +686,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         initExportFullBundleCategoryUi();
+        initExportBatchProgressUi();
         initExportWordTextDialectSync();
         initImportWordsetModeUi();
         initAutoPreviewOnZipUpload();
