@@ -2918,7 +2918,7 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         if (
             is_array($cached_rows)
             && isset($cached_rows['__ll_words_cache_format'])
-            && (int) $cached_rows['__ll_words_cache_format'] === 2
+            && (int) $cached_rows['__ll_words_cache_format'] === 3
             && isset($cached_rows['rows'])
             && is_array($cached_rows['rows'])
         ) {
@@ -3217,7 +3217,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         if (
             is_array($cached)
             && isset($cached['__ll_words_cache_format'])
-            && (int) $cached['__ll_words_cache_format'] === 2
+            && (int) $cached['__ll_words_cache_format'] === 3
             && isset($cached['rows'])
             && is_array($cached['rows'])
         ) {
@@ -3229,7 +3229,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         $normalized_cached_rows = ll_tools_normalize_words_audio_urls($cached_rows);
         if ($normalized_cached_rows !== $cached_rows) {
             $cache_payload = [
-                '__ll_words_cache_format' => 2,
+                '__ll_words_cache_format' => 3,
                 'rows' => $normalized_cached_rows,
             ];
             wp_cache_set($cache_key, $cache_payload, 'll_tools_words', $cache_ttl);
@@ -3316,6 +3316,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $group_maps = [
         'group_map' => [],
         'blocked_map' => [],
+        'blocked_map_by_recording_type' => [],
         'similar_image_override_map' => [],
     ];
     $rules_wordset_id = (count($wordset_terms) === 1) ? (int) $wordset_terms[0] : 0;
@@ -3324,6 +3325,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     }
     $group_map = $group_maps['group_map'] ?? [];
     $blocked_map = $group_maps['blocked_map'] ?? [];
+    $blocked_map_by_recording_type = $group_maps['blocked_map_by_recording_type'] ?? [];
     $similar_image_override_map = $group_maps['similar_image_override_map'] ?? [];
     $specific_wrong_owner_map = function_exists('ll_tools_get_specific_wrong_answer_owner_map')
         ? ll_tools_get_specific_wrong_answer_owner_map()
@@ -3555,6 +3557,11 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             'has_image'       => ($image_id && !empty($image)),
             'option_groups'   => $option_groups,
             'option_blocked_ids' => isset($blocked_map[$word_id]) ? array_values(array_map('intval', (array) $blocked_map[$word_id])) : [],
+            'option_blocked_ids_by_recording_type' => isset($blocked_map_by_recording_type[$word_id]) && is_array($blocked_map_by_recording_type[$word_id])
+                ? array_map(static function ($blocked_ids): array {
+                    return array_values(array_map('intval', (array) $blocked_ids));
+                }, $blocked_map_by_recording_type[$word_id])
+                : [],
         ];
 
         if (function_exists('ll_tools_protect_maqqef_for_display')) {
@@ -3667,7 +3674,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $words = ll_tools_normalize_words_audio_urls($words);
     $request_cache[$cache_key] = $words;
     $cache_payload = [
-        '__ll_words_cache_format' => 2,
+        '__ll_words_cache_format' => 3,
         'rows' => $words,
     ];
     wp_cache_set($cache_key, $cache_payload, 'll_tools_words', $cache_ttl);

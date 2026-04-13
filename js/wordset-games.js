@@ -677,6 +677,25 @@
             });
     }
 
+    function normalizeBlockedIdsByRecordingType(rawMap) {
+        const map = (rawMap && typeof rawMap === 'object') ? rawMap : {};
+        const out = {};
+
+        Object.keys(map).forEach(function (recordingType) {
+            const normalizedType = normalizeRecordingType(recordingType || '');
+            if (!normalizedType) {
+                return;
+            }
+
+            const blockedIds = uniqueIntList(map[recordingType] || []);
+            if (blockedIds.length) {
+                out[normalizedType] = blockedIds;
+            }
+        });
+
+        return out;
+    }
+
     function normalizeWord(rawWord) {
         const word = (rawWord && typeof rawWord === 'object') ? rawWord : {};
         const categoryIds = uniqueIntList(word.category_ids || []);
@@ -695,6 +714,7 @@
                 : [],
             preferred_speaker_user_id: toInt(word.preferred_speaker_user_id),
             option_blocked_ids: uniqueIntList(word.option_blocked_ids || []),
+            option_blocked_ids_by_recording_type: normalizeBlockedIdsByRecordingType(word.option_blocked_ids_by_recording_type),
             category_id: categoryId,
             category_ids: categoryIds,
             category_name: String(word.category_name || ''),

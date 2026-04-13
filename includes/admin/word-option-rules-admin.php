@@ -420,6 +420,109 @@ function ll_tools_word_option_rules_get_recording_type_reason_label(string $reco
     return sprintf(__('Same %s text', 'll-tools-text-domain'), $recording_type_label);
 }
 
+function ll_tools_word_option_rules_get_manual_pair_recording_type_choices(int $category_id): array {
+    $types = [];
+
+    if ($category_id > 0 && function_exists('ll_tools_get_desired_recording_types_for_category')) {
+        $types = array_merge($types, (array) ll_tools_get_desired_recording_types_for_category($category_id));
+    }
+
+    if (function_exists('ll_tools_get_word_option_rule_recording_type_slugs')) {
+        $types = array_merge($types, ll_tools_get_word_option_rule_recording_type_slugs());
+    } elseif (function_exists('ll_tools_get_main_recording_types')) {
+        $types = array_merge($types, (array) ll_tools_get_main_recording_types());
+    }
+
+    if (function_exists('ll_tools_normalize_word_option_pair_recording_type_list')) {
+        $types = ll_tools_normalize_word_option_pair_recording_type_list($types);
+    } else {
+        $types = array_values(array_unique(array_filter(array_map('sanitize_key', (array) $types))));
+    }
+
+    $choices = [];
+    foreach ($types as $recording_type) {
+        $recording_type = ll_tools_word_option_rules_normalize_recording_type_key($recording_type);
+        if ($recording_type === '') {
+            continue;
+        }
+
+        $label = function_exists('ll_get_recording_type_name')
+            ? (string) ll_get_recording_type_name($recording_type, '')
+            : '';
+        if ($label === '') {
+            $label = ucwords(str_replace('-', ' ', $recording_type));
+        }
+
+        $choices[$recording_type] = $label;
+    }
+
+    return $choices;
+}
+
+function ll_tools_word_option_rules_get_pair_selected_recording_types(array $pair, array $available_recording_types): array {
+    $available_types = array_values(array_filter(array_map('strval', array_keys($available_recording_types)), static function (string $type): bool {
+        return $type !== '';
+    }));
+    if (empty($available_types)) {
+        return [];
+    }
+
+    $unblocked_recording_types = function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+        ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+        : [];
+    if (empty($unblocked_recording_types)) {
+        return $available_types;
+    }
+
+    return array_values(array_filter($available_types, static function (string $recording_type) use ($unblocked_recording_types): bool {
+        return !in_array($recording_type, $unblocked_recording_types, true);
+    }));
+}
+
+function ll_tools_word_option_rules_build_manual_pair_rule(
+    int $a,
+    int $b,
+    array $selected_recording_types,
+    array $available_recording_types = [],
+    bool $allow_recording_type_scoping = true
+): ?array {
+    if ($a <= 0 || $b <= 0 || $a === $b) {
+        return null;
+    }
+
+    if ($a > $b) {
+        $tmp = $a;
+        $a = $b;
+        $b = $tmp;
+    }
+
+    $available_types = function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+        ? ll_tools_normalize_word_option_pair_recording_type_list($available_recording_types)
+        : array_values(array_unique(array_filter(array_map('sanitize_key', $available_recording_types))));
+    if (!$allow_recording_type_scoping || empty($available_types)) {
+        return [
+            'word_ids' => [$a, $b],
+            'unblocked_recording_types' => [],
+        ];
+    }
+
+    $selected_types = function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+        ? ll_tools_normalize_word_option_pair_recording_type_list($selected_recording_types)
+        : array_values(array_unique(array_filter(array_map('sanitize_key', $selected_recording_types))));
+    $selected_types = array_values(array_filter($selected_types, static function (string $recording_type) use ($available_types): bool {
+        return in_array($recording_type, $available_types, true);
+    }));
+
+    if (empty($selected_types)) {
+        return null;
+    }
+
+    return [
+        'word_ids' => [$a, $b],
+        'unblocked_recording_types' => array_values(array_diff($available_types, $selected_types)),
+    ];
+}
+
 function ll_tools_word_option_rules_build_compare_rows(array $words, array $audio_by_word = []): array {
     $rows = [];
 
@@ -818,8 +921,9 @@ function ll_tools_word_option_rules_collect_export_data(int $wordset_id, int $ca
 
     $pairs_map = [];
     foreach ($rules['pairs'] as $pair) {
-        $a = (int) ($pair[0] ?? 0);
-        $b = (int) ($pair[1] ?? 0);
+        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+            ? ll_tools_normalize_word_option_pair_word_ids($pair)
+            : [0, 0];
         if ($a <= 0 || $b <= 0 || $a === $b) {
             continue;
         }
@@ -833,6 +937,12 @@ function ll_tools_word_option_rules_collect_export_data(int $wordset_id, int $ca
             'image_a' => (strcmp($hash_a, $hash_b) < 0) ? $hash_a : $hash_b,
             'image_b' => (strcmp($hash_a, $hash_b) < 0) ? $hash_b : $hash_a,
         ];
+        $unblocked_recording_types = function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+            ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+            : [];
+        if (!empty($unblocked_recording_types)) {
+            $pairs_map[$key]['unblocked_recording_types'] = $unblocked_recording_types;
+        }
     }
 
     $pairs = array_values($pairs_map);
@@ -1022,6 +1132,9 @@ function ll_tools_word_option_rules_map_import_data(array $data, int $wordset_id
         if ($hash_a === '' || $hash_b === '' || $hash_a === $hash_b) {
             continue;
         }
+        $unblocked_recording_types = function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+            ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+            : [];
         $words_a = $hash_to_words[$hash_a] ?? [];
         $words_b = $hash_to_words[$hash_b] ?? [];
         if (empty($words_a) || empty($words_b)) {
@@ -1039,7 +1152,10 @@ function ll_tools_word_option_rules_map_import_data(array $data, int $wordset_id
                     $a = $b;
                     $b = $tmp;
                 }
-                $pairs_map[$a . '|' . $b] = [$a, $b];
+                $pairs_map[$a . '|' . $b] = [
+                    'word_ids' => [$a, $b],
+                    'unblocked_recording_types' => $unblocked_recording_types,
+                ];
             }
         }
     }
@@ -1222,7 +1338,7 @@ function ll_render_word_option_rules_admin_page() {
 
     $maps = function_exists('ll_tools_get_word_option_maps')
         ? ll_tools_get_word_option_maps($wordset_id, $category_id)
-        : ['groups' => [], 'pairs' => [], 'group_map' => [], 'blocked_map' => [], 'similar_image_override_map' => []];
+        : ['groups' => [], 'pairs' => [], 'group_map' => [], 'blocked_map' => [], 'blocked_map_by_recording_type' => [], 'similar_image_override_map' => []];
     $group_map = $maps['group_map'] ?? [];
     $pair_list = $maps['pairs'] ?? [];
     $similar_image_override_map = $maps['similar_image_override_map'] ?? [];
@@ -1260,6 +1376,10 @@ function ll_render_word_option_rules_admin_page() {
     $include_recording_text_pairs = function_exists('ll_tools_quiz_prompt_type_has_audio')
         ? ll_tools_quiz_prompt_type_has_audio((string) ($category_config['prompt_type'] ?? 'audio'))
         : ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+    $manual_pair_recording_type_choices = $include_recording_text_pairs
+        ? ll_tools_word_option_rules_get_manual_pair_recording_type_choices($category_id)
+        : [];
+    $allow_manual_pair_recording_type_controls = $include_recording_text_pairs && !empty($manual_pair_recording_type_choices);
     $auto_text_pair_maps = ll_tools_word_option_rules_build_auto_text_pair_maps(
         ll_tools_word_option_rules_build_compare_rows($words, $audio_by_word),
         $include_recording_text_pairs
@@ -1267,8 +1387,9 @@ function ll_render_word_option_rules_admin_page() {
     $manual_pairs = [];
     if (!empty($pair_list)) {
         foreach ($pair_list as $pair) {
-            $a = (int) ($pair[0] ?? 0);
-            $b = (int) ($pair[1] ?? 0);
+            [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+                ? ll_tools_normalize_word_option_pair_word_ids($pair)
+                : [0, 0];
             if ($a <= 0 || $b <= 0 || $a === $b) {
                 continue;
             }
@@ -1277,7 +1398,13 @@ function ll_render_word_option_rules_admin_page() {
                 $a = $b;
                 $b = $tmp;
             }
-            $manual_pairs[$a . '|' . $b] = ['a' => $a, 'b' => $b];
+            $manual_pairs[$a . '|' . $b] = [
+                'a' => $a,
+                'b' => $b,
+                'unblocked_recording_types' => function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+                    ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+                    : [],
+            ];
         }
     }
     $similar_pairs = ll_tools_word_option_rules_get_similar_pair_map($word_ids);
@@ -1542,6 +1669,9 @@ function ll_render_word_option_rules_admin_page() {
     } else {
         echo '<p class="description">' . esc_html__('Pairs with the same image, title, or translation are locked and cannot be removed.', 'll-tools-text-domain') . '</p>';
     }
+    if ($allow_manual_pair_recording_type_controls) {
+        echo '<p class="description">' . esc_html__('Manual pairs default to all prompt recording types. Uncheck any type to allow the pair for that prompt.', 'll-tools-text-domain') . '</p>';
+    }
     echo '<p class="description">' . esc_html__('Similar image pairs can be removed to allow them together manually.', 'll-tools-text-domain') . '</p>';
 
     echo '<div class="ll-tools-word-options-pair-add">';
@@ -1575,6 +1705,21 @@ function ll_render_word_option_rules_admin_page() {
     echo '</select>';
     echo '</div>';
 
+    if ($allow_manual_pair_recording_type_controls) {
+        echo '<div class="ll-tools-word-options-field ll-tools-word-options-field--recording-types">';
+        echo '<span class="ll-tools-word-options-field-label">' . esc_html__('Blocked prompt recordings', 'll-tools-text-domain') . '</span>';
+        echo '<div class="ll-tools-word-options-recording-type-list">';
+        foreach ($manual_pair_recording_type_choices as $recording_type => $recording_type_label) {
+            $checkbox_id = 'll-word-option-new-pair-type-' . $recording_type;
+            echo '<label class="ll-tools-word-options-recording-type-check" for="' . esc_attr($checkbox_id) . '">';
+            echo '<input type="checkbox" id="' . esc_attr($checkbox_id) . '" name="new_pair_recording_types[]" value="' . esc_attr($recording_type) . '" checked="checked" />';
+            echo '<span>' . esc_html($recording_type_label) . '</span>';
+            echo '</label>';
+        }
+        echo '</div>';
+        echo '</div>';
+    }
+
     echo '<button type="submit" class="button button-secondary ll-tools-button" name="add_pair" value="1">' . esc_html__('Add pair', 'll-tools-text-domain') . '</button>';
     echo '</div>';
 
@@ -1594,6 +1739,9 @@ function ll_render_word_option_rules_admin_page() {
         echo '<thead><tr>';
         echo '<th scope="col">' . esc_html__('Remove', 'll-tools-text-domain') . '</th>';
         echo '<th scope="col">' . esc_html__('Pair', 'll-tools-text-domain') . '</th>';
+        if ($allow_manual_pair_recording_type_controls) {
+            echo '<th scope="col">' . esc_html__('Blocked recordings', 'll-tools-text-domain') . '</th>';
+        }
         echo '<th scope="col">' . esc_html__('Reason', 'll-tools-text-domain') . '</th>';
         echo '</tr></thead>';
         echo '<tbody>';
@@ -1611,6 +1759,7 @@ function ll_render_word_option_rules_admin_page() {
                 || isset($reasons['same_title'])
                 || isset($reasons['same_translation'])
                 || !empty($reasons['recording_text']);
+            $has_manual_reason = isset($reasons['manual']);
             $remove_label = sprintf(__('Remove pair: %s', 'll-tools-text-domain'), $label_a . ' / ' . $label_b);
             $reason_bits = [];
             foreach ($reason_order as $reason_key) {
@@ -1652,6 +1801,40 @@ function ll_render_word_option_rules_admin_page() {
             }
             echo '</td>';
             echo '<td>' . esc_html($label_a . ' / ' . $label_b) . '</td>';
+            if ($allow_manual_pair_recording_type_controls) {
+                echo '<td class="ll-tools-word-options-recording-types-cell">';
+                if ($has_manual_reason) {
+                    $manual_pair = $manual_pairs[$value] ?? ['word_ids' => [$a, $b], 'unblocked_recording_types' => []];
+                    $selected_recording_types = ll_tools_word_option_rules_get_pair_selected_recording_types($manual_pair, $manual_pair_recording_type_choices);
+                    if (!$is_locked) {
+                        echo '<input type="hidden" name="pair_recording_types_present[' . esc_attr($value) . ']" value="1" />';
+                        echo '<div class="ll-tools-word-options-recording-type-list ll-tools-word-options-recording-type-list--table">';
+                        foreach ($manual_pair_recording_type_choices as $recording_type => $recording_type_label) {
+                            $checkbox_id = 'll-word-option-pair-type-' . $a . '-' . $b . '-' . $recording_type;
+                            echo '<label class="ll-tools-word-options-recording-type-check" for="' . esc_attr($checkbox_id) . '">';
+                            echo '<input type="checkbox" id="' . esc_attr($checkbox_id) . '" name="pair_recording_types[' . esc_attr($value) . '][]" value="' . esc_attr($recording_type) . '" ' . checked(in_array($recording_type, $selected_recording_types, true), true, false) . ' />';
+                            echo '<span>' . esc_html($recording_type_label) . '</span>';
+                            echo '</label>';
+                        }
+                        echo '</div>';
+                    } else {
+                        $selected_labels = [];
+                        foreach ($selected_recording_types as $recording_type) {
+                            if (isset($manual_pair_recording_type_choices[$recording_type])) {
+                                $selected_labels[] = $manual_pair_recording_type_choices[$recording_type];
+                            }
+                        }
+                        if (count($selected_labels) === count($manual_pair_recording_type_choices)) {
+                            echo '<span class="ll-tools-word-options-recording-type-summary">' . esc_html__('All prompt recordings', 'll-tools-text-domain') . '</span>';
+                        } else {
+                            echo '<span class="ll-tools-word-options-recording-type-summary">' . esc_html(implode(', ', $selected_labels)) . '</span>';
+                        }
+                    }
+                } else {
+                    echo '<span class="ll-tools-word-options-recording-type-summary">' . esc_html__('Automatic', 'll-tools-text-domain') . '</span>';
+                }
+                echo '</td>';
+            }
             echo '<td>' . $reason_html . '</td>';
             echo '</tr>';
         }
@@ -1876,8 +2059,9 @@ function ll_tools_handle_word_option_rules_save() {
         : ['pairs' => [], 'similar_image_overrides' => []];
     $pairs_map = [];
     foreach ($current['pairs'] as $pair) {
-        $a = (int) ($pair[0] ?? 0);
-        $b = (int) ($pair[1] ?? 0);
+        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+            ? ll_tools_normalize_word_option_pair_word_ids($pair)
+            : [0, 0];
         if ($a <= 0 || $b <= 0 || $a === $b) {
             continue;
         }
@@ -1889,13 +2073,19 @@ function ll_tools_handle_word_option_rules_save() {
             $a = $b;
             $b = $tmp;
         }
-        $pairs_map[$a . '|' . $b] = [$a, $b];
+        $pairs_map[$a . '|' . $b] = [
+            'word_ids' => [$a, $b],
+            'unblocked_recording_types' => function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+                ? ll_tools_normalize_word_option_pair_recording_type_list($pair['unblocked_recording_types'] ?? [])
+                : [],
+        ];
     }
 
     $similar_image_override_map = [];
     foreach (($current['similar_image_overrides'] ?? []) as $pair) {
-        $a = (int) ($pair[0] ?? 0);
-        $b = (int) ($pair[1] ?? 0);
+        [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+            ? ll_tools_normalize_word_option_pair_word_ids($pair)
+            : [0, 0];
         if ($a <= 0 || $b <= 0 || $a === $b) {
             continue;
         }
@@ -1920,6 +2110,10 @@ function ll_tools_handle_word_option_rules_save() {
     $include_recording_text_pairs = function_exists('ll_tools_quiz_prompt_type_has_audio')
         ? ll_tools_quiz_prompt_type_has_audio((string) ($category_config['prompt_type'] ?? 'audio'))
         : ((string) ($category_config['prompt_type'] ?? 'audio') === 'audio');
+    $manual_pair_recording_type_choices = $include_recording_text_pairs
+        ? ll_tools_word_option_rules_get_manual_pair_recording_type_choices($category_id)
+        : [];
+    $allow_manual_pair_recording_type_controls = $include_recording_text_pairs && !empty($manual_pair_recording_type_choices);
     $word_posts = ll_tools_word_option_rules_get_word_posts($wordset_id, $category_id);
     $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
         ? ll_tools_word_grid_collect_audio_files($word_ids, true)
@@ -1942,6 +2136,57 @@ function ll_tools_handle_word_option_rules_save() {
                 continue;
             }
             $auto_similar_image_pairs[$key] = true;
+        }
+    }
+
+    if ($allow_manual_pair_recording_type_controls && !empty($pairs_map)) {
+        $raw_present = isset($_POST['pair_recording_types_present']) && is_array($_POST['pair_recording_types_present'])
+            ? $_POST['pair_recording_types_present']
+            : [];
+        $raw_selected = isset($_POST['pair_recording_types']) && is_array($_POST['pair_recording_types'])
+            ? $_POST['pair_recording_types']
+            : [];
+        $present_map = [];
+        foreach ($raw_present as $raw_key => $present) {
+            $pair_key = sanitize_text_field(wp_unslash((string) $raw_key));
+            if ($pair_key !== '') {
+                $present_map[$pair_key] = !empty($present);
+            }
+        }
+
+        $selected_map = [];
+        foreach ($raw_selected as $raw_key => $selected_types) {
+            $pair_key = sanitize_text_field(wp_unslash((string) $raw_key));
+            if ($pair_key === '' || !is_array($selected_types)) {
+                continue;
+            }
+            $selected_map[$pair_key] = array_map(static function ($value): string {
+                return (string) wp_unslash($value);
+            }, $selected_types);
+        }
+
+        $available_manual_pair_recording_types = array_keys($manual_pair_recording_type_choices);
+        foreach (array_keys($pairs_map) as $pair_key) {
+            if (empty($present_map[$pair_key])) {
+                continue;
+            }
+
+            [$a, $b] = function_exists('ll_tools_normalize_word_option_pair_word_ids')
+                ? ll_tools_normalize_word_option_pair_word_ids($pairs_map[$pair_key])
+                : [0, 0];
+            $pair_rule = ll_tools_word_option_rules_build_manual_pair_rule(
+                $a,
+                $b,
+                $selected_map[$pair_key] ?? [],
+                $available_manual_pair_recording_types,
+                true
+            );
+            if ($pair_rule === null) {
+                unset($pairs_map[$pair_key]);
+                continue;
+            }
+
+            $pairs_map[$pair_key] = $pair_rule;
         }
     }
 
@@ -1993,7 +2238,21 @@ function ll_tools_handle_word_option_rules_save() {
                 $a = $b;
                 $b = $tmp;
             }
-            $pairs_map[$a . '|' . $b] = [$a, $b];
+            $new_pair_recording_types = isset($_POST['new_pair_recording_types']) && is_array($_POST['new_pair_recording_types'])
+                ? array_map(static function ($value): string {
+                    return (string) wp_unslash($value);
+                }, $_POST['new_pair_recording_types'])
+                : [];
+            $pair_rule = ll_tools_word_option_rules_build_manual_pair_rule(
+                $a,
+                $b,
+                $new_pair_recording_types,
+                array_keys($manual_pair_recording_type_choices),
+                $allow_manual_pair_recording_type_controls
+            );
+            if ($pair_rule !== null) {
+                $pairs_map[$a . '|' . $b] = $pair_rule;
+            }
             unset($similar_image_override_map[$a . '|' . $b]);
         }
     }

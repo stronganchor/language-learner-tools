@@ -237,6 +237,51 @@
   transform: scale(1.05);
 }
 
+.ll-tools-word-options .ll-tools-word-options-field--recording-types {
+  min-width: min(100%, 360px);
+}
+
+.ll-tools-word-options .ll-tools-word-options-field-label {
+  color: #1d2327;
+  font-weight: 600;
+}
+
+.ll-tools-word-options .ll-tools-word-options-recording-type-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-recording-type-list--table {
+  min-width: 220px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-recording-type-check {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #dcdcde;
+  border-radius: 999px;
+  color: #1d2327;
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px 10px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-recording-type-check input[type="checkbox"] {
+  margin: 0;
+}
+
+.ll-tools-word-options .ll-tools-word-options-recording-types-cell {
+  min-width: 240px;
+}
+
+.ll-tools-word-options .ll-tools-word-options-recording-type-summary {
+  color: #6b7280;
+  display: inline-block;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .ll-tools-word-options .ll-tools-word-options-remove-pair {
   align-items: center;
   justify-content: center;

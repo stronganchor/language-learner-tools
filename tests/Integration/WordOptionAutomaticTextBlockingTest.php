@@ -60,8 +60,15 @@ final class WordOptionAutomaticTextBlockingTest extends LL_Tools_TestCase
         $same_question_a = $this->createWord($wordset_id, $category_id, 'Car');
         $same_question_b = $this->createWord($wordset_id, $category_id, 'Truck');
 
+        $this->createAudio($same_translation_a, 'isolation', 'dog', 'https://audio.test/dog-isolation.mp3');
+        $this->createAudio($same_translation_b, 'isolation', 'hound', 'https://audio.test/hound-isolation.mp3');
         $this->createAudio($same_question_a, 'question', 'where is it', 'https://audio.test/car-question.mp3');
         $this->createAudio($same_question_b, 'question', 'where is it', 'https://audio.test/truck-question.mp3');
+        $this->publishWord($same_translation_a);
+        $this->publishWord($same_translation_b);
+        $this->publishWord($same_question_a);
+        $this->publishWord($same_question_b);
+        $category_id = $this->getAssignedCategoryId($same_translation_a, $category_id);
 
         return [
             'wordset_id' => $wordset_id,
@@ -73,7 +80,7 @@ final class WordOptionAutomaticTextBlockingTest extends LL_Tools_TestCase
     {
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
-            'post_status' => 'publish',
+            'post_status' => 'draft',
             'post_title' => $title,
         ]);
 
@@ -107,6 +114,24 @@ final class WordOptionAutomaticTextBlockingTest extends LL_Tools_TestCase
         wp_set_post_terms($audio_id, [$recording_type], 'recording_type', false);
 
         return (int) $audio_id;
+    }
+
+    private function publishWord(int $word_id): void
+    {
+        wp_update_post([
+            'ID' => $word_id,
+            'post_status' => 'publish',
+        ]);
+    }
+
+    private function getAssignedCategoryId(int $word_id, int $fallback_category_id): int
+    {
+        $category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($category_ids) || empty($category_ids)) {
+            return $fallback_category_id;
+        }
+
+        return (int) $category_ids[0];
     }
 
     private function renderWordOptionRulesAdminPage(int $wordset_id, int $category_id): string
