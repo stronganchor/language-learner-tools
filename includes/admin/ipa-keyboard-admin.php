@@ -349,8 +349,10 @@ function ll_enqueue_ipa_keyboard_admin_assets($hook) {
             'searchOpenCategory' => __('Open category', 'll-tools-text-domain'),
             'searchReviewOnlyLabel' => __('Only needs review', 'll-tools-text-domain'),
             'searchReviewPendingTitle' => __('Needs review', 'll-tools-text-domain'),
-            'searchReviewPendingMessage' => __('This transcription was generated automatically.', 'll-tools-text-domain'),
-            'searchReviewConfirm' => __('Mark correct', 'll-tools-text-domain'),
+            'searchReviewPendingMessage' => __('This transcription is marked for follow-up review.', 'll-tools-text-domain'),
+            'searchReviewConfirm' => __('Mark reviewed', 'll-tools-text-domain'),
+            'searchReviewFlag' => __('Mark for review', 'll-tools-text-domain'),
+            'searchMarkedForReview' => __('Marked for review.', 'll-tools-text-domain'),
             'searchReviewed' => __('Reviewed.', 'll-tools-text-domain'),
             'searchExceptionIgnore' => __('Ignore for this transcription', 'll-tools-text-domain'),
             'searchExceptionRestore' => __('Undo exception', 'll-tools-text-domain'),
@@ -1471,20 +1473,25 @@ function ll_tools_ipa_keyboard_recording_needs_auto_review(int $recording_id): b
     return ((string) get_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), true) === '1');
 }
 
-function ll_tools_ipa_keyboard_mark_recording_needs_auto_review(int $recording_id): void {
+function ll_tools_ipa_keyboard_set_recording_review_state(int $recording_id, bool $needs_review): void {
     if ($recording_id <= 0) {
         return;
     }
 
-    update_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), '1');
-}
-
-function ll_tools_ipa_keyboard_clear_recording_auto_review(int $recording_id): void {
-    if ($recording_id <= 0) {
+    if ($needs_review) {
+        update_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key(), '1');
         return;
     }
 
     delete_post_meta($recording_id, ll_tools_ipa_keyboard_auto_review_meta_key());
+}
+
+function ll_tools_ipa_keyboard_mark_recording_needs_auto_review(int $recording_id): void {
+    ll_tools_ipa_keyboard_set_recording_review_state($recording_id, true);
+}
+
+function ll_tools_ipa_keyboard_clear_recording_auto_review(int $recording_id): void {
+    ll_tools_ipa_keyboard_set_recording_review_state($recording_id, false);
 }
 
 function ll_tools_ipa_keyboard_get_auto_review_recording_counts_by_wordset(): array {
@@ -4806,8 +4813,9 @@ function ll_tools_toggle_ipa_keyboard_validation_exception_handler() {
     ]);
 }
 
-add_action('wp_ajax_ll_tools_confirm_ipa_keyboard_transcription_review', 'll_tools_confirm_ipa_keyboard_transcription_review_handler');
-function ll_tools_confirm_ipa_keyboard_transcription_review_handler() {
+add_action('wp_ajax_ll_tools_confirm_ipa_keyboard_transcription_review', 'll_tools_set_ipa_keyboard_transcription_review_state_handler');
+add_action('wp_ajax_ll_tools_set_ipa_keyboard_transcription_review_state', 'll_tools_set_ipa_keyboard_transcription_review_state_handler');
+function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
@@ -4816,6 +4824,7 @@ function ll_tools_confirm_ipa_keyboard_transcription_review_handler() {
 
     $recording_id = (int) ($_POST['recording_id'] ?? 0);
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
+    $needs_review = !empty($_POST['needs_review']);
     if ($recording_id <= 0 || $wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
         wp_send_json_error('Missing data', 400);
     }
@@ -4835,7 +4844,7 @@ function ll_tools_confirm_ipa_keyboard_transcription_review_handler() {
         wp_send_json_error('Invalid recording', 400);
     }
 
-    ll_tools_ipa_keyboard_clear_recording_auto_review($recording_id);
+    ll_tools_ipa_keyboard_set_recording_review_state($recording_id, $needs_review);
     $word_display = ll_tools_ipa_keyboard_get_word_display_map([$word_id]);
     $payload = ll_tools_ipa_keyboard_build_search_row_payload(
         $recording_id,

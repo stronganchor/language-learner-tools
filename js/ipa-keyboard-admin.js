@@ -58,6 +58,7 @@
     let searchRulesExpanded = false;
     let letterMapRefreshTimer = null;
     let letterMapRefreshRequestId = 0;
+    let pendingSearchReviewState = {};
 
     function t(key, fallback) {
         if (Object.prototype.hasOwnProperty.call(i18n, key) && typeof i18n[key] === 'string' && i18n[key] !== '') {
@@ -533,7 +534,7 @@
     }
 
     function loadSearch(wordsetId, shouldLoad, options) {
-        const settings = $.extend({ quietStatus: false, showLoading: null }, options || {});
+        const settings = $.extend({ quietStatus: false, showLoading: null, successStatus: null }, options || {});
         if (!shouldLoad) {
             return;
         }
@@ -569,7 +570,9 @@
             currentSearchPage = normalizeSearchPage(response.data && response.data.current_page ? response.data.current_page : requestedPage);
             renderSearch(response.data || {});
             tabDirty.search = false;
-            if (!settings.quietStatus) {
+            if (typeof settings.successStatus === 'string' && settings.successStatus !== '') {
+                setStatus(settings.successStatus, false);
+            } else if (!settings.quietStatus) {
                 setStatus('');
             }
         }).fail(function () {
@@ -1235,19 +1238,35 @@
             class: 'll-ipa-search-review-title',
             text: t('searchReviewPendingTitle', 'Needs review')
         }));
-        if (currentCanEdit) {
-            $header.append($('<button>', {
-                type: 'button',
-                class: 'button-link ll-ipa-review-confirm',
-                text: t('searchReviewConfirm', 'Mark correct')
-            }));
+        const $toggle = buildReviewToggleButton(true, 'll-ipa-search-review-toggle');
+        if ($toggle) {
+            $header.append($toggle);
         }
         $item.append($header);
         $item.append($('<div>', {
             class: 'll-ipa-search-review-message',
-            text: t('searchReviewPendingMessage', 'This transcription was generated automatically.')
+            text: t('searchReviewPendingMessage', 'This transcription is marked for follow-up review.')
         }));
         return $item;
+    }
+
+    function buildReviewToggleButton(needsReview, extraClass) {
+        if (!currentCanEdit) {
+            return null;
+        }
+
+        const classes = ['button-link', 'll-ipa-review-toggle'];
+        if (extraClass) {
+            classes.push(extraClass);
+        }
+
+        return $('<button>', {
+            type: 'button',
+            class: classes.join(' '),
+            text: needsReview ? t('searchReviewConfirm', 'Mark reviewed') : t('searchReviewFlag', 'Mark for review'),
+            'data-next-review-state': needsReview ? '0' : '1',
+            'aria-pressed': needsReview ? 'true' : 'false'
+        });
     }
 
     function buildIssuesCellData(activeIssues, ignoredIssues, needsReview) {
@@ -1386,6 +1405,13 @@
         })
             .append($('<span>', { class: 'll-ipa-search-save-indicator', 'aria-hidden': 'true' }))
             .append($('<span>', { class: 'll-ipa-search-save-label' }));
+        const $actionCell = $('<td>', { class: 'll-ipa-search-action-cell' });
+        const $actionWrap = $('<div>', { class: 'll-ipa-search-actions' }).append($saveState);
+        const $reviewToggle = !needsReview ? buildReviewToggleButton(false, 'll-ipa-search-action-toggle') : null;
+        if ($reviewToggle) {
+            $actionWrap.append($reviewToggle);
+        }
+        $actionCell.append($actionWrap);
 
         const $issueCell = $('<td>', { class: 'll-ipa-search-issues-cell' }).append(
             buildIssuesCellData(issues, ignoredIssues, needsReview).html()
@@ -1400,7 +1426,7 @@
             .append($('<td>', { class: 'll-ipa-search-ipa-cell' }).append($ipaInput))
             .append($('<td>', { class: 'll-ipa-search-categories-cell' }).append(buildCategoriesCell(categories)))
             .append($issueCell)
-            .append($('<td>', { class: 'll-ipa-search-action-cell' }).append($saveState));
+            .append($actionCell);
     }
 
     function collectCustomRules() {
@@ -2257,6 +2283,64 @@
         $state.find('.ll-ipa-search-save-label').text(label || '');
     }
 
+    function queuePendingSearchReviewState(recordingId, needsReview) {
+        if (!recordingId) {
+            return;
+        }
+
+        pendingSearchReviewState[String(recordingId)] = !!needsReview;
+    }
+
+    function clearPendingSearchReviewState(recordingId) {
+        if (!recordingId) {
+            return;
+        }
+
+        delete pendingSearchReviewState[String(recordingId)];
+    }
+
+    function flushPendingSearchReviewState(recordingId) {
+        const key = String(recordingId || '');
+        if (!key || !Object.prototype.hasOwnProperty.call(pendingSearchReviewState, key)) {
+            return;
+        }
+
+        const needsReview = !!pendingSearchReviewState[key];
+        delete pendingSearchReviewState[key];
+        submitSearchReviewState(recordingId, needsReview);
+    }
+
+    function submitSearchReviewState(recordingId, needsReview) {
+        if (!recordingId || !currentWordsetId || !currentCanEdit) {
+            return $.Deferred().reject().promise();
+        }
+
+        setStatus(t('saving', 'Saving...'), false);
+        return $.post(ajaxUrl, {
+            action: 'll_tools_set_ipa_keyboard_transcription_review_state',
+            nonce: nonce,
+            wordset_id: currentWordsetId,
+            recording_id: recordingId,
+            needs_review: needsReview ? 1 : 0
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setStatus(t('error', 'Something went wrong. Please try again.'), true);
+                return;
+            }
+
+            loadSearch(currentWordsetId, true, {
+                quietStatus: true,
+                showLoading: false,
+                page: currentSearchPage,
+                successStatus: needsReview
+                    ? t('searchMarkedForReview', 'Marked for review.')
+                    : t('searchReviewed', 'Reviewed.')
+            });
+        }).fail(function () {
+            setStatus(t('error', 'Something went wrong. Please try again.'), true);
+        });
+    }
+
     function autosaveSearchRow($row) {
         if (!$row.length || !currentCanEdit) {
             return;
@@ -2290,6 +2374,7 @@
             recording_ipa: values.recordingIpa
         }).done(function (response) {
             if (!response || response.success !== true) {
+                clearPendingSearchReviewState(values.recordingId);
                 setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
                 setStatus(t('error', 'Something went wrong. Please try again.'), true);
                 return;
@@ -2307,8 +2392,14 @@
                 setSearchRowInputsDisabled($row, false);
             }
 
+            if (Object.prototype.hasOwnProperty.call(pendingSearchReviewState, String(values.recordingId))) {
+                flushPendingSearchReviewState(values.recordingId);
+                return;
+            }
+
             setStatus(t('saved', 'Saved.'), false);
         }).fail(function () {
+            clearPendingSearchReviewState(values.recordingId);
             setSearchRowSaveState($row, 'error', t('searchSaveFailed', 'Save failed'));
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         }).always(function () {
@@ -2755,42 +2846,29 @@
         }, 0);
     });
 
-    $searchResults.on('click', '.ll-ipa-review-confirm', function () {
+    $searchResults.on('click', '.ll-ipa-review-toggle', function () {
         const $btn = $(this);
         const $row = $btn.closest('tr');
         const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
+        const nextNeedsReview = ($btn.attr('data-next-review-state') || '0') === '1';
 
         if (!recordingId || !currentWordsetId) {
             return;
         }
 
-        if ($row.data('llSearchRowSaving') || searchRowHasUnsavedChanges($row)) {
+        if ($row.data('llSearchRowSaving')) {
+            queuePendingSearchReviewState(recordingId, nextNeedsReview);
+            return;
+        }
+
+        if (searchRowHasUnsavedChanges($row)) {
+            queuePendingSearchReviewState(recordingId, nextNeedsReview);
             autosaveSearchRow($row);
             return;
         }
 
         $btn.prop('disabled', true);
-        setStatus(t('saving', 'Saving...'), false);
-        $.post(ajaxUrl, {
-            action: 'll_tools_confirm_ipa_keyboard_transcription_review',
-            nonce: nonce,
-            wordset_id: currentWordsetId,
-            recording_id: recordingId
-        }).done(function (response) {
-            if (!response || response.success !== true) {
-                setStatus(t('error', 'Something went wrong. Please try again.'), true);
-                return;
-            }
-
-            const data = response.data || {};
-            if (data.recording) {
-                const $newRow = replaceSearchRow($row, data.recording);
-                setSearchRowSaveState($newRow, 'saved', t('searchReviewed', 'Reviewed.'));
-            }
-            setStatus(t('searchReviewed', 'Reviewed.'), false);
-        }).fail(function () {
-            setStatus(t('error', 'Something went wrong. Please try again.'), true);
-        }).always(function () {
+        submitSearchReviewState(recordingId, nextNeedsReview).always(function () {
             $btn.prop('disabled', false);
         });
     });

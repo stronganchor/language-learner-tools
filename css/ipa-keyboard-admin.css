@@ -1103,7 +1103,13 @@
 }
 
 .ll-ipa-search-action-cell {
-    width: 92px;
+    width: 116px;
+}
+
+.ll-ipa-search-actions {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
 }
 
 .ll-ipa-search-save-state {
@@ -1309,6 +1315,7 @@
     font-size: 12px;
 }
 
+.ll-ipa-review-toggle,
 .ll-ipa-review-confirm {
     padding: 0;
     border: 0;
@@ -1317,6 +1324,13 @@
     cursor: pointer;
     text-align: left;
     font-size: 12px;
+    line-height: 1.3;
+}
+
+.ll-ipa-review-toggle:disabled,
+.ll-ipa-review-confirm:disabled {
+    opacity: 0.55;
+    cursor: default;
 }
 
 .ll-ipa-rule-list {
@@ -1529,7 +1543,7 @@
     }
 
     .ll-ipa-search-action-cell {
-        width: 72px;
+        width: 94px;
     }
 
     .ll-ipa-search-save-state {
