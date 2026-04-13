@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class ImportHistoryUndoTest extends LL_Tools_TestCase
 {
-    public function test_recent_history_only_returns_today_and_yesterday(): void
+    public function test_recent_history_returns_today_and_yesterday_when_available(): void
     {
         $tz = wp_timezone();
         $now = new DateTimeImmutable('now', $tz);
@@ -32,6 +32,31 @@ final class ImportHistoryUndoTest extends LL_Tools_TestCase
         $this->assertContains('recent-today', $ids);
         $this->assertContains('recent-yesterday', $ids);
         $this->assertNotContains('too-old', $ids);
+    }
+
+    public function test_recent_history_falls_back_to_latest_entry_when_no_recent_imports_exist(): void
+    {
+        $tz = wp_timezone();
+        $now = new DateTimeImmutable('now', $tz);
+        $startToday = $now->setTime(0, 0, 0);
+
+        update_option(ll_tools_import_history_option_name(), [
+            [
+                'id' => 'latest-older',
+                'finished_at' => $startToday->modify('-3 day')->getTimestamp() + 3600,
+            ],
+            [
+                'id' => 'older-still',
+                'finished_at' => $startToday->modify('-6 day')->getTimestamp() + 7200,
+            ],
+        ], false);
+
+        $recent = ll_tools_import_get_recent_history_entries();
+        $ids = array_values(array_map(static function (array $entry): string {
+            return (string) ($entry['id'] ?? '');
+        }, $recent));
+
+        $this->assertSame(['latest-older'], $ids);
     }
 
     public function test_undo_import_entry_deletes_created_posts_terms_and_audio_file(): void

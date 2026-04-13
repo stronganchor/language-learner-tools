@@ -880,10 +880,14 @@ function ll_tools_import_get_recent_history_entries(): array {
     $start_of_today = $now->setTime(0, 0, 0);
     $start_of_yesterday = $start_of_today->modify('-1 day')->getTimestamp();
     $recent = [];
+    $latest_entry = null;
 
     foreach ($entries as $entry) {
         if (!is_array($entry)) {
             continue;
+        }
+        if (null === $latest_entry && '' !== (string) ($entry['id'] ?? '')) {
+            $latest_entry = $entry;
         }
         $finished_at = isset($entry['finished_at']) ? (int) $entry['finished_at'] : 0;
         if ($finished_at <= 0 || $finished_at < $start_of_yesterday) {
@@ -892,7 +896,11 @@ function ll_tools_import_get_recent_history_entries(): array {
         $recent[] = $entry;
     }
 
-    return $recent;
+    if (!empty($recent)) {
+        return $recent;
+    }
+
+    return null !== $latest_entry ? [$latest_entry] : [];
 }
 
 function ll_tools_export_download_transient_key($token): string {
@@ -2113,10 +2121,10 @@ function ll_tools_render_recent_imports_section(array $recent_imports): void {
     ?>
     <div class="ll-tools-recent-imports">
         <h2><?php esc_html_e('Recent Imports', 'll-tools-text-domain'); ?></h2>
-        <p class="description"><?php esc_html_e('Shows imports completed today and yesterday. Undo removes items created by bundle imports and restores previous values for metadata-update imports when snapshot data is available.', 'll-tools-text-domain'); ?></p>
+        <p class="description"><?php esc_html_e('Shows imports completed today and yesterday. If nothing recent is available, the latest stored import is still shown so undo remains available. Undo removes items created by bundle imports and restores previous values for metadata-update imports when snapshot data is available.', 'll-tools-text-domain'); ?></p>
 
         <?php if (empty($recent_imports)) : ?>
-            <p class="description"><?php esc_html_e('No recent imports found for today or yesterday.', 'll-tools-text-domain'); ?></p>
+            <p class="description"><?php esc_html_e('No import history found.', 'll-tools-text-domain'); ?></p>
         <?php else : ?>
             <table class="widefat striped ll-tools-recent-imports-table">
                 <thead>
