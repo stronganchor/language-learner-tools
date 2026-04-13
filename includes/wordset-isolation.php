@@ -11,7 +11,7 @@ if (!defined('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT')) {
     define('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT', 'll_tools_wordset_isolation_migration_notice');
 }
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION')) {
-    define('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION', 2);
+    define('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION', 3);
 }
 if (!defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
     define('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY', 'll_wordset_owner_id');
@@ -469,6 +469,22 @@ function ll_tools_wordset_isolation_remap_category_id_list_for_wordset(
     return $remapped;
 }
 
+function ll_tools_get_effective_category_id_for_wordset(int $category_id, int $wordset_id, bool $create_missing = false): int {
+    $category_id = (int) $category_id;
+    $wordset_id = (int) $wordset_id;
+    if ($category_id <= 0) {
+        return 0;
+    }
+
+    $remapped_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset(
+        [$category_id],
+        $wordset_id,
+        $create_missing
+    );
+
+    return isset($remapped_ids[0]) ? (int) $remapped_ids[0] : $category_id;
+}
+
 function ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset(
     $raw_map,
     int $wordset_id,
@@ -566,6 +582,36 @@ function ll_tools_repair_wordset_category_ordering_meta_for_isolation(int $words
     }
 
     return $updated;
+}
+
+function ll_tools_repair_vocab_lesson_category_meta_for_isolation(int $lesson_id): bool {
+    $lesson_id = (int) $lesson_id;
+    if ($lesson_id <= 0 || !ll_tools_is_wordset_isolation_enabled()) {
+        return false;
+    }
+
+    if (!defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META') || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
+        return false;
+    }
+
+    $lesson = get_post($lesson_id);
+    if (!($lesson instanceof WP_Post) || $lesson->post_type !== 'll_vocab_lesson') {
+        return false;
+    }
+
+    $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
+    $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return false;
+    }
+
+    $effective_category_id = ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+    if ($effective_category_id <= 0 || $effective_category_id === $category_id) {
+        return false;
+    }
+
+    update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $effective_category_id);
+    return true;
 }
 
 function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, int $wordset_id): int {
@@ -1218,7 +1264,9 @@ function ll_tools_run_wordset_isolation_migration(): array {
         'categories_created'  => 0,
         'images_created'      => 0,
         'images_relinked'     => 0,
+        'lessons_repaired'    => 0,
         'wordsets_repaired'   => 0,
+        'word_option_rule_scopes_repaired' => 0,
         'errors'              => [],
     ];
 
@@ -1397,6 +1445,26 @@ function ll_tools_run_wordset_isolation_migration(): array {
         }
     }
 
+    if (defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
+        $lesson_ids = get_posts([
+            'post_type'        => 'll_vocab_lesson',
+            'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+            'posts_per_page'   => -1,
+            'fields'           => 'ids',
+            'no_found_rows'    => true,
+            'suppress_filters' => true,
+        ]);
+        foreach ((array) $lesson_ids as $lesson_id) {
+            if (ll_tools_repair_vocab_lesson_category_meta_for_isolation((int) $lesson_id)) {
+                $result['lessons_repaired']++;
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_repair_word_option_rules_store_for_isolation')) {
+        $result['word_option_rule_scopes_repaired'] = (int) ll_tools_repair_word_option_rules_store_for_isolation(true);
+    }
+
     $result['categories_created'] = count($created_category_ids);
     $result['images_created'] = count($created_image_ids);
 
@@ -1457,13 +1525,15 @@ function ll_tools_render_wordset_isolation_migration_notice(): void {
         '<div class="%1$s"><p>%2$s</p></div>',
         esc_attr($classes),
         esc_html(sprintf(
-            __('Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Wordsets repaired: %6$d.', 'll-tools-text-domain'),
+            __('Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option rule scopes repaired: %8$d.', 'll-tools-text-domain'),
             (int) ($result['words_scanned'] ?? 0),
             (int) ($result['words_updated'] ?? 0),
             (int) ($result['categories_created'] ?? 0),
             (int) ($result['images_created'] ?? 0),
             (int) ($result['images_relinked'] ?? 0),
-            (int) ($result['wordsets_repaired'] ?? 0)
+            (int) ($result['lessons_repaired'] ?? 0),
+            (int) ($result['wordsets_repaired'] ?? 0),
+            (int) ($result['word_option_rule_scopes_repaired'] ?? 0)
         ))
     );
 }

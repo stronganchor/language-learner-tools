@@ -87,6 +87,42 @@ function ll_tools_get_word_category_query_context($category): array {
     ];
 }
 
+function ll_tools_remap_word_category_query_context_for_wordset(array $category_context, array $wordset_terms): array {
+    if (count($wordset_terms) !== 1 || !function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        return $category_context;
+    }
+
+    $term = $category_context['term'] ?? null;
+    if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category') {
+        return $category_context;
+    }
+
+    $term_id = (int) ($category_context['term_id'] ?? 0);
+    $wordset_id = (int) ($wordset_terms[0] ?? 0);
+    if ($term_id <= 0 || $wordset_id <= 0) {
+        return $category_context;
+    }
+
+    $effective_term_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true);
+    if ($effective_term_id <= 0 || $effective_term_id === $term_id) {
+        return $category_context;
+    }
+
+    $effective_term = get_term($effective_term_id, 'word-category');
+    if (!($effective_term instanceof WP_Term) || is_wp_error($effective_term)) {
+        return $category_context;
+    }
+
+    return [
+        'term' => $effective_term,
+        'term_id' => (int) $effective_term->term_id,
+        'slug' => (string) $effective_term->slug,
+        'label' => (string) $effective_term->name,
+        'query_field' => 'term_id',
+        'query_terms' => [(int) $effective_term->term_id],
+    ];
+}
+
 function ll_tools_get_category_visibility($category): string {
     $term_id = ll_tools_resolve_word_category_term_id($category);
     if ($term_id <= 0) {
@@ -2816,6 +2852,15 @@ function ll_tools_normalize_words_audio_urls(array $rows): array {
  */
 function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $category_context = ll_tools_get_word_category_query_context($categoryName);
+    $wordset_terms = [];
+    if (!empty($wordset_id)) {
+        $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
+        $wordset_terms = array_values(array_filter($wordset_terms, static function ($id): bool {
+            return $id > 0;
+        }));
+    }
+
+    $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, $wordset_terms);
     $term = $category_context['term'];
     $config = $quiz_config;
     $skip_merge = !empty($quiz_config['__skip_quiz_config_merge']);
@@ -2831,14 +2876,6 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
     $prompt_text_type = ll_tools_get_quiz_prompt_text_type($prompt_type, $use_titles);
     $require_prompt_image = ll_tools_quiz_prompt_type_has_image($prompt_type);
     $require_option_image = ($option_type === 'image');
-    $wordset_terms = [];
-    if (!empty($wordset_id)) {
-        $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
-        $wordset_terms = array_values(array_filter($wordset_terms, static function ($id): bool {
-            return $id > 0;
-        }));
-    }
-
     $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
         'require_audio'        => $require_audio,
@@ -3155,6 +3192,13 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
 
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $category_context = ll_tools_get_word_category_query_context($categoryName);
+    $wordset_terms = [];
+    if (!empty($wordset_id)) {
+        $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
+        $wordset_terms = array_filter($wordset_terms, function ($id) { return $id > 0; });
+    }
+
+    $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, $wordset_terms);
     $term = $category_context['term'];
     if ($term instanceof WP_Term && function_exists('ll_tools_user_can_view_category')) {
         if (!ll_tools_user_can_view_category($term)) {
@@ -3176,12 +3220,6 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     $prompt_text_type = ll_tools_get_quiz_prompt_text_type($prompt_type, $use_titles);
     $require_prompt_image = ll_tools_quiz_prompt_type_has_image($prompt_type);
     $require_option_image = ($option_type === 'image');
-    $wordset_terms = [];
-    if (!empty($wordset_id)) {
-        $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
-        $wordset_terms = array_filter($wordset_terms, function ($id) { return $id > 0; });
-    }
-
     $term_id = (int) ($category_context['term_id'] ?? 0);
     $cache_flags = [
         'require_audio'        => $require_audio,

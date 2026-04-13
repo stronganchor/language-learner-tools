@@ -47,6 +47,17 @@ function ll_tools_word_option_rules_get_lesson_context(int $lesson_id): array {
 
     $wordset_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, true);
     $category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($effective_category_id > 0 && $effective_category_id !== $category_id) {
+            $category_id = $effective_category_id;
+            if (function_exists('ll_tools_repair_vocab_lesson_category_meta_for_isolation')) {
+                ll_tools_repair_vocab_lesson_category_meta_for_isolation($lesson_id);
+            } else {
+                update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+            }
+        }
+    }
     $wordset = $wordset_id > 0 ? get_term($wordset_id, 'wordset') : null;
     $category = $category_id > 0 ? get_term($category_id, 'word-category') : null;
 
@@ -299,7 +310,9 @@ add_filter('admin_body_class', 'll_tools_word_option_rules_admin_body_class');
 
 function ll_tools_word_option_rules_get_word_posts(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
-    $category_id = (int) $category_id;
+    $category_id = function_exists('ll_tools_resolve_word_option_rules_category_id')
+        ? ll_tools_resolve_word_option_rules_category_id($wordset_id, (int) $category_id, true)
+        : (int) $category_id;
     if ($wordset_id <= 0 || $category_id <= 0) {
         return [];
     }

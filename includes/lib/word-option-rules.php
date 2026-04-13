@@ -2,7 +2,145 @@
 // /includes/lib/word-option-rules.php
 if (!defined('WPINC')) { die; }
 
+function ll_tools_resolve_word_option_rules_category_id(int $wordset_id, int $category_id, bool $create_missing = false): int {
+    $wordset_id = (int) $wordset_id;
+    $category_id = (int) $category_id;
+    if ($category_id <= 0) {
+        return 0;
+    }
+
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $resolved_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, $create_missing);
+        if ($resolved_category_id > 0) {
+            return $resolved_category_id;
+        }
+    }
+
+    return $category_id;
+}
+
+function ll_tools_merge_word_option_rules_payloads(array $left, array $right): array {
+    $left = ll_tools_normalize_word_option_rules($left);
+    $right = ll_tools_normalize_word_option_rules($right);
+
+    $groups = [];
+    $group_keys = [];
+    foreach (array_merge($left['groups'], $right['groups']) as $group) {
+        $label = trim((string) ($group['label'] ?? ''));
+        $word_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($group['word_ids'] ?? [])), static function (int $word_id): bool {
+            return $word_id > 0;
+        })));
+        if ($label === '' || empty($word_ids)) {
+            continue;
+        }
+
+        sort($word_ids, SORT_NUMERIC);
+        $group_key = $label . '|' . implode(',', $word_ids);
+        if (isset($group_keys[$group_key])) {
+            continue;
+        }
+
+        $group_keys[$group_key] = true;
+        $groups[] = [
+            'label' => $label,
+            'word_ids' => $word_ids,
+        ];
+    }
+
+    return [
+        'groups' => $groups,
+        'pairs' => ll_tools_normalize_word_option_pair_list(array_merge($left['pairs'], $right['pairs'])),
+        'similar_image_overrides' => ll_tools_normalize_word_option_pair_list(array_merge($left['similar_image_overrides'], $right['similar_image_overrides'])),
+    ];
+}
+
+function ll_tools_word_option_rules_repair_store_array_for_isolation(array $store, bool $create_missing = false): array {
+    if (empty($store)) {
+        return [
+            'store' => [],
+            'changed' => false,
+            'repaired_scopes' => 0,
+        ];
+    }
+
+    $rebuilt_store = [];
+    $changed = false;
+    $repaired_scopes = 0;
+
+    foreach ($store as $raw_wordset_id => $scopes) {
+        $wordset_id = (int) $raw_wordset_id;
+        if ($wordset_id <= 0 || !is_array($scopes)) {
+            continue;
+        }
+
+        foreach ($scopes as $raw_category_id => $rules) {
+            $category_id = (int) $raw_category_id;
+            if ($category_id <= 0 || !is_array($rules)) {
+                continue;
+            }
+
+            $target_category_id = ll_tools_resolve_word_option_rules_category_id($wordset_id, $category_id, $create_missing);
+            if ($target_category_id <= 0) {
+                $target_category_id = $category_id;
+            }
+
+            $normalized_rules = ll_tools_normalize_word_option_rules($rules);
+            if (!isset($rebuilt_store[$wordset_id])) {
+                $rebuilt_store[$wordset_id] = [];
+            }
+
+            if (isset($rebuilt_store[$wordset_id][$target_category_id])) {
+                $rebuilt_store[$wordset_id][$target_category_id] = ll_tools_merge_word_option_rules_payloads(
+                    $rebuilt_store[$wordset_id][$target_category_id],
+                    $normalized_rules
+                );
+                if ($target_category_id !== $category_id) {
+                    $changed = true;
+                }
+                continue;
+            }
+
+            $rebuilt_store[$wordset_id][$target_category_id] = $normalized_rules;
+            if ($target_category_id !== $category_id) {
+                $changed = true;
+                $repaired_scopes++;
+            }
+        }
+    }
+
+    return [
+        'store' => $rebuilt_store,
+        'changed' => $changed || $rebuilt_store !== $store,
+        'repaired_scopes' => $repaired_scopes,
+    ];
+}
+
+function ll_tools_repair_word_option_rules_store_for_isolation(bool $create_missing = false): int {
+    if (!function_exists('ll_tools_is_wordset_isolation_enabled') || !ll_tools_is_wordset_isolation_enabled()) {
+        return 0;
+    }
+
+    $raw_store = get_option('ll_tools_word_option_rules', []);
+    if (!is_array($raw_store) || empty($raw_store)) {
+        return 0;
+    }
+
+    $repair = ll_tools_word_option_rules_repair_store_array_for_isolation($raw_store, $create_missing);
+    if (!empty($repair['changed'])) {
+        update_option('ll_tools_word_option_rules', $repair['store'], false);
+    }
+
+    return (int) ($repair['repaired_scopes'] ?? 0);
+}
+
 function ll_tools_get_word_option_rules_store(): array {
+    static $did_isolation_repair = false;
+
+    if (!$did_isolation_repair && function_exists('ll_tools_is_wordset_isolation_enabled') && ll_tools_is_wordset_isolation_enabled()) {
+        ll_tools_repair_word_option_rules_store_for_isolation(true);
+        $did_isolation_repair = true;
+    }
+
     $raw = get_option('ll_tools_word_option_rules', []);
     return is_array($raw) ? $raw : [];
 }
@@ -183,7 +321,7 @@ function ll_tools_normalize_word_option_rules(array $rules): array {
 
 function ll_tools_get_word_option_rules(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
-    $category_id = (int) $category_id;
+    $category_id = ll_tools_resolve_word_option_rules_category_id($wordset_id, (int) $category_id, true);
     if ($wordset_id <= 0 || $category_id <= 0) {
         return ['groups' => [], 'pairs' => [], 'similar_image_overrides' => []];
     }
@@ -301,7 +439,7 @@ function ll_tools_get_word_option_maps(int $wordset_id, int $category_id): array
 
 function ll_tools_update_word_option_rules(int $wordset_id, int $category_id, array $groups, array $pairs, array $similar_image_overrides = []): bool {
     $wordset_id = (int) $wordset_id;
-    $category_id = (int) $category_id;
+    $category_id = ll_tools_resolve_word_option_rules_category_id($wordset_id, (int) $category_id, true);
     if ($wordset_id <= 0 || $category_id <= 0) {
         return false;
     }

@@ -10,6 +10,7 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
         delete_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT);
+        delete_option('ll_tools_word_option_rules');
 
         parent::tearDown();
     }
@@ -182,6 +183,88 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertGreaterThanOrEqual(1, (int) ($result['wordsets_repaired'] ?? 0));
     }
 
+    public function test_wordset_isolation_migration_repairs_word_option_rule_scopes_and_lesson_category_meta(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Word Options', 'isolation-word-options');
+        $legacy_category_id = $this->ensure_term('word-category', 'Isolation Word Options Category', 'isolation-word-options-category');
+
+        $word_one_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Word Option One',
+        ]);
+        wp_set_object_terms($word_one_id, [$legacy_category_id], 'word-category', false);
+        wp_set_object_terms($word_one_id, [$wordset_id], 'wordset', false);
+
+        $word_two_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Word Option Two',
+        ]);
+        wp_set_object_terms($word_two_id, [$legacy_category_id], 'word-category', false);
+        wp_set_object_terms($word_two_id, [$wordset_id], 'wordset', false);
+
+        update_option('ll_tools_word_option_rules', [
+            $wordset_id => [
+                $legacy_category_id => [
+                    'groups' => [[
+                        'label' => 'Manual Pair Group',
+                        'word_ids' => [$word_one_id, $word_two_id],
+                    ]],
+                    'pairs' => [[
+                        'word_ids' => [$word_one_id, $word_two_id],
+                    ]],
+                ],
+            ],
+        ], false);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Word Options Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $legacy_category_id);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $result = ll_tools_run_wordset_isolation_migration();
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+        $this->assertNotSame($legacy_category_id, $isolated_category_id);
+        $this->assertSame(
+            $isolated_category_id,
+            (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true)
+        );
+
+        $rules = ll_tools_get_word_option_rules($wordset_id, $isolated_category_id);
+        $this->assertCount(1, $rules['groups']);
+        $this->assertSame('Manual Pair Group', (string) ($rules['groups'][0]['label'] ?? ''));
+        $this->assertCount(1, $rules['pairs']);
+        $this->assertSame(
+            $this->normalizePairWordIds($word_one_id, $word_two_id),
+            array_map('intval', (array) ($rules['pairs'][0]['word_ids'] ?? []))
+        );
+
+        $store = get_option('ll_tools_word_option_rules', []);
+        $this->assertArrayHasKey($wordset_id, $store);
+        $this->assertArrayHasKey($isolated_category_id, $store[$wordset_id]);
+        $this->assertArrayNotHasKey($legacy_category_id, $store[$wordset_id]);
+        $this->assertGreaterThanOrEqual(1, (int) ($result['lessons_repaired'] ?? 0));
+        $this->assertGreaterThanOrEqual(1, (int) ($result['word_option_rule_scopes_repaired'] ?? 0));
+
+        $lesson_context = ll_tools_word_option_rules_get_lesson_context($lesson_id);
+        $this->assertSame($isolated_category_id, (int) ($lesson_context['category_id'] ?? 0));
+
+        $iframe_url = ll_tools_word_option_rules_build_iframe_url($lesson_id);
+        $this->assertNotSame('', $iframe_url);
+        $this->assertStringContainsString('category_id=' . $isolated_category_id, $iframe_url);
+        $this->assertStringContainsString('wordset_id=' . $wordset_id, $iframe_url);
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
@@ -229,5 +312,14 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    private function normalizePairWordIds(int $left, int $right): array
+    {
+        if ($left > $right) {
+            return [$right, $left];
+        }
+
+        return [$left, $right];
     }
 }
