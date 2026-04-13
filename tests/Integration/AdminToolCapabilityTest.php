@@ -65,6 +65,31 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertSame('manage_options', ll_tools_get_settings_maintenance_capability());
     }
 
+    public function test_manage_options_user_keeps_view_ll_tools_access_even_if_role_cap_is_missing(): void
+    {
+        $role = get_role('administrator');
+        $this->assertInstanceOf(WP_Role::class, $role);
+
+        $hadCap = $role->has_cap('view_ll_tools');
+        if ($hadCap) {
+            $role->remove_cap('view_ll_tools');
+        }
+
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        try {
+            $this->assertTrue(current_user_can('manage_options'));
+            $this->assertTrue(current_user_can('view_ll_tools'));
+        } finally {
+            if ($hadCap) {
+                $role->add_cap('view_ll_tools');
+            }
+            clean_user_cache($user_id);
+        }
+    }
+
     public function test_settings_maintenance_capability_filter_is_applied(): void
     {
         $filter = static function (): string {
@@ -252,6 +277,19 @@ final class AdminToolCapabilityTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Missing Audio', $output);
         $this->assertStringNotContainsString('Bulk Word Import', $output);
         $this->assertStringNotContainsString('Offline App Export', $output);
+    }
+
+    public function test_version_change_schedules_post_update_maintenance(): void
+    {
+        delete_transient('ll_tools_seed_default_wordset');
+        delete_transient('ll_tools_vocab_lesson_flush_rewrite');
+        update_option(LL_TOOLS_VERSION_OPTION, '5.10.14', false);
+
+        ll_tools_maybe_run_version_maintenance();
+
+        $this->assertFalse(get_transient('ll_tools_seed_default_wordset'));
+        $this->assertSame(1, (int) get_transient('ll_tools_vocab_lesson_flush_rewrite'));
+        $this->assertSame(LL_TOOLS_VERSION, (string) get_option(LL_TOOLS_VERSION_OPTION, ''));
     }
 
     public function test_image_upload_shortcode_hides_form_from_upload_only_user(): void

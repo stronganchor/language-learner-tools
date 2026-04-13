@@ -3,7 +3,7 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 5.10.14
+Version: 5.10.15
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -18,9 +18,10 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__)); 
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-define('LL_TOOLS_VERSION', '5.10.14');
+define('LL_TOOLS_VERSION', '5.10.15');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
+define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
 
 function ll_tools_normalize_update_branch($branch) {
     return ($branch === 'dev') ? 'dev' : 'main';
@@ -160,6 +161,68 @@ function ll_tools_user_can_manage_plugin_updates() {
         || current_user_can('manage_options')
         || current_user_can('manage_network_plugins');
 }
+
+/**
+ * Treat administrators as LL Tools viewers even if the stored role cap drifts.
+ *
+ * Some production environments lose the persisted custom role capability during
+ * updates or syncs. All administrators already have stricter capabilities than
+ * `view_ll_tools`, so mirroring that cap for those users keeps the plugin's
+ * admin pages routable without weakening access.
+ *
+ * @param array<string,bool> $allcaps
+ * @param array<int,string>  $caps
+ * @param array<int,mixed>   $args
+ * @param WP_User            $user
+ * @return array<string,bool>
+ */
+function ll_tools_grant_view_cap_to_administrators($allcaps, $caps, $args, $user) {
+    if (!$user instanceof WP_User || !is_array($allcaps) || !is_array($caps)) {
+        return $allcaps;
+    }
+
+    if (!in_array('view_ll_tools', $caps, true)) {
+        return $allcaps;
+    }
+
+    $has_admin_cap = !empty($allcaps['manage_options'])
+        || !empty($allcaps['manage_network'])
+        || !empty($allcaps['manage_network_options'])
+        || !empty($allcaps['manage_network_plugins']);
+
+    if ($has_admin_cap) {
+        $allcaps['view_ll_tools'] = true;
+    }
+
+    return $allcaps;
+}
+add_filter('user_has_cap', 'll_tools_grant_view_cap_to_administrators', 10, 4);
+
+/**
+ * Queue one-time post-update tasks that depend on runtime-registered routes.
+ */
+function ll_tools_schedule_post_update_maintenance(): void {
+    set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 10 * MINUTE_IN_SECONDS);
+}
+
+/**
+ * Detect deployed version changes even when WordPress update hooks were skipped.
+ */
+function ll_tools_maybe_run_version_maintenance(): void {
+    $current_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
+    if ($current_version === '') {
+        return;
+    }
+
+    $stored_version = (string) get_option(LL_TOOLS_VERSION_OPTION, '');
+    if ($stored_version === $current_version) {
+        return;
+    }
+
+    ll_tools_schedule_post_update_maintenance();
+    update_option(LL_TOOLS_VERSION_OPTION, $current_version, false);
+}
+add_action('init', 'll_tools_maybe_run_version_maintenance', 5);
 
 /**
  * Returns plugin update status for this plugin from WordPress/PUC caches.
@@ -536,6 +599,7 @@ add_action('upgrader_process_complete', function ($upgrader, $options) {
 
     if (in_array(plugin_basename(LL_TOOLS_MAIN_FILE), $plugins, true)) {
         set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
+        ll_tools_schedule_post_update_maintenance();
         if (function_exists('ll_tools_mark_vocab_lesson_recent_update')) {
             ll_tools_mark_vocab_lesson_recent_update();
         } else {
@@ -553,6 +617,7 @@ register_activation_hook(__FILE__, function () {
     }
     // Flag post-activation tasks to run on the next init (after taxonomies are available).
     set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
+    ll_tools_schedule_post_update_maintenance();
     set_transient('ll_tools_create_recording_page', 1, 10 * MINUTE_IN_SECONDS);
     // Safeguard to skip quiz page sync until seeding completes
     set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
