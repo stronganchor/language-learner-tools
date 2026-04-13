@@ -7,6 +7,122 @@ final class ExportBundleRegressionTest extends LL_Tools_TestCase
 
     public function test_full_bundle_zip_can_be_created_when_target_file_does_not_exist(): void
     {
+        $fixture = $this->create_full_bundle_fixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+
+        $payload = ll_tools_build_export_payload($category_id, [
+            'include_full_bundle' => true,
+            'full_wordset_id' => $wordset_id,
+        ]);
+        $this->assertFalse(is_wp_error($payload));
+        $this->assertIsArray($payload);
+        $this->assertNotEmpty((array) ($payload['attachments'] ?? []));
+
+        $zip_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-export-regression-' . wp_generate_password(10, false, false) . '.zip');
+        @unlink($zip_path);
+        $this->assertFalse(file_exists($zip_path));
+
+        try {
+            $zip_result = ll_tools_write_export_bundle_zip(
+                $zip_path,
+                (array) ($payload['data'] ?? []),
+                (array) ($payload['attachments'] ?? [])
+            );
+            $this->assertTrue($zip_result === true, is_wp_error($zip_result) ? $zip_result->get_error_message() : '');
+            $this->assertFileExists($zip_path);
+
+            $zip = new ZipArchive();
+            $this->assertTrue($zip->open($zip_path) === true);
+            $this->assertNotFalse($zip->locateName('data.json'));
+
+            $entry_names = [];
+            for ($index = 0; $index < $zip->numFiles; $index++) {
+                $stat = $zip->statIndex($index);
+                if (is_array($stat) && isset($stat['name'])) {
+                    $entry_names[] = (string) $stat['name'];
+                }
+            }
+            $zip->close();
+
+            $has_audio_entry = false;
+            $has_image_entry = false;
+            foreach ($entry_names as $entry_name) {
+                if (strpos($entry_name, 'audio/') === 0) {
+                    $has_audio_entry = true;
+                }
+                if (strpos($entry_name, 'media/') === 0) {
+                    $has_image_entry = true;
+                }
+            }
+
+            $this->assertTrue($has_audio_entry, 'Expected at least one exported audio file in zip.');
+            $this->assertTrue($has_image_entry, 'Expected at least one exported image file in zip.');
+        } finally {
+            @unlink($zip_path);
+        }
+    }
+
+    public function test_full_bundle_payload_can_exceed_export_safeguards_and_still_build(): void
+    {
+        $fixture = $this->create_full_bundle_fixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+
+        $filters = [
+            'll_tools_export_soft_limit_bytes' => static function (): int {
+                return 1;
+            },
+            'll_tools_export_hard_limit_bytes' => static function (): int {
+                return 1;
+            },
+            'll_tools_export_hard_limit_files' => static function (): int {
+                return 1;
+            },
+            'll_tools_export_multi_full_bundle_limit_bytes' => static function (): int {
+                return 1;
+            },
+        ];
+
+        foreach ($filters as $hook => $callback) {
+            add_filter($hook, $callback);
+        }
+
+        try {
+            $payload = ll_tools_build_export_payload($category_id, [
+                'include_full_bundle' => true,
+                'full_wordset_id' => $wordset_id,
+            ]);
+
+            $this->assertFalse(is_wp_error($payload), is_wp_error($payload) ? $payload->get_error_message() : '');
+            $this->assertIsArray($payload);
+
+            $stats = isset($payload['stats']) && is_array($payload['stats']) ? $payload['stats'] : [];
+            $attachment_count = (int) ($stats['attachment_count'] ?? 0);
+            $attachment_bytes = (int) ($stats['attachment_bytes'] ?? 0);
+
+            $this->assertGreaterThan(1, $attachment_count);
+            $this->assertGreaterThan(1, $attachment_bytes);
+
+            $warnings = ll_tools_export_get_preflight_warnings($attachment_count, $attachment_bytes, true);
+            $this->assertNotEmpty($warnings);
+
+            $warning_text = implode("\n", $warnings);
+            $this->assertStringContainsString('warning threshold', $warning_text);
+            $this->assertStringContainsString('large-export safeguard', $warning_text);
+            $this->assertStringContainsString('reliability safeguard', $warning_text);
+        } finally {
+            foreach ($filters as $hook => $callback) {
+                remove_filter($hook, $callback);
+            }
+        }
+    }
+
+    /**
+     * @return array{wordset_id:int,category_id:int}
+     */
+    private function create_full_bundle_fixture(): array
+    {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($admin_id);
 
@@ -59,56 +175,10 @@ final class ExportBundleRegressionTest extends LL_Tools_TestCase
         update_post_meta($audio_post_id, 'audio_file_path', $audio_path);
         wp_set_post_terms($audio_post_id, [$recording_type_id], 'recording_type', false);
 
-        $payload = ll_tools_build_export_payload($category_id, [
-            'include_full_bundle' => true,
-            'full_wordset_id' => $wordset_id,
-        ]);
-        $this->assertFalse(is_wp_error($payload));
-        $this->assertIsArray($payload);
-        $this->assertNotEmpty((array) ($payload['attachments'] ?? []));
-
-        $zip_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-export-regression-' . wp_generate_password(10, false, false) . '.zip');
-        @unlink($zip_path);
-        $this->assertFalse(file_exists($zip_path));
-
-        try {
-            $zip_result = ll_tools_write_export_bundle_zip(
-                $zip_path,
-                (array) ($payload['data'] ?? []),
-                (array) ($payload['attachments'] ?? [])
-            );
-            $this->assertTrue($zip_result === true, is_wp_error($zip_result) ? $zip_result->get_error_message() : '');
-            $this->assertFileExists($zip_path);
-
-            $zip = new ZipArchive();
-            $this->assertTrue($zip->open($zip_path) === true);
-            $this->assertNotFalse($zip->locateName('data.json'));
-
-            $entry_names = [];
-            for ($index = 0; $index < $zip->numFiles; $index++) {
-                $stat = $zip->statIndex($index);
-                if (is_array($stat) && isset($stat['name'])) {
-                    $entry_names[] = (string) $stat['name'];
-                }
-            }
-            $zip->close();
-
-            $has_audio_entry = false;
-            $has_image_entry = false;
-            foreach ($entry_names as $entry_name) {
-                if (strpos($entry_name, 'audio/') === 0) {
-                    $has_audio_entry = true;
-                }
-                if (strpos($entry_name, 'media/') === 0) {
-                    $has_image_entry = true;
-                }
-            }
-
-            $this->assertTrue($has_audio_entry, 'Expected at least one exported audio file in zip.');
-            $this->assertTrue($has_image_entry, 'Expected at least one exported image file in zip.');
-        } finally {
-            @unlink($zip_path);
-        }
+        return [
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+        ];
     }
 
     private function create_image_attachment(string $filename): int

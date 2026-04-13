@@ -142,6 +142,77 @@ function ll_tools_export_get_multi_full_bundle_limit_bytes(): int {
     return max(0, (int) apply_filters('ll_tools_export_multi_full_bundle_limit_bytes', $default));
 }
 
+function ll_tools_export_get_preflight_warnings(int $attachment_count, int $attachment_bytes, bool $is_multi_scope_full_bundle = false): array {
+    $warnings = [];
+
+    $soft_limit_bytes = ll_tools_export_get_soft_limit_bytes();
+    if ($soft_limit_bytes > 0 && $attachment_bytes > $soft_limit_bytes) {
+        $warnings[] = sprintf(
+            /* translators: 1: estimated media size, 2: warning threshold */
+            __('Estimated media size is %1$s (warning threshold: %2$s). Large exports can hit server time or memory limits.', 'll-tools-text-domain'),
+            size_format($attachment_bytes),
+            size_format($soft_limit_bytes)
+        );
+    }
+
+    $hard_limit_files = ll_tools_export_get_hard_limit_files();
+    if ($hard_limit_files > 0 && $attachment_count > $hard_limit_files) {
+        $warnings[] = sprintf(
+            /* translators: 1: media file count, 2: advisory file-count safeguard */
+            __('Media file count is %1$d, above the large-export safeguard setting (%2$d). The export can still be attempted, but slower hosts may time out.', 'll-tools-text-domain'),
+            $attachment_count,
+            $hard_limit_files
+        );
+    }
+
+    $hard_limit_bytes = ll_tools_export_get_hard_limit_bytes();
+    if ($hard_limit_bytes > 0 && $attachment_bytes > $hard_limit_bytes) {
+        $warnings[] = sprintf(
+            /* translators: 1: estimated media size, 2: advisory size safeguard */
+            __('Estimated media size is %1$s, above the large-export safeguard setting (%2$s). The export can still be attempted, but slower hosts may time out.', 'll-tools-text-domain'),
+            size_format($attachment_bytes),
+            size_format($hard_limit_bytes)
+        );
+    }
+
+    $multi_full_bundle_limit_bytes = ll_tools_export_get_multi_full_bundle_limit_bytes();
+    if ($is_multi_scope_full_bundle && $multi_full_bundle_limit_bytes > 0 && $attachment_bytes > $multi_full_bundle_limit_bytes) {
+        $warnings[] = sprintf(
+            /* translators: 1: estimated media size, 2: advisory reliability safeguard */
+            __('Multi-category full export estimated media size is %1$s, above the reliability safeguard (%2$s). Split categories into smaller batches when possible.', 'll-tools-text-domain'),
+            size_format($attachment_bytes),
+            size_format($multi_full_bundle_limit_bytes)
+        );
+    }
+
+    return array_values(array_unique(array_filter(array_map('strval', $warnings), static function (string $warning): bool {
+        return trim($warning) !== '';
+    })));
+}
+
+function ll_tools_export_get_preflight_block_message(array $warnings): string {
+    if (empty($warnings)) {
+        return '';
+    }
+
+    $message = '<p>' . esc_html__('This export hit one or more large-bundle safeguards. Review the estimates below, then tick "Force large export and run it anyway" to continue.', 'll-tools-text-domain') . '</p>';
+    $message .= '<ul>';
+    foreach ($warnings as $warning) {
+        if (!is_scalar($warning)) {
+            continue;
+        }
+        $warning_text = trim((string) $warning);
+        if ($warning_text === '') {
+            continue;
+        }
+        $message .= '<li>' . esc_html($warning_text) . '</li>';
+    }
+    $message .= '</ul>';
+    $message .= '<p>' . esc_html__('The export may still fail if the server times out while building the zip file.', 'll-tools-text-domain') . '</p>';
+
+    return $message;
+}
+
 function ll_tools_import_get_soft_limit_files(): int {
     $default = 200;
     return max(0, (int) apply_filters('ll_tools_import_soft_limit_files', $default));
@@ -1941,8 +2012,8 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             <p class="description">
                 <?php
                 echo esc_html(sprintf(
-                    /* translators: %s estimated media size limit */
-                    __('Multi-category full exports are limited to %s estimated media size to improve WordPress export/import reliability. Split into smaller batches if needed.', 'll-tools-text-domain'),
+                    /* translators: %s advisory reliability safeguard */
+                    __('Multi-category full exports above %s estimated media size often time out on typical WordPress hosting. Split into smaller batches when possible, or use the override below to try anyway.', 'll-tools-text-domain'),
                     $multi_full_bundle_limit_label
                 ));
                 ?>
@@ -1976,20 +2047,21 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
             <p>
                 <label for="ll_allow_large_export">
                     <input type="checkbox" id="ll_allow_large_export" name="ll_allow_large_export" value="1">
-                    <?php esc_html_e('Allow export when warning threshold is exceeded', 'll-tools-text-domain'); ?>
+                    <?php esc_html_e('Force large export and run it anyway', 'll-tools-text-domain'); ?>
                 </label>
             </p>
             <p class="description">
                 <?php
                 echo esc_html(sprintf(
-                    /* translators: 1: soft size limit, 2: hard size limit, 3: max file count */
-                    __('Warning threshold: %1$s. Hard limit: %2$s. Max media files: %3$s.', 'll-tools-text-domain'),
+                    /* translators: 1: soft size warning threshold, 2: advisory size safeguard, 3: advisory file-count safeguard */
+                    __('Warning threshold: %1$s. Advisory thresholds: %2$s of media or %3$s media files.', 'll-tools-text-domain'),
                     $soft_limit_label,
                     $hard_limit_label,
                     $hard_files_label
                 ));
                 ?>
             </p>
+            <p class="description"><?php esc_html_e('Checking this bypasses all export safeguards on this page. The server may still time out or fail while preparing the zip.', 'll-tools-text-domain'); ?></p>
 
             <p><button type="submit" class="button button-primary"><?php esc_html_e('Download export (.zip)', 'll-tools-text-domain'); ?></button></p>
         </form>
@@ -2648,46 +2720,10 @@ function ll_tools_handle_export_bundle() {
 
     $attachment_count = isset($export['stats']['attachment_count']) ? (int) $export['stats']['attachment_count'] : count((array) ($export['attachments'] ?? []));
     $attachment_bytes = isset($export['stats']['attachment_bytes']) ? (int) $export['stats']['attachment_bytes'] : 0;
-    $hard_limit_bytes = ll_tools_export_get_hard_limit_bytes();
-    $hard_limit_files = ll_tools_export_get_hard_limit_files();
-    $soft_limit_bytes = ll_tools_export_get_soft_limit_bytes();
-    $multi_full_bundle_limit_bytes = ll_tools_export_get_multi_full_bundle_limit_bytes();
-
-    if ($hard_limit_files > 0 && $attachment_count > $hard_limit_files) {
-        wp_die(sprintf(
-            /* translators: 1: count, 2: limit */
-            __('Export stopped: media file count (%1$d) exceeds the hard limit (%2$d).', 'll-tools-text-domain'),
-            $attachment_count,
-            $hard_limit_files
-        ));
-    }
-
-    if ($hard_limit_bytes > 0 && $attachment_bytes > $hard_limit_bytes) {
-        wp_die(sprintf(
-            /* translators: 1: estimated size, 2: hard limit */
-            __('Export stopped: estimated media size (%1$s) exceeds the hard limit (%2$s).', 'll-tools-text-domain'),
-            size_format($attachment_bytes),
-            size_format($hard_limit_bytes)
-        ));
-    }
-
     $is_multi_scope_full_bundle = (!$export_template_bundle && $include_full_bundle && (count($category_root_ids) > 1 || empty($category_root_ids)));
-    if ($is_multi_scope_full_bundle && $multi_full_bundle_limit_bytes > 0 && $attachment_bytes > $multi_full_bundle_limit_bytes) {
-        wp_die(sprintf(
-            /* translators: 1: estimated media size, 2: multi-category full export limit */
-            __('Export stopped: multi-category full export estimated media size (%1$s) exceeds the reliability limit (%2$s). Split categories into smaller batches and try again.', 'll-tools-text-domain'),
-            size_format($attachment_bytes),
-            size_format($multi_full_bundle_limit_bytes)
-        ));
-    }
-
-    if ($soft_limit_bytes > 0 && $attachment_bytes > $soft_limit_bytes && !$allow_large_export) {
-        wp_die(sprintf(
-            /* translators: 1: estimated size, 2: warning threshold */
-            __('Export warning: estimated media size is %1$s (threshold %2$s). Tick \"Allow export when warning threshold is exceeded\" and run export again.', 'll-tools-text-domain'),
-            size_format($attachment_bytes),
-            size_format($soft_limit_bytes)
-        ));
+    $preflight_warnings = ll_tools_export_get_preflight_warnings($attachment_count, $attachment_bytes, $is_multi_scope_full_bundle);
+    if (!empty($preflight_warnings) && !$allow_large_export) {
+        wp_die(ll_tools_export_get_preflight_block_message($preflight_warnings));
     }
 
     $export_dir = ll_tools_get_export_dir();
@@ -7526,8 +7562,6 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
     $attachment_tracker = [
         'attachment_count' => 0,
         'attachment_bytes' => 0,
-        'hard_limit_bytes' => ll_tools_export_get_hard_limit_bytes(),
-        'hard_limit_files' => ll_tools_export_get_hard_limit_files(),
     ];
     $attachments = [];
     $allowed_category_lookup = [];
@@ -7658,8 +7692,6 @@ function ll_tools_build_export_payload($root_category_ids = 0, array $options = 
     $attachment_tracker = [
         'attachment_count' => 0,
         'attachment_bytes' => 0,
-        'hard_limit_bytes' => ll_tools_export_get_hard_limit_bytes(),
-        'hard_limit_files' => ll_tools_export_get_hard_limit_files(),
     ];
     $attachments = [];
 
@@ -7783,13 +7815,13 @@ function ll_tools_export_get_scoped_category_slugs($post_id, array $allowed_cate
 }
 
 /**
- * Add a file to export attachments while enforcing hard limits.
+ * Add a file to export attachments while tracking estimated size.
  *
  * @param string $file_path
  * @param string $zip_path
  * @param array $attachments
  * @param array $tracker
- * @return true|WP_Error
+ * @return true
  */
 function ll_tools_export_track_attachment_file($file_path, $zip_path, array &$attachments, array &$tracker) {
     $file_path = wp_normalize_path((string) $file_path);
@@ -7811,33 +7843,6 @@ function ll_tools_export_track_attachment_file($file_path, $zip_path, array &$at
 
     $next_count = (int) $tracker['attachment_count'] + 1;
     $next_bytes = (int) $tracker['attachment_bytes'] + $size;
-    $hard_limit_files = isset($tracker['hard_limit_files']) ? (int) $tracker['hard_limit_files'] : 0;
-    $hard_limit_bytes = isset($tracker['hard_limit_bytes']) ? (int) $tracker['hard_limit_bytes'] : 0;
-
-    if ($hard_limit_files > 0 && $next_count > $hard_limit_files) {
-        return new WP_Error(
-            'll_tools_export_too_many_files',
-            sprintf(
-                /* translators: 1: current media file count, 2: max allowed */
-                __('Export stopped: media file count (%1$d) exceeds the hard limit (%2$d).', 'll-tools-text-domain'),
-                $next_count,
-                $hard_limit_files
-            )
-        );
-    }
-
-    if ($hard_limit_bytes > 0 && $next_bytes > $hard_limit_bytes) {
-        return new WP_Error(
-            'll_tools_export_too_large',
-            sprintf(
-                /* translators: 1: estimated media size, 2: max allowed size */
-                __('Export stopped: estimated media size (%1$s) exceeds the hard limit (%2$s).', 'll-tools-text-domain'),
-                size_format($next_bytes),
-                size_format($hard_limit_bytes)
-            )
-        );
-    }
-
     $attachments[$zip_path] = [
         'path'     => $file_path,
         'zip_path' => $zip_path,
