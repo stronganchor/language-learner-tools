@@ -837,7 +837,9 @@ function ll_tools_wordset_get_category_manual_order(int $wordset_id, array $cate
     $baseline = ll_tools_wordset_get_default_manual_category_order($wordset_id, $category_ids, $args);
     $valid_lookup = array_fill_keys($category_ids, true);
     $stored_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
-    $stored = ll_tools_wordset_parse_id_list_meta($stored_raw);
+    $stored = function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')
+        ? ll_tools_wordset_isolation_remap_category_id_list_for_wordset($stored_raw, $wordset_id)
+        : ll_tools_wordset_parse_id_list_meta($stored_raw);
 
     $ordered = [];
     $seen = [];
@@ -1030,6 +1032,9 @@ function ll_tools_wordset_get_category_prereq_map(int $wordset_id, array $catego
         return [];
     }
     $raw = get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true);
+    if (function_exists('ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset')) {
+        $raw = ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset($raw, $wordset_id);
+    }
     return ll_tools_wordset_normalize_category_prereq_map($raw, $category_ids);
 }
 
@@ -1179,9 +1184,15 @@ function ll_tools_wordset_get_category_ordering_cache_signature(int $wordset_id)
     $payload = ['mode' => $mode];
 
     if ($mode === 'manual') {
-        $payload['manual'] = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
+        $manual_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
+        $payload['manual'] = function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')
+            ? ll_tools_wordset_isolation_remap_category_id_list_for_wordset($manual_raw, $wordset_id)
+            : $manual_raw;
     } elseif ($mode === 'prerequisite') {
-        $payload['prereq'] = get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true);
+        $prereq_raw = get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true);
+        $payload['prereq'] = function_exists('ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset')
+            ? ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset($prereq_raw, $wordset_id)
+            : $prereq_raw;
     }
 
     return substr(md5((string) wp_json_encode($payload)), 0, 12);

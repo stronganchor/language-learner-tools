@@ -120,6 +120,68 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($result['images_relinked'] ?? 0));
     }
 
+    public function test_wordset_isolation_migration_repairs_category_ordering_meta_to_isolated_category_ids(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Ordering Repair', 'isolation-ordering-repair');
+        $root_category_id = $this->ensure_term('word-category', 'Zulu Root', 'zulu-root');
+        $advanced_category_id = $this->ensure_term('word-category', 'Alpha Advanced', 'alpha-advanced');
+
+        update_term_meta($wordset_id, 'll_wordset_category_ordering_mode', 'prerequisite');
+        update_term_meta($wordset_id, 'll_wordset_category_manual_order', [$advanced_category_id, $root_category_id]);
+        update_term_meta($wordset_id, 'll_wordset_category_prerequisites', [
+            $advanced_category_id => [$root_category_id],
+        ]);
+
+        $root_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Root Word',
+        ]);
+        wp_set_object_terms($root_word_id, [$root_category_id], 'word-category', false);
+        wp_set_object_terms($root_word_id, [$wordset_id], 'wordset', false);
+
+        $advanced_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Advanced Word',
+        ]);
+        wp_set_object_terms($advanced_word_id, [$advanced_category_id], 'word-category', false);
+        wp_set_object_terms($advanced_word_id, [$wordset_id], 'wordset', false);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $result = ll_tools_run_wordset_isolation_migration();
+
+        $isolated_root_category_id = ll_tools_get_existing_isolated_category_copy_id($root_category_id, $wordset_id);
+        $isolated_advanced_category_id = ll_tools_get_existing_isolated_category_copy_id($advanced_category_id, $wordset_id);
+
+        $this->assertGreaterThan(0, $isolated_root_category_id);
+        $this->assertGreaterThan(0, $isolated_advanced_category_id);
+        $this->assertNotSame($isolated_root_category_id, $root_category_id);
+        $this->assertNotSame($isolated_advanced_category_id, $advanced_category_id);
+
+        $this->assertSame(
+            [$isolated_advanced_category_id, $isolated_root_category_id],
+            get_term_meta($wordset_id, 'll_wordset_category_manual_order', true)
+        );
+        $this->assertSame(
+            [$isolated_advanced_category_id => [$isolated_root_category_id]],
+            get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true)
+        );
+
+        $ordered_category_ids = ll_tools_wordset_sort_category_ids(
+            [$isolated_advanced_category_id, $isolated_root_category_id],
+            $wordset_id
+        );
+        $this->assertSame(
+            [$isolated_root_category_id, $isolated_advanced_category_id],
+            $ordered_category_ids
+        );
+        $this->assertGreaterThanOrEqual(1, (int) ($result['wordsets_repaired'] ?? 0));
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

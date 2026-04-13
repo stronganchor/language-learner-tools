@@ -11,7 +11,7 @@ if (!defined('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT')) {
     define('LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT', 'll_tools_wordset_isolation_migration_notice');
 }
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION')) {
-    define('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION', 1);
+    define('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION', 2);
 }
 if (!defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
     define('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY', 'll_wordset_owner_id');
@@ -341,6 +341,231 @@ function ll_tools_copy_post_meta(int $source_post_id, int $target_post_id, array
             add_post_meta($target_post_id, $key, maybe_unserialize($value));
         }
     }
+}
+
+function ll_tools_wordset_isolation_parse_category_id_list($raw_value): array {
+    if (function_exists('ll_tools_wordset_parse_id_list_meta')) {
+        return ll_tools_wordset_parse_id_list_meta($raw_value);
+    }
+
+    if (is_array($raw_value)) {
+        $ids = $raw_value;
+    } elseif (is_string($raw_value) && trim($raw_value) !== '') {
+        $ids = preg_split('/\s*,\s*/', trim($raw_value));
+    } else {
+        $ids = [];
+    }
+
+    $normalized = [];
+    foreach ((array) $ids as $id) {
+        $cid = (int) $id;
+        if ($cid > 0) {
+            $normalized[$cid] = true;
+        }
+    }
+
+    return array_map('intval', array_keys($normalized));
+}
+
+function ll_tools_wordset_isolation_normalize_prereq_map($raw_map, array $allowed_category_ids = []): array {
+    if (function_exists('ll_tools_wordset_normalize_category_prereq_map')) {
+        return ll_tools_wordset_normalize_category_prereq_map($raw_map, $allowed_category_ids);
+    }
+
+    return is_array($raw_map) ? $raw_map : [];
+}
+
+function ll_tools_wordset_isolation_get_category_id_map_for_wordset(
+    int $wordset_id,
+    array $source_category_ids,
+    bool $create_missing = false
+): array {
+    $source_category_ids = function_exists('ll_tools_wordset_normalize_category_id_list')
+        ? ll_tools_wordset_normalize_category_id_list($source_category_ids)
+        : ll_tools_wordset_isolation_parse_category_id_list($source_category_ids);
+    if (empty($source_category_ids)) {
+        return [];
+    }
+
+    $identity_map = [];
+    foreach ($source_category_ids as $source_category_id) {
+        $source_category_id = (int) $source_category_id;
+        if ($source_category_id > 0) {
+            $identity_map[$source_category_id] = $source_category_id;
+        }
+    }
+
+    if ($wordset_id <= 0 || !ll_tools_is_wordset_isolation_enabled()) {
+        return $identity_map;
+    }
+
+    $category_id_map = [];
+    foreach ($source_category_ids as $source_category_id) {
+        $source_category_id = (int) $source_category_id;
+        if ($source_category_id <= 0) {
+            continue;
+        }
+
+        $source_term = get_term($source_category_id, 'word-category');
+        if (!($source_term instanceof WP_Term) || is_wp_error($source_term)) {
+            continue;
+        }
+
+        $source_owner_id = ll_tools_get_category_wordset_owner_id($source_term);
+        if ($source_owner_id === $wordset_id) {
+            $category_id_map[$source_category_id] = (int) $source_term->term_id;
+            continue;
+        }
+
+        $source_origin_id = ll_tools_get_category_isolation_source_id($source_term);
+        $target_category_id = $source_origin_id > 0
+            ? ll_tools_get_existing_isolated_category_copy_id($source_origin_id, $wordset_id)
+            : 0;
+
+        if ($target_category_id <= 0 && $create_missing && $source_origin_id > 0) {
+            $target_category_id = ll_tools_get_or_create_isolated_category_copy($source_origin_id, $wordset_id);
+        }
+
+        if ($target_category_id <= 0 && $source_owner_id <= 0) {
+            $target_category_id = (int) $source_term->term_id;
+        }
+
+        if ($target_category_id > 0) {
+            $category_id_map[$source_category_id] = $target_category_id;
+        }
+    }
+
+    return $category_id_map;
+}
+
+function ll_tools_wordset_isolation_remap_category_id_list_for_wordset(
+    $raw_value,
+    int $wordset_id,
+    bool $create_missing = false
+): array {
+    $source_ids = ll_tools_wordset_isolation_parse_category_id_list($raw_value);
+    if (empty($source_ids)) {
+        return [];
+    }
+
+    $category_id_map = ll_tools_wordset_isolation_get_category_id_map_for_wordset(
+        $wordset_id,
+        $source_ids,
+        $create_missing
+    );
+    if (empty($category_id_map)) {
+        return [];
+    }
+
+    $remapped = [];
+    foreach ($source_ids as $source_id) {
+        $source_id = (int) $source_id;
+        $target_id = (int) ($category_id_map[$source_id] ?? 0);
+        if ($target_id > 0 && !in_array($target_id, $remapped, true)) {
+            $remapped[] = $target_id;
+        }
+    }
+
+    return $remapped;
+}
+
+function ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset(
+    $raw_map,
+    int $wordset_id,
+    bool $create_missing = false
+): array {
+    $source_map = ll_tools_wordset_isolation_normalize_prereq_map($raw_map);
+    if (empty($source_map)) {
+        return [];
+    }
+
+    $source_category_lookup = [];
+    foreach ($source_map as $source_category_id => $source_dependencies) {
+        $source_category_id = (int) $source_category_id;
+        if ($source_category_id <= 0) {
+            continue;
+        }
+
+        $source_category_lookup[$source_category_id] = true;
+        foreach ((array) $source_dependencies as $source_dependency_id) {
+            $source_dependency_id = (int) $source_dependency_id;
+            if ($source_dependency_id > 0) {
+                $source_category_lookup[$source_dependency_id] = true;
+            }
+        }
+    }
+
+    $source_category_ids = array_map('intval', array_keys($source_category_lookup));
+    if (empty($source_category_ids)) {
+        return [];
+    }
+
+    $category_id_map = ll_tools_wordset_isolation_get_category_id_map_for_wordset(
+        $wordset_id,
+        $source_category_ids,
+        $create_missing
+    );
+    if (empty($category_id_map)) {
+        return [];
+    }
+
+    $remapped = [];
+    foreach ($source_map as $source_category_id => $source_dependencies) {
+        $source_category_id = (int) $source_category_id;
+        $target_category_id = (int) ($category_id_map[$source_category_id] ?? 0);
+        if ($target_category_id <= 0) {
+            continue;
+        }
+
+        $target_dependencies = [];
+        foreach ((array) $source_dependencies as $source_dependency_id) {
+            $source_dependency_id = (int) $source_dependency_id;
+            $target_dependency_id = (int) ($category_id_map[$source_dependency_id] ?? 0);
+            if ($target_dependency_id > 0 && $target_dependency_id !== $target_category_id) {
+                $target_dependencies[$target_dependency_id] = true;
+            }
+        }
+
+        if (!empty($target_dependencies)) {
+            $remapped[$target_category_id] = array_map('intval', array_keys($target_dependencies));
+        }
+    }
+
+    $allowed_target_ids = array_values(array_unique(array_map('intval', array_values($category_id_map))));
+    sort($allowed_target_ids, SORT_NUMERIC);
+
+    return ll_tools_wordset_isolation_normalize_prereq_map($remapped, $allowed_target_ids);
+}
+
+function ll_tools_repair_wordset_category_ordering_meta_for_isolation(int $wordset_id): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !ll_tools_is_wordset_isolation_enabled()) {
+        return false;
+    }
+
+    $updated = false;
+
+    $manual_raw = get_term_meta($wordset_id, 'll_wordset_category_manual_order', true);
+    $manual_current = ll_tools_wordset_isolation_parse_category_id_list($manual_raw);
+    if (!empty($manual_current)) {
+        $manual_repaired = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($manual_raw, $wordset_id, true);
+        if (!empty($manual_repaired) && $manual_repaired !== $manual_current) {
+            update_term_meta($wordset_id, 'll_wordset_category_manual_order', $manual_repaired);
+            $updated = true;
+        }
+    }
+
+    $prereq_raw = get_term_meta($wordset_id, 'll_wordset_category_prerequisites', true);
+    $prereq_current = ll_tools_wordset_isolation_normalize_prereq_map($prereq_raw);
+    if (!empty($prereq_current)) {
+        $prereq_repaired = ll_tools_wordset_isolation_remap_prerequisite_map_for_wordset($prereq_raw, $wordset_id, true);
+        if (!empty($prereq_repaired) && $prereq_repaired !== $prereq_current) {
+            update_term_meta($wordset_id, 'll_wordset_category_prerequisites', $prereq_repaired);
+            $updated = true;
+        }
+    }
+
+    return $updated;
 }
 
 function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, int $wordset_id): int {
@@ -993,6 +1218,7 @@ function ll_tools_run_wordset_isolation_migration(): array {
         'categories_created'  => 0,
         'images_created'      => 0,
         'images_relinked'     => 0,
+        'wordsets_repaired'   => 0,
         'errors'              => [],
     ];
 
@@ -1158,6 +1384,19 @@ function ll_tools_run_wordset_isolation_migration(): array {
         }
     }
 
+    $wordset_ids = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+    ]);
+    if (!is_wp_error($wordset_ids)) {
+        foreach ((array) $wordset_ids as $wordset_id) {
+            if (ll_tools_repair_wordset_category_ordering_meta_for_isolation((int) $wordset_id)) {
+                $result['wordsets_repaired']++;
+            }
+        }
+    }
+
     $result['categories_created'] = count($created_category_ids);
     $result['images_created'] = count($created_image_ids);
 
@@ -1218,12 +1457,13 @@ function ll_tools_render_wordset_isolation_migration_notice(): void {
         '<div class="%1$s"><p>%2$s</p></div>',
         esc_attr($classes),
         esc_html(sprintf(
-            __('Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d.', 'll-tools-text-domain'),
+            __('Wordset isolation migration completed. Words scanned: %1$d. Words updated: %2$d. Categories created: %3$d. Word images created: %4$d. Word-image links updated: %5$d. Wordsets repaired: %6$d.', 'll-tools-text-domain'),
             (int) ($result['words_scanned'] ?? 0),
             (int) ($result['words_updated'] ?? 0),
             (int) ($result['categories_created'] ?? 0),
             (int) ($result['images_created'] ?? 0),
-            (int) ($result['images_relinked'] ?? 0)
+            (int) ($result['images_relinked'] ?? 0),
+            (int) ($result['wordsets_repaired'] ?? 0)
         ))
     );
 }
