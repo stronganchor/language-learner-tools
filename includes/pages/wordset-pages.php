@@ -6337,6 +6337,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             ?>
         <?php endif; ?>
+        <?php if (function_exists('ll_tools_teacher_class_render_frontend_notice')) : ?>
+            <?php echo ll_tools_teacher_class_render_frontend_notice(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php endif; ?>
         <?php if (!($utility_user instanceof WP_User) && $view !== 'progress' && $view !== 'games' && function_exists('ll_tools_login_window_requested_mode') && ll_tools_login_window_requested_mode() !== '') : ?>
             <?php
             echo ll_tools_render_login_window([

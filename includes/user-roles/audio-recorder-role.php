@@ -433,6 +433,9 @@ function ll_hide_admin_bar_for_ll_tools_limited_roles($show) {
     if (user_can($user, 'manage_options')) {
         return $show;
     }
+    if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID)) {
+        return $show;
+    }
 
     $roles = (array) $user->roles;
     $hide_for_roles = ['audio_recorder', 'll_tools_learner', 'll_tools_editor'];
@@ -470,6 +473,9 @@ function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin
         return '';
     }
     if (user_can($user, 'manage_options')) {
+        return '';
+    }
+    if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID)) {
         return '';
     }
 

@@ -10,6 +10,7 @@ require_once __DIR__ . '/lib/custom-stt-endpoint.php';
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
+require_once __DIR__ . '/teacher-classes.php';
 require_once __DIR__ . '/login-window.php';
 require_once __DIR__ . '/lib/media-proxy.php';
 require_once __DIR__ . '/lib/image-aspect.php';
@@ -38,6 +39,7 @@ require_once(__DIR__ . '/user-roles/wordset-manager.php');
 require_once(__DIR__ . '/user-roles/ll-tools-editor.php');
 require_once(__DIR__ . '/user-roles/learner-role.php');
 require_once(__DIR__ . '/user-roles/audio-recorder-role.php');
+require_once(__DIR__ . '/user-roles/teacher-role.php');
 
 // Include shortcode-providing/admin-shared modules.
 // These live under /admin for historical reasons but can be used on public pages.
@@ -84,6 +86,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/export-import.php');
     require_once(__DIR__ . '/admin/offline-app-export.php');
     require_once(__DIR__ . '/admin/user-progress-report.php');
+    require_once(__DIR__ . '/admin/teacher-classes-page.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/example-sentence-migration.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');

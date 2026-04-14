@@ -57,11 +57,15 @@ if (!function_exists('ll_tools_is_wordpress_user_registration_enabled')) {
 
 if (!function_exists('ll_tools_is_learner_self_registration_available')) {
     function ll_tools_is_learner_self_registration_available(): bool {
-        if (!ll_tools_is_learner_self_registration_enabled()) {
-            return false;
+        if (ll_tools_is_learner_self_registration_enabled() && ll_tools_is_wordpress_user_registration_enabled()) {
+            return true;
         }
 
-        return ll_tools_is_wordpress_user_registration_enabled();
+        if (function_exists('ll_tools_teacher_class_current_request_allows_signup_registration')) {
+            return ll_tools_teacher_class_current_request_allows_signup_registration();
+        }
+
+        return false;
     }
 }
 

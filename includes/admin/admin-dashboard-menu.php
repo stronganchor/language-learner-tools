@@ -90,6 +90,10 @@ if (!function_exists('ll_tools_get_dashboard_related_page_slugs')) {
             ll_tools_get_tools_hub_related_page_slugs()
         );
 
+        if (function_exists('ll_tools_get_teacher_classes_page_slug')) {
+            $slugs[] = ll_tools_get_teacher_classes_page_slug();
+        }
+
         $slugs = array_values(array_filter(array_map('sanitize_key', $slugs), static function ($slug): bool {
             return $slug !== '';
         }));
@@ -110,7 +114,7 @@ if (!function_exists('ll_tools_is_dashboard_related_page_slug')) {
 
 if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
     function ll_tools_get_dashboard_related_page_title_map(): array {
-        return [
+        $titles = [
             ll_tools_get_admin_menu_slug() => __('Language Learning Tools', 'll-tools-text-domain'),
             ll_tools_get_tools_hub_page_slug() => __('LL Tools Utilities', 'll-tools-text-domain'),
             ll_tools_get_admin_settings_page_slug() => __('Language Learning Tools Settings', 'll-tools-text-domain'),
@@ -133,6 +137,12 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
             'assemblyai-api-key' => __('AssemblyAI API Key', 'll-tools-text-domain'),
             'language-learner-tools-languages' => __('LL Tools Languages', 'll-tools-text-domain'),
         ];
+
+        if (function_exists('ll_tools_get_teacher_classes_page_slug')) {
+            $titles[ll_tools_get_teacher_classes_page_slug()] = __('Classes', 'll-tools-text-domain');
+        }
+
+        return $titles;
     }
 }
 
@@ -299,6 +309,17 @@ function ll_tools_render_home_hub_page() {
     ];
 
     $admin_links = [
+        [
+            'label' => __('Classes', 'll-tools-text-domain'),
+            'description' => __('Create teacher classes, invite learners, and review student progress.', 'll-tools-text-domain'),
+            'url' => function_exists('ll_tools_get_teacher_classes_page_url')
+                ? ll_tools_get_teacher_classes_page_url()
+                : admin_url(),
+            'cap' => function_exists('ll_tools_get_teacher_manage_classes_capability')
+                ? ll_tools_get_teacher_manage_classes_capability()
+                : 'manage_options',
+            'icon' => 'dashicons-groups',
+        ],
         [
             'label' => __('Tools', 'll-tools-text-domain'),
             'description' => __('Open workflow utilities for import/export, processing, and maintenance.', 'll-tools-text-domain'),
@@ -712,6 +733,7 @@ function ll_tools_force_dashboard_parent_file($parent_file) {
         || $page === ll_tools_get_tools_hub_page_slug()
         || in_array($page, ll_tools_get_settings_related_page_slugs(), true)
         || in_array($page, ll_tools_get_tools_hub_related_page_slugs(), true)
+        || (function_exists('ll_tools_get_teacher_classes_page_slug') && $page === ll_tools_get_teacher_classes_page_slug())
     ) {
         return $menu_slug;
     }
@@ -752,6 +774,10 @@ function ll_tools_force_dashboard_submenu_file($submenu_file) {
 
     if ($page === ll_tools_get_admin_settings_page_slug() || in_array($page, ll_tools_get_settings_related_page_slugs(), true)) {
         return ll_tools_get_admin_settings_page_slug();
+    }
+
+    if (function_exists('ll_tools_get_teacher_classes_page_slug') && $page === ll_tools_get_teacher_classes_page_slug()) {
+        return ll_tools_get_teacher_classes_page_slug();
     }
 
     if ($page === ll_tools_get_admin_menu_slug()) {
