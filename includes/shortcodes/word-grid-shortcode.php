@@ -2351,10 +2351,15 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'category' => '',
         'wordset'  => '',
         'deepest_only' => '',
+        'word_ids' => '',
     ], (array) $atts);
 
     $sanitized_category = sanitize_text_field((string) ($atts['category'] ?? ''));
     $sanitized_wordset = sanitize_text_field((string) ($atts['wordset'] ?? ''));
+    $specific_word_ids = array_values(array_filter(array_map('intval', preg_split('/[\s,|]+/', (string) ($atts['word_ids'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: []), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    $specific_word_ids = array_values(array_unique($specific_word_ids));
     $deepest_only = false;
     if (!empty($atts['deepest_only'])) {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
@@ -2439,6 +2444,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'atts'                         => $atts,
         'sanitized_category'           => $sanitized_category,
         'sanitized_wordset'            => $sanitized_wordset,
+        'specific_word_ids'            => $specific_word_ids,
         'deepest_only'                 => $deepest_only,
         'access_denied'                => $access_denied,
         'category_term'                => $category_term,
@@ -3294,6 +3300,9 @@ function ll_tools_word_grid_shortcode($atts) {
     $sanitized_category = $context['sanitized_category'];
     $sanitized_wordset = $context['sanitized_wordset'];
     $deepest_only = !empty($context['deepest_only']);
+    $specific_word_ids = array_values(array_filter(array_map('intval', (array) ($context['specific_word_ids'] ?? [])), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
     $category_term = $context['category_term'];
     $wordset_term = $context['wordset_term'];
     $wordset_id = (int) ($context['wordset_id'] ?? 0);
@@ -3359,13 +3368,17 @@ function ll_tools_word_grid_shortcode($atts) {
         'orderby' => 'date', // Order by date
         'order' => 'ASC', // Ascending order
     );
-    if (!$is_text_based) {
+    if (!$is_text_based && empty($specific_word_ids)) {
         $args['meta_query'] = array(
             array(
                 'key' => '_thumbnail_id', // Checks if the post has a featured image.
                 'compare' => 'EXISTS'
             ),
         );
+    }
+    if (!empty($specific_word_ids)) {
+        $args['post__in'] = $specific_word_ids;
+        $args['orderby'] = 'post__in';
     }
 
     $tax_query = [];
@@ -3393,14 +3406,14 @@ function ll_tools_word_grid_shortcode($atts) {
 
     // The Query
     $query = new WP_Query($args);
-    if ($deepest_only && $category_term) {
+    if (empty($specific_word_ids) && $deepest_only && $category_term) {
         $query->posts = ll_tools_word_grid_filter_posts_to_deepest_category((array) $query->posts, (int) $category_term->term_id);
         $query->post_count = count((array) $query->posts);
         $query->current_post = -1;
     }
 
     // Words reserved as specific wrong answers should not appear in lesson grids.
-    if (!empty($query->posts) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+    if (empty($specific_word_ids) && !empty($query->posts) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
         $visible_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids(array_map(static function ($post_obj): int {
             return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
         }, (array) $query->posts));
@@ -3416,7 +3429,7 @@ function ll_tools_word_grid_shortcode($atts) {
         }
     }
 
-    if ($category_term && $wordset_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
+    if (empty($specific_word_ids) && $category_term && $wordset_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
         $maps = ll_tools_get_word_option_maps($wordset_id, (int) $category_term->term_id);
         $groups = isset($maps['groups']) && is_array($maps['groups']) ? $maps['groups'] : [];
         if (!empty($groups)) {
@@ -3430,8 +3443,10 @@ function ll_tools_word_grid_shortcode($atts) {
         update_meta_cache('post', $word_ids);
     }
     $display_values_cache = [];
-    $query->posts = ll_tools_word_grid_group_same_name_or_image($query->posts, $display_values_cache);
-    if ($sort_visible_titles) {
+    if (empty($specific_word_ids)) {
+        $query->posts = ll_tools_word_grid_group_same_name_or_image($query->posts, $display_values_cache);
+    }
+    if ($sort_visible_titles && empty($specific_word_ids)) {
         $query->posts = ll_tools_word_grid_sort_posts_by_display_title($query->posts, $display_values_cache);
     }
     $query->post_count = count($query->posts);

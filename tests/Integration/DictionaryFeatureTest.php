@@ -6,6 +6,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
     protected function tearDown(): void
     {
         $_GET = [];
+        unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
         parent::tearDown();
     }
 
@@ -137,6 +138,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $tsv = implode("\n", [
             "entry\tdefinition\tgender_number\tentry_type\tparent\tneeds_review\tpage_number\tsource_dictionary\tsource_row_idx\traw_headword\ttitle_keys\tdefinition_full_tr\tdefinition_full_de\tdefinition_full_en",
             "Ava\tsu | Wasser | water\t\tnoun\t\t0\t6\tDEZD\t42\tava\tava|aw\tsu\tWasser\twater",
+            "Ava rê\tsu phrase\t\tnoun\t\t0\t7\tDEZD\t43\tava rê\tava-re\tsulu ifade\tWasserphrase\twater phrase",
         ]);
         $this->assertNotFalse(file_put_contents($temp_file, $tsv));
 
@@ -155,7 +157,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             @unlink($temp_file);
         }
 
-        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(2, (int) ($summary['entries_created'] ?? 0));
 
         $entry_id = ll_tools_dictionary_find_entry_by_title('Ava', $wordset_id);
         $this->assertGreaterThan(0, $entry_id);
@@ -174,14 +176,39 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('Ava', ll_tools_dictionary_lookup_best('water', 'English', 'Zazaki', true));
         $this->assertSame('Ava', ll_tools_dictionary_lookup_best('Wasser', 'German', 'Zazaki', true));
 
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Ava',
+        ]);
+        update_post_meta($word_id, 'word_translation', 'water');
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        $link_result = ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id, '');
+        $this->assertIsArray($link_result);
+        $this->assertSame($entry_id, ll_tools_get_word_dictionary_entry_id($word_id));
+        $this->assertContains($word_id, ll_tools_get_dictionary_entry_word_ids($entry_id, -1));
+
+        $_COOKIE[LL_TOOLS_I18N_COOKIE] = 'de_DE';
+
         $_GET = [
             'll_dictionary_q' => 'Ava',
         ];
 
-        $html = do_shortcode(sprintf('[ll_dictionary wordset="%d" gloss_lang="de"]', $wordset_id));
+        $html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
         $this->assertStringContainsString('Wasser', $html);
         $this->assertStringContainsString('water', $html);
         $this->assertStringContainsString('su', $html);
+        $this->assertStringContainsString('ll_dictionary_entry=' . $entry_id, $html);
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+
+        $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $this->assertStringContainsString('Back to dictionary', $detail_html);
+        $this->assertStringContainsString('Translations', $detail_html);
+        $this->assertStringContainsString('Related Entries', $detail_html);
+        $this->assertStringContainsString('Ava rê', $detail_html);
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): void
