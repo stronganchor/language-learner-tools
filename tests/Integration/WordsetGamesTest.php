@@ -842,6 +842,102 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }, (array) ($bubblePool['words'] ?? [])))));
     }
 
+    public function test_lineup_is_disabled_by_default_and_only_launches_after_explicit_enable_with_valid_sequence(): void
+    {
+        $fixture = $this->createLineupFixture('en');
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $this->setCategoryEnabledGames((int) $fixture['category_id']);
+
+        $defaultCatalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $defaultLaunch = ll_tools_wordset_games_build_launch_entry('line-up', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertFalse(ll_tools_is_category_enabled_for_game((int) $fixture['category_id'], 'line-up'));
+        $this->assertNotContains('line-up', ll_tools_get_category_enabled_games((int) $fixture['category_id']));
+        $this->assertArrayNotHasKey('line-up', $defaultCatalog);
+        $this->assertNull($defaultLaunch);
+
+        $this->setCategoryEnabledGames((int) $fixture['category_id'], ['line-up']);
+
+        $enabledCatalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $enabledLaunch = ll_tools_wordset_games_build_launch_entry('line-up', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertTrue(ll_tools_is_category_enabled_for_game((int) $fixture['category_id'], 'line-up'));
+        $this->assertArrayHasKey('line-up', $enabledCatalog);
+        $this->assertSame(1, (int) ($enabledCatalog['line-up']['available_sequence_count'] ?? 0));
+        $this->assertTrue((bool) ($enabledCatalog['line-up']['launchable'] ?? false));
+        $this->assertIsArray($enabledLaunch);
+        $this->assertSame(1, (int) ($enabledLaunch['available_sequence_count'] ?? 0));
+        $this->assertTrue((bool) ($enabledLaunch['launchable'] ?? false));
+    }
+
+    public function test_lineup_payload_preserves_saved_order_and_resolves_direction_from_wordset_and_category(): void
+    {
+        $rtlFixture = $this->createLineupFixture('he');
+        wp_set_current_user((int) $rtlFixture['user_id']);
+        $this->setCategoryEnabledGames((int) $rtlFixture['category_id'], ['line-up']);
+
+        $rtlOrder = [
+            $rtlFixture['word_ids'][2],
+            $rtlFixture['word_ids'][0],
+            $rtlFixture['word_ids'][1],
+        ];
+        update_term_meta((int) $rtlFixture['category_id'], 'll_category_lineup_word_order', $rtlOrder);
+
+        $rtlCatalog = ll_tools_wordset_games_build_catalog((int) $rtlFixture['wordset_id'], (int) $rtlFixture['user_id']);
+        $rtlLaunch = ll_tools_wordset_games_build_launch_entry('line-up', (int) $rtlFixture['wordset_id'], (int) $rtlFixture['user_id']);
+
+        $this->assertArrayHasKey('line-up', $rtlCatalog);
+        $this->assertSame('rtl', (string) ($rtlCatalog['line-up']['sequences'][0]['direction'] ?? ''));
+        $this->assertSame($rtlOrder, $this->extractLineupSequenceWordIds((array) ($rtlCatalog['line-up']['sequences'][0]['words'] ?? [])));
+        $this->assertSame('rtl', (string) ($rtlLaunch['sequences'][0]['direction'] ?? ''));
+        $this->assertSame($rtlOrder, $this->extractLineupSequenceWordIds((array) ($rtlLaunch['sequences'][0]['words'] ?? [])));
+
+        $forcedFixture = $this->createLineupFixture('en', 'rtl');
+        wp_set_current_user((int) $forcedFixture['user_id']);
+        $this->setCategoryEnabledGames((int) $forcedFixture['category_id'], ['line-up']);
+        update_term_meta((int) $forcedFixture['category_id'], 'll_category_lineup_word_order', [
+            $forcedFixture['word_ids'][1],
+            $forcedFixture['word_ids'][0],
+            $forcedFixture['word_ids'][2],
+        ]);
+
+        $forcedLaunch = ll_tools_wordset_games_build_launch_entry('line-up', (int) $forcedFixture['wordset_id'], (int) $forcedFixture['user_id']);
+
+        $this->assertSame('rtl', (string) ($forcedLaunch['sequences'][0]['direction'] ?? ''));
+        $this->assertSame([
+            $forcedFixture['word_ids'][1],
+            $forcedFixture['word_ids'][0],
+            $forcedFixture['word_ids'][2],
+        ], $this->extractLineupSequenceWordIds((array) ($forcedLaunch['sequences'][0]['words'] ?? [])));
+    }
+
+    public function test_lineup_with_incomplete_sequence_is_not_launchable(): void
+    {
+        $fixture = $this->createLineupFixture('en', null, 2);
+        wp_set_current_user((int) $fixture['user_id']);
+        $this->setCategoryEnabledGames((int) $fixture['category_id'], ['line-up']);
+
+        update_term_meta((int) $fixture['category_id'], 'll_category_lineup_word_order', [
+            $fixture['word_ids'][1],
+            $fixture['word_ids'][0],
+        ]);
+
+        $pool = ll_tools_wordset_games_build_lineup_pool((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $launch = ll_tools_wordset_games_build_launch_entry('line-up', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertSame(0, (int) ($pool['available_sequence_count'] ?? -1));
+        $this->assertSame(1, (int) ($pool['enabled_category_count'] ?? 0));
+        $this->assertSame(1, (int) ($pool['invalid_sequence_count'] ?? -1));
+        $this->assertSame('lineup_not_configured', (string) ($pool['reason_code'] ?? ''));
+        $this->assertArrayHasKey('line-up', $catalog);
+        $this->assertFalse((bool) ($catalog['line-up']['launchable'] ?? true));
+        $this->assertIsArray($launch);
+        $this->assertFalse((bool) ($launch['launchable'] ?? true));
+        $this->assertSame('lineup_not_configured', (string) ($launch['reason_code'] ?? ''));
+    }
+
     public function test_wordset_games_frontend_config_uses_three_cards_for_large_image_wordsets(): void
     {
         $wordset = wp_insert_term('Games Large Images ' . wp_generate_password(6, false), 'wordset');
@@ -1689,6 +1785,71 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }
 
         return (int) $wordId;
+    }
+
+    /**
+     * @return array{user_id:int,wordset_id:int,category_id:int,word_ids:int[]}
+     */
+    private function createLineupFixture(
+        string $wordsetLanguage,
+        ?string $categoryDirection = null,
+        int $wordCount = 3,
+        ?array $enabledGames = null
+    ): array
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Lineup Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Lineup Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($wordsetId, 'll_language', $wordsetLanguage);
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'text_title');
+        if ($categoryDirection !== null) {
+            update_term_meta($categoryId, 'll_category_lineup_direction', $categoryDirection);
+        }
+        if ($enabledGames !== null) {
+            $this->setCategoryEnabledGames($categoryId, $enabledGames);
+        }
+
+        $wordIds = [];
+        for ($index = 1; $index <= $wordCount; $index++) {
+            $wordIds[] = $this->createWordWithGameMedia(
+                'Lineup Word ' . $index,
+                'Lineup Translation ' . $index,
+                $categoryId,
+                $wordsetId,
+                false,
+                []
+            );
+        }
+
+        return [
+            'user_id' => $userId,
+            'wordset_id' => $wordsetId,
+            'category_id' => $categoryId,
+            'word_ids' => $wordIds,
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $words
+     * @return int[]
+     */
+    private function extractLineupSequenceWordIds(array $words): array
+    {
+        return array_values(array_filter(array_map(static function ($word): int {
+            return is_array($word) ? (int) ($word['id'] ?? 0) : 0;
+        }, $words), static function (int $wordId): bool {
+            return $wordId > 0;
+        }));
     }
 
     private function createImageAttachment(string $filename): int
