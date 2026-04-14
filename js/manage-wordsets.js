@@ -358,6 +358,74 @@ jQuery(document).ready(function ($) {
         }
     })();
 
+    (function initCategoryLineupUI() {
+        var $root = $('[data-ll-category-lineup-ordering]');
+        if (!$root.length) {
+            return;
+        }
+
+        var $list = $root.find('[data-ll-category-lineup-list]');
+        var $orderInput = $root.find('[data-ll-category-lineup-order-input]');
+        var $form = $root.closest('form').first();
+
+        function syncOrderInput() {
+            if (!$list.length || !$orderInput.length) {
+                return;
+            }
+
+            var ids = [];
+            $list.children('[data-ll-category-lineup-item]').each(function () {
+                var id = parseInt($(this).attr('data-word-id'), 10);
+                if (id > 0 && ids.indexOf(id) === -1) {
+                    ids.push(id);
+                }
+            });
+
+            $orderInput.val(ids.join(','));
+        }
+
+        function moveItem($item, direction) {
+            if (!$item || !$item.length) {
+                return;
+            }
+            if (direction === 'up') {
+                var $prev = $item.prev('[data-ll-category-lineup-item]');
+                if ($prev.length) {
+                    $item.insertBefore($prev);
+                }
+            } else if (direction === 'down') {
+                var $next = $item.next('[data-ll-category-lineup-item]');
+                if ($next.length) {
+                    $item.insertAfter($next);
+                }
+            }
+            syncOrderInput();
+        }
+
+        if ($list.length && $.fn.sortable) {
+            $list.sortable({
+                axis: 'y',
+                handle: '[data-ll-category-lineup-handle]',
+                tolerance: 'pointer',
+                update: syncOrderInput
+            });
+        }
+
+        $list.on('click', '[data-ll-category-lineup-move]', function (event) {
+            event.preventDefault();
+            var dir = String($(this).attr('data-ll-category-lineup-move') || '');
+            moveItem($(this).closest('[data-ll-category-lineup-item]'), dir);
+        });
+
+        if ($form.length) {
+            $form.on('submit.llCategoryLineupOrder', function () {
+                syncOrderInput();
+            });
+        }
+
+        syncOrderInput();
+    })();
+
     (function initAnswerOptionTextPreview() {
         var $preview = $('[data-ll-answer-option-preview-root]').first();
         var $fontFamily = $('[name="ll_wordset_answer_option_text_font_family"]').first();

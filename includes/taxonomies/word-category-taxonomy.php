@@ -9,6 +9,12 @@ if (!defined('LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY')) {
 if (!defined('LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY')) {
     define('LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY', 'll_category_enabled_games');
 }
+if (!defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY', 'll_category_lineup_word_order');
+}
+if (!defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')) {
+    define('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY', 'll_category_lineup_direction');
+}
 
 function ll_tools_normalize_category_visibility($value): string {
     $visibility = sanitize_key((string) $value);
@@ -447,6 +453,11 @@ function ll_tools_initialize_word_category_meta_fields() {
     add_action('created_word-category', 'll_tools_save_category_game_availability_field', 10, 2);
     add_action('edited_word-category', 'll_tools_save_category_game_availability_field', 10, 2);
 
+    add_action('word-category_add_form_fields', 'll_tools_add_category_lineup_field');
+    add_action('word-category_edit_form_fields', 'll_tools_edit_category_lineup_field');
+    add_action('created_word-category', 'll_tools_save_category_lineup_field', 10, 2);
+    add_action('edited_word-category', 'll_tools_save_category_lineup_field', 10, 2);
+
     // Bulk‑add form display and processing hooks
     add_action('admin_notices', 'll_render_bulk_add_categories_form');
     add_action('admin_post_ll_word_category_bulk_add', 'll_process_bulk_add_categories');
@@ -499,6 +510,24 @@ function ll_tools_seed_existing_categories_desired_types() {
     update_option('ll_seeded_category_desired_types', 1);
 }
 add_action('admin_init', 'll_tools_seed_existing_categories_desired_types');
+
+function ll_tools_enqueue_word_category_admin_assets(): void {
+    if (!function_exists('get_current_screen')) {
+        return;
+    }
+
+    $screen = get_current_screen();
+    if (!$screen || $screen->taxonomy !== 'word-category') {
+        return;
+    }
+
+    if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
+        ll_tools_enqueue_jquery_ui_autocomplete_assets();
+    }
+    ll_enqueue_asset_by_timestamp('/js/locale-sort.js', 'll-tools-locale-sort', array(), true);
+    ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable', 'll-tools-locale-sort'), true);
+}
+add_action('admin_enqueue_scripts', 'll_tools_enqueue_word_category_admin_assets');
 
 /**
  * Adds the 'Translated Name' field to the add new category form.
@@ -1062,11 +1091,24 @@ function ll_tools_get_category_game_definitions(): array {
             'slug' => 'speaking-stack',
             'label' => __('Word Stack', 'll-tools-text-domain'),
         ],
+        'line-up' => [
+            'slug' => 'line-up',
+            'label' => __('Line-Up', 'll-tools-text-domain'),
+        ],
     ];
 }
 
 function ll_tools_get_category_game_slugs(): array {
     return array_values(array_keys(ll_tools_get_category_game_definitions()));
+}
+
+function ll_tools_get_category_default_enabled_game_slugs(): array {
+    return array_values(array_filter(
+        ll_tools_get_category_game_slugs(),
+        static function (string $game_slug): bool {
+            return $game_slug !== 'line-up';
+        }
+    ));
 }
 
 function ll_tools_normalize_category_enabled_games($value): array {
@@ -1135,7 +1177,7 @@ function ll_tools_seed_existing_categories_enabled_games(): void {
         return;
     }
 
-    $enabled_games = ll_tools_get_category_game_slugs();
+    $enabled_games = ll_tools_get_category_default_enabled_game_slugs();
     $term_ids = get_terms([
         'taxonomy' => 'word-category',
         'hide_empty' => false,
@@ -1159,6 +1201,246 @@ function ll_tools_seed_existing_categories_enabled_games(): void {
     update_option('ll_seeded_category_enabled_games_v1', 1);
 }
 add_action('admin_init', 'll_tools_seed_existing_categories_enabled_games');
+
+function ll_tools_normalize_category_lineup_direction($value): string {
+    $direction = sanitize_key((string) $value);
+    return in_array($direction, ['auto', 'ltr', 'rtl'], true) ? $direction : 'auto';
+}
+
+function ll_tools_get_category_lineup_allowed_word_ids($term): array {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return [];
+    }
+
+    $word_ids = get_posts([
+        'post_type'      => 'words',
+        'post_status'    => 'any',
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'no_found_rows'  => true,
+        'tax_query'      => [
+            [
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => [(int) $term->term_id],
+            ],
+        ],
+    ]);
+
+    if (is_wp_error($word_ids) || empty($word_ids)) {
+        return [];
+    }
+
+    $word_ids = array_values(array_unique(array_map('intval', (array) $word_ids)));
+    return array_values(array_filter($word_ids, static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+}
+
+function ll_tools_normalize_category_lineup_word_ids($value, array $allowed_word_ids = []): array {
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            $value = [];
+        } elseif ($trimmed[0] === '[' || $trimmed[0] === '{') {
+            $decoded = json_decode($trimmed, true);
+            $value = is_array($decoded) ? $decoded : preg_split('/\s*,\s*/', $trimmed);
+        } else {
+            $value = preg_split('/\s*,\s*/', $trimmed);
+        }
+    }
+
+    if (!is_array($value)) {
+        $value = [];
+    }
+
+    $allowed_lookup = [];
+    $allowed_order = [];
+    foreach ($allowed_word_ids as $allowed_word_id) {
+        $allowed_word_id = (int) $allowed_word_id;
+        if ($allowed_word_id <= 0 || isset($allowed_lookup[$allowed_word_id])) {
+            continue;
+        }
+        $allowed_lookup[$allowed_word_id] = true;
+        $allowed_order[] = $allowed_word_id;
+    }
+
+    $sequence = [];
+    $seen = [];
+    foreach ($value as $candidate) {
+        $word_id = (int) $candidate;
+        if ($word_id <= 0 || isset($seen[$word_id])) {
+            continue;
+        }
+        if (!empty($allowed_lookup) && empty($allowed_lookup[$word_id])) {
+            continue;
+        }
+        $seen[$word_id] = true;
+        $sequence[] = $word_id;
+    }
+
+    foreach ($allowed_order as $word_id) {
+        if (isset($seen[$word_id])) {
+            continue;
+        }
+        $seen[$word_id] = true;
+        $sequence[] = $word_id;
+    }
+
+    return array_values($sequence);
+}
+
+function ll_tools_normalize_category_lineup_config($value, array $allowed_word_ids = []): array {
+    $direction = 'auto';
+    $word_ids = [];
+
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed !== '') {
+            $decoded = null;
+            if ($trimmed[0] === '[' || $trimmed[0] === '{') {
+                $decoded = json_decode($trimmed, true);
+            }
+            if (is_array($decoded)) {
+                $value = $decoded;
+            } else {
+                $value = ['word_ids' => preg_split('/\s*,\s*/', $trimmed)];
+            }
+        }
+    }
+
+    if (is_array($value)) {
+        if (array_key_exists('direction', $value)) {
+            $direction = ll_tools_normalize_category_lineup_direction($value['direction']);
+        } elseif (array_key_exists('lineup_direction', $value)) {
+            $direction = ll_tools_normalize_category_lineup_direction($value['lineup_direction']);
+        }
+
+        $word_ids_source = [];
+        if (array_key_exists('word_ids', $value)) {
+            $word_ids_source = $value['word_ids'];
+        } elseif (array_key_exists('sequence', $value)) {
+            $word_ids_source = $value['sequence'];
+        } elseif (array_keys($value) === range(0, count($value) - 1)) {
+            $word_ids_source = $value;
+        }
+
+        $word_ids = ll_tools_normalize_category_lineup_word_ids($word_ids_source, $allowed_word_ids);
+    }
+
+    return [
+        'direction' => $direction,
+        'word_ids' => $word_ids,
+    ];
+}
+
+function ll_tools_get_category_lineup_config($term): array {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return [
+            'direction' => 'auto',
+            'word_ids' => [],
+        ];
+    }
+
+    $allowed_word_ids = ll_tools_get_category_lineup_allowed_word_ids($term);
+    $raw_word_order = get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, true);
+    $raw_direction = get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY, true);
+    $config = ll_tools_normalize_category_lineup_config([
+        'word_ids' => $raw_word_order,
+        'direction' => $raw_direction,
+    ], $allowed_word_ids);
+
+    if (empty($config['word_ids']) && !empty($allowed_word_ids)) {
+        $config['word_ids'] = $allowed_word_ids;
+    }
+
+    return $config;
+}
+
+function ll_tools_get_category_lineup_word_items($term): array {
+    if (!($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return [];
+    }
+
+    $config = ll_tools_get_category_lineup_config($term);
+    $word_ids = array_map('intval', (array) ($config['word_ids'] ?? []));
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $posts = get_posts([
+        'post_type'      => 'words',
+        'post_status'    => 'any',
+        'posts_per_page' => -1,
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+        'no_found_rows'  => true,
+        'tax_query'      => [
+            [
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => [(int) $term->term_id],
+            ],
+        ],
+    ]);
+    if (empty($posts)) {
+        return [];
+    }
+
+    $posts_by_id = [];
+    foreach ((array) $posts as $post) {
+        if (!($post instanceof WP_Post)) {
+            continue;
+        }
+        $posts_by_id[(int) $post->ID] = $post;
+    }
+
+    $items = [];
+    foreach ($word_ids as $word_id) {
+        if ($word_id <= 0 || !isset($posts_by_id[$word_id])) {
+            continue;
+        }
+
+        $post = $posts_by_id[$word_id];
+        $items[] = [
+            'id' => (int) $post->ID,
+            'title' => (string) $post->post_title,
+        ];
+        unset($posts_by_id[$word_id]);
+    }
+
+    if (!empty($posts_by_id)) {
+        $remaining = array_values($posts_by_id);
+        usort($remaining, static function (WP_Post $left, WP_Post $right): int {
+            $cmp = strnatcasecmp((string) $left->post_title, (string) $right->post_title);
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            return (int) $left->ID <=> (int) $right->ID;
+        });
+
+        foreach ($remaining as $post) {
+            $items[] = [
+                'id' => (int) $post->ID,
+                'title' => (string) $post->post_title,
+            ];
+        }
+    }
+
+    return $items;
+}
 
 function ll_tools_get_category_lesson_grid_text_visibility_override($term): string {
     if (!($term instanceof WP_Term)) {
@@ -1447,6 +1729,111 @@ function ll_tools_edit_category_game_availability_field($term): void {
         </td>
     </tr>
     <?php
+}
+
+function ll_tools_add_category_lineup_field(): void {
+    ?>
+    <div class="form-field term-category-lineup-wrap" data-ll-category-lineup-ordering>
+        <label><?php esc_html_e('Line-Up Sequence', 'll-tools-text-domain'); ?></label>
+        <p class="description"><?php esc_html_e('Save the category first, then add words. Line-Up can only be configured after the category has words.', 'll-tools-text-domain'); ?></p>
+    </div>
+    <?php
+}
+
+function ll_tools_edit_category_lineup_field($term): void {
+    if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+        return;
+    }
+
+    $items = ll_tools_get_category_lineup_word_items($term);
+    $config = ll_tools_get_category_lineup_config($term);
+    $has_words = !empty($items);
+    ?>
+    <tr class="form-field term-category-lineup-wrap" data-ll-category-lineup-ordering>
+        <th scope="row" valign="top">
+            <label for="ll-category-lineup-direction"><?php esc_html_e('Line-Up Sequence', 'll-tools-text-domain'); ?></label>
+        </th>
+        <td>
+            <input type="hidden" name="ll_category_lineup_config_submitted" value="1">
+            <?php if (!$has_words) : ?>
+                <p class="description"><?php esc_html_e('Add words to this category before configuring the Line-Up sequence.', 'll-tools-text-domain'); ?></p>
+            <?php else : ?>
+                <div class="ll-category-lineup-controls" style="margin-bottom:12px;">
+                    <label for="ll-category-lineup-direction" style="display:block; margin-bottom:4px;"><?php esc_html_e('Direction', 'll-tools-text-domain'); ?></label>
+                    <select id="ll-category-lineup-direction" name="ll_category_lineup_direction" data-ll-category-lineup-direction>
+                        <option value="auto" <?php selected($config['direction'], 'auto'); ?>><?php esc_html_e('Auto', 'll-tools-text-domain'); ?></option>
+                        <option value="ltr" <?php selected($config['direction'], 'ltr'); ?>><?php esc_html_e('Left to right', 'll-tools-text-domain'); ?></option>
+                        <option value="rtl" <?php selected($config['direction'], 'rtl'); ?>><?php esc_html_e('Right to left', 'll-tools-text-domain'); ?></option>
+                    </select>
+                    <p class="description"><?php esc_html_e('Choose the visual reading direction used by the game. The saved word order always stays logical and is never reversed in storage.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <div class="ll-category-lineup-order-shell" style="max-width:720px;">
+                    <ol class="ll-category-lineup-order-list" data-ll-category-lineup-list style="margin:0; padding:0; list-style:none;">
+                        <?php foreach ($items as $item) : ?>
+                            <li class="ll-category-lineup-order-item" data-ll-category-lineup-item data-word-id="<?php echo esc_attr((string) $item['id']); ?>" style="display:flex; align-items:center; gap:8px; padding:8px 10px; margin:0 0 6px; border:1px solid #dcdcde; background:#fff;">
+                                <span class="dashicons dashicons-move" aria-hidden="true" data-ll-category-lineup-handle style="color:#646970; cursor:move;"></span>
+                                <span class="ll-category-lineup-order-title" dir="auto" style="flex:1 1 auto;"><?php echo esc_html((string) $item['title']); ?></span>
+                                <div class="ll-category-lineup-order-actions" style="display:flex; gap:4px; flex:0 0 auto;">
+                                    <button type="button" class="button button-small" data-ll-category-lineup-move="up"><?php esc_html_e('Up', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="button button-small" data-ll-category-lineup-move="down"><?php esc_html_e('Down', 'll-tools-text-domain'); ?></button>
+                                </div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ol>
+                    <input type="hidden" name="ll_category_lineup_word_ids" value="<?php echo esc_attr(implode(',', array_map(static function ($item) {
+                        return (int) ($item['id'] ?? 0);
+                    }, $items))); ?>" data-ll-category-lineup-order-input>
+                </div>
+                <p class="description"><?php esc_html_e('Drag words into the logical order the game should teach. The list above is stored exactly as shown.', 'll-tools-text-domain'); ?></p>
+            <?php endif; ?>
+        </td>
+    </tr>
+    <?php
+}
+
+function ll_tools_save_category_lineup_field($term_id): void {
+    if (!isset($_POST['ll_category_lineup_config_submitted'])) {
+        return;
+    }
+
+    $term_id = (int) $term_id;
+    if ($term_id <= 0) {
+        return;
+    }
+
+    $add_nonce = isset($_POST['_wpnonce_add-tag'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce_add-tag']))
+        : '';
+    $edit_nonce = isset($_POST['_wpnonce'])
+        ? sanitize_text_field(wp_unslash((string) $_POST['_wpnonce']))
+        : '';
+    $nonce_valid = ($add_nonce !== '' && wp_verify_nonce($add_nonce, 'add-tag'))
+        || ($edit_nonce !== '' && wp_verify_nonce($edit_nonce, 'update-tag_' . $term_id));
+    if (!$nonce_valid) {
+        return;
+    }
+
+    $allowed_word_ids = ll_tools_get_category_lineup_allowed_word_ids($term_id);
+    $raw_sequence = isset($_POST['ll_category_lineup_word_ids'])
+        ? wp_unslash((string) $_POST['ll_category_lineup_word_ids'])
+        : '';
+    $raw_direction = isset($_POST['ll_category_lineup_direction'])
+        ? wp_unslash((string) $_POST['ll_category_lineup_direction'])
+        : 'auto';
+
+    $config = ll_tools_normalize_category_lineup_config([
+        'word_ids' => $raw_sequence,
+        'direction' => $raw_direction,
+    ], $allowed_word_ids);
+
+    if (empty($config['word_ids'])) {
+        delete_term_meta($term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY);
+        delete_term_meta($term_id, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY);
+        return;
+    }
+
+    update_term_meta($term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, $config['word_ids']);
+    update_term_meta($term_id, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY, $config['direction']);
 }
 
 /**
