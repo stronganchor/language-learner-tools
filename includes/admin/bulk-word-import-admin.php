@@ -137,6 +137,66 @@ function ll_tools_import_capitalize_word($word, int $wordset_id = 0) {
 }
 
 /**
+ * Parse a pasted bulk-import row into word/translation columns.
+ *
+ * Supported formats:
+ * - `word`
+ * - `word<TAB>translation`
+ * - `word,translation` (CSV-style, quoted values supported)
+ *
+ * @param string $raw_line Raw pasted line.
+ * @return array{title:string,translation:string,extra_columns:int}
+ */
+function ll_tools_bulk_word_import_parse_line($raw_line): array {
+    $line = trim((string) $raw_line);
+    if ($line === '') {
+        return [
+            'title'         => '',
+            'translation'   => '',
+            'extra_columns' => 0,
+        ];
+    }
+
+    $delimiter = '';
+    if (strpos($line, "\t") !== false) {
+        $delimiter = "\t";
+    } elseif (strpos($line, ',') !== false) {
+        $delimiter = ',';
+    }
+
+    if ($delimiter === '') {
+        return [
+            'title'         => $line,
+            'translation'   => '',
+            'extra_columns' => 0,
+        ];
+    }
+
+    if (function_exists('str_getcsv')) {
+        $columns = str_getcsv($line, $delimiter, '"', '\\');
+    } else {
+        $columns = explode($delimiter, $line);
+    }
+
+    if (!is_array($columns) || empty($columns)) {
+        $columns = [$line];
+    }
+
+    $columns = array_map(
+        static function ($value): string {
+            return trim((string) $value);
+        },
+        $columns
+    );
+
+    return [
+        'title'         => (string) ($columns[0] ?? ''),
+        'translation'   => (string) ($columns[1] ?? ''),
+        'extra_columns' => max(0, count($columns) - 2),
+    ];
+}
+
+/**
  * Render the Bulk Word Import page.
  */
 function ll_tools_render_bulk_word_import_page() {
@@ -145,7 +205,7 @@ function ll_tools_render_bulk_word_import_page() {
     }
 
     $messages = [];
-    $created = $skipped_existing = $skipped_empty = 0;
+    $created = $created_with_translation = $skipped_existing = $skipped_empty = $rows_with_ignored_extra_columns = 0;
     $skipped_existing_words = [];
     $errors  = [];
 
@@ -153,7 +213,10 @@ function ll_tools_render_bulk_word_import_page() {
         check_admin_referer('ll_bulk_word_import', 'll_bulk_word_import_nonce');
 
         $raw_list = isset($_POST['ll_word_list']) ? wp_unslash($_POST['ll_word_list']) : '';
-        $words = array_filter(array_map('trim', preg_split('/\r\n|\n|\r/', (string) $raw_list)));
+        $raw_lines = preg_split('/\r\n|\n|\r/', (string) $raw_list);
+        $parsed_rows = is_array($raw_lines)
+            ? array_map('ll_tools_bulk_word_import_parse_line', $raw_lines)
+            : [];
 
         $selected_category = isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0;
         $selected_wordset  = isset($_POST['ll_existing_wordset']) ? (int) wp_unslash($_POST['ll_existing_wordset']) : 0;
@@ -201,12 +264,20 @@ function ll_tools_render_bulk_word_import_page() {
             $category_id = $selected_category;
         }
 
-        if (empty($words)) {
+        if (trim((string) $raw_list) === '') {
             $errors[] = __('Please provide at least one word to import.', 'll-tools-text-domain');
         }
 
         if (empty($errors)) {
-            foreach ($words as $word) {
+            foreach ($parsed_rows as $row) {
+                $word = (string) ($row['title'] ?? '');
+                $translation = sanitize_text_field((string) ($row['translation'] ?? ''));
+                $extra_columns = isset($row['extra_columns']) ? (int) $row['extra_columns'] : 0;
+
+                if ($extra_columns > 0) {
+                    $rows_with_ignored_extra_columns++;
+                }
+
                 $normalized = ll_tools_import_capitalize_word($word, $selected_wordset);
                 if ($normalized === '') {
                     $skipped_empty++;
@@ -260,6 +331,11 @@ function ll_tools_render_bulk_word_import_page() {
                     }
                 }
 
+                if ($translation !== '') {
+                    update_post_meta($post_id, 'word_translation', $translation);
+                    $created_with_translation++;
+                }
+
                 $created++;
             }
 
@@ -269,6 +345,21 @@ function ll_tools_render_bulk_word_import_page() {
                     'text' => sprintf(
                         _n('%d word was imported as a draft.', '%d words were imported as drafts.', $created, 'll-tools-text-domain'),
                         $created
+                    ),
+                ];
+            }
+
+            if ($created_with_translation > 0) {
+                $messages[] = [
+                    'type' => 'success',
+                    'text' => sprintf(
+                        _n(
+                            '%d imported word included a translation.',
+                            '%d imported words included translations.',
+                            $created_with_translation,
+                            'll-tools-text-domain'
+                        ),
+                        $created_with_translation
                     ),
                 ];
             }
@@ -297,6 +388,21 @@ function ll_tools_render_bulk_word_import_page() {
                     'text' => sprintf(
                         _n('%d empty line was ignored.', '%d empty lines were ignored.', $skipped_empty, 'll-tools-text-domain'),
                         $skipped_empty
+                    ),
+                ];
+            }
+
+            if ($rows_with_ignored_extra_columns > 0) {
+                $messages[] = [
+                    'type' => 'info',
+                    'text' => sprintf(
+                        _n(
+                            'Ignored extra columns on %d row. Only the first two columns were imported.',
+                            'Ignored extra columns on %d rows. Only the first two columns were imported.',
+                            $rows_with_ignored_extra_columns,
+                            'll-tools-text-domain'
+                        ),
+                        $rows_with_ignored_extra_columns
                     ),
                 ];
             }
@@ -354,8 +460,12 @@ function ll_tools_render_bulk_word_import_page() {
                     <tr>
                         <th scope="row"><label for="ll-word-list"><?php esc_html_e('Words to import', 'll-tools-text-domain'); ?></label></th>
                         <td>
-                            <textarea id="ll-word-list" name="ll_word_list" rows="12" cols="60" class="large-text code" placeholder="<?php esc_attr_e('Enter one word per line', 'll-tools-text-domain'); ?>"><?php echo isset($_POST['ll_word_list']) ? esc_textarea(wp_unslash($_POST['ll_word_list'])) : ''; ?></textarea>
-                            <p class="description"><?php esc_html_e('Each line will become a new draft word post with the title automatically capitalized.', 'll-tools-text-domain'); ?></p>
+                            <textarea id="ll-word-list" name="ll_word_list" rows="12" cols="60" class="large-text code" placeholder="<?php esc_attr_e('Enter one word per line, or word + translation separated by a tab or comma', 'll-tools-text-domain'); ?>"><?php echo isset($_POST['ll_word_list']) ? esc_textarea(wp_unslash($_POST['ll_word_list'])) : ''; ?></textarea>
+                            <p class="description"><?php esc_html_e('Each row creates a new draft word post with the title automatically capitalized.', 'll-tools-text-domain'); ?></p>
+                            <p class="description"><?php echo wp_kses_post(sprintf(__('Word only: %s', 'll-tools-text-domain'), '<code>bonjour</code>')); ?></p>
+                            <p class="description"><?php echo wp_kses_post(sprintf(__('Word + translation with a tab: %s', 'll-tools-text-domain'), '<code>bonjour[TAB]hello</code>')); ?></p>
+                            <p class="description"><?php echo wp_kses_post(sprintf(__('Word + translation with a comma: %s', 'll-tools-text-domain'), '<code>bonjour,hello</code>')); ?></p>
+                            <p class="description"><?php esc_html_e('Copying two spreadsheet columns from Excel or Google Sheets usually produces tab-separated rows and works as-is. If a word or translation contains a comma, wrap that value in double quotes.', 'll-tools-text-domain'); ?></p>
                         </td>
                     </tr>
                     <tr>

@@ -108,6 +108,49 @@ final class BulkWordImportAdminTest extends LL_Tools_TestCase
         $this->assertSame('draft', get_post_status($created_id));
     }
 
+    public function test_bulk_word_import_submission_can_store_translations_from_tab_and_csv_rows(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_bulk_word_import_nonce' => wp_create_nonce('ll_bulk_word_import'),
+            'll_word_list' => "merhaba\thello\nsalut,\"hello, hi\"",
+            'll_existing_wordset' => '0',
+            'll_existing_category' => '0',
+            'll_new_category' => '',
+        ];
+        $_REQUEST = $_POST;
+
+        ob_start();
+        ll_tools_render_bulk_word_import_page();
+        ob_end_clean();
+
+        $tab_word_id = $this->findWordIdByTitle('Merhaba');
+        $csv_word_id = $this->findWordIdByTitle('Salut');
+
+        $this->assertGreaterThan(0, $tab_word_id);
+        $this->assertGreaterThan(0, $csv_word_id);
+        $this->assertSame('hello', (string) get_post_meta($tab_word_id, 'word_translation', true));
+        $this->assertSame('hello, hi', (string) get_post_meta($csv_word_id, 'word_translation', true));
+    }
+
+    public function test_bulk_word_import_page_explains_supported_two_column_formats(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        ob_start();
+        ll_tools_render_bulk_word_import_page();
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('Word + translation with a tab', $html);
+        $this->assertStringContainsString('bonjour[TAB]hello', $html);
+        $this->assertStringContainsString('Word + translation with a comma', $html);
+        $this->assertStringContainsString('spreadsheet columns', $html);
+    }
+
     public function test_bulk_word_import_category_dropdown_is_scoped_to_selected_wordset(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
@@ -165,5 +208,16 @@ final class BulkWordImportAdminTest extends LL_Tools_TestCase
         wp_set_object_terms($word_id, [$category_id], 'word-category', false);
 
         return (int) $word_id;
+    }
+
+    private function findWordIdByTitle(string $title): int
+    {
+        global $wpdb;
+
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_title = %s LIMIT 1",
+            'words',
+            $title
+        ));
     }
 }
