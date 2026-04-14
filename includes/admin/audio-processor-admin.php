@@ -70,6 +70,26 @@ function ll_audio_processor_get_page_url($args = []) {
     return add_query_arg($args, admin_url('tools.php?page=ll-audio-processor'));
 }
 
+function ll_audio_processor_get_recording_timestamp($recording_date) {
+    if (is_numeric($recording_date)) {
+        $timestamp = (int) $recording_date;
+        return $timestamp > 0 ? $timestamp : 0;
+    }
+
+    $recording_date = trim((string) $recording_date);
+    if ($recording_date === '') {
+        return 0;
+    }
+
+    try {
+        $timestamp = (new DateTimeImmutable($recording_date, wp_timezone()))->getTimestamp();
+        return $timestamp > 0 ? $timestamp : 0;
+    } catch (Exception $exception) {
+        $fallback = strtotime($recording_date);
+        return $fallback ? (int) $fallback : 0;
+    }
+}
+
 function ll_enqueue_audio_processor_assets($hook) {
     if ($hook !== 'tools_page_ll-audio-processor') return;
 
@@ -338,6 +358,7 @@ function ll_get_unprocessed_recordings() {
                 $word_values = ll_audio_processor_get_word_editor_values($parent_word_id);
                 $word_title = (string) ($word_values['word_text'] ?? '');
                 $categories = wp_get_post_terms($parent_word_id, 'word-category', ['fields' => 'names']);
+                $upload_date = (string) get_post_meta($audio_post_id, 'recording_date', true);
 
                 // Get wordset names
                 $wordsets = wp_get_post_terms($parent_word_id, 'wordset', ['fields' => 'names']);
@@ -374,7 +395,8 @@ function ll_get_unprocessed_recordings() {
                     'translationText' => (string) ($word_values['translation_text'] ?? ''),
                     'storeInTitle' => !empty($word_values['store_in_title']),
                     'audioUrl' => site_url($audio_file),
-                    'uploadDate' => get_post_meta($audio_post_id, 'recording_date', true),
+                    'uploadDate' => $upload_date,
+                    'uploadTimestamp' => ll_audio_processor_get_recording_timestamp($upload_date),
                     'categories' => is_array($categories) && !is_wp_error($categories) ? $categories : [],
                     'wordsets' => $wordset_names,
                     'recordingTypes' => $recording_type_names,
@@ -494,6 +516,17 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
     $display_translation_text = function_exists('ll_tools_esc_html_display')
         ? ll_tools_esc_html_display($translation_text)
         : esc_html($translation_text);
+    $upload_date = trim((string) ($recording['uploadDate'] ?? ''));
+    $upload_timestamp = isset($recording['uploadTimestamp'])
+        ? (int) $recording['uploadTimestamp']
+        : ll_audio_processor_get_recording_timestamp($upload_date);
+    $fallback_upload_label = $upload_date;
+    $upload_datetime_attr = '';
+
+    if ($upload_timestamp > 0) {
+        $fallback_upload_label = wp_date('Y-m-d H:i', $upload_timestamp, wp_timezone());
+        $upload_datetime_attr = gmdate('c', $upload_timestamp);
+    }
     ?>
     <div
         class="ll-recording-item"
@@ -600,9 +633,13 @@ function ll_render_audio_processor_recording_item($recording, $duplicate_reason 
                     <?php if ($duplicate_label): ?>
                         <span class="ll-recording-duplicate"><?php echo esc_html($duplicate_label); ?></span>
                     <?php endif; ?>
-                    <span class="ll-recording-date">
-                        <?php echo esc_html(date('Y-m-d H:i', strtotime($recording['uploadDate']))); ?>
-                    </span>
+                    <time
+                        class="ll-recording-date"
+                        <?php echo $upload_datetime_attr !== '' ? 'datetime="' . esc_attr($upload_datetime_attr) . '"' : ''; ?>
+                        <?php echo $upload_timestamp > 0 ? 'data-upload-timestamp="' . esc_attr((string) $upload_timestamp) . '"' : ''; ?>
+                    >
+                        <?php echo esc_html($fallback_upload_label); ?>
+                    </time>
                 </div>
             </div>
         </div>

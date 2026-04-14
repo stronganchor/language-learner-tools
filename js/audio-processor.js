@@ -425,12 +425,139 @@
         state.recordingTypeIcons = (window.llAudioProcessor.recordingTypeIcons && typeof window.llAudioProcessor.recordingTypeIcons === 'object')
             ? window.llAudioProcessor.recordingTypeIcons
             : {};
+        localizeRecordingDates();
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         initTabs();
         enhanceSplitWordLinks();
         wireEventListeners();
         restoreReturnedRecordingFocus();
         updateSelectedCount();
+    }
+
+    function getRecordingDateFormatter(includeTimeZoneName = false) {
+        if (typeof Intl !== 'object' || typeof Intl.DateTimeFormat !== 'function') {
+            return null;
+        }
+
+        try {
+            return new Intl.DateTimeFormat(undefined, includeTimeZoneName
+                ? { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' }
+                : { dateStyle: 'medium', timeStyle: 'short' });
+        } catch (error) {
+            try {
+                return new Intl.DateTimeFormat(undefined, includeTimeZoneName
+                    ? {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                    }
+                    : {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                    });
+            } catch (innerError) {
+                return null;
+            }
+        }
+    }
+
+    function formatRecordingDate(timestampMs, includeTimeZoneName = false) {
+        if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
+            return '';
+        }
+
+        const formatter = getRecordingDateFormatter(includeTimeZoneName);
+        if (!formatter) {
+            return '';
+        }
+
+        try {
+            return formatter.format(timestampMs);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function formatRelativeRecordingDate(timestampMs) {
+        if (
+            !Number.isFinite(timestampMs) ||
+            timestampMs <= 0 ||
+            typeof Intl !== 'object' ||
+            typeof Intl.RelativeTimeFormat !== 'function'
+        ) {
+            return '';
+        }
+
+        const deltaSeconds = Math.round((timestampMs - Date.now()) / 1000);
+        const absSeconds = Math.abs(deltaSeconds);
+        let value = deltaSeconds;
+        let unit = 'second';
+
+        if (absSeconds >= 604800) {
+            value = Math.round(deltaSeconds / 604800);
+            unit = 'week';
+        } else if (absSeconds >= 86400) {
+            value = Math.round(deltaSeconds / 86400);
+            unit = 'day';
+        } else if (absSeconds >= 3600) {
+            value = Math.round(deltaSeconds / 3600);
+            unit = 'hour';
+        } else if (absSeconds >= 60) {
+            value = Math.round(deltaSeconds / 60);
+            unit = 'minute';
+        }
+
+        try {
+            return new Intl.RelativeTimeFormat(undefined, {
+                numeric: 'auto',
+                style: 'short'
+            }).format(value, unit);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function localizeRecordingDates() {
+        document.querySelectorAll('.ll-recording-date[data-upload-timestamp]').forEach((element) => {
+            const timestampSeconds = parseInt(element.dataset.uploadTimestamp, 10);
+            if (!Number.isInteger(timestampSeconds) || timestampSeconds <= 0) {
+                return;
+            }
+
+            const timestampMs = timestampSeconds * 1000;
+            const localLabel = formatRecordingDate(timestampMs);
+            const localTitle = formatRecordingDate(timestampMs, true);
+            const relativeLabel = formatRelativeRecordingDate(timestampMs);
+            const titleParts = [];
+
+            if (localLabel) {
+                element.textContent = localLabel;
+            } else if (relativeLabel) {
+                element.textContent = relativeLabel;
+            }
+
+            if (localTitle) {
+                titleParts.push(localTitle);
+            } else if (localLabel) {
+                titleParts.push(localLabel);
+            }
+
+            if (relativeLabel) {
+                titleParts.push(relativeLabel);
+            }
+
+            if (titleParts.length > 0) {
+                const titleText = titleParts.join(' | ');
+                element.title = titleText;
+                element.setAttribute('aria-label', titleText);
+            }
+        });
     }
 
     function getSplitWordLinkTab(link) {
