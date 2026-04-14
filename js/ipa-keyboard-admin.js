@@ -2246,6 +2246,20 @@
         return $newRow;
     }
 
+    function replaceSearchRowByRecordingId(recordingId, rec) {
+        const safeRecordingId = parseInt(recordingId, 10) || 0;
+        if (!safeRecordingId) {
+            return null;
+        }
+
+        const $row = $searchResults.find('tr[data-recording-id="' + safeRecordingId + '"]').first();
+        if (!$row.length) {
+            return null;
+        }
+
+        return replaceSearchRow($row, rec);
+    }
+
     function getSearchRowValues($row) {
         const $textInput = $row.find('.ll-ipa-search-text-input').first();
         const $ipaInput = $row.find('.ll-ipa-search-ipa-input').first();
@@ -2328,14 +2342,17 @@
                 return;
             }
 
-            loadSearch(currentWordsetId, true, {
-                quietStatus: true,
-                showLoading: false,
-                page: currentSearchPage,
-                successStatus: needsReview
+            const data = response.data || {};
+            if (data.recording) {
+                replaceSearchRowByRecordingId(recordingId, data.recording);
+            }
+
+            setStatus(
+                needsReview
                     ? t('searchMarkedForReview', 'Marked for review.')
-                    : t('searchReviewed', 'Reviewed.')
-            });
+                    : t('searchReviewed', 'Reviewed.'),
+                false
+            );
         }).fail(function () {
             setStatus(t('error', 'Something went wrong. Please try again.'), true);
         });
