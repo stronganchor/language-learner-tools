@@ -14,6 +14,7 @@ final class DefaultShortcodePageFlowTest extends LL_Tools_TestCase
 
         $this->cleanupRecordingPageState();
         $this->cleanupEditorHubPageState();
+        $this->cleanupDictionaryPageState();
     }
 
     protected function tearDown(): void
@@ -23,6 +24,7 @@ final class DefaultShortcodePageFlowTest extends LL_Tools_TestCase
 
         $this->cleanupRecordingPageState();
         $this->cleanupEditorHubPageState();
+        $this->cleanupDictionaryPageState();
 
         parent::tearDown();
     }
@@ -143,6 +145,36 @@ final class DefaultShortcodePageFlowTest extends LL_Tools_TestCase
         $this->assertSame($newPageId, (int) get_option('ll_default_editor_hub_page_id'));
     }
 
+    public function test_dictionary_ajax_recreate_bypasses_existing_shortcode_page_and_cooldown(): void
+    {
+        $existingPageId = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Existing Dictionary AJAX Page',
+            'post_content' => '[ll_dictionary]',
+        ]);
+
+        update_option('ll_default_dictionary_page_id', $existingPageId);
+        set_transient('ll_dictionary_page_creation_attempt', time(), MINUTE_IN_SECONDS);
+
+        $_POST = [
+            'action' => 'll_create_dictionary_page',
+            'nonce' => wp_create_nonce('ll_create_dictionary_page'),
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_ajax_create_dictionary_page();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = (array) ($response['data'] ?? []);
+        $newPageId = (int) ($data['page_id'] ?? 0);
+        $this->assertGreaterThan(0, $newPageId);
+        $this->assertNotSame($existingPageId, $newPageId);
+        $this->assertSame($newPageId, (int) get_option('ll_default_dictionary_page_id'));
+    }
+
     /**
      * @param array<string, string> $overrides
      * @return array<string, string>
@@ -219,5 +251,13 @@ final class DefaultShortcodePageFlowTest extends LL_Tools_TestCase
         delete_option('ll_tools_force_create_editor_hub_page');
         delete_transient('ll_editor_hub_page_creation_attempt');
         delete_transient('ll_editor_hub_page_created');
+    }
+
+    private function cleanupDictionaryPageState(): void
+    {
+        delete_option('ll_default_dictionary_page_id');
+        delete_option('ll_tools_force_create_dictionary_page');
+        delete_transient('ll_dictionary_page_creation_attempt');
+        delete_transient('ll_dictionary_page_created');
     }
 }

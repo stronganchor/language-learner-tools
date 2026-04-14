@@ -204,7 +204,19 @@ function ll_tools_get_dictionary_entry_translation($entry_id): string {
         return '';
     }
 
-    return trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+    $translation = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+    if ($translation !== '') {
+        return $translation;
+    }
+
+    if (function_exists('ll_tools_get_dictionary_entry_senses') && function_exists('ll_tools_dictionary_build_translation_summary')) {
+        $translation = ll_tools_dictionary_build_translation_summary(
+            ll_tools_get_dictionary_entry_senses($entry_id),
+            trim(wp_strip_all_tags((string) get_post_field('post_content', $entry_id)))
+        );
+    }
+
+    return trim((string) $translation);
 }
 
 /**
@@ -547,6 +559,35 @@ function ll_tools_search_dictionary_entries($search = '', $limit = 20, $wordset_
         $limit = 20;
     }
     $limit = min(100, $limit);
+
+    if (function_exists('ll_tools_dictionary_query_entries')) {
+        $query = ll_tools_dictionary_query_entries([
+            'search' => $search,
+            'per_page' => $limit,
+            'page' => 1,
+            'wordset_id' => $wordset_id,
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+        ]);
+
+        $entries = [];
+        foreach ((array) ($query['items'] ?? []) as $item) {
+            $id = isset($item['id']) ? (int) $item['id'] : 0;
+            $title = isset($item['title']) ? trim((string) $item['title']) : '';
+            if ($id <= 0 || $title === '') {
+                continue;
+            }
+            $entries[] = [
+                'id' => $id,
+                'label' => $title,
+            ];
+        }
+
+        if (!empty($entries) || $search !== '') {
+            return $entries;
+        }
+    }
 
     $query_limit = $limit;
     if ($wordset_id > 0) {

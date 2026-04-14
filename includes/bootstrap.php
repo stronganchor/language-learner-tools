@@ -24,6 +24,7 @@ require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
+require_once(__DIR__ . '/lib/dictionary-browser.php');
 
 // Include taxonomies
 require_once(__DIR__ . '/taxonomies/word-category-taxonomy.php');
@@ -83,6 +84,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
     require_once(__DIR__ . '/admin/bulk-translation-admin.php');
     require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
+    require_once(__DIR__ . '/admin/dictionary-import-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
     require_once(__DIR__ . '/admin/offline-app-export.php');
     require_once(__DIR__ . '/admin/user-progress-report.php');
@@ -107,6 +109,7 @@ require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');
 require_once(__DIR__ . '/pages/recording-page.php');
 require_once(__DIR__ . '/pages/editor-hub-page.php');
+require_once(__DIR__ . '/pages/dictionary-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
@@ -119,6 +122,7 @@ require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
 require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
+require_once(__DIR__ . '/shortcodes/dictionary-shortcode.php');
 
 // Include the plugin update checker only on admin/cron/CLI requests.
 if (!function_exists('ll_tools_should_boot_update_checker') || ll_tools_should_boot_update_checker()) {

@@ -39,6 +39,7 @@ read_first:
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
+- Dictionary tooling: TSV/legacy-table import into `ll_dictionary_entry`, grouped sense metadata, and a public `[ll_dictionary]` browse/search page.
 - Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
 # Entry points and runtime flow
@@ -84,6 +85,7 @@ includes/
   lib/
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
+    dictionary-browser.php    # Dictionary import/search helpers + legacy raw-table migration
     ll-matching.php           # Audio <-> image matching heuristics
     media-proxy.php           # Signed image proxy for quizzes
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
@@ -95,6 +97,7 @@ includes/
     default-shortcode-page-helper.php # Shared ensure/find/admin-action helpers for plugin-owned shortcode pages
     recording-page.php        # Recording page creation + login redirect
     editor-hub-page.php       # Editor Hub page creation + login redirect
+    dictionary-page.php       # Dictionary page creation + settings-row controls
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
   post-types/
@@ -119,6 +122,7 @@ includes/
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
+    dictionary-shortcode.php  # [ll_dictionary] + legacy dictionary shortcode aliases
   admin/
     admin-dashboard-menu.php
     settings.php
@@ -129,6 +133,7 @@ includes/
     recording-types-admin.php
     bulk-translation-admin.php
     bulk-word-import-admin.php
+    dictionary-import-admin.php
     export-import.php
     example-sentence-migration.php
     ipa-keyboard-admin.php
@@ -197,6 +202,7 @@ vendor/
     - Bypass with `_ll_skip_audio_requirement_once` or filter `ll_tools_skip_audio_requirement`.
 - `ll_dictionary_entry` (admin-facing umbrella entries)
   - Groups related `words` posts (e.g., different learnable forms) without changing `words` as the quiz/recording unit.
+  - Imported dictionaries can store grouped structured senses in `ll_dictionary_entry_senses`, with derived summary/search meta for public browse/search and translation fallback lookup.
 - `word_images` (public, REST)
   - Featured image is the media asset.
   - Meta: `copyright_info`, plus translation fields used by grids.

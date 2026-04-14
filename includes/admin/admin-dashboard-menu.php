@@ -61,6 +61,7 @@ if (!function_exists('ll_tools_get_tools_hub_related_page_slugs')) {
             'll-audio-image-matcher',
             'language-learner-tools-missing-audio',
             'll-bulk-word-import',
+            'll-dictionary-import',
             'll-bulk-translations',
             'll-export',
             'll-import',
@@ -122,6 +123,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
             'll-audio-image-matcher' => __('Audio/Image Matcher', 'll-tools-text-domain'),
             'language-learner-tools-missing-audio' => __('Missing Audio', 'll-tools-text-domain'),
             'll-bulk-word-import' => __('Bulk Word Import', 'll-tools-text-domain'),
+            'll-dictionary-import' => __('Dictionary Import', 'll-tools-text-domain'),
             'll-bulk-translations' => __('Bulk Translations', 'll-tools-text-domain'),
             'll-export' => __('Export', 'll-tools-text-domain'),
             'll-import' => __('Import', 'll-tools-text-domain'),
@@ -507,6 +509,9 @@ function ll_tools_render_tools_hub_page() {
     $bulk_word_import_capability = function_exists('ll_tools_get_bulk_word_import_capability')
         ? ll_tools_get_bulk_word_import_capability()
         : 'manage_options';
+    $dictionary_import_capability = function_exists('ll_tools_get_dictionary_import_capability')
+        ? ll_tools_get_dictionary_import_capability()
+        : 'manage_options';
     $export_import_capability = function_exists('ll_tools_get_export_import_capability')
         ? ll_tools_get_export_import_capability()
         : 'manage_options';
@@ -548,6 +553,13 @@ function ll_tools_render_tools_hub_page() {
             'url' => ll_tools_get_tools_page_url('ll-bulk-word-import'),
             'cap' => $bulk_word_import_capability,
             'icon' => 'dashicons-database-import',
+        ],
+        [
+            'label' => __('Dictionary Import', 'll-tools-text-domain'),
+            'description' => __('Import TSV dictionaries or migrate the legacy raw dictionary table into LL Tools dictionary entries.', 'll-tools-text-domain'),
+            'url' => ll_tools_get_tools_page_url('ll-dictionary-import'),
+            'cap' => $dictionary_import_capability,
+            'icon' => 'dashicons-book-alt',
         ],
         [
             'label' => __('Bulk Translations', 'll-tools-text-domain'),

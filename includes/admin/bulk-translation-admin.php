@@ -581,6 +581,13 @@ function ll_ajax_bulk_translations_fetch() {
 
 /** Dictionary fallback (uses DIB DB if present) */
 function ll_dictionary_lookup_best($word, $source_lang, $target_lang, $reverse = false) {
+    if (function_exists('ll_tools_dictionary_lookup_best')) {
+        $entry_match = ll_tools_dictionary_lookup_best($word, $source_lang, $target_lang, $reverse);
+        if ($entry_match !== null && trim((string) $entry_match) !== '') {
+            return trim((string) $entry_match);
+        }
+    }
+
     global $wpdb;
     $table = $wpdb->prefix . 'dictionary_entries';
 
