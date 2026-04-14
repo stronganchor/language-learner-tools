@@ -1228,12 +1228,22 @@ function ll_render_word_option_rules_admin_page() {
 
     $categories = [];
     if (!$is_iframe) {
-        $categories = get_terms([
-            'taxonomy' => 'word-category',
-            'hide_empty' => false,
-            'orderby' => 'name',
-            'order' => 'ASC',
-        ]);
+        if ($wordset_id > 0 && function_exists('ll_tools_resolve_word_option_rules_category_id')) {
+            $category_id = (int) ll_tools_resolve_word_option_rules_category_id($wordset_id, $category_id, true);
+        }
+
+        $category_ids = ($wordset_id > 0 && function_exists('ll_tools_word_option_rules_get_wordset_category_ids'))
+            ? ll_tools_word_option_rules_get_wordset_category_ids($wordset_id)
+            : [];
+        if (!empty($category_ids)) {
+            $categories = get_terms([
+                'taxonomy'   => 'word-category',
+                'hide_empty' => false,
+                'include'    => $category_ids,
+                'orderby'    => 'name',
+                'order'      => 'ASC',
+            ]);
+        }
     }
 
     $wordset_term = $wordset_id ? get_term($wordset_id, 'wordset') : null;

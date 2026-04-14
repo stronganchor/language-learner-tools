@@ -402,13 +402,20 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
             update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/rec-audio-' . $i . '.mp3');
         }
 
+        $effective_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true)
+            : 0;
+        if ($effective_category_id <= 0) {
+            $effective_category_id = $category_id;
+        }
+
         return [
             'wordset_id' => $wordset_id,
-            'category_id' => $category_id,
+            'category_id' => $effective_category_id,
             'category_payload' => [
-                'id' => $category_id,
+                'id' => $effective_category_id,
                 'name' => 'Category',
-                'slug' => sanitize_title('rec-category-' . $category_id),
+                'slug' => sanitize_title('rec-category-' . $effective_category_id),
                 'gender_supported' => false,
                 'learning_supported' => true,
             ],
@@ -445,15 +452,22 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
             update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
             update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
 
-            $category_ids[] = $category_id;
+            $effective_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+                ? (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true)
+                : 0;
+            if ($effective_category_id <= 0) {
+                $effective_category_id = $category_id;
+            }
+
+            $category_ids[] = $effective_category_id;
             $categories_payload[] = [
-                'id' => $category_id,
+                'id' => $effective_category_id,
                 'name' => 'Category ' . ($index + 1),
-                'slug' => sanitize_title('rec-category-multi-' . $category_id),
+                'slug' => sanitize_title('rec-category-multi-' . $effective_category_id),
                 'gender_supported' => false,
                 'learning_supported' => true,
             ];
-            $word_ids_by_category[$category_id] = [];
+            $word_ids_by_category[$effective_category_id] = [];
 
             for ($i = 1; $i <= $count; $i++) {
                 $word_id = self::factory()->post->create([
@@ -473,7 +487,7 @@ final class UserProgressRecommendationTest extends LL_Tools_TestCase
                 ]);
                 update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/rec-multi-audio-' . ($index + 1) . '-' . $i . '.mp3');
 
-                $word_ids_by_category[$category_id][] = (int) $word_id;
+                $word_ids_by_category[$effective_category_id][] = (int) $word_id;
             }
         }
 

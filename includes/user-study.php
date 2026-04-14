@@ -23,6 +23,13 @@ function ll_tools_get_user_study_state($user_id = 0): array {
     $wordset_id = (int) get_user_meta($uid, LL_TOOLS_USER_WORDSET_META, true);
     $category_ids = (array) get_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, true);
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+    if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
+        if (!empty($repaired_category_ids) && $repaired_category_ids !== $category_ids) {
+            $category_ids = $repaired_category_ids;
+            update_user_meta($uid, LL_TOOLS_USER_CATEGORY_META, $category_ids);
+        }
+    }
     $starred_word_ids = (array) get_user_meta($uid, LL_TOOLS_USER_STARRED_META, true);
     $starred_word_ids = array_values(array_filter(array_map('intval', $starred_word_ids), function ($id) { return $id > 0; }));
     $star_mode_raw = get_user_meta($uid, 'll_user_star_mode', true) ?: 'normal';
@@ -52,6 +59,12 @@ function ll_tools_save_user_study_state(array $state, $user_id = 0): array {
     $fast_transitions = filter_var($fast_raw, FILTER_VALIDATE_BOOLEAN);
 
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+    if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
+        if (!empty($repaired_category_ids)) {
+            $category_ids = $repaired_category_ids;
+        }
+    }
     $starred_ids  = array_values(array_filter(array_map('intval', $starred_ids), function ($id) { return $id > 0; }));
 
     update_user_meta($uid, LL_TOOLS_USER_WORDSET_META, $wordset_id);
@@ -184,6 +197,13 @@ function ll_tools_user_study_categories_for_wordset($wordset_id): array {
  */
 function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, $wordset_id): array {
     $category_ids = array_values(array_filter(array_map('intval', $category_ids), function ($id) { return $id > 0; }));
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id > 0 && !empty($category_ids) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($category_ids, $wordset_id, true);
+        if (!empty($repaired_category_ids)) {
+            $category_ids = $repaired_category_ids;
+        }
+    }
     if (empty($category_ids)) {
         return [];
     }
@@ -213,7 +233,7 @@ function ll_tools_user_study_filter_quizzable_category_ids(array $category_ids, 
     }
 
     $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
-    $wordset_ids = ((int) $wordset_id > 0) ? [(int) $wordset_id] : [];
+    $wordset_ids = ($wordset_id > 0) ? [$wordset_id] : [];
     $allowed = [];
 
     foreach ($category_ids as $category_id) {

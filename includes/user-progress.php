@@ -510,6 +510,13 @@ function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id,
             $term = get_term_by('name', sanitize_text_field((string) $context['category_name']), 'word-category');
             if ($term instanceof WP_Term && !is_wp_error($term)) {
                 $category_ref = (int) $term->term_id;
+                $context_wordset_id = max(0, (int) ($context['wordset_id'] ?? 0));
+                if ($context_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+                    $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_ref, $context_wordset_id, true);
+                    if ($effective_category_id > 0) {
+                        $category_ref = $effective_category_id;
+                    }
+                }
             }
         }
         if ($category_ref > 0 && function_exists('ll_tools_get_category_quiz_config')) {
@@ -878,6 +885,12 @@ function ll_tools_sanitize_user_study_goals(array $raw): array {
     $ignored = array_values(array_unique(array_filter(array_map('intval', $ignored), function ($id) {
         return $id > 0;
     })));
+    if (!empty($ignored) && function_exists('ll_tools_wordset_isolation_expand_category_id_list_across_wordsets')) {
+        $expanded_ignored = ll_tools_wordset_isolation_expand_category_id_list_across_wordsets($ignored);
+        if (!empty($expanded_ignored)) {
+            $ignored = $expanded_ignored;
+        }
+    }
 
     $preferred_wordsets = isset($raw['preferred_wordset_ids']) ? (array) $raw['preferred_wordset_ids'] : [];
     $preferred_wordsets = array_values(array_unique(array_filter(array_map('intval', $preferred_wordsets), function ($id) {
@@ -888,6 +901,12 @@ function ll_tools_sanitize_user_study_goals(array $raw): array {
     $placement = array_values(array_unique(array_filter(array_map('intval', $placement), function ($id) {
         return $id > 0;
     })));
+    if (!empty($placement) && function_exists('ll_tools_wordset_isolation_expand_category_id_list_across_wordsets')) {
+        $expanded_placement = ll_tools_wordset_isolation_expand_category_id_list_across_wordsets($placement);
+        if (!empty($expanded_placement)) {
+            $placement = $expanded_placement;
+        }
+    }
 
     $daily = isset($raw['daily_new_word_target']) ? (int) $raw['daily_new_word_target'] : (int) $defaults['daily_new_word_target'];
     $daily = max(0, min(12, $daily));
@@ -939,7 +958,22 @@ function ll_tools_get_user_study_goals($user_id = 0): array {
     if (!is_array($raw)) {
         $raw = [];
     }
-    return ll_tools_sanitize_user_study_goals($raw);
+    $normalized = ll_tools_sanitize_user_study_goals($raw);
+
+    $raw_ignored = array_values(array_unique(array_filter(array_map('intval', (array) ($raw['ignored_category_ids'] ?? [])), static function (int $id): bool {
+        return $id > 0;
+    })));
+    $raw_placement = array_values(array_unique(array_filter(array_map('intval', (array) ($raw['placement_known_category_ids'] ?? [])), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if ($normalized['ignored_category_ids'] !== $raw_ignored || $normalized['placement_known_category_ids'] !== $raw_placement) {
+        $repaired = $raw;
+        $repaired['ignored_category_ids'] = $normalized['ignored_category_ids'];
+        $repaired['placement_known_category_ids'] = $normalized['placement_known_category_ids'];
+        update_user_meta($uid, LL_TOOLS_USER_GOALS_META, $repaired);
+    }
+
+    return $normalized;
 }
 
 function ll_tools_save_user_study_goals(array $goals, $user_id = 0): array {
@@ -952,6 +986,63 @@ function ll_tools_save_user_study_goals(array $goals, $user_id = 0): array {
     return $normalized;
 }
 
+function ll_tools_repair_user_category_progress_store_for_isolation(array $raw_progress): array {
+    if (empty($raw_progress)) {
+        return [];
+    }
+
+    $modes = ll_tools_progress_modes();
+    $repaired = [];
+    foreach ($raw_progress as $raw_category_id => $entry) {
+        $category_id = (int) $raw_category_id;
+        if ($category_id <= 0 || !is_array($entry)) {
+            continue;
+        }
+
+        $wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+        $target_category_id = $category_id;
+        if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($effective_category_id > 0) {
+                $target_category_id = $effective_category_id;
+            }
+        }
+
+        $by_mode_raw = isset($entry['exposure_by_mode']) && is_array($entry['exposure_by_mode']) ? $entry['exposure_by_mode'] : [];
+        if (!isset($repaired[$target_category_id])) {
+            $repaired[$target_category_id] = [
+                'category_id'      => $target_category_id,
+                'wordset_id'       => $wordset_id,
+                'exposure_total'   => 0,
+                'exposure_by_mode' => array_fill_keys($modes, 0),
+                'last_mode'        => 'practice',
+                'last_seen_at'     => '',
+            ];
+        }
+
+        $target_entry = $repaired[$target_category_id];
+        $target_entry['wordset_id'] = max(0, (int) ($target_entry['wordset_id'] ?? 0)) ?: $wordset_id;
+        $target_entry['exposure_total'] += max(0, (int) ($entry['exposure_total'] ?? 0));
+        foreach ($modes as $mode) {
+            $target_entry['exposure_by_mode'][$mode] = max(0, (int) ($target_entry['exposure_by_mode'][$mode] ?? 0))
+                + max(0, (int) ($by_mode_raw[$mode] ?? 0));
+        }
+
+        $candidate_last_seen_at = isset($entry['last_seen_at']) ? (string) $entry['last_seen_at'] : '';
+        if (
+            $target_entry['last_seen_at'] === ''
+            || ($candidate_last_seen_at !== '' && strcmp($candidate_last_seen_at, (string) $target_entry['last_seen_at']) > 0)
+        ) {
+            $target_entry['last_seen_at'] = $candidate_last_seen_at;
+            $target_entry['last_mode'] = ll_tools_normalize_progress_mode((string) ($entry['last_mode'] ?? 'practice'));
+        }
+
+        $repaired[$target_category_id] = $target_entry;
+    }
+
+    return $repaired;
+}
+
 function ll_tools_get_user_category_progress($user_id = 0): array {
     $uid = (int) ($user_id ?: get_current_user_id());
     if ($uid <= 0) {
@@ -960,6 +1051,11 @@ function ll_tools_get_user_category_progress($user_id = 0): array {
     $raw = get_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true);
     if (!is_array($raw)) {
         return [];
+    }
+    $repaired_raw = ll_tools_repair_user_category_progress_store_for_isolation($raw);
+    if ($repaired_raw !== $raw) {
+        update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $repaired_raw);
+        $raw = $repaired_raw;
     }
 
     $modes = ll_tools_progress_modes();
@@ -990,9 +1086,16 @@ function ll_tools_get_user_category_progress($user_id = 0): array {
 function ll_tools_record_category_exposure($user_id, int $category_id, string $mode, int $wordset_id = 0, int $delta = 1): void {
     $uid = (int) $user_id;
     $category_id = (int) $category_id;
+    $wordset_id = (int) $wordset_id;
     $delta = max(1, (int) $delta);
     if ($uid <= 0 || $category_id <= 0) {
         return;
+    }
+    if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($effective_category_id > 0) {
+            $category_id = $effective_category_id;
+        }
     }
 
     $mode = ll_tools_normalize_progress_mode($mode);
@@ -1149,8 +1252,26 @@ function ll_tools_resolve_category_id_for_word(int $word_id): int {
 }
 
 function ll_tools_resolve_category_id_from_event(array $event): int {
+    $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
+    if ($wordset_id <= 0 && !empty($event['word_id'])) {
+        $wordset_id = ll_tools_resolve_wordset_id_for_word((int) $event['word_id']);
+    }
+
+    $resolve_effective_category_id = static function (int $category_id) use ($wordset_id): int {
+        if ($category_id <= 0) {
+            return 0;
+        }
+        if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($effective_category_id > 0) {
+                return $effective_category_id;
+            }
+        }
+        return $category_id;
+    };
+
     if (!empty($event['category_id'])) {
-        return (int) $event['category_id'];
+        return $resolve_effective_category_id((int) $event['category_id']);
     }
     $name = isset($event['category_name']) ? trim((string) $event['category_name']) : '';
     if ($name !== '') {
@@ -1159,11 +1280,11 @@ function ll_tools_resolve_category_id_from_event(array $event): int {
             $term = get_term_by('slug', sanitize_title($name), 'word-category');
         }
         if ($term && !is_wp_error($term)) {
-            return (int) $term->term_id;
+            return $resolve_effective_category_id((int) $term->term_id);
         }
     }
     if (!empty($event['word_id'])) {
-        return ll_tools_resolve_category_id_for_word((int) $event['word_id']);
+        return $resolve_effective_category_id(ll_tools_resolve_category_id_for_word((int) $event['word_id']));
     }
     return 0;
 }
@@ -1221,6 +1342,22 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
     if (!$store_client_identity) {
         $device_id = '';
         $profile_id = '';
+    }
+
+    if ($wordset_id <= 0 && $word_id > 0) {
+        $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
+    }
+    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($effective_category_id > 0) {
+            $category_id = $effective_category_id;
+        }
+    }
+    if ($wordset_id > 0 && !empty($payload['category_ids']) && is_array($payload['category_ids']) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        $repaired_payload_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset((array) $payload['category_ids'], $wordset_id, true);
+        if (!empty($repaired_payload_category_ids)) {
+            $payload['category_ids'] = $repaired_payload_category_ids;
+        }
     }
 
     return [
@@ -1312,6 +1449,12 @@ function ll_tools_apply_word_progress_event(int $user_id, array $event, string $
     }
     if ($wordset_id <= 0) {
         $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
+    }
+    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($effective_category_id > 0) {
+            $category_id = $effective_category_id;
+        }
     }
 
     $data = [
@@ -1942,6 +2085,12 @@ function ll_tools_user_study_daily_activity_series(int $user_id, int $wordset_id
     $scoped_categories = array_values(array_filter(array_map('intval', $category_ids), function ($id) {
         return $id > 0;
     }));
+    if (!empty($scoped_categories) && function_exists('ll_tools_wordset_isolation_get_category_query_scope_for_wordset')) {
+        $expanded_scope = ll_tools_wordset_isolation_get_category_query_scope_for_wordset($scoped_categories, $wordset_id);
+        if (!empty($expanded_scope)) {
+            $scoped_categories = $expanded_scope;
+        }
+    }
     if (!empty($scoped_categories)) {
         $placeholders = implode(', ', array_fill(0, count($scoped_categories), '%d'));
         $where_parts[] = "category_id IN ({$placeholders})";
@@ -2081,6 +2230,12 @@ function ll_tools_user_study_category_mode_session_counts(int $user_id, int $wor
         }
         if (empty($payload_categories)) {
             continue;
+        }
+        if ($wordset_id > 0 && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+            $repaired_payload_categories = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($payload_categories, $wordset_id, true);
+            if (!empty($repaired_payload_categories)) {
+                $payload_categories = $repaired_payload_categories;
+            }
         }
 
         $created_at = isset($row['created_at']) ? (string) $row['created_at'] : '';
@@ -2853,6 +3008,34 @@ function ll_tools_normalize_recommendation_activity($raw): ?array {
     return $activity;
 }
 
+function ll_tools_repair_recommendation_activity_for_isolation($raw, int $wordset_id): ?array {
+    if (!is_array($raw)) {
+        return null;
+    }
+
+    if ($wordset_id > 0 && !empty($raw['category_ids']) && function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        $repaired_category_ids = ll_tools_wordset_isolation_remap_category_id_list_for_wordset((array) $raw['category_ids'], $wordset_id, true);
+        if (!empty($repaired_category_ids)) {
+            $raw['category_ids'] = $repaired_category_ids;
+        }
+    }
+
+    unset($raw['queue_id']);
+    return ll_tools_normalize_recommendation_activity($raw);
+}
+
+function ll_tools_repair_recommendation_queue_for_isolation(array $raw_queue, int $wordset_id, int $limit = 8): array {
+    $repaired = [];
+    foreach ($raw_queue as $raw_activity) {
+        $activity = ll_tools_repair_recommendation_activity_for_isolation($raw_activity, $wordset_id);
+        if ($activity) {
+            $repaired[] = $activity;
+        }
+    }
+
+    return ll_tools_normalize_recommendation_queue($repaired, $limit);
+}
+
 function ll_tools_normalize_recommendation_queue(array $raw_queue, int $limit = 8): array {
     $out = [];
     $seen = [];
@@ -3236,7 +3419,11 @@ function ll_tools_get_user_recommendation_queue($user_id = 0, $wordset_id = 0): 
     $queue_raw = isset($raw[(string) $wordset_id]) && is_array($raw[(string) $wordset_id])
         ? $raw[(string) $wordset_id]
         : [];
-    $queue = ll_tools_normalize_recommendation_queue($queue_raw, 8);
+    $queue = ll_tools_repair_recommendation_queue_for_isolation($queue_raw, $wordset_id, 8);
+    if ($queue !== $queue_raw) {
+        $raw[(string) $wordset_id] = $queue;
+        update_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $raw);
+    }
     return ll_tools_recommendation_queue_ensure_length($queue, 8);
 }
 
@@ -3250,7 +3437,7 @@ function ll_tools_save_user_recommendation_queue(array $queue, $user_id = 0, $wo
     if (!is_array($raw)) {
         $raw = [];
     }
-    $normalized = ll_tools_normalize_recommendation_queue($queue);
+    $normalized = ll_tools_repair_recommendation_queue_for_isolation($queue, $wordset_id);
     $raw[(string) $wordset_id] = $normalized;
     update_user_meta($uid, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, $raw);
     return $normalized;
@@ -3269,7 +3456,19 @@ function ll_tools_get_user_last_recommendation_activity($user_id = 0, $wordset_i
     }
 
     $entry = isset($raw[(string) $wordset_id]) ? $raw[(string) $wordset_id] : null;
-    $normalized = ll_tools_normalize_recommendation_activity($entry);
+    $normalized = ll_tools_repair_recommendation_activity_for_isolation($entry, $wordset_id);
+    if ($normalized !== $entry) {
+        if ($normalized) {
+            $raw[(string) $wordset_id] = $normalized;
+        } else {
+            unset($raw[(string) $wordset_id]);
+        }
+        if (empty($raw)) {
+            delete_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META);
+        } else {
+            update_user_meta($uid, LL_TOOLS_USER_LAST_RECOMMENDATION_META, $raw);
+        }
+    }
     return $normalized ?: null;
 }
 
@@ -3285,7 +3484,7 @@ function ll_tools_save_user_last_recommendation_activity($activity, $user_id = 0
         $raw = [];
     }
 
-    $normalized = ll_tools_normalize_recommendation_activity($activity);
+    $normalized = ll_tools_repair_recommendation_activity_for_isolation($activity, $wordset_id);
     if ($normalized) {
         $raw[(string) $wordset_id] = $normalized;
     } else {
@@ -3525,6 +3724,52 @@ function ll_tools_recommendation_rotate_category_ids(array $category_ids, int $u
         array_slice($normalized, $rotation_start),
         array_slice($normalized, 0, $rotation_start)
     );
+}
+
+function ll_tools_recommendation_remap_category_ids_for_wordset(array $category_ids, int $wordset_id): array {
+    $normalized = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    })));
+    if (empty($normalized) || $wordset_id <= 0 || !function_exists('ll_tools_wordset_isolation_remap_category_id_list_for_wordset')) {
+        return $normalized;
+    }
+
+    $repaired = ll_tools_wordset_isolation_remap_category_id_list_for_wordset($normalized, $wordset_id, true);
+    return !empty($repaired) ? $repaired : $normalized;
+}
+
+function ll_tools_recommendation_remap_categories_payload_for_wordset(array $categories_payload, int $wordset_id): array {
+    if (empty($categories_payload) || $wordset_id <= 0 || !function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        return $categories_payload;
+    }
+
+    $repaired = [];
+    $seen = [];
+    foreach ($categories_payload as $category_row) {
+        if (!is_array($category_row)) {
+            continue;
+        }
+
+        $category_id = isset($category_row['id']) ? (int) $category_row['id'] : 0;
+        if ($category_id > 0) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($effective_category_id > 0) {
+                $category_row['id'] = $effective_category_id;
+                $category_id = $effective_category_id;
+            }
+        }
+
+        if ($category_id > 0) {
+            if (isset($seen[$category_id])) {
+                continue;
+            }
+            $seen[$category_id] = true;
+        }
+
+        $repaired[] = $category_row;
+    }
+
+    return $repaired;
 }
 
 function ll_tools_recommendation_category_rank_lookup(array $category_ids): array {
@@ -4129,6 +4374,9 @@ function ll_tools_build_next_activity_recommendation($user_id = 0, $wordset_id =
         return null;
     }
 
+    $category_ids = ll_tools_recommendation_remap_category_ids_for_wordset((array) $category_ids, $wordset_id);
+    $categories_payload = ll_tools_recommendation_remap_categories_payload_for_wordset((array) $categories_payload, $wordset_id);
+
     $existing_excluded_signatures = [];
     if (isset($options['exclude_signatures']) && is_array($options['exclude_signatures'])) {
         $existing_excluded_signatures = $options['exclude_signatures'];
@@ -4226,6 +4474,10 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
     if ($uid <= 0) {
         return null;
     }
+
+    $wordset_id = (int) $wordset_id;
+    $category_ids = ll_tools_recommendation_remap_category_ids_for_wordset((array) $category_ids, $wordset_id);
+    $categories_payload = ll_tools_recommendation_remap_categories_payload_for_wordset((array) $categories_payload, $wordset_id);
 
     $goals = ll_tools_get_user_study_goals($uid);
     $enabled_modes = (array) ($goals['enabled_modes'] ?? ll_tools_progress_modes());
@@ -4935,6 +5187,9 @@ function ll_tools_build_activity_recommendation_queue($user_id = 0, $wordset_id 
         return [];
     }
 
+    $category_ids = ll_tools_recommendation_remap_category_ids_for_wordset((array) $category_ids, $wordset_id);
+    $categories_payload = ll_tools_recommendation_remap_categories_payload_for_wordset((array) $categories_payload, $wordset_id);
+
     $max_items = max(1, min(12, (int) $limit));
     $goals = ll_tools_get_user_study_goals($uid);
     $enabled_modes = ll_tools_recommendation_ordered_modes((array) ($goals['enabled_modes'] ?? ll_tools_progress_modes()));
@@ -5590,12 +5845,22 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
         $event_params[] = $wordset_id;
     }
 
-    if (!empty($category_ids)) {
-        $placeholders = implode(', ', array_fill(0, count($category_ids), '%d'));
+    $query_category_ids = array_values(array_filter(array_map('intval', (array) $category_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (!empty($query_category_ids) && function_exists('ll_tools_wordset_isolation_get_category_query_scope_for_wordset')) {
+        $expanded_query_category_ids = ll_tools_wordset_isolation_get_category_query_scope_for_wordset($query_category_ids, $wordset_id);
+        if (!empty($expanded_query_category_ids)) {
+            $query_category_ids = $expanded_query_category_ids;
+        }
+    }
+
+    if (!empty($query_category_ids)) {
+        $placeholders = implode(', ', array_fill(0, count($query_category_ids), '%d'));
         $word_where[] = "category_id IN ({$placeholders})";
         $event_where[] = "category_id IN ({$placeholders})";
-        $word_params = array_merge($word_params, $category_ids);
-        $event_params = array_merge($event_params, $category_ids);
+        $word_params = array_merge($word_params, $query_category_ids);
+        $event_params = array_merge($event_params, $query_category_ids);
     }
 
     $word_sql = 'DELETE FROM ' . $tables['words'] . ' WHERE ' . implode(' AND ', $word_where);

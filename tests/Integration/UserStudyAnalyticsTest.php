@@ -399,6 +399,8 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
                 'reset-scope-' . $index . '.mp3'
             );
         }
+        $target_category_id = $this->resolveEffectiveCategoryId($target_category_id, $wordset_id);
+        $other_category_id = $this->resolveEffectiveCategoryId($other_category_id, $wordset_id);
         $studied_word_id = (int) $word_ids[0];
 
         // Give the studied word multiple categories so analytics category membership
@@ -472,6 +474,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->createWordWithAudio('Analytics Word I', 'Analytics Translation I', $cat_b, $wordset_id, 'analytics-i.mp3');
         $this->createWordWithAudio('Analytics Word J', 'Analytics Translation J', $cat_b, $wordset_id, 'analytics-j.mp3');
 
+        $cat_a = $this->resolveEffectiveCategoryId($cat_a, $wordset_id);
+        $cat_b = $this->resolveEffectiveCategoryId($cat_b, $wordset_id);
+
         return [
             'wordset_id' => $wordset_id,
             'category_ids' => [$cat_a, $cat_b],
@@ -525,6 +530,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             );
         }
 
+        $quizzable_category_id = $this->resolveEffectiveCategoryId($quizzable_category_id, $wordset_id);
+        $non_quizzable_category_id = $this->resolveEffectiveCategoryId($non_quizzable_category_id, $wordset_id);
+
         return [
             'wordset_id' => $wordset_id,
             'quizzable_category_id' => $quizzable_category_id,
@@ -552,6 +560,15 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
 
         return (int) $word_id;
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        $effective_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true)
+            : 0;
+
+        return ($effective_category_id > 0) ? $effective_category_id : $category_id;
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): int

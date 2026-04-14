@@ -5,6 +5,14 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        if (function_exists('ll_tools_install_user_progress_schema')) {
+            ll_tools_install_user_progress_schema();
+        }
+    }
+
     protected function tearDown(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
@@ -265,6 +273,188 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('wordset_id=' . $wordset_id, $iframe_url);
     }
 
+    public function test_wordset_isolation_migration_repairs_user_study_and_recommendation_category_meta(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Study State', 'isolation-study-state');
+        $legacy_category_id = $this->ensure_term('word-category', 'Isolation Study Category', 'isolation-study-category');
+
+        $word_ids = [];
+        for ($index = 1; $index <= 5; $index++) {
+            $word_ids[] = $this->createWordInWordsetCategory('Isolation Study Word ' . $index, $wordset_id, $legacy_category_id);
+        }
+
+        update_user_meta($user_id, LL_TOOLS_USER_WORDSET_META, $wordset_id);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, [$legacy_category_id]);
+        update_user_meta($user_id, LL_TOOLS_USER_GOALS_META, [
+            'enabled_modes' => ['practice'],
+            'ignored_category_ids' => [$legacy_category_id],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [$legacy_category_id],
+            'daily_new_word_target' => 2,
+        ]);
+        update_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, [
+            $legacy_category_id => [
+                'category_id' => $legacy_category_id,
+                'wordset_id' => $wordset_id,
+                'exposure_total' => 4,
+                'exposure_by_mode' => [
+                    'practice' => 4,
+                ],
+                'last_mode' => 'practice',
+                'last_seen_at' => '2026-04-14 10:00:00',
+            ],
+        ]);
+
+        $activity = [
+            'type' => 'review_chunk',
+            'mode' => 'practice',
+            'category_ids' => [$legacy_category_id],
+            'session_word_ids' => $word_ids,
+            'details' => [],
+        ];
+        update_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, [
+            (string) $wordset_id => [$activity],
+        ]);
+        update_user_meta($user_id, LL_TOOLS_USER_LAST_RECOMMENDATION_META, [
+            (string) $wordset_id => $activity,
+        ]);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $result = ll_tools_run_wordset_isolation_migration();
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+        $this->assertGreaterThanOrEqual(5, (int) ($result['user_data_repaired'] ?? 0));
+
+        $state = ll_tools_get_user_study_state($user_id);
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) ($state['category_ids'] ?? [])));
+
+        $goals = ll_tools_get_user_study_goals($user_id);
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])));
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) ($goals['placement_known_category_ids'] ?? [])));
+
+        $progress = ll_tools_get_user_category_progress($user_id);
+        $this->assertArrayHasKey($isolated_category_id, $progress);
+        $this->assertArrayNotHasKey($legacy_category_id, $progress);
+        $this->assertSame(4, (int) ($progress[$isolated_category_id]['exposure_total'] ?? 0));
+
+        $queue = ll_tools_get_user_recommendation_queue($user_id, $wordset_id);
+        $this->assertNotEmpty($queue);
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) ($queue[0]['category_ids'] ?? [])));
+        $this->assertNotSame('', (string) ($queue[0]['queue_id'] ?? ''));
+
+        $last_activity = ll_tools_get_user_last_recommendation_activity($user_id, $wordset_id);
+        $this->assertIsArray($last_activity);
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) ($last_activity['category_ids'] ?? [])));
+
+        $this->assertSame([$isolated_category_id], array_map('intval', (array) get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_META, true)));
+        $this->assertArrayHasKey($isolated_category_id, (array) get_user_meta($user_id, LL_TOOLS_USER_CATEGORY_PROGRESS_META, true));
+        $this->assertArrayHasKey((string) $wordset_id, (array) get_user_meta($user_id, LL_TOOLS_USER_RECOMMENDATION_QUEUE_META, true));
+    }
+
+    public function test_historical_progress_events_stay_visible_when_category_ids_were_saved_before_isolation(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Analytics', 'isolation-analytics');
+        $legacy_category_id = $this->ensure_term('word-category', 'Isolation Analytics Category', 'isolation-analytics-category');
+        $word_id = $this->createWordInWordsetCategory('Isolation Analytics Word', $wordset_id, $legacy_category_id);
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $word_id,
+                'category_id' => $legacy_category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'mode_session_complete',
+                'mode' => 'practice',
+                'category_id' => $legacy_category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [
+                    'category_ids' => [$legacy_category_id],
+                ],
+            ],
+        ]);
+        $this->assertSame(2, (int) ($stats['processed'] ?? 0));
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_run_wordset_isolation_migration();
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+
+        $daily = ll_tools_user_study_daily_activity_series($user_id, $wordset_id, [$isolated_category_id], 7);
+        $today = gmdate('Y-m-d');
+        $today_row = null;
+        foreach ((array) ($daily['days'] ?? []) as $row) {
+            if (is_array($row) && (($row['date'] ?? '') === $today)) {
+                $today_row = $row;
+                break;
+            }
+        }
+        $this->assertIsArray($today_row);
+        $this->assertSame(1, (int) ($today_row['rounds'] ?? 0));
+        $this->assertSame(1, (int) ($today_row['unique_words'] ?? 0));
+
+        $mode_sessions = ll_tools_user_study_category_mode_session_counts($user_id, $wordset_id, [$isolated_category_id]);
+        $this->assertArrayHasKey($isolated_category_id, $mode_sessions);
+        $this->assertSame(1, (int) ($mode_sessions[$isolated_category_id]['by_mode']['practice'] ?? 0));
+    }
+
+    public function test_word_option_rules_admin_category_dropdown_is_scoped_to_selected_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_one = $this->ensure_term('wordset', 'Isolation Admin One', 'isolation-admin-one');
+        $wordset_two = $this->ensure_term('wordset', 'Isolation Admin Two', 'isolation-admin-two');
+        $shared_category_id = $this->ensure_term('word-category', 'Isolation Admin Category', 'isolation-admin-category');
+
+        $this->createWordInWordsetCategory('Isolation Admin Word One', $wordset_one, $shared_category_id);
+        $this->createWordInWordsetCategory('Isolation Admin Word Two', $wordset_two, $shared_category_id);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_run_wordset_isolation_migration();
+
+        $isolated_one = ll_tools_get_existing_isolated_category_copy_id($shared_category_id, $wordset_one);
+        $isolated_two = ll_tools_get_existing_isolated_category_copy_id($shared_category_id, $wordset_two);
+        $this->assertGreaterThan(0, $isolated_one);
+        $this->assertGreaterThan(0, $isolated_two);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin_user = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin_user);
+        $admin_user->add_cap('view_ll_tools');
+        wp_set_current_user($admin_id);
+
+        $previous_get = $_GET;
+        $_GET = [
+            'page' => 'll-word-option-rules',
+            'wordset_id' => (string) $wordset_one,
+            'category_id' => (string) $shared_category_id,
+        ];
+
+        ob_start();
+        ll_render_word_option_rules_admin_page();
+        $html = (string) ob_get_clean();
+        $_GET = $previous_get;
+
+        $this->assertStringContainsString('value="' . $isolated_one . '"', $html);
+        $this->assertMatchesRegularExpression('/<option value="' . preg_quote((string) $isolated_one, '/') . '".*selected/', $html);
+        $this->assertStringNotContainsString('value="' . $shared_category_id . '"', $html);
+        $this->assertStringNotContainsString('value="' . $isolated_two . '"', $html);
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
@@ -312,6 +502,20 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    private function createWordInWordsetCategory(string $title, int $wordset_id, int $category_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+
+        return (int) $word_id;
     }
 
     private function normalizePairWordIds(int $left, int $right): array

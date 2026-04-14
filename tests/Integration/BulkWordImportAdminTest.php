@@ -107,4 +107,63 @@ final class BulkWordImportAdminTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $created_id);
         $this->assertSame('draft', get_post_status($created_id));
     }
+
+    public function test_bulk_word_import_category_dropdown_is_scoped_to_selected_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $wordset_one = wp_insert_term('Bulk Import Scope One', 'wordset', ['slug' => 'bulk-import-scope-one']);
+        $wordset_two = wp_insert_term('Bulk Import Scope Two', 'wordset', ['slug' => 'bulk-import-scope-two']);
+        $shared_category = wp_insert_term('Bulk Import Shared Category', 'word-category', ['slug' => 'bulk-import-shared-category']);
+
+        $this->assertIsArray($wordset_one);
+        $this->assertIsArray($wordset_two);
+        $this->assertIsArray($shared_category);
+
+        $wordset_one_id = (int) $wordset_one['term_id'];
+        $wordset_two_id = (int) $wordset_two['term_id'];
+        $shared_category_id = (int) $shared_category['term_id'];
+
+        $this->createWordInScope('Bulk Import Scope Word One', $wordset_one_id, $shared_category_id);
+        $this->createWordInScope('Bulk Import Scope Word Two', $wordset_two_id, $shared_category_id);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_run_wordset_isolation_migration();
+
+        $isolated_one = (int) ll_tools_get_existing_isolated_category_copy_id($shared_category_id, $wordset_one_id);
+        $isolated_two = (int) ll_tools_get_existing_isolated_category_copy_id($shared_category_id, $wordset_two_id);
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'll_existing_wordset' => (string) $wordset_one_id,
+            'll_existing_category' => (string) $shared_category_id,
+        ];
+        $_REQUEST = $_POST;
+
+        ob_start();
+        ll_tools_render_bulk_word_import_page();
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('value="' . $isolated_one . '"', $html);
+        $this->assertMatchesRegularExpression('/<option value="' . preg_quote((string) $isolated_one, '/') . '".*selected/', $html);
+        $this->assertStringNotContainsString('value="' . $shared_category_id . '"', $html);
+        $this->assertStringNotContainsString('value="' . $isolated_two . '"', $html);
+    }
+
+    private function createWordInScope(string $title, int $wordset_id, int $category_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+
+        return (int) $word_id;
+    }
 }

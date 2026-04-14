@@ -23,6 +23,65 @@ function ll_tools_current_user_can_bulk_word_import(): bool {
     return current_user_can(ll_tools_get_bulk_word_import_capability());
 }
 
+function ll_tools_bulk_word_import_get_selectable_categories(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+
+    if ($wordset_id > 0) {
+        global $wpdb;
+
+        $category_ids = $wpdb->get_col($wpdb->prepare("
+            SELECT DISTINCT tt_cat.term_id
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            WHERE p.post_type = %s
+              AND p.post_status IN (%s, %s, %s, %s, %s)
+              AND tt_ws.taxonomy = %s
+              AND tt_ws.term_id = %d
+              AND tt_cat.taxonomy = %s
+        ", 'words', 'publish', 'draft', 'pending', 'future', 'private', 'wordset', $wordset_id, 'word-category'));
+        $category_ids = array_values(array_filter(array_map('intval', (array) $category_ids), static function (int $category_id): bool {
+            return $category_id > 0;
+        }));
+        if (empty($category_ids)) {
+            return [];
+        }
+
+        $categories = get_terms([
+            'taxonomy'   => 'word-category',
+            'hide_empty' => false,
+            'include'    => $category_ids,
+            'orderby'    => 'name',
+            'order'      => 'ASC',
+        ]);
+        return is_wp_error($categories) ? [] : $categories;
+    }
+
+    $categories = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+        'meta_query' => [
+            'relation' => 'OR',
+            [
+                'key'     => defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY') ? LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id',
+                'compare' => 'NOT EXISTS',
+            ],
+            [
+                'key'     => defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY') ? LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id',
+                'value'   => 0,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ],
+        ],
+    ]);
+
+    return is_wp_error($categories) ? [] : $categories;
+}
+
 function ll_tools_register_bulk_word_import_page() {
     add_management_page(
         __('LL Bulk Word Import', 'll-tools-text-domain'),
@@ -100,6 +159,13 @@ function ll_tools_render_bulk_word_import_page() {
         $selected_wordset  = isset($_POST['ll_existing_wordset']) ? (int) wp_unslash($_POST['ll_existing_wordset']) : 0;
         $new_category_name = isset($_POST['ll_new_category']) ? sanitize_text_field(wp_unslash($_POST['ll_new_category'])) : '';
         $category_id = 0;
+
+        if ($selected_wordset > 0 && $selected_category > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($selected_category, $selected_wordset, true);
+            if ($effective_category_id > 0) {
+                $selected_category = $effective_category_id;
+            }
+        }
 
         if ($new_category_name !== '') {
             if (function_exists('ll_tools_create_or_get_wordset_category')) {
@@ -237,16 +303,6 @@ function ll_tools_render_bulk_word_import_page() {
         }
     }
 
-    $categories = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'orderby'    => 'name',
-        'order'      => 'ASC',
-    ]);
-    if (is_wp_error($categories)) {
-        $categories = [];
-    }
-
     // Fetch existing word sets for assignment
     $wordsets = get_terms([
         'taxonomy'   => 'wordset',
@@ -265,6 +321,14 @@ function ll_tools_render_bulk_word_import_page() {
     $has_posted_wordset = isset($_POST['ll_existing_wordset']);
     $posted_wordset = $has_posted_wordset ? (int) wp_unslash($_POST['ll_existing_wordset']) : 0;
     $selected_wordset_effective = $has_posted_wordset ? $posted_wordset : $default_wordset_id;
+    $selected_category_effective = isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0;
+    if ($selected_wordset_effective > 0 && $selected_category_effective > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($selected_category_effective, $selected_wordset_effective, true);
+        if ($effective_category_id > 0) {
+            $selected_category_effective = $effective_category_id;
+        }
+    }
+    $categories = ll_tools_bulk_word_import_get_selectable_categories($selected_wordset_effective);
     ?>
     <div class="wrap">
         <h1><?php esc_html_e('LL Tools — Bulk Word Import', 'll-tools-text-domain'); ?></h1>
@@ -312,7 +376,7 @@ function ll_tools_render_bulk_word_import_page() {
                             <select name="ll_existing_category" class="regular-text">
                                 <option value="0"><?php esc_html_e('Leave uncategorized', 'll-tools-text-domain'); ?></option>
                                 <?php foreach ($categories as $cat) : ?>
-                                    <option value="<?php echo (int) $cat->term_id; ?>" <?php selected(isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0, (int) $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
+                                    <option value="<?php echo (int) $cat->term_id; ?>" <?php selected($selected_category_effective, (int) $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <p class="description"><?php esc_html_e('Choose an existing word category for the imported words, or leave uncategorized.', 'll-tools-text-domain'); ?></p>
