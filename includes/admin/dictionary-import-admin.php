@@ -60,8 +60,9 @@ function ll_tools_dictionary_parse_tsv_file(string $file_path): array|WP_Error {
 
     $rows = [];
     $line_number = 0;
+    $header = [];
 
-    while (($data = fgetcsv($handle, 0, "\t")) !== false) {
+    while (($data = fgetcsv($handle, 0, "\t", '"', '\\')) !== false) {
         $line_number++;
         if (!is_array($data)) {
             continue;
@@ -76,20 +77,38 @@ function ll_tools_dictionary_parse_tsv_file(string $file_path): array|WP_Error {
         }, $data);
 
         if ($line_number === 1) {
-            $header = array_map(static function (string $value): string {
-                return strtolower(trim($value));
+            $possible_header = array_map(static function (string $value): string {
+                $value = strtolower(trim($value));
+                $value = preg_replace('/\s+/', '_', $value) ?? $value;
+                return trim($value, '_');
             }, $data);
-            $looks_like_header = in_array('entry', $header, true)
-                || in_array('definition', $header, true)
-                || in_array('gender_number', $header, true)
-                || in_array('entry_type', $header, true)
-                || in_array('page_number', $header, true);
+            $looks_like_header = in_array('entry', $possible_header, true)
+                || in_array('definition', $possible_header, true)
+                || in_array('gender_number', $possible_header, true)
+                || in_array('entry_type', $possible_header, true)
+                || in_array('page_number', $possible_header, true)
+                || count(array_filter($possible_header, static function (string $column): bool {
+                    return strpos($column, 'definition_full_') === 0;
+                })) > 0;
             if ($looks_like_header) {
+                $header = $possible_header;
                 continue;
             }
         }
 
         if (count($data) < 1) {
+            continue;
+        }
+
+        if (!empty($header)) {
+            $row = [];
+            foreach ($header as $index => $column_name) {
+                if ($column_name === '') {
+                    continue;
+                }
+                $row[$column_name] = (string) ($data[$index] ?? '');
+            }
+            $rows[] = $row;
             continue;
         }
 
@@ -255,7 +274,7 @@ function ll_tools_render_dictionary_import_page(): void {
                     <td>
                         <input type="file" name="ll_dictionary_tsv" id="ll-dictionary-tsv" accept=".tsv,text/tab-separated-values" required>
                         <p class="description">
-                            <?php esc_html_e('Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number.', 'll-tools-text-domain'); ?>
+                            <?php esc_html_e('Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include extra fields such as source metadata and multilingual gloss columns like definition_full_tr, definition_full_en, and definition_full_de.', 'll-tools-text-domain'); ?>
                         </p>
                     </td>
                 </tr>

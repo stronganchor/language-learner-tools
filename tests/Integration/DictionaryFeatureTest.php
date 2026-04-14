@@ -120,6 +120,70 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('moon', ll_dictionary_lookup_best('Mij', 'Zazaki', 'English', false));
     }
 
+    public function test_header_tsv_import_supports_multilingual_gloss_columns(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $wordset = wp_insert_term('DEZD Wordset', 'wordset', ['slug' => 'dezd-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $temp_file = tempnam(sys_get_temp_dir(), 'lltd_');
+        $this->assertNotFalse($temp_file);
+
+        $tsv = implode("\n", [
+            "entry\tdefinition\tgender_number\tentry_type\tparent\tneeds_review\tpage_number\tsource_dictionary\tsource_row_idx\traw_headword\ttitle_keys\tdefinition_full_tr\tdefinition_full_de\tdefinition_full_en",
+            "Ava\tsu | Wasser | water\t\tnoun\t\t0\t6\tDEZD\t42\tava\tava|aw\tsu\tWasser\twater",
+        ]);
+        $this->assertNotFalse(file_put_contents($temp_file, $tsv));
+
+        try {
+            $rows = ll_tools_dictionary_parse_tsv_file($temp_file);
+            $this->assertIsArray($rows);
+            $this->assertSame('Wasser', $rows[0]['definition_full_de'] ?? '');
+
+            $summary = ll_tools_dictionary_import_rows($rows, [
+                'wordset_id' => $wordset_id,
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+                'skip_review_rows' => true,
+            ]);
+        } finally {
+            @unlink($temp_file);
+        }
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Ava', $wordset_id);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertCount(1, $senses);
+        $this->assertSame('water', $senses[0]['definition']);
+        $this->assertSame([
+            'tr' => 'su',
+            'de' => 'Wasser',
+            'en' => 'water',
+        ], $senses[0]['translations']);
+        $this->assertSame('water', ll_tools_get_dictionary_entry_translation($entry_id));
+
+        $this->assertSame('Wasser', ll_tools_dictionary_lookup_best('Ava', 'Zazaki', 'German', false));
+        $this->assertSame('Ava', ll_tools_dictionary_lookup_best('water', 'English', 'Zazaki', true));
+        $this->assertSame('Ava', ll_tools_dictionary_lookup_best('Wasser', 'German', 'Zazaki', true));
+
+        $_GET = [
+            'll_dictionary_q' => 'Ava',
+        ];
+
+        $html = do_shortcode(sprintf('[ll_dictionary wordset="%d" gloss_lang="de"]', $wordset_id));
+        $this->assertStringContainsString('Wasser', $html);
+        $this->assertStringContainsString('water', $html);
+        $this->assertStringContainsString('su', $html);
+    }
+
     private function ensurePartOfSpeechTerm(string $slug, string $label): void
     {
         $existing = get_term_by('slug', $slug, 'part_of_speech');

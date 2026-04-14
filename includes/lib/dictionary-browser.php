@@ -75,10 +75,53 @@ function ll_tools_dictionary_normalize_search_text(string $value): string {
 }
 
 /**
+ * Normalize a language identifier to a stable key when possible.
+ */
+function ll_tools_dictionary_normalize_language_key(string $value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_resolve_language_code_from_label')) {
+        $resolved = (string) ll_tools_resolve_language_code_from_label($value, 'lower');
+        if ($resolved !== '') {
+            return $resolved;
+        }
+    }
+
+    $value = strtolower(preg_replace('/[^a-z0-9_-]+/i', '', $value) ?? '');
+    return trim($value);
+}
+
+/**
+ * Sanitize a translations map keyed by language code.
+ *
+ * @param mixed $translations Raw translations payload.
+ * @return array<string,string>
+ */
+function ll_tools_dictionary_sanitize_translations_map($translations): array {
+    if (!is_array($translations)) {
+        return [];
+    }
+
+    $clean = [];
+    foreach ($translations as $lang => $text) {
+        $lang_key = ll_tools_dictionary_normalize_language_key((string) $lang);
+        $text = trim(sanitize_text_field((string) $text));
+        if ($lang_key === '' || $text === '') {
+            continue;
+        }
+        $clean[$lang_key] = $text;
+    }
+    return $clean;
+}
+
+/**
  * Sanitize one imported dictionary sense row.
  *
  * @param array<string,mixed> $sense Raw sense payload.
- * @return array<string,string>
+ * @return array<string,mixed>
  */
 function ll_tools_dictionary_sanitize_sense(array $sense): array {
     $clean = [
@@ -90,10 +133,28 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         'page_number' => '',
         'entry_lang' => '',
         'def_lang' => '',
+        'search_terms' => '',
+        'source_dictionary' => '',
+        'source_row_idx' => '',
+        'raw_headword' => '',
+        'title_keys' => '',
+        'translations' => [],
     ];
 
     foreach ($clean as $key => $unused) {
+        if ($key === 'translations') {
+            continue;
+        }
         $clean[$key] = trim(sanitize_text_field((string) ($sense[$key] ?? '')));
+    }
+
+    $clean['translations'] = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
+
+    if ($clean['definition'] !== '') {
+        $def_lang_key = ll_tools_dictionary_normalize_language_key((string) $clean['def_lang']);
+        if ($def_lang_key !== '' && empty($clean['translations'][$def_lang_key])) {
+            $clean['translations'][$def_lang_key] = $clean['definition'];
+        }
     }
 
     return $clean;
@@ -102,21 +163,94 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
 /**
  * Create a stable sense hash for de-duplication.
  *
- * @param array<string,string> $sense Sanitized sense.
+ * @param array<string,mixed> $sense Sanitized sense.
  */
 function ll_tools_dictionary_sense_hash(array $sense): string {
     $parts = [];
-    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang'] as $key) {
+    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
         $parts[] = ll_tools_dictionary_normalize_search_text((string) ($sense[$key] ?? ''));
+    }
+    $translations = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
+    ksort($translations);
+    foreach ($translations as $lang => $text) {
+        $parts[] = $lang . ':' . ll_tools_dictionary_normalize_search_text($text);
     }
 
     return md5(implode('|', $parts));
 }
 
 /**
+ * Return all translations attached to a sense, including legacy definition/def_lang pairs.
+ *
+ * @param array<string,mixed> $sense Sense payload.
+ * @return array<string,string>
+ */
+function ll_tools_dictionary_get_sense_translations(array $sense): array {
+    return ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
+}
+
+/**
+ * Resolve the preferred visible text for a sense.
+ *
+ * @param array<string,mixed> $sense Sense payload.
+ * @param array<int,string>   $preferred_languages Preferred gloss languages.
+ */
+function ll_tools_dictionary_get_preferred_translation_text(array $sense, array $preferred_languages = [], bool $allow_fallback = true): string {
+    $translations = ll_tools_dictionary_get_sense_translations($sense);
+    foreach ($preferred_languages as $language) {
+        $language = ll_tools_dictionary_normalize_language_key((string) $language);
+        if ($language !== '' && !empty($translations[$language])) {
+            return (string) $translations[$language];
+        }
+    }
+
+    $def_lang = ll_tools_dictionary_normalize_language_key((string) ($sense['def_lang'] ?? ''));
+    if ($def_lang !== '' && !empty($translations[$def_lang])) {
+        return (string) $translations[$def_lang];
+    }
+
+    $definition = trim((string) ($sense['definition'] ?? ''));
+    if ($definition !== '') {
+        return $definition;
+    }
+
+    if ($allow_fallback && !empty($translations)) {
+        $first = reset($translations);
+        return is_string($first) ? trim($first) : '';
+    }
+
+    return '';
+}
+
+/**
+ * Render a compact label for one glossary language.
+ */
+function ll_tools_dictionary_get_language_label(string $language): string {
+    $language = ll_tools_dictionary_normalize_language_key($language);
+    if ($language === '') {
+        return '';
+    }
+
+    $labels = [
+        'tr' => __('TR', 'll-tools-text-domain'),
+        'de' => __('DE', 'll-tools-text-domain'),
+        'en' => __('EN', 'll-tools-text-domain'),
+        'zza' => __('ZZA', 'll-tools-text-domain'),
+        'diq' => __('DIQ', 'll-tools-text-domain'),
+        'kiu' => __('KIU', 'll-tools-text-domain'),
+    ];
+
+    if (isset($labels[$language])) {
+        return (string) $labels[$language];
+    }
+
+    return strtoupper($language);
+}
+
+/**
  * Return sanitized structured senses for a dictionary entry.
  *
- * @return array<int,array<string,string>>
+ * @return array<int,array<string,mixed>>
  */
 function ll_tools_get_dictionary_entry_senses($entry_id): array {
     $entry_id = (int) $entry_id;
@@ -134,7 +268,14 @@ function ll_tools_get_dictionary_entry_senses($entry_id): array {
             }
             $clean = ll_tools_dictionary_sanitize_sense($sense);
             $has_content = false;
-            foreach ($clean as $value) {
+            foreach ($clean as $key => $value) {
+                if ($key === 'translations') {
+                    if (!empty($value) && is_array($value)) {
+                        $has_content = true;
+                        break;
+                    }
+                    continue;
+                }
                 if ($value !== '') {
                     $has_content = true;
                     break;
@@ -166,7 +307,13 @@ function ll_tools_get_dictionary_entry_senses($entry_id): array {
         'def_lang' => (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_DEF_LANG_META_KEY, true),
     ]);
 
-    foreach ($fallback as $value) {
+    foreach ($fallback as $key => $value) {
+        if ($key === 'translations') {
+            if (!empty($value)) {
+                return [$fallback];
+            }
+            continue;
+        }
         if ($value !== '') {
             return [$fallback];
         }
@@ -178,9 +325,9 @@ function ll_tools_get_dictionary_entry_senses($entry_id): array {
 /**
  * Merge structured senses without duplicating identical rows.
  *
- * @param array<int,array<string,string>> $existing Existing senses.
- * @param array<int,array<string,string>> $incoming Incoming senses.
- * @return array<int,array<string,string>>
+ * @param array<int,array<string,mixed>> $existing Existing senses.
+ * @param array<int,array<string,mixed>> $incoming Incoming senses.
+ * @return array<int,array<string,mixed>>
  */
 function ll_tools_dictionary_merge_senses(array $existing, array $incoming): array {
     $merged = [];
@@ -205,14 +352,14 @@ function ll_tools_dictionary_merge_senses(array $existing, array $incoming): arr
 /**
  * Build a short translation summary from senses.
  *
- * @param array<int,array<string,string>> $senses Senses list.
+ * @param array<int,array<string,mixed>> $senses Senses list.
  */
-function ll_tools_dictionary_build_translation_summary(array $senses, string $fallback = ''): string {
+function ll_tools_dictionary_build_translation_summary(array $senses, string $fallback = '', array $preferred_languages = []): string {
     $definitions = [];
     $seen = [];
 
     foreach ($senses as $sense) {
-        $definition = trim((string) ($sense['definition'] ?? ''));
+        $definition = ll_tools_dictionary_get_preferred_translation_text((array) $sense, $preferred_languages, true);
         if ($definition === '') {
             continue;
         }
@@ -237,14 +384,14 @@ function ll_tools_dictionary_build_translation_summary(array $senses, string $fa
 /**
  * Build plain post content from structured senses.
  *
- * @param array<int,array<string,string>> $senses Senses list.
+ * @param array<int,array<string,mixed>> $senses Senses list.
  */
-function ll_tools_dictionary_build_post_content_from_senses(array $senses): string {
+function ll_tools_dictionary_build_post_content_from_senses(array $senses, array $preferred_languages = []): string {
     $lines = [];
     $seen = [];
 
     foreach ($senses as $sense) {
-        $definition = trim((string) ($sense['definition'] ?? ''));
+        $definition = ll_tools_dictionary_get_preferred_translation_text((array) $sense, $preferred_languages, true);
         if ($definition === '') {
             continue;
         }
@@ -289,17 +436,24 @@ function ll_tools_dictionary_build_post_content_from_senses(array $senses): stri
 /**
  * Build a normalized full-text search index string.
  *
- * @param array<int,array<string,string>> $senses Senses list.
+ * @param array<int,array<string,mixed>> $senses Senses list.
  */
 function ll_tools_dictionary_build_search_index(string $title, string $translation, string $content, array $senses): string {
     $parts = [$title, $translation, $content];
 
     foreach ($senses as $sense) {
-        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang'] as $key) {
+        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
             $value = trim((string) ($sense[$key] ?? ''));
             if ($value !== '') {
                 $parts[] = $value;
             }
+        }
+        foreach (ll_tools_dictionary_get_sense_translations((array) $sense) as $lang => $text) {
+            if ($text === '') {
+                continue;
+            }
+            $parts[] = $lang;
+            $parts[] = $text;
         }
     }
 
@@ -415,11 +569,56 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
 }
 
 /**
+ * Collect any per-language translation columns from an import row.
+ *
+ * @param array<string|int,mixed> $row Raw import row.
+ * @return array<string,string>
+ */
+function ll_tools_dictionary_collect_row_translations(array $row): array {
+    $translations = [];
+
+    if (isset($row['translations']) && is_array($row['translations'])) {
+        foreach ($row['translations'] as $language => $text) {
+            $language_key = ll_tools_dictionary_normalize_language_key((string) $language);
+            $text = trim(sanitize_text_field((string) $text));
+            if ($language_key === '' || $text === '' || isset($translations[$language_key])) {
+                continue;
+            }
+            $translations[$language_key] = $text;
+        }
+    }
+
+    foreach ($row as $key => $value) {
+        if (!is_string($key)) {
+            continue;
+        }
+
+        $column = strtolower(trim($key));
+        $language = '';
+        if (strpos($column, 'definition_full_') === 0) {
+            $language = substr($column, strlen('definition_full_'));
+        } elseif (strpos($column, 'translation_') === 0) {
+            $language = substr($column, strlen('translation_'));
+        }
+
+        $language_key = ll_tools_dictionary_normalize_language_key($language);
+        $text = trim(sanitize_text_field((string) $value));
+        if ($language_key === '' || $text === '' || isset($translations[$language_key])) {
+            continue;
+        }
+
+        $translations[$language_key] = $text;
+    }
+
+    return ll_tools_dictionary_sanitize_translations_map($translations);
+}
+
+/**
  * Normalize one import row.
  *
  * @param array<string|int,mixed> $row Raw import row.
  * @param array<string,mixed>     $defaults Default values.
- * @return array<string,string>
+ * @return array<string,mixed>
  */
 function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []): array {
     $prepared = [
@@ -432,10 +631,18 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         'page_number' => '',
         'entry_lang' => '',
         'def_lang' => '',
+        'search_terms' => '',
+        'source_dictionary' => '',
+        'source_row_idx' => '',
+        'raw_headword' => '',
+        'title_keys' => '',
+        'translations' => [],
     ];
 
+    $raw_definition = trim(sanitize_text_field((string) ($row['definition'] ?? $row[1] ?? '')));
+
     $prepared['entry'] = trim(sanitize_text_field((string) ($row['entry'] ?? $row[0] ?? '')));
-    $prepared['definition'] = trim(sanitize_text_field((string) ($row['definition'] ?? $row[1] ?? '')));
+    $prepared['definition'] = $raw_definition;
     $prepared['gender_number'] = trim(sanitize_text_field((string) ($row['gender_number'] ?? $row[2] ?? '')));
     $prepared['entry_type'] = trim(sanitize_text_field((string) ($row['entry_type'] ?? $row[3] ?? '')));
     $prepared['parent'] = trim(sanitize_text_field((string) ($row['parent'] ?? $row[4] ?? '')));
@@ -443,6 +650,41 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
     $prepared['page_number'] = trim(sanitize_text_field((string) ($row['page_number'] ?? $row[6] ?? '')));
     $prepared['entry_lang'] = trim(sanitize_text_field((string) ($row['entry_lang'] ?? $defaults['entry_lang'] ?? '')));
     $prepared['def_lang'] = trim(sanitize_text_field((string) ($row['def_lang'] ?? $defaults['def_lang'] ?? '')));
+    $prepared['search_terms'] = trim(sanitize_text_field((string) ($row['search_terms'] ?? '')));
+    $prepared['source_dictionary'] = trim(sanitize_text_field((string) ($row['source_dictionary'] ?? '')));
+    $prepared['source_row_idx'] = trim(sanitize_text_field((string) ($row['source_row_idx'] ?? '')));
+    $prepared['raw_headword'] = trim(sanitize_text_field((string) ($row['raw_headword'] ?? '')));
+    $prepared['title_keys'] = trim(sanitize_text_field((string) ($row['title_keys'] ?? '')));
+
+    if ($raw_definition !== '') {
+        if ($prepared['search_terms'] === '') {
+            $prepared['search_terms'] = $raw_definition;
+        } elseif (ll_tools_dictionary_normalize_search_text($prepared['search_terms']) !== ll_tools_dictionary_normalize_search_text($raw_definition)) {
+            $prepared['search_terms'] .= ' | ' . $raw_definition;
+        }
+    }
+
+    $translations = ll_tools_dictionary_collect_row_translations($row);
+    $def_lang_key = ll_tools_dictionary_normalize_language_key($prepared['def_lang']);
+    if ($raw_definition !== '' && $def_lang_key !== '' && empty($translations[$def_lang_key])) {
+        $translations[$def_lang_key] = $raw_definition;
+    }
+
+    $prepared['translations'] = ll_tools_dictionary_sanitize_translations_map($translations);
+    if (!empty($prepared['translations'])) {
+        $prepared['definition'] = ll_tools_dictionary_get_preferred_translation_text([
+            'definition' => $raw_definition,
+            'def_lang' => $prepared['def_lang'],
+            'translations' => $prepared['translations'],
+        ], $def_lang_key !== '' ? [$def_lang_key] : [], true);
+
+        if ($prepared['def_lang'] === '') {
+            $first_language = array_key_first($prepared['translations']);
+            if (is_string($first_language) && $first_language !== '') {
+                $prepared['def_lang'] = $first_language;
+            }
+        }
+    }
 
     return $prepared;
 }
@@ -530,7 +772,7 @@ function ll_tools_dictionary_get_primary_sense_value(array $senses, string $fiel
 /**
  * Create or update one dictionary entry from grouped import rows.
  *
- * @param array<int,array<string,string>> $rows Grouped prepared rows.
+ * @param array<int,array<string,mixed>>  $rows Grouped prepared rows.
  * @param array<string,mixed>             $options Import options.
  * @return array<string,mixed>|WP_Error
  */
@@ -552,6 +794,15 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
         $existing_senses = ll_tools_get_dictionary_entry_senses($entry_id);
     }
 
+    $preferred_languages = [];
+    foreach ((array) ($options['preferred_languages'] ?? []) as $language) {
+        $language_key = ll_tools_dictionary_normalize_language_key((string) $language);
+        if ($language_key === '' || in_array($language_key, $preferred_languages, true)) {
+            continue;
+        }
+        $preferred_languages[] = $language_key;
+    }
+
     $incoming_senses = [];
     foreach ($rows as $row) {
         $sense = ll_tools_dictionary_sanitize_sense([
@@ -563,15 +814,22 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
             'page_number' => (string) ($row['page_number'] ?? ''),
             'entry_lang' => (string) ($row['entry_lang'] ?? ''),
             'def_lang' => (string) ($row['def_lang'] ?? ''),
+            'search_terms' => (string) ($row['search_terms'] ?? ''),
+            'source_dictionary' => (string) ($row['source_dictionary'] ?? ''),
+            'source_row_idx' => (string) ($row['source_row_idx'] ?? ''),
+            'raw_headword' => (string) ($row['raw_headword'] ?? ''),
+            'title_keys' => (string) ($row['title_keys'] ?? ''),
+            'translations' => $row['translations'] ?? [],
         ]);
         $incoming_senses[] = $sense;
     }
 
     $merged_senses = ll_tools_dictionary_merge_senses($existing_senses, $incoming_senses);
-    $content = ll_tools_dictionary_build_post_content_from_senses($merged_senses);
+    $content = ll_tools_dictionary_build_post_content_from_senses($merged_senses, $preferred_languages);
     $translation = ll_tools_dictionary_build_translation_summary(
         $merged_senses,
-        ($entry_id > 0 ? (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true) : '')
+        ($entry_id > 0 ? (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true) : ''),
+        $preferred_languages
     );
 
     $postarr = [
@@ -851,7 +1109,7 @@ function ll_tools_dictionary_get_linked_word_previews(int $entry_id, int $limit 
  *
  * @return array<string,mixed>
  */
-function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4): array {
+function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3, int $linked_word_limit = 4, array $preferred_languages = []): array {
     $entry_id = (int) $entry_id;
     if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry') {
         return [];
@@ -863,11 +1121,25 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
     }
 
     $senses = ll_tools_get_dictionary_entry_senses($entry_id);
-    $translation = function_exists('ll_tools_get_dictionary_entry_translation')
-        ? ll_tools_get_dictionary_entry_translation($entry_id)
-        : ll_tools_dictionary_build_translation_summary($senses, '');
+    $normalized_preferred_languages = [];
+    foreach ($preferred_languages as $language) {
+        $language_key = ll_tools_dictionary_normalize_language_key((string) $language);
+        if ($language_key === '' || in_array($language_key, $normalized_preferred_languages, true)) {
+            continue;
+        }
+        $normalized_preferred_languages[] = $language_key;
+    }
+
+    $translation = '';
+    if (empty($normalized_preferred_languages) && function_exists('ll_tools_get_dictionary_entry_translation')) {
+        $translation = ll_tools_get_dictionary_entry_translation($entry_id);
+    }
     if ($translation === '') {
-        $translation = ll_tools_dictionary_build_translation_summary($senses, trim(wp_strip_all_tags((string) get_post_field('post_content', $entry_id))));
+        $translation = ll_tools_dictionary_build_translation_summary(
+            $senses,
+            trim(wp_strip_all_tags((string) get_post_field('post_content', $entry_id))),
+            $normalized_preferred_languages
+        );
     }
 
     $wordset_id = function_exists('ll_tools_get_dictionary_entry_wordset_id')
@@ -918,6 +1190,7 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'pos_label' => $pos_label,
         'linked_word_count' => $linked_word_count,
         'linked_words' => ll_tools_dictionary_get_linked_word_previews($entry_id, $linked_word_limit),
+        'preferred_languages' => $normalized_preferred_languages,
         'senses' => array_slice($senses, 0, max(1, $sense_limit)),
         'sense_count' => count($senses),
     ];
@@ -946,6 +1219,14 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $pos_slug = sanitize_title((string) ($args['pos_slug'] ?? ''));
     $sense_limit = max(1, min(8, (int) ($args['sense_limit'] ?? 3)));
     $linked_word_limit = max(0, min(8, (int) ($args['linked_word_limit'] ?? 4)));
+    $preferred_languages = [];
+    foreach ((array) ($args['preferred_languages'] ?? []) as $language) {
+        $language_key = ll_tools_dictionary_normalize_language_key((string) $language);
+        if ($language_key === '' || in_array($language_key, $preferred_languages, true)) {
+            continue;
+        }
+        $preferred_languages[] = $language_key;
+    }
     $statuses = array_values(array_filter(array_map('sanitize_key', (array) ($args['post_status'] ?? ['publish']))));
     if (empty($statuses)) {
         $statuses = ['publish'];
@@ -1061,6 +1342,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             'letter' => $letter,
             'wordset_id' => $wordset_id,
             'pos_slug' => $pos_slug,
+            'preferred_languages' => $preferred_languages,
         ];
     }
 
@@ -1086,7 +1368,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
     $items = [];
     foreach ($ids as $entry_id) {
-        $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit);
+        $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit, $preferred_languages);
         if (!empty($item)) {
             $items[] = $item;
         }
@@ -1102,6 +1384,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'letter' => $letter,
         'wordset_id' => $wordset_id,
         'pos_slug' => $pos_slug,
+        'preferred_languages' => $preferred_languages,
     ];
 }
 
@@ -1308,6 +1591,102 @@ function ll_tools_dictionary_lookup_text_score(string $candidate, string $term):
 }
 
 /**
+ * Collect lookup candidates from one sense for a requested language.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_get_sense_lookup_candidates(array $sense, string $requested_language = '', bool $allow_fallback = true): array {
+    $requested_language = trim((string) $requested_language);
+    $requested_language_key = ll_tools_dictionary_normalize_language_key($requested_language);
+    $translations = ll_tools_dictionary_get_sense_translations($sense);
+    $candidates = [];
+
+    if ($requested_language === '' || strtolower($requested_language) === 'auto') {
+        foreach ($translations as $text) {
+            $text = trim((string) $text);
+            if ($text !== '') {
+                $candidates[] = $text;
+            }
+        }
+    } elseif ($requested_language_key !== '' && !empty($translations[$requested_language_key])) {
+        $candidates[] = (string) $translations[$requested_language_key];
+    }
+
+    $definition = trim((string) ($sense['definition'] ?? ''));
+    $def_lang_key = ll_tools_dictionary_normalize_language_key((string) ($sense['def_lang'] ?? ''));
+    if ($definition !== '' && (
+        empty($translations)
+        || $requested_language === ''
+        || strtolower($requested_language) === 'auto'
+        || $requested_language_key === ''
+        || $def_lang_key === ''
+        || $def_lang_key === $requested_language_key
+    )) {
+        $candidates[] = $definition;
+    }
+
+    if ($allow_fallback && empty($candidates)) {
+        $fallback = ll_tools_dictionary_get_preferred_translation_text(
+            $sense,
+            $requested_language_key !== '' ? [$requested_language_key] : [],
+            true
+        );
+        if ($fallback !== '') {
+            $candidates[] = $fallback;
+        }
+    }
+
+    $unique = [];
+    $seen = [];
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string) $candidate);
+        $lookup = ll_tools_dictionary_entry_normalize_lookup_value($candidate);
+        if ($candidate === '' || $lookup === '' || isset($seen[$lookup])) {
+            continue;
+        }
+        $seen[$lookup] = true;
+        $unique[] = $candidate;
+    }
+
+    return $unique;
+}
+
+/**
+ * Build a short translation summary for a requested language, if available.
+ *
+ * @param array<int,array<string,mixed>> $senses Sense list.
+ */
+function ll_tools_dictionary_build_requested_translation_summary(array $senses, string $language = ''): string {
+    $language = trim((string) $language);
+    $values = [];
+    $seen = [];
+
+    foreach ($senses as $sense) {
+        foreach (ll_tools_dictionary_get_sense_lookup_candidates((array) $sense, $language, false) as $candidate) {
+            $lookup = ll_tools_dictionary_entry_normalize_lookup_value($candidate);
+            if ($lookup === '' || isset($seen[$lookup])) {
+                continue;
+            }
+            $seen[$lookup] = true;
+            $values[] = $candidate;
+            if (count($values) >= 3) {
+                break 2;
+            }
+        }
+    }
+
+    if (!empty($values)) {
+        return implode('; ', $values);
+    }
+
+    if ($language === '' || strtolower($language) === 'auto') {
+        return ll_tools_dictionary_build_translation_summary($senses);
+    }
+
+    return '';
+}
+
+/**
  * Lookup the best dictionary translation suggestion from ll_dictionary_entry posts.
  */
 function ll_tools_dictionary_lookup_best($word, $source_lang, $target_lang, $reverse = false): ?string {
@@ -1323,6 +1702,7 @@ function ll_tools_dictionary_lookup_best($word, $source_lang, $target_lang, $rev
         'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
         'sense_limit' => 8,
         'linked_word_limit' => 0,
+        'preferred_languages' => !$reverse ? [(string) $target_lang] : [(string) $source_lang],
     ]);
 
     $items = (array) ($results['items'] ?? []);
@@ -1340,44 +1720,49 @@ function ll_tools_dictionary_lookup_best($word, $source_lang, $target_lang, $rev
         }
 
         $entry_lang = (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY, true);
-        $def_lang = (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_DEF_LANG_META_KEY, true);
         if ($reverse) {
-            if (!ll_tools_dictionary_language_matches($entry_lang, $target_lang) || !ll_tools_dictionary_language_matches($def_lang, $source_lang)) {
+            if (!ll_tools_dictionary_language_matches($entry_lang, (string) $target_lang)) {
                 continue;
             }
         } else {
-            if (!ll_tools_dictionary_language_matches($entry_lang, $source_lang) || !ll_tools_dictionary_language_matches($def_lang, $target_lang)) {
+            if (!ll_tools_dictionary_language_matches($entry_lang, (string) $source_lang)) {
                 continue;
             }
         }
 
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
         $score = 99;
         $candidate_value = '';
 
         if ($reverse) {
-            $definitions = [];
-            foreach (ll_tools_get_dictionary_entry_senses($entry_id) as $sense) {
-                $definition = trim((string) ($sense['definition'] ?? ''));
-                if ($definition !== '') {
-                    $definitions[] = $definition;
+            foreach ($senses as $sense) {
+                if (!ll_tools_dictionary_language_matches((string) ($sense['entry_lang'] ?? $entry_lang), (string) $target_lang)) {
+                    continue;
+                }
+
+                foreach (ll_tools_dictionary_get_sense_lookup_candidates((array) $sense, (string) $source_lang, false) as $definition) {
+                    $def_score = ll_tools_dictionary_lookup_text_score($definition, $term);
+                    if ($def_score < $score) {
+                        $score = $def_score;
+                    }
                 }
             }
-            $definitions[] = (string) ($item['translation'] ?? '');
-            $definitions = array_values(array_unique(array_filter(array_map('strval', $definitions))));
 
-            foreach ($definitions as $definition) {
-                $def_score = ll_tools_dictionary_lookup_text_score($definition, $term);
-                if ($def_score < $score) {
-                    $score = $def_score;
-                    $candidate_value = (string) ($item['title'] ?? '');
-                }
+            if ($score < 99) {
+                $candidate_value = trim((string) ($item['title'] ?? ''));
             }
         } else {
             $score = ll_tools_dictionary_lookup_text_score((string) ($item['title'] ?? ''), $term);
-            $candidate_value = (string) ($item['translation'] ?? '');
+            $candidate_value = ll_tools_dictionary_build_requested_translation_summary($senses, (string) $target_lang);
+            if ($candidate_value === '' && (trim((string) $target_lang) === '' || strtolower(trim((string) $target_lang)) === 'auto')) {
+                $candidate_value = (string) ($item['translation'] ?? '');
+            }
+            if ($candidate_value === '' && (trim((string) $target_lang) === '' || strtolower(trim((string) $target_lang)) === 'auto')) {
+                $candidate_value = ll_tools_dictionary_build_translation_summary($senses);
+            }
         }
 
-        if ($candidate_value === '') {
+        if ($candidate_value === '' || $score >= 99) {
             continue;
         }
 
@@ -1425,7 +1810,7 @@ function ll_tools_dictionary_entry_render_imported_senses_metabox($post): void {
     echo '<div class="widefat striped" style="border:1px solid #dcdcde;border-radius:6px;overflow:hidden;">';
     echo '<table class="widefat striped" style="border:0;margin:0;">';
     echo '<thead><tr>';
-    echo '<th>' . esc_html__('Definition', 'll-tools-text-domain') . '</th>';
+    echo '<th>' . esc_html__('Glosses', 'll-tools-text-domain') . '</th>';
     echo '<th>' . esc_html__('Type', 'll-tools-text-domain') . '</th>';
     echo '<th>' . esc_html__('Gender/Number', 'll-tools-text-domain') . '</th>';
     echo '<th>' . esc_html__('Parent', 'll-tools-text-domain') . '</th>';
@@ -1433,8 +1818,29 @@ function ll_tools_dictionary_entry_render_imported_senses_metabox($post): void {
     echo '</tr></thead><tbody>';
 
     foreach ($senses as $sense) {
+        $gloss_lines = [];
+        foreach (ll_tools_dictionary_get_sense_translations((array) $sense) as $language => $text) {
+            $text = trim((string) $text);
+            if ($text === '') {
+                continue;
+            }
+
+            $label = ll_tools_dictionary_get_language_label((string) $language);
+            $line = $label !== ''
+                ? '<strong>' . esc_html($label) . ':</strong> ' . esc_html($text)
+                : esc_html($text);
+            $gloss_lines[] = $line;
+        }
+
+        if (empty($gloss_lines)) {
+            $definition = trim((string) ($sense['definition'] ?? ''));
+            if ($definition !== '') {
+                $gloss_lines[] = esc_html($definition);
+            }
+        }
+
         echo '<tr>';
-        echo '<td>' . esc_html((string) ($sense['definition'] ?? '')) . '</td>';
+        echo '<td>' . wp_kses_post(implode('<br>', $gloss_lines)) . '</td>';
         echo '<td>' . esc_html((string) ($sense['entry_type'] ?? '')) . '</td>';
         echo '<td>' . esc_html((string) ($sense['gender_number'] ?? '')) . '</td>';
         echo '<td>' . esc_html((string) ($sense['parent'] ?? '')) . '</td>';

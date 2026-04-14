@@ -103,6 +103,40 @@ function ll_tools_dictionary_build_url(string $base_url, array $args = []): stri
     return (string) add_query_arg($query_args, $base_url);
 }
 
+/**
+ * Resolve which gloss languages should be preferred in dictionary summaries.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_shortcode_resolve_preferred_languages(int $wordset_id = 0, string $raw_gloss_langs = ''): array {
+    $languages = [];
+
+    $parts = preg_split('/[\s,|]+/', trim($raw_gloss_langs), -1, PREG_SPLIT_NO_EMPTY);
+    if (is_array($parts)) {
+        foreach ($parts as $part) {
+            $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+                ? ll_tools_dictionary_normalize_language_key((string) $part)
+                : strtolower(trim((string) $part));
+            if ($language_key === '' || in_array($language_key, $languages, true)) {
+                continue;
+            }
+            $languages[] = $language_key;
+        }
+    }
+
+    if (empty($languages) && $wordset_id > 0 && function_exists('ll_tools_get_wordset_translation_language')) {
+        $wordset_language = (string) ll_tools_get_wordset_translation_language([$wordset_id]);
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key($wordset_language)
+            : strtolower(trim($wordset_language));
+        if ($language_key !== '') {
+            $languages[] = $language_key;
+        }
+    }
+
+    return $languages;
+}
+
 function ll_tools_dictionary_render_badge(string $text, string $modifier = ''): string {
     $modifier = sanitize_html_class($modifier);
     $classes = 'll-dictionary__badge';
@@ -127,6 +161,7 @@ function ll_tools_dictionary_render_result_card(array $item): string {
     $linked_word_count = max(0, (int) ($item['linked_word_count'] ?? 0));
     $senses = (array) ($item['senses'] ?? []);
     $linked_words = (array) ($item['linked_words'] ?? []);
+    $preferred_languages = array_values(array_filter(array_map('strval', (array) ($item['preferred_languages'] ?? []))));
 
     $html = '<article class="ll-dictionary__card">';
     $html .= '<div class="ll-dictionary__card-head">';
@@ -175,7 +210,9 @@ function ll_tools_dictionary_render_result_card(array $item): string {
                 continue;
             }
 
-            $definition = trim((string) ($sense['definition'] ?? ''));
+            $definition = function_exists('ll_tools_dictionary_get_preferred_translation_text')
+                ? ll_tools_dictionary_get_preferred_translation_text($sense, $preferred_languages, true)
+                : trim((string) ($sense['definition'] ?? ''));
             $sense_type = trim((string) ($sense['entry_type'] ?? ''));
             $gender = trim((string) ($sense['gender_number'] ?? ''));
             $parent = trim((string) ($sense['parent'] ?? ''));
@@ -206,8 +243,40 @@ function ll_tools_dictionary_render_result_card(array $item): string {
                 );
             }
 
+            $translation_rows = [];
+            $visible_lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+                ? ll_tools_dictionary_entry_normalize_lookup_value($definition)
+                : strtolower($definition);
+            $translations = function_exists('ll_tools_dictionary_get_sense_translations')
+                ? ll_tools_dictionary_get_sense_translations($sense)
+                : [];
+            foreach ($translations as $language => $text) {
+                $text = trim((string) $text);
+                if ($text === '') {
+                    continue;
+                }
+
+                $text_lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+                    ? ll_tools_dictionary_entry_normalize_lookup_value($text)
+                    : strtolower($text);
+                if ($text_lookup !== '' && $text_lookup === $visible_lookup) {
+                    continue;
+                }
+
+                $label = function_exists('ll_tools_dictionary_get_language_label')
+                    ? ll_tools_dictionary_get_language_label((string) $language)
+                    : strtoupper((string) $language);
+                $translation_rows[] = '<span class="ll-dictionary__sense-translation">'
+                    . '<span class="ll-dictionary__sense-lang">' . esc_html($label) . '</span>'
+                    . '<span class="ll-dictionary__sense-value">' . esc_html($text) . '</span>'
+                    . '</span>';
+            }
+
             $html .= '<li class="ll-dictionary__sense-item">';
             $html .= '<span class="ll-dictionary__sense-text">' . esc_html($definition) . '</span>';
+            if (!empty($translation_rows)) {
+                $html .= '<span class="ll-dictionary__sense-translations">' . implode('', $translation_rows) . '</span>';
+            }
             if (!empty($meta_parts)) {
                 $html .= '<span class="ll-dictionary__sense-meta">' . esc_html(implode(' • ', $meta_parts)) . '</span>';
             }
@@ -310,11 +379,13 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         'sense_limit' => '3',
         'linked_word_limit' => '4',
         'title' => '',
+        'gloss_lang' => '',
     ], $atts, $tag ?: 'll_dictionary');
 
     ll_tools_dictionary_enqueue_assets();
 
     $wordset_id = ll_tools_dictionary_shortcode_resolve_wordset_id((string) $atts['wordset']);
+    $preferred_languages = ll_tools_dictionary_shortcode_resolve_preferred_languages($wordset_id, (string) $atts['gloss_lang']);
     $search = isset($_GET['ll_dictionary_q']) ? trim(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_q']))) : '';
     $letter = isset($_GET['ll_dictionary_letter'])
         ? trim(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_letter'])))
@@ -335,6 +406,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
             'pos_slug' => $pos_slug,
             'sense_limit' => max(1, (int) $atts['sense_limit']),
             'linked_word_limit' => max(0, (int) $atts['linked_word_limit']),
+            'preferred_languages' => $preferred_languages,
             'post_status' => ['publish'],
         ])
         : ['items' => [], 'total' => 0, 'page' => 1, 'total_pages' => 1];
