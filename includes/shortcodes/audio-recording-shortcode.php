@@ -1312,21 +1312,17 @@ function ll_audio_recording_interface_shortcode($atts) {
                                         <select id="ll-new-word-category">
                                             <?php
                                             $uncat_label = __('Uncategorized', 'll-tools-text-domain');
-                                            $category_terms = get_terms([
-                                                'taxonomy'   => 'word-category',
-                                                'hide_empty' => false,
-                                            ]);
-                                            if (is_wp_error($category_terms)) { $category_terms = []; }
-                                            if (function_exists('ll_tools_filter_category_terms_for_user')) {
-                                                $category_terms = ll_tools_filter_category_terms_for_user((array) $category_terms, get_current_user_id());
-                                            }
+                                            $category_terms = ll_tools_recorder_get_category_terms_for_wordsets($wordset_term_ids, get_current_user_id());
                                             $category_options = [];
                                             foreach ($category_terms as $term) {
-                                                if ($term->slug === 'uncategorized') {
-                                                    $uncat_label = $term->name ?: $uncat_label;
+                                                if (!($term instanceof WP_Term) || is_wp_error($term)) {
                                                     continue;
                                                 }
-                                                $category_options[$term->slug] = $term->name;
+                                                if ($term->slug === 'uncategorized') {
+                                                    $uncat_label = ll_tools_recorder_get_category_label($term, $wordset_term_ids) ?: $uncat_label;
+                                                    continue;
+                                                }
+                                                $category_options[$term->slug] = ll_tools_recorder_get_category_label($term, $wordset_term_ids);
                                             }
                                             if (!empty($category_options)) {
                                                 asort($category_options, SORT_FLAG_CASE | SORT_NATURAL);
@@ -1717,9 +1713,236 @@ function ll_tools_filter_recording_items_by_category(array $items, string $categ
     return $result;
 }
 
-function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0, int $image_id = 0, int $user_id = 0): array {
+function ll_tools_recorder_normalize_wordset_ids(array $wordset_ids): array {
+    $normalized = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($normalized, SORT_NUMERIC);
+
+    return $normalized;
+}
+
+function ll_tools_recorder_get_single_wordset_id(array $wordset_ids): int {
+    $normalized = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
+    if (count($normalized) !== 1) {
+        return 0;
+    }
+
+    return (int) $normalized[0];
+}
+
+function ll_tools_recorder_get_category_label(WP_Term $term, array $wordset_ids = []): string {
+    $wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
+    if (function_exists('ll_tools_get_category_display_name')) {
+        $display_name = (string) ll_tools_get_category_display_name($term, [
+            'wordset_ids' => $wordset_ids,
+        ]);
+        if ($display_name !== '') {
+            return $display_name;
+        }
+    }
+
+    return (string) $term->name;
+}
+
+function ll_tools_recorder_resolve_category_term_for_wordsets($category, array $wordset_ids = [], bool $create_missing = false): ?WP_Term {
+    $term = function_exists('ll_tools_resolve_word_category_term')
+        ? ll_tools_resolve_word_category_term($category)
+        : get_term($category, 'word-category');
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return null;
+    }
+
+    $single_wordset_id = ll_tools_recorder_get_single_wordset_id($wordset_ids);
+    if ($single_wordset_id <= 0 || !function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        return $term;
+    }
+
+    $effective_term_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $term->term_id, $single_wordset_id, $create_missing);
+    if ($effective_term_id <= 0 || $effective_term_id === (int) $term->term_id) {
+        return $term;
+    }
+
+    $effective_term = get_term($effective_term_id, 'word-category');
+    if (!($effective_term instanceof WP_Term) || is_wp_error($effective_term)) {
+        return $term;
+    }
+
+    return $effective_term;
+}
+
+function ll_tools_recorder_remap_category_terms_for_wordsets(array $terms, array $wordset_ids = [], bool $create_missing = false): array {
+    $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
+    if (empty($normalized_wordset_ids)) {
+        return array_values(array_filter($terms, static function ($term): bool {
+            return $term instanceof WP_Term && !is_wp_error($term) && $term->taxonomy === 'word-category';
+        }));
+    }
+
+    $resolved_terms = [];
+    foreach ($terms as $term) {
+        $resolved_term = ll_tools_recorder_resolve_category_term_for_wordsets($term, $normalized_wordset_ids, $create_missing);
+        if (!($resolved_term instanceof WP_Term) || is_wp_error($resolved_term)) {
+            continue;
+        }
+
+        $resolved_terms[(int) $resolved_term->term_id] = $resolved_term;
+    }
+
+    return array_values($resolved_terms);
+}
+
+function ll_tools_recorder_get_category_terms_for_wordsets(array $wordset_ids, int $user_id = 0): array {
+    $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
+    $single_wordset_id = ll_tools_recorder_get_single_wordset_id($normalized_wordset_ids);
+
+    if ($single_wordset_id > 0) {
+        $category_ids = [];
+
+        if (defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')) {
+            $owned_ids = get_terms([
+                'taxonomy'   => 'word-category',
+                'hide_empty' => false,
+                'fields'     => 'ids',
+                'meta_query' => [
+                    [
+                        'key'   => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+                        'value' => $single_wordset_id,
+                    ],
+                ],
+            ]);
+            if (!is_wp_error($owned_ids)) {
+                foreach ((array) $owned_ids as $category_id) {
+                    $category_id = (int) $category_id;
+                    if ($category_id > 0) {
+                        $category_ids[$category_id] = true;
+                    }
+                }
+            }
+        }
+
+        $word_ids = get_posts([
+            'post_type'      => 'words',
+            'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+            'tax_query'      => [
+                [
+                    'taxonomy' => 'wordset',
+                    'field'    => 'term_id',
+                    'terms'    => [$single_wordset_id],
+                ],
+            ],
+        ]);
+        if (!empty($word_ids)) {
+            $used_word_category_ids = wp_get_object_terms((array) $word_ids, 'word-category', ['fields' => 'ids']);
+            if (!is_wp_error($used_word_category_ids)) {
+                foreach ((array) $used_word_category_ids as $category_id) {
+                    $category_id = (int) $category_id;
+                    if ($category_id > 0) {
+                        $category_ids[$category_id] = true;
+                    }
+                }
+            }
+        }
+
+        if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+            $image_ids = get_posts([
+                'post_type'      => 'word_images',
+                'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'no_found_rows'  => true,
+                'meta_query'     => [
+                    [
+                        'key'   => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
+                        'value' => $single_wordset_id,
+                    ],
+                ],
+            ]);
+            if (!empty($image_ids)) {
+                $used_image_category_ids = wp_get_object_terms((array) $image_ids, 'word-category', ['fields' => 'ids']);
+                if (!is_wp_error($used_image_category_ids)) {
+                    foreach ((array) $used_image_category_ids as $category_id) {
+                        $category_id = (int) $category_id;
+                        if ($category_id > 0) {
+                            $category_ids[$category_id] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!empty($category_ids) && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_ids = [];
+            foreach (array_keys($category_ids) as $category_id) {
+                $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $category_id, $single_wordset_id, false);
+                if ($effective_category_id <= 0) {
+                    $effective_category_id = (int) $category_id;
+                }
+                if ($effective_category_id > 0) {
+                    $effective_category_ids[$effective_category_id] = true;
+                }
+            }
+            $category_ids = $effective_category_ids;
+        }
+
+        if (!empty($category_ids)) {
+            $terms = get_terms([
+                'taxonomy'   => 'word-category',
+                'hide_empty' => false,
+                'include'    => array_map('intval', array_keys($category_ids)),
+            ]);
+        } else {
+            $terms = [];
+        }
+    } else {
+        $terms = get_terms([
+            'taxonomy'   => 'word-category',
+            'hide_empty' => false,
+        ]);
+    }
+
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    $terms = ll_tools_recorder_remap_category_terms_for_wordsets((array) $terms, $normalized_wordset_ids, false);
+    if (empty($terms)) {
+        return [];
+    }
+
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user($terms, $user_id);
+    }
+    if (empty($terms)) {
+        return [];
+    }
+
+    usort($terms, static function (WP_Term $left, WP_Term $right) use ($normalized_wordset_ids): int {
+        $left_label = ll_tools_recorder_get_category_label($left, $normalized_wordset_ids);
+        $right_label = ll_tools_recorder_get_category_label($right, $normalized_wordset_ids);
+
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            $name_cmp = ll_tools_locale_compare_strings($left_label, $right_label);
+        } else {
+            $name_cmp = strnatcasecmp($left_label, $right_label);
+        }
+        if ($name_cmp !== 0) {
+            return $name_cmp;
+        }
+
+        return ((int) $left->term_id) <=> ((int) $right->term_id);
+    });
+
+    return $terms;
+}
+
+function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0, int $image_id = 0, int $user_id = 0, array $wordset_ids = []): array {
     $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
+    $normalized_wordset_ids = ll_tools_recorder_normalize_wordset_ids($wordset_ids);
 
     $term_sets = [];
     if ($word_id > 0) {
@@ -1748,12 +1971,33 @@ function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0,
         }
         $had_terms = true;
 
+        $terms = ll_tools_recorder_remap_category_terms_for_wordsets((array) $terms, $normalized_wordset_ids, false);
+        if (empty($terms)) {
+            continue;
+        }
+
         $viewable_terms = function_exists('ll_tools_filter_category_terms_for_user')
             ? ll_tools_filter_category_terms_for_user($terms, $user_id)
             : $terms;
         if (empty($viewable_terms)) {
             continue;
         }
+
+        usort($viewable_terms, static function (WP_Term $left, WP_Term $right) use ($normalized_wordset_ids): int {
+            $left_label = ll_tools_recorder_get_category_label($left, $normalized_wordset_ids);
+            $right_label = ll_tools_recorder_get_category_label($right, $normalized_wordset_ids);
+
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                $name_cmp = ll_tools_locale_compare_strings($left_label, $right_label);
+            } else {
+                $name_cmp = strnatcasecmp($left_label, $right_label);
+            }
+            if ($name_cmp !== 0) {
+                return $name_cmp;
+            }
+
+            return ((int) $left->term_id) <=> ((int) $right->term_id);
+        });
 
         $term = $viewable_terms[0];
         if (!($term instanceof WP_Term) || is_wp_error($term)) {
@@ -1763,7 +2007,7 @@ function ll_tools_recorder_resolve_accessible_category_context(int $word_id = 0,
         return [
             'term_id' => (int) $term->term_id,
             'slug' => (string) $term->slug,
-            'name' => (string) $term->name,
+            'name' => ll_tools_recorder_get_category_label($term, $normalized_wordset_ids),
             'term' => $term,
             'is_uncategorized' => false,
         ];
@@ -2065,6 +2309,7 @@ function ll_get_recording_types_for_category_handler() {
     }
 
     $category_slug = sanitize_text_field($_POST['category'] ?? 'uncategorized');
+    $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
     $type_filters = ll_tools_get_recording_type_filters_from_request();
     $all_types = $type_filters['all_types'];
     if (empty($all_types)) {
@@ -2073,8 +2318,8 @@ function ll_get_recording_types_for_category_handler() {
 
     $category_term_id = 0;
     if (!empty($category_slug) && $category_slug !== 'uncategorized') {
-        $category_term = get_term_by('slug', $category_slug, 'word-category');
-        if ($category_term && !is_wp_error($category_term)) {
+        $category_term = ll_tools_recorder_resolve_category_term_for_wordsets($category_slug, $posted_ids, false);
+        if ($category_term instanceof WP_Term && !is_wp_error($category_term)) {
             $category_term_id = (int) $category_term->term_id;
         }
     } elseif ($category_slug === 'uncategorized') {
@@ -2212,7 +2457,7 @@ function ll_prepare_new_word_recording_handler() {
 
         $category_term = get_term($category_term_id, 'word-category');
     } elseif (!empty($category_slug) && $category_slug !== 'uncategorized') {
-        $category_term = get_term_by('slug', $category_slug, 'word-category');
+        $category_term = ll_tools_recorder_resolve_category_term_for_wordsets($category_slug, $posted_ids, false);
     } elseif ($category_slug === 'uncategorized') {
         $maybe_uncat = get_term_by('slug', 'uncategorized', 'word-category');
         if ($maybe_uncat && !is_wp_error($maybe_uncat)) {
@@ -2222,7 +2467,7 @@ function ll_prepare_new_word_recording_handler() {
 
     if ($category_term && !is_wp_error($category_term)) {
         $category_term_id = (int) $category_term->term_id;
-        $category_name = $category_term->name;
+        $category_name = ll_tools_recorder_get_category_label($category_term, $posted_ids);
         $category_slug_value = $category_term->slug;
     }
 
@@ -3185,8 +3430,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $missing_audio_instances = get_option('ll_missing_audio_instances', []);
     $active_category_term = null;
     if (!empty($category_slug) && !$is_uncategorized_request) {
-        $maybe_active = get_term_by('slug', (string) $category_slug, 'word-category');
-        if ($maybe_active && !is_wp_error($maybe_active)) {
+        $maybe_active = ll_tools_recorder_resolve_category_term_for_wordsets((string) $category_slug, $wordset_term_ids, false);
+        if ($maybe_active instanceof WP_Term && !is_wp_error($maybe_active)) {
             $active_category_term = $maybe_active;
         }
     }
@@ -3450,11 +3695,11 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             $thumb_url = get_the_post_thumbnail_url($img_id, 'large');
             if ($thumb_url) {
                 if (isset($active_category_term) && $active_category_term) {
-                    $category_name       = $active_category_term->name;
+                    $category_name       = ll_tools_recorder_get_category_label($active_category_term, $wordset_term_ids);
                     $category_slug_value = $active_category_term->slug;
                 } else {
                     $category_context = function_exists('ll_tools_recorder_resolve_accessible_category_context')
-                        ? ll_tools_recorder_resolve_accessible_category_context((int) $word_id, (int) $img_id, $current_uid)
+                        ? ll_tools_recorder_resolve_accessible_category_context((int) $word_id, (int) $img_id, $current_uid, $wordset_term_ids)
                         : [];
                     if (empty($category_context)) {
                         continue;
@@ -3615,11 +3860,11 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 
         if (!empty($missing_types)) {
             if (isset($active_category_term) && $active_category_term) {
-                $category_name       = $active_category_term->name;
+                $category_name       = ll_tools_recorder_get_category_label($active_category_term, $wordset_term_ids);
                 $category_slug_value = $active_category_term->slug;
             } else {
                 $category_context = function_exists('ll_tools_recorder_resolve_accessible_category_context')
-                    ? ll_tools_recorder_resolve_accessible_category_context((int) $word_id, 0, $current_uid)
+                    ? ll_tools_recorder_resolve_accessible_category_context((int) $word_id, 0, $current_uid, $wordset_term_ids)
                     : [];
                 if (empty($category_context)) {
                     continue;
@@ -3709,7 +3954,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
                     if ($maybe_word) {
                         $word_id = (int) $maybe_word->ID;
                         if (function_exists('ll_tools_recorder_resolve_accessible_category_context')) {
-                            $missing_context = ll_tools_recorder_resolve_accessible_category_context($word_id, 0, $current_uid);
+                            $missing_context = ll_tools_recorder_resolve_accessible_category_context($word_id, 0, $current_uid, $wordset_term_ids);
                             if (empty($missing_context)) {
                                 continue;
                             }
@@ -4834,7 +5079,7 @@ function ll_handle_recording_upload() {
     $request_category_slug = sanitize_title((string) ($_POST['category_slug'] ?? ''));
 
     if ($request_category_slug !== '' && $request_category_slug !== 'uncategorized' && function_exists('ll_tools_user_can_view_category')) {
-        $request_category_term = get_term_by('slug', $request_category_slug, 'word-category');
+        $request_category_term = ll_tools_recorder_resolve_category_term_for_wordsets($request_category_slug, $posted_ids, false);
         if ($request_category_term instanceof WP_Term && !is_wp_error($request_category_term) && !ll_tools_user_can_view_category($request_category_term, $current_user_id)) {
             wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
         }
@@ -4853,7 +5098,7 @@ function ll_handle_recording_upload() {
             wp_send_json_error(__('Invalid image ID', 'll-tools-text-domain'));
         }
         if (function_exists('ll_tools_recorder_resolve_accessible_category_context')) {
-            $image_category_context = ll_tools_recorder_resolve_accessible_category_context(0, $image_id, $current_user_id);
+            $image_category_context = ll_tools_recorder_resolve_accessible_category_context(0, $image_id, $current_user_id, $posted_ids);
             if (empty($image_category_context)) {
                 wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
             }
@@ -4876,7 +5121,7 @@ function ll_handle_recording_upload() {
                 wp_send_json_error(__('Invalid word ID', 'll-tools-text-domain'));
             }
             if (function_exists('ll_tools_recorder_resolve_accessible_category_context')) {
-                $word_category_context = ll_tools_recorder_resolve_accessible_category_context($word_id, 0, $current_user_id);
+                $word_category_context = ll_tools_recorder_resolve_accessible_category_context($word_id, 0, $current_user_id, $posted_ids);
                 if (empty($word_category_context)) {
                     wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
                 }
@@ -4897,7 +5142,7 @@ function ll_handle_recording_upload() {
     }
 
     if (function_exists('ll_tools_recorder_resolve_accessible_category_context')) {
-        $accessible_category_context = ll_tools_recorder_resolve_accessible_category_context($word_id, $image_id, $current_user_id);
+        $accessible_category_context = ll_tools_recorder_resolve_accessible_category_context($word_id, $image_id, $current_user_id, $posted_ids);
         if (empty($accessible_category_context)) {
             wp_send_json_error(__('You do not have access to that category.', 'll-tools-text-domain'), 403);
         }

@@ -3,6 +3,26 @@ declare(strict_types=1);
 
 final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
 {
+    /** @var mixed */
+    private $originalIsolationOption;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalIsolationOption === null) {
+            delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
+        } else {
+            update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, $this->originalIsolationOption, false);
+        }
+
+        parent::tearDown();
+    }
+
     public function test_utility_menu_includes_recorder_context_class(): void
     {
         $markup = ll_tools_render_frontend_user_utility_menu([
@@ -58,6 +78,58 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertStringContainsString('checking_upload', $localized);
     }
 
+    public function test_new_word_category_select_is_scoped_to_selected_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $admin_id = self::factory()->user->create([
+            'role' => 'administrator',
+        ]);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        $wordset_one_id = $this->ensure_term('wordset', 'Recorder Scope Wordset One', 'recorder-scope-wordset-one');
+        $wordset_two_id = $this->ensure_term('wordset', 'Recorder Scope Wordset Two', 'recorder-scope-wordset-two');
+        $shared_category_id = $this->ensure_term('word-category', 'Recorder Shared Trees', 'recorder-shared-trees');
+
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($shared_category_id, 0, $shared_category_id);
+        }
+
+        $scoped_one_id = function_exists('ll_tools_get_or_create_isolated_category_copy')
+            ? (int) ll_tools_get_or_create_isolated_category_copy($shared_category_id, $wordset_one_id)
+            : 0;
+        $scoped_two_id = function_exists('ll_tools_get_or_create_isolated_category_copy')
+            ? (int) ll_tools_get_or_create_isolated_category_copy($shared_category_id, $wordset_two_id)
+            : 0;
+        $this->assertGreaterThan(0, $scoped_one_id);
+        $this->assertGreaterThan(0, $scoped_two_id);
+
+        if (function_exists('ll_tools_create_or_get_wordset_category')) {
+            $wordset_two_only_id = (int) ll_tools_create_or_get_wordset_category('Recorder Wordset Two Only', $wordset_two_id);
+            $this->assertGreaterThan(0, $wordset_two_only_id);
+        }
+
+        $wordset_one = get_term($wordset_one_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_one);
+        $scoped_one = get_term($scoped_one_id, 'word-category');
+        $scoped_two = get_term($scoped_two_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $scoped_one);
+        $this->assertInstanceOf(WP_Term::class, $scoped_two);
+
+        $output = do_shortcode('[audio_recording_interface wordset="' . $wordset_one->slug . '" allow_new_words="1"]');
+        $select_markup = $this->extract_select_markup($output, 'll-new-word-category');
+
+        $this->assertStringContainsString('value="' . $scoped_one->slug . '"', $select_markup);
+        $this->assertStringNotContainsString('value="' . $scoped_two->slug . '"', $select_markup);
+        $this->assertStringNotContainsString('Recorder Wordset Two Only', $select_markup);
+        $this->assertSame(1, preg_match_all('/<option[^>]*>\s*Recorder Shared Trees\s*<\/option>/', $select_markup));
+    }
+
     private function ensure_term(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
@@ -70,5 +142,14 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $this->assertIsArray($created);
 
         return (int) $created['term_id'];
+    }
+
+    private function extract_select_markup(string $html, string $select_id): string
+    {
+        $matches = [];
+        preg_match('/<select[^>]+id="' . preg_quote($select_id, '/') . '"[^>]*>(.*?)<\/select>/s', $html, $matches);
+        $this->assertArrayHasKey(1, $matches);
+
+        return (string) $matches[1];
     }
 }

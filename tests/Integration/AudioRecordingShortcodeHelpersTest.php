@@ -5,6 +5,26 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
 
+    /** @var mixed */
+    private $originalIsolationOption;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalIsolationOption === null) {
+            delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
+        } else {
+            update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, $this->originalIsolationOption, false);
+        }
+
+        parent::tearDown();
+    }
+
     public function test_recording_categories_helper_prioritizes_uncategorized_and_sorts_rest(): void
     {
         $items = [
@@ -265,6 +285,36 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertIsArray($target);
         $this->assertSame(['isolation', 'introduction', 'question'], array_values((array) ($target['prompt_types'] ?? [])));
         $this->assertSame(['isolation'], array_values((array) ($target['my_existing_types'] ?? [])));
+    }
+
+    public function test_recorder_category_resolver_remaps_isolated_slug_to_requested_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_one_id = $this->ensure_term('wordset', 'Recorder Resolver One', 'recorder-resolver-one');
+        $wordset_two_id = $this->ensure_term('wordset', 'Recorder Resolver Two', 'recorder-resolver-two');
+        $shared_category_id = $this->ensure_term('word-category', 'Recorder Resolver Trees', 'recorder-resolver-trees');
+
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($shared_category_id, 0, $shared_category_id);
+        }
+
+        $scoped_two_id = function_exists('ll_tools_get_or_create_isolated_category_copy')
+            ? (int) ll_tools_get_or_create_isolated_category_copy($shared_category_id, $wordset_two_id)
+            : 0;
+        $scoped_one_id = function_exists('ll_tools_get_or_create_isolated_category_copy')
+            ? (int) ll_tools_get_or_create_isolated_category_copy($shared_category_id, $wordset_one_id)
+            : 0;
+        $this->assertGreaterThan(0, $scoped_two_id);
+        $this->assertGreaterThan(0, $scoped_one_id);
+
+        $scoped_two_term = get_term($scoped_two_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $scoped_two_term);
+
+        $resolved = ll_tools_recorder_resolve_category_term_for_wordsets($scoped_two_term->slug, [$wordset_one_id], false);
+
+        $this->assertInstanceOf(WP_Term::class, $resolved);
+        $this->assertSame($scoped_one_id, (int) $resolved->term_id);
     }
 
     private function ensure_term(string $taxonomy, string $name, string $slug): int
