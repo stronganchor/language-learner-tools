@@ -88,6 +88,135 @@ function ll_audio_upload_resolve_speaker_user_id($speaker_assignment): int {
     return $current_user_id;
 }
 
+function ll_audio_upload_enqueue_form_assets(): void {
+    ll_enqueue_asset_by_timestamp('/js/audio-upload-form-admin.js', 'll-audio-upload-form-admin', ['jquery'], true);
+}
+
+/**
+ * Sanitize incoming wordset IDs from the audio upload form.
+ *
+ * @param mixed $raw_ids Raw IDs from request data.
+ * @return int[]
+ */
+function ll_audio_upload_sanitize_wordset_ids($raw_ids): array {
+    if (function_exists('ll_image_upload_sanitize_wordset_ids')) {
+        return ll_image_upload_sanitize_wordset_ids($raw_ids);
+    }
+
+    $ids = array_map('intval', (array) $raw_ids);
+    $ids = array_values(array_unique(array_filter($ids, static function ($id) {
+        return $id > 0;
+    })));
+
+    if (!current_user_can('manage_options') && function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        $allowed_ids = array_map('intval', (array) ll_tools_get_user_managed_wordset_ids(get_current_user_id()));
+        if (!empty($allowed_ids)) {
+            $ids = array_values(array_intersect($ids, $allowed_ids));
+        } elseif (in_array('wordset_manager', (array) wp_get_current_user()->roles, true)) {
+            $ids = [];
+        }
+    }
+
+    return $ids;
+}
+
+/**
+ * Parse selected wordsets from audio-upload form data.
+ *
+ * Supports the scope-first UI plus legacy single-wordset fields.
+ *
+ * @param array $post_data Unslashed request-style form data.
+ * @return int[]
+ */
+function ll_audio_upload_get_requested_wordset_ids_from_post_data(array $post_data): array {
+    if (isset($post_data['ll_wordset_ids'])) {
+        return ll_audio_upload_sanitize_wordset_ids($post_data['ll_wordset_ids']);
+    }
+
+    $scope_mode = isset($post_data['ll_wordset_scope_mode'])
+        ? sanitize_key((string) $post_data['ll_wordset_scope_mode'])
+        : 'single';
+
+    if ($scope_mode === 'multiple') {
+        $raw_ids = isset($post_data['ll_multi_wordset_ids']) ? $post_data['ll_multi_wordset_ids'] : [];
+        return ll_audio_upload_sanitize_wordset_ids($raw_ids);
+    }
+
+    $single_wordset_id = isset($post_data['ll_single_wordset_id'])
+        ? (int) $post_data['ll_single_wordset_id']
+        : 0;
+
+    if ($single_wordset_id <= 0 && isset($post_data['ll_wordset_id'])) {
+        $single_wordset_id = (int) $post_data['ll_wordset_id'];
+    }
+    if ($single_wordset_id <= 0 && isset($post_data['selected_wordset'])) {
+        $single_wordset_id = (int) $post_data['selected_wordset'];
+    }
+    if ($single_wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
+        $single_wordset_id = (int) ll_tools_get_active_wordset_id();
+    }
+
+    return ll_audio_upload_sanitize_wordset_ids($single_wordset_id > 0 ? [$single_wordset_id] : []);
+}
+
+/**
+ * Parse selected wordsets from the current request.
+ *
+ * @return int[]
+ */
+function ll_audio_upload_get_requested_wordset_ids_from_request(): array {
+    return ll_audio_upload_get_requested_wordset_ids_from_post_data((array) wp_unslash($_POST));
+}
+
+/**
+ * Resolve selected categories from the current request, including new-category creation.
+ *
+ * @param int[] $requested_wordset_ids Target wordsets chosen in the form.
+ * @return int[]|WP_Error
+ */
+function ll_audio_upload_get_selected_categories_from_request(array $requested_wordset_ids = []) {
+    $new_category_title = isset($_POST['ll_new_category_title'])
+        ? sanitize_text_field(wp_unslash($_POST['ll_new_category_title']))
+        : '';
+    $category_mode = isset($_POST['ll_category_mode'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_category_mode']))
+        : (($new_category_title !== '') ? 'new' : 'existing');
+
+    $selected_categories = [];
+    if ($category_mode === 'new' || $new_category_title !== '') {
+        if (!function_exists('ll_image_upload_create_category_from_request')) {
+            return new WP_Error(
+                'll_audio_upload_category_create_unavailable',
+                __('Category creation is not available right now.', 'll-tools-text-domain')
+            );
+        }
+
+        $created_category_id = ll_image_upload_create_category_from_request();
+        if (is_wp_error($created_category_id)) {
+            return $created_category_id;
+        }
+        if ((int) $created_category_id > 0) {
+            $selected_categories = [(int) $created_category_id];
+        }
+    } else {
+        if (isset($_POST['ll_existing_category'])) {
+            $selected_categories = [(int) wp_unslash((string) $_POST['ll_existing_category'])];
+        } else {
+            $selected_categories = isset($_POST['ll_word_categories']) ? (array) wp_unslash($_POST['ll_word_categories']) : [];
+        }
+    }
+
+    $selected_categories = array_values(array_filter(array_map('intval', (array) $selected_categories), static function ($term_id) {
+        return $term_id > 0;
+    }));
+
+    if (!empty($selected_categories) && !empty($requested_wordset_ids) && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
+        $selected_categories = ll_tools_get_isolated_category_ids_for_wordsets($selected_categories, $requested_wordset_ids);
+    }
+
+    return $selected_categories;
+}
+
 function ll_audio_upload_form_shortcode($atts = []) {
     if (!current_user_can('upload_files') || !current_user_can('view_ll_tools')) {
         return esc_html__('You do not have permission to upload files.', 'll-tools-text-domain');
@@ -109,6 +238,8 @@ function ll_audio_upload_form_shortcode($atts = []) {
         }
     }
 
+    ll_audio_upload_enqueue_form_assets();
+
     // Get recording types
     $recording_types = get_terms([
         'taxonomy' => 'recording_type',
@@ -117,68 +248,71 @@ function ll_audio_upload_form_shortcode($atts = []) {
 
     $users = ll_audio_upload_get_assignable_speaker_users();
 
-    $wsets = get_terms([
-        'taxonomy' => 'wordset',
-        'hide_empty' => false,
-        'orderby' => 'name',
-        'order' => 'ASC',
-    ]);
-    if (is_wp_error($wsets)) {
-        $wsets = [];
-    }
-    if (!current_user_can('manage_options') && function_exists('ll_tools_get_user_managed_wordset_ids')) {
-        $allowed_wordset_ids = ll_tools_get_user_managed_wordset_ids(get_current_user_id());
-        if (!empty($allowed_wordset_ids)) {
-            $allowed_lookup = array_fill_keys(array_map('intval', (array) $allowed_wordset_ids), true);
-            $wsets = array_values(array_filter((array) $wsets, static function ($ws) use ($allowed_lookup) {
-                $term_id = isset($ws->term_id) ? (int) $ws->term_id : 0;
-                return $term_id > 0 && !empty($allowed_lookup[$term_id]);
-            }));
-        } elseif (in_array('wordset_manager', (array) wp_get_current_user()->roles, true)) {
-            $wsets = [];
-        }
-    }
+    $wordsets = function_exists('ll_image_upload_get_accessible_wordsets')
+        ? ll_image_upload_get_accessible_wordsets($requested_wordset_id)
+        : [];
 
     $preselected_wordset = null;
     if ($requested_wordset_id > 0) {
-        foreach ((array) $wsets as $candidate_wordset) {
+        foreach ((array) $wordsets as $candidate_wordset) {
             if ((int) ($candidate_wordset->term_id ?? 0) === $requested_wordset_id) {
                 $preselected_wordset = $candidate_wordset;
                 break;
-            }
-        }
-        if (!$preselected_wordset && function_exists('ll_tools_user_can_manage_wordset_content')
-            && ll_tools_user_can_manage_wordset_content(get_current_user_id(), $requested_wordset_id)
-        ) {
-            $maybe_term = get_term($requested_wordset_id, 'wordset');
-            if ($maybe_term && !is_wp_error($maybe_term)) {
-                $preselected_wordset = $maybe_term;
-                $wsets[] = $maybe_term;
             }
         }
     }
     if ($lock_wordset && !$preselected_wordset) {
         return esc_html__('That word set is not available for audio upload.', 'll-tools-text-domain');
     }
+    $available_wordset_ids = array_values(array_filter(array_map('intval', wp_list_pluck((array) $wordsets, 'term_id')), static function ($wordset_id) {
+        return $wordset_id > 0;
+    }));
+    $wordset_selection_locked = $lock_wordset || count($available_wordset_ids) === 1;
+    if (!$preselected_wordset && $wordset_selection_locked && !empty($wordsets)) {
+        $preselected_wordset = $wordsets[0];
+    }
     $preselected_wordset_id = ($preselected_wordset && isset($preselected_wordset->term_id))
         ? (int) $preselected_wordset->term_id
         : 0;
+    $default_single_wordset_id = $preselected_wordset_id > 0
+        ? $preselected_wordset_id
+        : ((count($available_wordset_ids) === 1) ? (int) $available_wordset_ids[0] : 0);
+
+    $logical_category_options = function_exists('ll_image_upload_get_logical_category_options')
+        ? ll_image_upload_get_logical_category_options($available_wordset_ids)
+        : [];
+
+    $default_recording_types = function_exists('ll_tools_get_main_recording_types')
+        ? ll_tools_get_main_recording_types()
+        : ['isolation', 'question', 'introduction'];
+    $can_create_categories = current_user_can('manage_categories');
+    $translation_context_ids = $default_single_wordset_id > 0 ? [$default_single_wordset_id] : [];
+    $show_translation_field = function_exists('ll_tools_is_category_translation_enabled')
+        ? ll_tools_is_category_translation_enabled($translation_context_ids)
+        : false;
+    if (!$show_translation_field && function_exists('ll_tools_should_show_category_translation_ui')) {
+        $show_translation_field = ll_tools_should_show_category_translation_ui();
+    }
 
     ob_start();
     ?>
-    <form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post" enctype="multipart/form-data">
+    <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" enctype="multipart/form-data" data-ll-audio-upload-form="1">
         <!-- only allow audio files -->
         <input type="file" name="ll_audio_files[]" accept="audio/*" multiple /><br>
 
         <label>
-            <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1">
+            <input type="checkbox" id="match_existing_posts" name="match_existing_posts" value="1" data-ll-match-existing>
             <?php esc_html_e( 'Match to existing word posts instead of creating new ones', 'll-tools-text-domain' ); ?>
         </label><br>
 
-        <label>
-            <input type="checkbox" id="match_image_on_translation" name="match_image_on_translation" value="1">
-            <?php esc_html_e( 'Match images based on translation instead of original word', 'll-tools-text-domain' ); ?>
-        </label><br>
+        <p
+            class="description"
+            style="display:none; margin:6px 0 0;"
+            data-ll-match-mode-note
+            hidden
+        >
+            <?php esc_html_e('Matching existing words only supports one word set at a time.', 'll-tools-text-domain'); ?>
+        </p>
 
         <div style="margin-top:10px;">
             <label><?php esc_html_e( 'Recording Type', 'll-tools-text-domain' ); ?>:</label><br>
@@ -220,38 +354,195 @@ function ll_audio_upload_form_shortcode($atts = []) {
             </select>
         </div>
 
-        <div>
-            <label><?php esc_html_e( 'Select Categories', 'll-tools-text-domain' ); ?>:</label><br>
-            <?php ll_render_category_selection_field( 'words' ); ?>
+        <div style="margin-top:10px;" data-ll-audio-create-only>
+            <label>
+                <input type="checkbox" id="match_image_on_translation" name="match_image_on_translation" value="1">
+                <?php esc_html_e('Match images based on translation instead of original word', 'll-tools-text-domain'); ?>
+            </label><br>
         </div>
 
-        <div style="margin-top:10px;">
-            <label><?php esc_html_e( 'Word Set', 'll-tools-text-domain' ); ?>:</label><br>
-            <?php if ($lock_wordset && $preselected_wordset) : ?>
-                <input type="hidden" name="ll_wordset_id" value="<?php echo esc_attr((int) $preselected_wordset->term_id); ?>">
-                <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ccd0d4;border-radius:4px;background:#fff;">
+        <div style="margin-top:10px;" data-ll-wordset-scope-root>
+            <label><strong><?php esc_html_e('Target Scope', 'll-tools-text-domain'); ?></strong></label><br>
+            <?php if ($wordset_selection_locked && $default_single_wordset_id > 0 && $preselected_wordset instanceof WP_Term) : ?>
+                <input type="hidden" name="ll_wordset_scope_mode" value="single">
+                <input type="hidden" name="ll_single_wordset_id" value="<?php echo esc_attr($default_single_wordset_id); ?>">
+                <div style="display:inline-flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ccd0d4;border-radius:4px;background:#fff;" data-ll-wordset-scope-locked="1">
                     <strong><?php echo esc_html((string) $preselected_wordset->name); ?></strong>
-                    <span class="description" style="margin:0;"><?php echo esc_html__('Locked to this word set', 'll-tools-text-domain'); ?></span>
+                    <span class="description" style="margin:0;">
+                        <?php
+                        echo esc_html(
+                            $lock_wordset
+                                ? __('Locked to this word set', 'll-tools-text-domain')
+                                : __('Only accessible word set', 'll-tools-text-domain')
+                        );
+                        ?>
+                    </span>
+                </div>
+                <p class="description"><?php esc_html_e('Audio uploads will use this word set automatically.', 'll-tools-text-domain'); ?></p>
+            <?php elseif (!empty($wordsets)) : ?>
+                <fieldset style="margin:6px 0 0;">
+                    <label style="display:inline-block; margin-right:16px;">
+                        <input type="radio" name="ll_wordset_scope_mode" value="single" checked data-ll-scope-mode>
+                        <?php esc_html_e('One word set', 'll-tools-text-domain'); ?>
+                    </label>
+                    <label style="display:inline-block;">
+                        <input type="radio" name="ll_wordset_scope_mode" value="multiple" data-ll-scope-mode>
+                        <?php esc_html_e('Multiple word sets', 'll-tools-text-domain'); ?>
+                    </label>
+                </fieldset>
+                <p class="description"><?php esc_html_e('Choose where this upload should land before selecting a category.', 'll-tools-text-domain'); ?></p>
+
+                <div style="margin-top:8px;" data-ll-single-wordset-wrap>
+                    <label for="ll-audio-upload-single-wordset"><?php esc_html_e('Word Set', 'll-tools-text-domain'); ?>:</label><br>
+                    <select id="ll-audio-upload-single-wordset" name="ll_single_wordset_id" class="regular-text" data-ll-single-wordset>
+                        <option value="0"><?php esc_html_e('— Select —', 'll-tools-text-domain'); ?></option>
+                        <?php foreach ($wordsets as $ws) : ?>
+                            <option value="<?php echo esc_attr((int) $ws->term_id); ?>" <?php selected($default_single_wordset_id, (int) $ws->term_id); ?>>
+                                <?php echo esc_html((string) $ws->name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div style="margin-top:8px; display:none;" data-ll-multi-wordset-wrap>
+                    <label><?php esc_html_e('Word Sets', 'll-tools-text-domain'); ?>:</label><br>
+                    <div style="max-height:160px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
+                        <?php foreach ($wordsets as $ws) : ?>
+                            <label style="display:block; margin:2px 0;">
+                                <input
+                                    type="checkbox"
+                                    name="ll_multi_wordset_ids[]"
+                                    value="<?php echo esc_attr((int) $ws->term_id); ?>"
+                                    data-ll-multi-wordset
+                                    data-ll-wordset-label="<?php echo esc_attr((string) $ws->name); ?>"
+                                >
+                                <?php echo esc_html((string) $ws->name); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="description"><?php esc_html_e('New words will be created in the same logical category across every selected word set.', 'll-tools-text-domain'); ?></p>
                 </div>
             <?php else : ?>
-                <select name="ll_wordset_id" required>
-                    <?php
-                    if (!empty($wsets)) {
-                        echo '<option value="">' . esc_html__('— Select —', 'll-tools-text-domain') . '</option>';
-                        foreach ($wsets as $ws) {
-                            printf(
-                                '<option value="%1$d" %2$s>%3$s</option>',
-                                (int) $ws->term_id,
-                                selected($preselected_wordset_id, (int) $ws->term_id, false),
-                                esc_html($ws->name)
-                            );
-                        }
-                    } else {
-                        echo '<option value="">' . esc_html__('No word sets available', 'll-tools-text-domain') . '</option>';
-                    }
-                    ?>
-                </select>
+                <p class="description"><?php esc_html_e('No word sets are available for audio upload right now.', 'll-tools-text-domain'); ?></p>
             <?php endif; ?>
+        </div>
+
+        <div style="margin-top:10px;" data-ll-audio-create-only>
+            <?php if ($can_create_categories) : ?>
+                <label><strong><?php esc_html_e('Category Source', 'll-tools-text-domain'); ?></strong></label><br>
+                <fieldset style="margin:6px 0 0;">
+                    <label style="display:inline-block; margin-right:16px;">
+                        <input type="radio" name="ll_category_mode" value="existing" checked data-ll-category-mode>
+                        <?php esc_html_e('Use existing category', 'll-tools-text-domain'); ?>
+                    </label>
+                    <label style="display:inline-block;">
+                        <input type="radio" name="ll_category_mode" value="new" data-ll-category-mode>
+                        <?php esc_html_e('Create new category', 'll-tools-text-domain'); ?>
+                    </label>
+                </fieldset>
+            <?php else : ?>
+                <input type="hidden" name="ll_category_mode" value="existing">
+            <?php endif; ?>
+        </div>
+
+        <div style="margin-top:10px;" data-ll-category-existing-wrap data-ll-audio-create-only>
+            <label for="ll-audio-existing-category"><?php esc_html_e('Choose Category', 'll-tools-text-domain'); ?>:</label><br>
+            <select id="ll-audio-existing-category" name="ll_existing_category" class="regular-text" data-ll-existing-category>
+                <option value="0"><?php esc_html_e('— Select —', 'll-tools-text-domain'); ?></option>
+                <?php foreach ($logical_category_options as $category_option) : ?>
+                    <option
+                        value="<?php echo esc_attr((int) $category_option['id']); ?>"
+                        data-ll-category-wordsets="<?php echo esc_attr(implode(',', array_map('intval', (array) ($category_option['wordset_ids'] ?? [])))); ?>"
+                        data-ll-category-shared="<?php echo !empty($category_option['is_shared']) ? '1' : '0'; ?>"
+                    >
+                        <?php echo esc_html((string) ($category_option['label'] ?? '')); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <p class="description"><?php esc_html_e('The selected logical category will be resolved into the chosen word set scope automatically.', 'll-tools-text-domain'); ?></p>
+        </div>
+
+        <?php if ($can_create_categories) : ?>
+            <div style="margin-top:10px; display:none;" data-ll-new-category-wrap data-ll-audio-create-only>
+                <label for="ll-audio-new-category-title"><?php esc_html_e('New Category Name', 'll-tools-text-domain'); ?>:</label><br>
+                <input type="text" id="ll-audio-new-category-title" name="ll_new_category_title" class="regular-text" value="" data-ll-new-category-title>
+                <p class="description"><?php esc_html_e('The new category will be created inside the selected word set scope.', 'll-tools-text-domain'); ?></p>
+            </div>
+
+            <div style="margin-top:10px; display:none;" data-ll-new-category-advanced data-ll-audio-create-only>
+                <label for="ll-audio-new-category-parent"><?php esc_html_e('Parent Category', 'll-tools-text-domain'); ?>:</label><br>
+                <select id="ll-audio-new-category-parent" name="ll_new_category_parent" class="regular-text" data-ll-new-category-parent>
+                    <option value="0"><?php esc_html_e('None', 'll-tools-text-domain'); ?></option>
+                    <?php foreach ($logical_category_options as $category_option) : ?>
+                        <option
+                            value="<?php echo esc_attr((int) $category_option['id']); ?>"
+                            data-ll-category-wordsets="<?php echo esc_attr(implode(',', array_map('intval', (array) ($category_option['wordset_ids'] ?? [])))); ?>"
+                            data-ll-category-shared="<?php echo !empty($category_option['is_shared']) ? '1' : '0'; ?>"
+                        >
+                            <?php echo esc_html((string) ($category_option['label'] ?? '')); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <?php if ($show_translation_field) : ?>
+                    <div style="margin-top:10px;">
+                        <label for="ll-audio-new-category-translation"><?php esc_html_e('Translated Name', 'll-tools-text-domain'); ?>:</label><br>
+                        <input type="text" id="ll-audio-new-category-translation" name="ll_new_category_translation" class="regular-text" value="">
+                    </div>
+                <?php endif; ?>
+
+                <div style="margin-top:10px;">
+                    <label for="ll-audio-new-category-prompt"><?php esc_html_e('Quiz Prompt Type', 'll-tools-text-domain'); ?>:</label><br>
+                    <select id="ll-audio-new-category-prompt" name="ll_new_category_prompt_type" class="regular-text" data-ll-new-category-prompt>
+                        <option value="audio"><?php esc_html_e('Play audio (default)', 'll-tools-text-domain'); ?></option>
+                        <option value="audio_text_translation"><?php esc_html_e('Play audio + show text (translation)', 'll-tools-text-domain'); ?></option>
+                        <option value="audio_text_title"><?php esc_html_e('Play audio + show text (title)', 'll-tools-text-domain'); ?></option>
+                        <option value="image"><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+                        <option value="image_text_translation"><?php esc_html_e('Show image + text (translation)', 'll-tools-text-domain'); ?></option>
+                        <option value="image_text_title"><?php esc_html_e('Show image + text (title)', 'll-tools-text-domain'); ?></option>
+                        <option value="text_translation"><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
+                        <option value="text_title"><?php esc_html_e('Show text (title)', 'll-tools-text-domain'); ?></option>
+                    </select>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <label for="ll-audio-new-category-option"><?php esc_html_e('Answer Options', 'll-tools-text-domain'); ?>:</label><br>
+                    <select id="ll-audio-new-category-option" name="ll_new_category_option_type" class="regular-text" data-ll-new-category-option>
+                        <option value="image"><?php esc_html_e('Images', 'll-tools-text-domain'); ?></option>
+                        <option value="text"><?php esc_html_e('Text (opposite prompt)', 'll-tools-text-domain'); ?></option>
+                        <option value="text_translation"><?php esc_html_e('Text (translation)', 'll-tools-text-domain'); ?></option>
+                        <option value="text_title"><?php esc_html_e('Text (title)', 'll-tools-text-domain'); ?></option>
+                        <option value="audio"><?php esc_html_e('Audio', 'll-tools-text-domain'); ?></option>
+                        <option value="text_audio"><?php esc_html_e('Text + audio pairs', 'll-tools-text-domain'); ?></option>
+                    </select>
+                </div>
+
+                <div style="margin-top:10px;">
+                    <input type="hidden" name="ll_new_category_desired_recording_types_submitted" value="1">
+                    <label><?php esc_html_e('Desired Recording Types', 'll-tools-text-domain'); ?>:</label><br>
+                    <div style="max-height:140px; overflow:auto; border:1px solid #ccd0d4; padding:6px;">
+                        <?php foreach ($recording_types as $type) : ?>
+                            <?php $checked = in_array((string) $type->slug, $default_recording_types, true) ? 'checked' : ''; ?>
+                            <label style="display:block; margin:2px 0;">
+                                <input type="checkbox" name="ll_new_category_desired_recording_types[]" value="<?php echo esc_attr($type->slug); ?>" <?php echo $checked; ?>>
+                                <?php echo esc_html($type->name . ' (' . $type->slug . ')'); ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <p class="description"><?php esc_html_e('Leave all unchecked to disable recording for this category.', 'll-tools-text-domain'); ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <div
+            style="margin-top:10px; display:none; padding:10px 12px; border:1px solid #ccd0d4; border-radius:4px; background:#fff;"
+            data-ll-target-preview
+            hidden
+        >
+            <strong><?php esc_html_e('Upload Target', 'll-tools-text-domain'); ?>:</strong>
+            <span data-ll-target-preview-category></span>
+            <span data-ll-target-preview-separator> -> </span>
+            <span data-ll-target-preview-wordsets></span>
         </div>
 
         <input type="hidden" name="action" value="process_audio_files">
@@ -292,18 +583,39 @@ function ll_handle_audio_file_uploads() {
     check_admin_referer('ll_process_audio_files', 'll_audio_upload_nonce');
 
     $match_existing_posts = !empty($_POST['match_existing_posts']);
-    $selected_categories  = isset($_POST['ll_word_categories']) ? (array) $_POST['ll_word_categories'] : [];
-    $return_url           = isset($_POST['ll_return_url']) ? wp_validate_redirect((string) wp_unslash($_POST['ll_return_url']), '') : '';
-    $selected_wordset_id  = isset($_POST['ll_wordset_id']) ? (int) wp_unslash((string) $_POST['ll_wordset_id']) : 0;
-    $upload_dir           = wp_upload_dir();
-    $success_matches      = [];
-    $failed_matches       = [];
+    $return_url = isset($_POST['ll_return_url']) ? wp_validate_redirect((string) wp_unslash($_POST['ll_return_url']), '') : '';
+    $requested_wordset_ids = ll_audio_upload_get_requested_wordset_ids_from_request();
+    $submitted_scope_ui = isset($_POST['ll_wordset_scope_mode']) || isset($_POST['ll_single_wordset_id']) || isset($_POST['ll_multi_wordset_ids']);
+    if ($submitted_scope_ui && function_exists('ll_image_upload_get_accessible_wordsets') && !empty(ll_image_upload_get_accessible_wordsets()) && empty($requested_wordset_ids)) {
+        wp_die(esc_html__('Please choose at least one word set for this upload.', 'll-tools-text-domain'));
+    }
 
-    if ($selected_wordset_id > 0 && function_exists('ll_tools_user_can_manage_wordset_content')) {
-        if (!ll_tools_user_can_manage_wordset_content(get_current_user_id(), $selected_wordset_id)) {
+    if ($match_existing_posts && count($requested_wordset_ids) > 1) {
+        wp_die(esc_html__('Please choose a single word set when matching existing words.', 'll-tools-text-domain'));
+    }
+
+    $selected_wordset_id = (count($requested_wordset_ids) === 1) ? (int) $requested_wordset_ids[0] : 0;
+    foreach ($requested_wordset_ids as $requested_wordset_id) {
+        if (
+            (int) $requested_wordset_id > 0
+            && function_exists('ll_tools_user_can_manage_wordset_content')
+            && !ll_tools_user_can_manage_wordset_content((int) $requested_wordset_id, get_current_user_id())
+        ) {
             wp_die(__('You do not have permission to assign uploads to that word set.', 'll-tools-text-domain'));
         }
     }
+
+    $selected_categories = [];
+    if (!$match_existing_posts) {
+        $selected_categories = ll_audio_upload_get_selected_categories_from_request($requested_wordset_ids);
+        if (is_wp_error($selected_categories)) {
+            wp_die(esc_html($selected_categories->get_error_message()));
+        }
+    }
+
+    $upload_dir      = wp_upload_dir();
+    $success_matches = [];
+    $failed_matches  = [];
 
     $allowed_audio_types  = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/webm', 'video/webm', 'video/x-matroska'];
     $max_file_size        = 10 * 1024 * 1024; // 10MB
@@ -330,7 +642,7 @@ function ll_handle_audio_file_uploads() {
         }
 
         $relative_upload_path = ll_get_relative_upload_path($upload_result);
-        $formatted_title      = ll_format_title($original_name, $selected_wordset_id > 0 ? [$selected_wordset_id] : []);
+        $formatted_title      = ll_format_title($original_name, $requested_wordset_ids);
 
         if ($match_existing_posts) {
             $existing_post = null;
@@ -622,6 +934,7 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
     $selected_categories = array_values(array_filter(array_map('intval', (array) $selected_categories), static function ($term_id) {
         return $term_id > 0;
     }));
+    $wordset_ids = ll_audio_upload_get_requested_wordset_ids_from_post_data((array) $post_data);
 
     $post_id = wp_insert_post([
         'post_title'    => $title,
@@ -666,38 +979,32 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
             wp_set_object_terms($audio_post_id, $recording_type, 'recording_type');
         }
 
-        // Determine the chosen word-set ID (prefer the new <select name="ll_wordset_id">)
-        $wordset_id = isset($post_data['ll_wordset_id']) ? (int) $post_data['ll_wordset_id'] : 0;
-
-        // Back-compat: if older field exists, allow it as a fallback
-        if ($wordset_id <= 0 && isset($post_data['selected_wordset'])) {
-            $wordset_id = (int) $post_data['selected_wordset'];
-        }
-
-        // Final fallback: use the active/default word-set helper if available
-        if ($wordset_id <= 0 && function_exists('ll_tools_get_active_wordset_id')) {
-            $wordset_id = (int) ll_tools_get_active_wordset_id();
-        }
-
-        if ($wordset_id > 0 && function_exists('ll_tools_user_can_manage_wordset_content')) {
-            if (!ll_tools_user_can_manage_wordset_content(get_current_user_id(), $wordset_id)) {
+        foreach ($wordset_ids as $wordset_id) {
+            if (
+                (int) $wordset_id > 0
+                && function_exists('ll_tools_user_can_manage_wordset_content')
+                && !ll_tools_user_can_manage_wordset_content((int) $wordset_id, get_current_user_id())
+            ) {
                 wp_die(__('You do not have permission to assign uploads to that word set.', 'll-tools-text-domain'));
             }
         }
+        $primary_wordset_id = !empty($wordset_ids) ? (int) $wordset_ids[0] : 0;
 
         // 3) Assign taxonomy term for 'wordset' (authoritative for scoping)
-        if ($wordset_id > 0) {
-            wp_set_object_terms($post_id, [$wordset_id], 'wordset', /*append*/ true);
+        if (!empty($wordset_ids)) {
+            wp_set_object_terms($post_id, $wordset_ids, 'wordset', false);
         }
 
         // (Optional) keep any existing meta for compatibility with your older code/UI
-        if ($wordset_id > 0) {
-            update_post_meta($post_id, 'wordset', $wordset_id);
+        if ($primary_wordset_id > 0 && count($wordset_ids) === 1) {
+            update_post_meta($post_id, 'wordset', $primary_wordset_id);
+        } else {
+            delete_post_meta($post_id, 'wordset');
         }
 
         // 4) (Existing code) — translations, categories, part of speech, image matching, etc.
-        if ($wordset_id > 0 && !empty($selected_categories) && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
-            $selected_categories = ll_tools_get_isolated_category_ids_for_wordsets($selected_categories, [$wordset_id]);
+        if (!empty($wordset_ids) && !empty($selected_categories) && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
+            $selected_categories = ll_tools_get_isolated_category_ids_for_wordsets($selected_categories, $wordset_ids);
         }
 
         // Assign selected categories to the post
@@ -722,10 +1029,10 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
         }
 
         // Try to find a relevant image and assign it as the featured image
-        $matching_image = ll_find_matching_image_conservative($image_search_string, $selected_categories, $wordset_id > 0 ? [$wordset_id] : []);
+        $matching_image = ll_find_matching_image_conservative($image_search_string, $selected_categories, $wordset_ids);
         if ($matching_image) {
-            if ($wordset_id > 0 && function_exists('ll_tools_get_effective_word_image_id_for_wordset')) {
-                $effective_image_id = (int) ll_tools_get_effective_word_image_id_for_wordset((int) $matching_image->ID, $wordset_id);
+            if ($primary_wordset_id > 0 && count($wordset_ids) === 1 && function_exists('ll_tools_get_effective_word_image_id_for_wordset')) {
+                $effective_image_id = (int) ll_tools_get_effective_word_image_id_for_wordset((int) $matching_image->ID, $primary_wordset_id);
                 if ($effective_image_id > 0) {
                     $maybe_effective = get_post($effective_image_id);
                     if ($maybe_effective instanceof WP_Post && $maybe_effective->post_type === 'word_images') {
