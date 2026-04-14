@@ -4548,6 +4548,87 @@ function ll_render_category_selection_field( $post_type ) {
 }
 
 /**
+ * Resolve the admin-facing category label used in upload and bulk-edit selectors.
+ *
+ * Isolated category copies append their owning word set name so duplicate category
+ * titles remain distinguishable in admin checklists and dropdowns.
+ *
+ * @param int|WP_Term $term Category term object or ID.
+ * @return string
+ */
+function ll_tools_get_category_admin_selection_label( $term ) {
+    static $cache = [];
+
+    if ( ! ( $term instanceof WP_Term ) ) {
+        $term = get_term( $term, 'word-category' );
+    }
+    if ( ! ( $term instanceof WP_Term ) || is_wp_error( $term ) ) {
+        return '';
+    }
+
+    $term_id = (int) $term->term_id;
+    if ( isset( $cache[ $term_id ] ) && is_string( $cache[ $term_id ] ) ) {
+        return $cache[ $term_id ];
+    }
+
+    $owner_wordset_id = function_exists( 'll_tools_get_category_wordset_owner_id' )
+        ? (int) ll_tools_get_category_wordset_owner_id( $term )
+        : 0;
+    $display_name = function_exists( 'll_tools_get_category_display_name' )
+        ? (string) ll_tools_get_category_display_name( $term, [
+            'wordset_ids' => $owner_wordset_id > 0 ? [ $owner_wordset_id ] : [],
+        ] )
+        : (string) $term->name;
+
+    if ( $owner_wordset_id > 0 ) {
+        $wordset = get_term( $owner_wordset_id, 'wordset' );
+        if ( $wordset instanceof WP_Term && ! is_wp_error( $wordset ) ) {
+            $wordset_name = trim( (string) $wordset->name );
+            if ( $wordset_name !== '' ) {
+                $display_name = sprintf(
+                    /* translators: 1: category name, 2: owning word set name */
+                    _x( '%1$s - %2$s', 'category label with owning word set in admin selectors', 'll-tools-text-domain' ),
+                    $display_name,
+                    $wordset_name
+                );
+            }
+        }
+    }
+
+    $cache[ $term_id ] = $display_name;
+    return $display_name;
+}
+
+/**
+ * Sort category terms by the labels shown in admin selection UIs.
+ *
+ * @param array $terms List of category term objects.
+ * @return array
+ */
+function ll_tools_sort_category_terms_for_admin_selection( array $terms ) {
+    usort( $terms, static function ( $a, $b ) {
+        $a_label = ll_tools_get_category_admin_selection_label( $a );
+        $b_label = ll_tools_get_category_admin_selection_label( $b );
+
+        if ( function_exists( 'll_tools_locale_compare_strings' ) ) {
+            $cmp = ll_tools_locale_compare_strings( $a_label, $b_label );
+        } else {
+            $cmp = strnatcasecmp( $a_label, $b_label );
+        }
+
+        if ( $cmp !== 0 ) {
+            return $cmp;
+        }
+
+        $a_id = ( $a instanceof WP_Term ) ? (int) $a->term_id : 0;
+        $b_id = ( $b instanceof WP_Term ) ? (int) $b->term_id : 0;
+        return $a_id <=> $b_id;
+    } );
+
+    return $terms;
+}
+
+/**
  * Recursively outputs category checkboxes, indenting child terms and showing a per–post_type count.
  *
  * @param string $taxonomy  Taxonomy slug (always 'word-category').
@@ -4565,6 +4646,8 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
         return;
     }
 
+    $terms = ll_tools_sort_category_terms_for_admin_selection( (array) $terms );
+
     foreach ( $terms as $term ) {
         // Count posts of this type in this term
         $q = new WP_Query([
@@ -4581,13 +4664,20 @@ function ll_display_categories_checklist( $taxonomy, $post_type, $parent = 0, $l
         $count = $q->found_posts;
 
         $indent = str_repeat( '&nbsp;&nbsp;&nbsp;', $level );
+        $label  = ll_tools_get_category_admin_selection_label( $term );
+        $input_id = sprintf(
+            'll-word-category-%1$s-%2$d',
+            sanitize_html_class( (string) $post_type ),
+            (int) $term->term_id
+        );
         printf(
-            '%s<input type="checkbox" name="ll_word_categories[]" value="%d" data-parent-id="%d"> <label>%s (%d)</label><br>',
+            '%1$s<input id="%2$s" type="checkbox" name="ll_word_categories[]" value="%3$d" data-parent-id="%4$d"> <label for="%2$s">%5$s (%6$d)</label><br>',
             $indent,
+            esc_attr( $input_id ),
             esc_attr( $term->term_id ),
             esc_attr( $term->parent ),
-            esc_html( $term->name ),
-            intval( $count )
+            esc_html( $label ),
+            (int) $count
         );
 
         // Recurse into children
