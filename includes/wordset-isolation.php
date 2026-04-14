@@ -904,6 +904,12 @@ function ll_tools_get_or_create_isolated_category_copy($source_category, int $wo
     if (defined('LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY')) {
         $exclude_keys[] = (string) LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY;
     }
+    if (defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')) {
+        $exclude_keys[] = (string) LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY;
+    }
+    if (defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')) {
+        $exclude_keys[] = (string) LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY;
+    }
     ll_tools_copy_term_meta((int) $source_term->term_id, $term_id, $exclude_keys);
     ll_tools_set_category_wordset_owner($term_id, $wordset_id, $source_origin_id);
 

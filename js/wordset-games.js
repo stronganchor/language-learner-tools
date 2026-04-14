@@ -4,6 +4,7 @@
     const api = root.LLWordsetGames = root.LLWordsetGames || {};
     const DEFAULT_GAME_SLUG = 'space-shooter';
     const BUBBLE_POP_GAME_SLUG = 'bubble-pop';
+    const LINEUP_GAME_SLUG = 'line-up';
     const SPEAKING_PRACTICE_GAME_SLUG = 'speaking-practice';
     const SPEAKING_STACK_GAME_SLUG = 'speaking-stack';
     const GAME_LENGTH_ALL = 'all';
@@ -276,6 +277,16 @@
                     '<circle cx="6.5" cy="6.4" r="1.8" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.1"></circle>' +
                 '</svg>';
         }
+        if (normalizedSlug === LINEUP_GAME_SLUG) {
+            return '' +
+                '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
+                    '<rect x="3.5" y="6.1" width="4.1" height="11.8" rx="1.2" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4"></rect>' +
+                    '<rect x="9.95" y="6.1" width="4.1" height="11.8" rx="1.2" fill="currentColor" fill-opacity="0.22" stroke="currentColor" stroke-width="1.4"></rect>' +
+                    '<rect x="16.4" y="6.1" width="4.1" height="11.8" rx="1.2" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4"></rect>' +
+                    '<path d="M5.55 4.2H18.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
+                    '<path d="M17.15 3L18.85 4.2L17.15 5.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>' +
+                '</svg>';
+        }
         if (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
             return '' +
                 '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
@@ -368,6 +379,7 @@
         }
 
         return Array.isArray(entry.words)
+            || Array.isArray(entry.sequences)
             || Array.isArray(entry.playableTargets)
             || Object.prototype.hasOwnProperty.call(entry, 'available_word_count')
             || Object.prototype.hasOwnProperty.call(entry, 'launchable')
@@ -729,6 +741,7 @@
             game_prompt_recording_types: Array.isArray(word.game_prompt_recording_types)
                 ? uniqueStringList(word.game_prompt_recording_types)
                 : [],
+            lineup_position: Math.max(0, toInt(word.lineup_position)),
             speaking_target_field: String(word.speaking_target_field || ''),
             speaking_target_label: String(word.speaking_target_label || ''),
             speaking_target_text: String(word.speaking_target_text || ''),
@@ -745,6 +758,53 @@
                 : null,
             speaking_best_correct_audio_url: String(word.speaking_best_correct_audio_url || '')
         };
+    }
+
+    function normalizeLineupDirection(value) {
+        const direction = String(value || '').trim().toLowerCase();
+        return (direction === 'rtl' || direction === 'ltr') ? direction : 'ltr';
+    }
+
+    function normalizeLineupSequence(rawSequence) {
+        const sequence = (rawSequence && typeof rawSequence === 'object') ? rawSequence : {};
+        const words = (Array.isArray(sequence.words) ? sequence.words : [])
+            .map(normalizeWord)
+            .filter(function (word) {
+                return word.id > 0 && String(word.title || word.label || '').trim() !== '';
+            });
+
+        return {
+            category_id: toInt(sequence.category_id),
+            category_name: String(sequence.category_name || ''),
+            category_slug: String(sequence.category_slug || ''),
+            direction: normalizeLineupDirection(sequence.direction),
+            word_count: Math.max(words.length, toInt(sequence.word_count)),
+            words: words
+        };
+    }
+
+    function shuffleUntilDifferent(list, maxAttempts) {
+        const source = Array.isArray(list) ? list.slice() : [];
+        if (source.length < 2) {
+            return source;
+        }
+
+        const signature = source.map(function (entry) {
+            return toInt(entry && entry.id);
+        }).join(',');
+        let candidate = source.slice();
+        let attempts = Math.max(1, toInt(maxAttempts) || 6);
+
+        while (attempts > 0) {
+            candidate = shuffle(source);
+            if (candidate.map(function (entry) { return toInt(entry && entry.id); }).join(',') !== signature) {
+                return candidate;
+            }
+            attempts -= 1;
+        }
+
+        const rotated = source.slice(1).concat(source.slice(0, 1));
+        return rotated.length === source.length ? rotated : source;
     }
 
     function getDefaultCatalogSlug(ctx) {
@@ -856,6 +916,8 @@
             || gameSlug === SPEAKING_STACK_GAME_SLUG
         )
             ? (Array.isArray(preparedEntry.words) ? preparedEntry.words.length : toInt(preparedEntry.available_word_count))
+            : (gameSlug === LINEUP_GAME_SLUG)
+                ? (Array.isArray(preparedEntry.sequences) ? preparedEntry.sequences.length : toInt(preparedEntry.available_sequence_count || preparedEntry.available_word_count))
             : (Array.isArray(preparedEntry.playableTargets) ? preparedEntry.playableTargets.length : toInt(preparedEntry.available_word_count));
 
         return resolveRoundGoalCount(getSelectedRoundOption(ctx), maxCount);
@@ -899,6 +961,10 @@
         return normalizeGameSlug(run && run.slug) === SPEAKING_PRACTICE_GAME_SLUG;
     }
 
+    function isLineupRun(ctx, run) {
+        return normalizeGameSlug(run && run.slug) === LINEUP_GAME_SLUG;
+    }
+
     function isSpeakingStackRun(ctx, run) {
         return normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG;
     }
@@ -930,6 +996,9 @@
         );
         if (requestedSlug === BUBBLE_POP_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelBubblePop || 'Bubble Pop game board');
+        }
+        if (requestedSlug === LINEUP_GAME_SLUG) {
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelLineup || 'Line-Up sequence board');
         }
         if (requestedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingPractice || 'Speaking practice panel');
@@ -3404,6 +3473,46 @@
         const entry = $.extend({}, rawEntry || {});
         const normalizedSlug = normalizeGameSlug(entry.slug || slug);
         const gameConfig = getGameConfig(ctx, slug);
+        if (normalizedSlug === LINEUP_GAME_SLUG) {
+            const minimumSequenceCount = Math.max(1, toInt(entry.minimum_sequence_count) || 1);
+            const minimumSequenceLength = Math.max(
+                2,
+                toInt(entry.minimum_sequence_length)
+                    || toInt(gameConfig && gameConfig.minimumSequenceLength)
+                    || 3
+            );
+            const eligibleSequences = (Array.isArray(entry.sequences) ? entry.sequences : [])
+                .map(normalizeLineupSequence)
+                .filter(function (sequence) {
+                    return Array.isArray(sequence.words) && sequence.words.length >= minimumSequenceLength;
+                });
+            const maxLoadedSequences = Math.max(
+                minimumSequenceCount,
+                toInt(entry.launch_sequence_cap)
+                    || toInt(entry.launch_word_cap)
+                    || toInt(gameConfig && gameConfig.maxLoadedSequences)
+                    || eligibleSequences.length
+                    || minimumSequenceCount
+            );
+            const sequences = eligibleSequences.slice(0, maxLoadedSequences);
+
+            return $.extend({}, entry, {
+                slug: normalizedSlug,
+                words: [],
+                playableTargets: [],
+                sequences: sequences,
+                available_sequence_count: toInt(entry.available_sequence_count) || eligibleSequences.length,
+                available_word_count: toInt(entry.available_word_count) || eligibleSequences.length,
+                launch_word_cap: maxLoadedSequences,
+                launch_sequence_cap: maxLoadedSequences,
+                launch_word_count: sequences.length,
+                launchable: !!entry.launchable && sequences.length >= minimumSequenceCount,
+                minimum_word_count: 1,
+                minimum_sequence_count: minimumSequenceCount,
+                minimum_sequence_length: minimumSequenceLength,
+                category_ids: uniqueIntList(entry.category_ids || [])
+            });
+        }
         const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
         const maxLoadedWords = Math.max(
             minimumCount,
@@ -3466,6 +3575,19 @@
         ) {
             return String(ctx.i18n.gamesSpeakingApiUnavailable || 'Speaking practice is unavailable on this device right now.');
         }
+        if (normalizeGameSlug(entry.slug) === LINEUP_GAME_SLUG) {
+            if (entry.launchable) {
+                return formatMessage(ctx.i18n.gamesReadySequences || '%d sequences ready', [
+                    toInt(entry.available_sequence_count) || toInt(entry.available_word_count)
+                ]);
+            }
+            if (String(entry.reason_code || '') === 'lineup_not_configured') {
+                return formatMessage(
+                    ctx.i18n.gamesLineupNeedItems || 'Each Line-Up sequence needs at least %d cards.',
+                    [Math.max(2, toInt(entry.minimum_sequence_length) || 3)]
+                );
+            }
+        }
         if (entry.launchable) {
             return formatMessage(ctx.i18n.gamesReadyCount || '%d words ready', [entry.available_word_count || 0]);
         }
@@ -3506,7 +3628,11 @@
             ? String(ctx.i18n.gamesSpeakingCheckingApi || ctx.i18n.gamesLoading || 'Checking game availability...')
             : String(ctx.i18n.gamesLoading || 'Checking game availability...');
         card.$status.text(isLoading ? loadingText : getCardStatusText(ctx, entry));
-        card.$count.text(entry ? String(entry.available_word_count || 0) : '\u2014');
+        card.$count.text(entry ? String(
+            normalizedSlug === LINEUP_GAME_SLUG
+                ? (toInt(entry.available_sequence_count) || toInt(entry.available_word_count))
+                : toInt(entry.available_word_count)
+        ) : '\u2014');
         card.$launchButton.text((ctx.isLoggedIn || ctx.offlineMode) ? buttonLabel : String(ctx.i18n.gamesLocked || 'Locked'));
         card.$launchButton.prop('disabled', isLoading || !(ctx.isLoggedIn || ctx.offlineMode) || !(entry && entry.launchable));
         card.$card.toggleClass('is-launchable', !!(entry && entry.launchable));
@@ -4647,36 +4773,43 @@
         const isSpeaking = gameSlug === SPEAKING_PRACTICE_GAME_SLUG;
         const isSpeakingStack = gameSlug === SPEAKING_STACK_GAME_SLUG;
         const isBubble = gameSlug === BUBBLE_POP_GAME_SLUG;
+        const isLineup = gameSlug === LINEUP_GAME_SLUG;
 
         if (ctx && ctx.$stage && ctx.$stage.length) {
             ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
         }
         if (ctx && ctx.$hud && ctx.$hud.length) {
-            ctx.$hud.prop('hidden', isSpeaking);
+            ctx.$hud.prop('hidden', isSpeaking || isLineup);
         }
         if (ctx && ctx.$controlsWrap && ctx.$controlsWrap.length) {
-            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking || isSpeakingStack);
+            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking || isSpeakingStack || isLineup);
         }
         if (ctx && ctx.$canvasWrap && ctx.$canvasWrap.length) {
             ctx.$canvasWrap.prop('hidden', isSpeaking);
         }
+        if (ctx && ctx.$canvas && ctx.$canvas.length) {
+            ctx.$canvas.prop('hidden', isLineup);
+        }
         if (ctx && ctx.$replayAudioButton && ctx.$replayAudioButton.length) {
-            ctx.$replayAudioButton.prop('hidden', isSpeaking || isSpeakingStack);
+            ctx.$replayAudioButton.prop('hidden', isSpeaking || isSpeakingStack || isLineup);
         }
         if (ctx && ctx.$pauseButton && ctx.$pauseButton.length) {
-            ctx.$pauseButton.prop('hidden', isSpeaking);
+            ctx.$pauseButton.prop('hidden', isSpeaking || isLineup);
         }
         if (ctx && ctx.$coins && ctx.$coins.length) {
-            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack);
+            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack || isLineup);
         }
         if (ctx && ctx.$lives && ctx.$lives.length) {
-            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack);
+            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack || isLineup);
         }
         if (ctx && ctx.$speakingStage && ctx.$speakingStage.length) {
             ctx.$speakingStage.prop('hidden', !isSpeaking);
         }
         if (ctx && ctx.$speakingStackStage && ctx.$speakingStackStage.length) {
             ctx.$speakingStackStage.prop('hidden', !isSpeakingStack);
+        }
+        if (ctx && ctx.$lineupStage && ctx.$lineupStage.length) {
+            ctx.$lineupStage.prop('hidden', !isLineup);
         }
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
             ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
@@ -6206,6 +6339,7 @@
         if (opts.flush !== false) {
             flushProgress(ctx);
         }
+        resetLineupStage(ctx);
         ctx.run = null;
         updatePauseUi(ctx);
     }
@@ -6235,8 +6369,486 @@
         return limitLaunchWords(targets, desiredCount);
     }
 
+    function selectRoundSequences(entry, roundGoal) {
+        const sequences = Array.isArray(entry && entry.sequences) ? entry.sequences.slice() : [];
+        const desiredCount = Math.max(0, toInt(roundGoal));
+        if (!desiredCount || sequences.length <= desiredCount) {
+            return sequences;
+        }
+
+        return sequences.slice(0, desiredCount);
+    }
+
+    function getLineupMoveArrow(direction, move) {
+        const isRtl = normalizeLineupDirection(direction) === 'rtl';
+        if (move === 'earlier') {
+            return isRtl ? '\u2192' : '\u2190';
+        }
+        return isRtl ? '\u2190' : '\u2192';
+    }
+
+    function resetLineupStage(ctx) {
+        if (!ctx) {
+            return;
+        }
+        if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
+            ctx.$lineupProgress.text('');
+        }
+        if (ctx.$lineupCategory && ctx.$lineupCategory.length) {
+            ctx.$lineupCategory.text('');
+        }
+        if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
+            ctx.$lineupInstruction.text(String(ctx.i18n.gamesLineupInstruction || 'Put the cards in the correct order.'));
+        }
+        if (ctx.$lineupStatus && ctx.$lineupStatus.length) {
+            ctx.$lineupStatus.text('').attr('data-lineup-status-kind', '').prop('hidden', true);
+        }
+        if (ctx.$lineupCards && ctx.$lineupCards.length) {
+            ctx.$lineupCards.empty().attr('dir', 'ltr');
+        }
+        if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
+            ctx.$lineupShuffle.prop('disabled', true);
+        }
+        if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
+            ctx.$lineupCheck.prop('disabled', true);
+        }
+        if (ctx.$lineupNext && ctx.$lineupNext.length) {
+            ctx.$lineupNext.prop('hidden', true).prop('disabled', true);
+        }
+    }
+
+    function setLineupStatus(ctx, text, kind) {
+        if (!(ctx && ctx.$lineupStatus && ctx.$lineupStatus.length)) {
+            return;
+        }
+
+        const message = String(text || '').trim();
+        ctx.$lineupStatus
+            .text(message)
+            .attr('data-lineup-status-kind', String(kind || ''))
+            .prop('hidden', message === '');
+    }
+
+    function clearLineupCheck(run) {
+        if (!run) {
+            return;
+        }
+        run.lineupCheck = null;
+    }
+
+    function getLineupPromptState(run, word) {
+        if (!run || !word) {
+            return null;
+        }
+
+        const wordId = toInt(word.id);
+        if (!wordId) {
+            return null;
+        }
+
+        run.lineupPromptState = (run.lineupPromptState && typeof run.lineupPromptState === 'object')
+            ? run.lineupPromptState
+            : {};
+
+        if (!run.lineupPromptState[wordId]) {
+            run.lineupPromptState[wordId] = {
+                target: word,
+                recordingType: '',
+                gameSlug: LINEUP_GAME_SLUG,
+                exposureTracked: false,
+                hadWrongBefore: false
+            };
+        }
+
+        return run.lineupPromptState[wordId];
+    }
+
+    function renderLineupSequence(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run) || !run.currentSequence) {
+            resetLineupStage(ctx);
+            return;
+        }
+
+        const sequence = run.currentSequence;
+        const direction = normalizeLineupDirection(sequence.direction);
+        const words = Array.isArray(run.currentOrder) ? run.currentOrder.slice() : [];
+        const checkState = (run.lineupCheck && typeof run.lineupCheck === 'object') ? run.lineupCheck : null;
+
+        if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
+            ctx.$lineupProgress.text(formatMessage(
+                ctx.i18n.gamesLineupProgress || 'Sequence %1$d of %2$d',
+                [Math.max(1, toInt(run.currentSequenceIndex) + 1), Math.max(1, getRunTotalRounds(run))]
+            ));
+        }
+        if (ctx.$lineupCategory && ctx.$lineupCategory.length) {
+            ctx.$lineupCategory.text(String(sequence.category_name || ''));
+        }
+        if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
+            ctx.$lineupInstruction.text(String(ctx.i18n.gamesLineupInstruction || 'Put the cards in the correct order.'));
+        }
+
+        if (ctx.$lineupCards && ctx.$lineupCards.length) {
+            const markup = words.map(function (word, index) {
+                const wordId = toInt(word && word.id);
+                const isCorrect = !!(checkState && checkState.correctWordIds && checkState.correctWordIds[wordId]);
+                const isIncorrect = !!(checkState && checkState.incorrectWordIds && checkState.incorrectWordIds[wordId]);
+                const canMoveEarlier = !run.sequenceLocked && index > 0;
+                const canMoveLater = !run.sequenceLocked && index < (words.length - 1);
+
+                return '' +
+                    '<li class="ll-wordset-lineup-stage__card'
+                        + (isCorrect ? ' is-correct' : '')
+                        + (isIncorrect ? ' is-incorrect' : '')
+                        + '" data-ll-wordset-lineup-card data-lineup-index="' + escapeHtml(String(index + 1)) + '" data-word-id="' + escapeHtml(String(wordId)) + '">' +
+                        '<div class="ll-wordset-lineup-stage__card-order" aria-hidden="true">' + escapeHtml(String(index + 1)) + '</div>' +
+                        '<div class="ll-wordset-lineup-stage__card-body">' +
+                            '<p class="ll-wordset-lineup-stage__card-text" dir="auto">' + escapeHtml(String(word.title || word.label || '')) + '</p>' +
+                            '<div class="ll-wordset-lineup-stage__card-actions">' +
+                                '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-lineup-move="earlier"' + (canMoveEarlier ? '' : ' disabled') + '>' +
+                                    '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'earlier')) + '</span>' +
+                                    '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveEarlier || 'Move earlier')) + '</span>' +
+                                '</button>' +
+                                '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-lineup-move="later"' + (canMoveLater ? '' : ' disabled') + '>' +
+                                    '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'later')) + '</span>' +
+                                    '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveLater || 'Move later')) + '</span>' +
+                                '</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</li>';
+            }).join('');
+
+            ctx.$lineupCards.html(markup).attr('dir', direction);
+        }
+
+        if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
+            ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || words.length < 2);
+        }
+        if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
+            ctx.$lineupCheck.prop('disabled', !!run.sequenceLocked || words.length < 2);
+        }
+        if (ctx.$lineupNext && ctx.$lineupNext.length) {
+            const isLastSequence = (toInt(run.currentSequenceIndex) + 1) >= getRunTotalRounds(run);
+            ctx.$lineupNext
+                .text(String(isLastSequence
+                    ? (ctx.i18n.gamesLineupFinish || 'Finish')
+                    : (ctx.i18n.gamesLineupNext || 'Next')))
+                .prop('hidden', !run.sequenceLocked)
+                .prop('disabled', !run.sequenceLocked);
+        }
+    }
+
+    function moveLineupCard(ctx, index, direction) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run) || run.sequenceLocked) {
+            return false;
+        }
+
+        const currentOrder = Array.isArray(run.currentOrder) ? run.currentOrder.slice() : [];
+        const currentIndex = parseInt(index, 10);
+        if (!currentOrder.length || !isFinite(currentIndex) || currentIndex < 0 || currentIndex >= currentOrder.length) {
+            return false;
+        }
+
+        let targetIndex = currentIndex;
+        if (direction === 'earlier') {
+            targetIndex -= 1;
+        } else if (direction === 'later') {
+            targetIndex += 1;
+        }
+        if (targetIndex < 0 || targetIndex >= currentOrder.length || targetIndex === currentIndex) {
+            return false;
+        }
+
+        const moved = currentOrder.splice(currentIndex, 1)[0];
+        currentOrder.splice(targetIndex, 0, moved);
+        run.currentOrder = currentOrder;
+        clearLineupCheck(run);
+        setLineupStatus(ctx, '', '');
+        renderLineupSequence(ctx);
+        return true;
+    }
+
+    function shuffleLineupCards(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run) || run.sequenceLocked || !run.currentSequence) {
+            return false;
+        }
+
+        const sourceWords = Array.isArray(run.currentSequence.words) ? run.currentSequence.words : [];
+        if (sourceWords.length < 2) {
+            return false;
+        }
+
+        const gameConfig = getGameConfig(ctx, run) || {};
+        run.currentOrder = shuffleUntilDifferent(sourceWords, toInt(gameConfig.shuffleRetries) || 6);
+        clearLineupCheck(run);
+        setLineupStatus(ctx, '', '');
+        renderLineupSequence(ctx);
+        return true;
+    }
+
+    function markLineupIncorrectWords(run) {
+        if (!run || !run.currentSequence) {
+            return {
+                matchedCount: 0,
+                totalCount: 0,
+                correctWordIds: {},
+                incorrectWordIds: {}
+            };
+        }
+
+        const currentWords = Array.isArray(run.currentOrder) ? run.currentOrder : [];
+        const targetWords = Array.isArray(run.currentSequence.words) ? run.currentSequence.words : [];
+        const totalCount = Math.min(currentWords.length, targetWords.length);
+        const correctWordIds = {};
+        const incorrectWordIds = {};
+        let matchedCount = 0;
+
+        for (let index = 0; index < totalCount; index += 1) {
+            const currentWord = currentWords[index];
+            const targetWord = targetWords[index];
+            const currentWordId = toInt(currentWord && currentWord.id);
+            const targetWordId = toInt(targetWord && targetWord.id);
+
+            if (currentWordId > 0 && currentWordId === targetWordId) {
+                correctWordIds[currentWordId] = true;
+                matchedCount += 1;
+                continue;
+            }
+
+            if (currentWordId > 0) {
+                incorrectWordIds[currentWordId] = true;
+                const currentPrompt = getLineupPromptState(run, currentWord);
+                if (currentPrompt) {
+                    currentPrompt.hadWrongBefore = true;
+                }
+            }
+
+            if (targetWordId > 0) {
+                incorrectWordIds[targetWordId] = true;
+                const targetPrompt = getLineupPromptState(run, targetWord);
+                if (targetPrompt) {
+                    targetPrompt.hadWrongBefore = true;
+                }
+            }
+        }
+
+        return {
+            matchedCount: matchedCount,
+            totalCount: totalCount,
+            correctWordIds: correctWordIds,
+            incorrectWordIds: incorrectWordIds
+        };
+    }
+
+    function showLineupSequence(ctx, index) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run)) {
+            return;
+        }
+
+        const targetIndex = Math.max(0, toInt(index));
+        if (targetIndex >= getRunTotalRounds(run)) {
+            finishLineupRun(ctx);
+            return;
+        }
+
+        const sequence = run.sequences[targetIndex];
+        if (!sequence || !Array.isArray(sequence.words) || !sequence.words.length) {
+            finishLineupRun(ctx);
+            return;
+        }
+
+        run.currentSequenceIndex = targetIndex;
+        run.currentSequence = sequence;
+        run.currentOrder = shuffleUntilDifferent(sequence.words, toInt((getGameConfig(ctx, run) || {}).shuffleRetries) || 6);
+        run.currentAttemptCount = 0;
+        run.sequenceLocked = false;
+        run.lineupCheck = null;
+        run.lineupPromptState = {};
+        sequence.words.forEach(function (word) {
+            getLineupPromptState(run, word);
+        });
+        setLineupStatus(ctx, '', '');
+        renderLineupSequence(ctx);
+    }
+
+    function finishLineupRun(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || run.ended) {
+            return;
+        }
+
+        run.ended = true;
+        run.sequenceLocked = true;
+        pausePromptAudio(ctx);
+        stopFeedbackAudio(ctx);
+        stopTransientAudio(ctx);
+        resetRunControls(run);
+        clearControlUi(ctx);
+        updatePauseUi(ctx);
+        flushProgress(ctx);
+
+        showOverlay(
+            ctx,
+            String(ctx.i18n.gamesLineupDoneTitle || 'Line-Up complete'),
+            formatMessage(ctx.i18n.gamesLineupSummary || 'Perfect: %1$d of %2$d · Retries: %3$d', [
+                toInt(run.perfectSequenceCount),
+                Math.max(1, getRunTotalRounds(run)),
+                Math.max(0, toInt(run.retryCount))
+            ]),
+            {
+                mode: 'game-over',
+                primaryLabel: String(ctx.i18n.gamesNewGame || 'New game'),
+                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+            }
+        );
+    }
+
+    function advanceLineupSequence(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run) || run.ended) {
+            return;
+        }
+
+        const nextIndex = toInt(run.currentSequenceIndex) + 1;
+        if (nextIndex >= getRunTotalRounds(run)) {
+            finishLineupRun(ctx);
+            return;
+        }
+
+        showLineupSequence(ctx, nextIndex);
+    }
+
+    function checkLineupSequence(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run) || run.ended || run.sequenceLocked || !run.currentSequence) {
+            return;
+        }
+
+        run.currentAttemptCount = Math.max(0, toInt(run.currentAttemptCount)) + 1;
+        const check = markLineupIncorrectWords(run);
+        run.lineupCheck = check;
+
+        if (check.matchedCount < check.totalCount) {
+            run.retryCount = Math.max(0, toInt(run.retryCount)) + 1;
+            setLineupStatus(
+                ctx,
+                formatMessage(
+                    ctx.i18n.gamesLineupTryAgain || 'Not quite yet. %1$d of %2$d are in the right place.',
+                    [check.matchedCount, Math.max(1, check.totalCount)]
+                ),
+                'incorrect'
+            );
+            renderLineupSequence(ctx);
+            return;
+        }
+
+        run.sequenceLocked = true;
+        run.promptsResolved = Math.max(0, toInt(run.promptsResolved)) + 1;
+        if (toInt(run.currentAttemptCount) <= 1) {
+            run.perfectSequenceCount = Math.max(0, toInt(run.perfectSequenceCount)) + 1;
+        }
+
+        (Array.isArray(run.currentSequence.words) ? run.currentSequence.words : []).forEach(function (word) {
+            const promptState = getLineupPromptState(run, word);
+            if (!promptState) {
+                return;
+            }
+
+            queueExposureOnce(ctx, promptState, {
+                event_source: 'lineup',
+                sequence_direction: normalizeLineupDirection(run.currentSequence.direction),
+                sequence_length: Math.max(0, toInt(run.currentSequence.word_count) || (run.currentSequence.words || []).length)
+            });
+            queueOutcome(ctx, promptState, true, !!promptState.hadWrongBefore, {
+                event_source: 'lineup',
+                sequence_category_id: toInt(run.currentSequence.category_id),
+                sequence_category_name: String(run.currentSequence.category_name || ''),
+                sequence_direction: normalizeLineupDirection(run.currentSequence.direction),
+                sequence_length: Math.max(0, toInt(run.currentSequence.word_count) || (run.currentSequence.words || []).length),
+                sequence_attempts: Math.max(1, toInt(run.currentAttemptCount)),
+                needed_retry: promptState.hadWrongBefore ? 1 : 0
+            });
+        });
+
+        setLineupStatus(ctx, String(ctx.i18n.gamesLineupCorrect || 'Correct order.'), 'correct');
+        renderLineupSequence(ctx);
+    }
+
+    function startLineupRun(ctx, entry) {
+        const gameSlug = normalizeGameSlug(entry && entry.slug);
+        const gameConfig = getGameConfig(ctx, gameSlug) || {};
+        const keepModalOpen = isRunModalVisible(ctx);
+        const selectedSequences = selectRoundSequences(entry, getEntryRoundGoalCount(ctx, entry));
+        if (!selectedSequences.length) {
+            return;
+        }
+
+        resetGamesSurface(ctx, {
+            keepModalOpen: keepModalOpen
+        });
+        ctx.$stage.prop('hidden', false);
+        ctx.activeGameSlug = gameSlug;
+        updateStageGameUi(ctx, entry);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
+        showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
+            mode: 'loading',
+            primaryLabel: '',
+            secondaryLabel: ''
+        });
+
+        ctx.run = {
+            slug: gameSlug,
+            sequences: selectedSequences.slice(),
+            currentSequenceIndex: 0,
+            currentSequence: null,
+            currentOrder: [],
+            currentAttemptCount: 0,
+            lineupPromptState: {},
+            lineupCheck: null,
+            sequenceLocked: false,
+            controls: {
+                left: false,
+                right: false,
+                fire: false
+            },
+            coins: 0,
+            lives: 1,
+            promptsResolved: 0,
+            totalRounds: selectedSequences.length,
+            retryCount: 0,
+            perfectSequenceCount: 0,
+            loadingShownAt: currentTimestamp(),
+            loadingHideTimer: 0,
+            paused: false,
+            ended: false,
+            rafId: 0,
+            lineupConfig: gameConfig
+        };
+
+        setTrackerContext(ctx);
+        updatePauseUi(ctx);
+        resetLineupStage(ctx);
+
+        const run = ctx.run;
+        applyInitialPromptWhenReady(ctx, run, function () {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            hideOverlay(ctx);
+            showLineupSequence(ctx, 0);
+        });
+    }
+
     function startRun(ctx, entry) {
         const gameSlug = normalizeGameSlug(entry && entry.slug);
+        if (gameSlug === LINEUP_GAME_SLUG) {
+            startLineupRun(ctx, entry);
+            return;
+        }
         if (gameSlug === SPEAKING_PRACTICE_GAME_SLUG) {
             startSpeakingRun(ctx, entry);
             return;
@@ -9493,6 +10105,45 @@
             playSpeakingCorrectAudio(ctx);
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-move]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+                return;
+            }
+            const direction = String($(this).attr('data-ll-wordset-lineup-move') || '');
+            const index = toInt($(this).closest('[data-ll-wordset-lineup-card]').attr('data-lineup-index')) - 1;
+            if (moveLineupCard(ctx, index, direction)) {
+                markRunActivity(ctx);
+            }
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-check]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+                return;
+            }
+            markRunActivity(ctx);
+            checkLineupSequence(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-next]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || !ctx.run.sequenceLocked) {
+                return;
+            }
+            advanceLineupSequence(ctx);
+        });
+
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-shuffle]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+                return;
+            }
+            if (shuffleLineupCards(ctx)) {
+                markRunActivity(ctx);
+            }
+        });
+
         const pointerControls = getPrimaryPressStartEvents();
         const pointerRelease = getPrimaryPressReleaseEvents();
         const documentPointerRelease = getDocumentPressReleaseEvents();
@@ -9596,6 +10247,9 @@
         const bubblePop = (gamesCfg.bubblePop && typeof gamesCfg.bubblePop === 'object')
             ? gamesCfg.bubblePop
             : {};
+        const lineUp = (gamesCfg.lineUp && typeof gamesCfg.lineUp === 'object')
+            ? gamesCfg.lineUp
+            : {};
         const speakingPractice = (gamesCfg.speakingPractice && typeof gamesCfg.speakingPractice === 'object')
             ? gamesCfg.speakingPractice
             : {};
@@ -9687,6 +10341,12 @@
             correctHitVolume: 0.28,
             wrongHitVolume: 0.2
         });
+        gameConfigs[LINEUP_GAME_SLUG] = {
+            slug: LINEUP_GAME_SLUG,
+            minimumSequenceLength: Math.max(2, toInt(lineUp.minimumSequenceLength) || 3),
+            maxLoadedSequences: Math.max(1, toInt(lineUp.maxLoadedSequences) || 60),
+            shuffleRetries: Math.max(1, toInt(lineUp.shuffleRetries) || 6)
+        };
         gameConfigs[SPEAKING_PRACTICE_GAME_SLUG] = $.extend({}, buildGameConfig(speakingPractice, {
             slug: SPEAKING_PRACTICE_GAME_SLUG,
             lives: 1,
@@ -9814,6 +10474,15 @@
             $speakingStackHeard: $gamesRoot.find('[data-ll-wordset-speaking-stack-heard]').first(),
             $speakingStackMeter: $gamesRoot.find('[data-ll-wordset-speaking-stack-meter]').first(),
             $speakingStackMeterBars: $gamesRoot.find('.ll-wordset-speaking-stack-stage__meter-bar'),
+            $lineupStage: $gamesRoot.find('[data-ll-wordset-lineup-stage]').first(),
+            $lineupProgress: $gamesRoot.find('[data-ll-wordset-lineup-progress]').first(),
+            $lineupCategory: $gamesRoot.find('[data-ll-wordset-lineup-category]').first(),
+            $lineupInstruction: $gamesRoot.find('[data-ll-wordset-lineup-instruction]').first(),
+            $lineupStatus: $gamesRoot.find('[data-ll-wordset-lineup-status]').first(),
+            $lineupCards: $gamesRoot.find('[data-ll-wordset-lineup-cards]').first(),
+            $lineupShuffle: $gamesRoot.find('[data-ll-wordset-lineup-shuffle]').first(),
+            $lineupCheck: $gamesRoot.find('[data-ll-wordset-lineup-check]').first(),
+            $lineupNext: $gamesRoot.find('[data-ll-wordset-lineup-next]').first(),
             speakingAttemptAudio: $gamesRoot.find('[data-ll-wordset-speaking-attempt-audio]').get(0) || null,
             speakingCorrectAudio: $gamesRoot.find('[data-ll-wordset-speaking-correct-audio]').get(0) || null,
             $overlay: $gamesRoot.find('[data-ll-wordset-game-overlay]').first(),
@@ -9875,6 +10544,7 @@
             gameConfigs: gameConfigs,
             spaceShooter: gameConfigs[DEFAULT_GAME_SLUG],
             bubblePop: gameConfigs[BUBBLE_POP_GAME_SLUG],
+            lineUp: gameConfigs[LINEUP_GAME_SLUG],
             speakingPractice: gameConfigs[SPEAKING_PRACTICE_GAME_SLUG],
             speakingStack: gameConfigs[SPEAKING_STACK_GAME_SLUG],
             speaking: {
@@ -9986,6 +10656,16 @@
                 promptSafeLineCrossDelayMs: Math.round(Number(run.prompt && run.prompt.safeLineCrossDelayMs) || 0),
                 promptAutoReplaySafeLineGated: !!(run.prompt && run.prompt.autoReplaySafeLineGated),
                 promptDistractorMode: run.prompt ? String(run.prompt.distractorMode || '') : '',
+                currentSequenceIndex: toInt(run.currentSequenceIndex),
+                currentSequenceCategoryId: toInt(run.currentSequence && run.currentSequence.category_id),
+                currentSequenceDirection: String(run.currentSequence && run.currentSequence.direction || ''),
+                lineupOrderWordIds: Array.isArray(run.currentOrder)
+                    ? run.currentOrder.map(function (word) { return toInt(word && word.id); })
+                    : [],
+                lineupSequenceWordIds: Array.isArray(run.currentSequence && run.currentSequence.words)
+                    ? run.currentSequence.words.map(function (word) { return toInt(word && word.id); })
+                    : [],
+                lineupSequenceLocked: !!run.sequenceLocked,
                 cardWordIds: cards.map(function (card) { return toInt(card.word && card.word.id); }),
                 targetWordId: run.prompt && run.prompt.target ? toInt(run.prompt.target.id) : 0,
                 promptId: activePromptId(run),

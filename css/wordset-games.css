@@ -65,6 +65,11 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     max-width: min(100%, 1080px);
 }
 
+.ll-wordset-game-run-modal__dialog .ll-wordset-game-stage[data-ll-wordset-active-game="line-up"] {
+    width: min(100%, 1040px);
+    max-width: min(100%, 1040px);
+}
+
 .ll-wordset-games-page {
     --ll-games-ink: #0f172a;
     --ll-games-accent: #12233d;
@@ -1099,6 +1104,16 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     --ll-wordset-game-theme-button-shadow: 0 12px 20px rgba(76, 142, 40, 0.24);
 }
 
+.ll-wordset-game-card[data-game-slug="line-up"] {
+    --ll-wordset-game-theme-start: #0f766e;
+    --ll-wordset-game-theme-end: #115e59;
+    --ll-wordset-game-theme-hover-start: #149289;
+    --ll-wordset-game-theme-hover-end: #0f766e;
+    --ll-wordset-game-theme-fg: #ecfeff;
+    --ll-wordset-game-theme-icon-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26), 0 14px 24px rgba(15, 118, 110, 0.24);
+    --ll-wordset-game-theme-button-shadow: 0 12px 20px rgba(15, 118, 110, 0.24);
+}
+
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-practice"] {
     background:
         radial-gradient(circle at top left, rgba(251, 191, 36, 0.24), transparent 26%),
@@ -1125,6 +1140,228 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="speaking-stack"] .ll-wordset-game-stage__controls {
     display: none;
+}
+
+.ll-wordset-game-stage[data-ll-wordset-active-game="line-up"] {
+    background:
+        radial-gradient(circle at top left, rgba(94, 234, 212, 0.18), transparent 26%),
+        linear-gradient(180deg, rgba(248, 255, 254, 0.98), rgba(240, 253, 250, 0.96));
+    max-width: min(100%, 1120px);
+}
+
+.ll-wordset-game-stage[data-ll-wordset-active-game="line-up"] .ll-wordset-game-stage__canvas-wrap {
+    background:
+        radial-gradient(circle at top, rgba(45, 212, 191, 0.12), transparent 36%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(240, 253, 250, 0.94));
+    box-shadow:
+        inset 0 0 0 1px rgba(19, 78, 74, 0.1),
+        0 20px 42px rgba(15, 118, 110, 0.12);
+}
+
+.ll-wordset-lineup-stage {
+    min-height: min(64vh, 720px);
+    padding: clamp(14px, 2vw, 20px);
+    display: grid;
+    gap: 14px;
+    align-content: start;
+}
+
+.ll-wordset-lineup-stage__topline,
+.ll-wordset-lineup-stage__actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ll-wordset-lineup-stage__progress,
+.ll-wordset-lineup-stage__category,
+.ll-wordset-lineup-stage__status {
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(15, 118, 110, 0.14);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.1);
+    color: #134e4a;
+}
+
+.ll-wordset-lineup-stage__progress,
+.ll-wordset-lineup-stage__category {
+    display: inline-flex;
+    align-items: center;
+    font-weight: 800;
+}
+
+.ll-wordset-lineup-stage__category {
+    color: #0f172a;
+}
+
+.ll-wordset-lineup-stage__instruction {
+    margin: 0;
+    color: rgba(15, 23, 42, 0.78);
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.ll-wordset-lineup-stage__status {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    font-weight: 800;
+}
+
+.ll-wordset-lineup-stage__status[data-lineup-status-kind="correct"] {
+    border-color: rgba(22, 163, 74, 0.22);
+    color: #166534;
+    background: rgba(240, 253, 244, 0.96);
+}
+
+.ll-wordset-lineup-stage__status[data-lineup-status-kind="incorrect"] {
+    border-color: rgba(220, 38, 38, 0.18);
+    color: #991b1b;
+    background: rgba(254, 242, 242, 0.96);
+}
+
+.ll-wordset-lineup-stage__cards {
+    margin: 0;
+    padding: 2px 2px 10px;
+    list-style: none;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+}
+
+.ll-wordset-lineup-stage__card {
+    min-width: clamp(160px, 22vw, 260px);
+    max-width: min(320px, 78vw);
+    padding: 14px;
+    border-radius: 24px;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.94));
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.1);
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+}
+
+.ll-wordset-lineup-stage__card.is-correct {
+    border-color: rgba(22, 163, 74, 0.22);
+    background:
+        linear-gradient(180deg, rgba(240, 253, 244, 0.98), rgba(220, 252, 231, 0.94));
+    box-shadow: 0 18px 36px rgba(22, 163, 74, 0.12);
+}
+
+.ll-wordset-lineup-stage__card.is-incorrect {
+    border-color: rgba(220, 38, 38, 0.16);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(254, 242, 242, 0.94));
+    box-shadow: 0 18px 36px rgba(220, 38, 38, 0.08);
+}
+
+.ll-wordset-lineup-stage__card-order {
+    min-width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%);
+    color: #f0fdfa;
+    font-weight: 900;
+    box-shadow: 0 10px 18px rgba(15, 118, 110, 0.22);
+}
+
+.ll-wordset-lineup-stage__card-body {
+    min-width: 0;
+    display: grid;
+    gap: 12px;
+}
+
+.ll-wordset-lineup-stage__card-text {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.ll-wordset-lineup-stage__card-actions {
+    display: inline-flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action {
+    min-height: 42px;
+    border-radius: 14px;
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    background: #fff !important;
+    background-image: none !important;
+    color: var(--ll-games-ink) !important;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+    text-decoration: none !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move {
+    min-width: 44px;
+    padding: 0 12px;
+    font-size: 1.05rem;
+    font-weight: 900;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action {
+    padding: 0 16px;
+    font-weight: 800;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move:hover,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move:focus,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move:focus-visible,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move:active,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action:hover,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action:focus,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action:focus-visible,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action:active {
+    border-color: rgba(15, 23, 42, 0.24);
+    background: #fff !important;
+    background-image: none !important;
+    color: var(--ll-games-ink) !important;
+    box-shadow: 0 12px 20px rgba(15, 23, 42, 0.1);
+    outline: none;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__move[disabled],
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action[disabled] {
+    opacity: 0.52;
+    cursor: default;
+    box-shadow: none;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action--primary {
+    background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+    border-color: rgba(15, 118, 110, 0.28);
+    color: #f0fdfa !important;
+    box-shadow: 0 14px 24px rgba(15, 118, 110, 0.22);
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action--primary:hover,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action--primary:focus,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action--primary:focus-visible,
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action--primary:active {
+    background: linear-gradient(180deg, #149289 0%, #0f766e 100%) !important;
+    border-color: rgba(15, 118, 110, 0.34);
+    color: #f0fdfa !important;
+}
+
+.ll-wordset-games-page button.ll-wordset-lineup-stage__action--ghost {
+    background: rgba(255, 255, 255, 0.94) !important;
 }
 
 .ll-wordset-speaking-stack-stage {
@@ -1950,6 +2187,16 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
     .ll-wordset-speaking-stage__comparison-card {
         min-height: 0;
+    }
+
+    .ll-wordset-lineup-stage {
+        min-height: min(60vh, 660px);
+        padding: 14px;
+        gap: 12px;
+    }
+
+    .ll-wordset-lineup-stage__card {
+        min-width: min(76vw, 260px);
     }
 
     .ll-wordset-speaking-stack-stage {

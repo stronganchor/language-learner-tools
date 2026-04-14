@@ -8117,6 +8117,12 @@ function ll_tools_build_wordset_template_export_payload(int $wordset_id) {
         if (defined('LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY')) {
             $extra_skip_keys[] = (string) LL_TOOLS_CATEGORY_ASPECT_CACHE_VERSION_META_KEY;
         }
+        if (defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')) {
+            $extra_skip_keys[] = (string) LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY;
+        }
+        if (defined('LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY')) {
+            $extra_skip_keys[] = (string) LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY;
+        }
         $extra_skip_keys[] = '_ll_wc_cache_version';
 
         $categories[] = [
@@ -11008,6 +11014,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
 
     if (!empty($origin_word_id_to_imported)) {
         ll_tools_import_remap_similar_word_ids($origin_word_id_to_imported);
+        ll_tools_import_remap_lineup_category_word_order($slug_to_category_term_id, $origin_word_id_to_imported);
     }
 
     if (!empty($pending_specific_wrong_answers)) {
@@ -11757,6 +11764,55 @@ function ll_tools_import_remap_similar_word_ids(array $origin_to_imported): void
                 update_post_meta($imported_id, $key, (string) $mapped_id);
             }
         }
+    }
+}
+
+function ll_tools_import_remap_lineup_category_word_order(array $category_slug_to_term_id, array $origin_to_imported): void {
+    if (empty($category_slug_to_term_id) || empty($origin_to_imported)) {
+        return;
+    }
+
+    $meta_key = defined('LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY')
+        ? (string) LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY
+        : 'll_category_lineup_word_order';
+
+    foreach ($category_slug_to_term_id as $term_id) {
+        $term_id = (int) $term_id;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $raw_value = get_term_meta($term_id, $meta_key, true);
+        $source_ids = [];
+        if (function_exists('ll_tools_normalize_category_lineup_word_ids')) {
+            $source_ids = ll_tools_normalize_category_lineup_word_ids($raw_value);
+        } elseif (is_array($raw_value)) {
+            $source_ids = array_map('intval', $raw_value);
+        } else {
+            $source_ids = preg_split('/[\s,]+/', trim((string) $raw_value));
+            $source_ids = is_array($source_ids) ? array_map('intval', $source_ids) : [];
+        }
+
+        if (empty($source_ids)) {
+            delete_term_meta($term_id, $meta_key);
+            continue;
+        }
+
+        $remapped_ids = [];
+        foreach ((array) $source_ids as $source_id) {
+            $source_id = (int) $source_id;
+            $target_id = (int) ($origin_to_imported[$source_id] ?? 0);
+            if ($target_id > 0 && !in_array($target_id, $remapped_ids, true)) {
+                $remapped_ids[] = $target_id;
+            }
+        }
+
+        if (empty($remapped_ids)) {
+            delete_term_meta($term_id, $meta_key);
+            continue;
+        }
+
+        update_term_meta($term_id, $meta_key, $remapped_ids);
     }
 }
 

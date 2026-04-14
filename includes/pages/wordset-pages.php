@@ -2941,6 +2941,14 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
                 LL_TOOLS_BASE_URL . 'media/space-shooter-wrong-hit.ogg',
             ],
         ],
+        'lineUp' => [
+            'slug' => 'line-up',
+            'minimumSequenceLength' => function_exists('ll_tools_wordset_games_lineup_min_sequence_length')
+                ? ll_tools_wordset_games_lineup_min_sequence_length()
+                : 3,
+            'maxLoadedSequences' => 60,
+            'shuffleRetries' => 6,
+        ],
         'speakingPractice' => [
             'slug' => 'speaking-practice',
             'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_practice_launch_word_cap')
@@ -3002,9 +3010,11 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesLoginRequired' => __('Sign in to play with your in-progress words.', 'll-tools-text-domain'),
         'gamesLoadError' => __('Unable to load games right now.', 'll-tools-text-domain'),
         'gamesReadyCount' => __('%d words ready', 'll-tools-text-domain'),
+        'gamesReadySequences' => __('%d sequences ready', 'll-tools-text-domain'),
         'gamesNeedWords' => __('Need %1$d more words to unlock this game.', 'll-tools-text-domain'),
         'gamesNeedLearnedWords' => __('Need %1$d more learned words to unlock this game.', 'll-tools-text-domain'),
         'gamesNeedCompatibleWords' => __('This word set does not have a playable mix of picture cards yet.', 'll-tools-text-domain'),
+        'gamesLineupNeedItems' => __('Each Line-Up sequence needs at least %d cards.', 'll-tools-text-domain'),
         'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
         'gamesLocked' => __('Locked', 'll-tools-text-domain'),
         'gamesSpeakingHiddenConnection' => __('Speaking games are hidden because the speaking service for this word set is not responding on this device.', 'll-tools-text-domain'),
@@ -3035,8 +3045,21 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesBoardLabelDefault' => __('Wordset game board', 'll-tools-text-domain'),
         'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
         'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
+        'gamesBoardLabelLineup' => __('Line-Up sequence board', 'll-tools-text-domain'),
         'gamesBoardLabelSpeakingPractice' => __('Speaking practice panel', 'll-tools-text-domain'),
         'gamesBoardLabelSpeakingStack' => __('Word Stack game board', 'll-tools-text-domain'),
+        'gamesLineupInstruction' => __('Put the cards in the correct order.', 'll-tools-text-domain'),
+        'gamesLineupProgress' => __('Sequence %1$d of %2$d', 'll-tools-text-domain'),
+        'gamesLineupMoveEarlier' => __('Move earlier', 'll-tools-text-domain'),
+        'gamesLineupMoveLater' => __('Move later', 'll-tools-text-domain'),
+        'gamesLineupShuffle' => __('Shuffle', 'll-tools-text-domain'),
+        'gamesLineupCheck' => __('Check', 'll-tools-text-domain'),
+        'gamesLineupNext' => __('Next', 'll-tools-text-domain'),
+        'gamesLineupFinish' => __('Finish', 'll-tools-text-domain'),
+        'gamesLineupCorrect' => __('Correct order.', 'll-tools-text-domain'),
+        'gamesLineupTryAgain' => __('Not quite yet. %1$d of %2$d are in the right place.', 'll-tools-text-domain'),
+        'gamesLineupDoneTitle' => __('Line-Up complete', 'll-tools-text-domain'),
+        'gamesLineupSummary' => __('Perfect: %1$d of %2$d · Retries: %3$d', 'll-tools-text-domain'),
         'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
         'gamesSpeakingApiUnavailable' => __('Speaking practice is unavailable on this device right now.', 'll-tools-text-domain'),
         'gamesSpeakingRound' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
@@ -7654,6 +7677,20 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                     <?php for ($stack_meter_index = 0; $stack_meter_index < 12; $stack_meter_index++) : ?>
                                         <span class="ll-wordset-speaking-stack-stage__meter-bar"></span>
                                     <?php endfor; ?>
+                                </div>
+                            </section>
+                            <section class="ll-wordset-lineup-stage" data-ll-wordset-lineup-stage hidden aria-live="polite">
+                                <div class="ll-wordset-lineup-stage__topline">
+                                    <span class="ll-wordset-lineup-stage__progress" data-ll-wordset-lineup-progress><?php echo esc_html__('Sequence 0 of 0', 'll-tools-text-domain'); ?></span>
+                                    <span class="ll-wordset-lineup-stage__category" data-ll-wordset-lineup-category></span>
+                                </div>
+                                <p class="ll-wordset-lineup-stage__instruction" data-ll-wordset-lineup-instruction><?php echo esc_html__('Put the cards in the correct order.', 'll-tools-text-domain'); ?></p>
+                                <p class="ll-wordset-lineup-stage__status" data-ll-wordset-lineup-status hidden></p>
+                                <ol class="ll-wordset-lineup-stage__cards" data-ll-wordset-lineup-cards></ol>
+                                <div class="ll-wordset-lineup-stage__actions">
+                                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--ghost" data-ll-wordset-lineup-shuffle><?php echo esc_html__('Shuffle', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--primary" data-ll-wordset-lineup-check><?php echo esc_html__('Check', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--primary" data-ll-wordset-lineup-next hidden><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></button>
                                 </div>
                             </section>
                         </div>
