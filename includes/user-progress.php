@@ -507,10 +507,15 @@ function ll_tools_get_word_gender_support_snapshot(array $word, int $wordset_id,
         if (!empty($context['category_id'])) {
             $category_ref = (int) $context['category_id'];
         } elseif (!empty($context['category_name'])) {
-            $term = get_term_by('name', sanitize_text_field((string) $context['category_name']), 'word-category');
+            $context_wordset_id = max(0, (int) ($context['wordset_id'] ?? 0));
+            $term = function_exists('ll_tools_resolve_word_category_term_for_wordsets')
+                ? ll_tools_resolve_word_category_term_for_wordsets(
+                    sanitize_text_field((string) $context['category_name']),
+                    $context_wordset_id > 0 ? [$context_wordset_id] : []
+                )
+                : get_term_by('name', sanitize_text_field((string) $context['category_name']), 'word-category');
             if ($term instanceof WP_Term && !is_wp_error($term)) {
                 $category_ref = (int) $term->term_id;
-                $context_wordset_id = max(0, (int) ($context['wordset_id'] ?? 0));
                 if ($context_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
                     $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_ref, $context_wordset_id, true);
                     if ($effective_category_id > 0) {
@@ -1275,8 +1280,10 @@ function ll_tools_resolve_category_id_from_event(array $event): int {
     }
     $name = isset($event['category_name']) ? trim((string) $event['category_name']) : '';
     if ($name !== '') {
-        $term = get_term_by('name', $name, 'word-category');
-        if (!$term || is_wp_error($term)) {
+        $term = function_exists('ll_tools_resolve_word_category_term_for_wordsets')
+            ? ll_tools_resolve_word_category_term_for_wordsets($name, $wordset_id > 0 ? [$wordset_id] : [])
+            : get_term_by('name', $name, 'word-category');
+        if ((!$term || is_wp_error($term)) && !function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
             $term = get_term_by('slug', sanitize_title($name), 'word-category');
         }
         if ($term && !is_wp_error($term)) {

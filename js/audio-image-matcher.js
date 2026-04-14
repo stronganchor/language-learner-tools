@@ -1,6 +1,7 @@
 /* /js/audio-image-matcher.js */
 (function ($) {
     const i18n = (window.llAimData && window.llAimData.i18n) || {};
+    const categoryOptionsByWordset = (window.llAimData && window.llAimData.categoryOptionsByWordset) || {};
     const $start = $('#ll-aim-start');
     const $skip = $('#ll-aim-skip');
     const $stage = $('#ll-aim-stage');
@@ -42,6 +43,41 @@
     function uiLoading(m) { $status.text(m || t('loadingDefault', 'Loading…')); }
     function uiReady() { $stage.show(); $skip.prop('disabled', false); $status.text(''); }
 
+    function renderCategoryOptions(preferredValue) {
+        if (!$catSel.length) {
+            return;
+        }
+
+        const selectedWordsetId = parseInt(($wsSel.val() || '0'), 10) || 0;
+        const rows = Array.isArray(categoryOptionsByWordset[String(selectedWordsetId)])
+            ? categoryOptionsByWordset[String(selectedWordsetId)]
+            : (Array.isArray(categoryOptionsByWordset['0']) ? categoryOptionsByWordset['0'] : []);
+        const currentValue = (preferredValue !== undefined && preferredValue !== null)
+            ? String(preferredValue)
+            : String($catSel.val() || '');
+
+        let html = '<option value="">' + $('<div/>').text(t('selectOption', '— Select —')).html() + '</option>';
+        rows.forEach(function (row) {
+            const id = parseInt(row && row.id ? row.id : 0, 10) || 0;
+            if (!id) {
+                return;
+            }
+
+            const label = (row && row.label ? row.label : '').toString();
+            const slug = (row && row.slug ? row.slug : '').toString();
+            html += '<option value="' + id + '" data-slug="' + $('<div/>').text(slug).html() + '">' +
+                $('<div/>').text(label).html() +
+                '</option>';
+        });
+
+        $catSel.html(html);
+        if (currentValue && $catSel.find('option[value="' + currentValue + '"]').length) {
+            $catSel.val(currentValue);
+        } else {
+            $catSel.val('');
+        }
+    }
+
     async function fetchImagesOnce() {
         if (cachedImages.length) return;
         uiLoading(t('loadingImages', 'Loading images…'));
@@ -49,6 +85,7 @@
         u.searchParams.set('action', 'll_aim_get_images');
         u.searchParams.set('term_id', termId);
         u.searchParams.set('hide_used', $hideUsed.is(':checked') ? '1' : '0');
+        if (wordsetId > 0) u.searchParams.set('wordset_id', String(wordsetId));
         if (window.llAimData && window.llAimData.nonce) {
             u.searchParams.set('nonce', window.llAimData.nonce);
         }
@@ -253,6 +290,13 @@
         uiIdle();
     });
 
+    $wsSel.on('change', () => {
+        renderCategoryOptions();
+        cachedImages = [];
+        excludeIds = [];
+        uiIdle();
+    });
+
     // When rematch is checked, uncheck and disable "hide used"
     $rematch.on('change', function () {
         if ($(this).is(':checked')) {
@@ -272,6 +316,7 @@
         const q = new URLSearchParams(location.search);
         const id = q.get('term_id') || q.get('category') || q.get('cat') || q.get('word_category');
         const slug = q.get('category_slug') || q.get('slug');
+        renderCategoryOptions();
         if (!id && !slug) return;
 
         let val = null;

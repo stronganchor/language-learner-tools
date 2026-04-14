@@ -8,7 +8,23 @@ $embed_category = get_query_var('embed_category');
 $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
 $mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'practice';
 
-$term = $embed_category ? get_term_by('slug', $embed_category, 'word-category') : null;
+$wordset_term = null;
+if ($wordset !== '') {
+    $wordset_field = ctype_digit($wordset) ? 'term_id' : 'slug';
+    $wordset_value = ctype_digit($wordset) ? (int) $wordset : sanitize_title($wordset);
+    $wordset_term = get_term_by($wordset_field, $wordset_value, 'wordset');
+    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
+        $wordset_term = null;
+    }
+}
+
+$term = $embed_category
+    ? (
+        function_exists('ll_tools_resolve_word_category_term_for_wordsets')
+            ? ll_tools_resolve_word_category_term_for_wordsets($embed_category, $wordset_term ? [(int) $wordset_term->term_id] : [])
+            : get_term_by('slug', $embed_category, 'word-category')
+    )
+    : null;
 $term_is_accessible = $term && !is_wp_error($term) && (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term));
 $term = $term_is_accessible ? $term : null;
 $site_name = trim(wp_strip_all_tags((string) get_bloginfo('name')));
@@ -88,7 +104,7 @@ if ($term && !is_wp_error($term)) {
                     }
                 }
             }
-            $shortcode = '[flashcard_widget category="' . esc_attr($embed_category) . '" embed="true"';
+            $shortcode = '[flashcard_widget category="' . esc_attr((string) $term->slug) . '" embed="true"';
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
             }

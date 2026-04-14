@@ -3,7 +3,7 @@
 if (!defined('WPINC')) { die; }
 /**
  * Variables expected in scope:
- *   - $cats (array of WP_Term)
+ *   - $cats (array of category option rows)
  *   - $wordsets (array of WP_Term)
  *   - $pre_term_id (int)
  *   - $pre_wordset_id (int)
@@ -32,8 +32,8 @@ if (!defined('WPINC')) { die; }
         <select id="ll-aim-category">
             <option value=""><?php esc_html_e('— Select —', 'll-tools-text-domain'); ?></option>
             <?php foreach ($cats as $t): ?>
-                <option value="<?php echo esc_attr($t->term_id); ?>" data-slug="<?php echo esc_attr($t->slug); ?>" <?php selected($pre_term_id, $t->term_id); ?>>
-                    <?php echo esc_html($t->name . ' ('.$t->slug.')'); ?>
+                <option value="<?php echo esc_attr((string) ($t['id'] ?? 0)); ?>" data-slug="<?php echo esc_attr((string) ($t['slug'] ?? '')); ?>" <?php selected($pre_term_id, (int) ($t['id'] ?? 0)); ?>>
+                    <?php echo esc_html((string) ($t['label'] ?? '')); ?>
                 </option>
             <?php endforeach; ?>
         </select>

@@ -86,7 +86,12 @@ function ll_tools_editor_hub_get_word_ids_for_wordset(int $wordset_id, string $c
 
     $category_slug = sanitize_title($category_slug);
     if ($category_slug !== '' && $category_slug !== 'uncategorized' && function_exists('ll_tools_user_can_view_category')) {
-        $category_term = get_term_by('slug', $category_slug, 'word-category');
+        $category_term = function_exists('ll_tools_resolve_word_category_term_for_wordsets')
+            ? ll_tools_resolve_word_category_term_for_wordsets($category_slug, [$wordset_id])
+            : get_term_by('slug', $category_slug, 'word-category');
+        if ($category_term instanceof WP_Term && !is_wp_error($category_term)) {
+            $category_slug = (string) $category_term->slug;
+        }
         if ($category_term instanceof WP_Term && !is_wp_error($category_term) && !ll_tools_user_can_view_category($category_term)) {
             return [];
         }
@@ -826,9 +831,24 @@ function ll_tools_editor_hub_sort_categories(array $categories): array {
     return array_values($categories);
 }
 
+function ll_tools_editor_hub_normalize_selected_category_slug(int $wordset_id, string $selected_category): string {
+    $selected_category = sanitize_title($selected_category);
+    if ($selected_category === '' || $selected_category === 'uncategorized') {
+        return $selected_category;
+    }
+
+    $term = function_exists('ll_tools_resolve_word_category_term_for_wordsets')
+        ? ll_tools_resolve_word_category_term_for_wordsets($selected_category, $wordset_id > 0 ? [$wordset_id] : [])
+        : get_term_by('slug', $selected_category, 'word-category');
+
+    return ($term instanceof WP_Term && !is_wp_error($term))
+        ? (string) $term->slug
+        : $selected_category;
+}
+
 function ll_tools_editor_hub_get_dataset(int $wordset_id, string $selected_category = ''): array {
     $wordset_id = max(0, $wordset_id);
-    $selected_category = sanitize_title($selected_category);
+    $selected_category = ll_tools_editor_hub_normalize_selected_category_slug($wordset_id, $selected_category);
 
     $ui_options = ll_tools_editor_hub_build_ui_options($wordset_id);
     $dataset = [
@@ -886,7 +906,7 @@ function ll_tools_editor_hub_get_dataset(int $wordset_id, string $selected_categ
 
 function ll_tools_editor_hub_get_category_items_payload(int $wordset_id, string $selected_category): array {
     $wordset_id = max(0, $wordset_id);
-    $selected_category = sanitize_title($selected_category);
+    $selected_category = ll_tools_editor_hub_normalize_selected_category_slug($wordset_id, $selected_category);
 
     $payload = [
         'wordset_id' => $wordset_id,

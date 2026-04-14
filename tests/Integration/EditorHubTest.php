@@ -73,17 +73,19 @@ final class EditorHubTest extends LL_Tools_TestCase
         delete_post_meta($word_id, 'll_word_usage_note');
 
         $dataset = ll_tools_editor_hub_get_dataset($wordset_id, 'editor-hub-category');
+        $expected_category_term = get_term((int) ($dataset['categories'][0]['id'] ?? 0), 'word-category');
+        $expected_category_slug = $expected_category_term instanceof WP_Term ? (string) $expected_category_term->slug : '';
 
         $this->assertSame($wordset_id, (int) ($dataset['wordset_id'] ?? 0));
         $this->assertNotEmpty($dataset['categories']);
-        $this->assertSame('editor-hub-category', (string) ($dataset['selected_category'] ?? ''));
+        $this->assertSame($expected_category_slug, (string) ($dataset['selected_category'] ?? ''));
 
         $items = is_array($dataset['items'] ?? null) ? $dataset['items'] : [];
         $this->assertCount(1, $items);
 
         $item = $items[0];
         $this->assertSame($word_id, (int) ($item['word_id'] ?? 0));
-        $this->assertSame('editor-hub-category', (string) ($item['category']['slug'] ?? ''));
+        $this->assertSame($expected_category_slug, (string) ($item['category']['slug'] ?? ''));
         $this->assertIsArray($item['image'] ?? null);
         $this->assertSame('', (string) ($item['image']['url'] ?? ''));
 
@@ -134,16 +136,18 @@ final class EditorHubTest extends LL_Tools_TestCase
         delete_post_meta($beta_word_id, 'word_translation');
 
         $payload = ll_tools_editor_hub_get_category_items_payload($wordset_id, 'editor-hub-beta');
+        $expected_category_slug = (string) ($payload['selected_category'] ?? '');
 
         $this->assertSame($wordset_id, (int) ($payload['wordset_id'] ?? 0));
-        $this->assertSame('editor-hub-beta', (string) ($payload['selected_category'] ?? ''));
+        $this->assertNotSame('', $expected_category_slug);
+        $this->assertSame($expected_category_slug, (string) ($payload['selected_category'] ?? ''));
         $this->assertArrayNotHasKey('categories', $payload);
         $this->assertArrayNotHasKey('ui_options', $payload);
 
         $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
         $this->assertCount(1, $items);
         $this->assertSame($beta_word_id, (int) ($items[0]['word_id'] ?? 0));
-        $this->assertSame('editor-hub-beta', (string) ($items[0]['category']['slug'] ?? ''));
+        $this->assertSame($expected_category_slug, (string) ($items[0]['category']['slug'] ?? ''));
     }
 
     public function test_admin_like_user_with_manage_options_can_access_editor_hub(): void

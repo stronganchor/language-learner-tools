@@ -1175,7 +1175,9 @@ function ll_tools_find_vocab_lesson_post_id(string $wordset_slug, string $catego
     }
 
     $wordset = get_term_by('slug', $wordset_slug, 'wordset');
-    $category = get_term_by('slug', $category_slug, 'word-category');
+    $category = ($wordset instanceof WP_Term && !is_wp_error($wordset) && function_exists('ll_tools_resolve_word_category_term_for_wordsets'))
+        ? ll_tools_resolve_word_category_term_for_wordsets($category_slug, [(int) $wordset->term_id])
+        : get_term_by('slug', $category_slug, 'word-category');
     if (!$wordset || is_wp_error($wordset) || !$category || is_wp_error($category)) {
         return 0;
     }

@@ -129,6 +129,175 @@ function ll_tools_remap_word_category_query_context_for_wordset(array $category_
     ];
 }
 
+function ll_tools_get_word_category_query_context_for_wordsets($category, array $wordset_terms = []): array {
+    $wordset_terms = array_values(array_filter(array_map('intval', $wordset_terms), static function (int $id): bool {
+        return $id > 0;
+    }));
+
+    return ll_tools_remap_word_category_query_context_for_wordset(
+        ll_tools_get_word_category_query_context($category),
+        $wordset_terms
+    );
+}
+
+function ll_tools_resolve_word_category_term_for_wordsets($category, array $wordset_terms = []): ?WP_Term {
+    $context = ll_tools_get_word_category_query_context_for_wordsets($category, $wordset_terms);
+    $term = $context['term'] ?? null;
+
+    return ($term instanceof WP_Term && !is_wp_error($term) && $term->taxonomy === 'word-category')
+        ? $term
+        : null;
+}
+
+function ll_tools_get_word_category_ids_for_wordset_posts(
+    int $wordset_id,
+    array $post_types = ['words'],
+    array $post_statuses = ['publish']
+): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $post_types = array_values(array_unique(array_filter(array_map('strval', $post_types), static function (string $value): bool {
+        return $value !== '';
+    })));
+    $post_statuses = array_values(array_unique(array_filter(array_map('strval', $post_statuses), static function (string $value): bool {
+        return $value !== '';
+    })));
+    if (empty($post_types) || empty($post_statuses)) {
+        return [];
+    }
+
+    $cache_key = 'll_word_category_ids_for_wordset_posts_' . md5(wp_json_encode([
+        'wordset_id' => $wordset_id,
+        'post_types' => $post_types,
+        'post_statuses' => $post_statuses,
+    ]));
+
+    static $request_cache = [];
+    if (isset($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $type_placeholders = implode(',', array_fill(0, count($post_types), '%s'));
+    $status_placeholders = implode(',', array_fill(0, count($post_statuses), '%s'));
+
+    $sql = "
+        SELECT DISTINCT tt_cat.term_id
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+        INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+        WHERE p.post_type IN ({$type_placeholders})
+          AND p.post_status IN ({$status_placeholders})
+          AND tt_ws.taxonomy = 'wordset'
+          AND tt_ws.term_id = %d
+          AND tt_cat.taxonomy = 'word-category'
+    ";
+
+    $params = array_merge($post_types, $post_statuses, [$wordset_id]);
+    $ids = array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)));
+    $ids = array_values(array_unique(array_filter($ids, static function (int $id): bool {
+        return $id > 0;
+    })));
+
+    $request_cache[$cache_key] = $ids;
+    return $ids;
+}
+
+function ll_tools_get_word_category_selector_rows(int $wordset_id = 0, array $args = []): array {
+    $args = wp_parse_args($args, [
+        'post_types' => ['words'],
+        'post_statuses' => ['publish'],
+        'include_uncategorized' => false,
+    ]);
+
+    $wordset_id = (int) $wordset_id;
+    $category_ids = [];
+    if ($wordset_id > 0) {
+        $category_ids = ll_tools_get_word_category_ids_for_wordset_posts(
+            $wordset_id,
+            (array) $args['post_types'],
+            (array) $args['post_statuses']
+        );
+        if (empty($category_ids)) {
+            return [];
+        }
+    }
+
+    $term_query = [
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+    ];
+    if (!empty($category_ids)) {
+        $term_query['include'] = $category_ids;
+    }
+
+    $terms = get_terms($term_query);
+    if (is_wp_error($terms)) {
+        return [];
+    }
+
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user((array) $terms);
+    }
+
+    $include_uncategorized = !empty($args['include_uncategorized']);
+    $terms = array_values(array_filter((array) $terms, static function ($term) use ($include_uncategorized): bool {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+            return false;
+        }
+        if (!$include_uncategorized && (string) $term->slug === 'uncategorized') {
+            return false;
+        }
+        return true;
+    }));
+    if (empty($terms)) {
+        return [];
+    }
+
+    if ($wordset_id > 0) {
+        usort($terms, static function (WP_Term $left, WP_Term $right) use ($wordset_id): int {
+            $left_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($left, ['wordset_ids' => [$wordset_id]])
+                : (string) $left->name;
+            $right_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($right, ['wordset_ids' => [$wordset_id]])
+                : (string) $right->name;
+
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                $cmp = ll_tools_locale_compare_strings($left_label, $right_label);
+            } else {
+                $cmp = strnatcasecmp($left_label, $right_label);
+            }
+
+            return ($cmp !== 0) ? $cmp : (((int) $left->term_id) <=> ((int) $right->term_id));
+        });
+    } else {
+        $terms = ll_tools_sort_category_terms_for_admin_selection($terms);
+    }
+
+    $rows = [];
+    foreach ($terms as $term) {
+        $label = $wordset_id > 0 && function_exists('ll_tools_get_category_display_name')
+            ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
+            : ll_tools_get_category_admin_selection_label($term);
+
+        $rows[] = [
+            'id' => (int) $term->term_id,
+            'slug' => (string) $term->slug,
+            'label' => $label !== '' ? $label : (string) $term->name,
+            'name' => (string) $term->name,
+        ];
+    }
+
+    return $rows;
+}
+
 function ll_tools_get_category_visibility($category): string {
     $term_id = ll_tools_resolve_word_category_term_id($category);
     if ($term_id <= 0) {

@@ -91,8 +91,30 @@ function ll_render_bulk_translations_page() {
             $flt_orderby = isset($_GET['orderby']) ? sanitize_text_field($_GET['orderby']) : 'ID';
             $flt_order   = isset($_GET['order']) ? strtoupper(sanitize_text_field($_GET['order'])) : 'ASC';
 
-            $categories = get_terms(['taxonomy'=>'word-category','hide_empty'=>false,'parent'=>0]);
             $wordsets   = get_terms(['taxonomy'=>'wordset','hide_empty'=>false]);
+            if (is_wp_error($wordsets)) {
+                $wordsets = [];
+            }
+
+            $category_option_map = ['' => function_exists('ll_tools_get_word_category_selector_rows')
+                ? ll_tools_get_word_category_selector_rows(0, [
+                    'post_types' => ['words', 'word_images'],
+                    'post_statuses' => ['publish', 'draft', 'pending', 'future', 'private'],
+                ])
+                : []];
+            foreach ((array) $wordsets as $ws) {
+                if (!($ws instanceof WP_Term)) {
+                    continue;
+                }
+
+                $category_option_map[(string) $ws->slug] = function_exists('ll_tools_get_word_category_selector_rows')
+                    ? ll_tools_get_word_category_selector_rows((int) $ws->term_id, [
+                        'post_types' => ['words', 'word_images'],
+                        'post_statuses' => ['publish', 'draft', 'pending', 'future', 'private'],
+                    ])
+                    : [];
+            }
+            $categories = $category_option_map[$flt_wordset] ?? $category_option_map[''];
         ?>
         <form method="get" class="ll-filters" style="margin:10px 0 12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <input type="hidden" name="page" value="ll-bulk-translations" />
@@ -104,15 +126,17 @@ function ll_render_bulk_translations_page() {
                 </select>
             </label>
             <label><?php esc_html_e('Category', 'll-tools-text-domain'); ?>
-                <select name="cat">
+                <select name="cat" id="ll-bulk-translations-category-filter">
                     <option value="0"><?php esc_html_e('All', 'll-tools-text-domain'); ?></option>
                     <?php foreach ($categories as $c): ?>
-                        <option value="<?php echo (int)$c->term_id; ?>" <?php selected($flt_cat,$c->term_id); ?>><?php echo esc_html($c->name); ?></option>
+                        <option value="<?php echo (int) ($c['id'] ?? 0); ?>" <?php selected($flt_cat, (int) ($c['id'] ?? 0)); ?>>
+                            <?php echo esc_html((string) ($c['label'] ?? '')); ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
             </label>
             <label><?php esc_html_e('Wordset', 'll-tools-text-domain'); ?>
-                <select name="wordset">
+                <select name="wordset" id="ll-bulk-translations-wordset-filter">
                     <option value=""><?php esc_html_e('All', 'll-tools-text-domain'); ?></option>
                     <?php foreach ($wordsets as $ws): ?>
                         <option value="<?php echo esc_attr($ws->slug); ?>" <?php selected($flt_wordset,$ws->slug); ?>><?php echo esc_html($ws->name); ?></option>
@@ -272,12 +296,16 @@ function ll_render_bulk_translations_page() {
         'status_fetching' => __('fetching…', 'll-tools-text-domain'),
         'status_suggested' => __('suggested', 'll-tools-text-domain'),
         'status_no_match' => __('no match', 'll-tools-text-domain'),
+        'all_categories' => __('All', 'll-tools-text-domain'),
     ];
     ?>
     <script>
     jQuery(function($){
         var nonce = <?php echo json_encode($nonce); ?>;
         var i18n = <?php echo wp_json_encode($bulk_i18n); ?>;
+        var categoryOptionsByWordset = <?php echo wp_json_encode($category_option_map); ?> || {};
+        var $categoryFilter = $('#ll-bulk-translations-category-filter');
+        var $wordsetFilter = $('#ll-bulk-translations-wordset-filter');
 
         function getSelectedIds(){
             var ids = [];
@@ -295,6 +323,39 @@ function ll_render_bulk_translations_page() {
             var sel = $checks.filter(':checked').length;
             $('#ll-master').prop('checked', all > 0 && sel === all);
         }
+
+        function renderCategoryFilterOptions() {
+            if (!$categoryFilter.length) {
+                return;
+            }
+
+            var selectedWordset = ($wordsetFilter.val() || '').toString();
+            var currentValue = ($categoryFilter.val() || '0').toString();
+            var rows = categoryOptionsByWordset[selectedWordset];
+            if (!Array.isArray(rows)) {
+                rows = categoryOptionsByWordset[''] || [];
+            }
+
+            var html = '<option value="0">' + $('<div/>').text(i18n.all_categories || 'All').html() + '</option>';
+            rows.forEach(function(row) {
+                var id = parseInt(row && row.id ? row.id : 0, 10) || 0;
+                if (!id) {
+                    return;
+                }
+                var label = (row && row.label ? row.label : '').toString();
+                html += '<option value="' + id + '">' + $('<div/>').text(label).html() + '</option>';
+            });
+
+            $categoryFilter.html(html);
+            if ($categoryFilter.find('option[value="' + currentValue + '"]').length) {
+                $categoryFilter.val(currentValue);
+            } else {
+                $categoryFilter.val('0');
+            }
+        }
+
+        renderCategoryFilterOptions();
+        $wordsetFilter.on('change', renderCategoryFilterOptions);
 
         $('#ll-master').on('change', function(){
             $('.ll-row-check').prop('checked', $(this).prop('checked'));
@@ -457,6 +518,15 @@ function ll_bulk_translations_build_query_args($limit = null, $offset = null) {
 
     $tax = [];
     if ($flt_cat) {
+        if ($flt_wordset !== '') {
+            $wordset_term = get_term_by('slug', $flt_wordset, 'wordset');
+            if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term) && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+                $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($flt_cat, (int) $wordset_term->term_id, true);
+                if ($effective_category_id > 0) {
+                    $flt_cat = $effective_category_id;
+                }
+            }
+        }
         $tax[] = [ 'taxonomy' => 'word-category', 'field' => 'term_id', 'terms' => $flt_cat ];
     }
     if ($flt_wordset !== '') {

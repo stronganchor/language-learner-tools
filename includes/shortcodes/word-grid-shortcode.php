@@ -2365,30 +2365,6 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
     }
 
-    $category_term = null;
-    $access_denied = false;
-    $is_text_based = false;
-    $has_text_only_answer_options = false;
-    $hide_lesson_grid_text = false;
-    if ($sanitized_category !== '') {
-        $category_term = get_term_by('slug', $sanitized_category, 'word-category');
-        if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_user_can_view_category')) {
-            if (!ll_tools_user_can_view_category($category_term)) {
-                $access_denied = true;
-            }
-        }
-    }
-    if (!$access_denied && $category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
-        $quiz_config = ll_tools_get_category_quiz_config($category_term);
-        $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
-        $option_type = (string) ($quiz_config['option_type'] ?? '');
-        $requires_images = function_exists('ll_tools_quiz_requires_image')
-            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
-            : (($prompt_type === 'image') || ($option_type === 'image'));
-        $is_text_based = !$requires_images && (strpos($option_type, 'text') === 0);
-        $has_text_only_answer_options = in_array($option_type, ['text', 'text_translation', 'text_title'], true);
-    }
-
     $wordset_term = null;
     $wordset_id = 0;
     if ($sanitized_wordset !== '') {
@@ -2400,6 +2376,41 @@ function ll_tools_word_grid_resolve_context($atts): array {
         } else {
             $wordset_term = null;
         }
+    }
+
+    $category_term = null;
+    $access_denied = false;
+    $is_text_based = false;
+    $has_text_only_answer_options = false;
+    $hide_lesson_grid_text = false;
+    if ($sanitized_category !== '') {
+        if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
+            $category_term = ll_tools_resolve_word_category_term_for_wordsets(
+                $sanitized_category,
+                $wordset_id > 0 ? [$wordset_id] : []
+            );
+        } else {
+            $category_term = get_term_by('slug', sanitize_title($sanitized_category), 'word-category');
+        }
+
+        if ($category_term instanceof WP_Term && !is_wp_error($category_term)) {
+            $sanitized_category = (string) $category_term->slug;
+            if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($category_term)) {
+                $access_denied = true;
+            }
+        } else {
+            $sanitized_category = sanitize_title($sanitized_category);
+        }
+    }
+    if (!$access_denied && $category_term && !is_wp_error($category_term) && function_exists('ll_tools_get_category_quiz_config')) {
+        $quiz_config = ll_tools_get_category_quiz_config($category_term);
+        $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
+        $option_type = (string) ($quiz_config['option_type'] ?? '');
+        $requires_images = function_exists('ll_tools_quiz_requires_image')
+            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
+            : (($prompt_type === 'image') || ($option_type === 'image'));
+        $is_text_based = !$requires_images && (strpos($option_type, 'text') === 0);
+        $has_text_only_answer_options = in_array($option_type, ['text', 'text_translation', 'text_title'], true);
     }
 
     if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_should_hide_lesson_grid_text')) {
