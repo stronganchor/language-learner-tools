@@ -3,6 +3,36 @@
 
     function getAdminUiConfig() {
         var cfg = window.llToolsImportUi || {};
+        var fullExportCategoriesByWordset = {};
+
+        if (cfg.fullExportCategoriesByWordset && typeof cfg.fullExportCategoriesByWordset === 'object') {
+            Object.keys(cfg.fullExportCategoriesByWordset).forEach(function (wordsetId) {
+                var rawRows = cfg.fullExportCategoriesByWordset[wordsetId];
+                if (!Array.isArray(rawRows)) {
+                    return;
+                }
+
+                fullExportCategoriesByWordset[wordsetId] = rawRows.reduce(function (rows, rawRow) {
+                    if (!rawRow || typeof rawRow !== 'object') {
+                        return rows;
+                    }
+
+                    var rowId = parseInt(rawRow.id, 10);
+                    var rowLabel = typeof rawRow.label === 'string' ? rawRow.label : '';
+                    if (!rowId || !rowLabel) {
+                        return rows;
+                    }
+
+                    rows.push({
+                        id: rowId,
+                        label: rowLabel
+                    });
+
+                    return rows;
+                }, []);
+            });
+        }
+
         return {
             ajaxUrl: typeof cfg.ajaxUrl === 'string' ? cfg.ajaxUrl : '',
             exportPageUrl: typeof cfg.exportPageUrl === 'string' ? cfg.exportPageUrl : '',
@@ -22,7 +52,10 @@
             exportProcessingFailed: typeof cfg.exportProcessingFailed === 'string' ? cfg.exportProcessingFailed : '',
             exportProcessingReload: typeof cfg.exportProcessingReload === 'string' ? cfg.exportProcessingReload : '',
             copyButtonCopied: typeof cfg.copyButtonCopied === 'string' ? cfg.copyButtonCopied : 'Copied',
-            copyButtonFailed: typeof cfg.copyButtonFailed === 'string' ? cfg.copyButtonFailed : 'Copy failed'
+            copyButtonFailed: typeof cfg.copyButtonFailed === 'string' ? cfg.copyButtonFailed : 'Copy failed',
+            fullExportCategoriesByWordset: fullExportCategoriesByWordset,
+            fullExportCategoriesPrompt: typeof cfg.fullExportCategoriesPrompt === 'string' ? cfg.fullExportCategoriesPrompt : 'Select a word set first',
+            fullExportCategoriesEmpty: typeof cfg.fullExportCategoriesEmpty === 'string' ? cfg.fullExportCategoriesEmpty : 'No categories found for this word set'
         };
     }
 
@@ -599,11 +632,69 @@
         var fullWordsetSelect = document.getElementById('ll_full_export_wordset_id');
         var exportTemplate = document.getElementById('ll_export_wordset_template');
         var templateWordsetSelect = document.getElementById('ll_template_export_wordset_id');
+        var config = getAdminUiConfig();
         if (!includeFull || !multiCategorySelect) {
             return;
         }
 
+        function getSelectedOptionValues(select) {
+            if (!select || !select.options) {
+                return [];
+            }
+
+            var values = [];
+            for (var index = 0; index < select.options.length; index++) {
+                if (select.options[index].selected) {
+                    values.push(select.options[index].value);
+                }
+            }
+
+            return values;
+        }
+
+        function replaceCategoryOptions(rows, emptyLabel) {
+            var selectedValues = getSelectedOptionValues(multiCategorySelect);
+            multiCategorySelect.innerHTML = '';
+
+            if (!Array.isArray(rows) || !rows.length) {
+                var emptyOption = document.createElement('option');
+                emptyOption.value = '0';
+                emptyOption.disabled = true;
+                emptyOption.textContent = emptyLabel;
+                multiCategorySelect.appendChild(emptyOption);
+                multiCategorySelect.setAttribute('data-no-categories', '1');
+                return;
+            }
+
+            rows.forEach(function (row) {
+                var option = document.createElement('option');
+                option.value = String(row.id);
+                option.textContent = row.label;
+                if (selectedValues.indexOf(option.value) !== -1) {
+                    option.selected = true;
+                }
+                multiCategorySelect.appendChild(option);
+            });
+            multiCategorySelect.setAttribute('data-no-categories', '0');
+        }
+
+        function syncCategoryOptions() {
+            if (!fullWordsetSelect) {
+                return;
+            }
+
+            var selectedWordsetId = parseInt(fullWordsetSelect.value, 10);
+            if (!selectedWordsetId) {
+                replaceCategoryOptions([], config.fullExportCategoriesPrompt);
+                return;
+            }
+
+            var rows = config.fullExportCategoriesByWordset[String(selectedWordsetId)];
+            replaceCategoryOptions(rows, config.fullExportCategoriesEmpty);
+        }
+
         function syncUi() {
+            syncCategoryOptions();
             var templateEnabled = !!(exportTemplate && exportTemplate.checked);
             var noCategories = multiCategorySelect.getAttribute('data-no-categories') === '1';
             if (exportTemplate) {
@@ -627,6 +718,9 @@
         }
 
         includeFull.addEventListener('change', syncUi);
+        if (fullWordsetSelect) {
+            fullWordsetSelect.addEventListener('change', syncUi);
+        }
         if (exportTemplate) {
             exportTemplate.addEventListener('change', syncUi);
         }

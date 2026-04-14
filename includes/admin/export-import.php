@@ -109,6 +109,21 @@ function ll_tools_enqueue_export_import_assets($hook) {
 
     ll_enqueue_asset_by_timestamp('/css/export-import-admin.css', 'll-tools-export-import-admin', [], false);
     ll_enqueue_asset_by_timestamp('/js/export-import-admin.js', 'll-tools-export-import-admin-js', [], true);
+    $full_export_categories_by_wordset = [];
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'fields'     => 'ids',
+    ]);
+    if (!is_wp_error($wordsets)) {
+        foreach ((array) $wordsets as $wordset_id) {
+            $wordset_id = (int) $wordset_id;
+            if ($wordset_id <= 0) {
+                continue;
+            }
+            $full_export_categories_by_wordset[$wordset_id] = ll_tools_export_get_category_selector_rows($wordset_id);
+        }
+    }
     wp_localize_script('ll-tools-export-import-admin-js', 'llToolsImportUi', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'exportPageUrl' => ll_tools_get_export_import_page_url(ll_tools_get_export_page_slug()),
@@ -129,6 +144,9 @@ function ll_tools_enqueue_export_import_assets($hook) {
         'exportProcessingReload' => __('Back to export page', 'll-tools-text-domain'),
         'copyButtonCopied' => __('Copied', 'll-tools-text-domain'),
         'copyButtonFailed' => __('Copy failed', 'll-tools-text-domain'),
+        'fullExportCategoriesByWordset' => $full_export_categories_by_wordset,
+        'fullExportCategoriesPrompt' => __('Select a word set first', 'll-tools-text-domain'),
+        'fullExportCategoriesEmpty' => __('No categories found for this word set', 'll-tools-text-domain'),
     ]);
 }
 
@@ -1517,20 +1535,10 @@ function ll_tools_stream_download_file(string $file_path, string $filename, stri
     exit;
 }
 
-function ll_tools_export_get_category_selector_rows(): array {
-    $terms = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'orderby'    => 'name',
-        'order'      => 'ASC',
-    ]);
-    if (is_wp_error($terms) || empty($terms)) {
-        return [];
-    }
-
+function ll_tools_export_build_category_selector_rows_from_terms(array $terms, int $wordset_id = 0): array {
     $by_parent = [];
     foreach ($terms as $term) {
-        if (!isset($term->term_id)) {
+        if (!($term instanceof WP_Term) || $term->taxonomy !== 'word-category' || !isset($term->term_id)) {
             continue;
         }
         $parent_id = isset($term->parent) ? (int) $term->parent : 0;
@@ -1541,8 +1549,18 @@ function ll_tools_export_get_category_selector_rows(): array {
     }
 
     foreach ($by_parent as &$siblings) {
-        usort($siblings, static function ($a, $b): int {
-            $name_cmp = strcasecmp((string) ($a->name ?? ''), (string) ($b->name ?? ''));
+        usort($siblings, static function ($a, $b) use ($wordset_id): int {
+            $a_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($a, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
+                : (string) ($a->name ?? '');
+            $b_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($b, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
+                : (string) ($b->name ?? '');
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                $name_cmp = ll_tools_locale_compare_strings($a_label, $b_label);
+            } else {
+                $name_cmp = strcasecmp($a_label, $b_label);
+            }
             if ($name_cmp !== 0) {
                 return $name_cmp;
             }
@@ -1553,7 +1571,7 @@ function ll_tools_export_get_category_selector_rows(): array {
 
     $rows = [];
     $visited = [];
-    $walk = static function (int $parent_id, int $depth) use (&$walk, &$rows, &$visited, $by_parent): void {
+    $walk = static function (int $parent_id, int $depth) use (&$walk, &$rows, &$visited, $by_parent, $wordset_id): void {
         if (empty($by_parent[$parent_id])) {
             return;
         }
@@ -1565,9 +1583,12 @@ function ll_tools_export_get_category_selector_rows(): array {
             }
             $visited[$term_id] = true;
 
+            $term_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
+                : (string) ($term->name ?? '');
             $rows[] = [
                 'id'    => $term_id,
-                'label' => str_repeat('-- ', max(0, $depth)) . (string) ($term->name ?? ''),
+                'label' => str_repeat('-- ', max(0, $depth)) . $term_label,
             ];
 
             $walk($term_id, $depth + 1);
@@ -1582,13 +1603,130 @@ function ll_tools_export_get_category_selector_rows(): array {
         if ($term_id <= 0 || isset($visited[$term_id])) {
             continue;
         }
+        $term_label = function_exists('ll_tools_get_category_display_name')
+            ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => $wordset_id > 0 ? [$wordset_id] : []])
+            : (string) ($term->name ?? '');
         $rows[] = [
             'id'    => $term_id,
-            'label' => (string) ($term->name ?? ''),
+            'label' => $term_label,
         ];
     }
 
     return $rows;
+}
+
+function ll_tools_export_get_full_bundle_wordset_category_ids(int $wordset_id): array {
+    global $wpdb;
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $statuses = ['publish', 'draft', 'pending', 'future', 'private'];
+    $status_sql = "'" . implode("','", array_map('esc_sql', $statuses)) . "'";
+
+    $word_sql = $wpdb->prepare(
+        "
+        SELECT DISTINCT tt_cat.term_id
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+        INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+        INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+        WHERE p.post_type = %s
+          AND p.post_status IN ($status_sql)
+          AND tt_ws.taxonomy = %s
+          AND tt_ws.term_id = %d
+          AND tt_cat.taxonomy = %s
+        ",
+        'words',
+        'wordset',
+        $wordset_id,
+        'word-category'
+    );
+    $category_ids = array_map('intval', (array) $wpdb->get_col($word_sql));
+
+    if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+        $image_sql = $wpdb->prepare(
+            "
+            SELECT DISTINCT tt_cat.term_id
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm_owner
+                ON pm_owner.post_id = p.ID
+               AND pm_owner.meta_key = %s
+               AND CAST(pm_owner.meta_value AS UNSIGNED) = %d
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            WHERE p.post_type = %s
+              AND p.post_status IN ($status_sql)
+              AND tt_cat.taxonomy = %s
+            ",
+            LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
+            $wordset_id,
+            'word_images',
+            'word-category'
+        );
+        $category_ids = array_merge($category_ids, array_map('intval', (array) $wpdb->get_col($image_sql)));
+    }
+
+    $category_ids = ll_tools_import_normalize_id_list($category_ids);
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $scoped_ids = [];
+    foreach ($category_ids as $category_id) {
+        $effective_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true)
+            : (int) $category_id;
+        if ($effective_category_id <= 0) {
+            $effective_category_id = (int) $category_id;
+        }
+        if ($effective_category_id <= 0) {
+            continue;
+        }
+
+        $scoped_ids[$effective_category_id] = true;
+        foreach ((array) get_ancestors($effective_category_id, 'word-category', 'taxonomy') as $ancestor_id) {
+            $ancestor_id = (int) $ancestor_id;
+            if ($ancestor_id > 0) {
+                $scoped_ids[$ancestor_id] = true;
+            }
+        }
+    }
+
+    return array_values(array_map('intval', array_keys($scoped_ids)));
+}
+
+function ll_tools_export_get_category_selector_rows(int $wordset_id = 0): array {
+    $wordset_id = (int) $wordset_id;
+
+    $term_args = [
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+    ];
+
+    if ($wordset_id > 0) {
+        $category_ids = ll_tools_export_get_full_bundle_wordset_category_ids($wordset_id);
+        if (empty($category_ids)) {
+            return [];
+        }
+        $term_args['include'] = $category_ids;
+    }
+
+    $terms = get_terms($term_args);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    if ($wordset_id > 0 && function_exists('ll_tools_filter_category_terms_for_user')) {
+        $terms = ll_tools_filter_category_terms_for_user((array) $terms);
+    }
+
+    return ll_tools_export_build_category_selector_rows_from_terms((array) $terms, $wordset_id);
 }
 
 function ll_tools_build_export_zip_filename($include_full_bundle, $category_root_ids, $full_wordset_id = 0, string $bundle_type = ''): string {
@@ -2369,8 +2507,6 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     if (is_wp_error($recording_types)) {
         $recording_types = [];
     }
-    $export_category_rows = ll_tools_export_get_category_selector_rows();
-    $has_export_categories = !empty($export_category_rows);
     $selected_wordset_id = isset($_GET['wordset_id']) ? (int) $_GET['wordset_id'] : 0;
     if ($selected_wordset_id <= 0 && function_exists('ll_get_default_wordset_term_id')) {
         $selected_wordset_id = (int) ll_get_default_wordset_term_id();
@@ -2390,6 +2526,17 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     $default_source = (string) get_bloginfo('name');
     $default_gloss_languages = ll_tools_export_get_default_gloss_languages($selected_wordset_id);
     $has_wordsets = !empty($wordsets);
+    $selected_full_export_wordset_id = isset($_GET['full_export_wordset_id']) ? (int) $_GET['full_export_wordset_id'] : 0;
+    if ($selected_full_export_wordset_id > 0) {
+        $selected_full_export_term = get_term($selected_full_export_wordset_id, 'wordset');
+        if (!($selected_full_export_term instanceof WP_Term) || is_wp_error($selected_full_export_term)) {
+            $selected_full_export_wordset_id = 0;
+        }
+    }
+    $full_export_category_rows = $selected_full_export_wordset_id > 0
+        ? ll_tools_export_get_category_selector_rows($selected_full_export_wordset_id)
+        : [];
+    $has_export_categories = !empty($full_export_category_rows);
     $soft_export_limit_bytes = ll_tools_export_get_soft_limit_bytes();
     $hard_export_limit_bytes = ll_tools_export_get_hard_limit_bytes();
     $hard_export_limit_files = ll_tools_export_get_hard_limit_files();
@@ -2484,9 +2631,9 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     <?php if (!$has_wordsets) : ?>
                         <option value="0"><?php esc_html_e('No word sets found', 'll-tools-text-domain'); ?></option>
                     <?php else : ?>
-                        <option value="0" selected><?php esc_html_e('Select a word set', 'll-tools-text-domain'); ?></option>
+                        <option value="0" <?php selected($selected_full_export_wordset_id, 0); ?>><?php esc_html_e('Select a word set', 'll-tools-text-domain'); ?></option>
                         <?php foreach ($wordsets as $wordset) : ?>
-                            <option value="<?php echo (int) $wordset->term_id; ?>">
+                            <option value="<?php echo (int) $wordset->term_id; ?>" <?php selected($selected_full_export_wordset_id, (int) $wordset->term_id); ?>>
                                 <?php echo esc_html($wordset->name); ?>
                             </option>
                         <?php endforeach; ?>
@@ -2504,10 +2651,12 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     size="12"
                     data-no-categories="<?php echo $has_export_categories ? '0' : '1'; ?>"
                 >
-                    <?php if (!$has_export_categories) : ?>
-                        <option value="0" disabled><?php esc_html_e('No categories found', 'll-tools-text-domain'); ?></option>
+                    <?php if ($selected_full_export_wordset_id <= 0) : ?>
+                        <option value="0" disabled><?php esc_html_e('Select a word set first', 'll-tools-text-domain'); ?></option>
+                    <?php elseif (!$has_export_categories) : ?>
+                        <option value="0" disabled><?php esc_html_e('No categories found for this word set', 'll-tools-text-domain'); ?></option>
                     <?php else : ?>
-                        <?php foreach ($export_category_rows as $category_row) : ?>
+                        <?php foreach ($full_export_category_rows as $category_row) : ?>
                             <?php
                             $category_row_id = isset($category_row['id']) ? (int) $category_row['id'] : 0;
                             $category_row_label = isset($category_row['label']) ? (string) $category_row['label'] : '';
