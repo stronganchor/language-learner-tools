@@ -1,15 +1,29 @@
 (function ($) {
     'use strict';
 
-    function toIdSet(ids) {
-        var set = {};
-        $.each(ids || [], function (_, rawId) {
-            var parsed = parseInt(rawId, 10);
+    function parseIdList(rawValue) {
+        var ids = [];
+
+        $.each((rawValue || '').toString().split(','), function (_, rawId) {
+            var parsed = parseInt($.trim(rawId), 10);
             if (parsed > 0) {
-                set[parsed] = true;
+                ids.push(parsed);
             }
         });
-        return set;
+
+        return ids;
+    }
+
+    function toggleSection($element, show) {
+        if (!$element.length) {
+            return;
+        }
+
+        if (show) {
+            $element.show().removeAttr('hidden');
+        } else {
+            $element.hide().attr('hidden', 'hidden');
+        }
     }
 
     function syncPromptOptionRules($prompt, $option) {
@@ -89,38 +103,210 @@
         return (promptIsImage && optionIsText) || (promptIsText && optionIsImage);
     }
 
-    function hasEligibleExistingCategory($form, autoCreateCategoryIds) {
-        var found = false;
-        $form.find('input[name="ll_word_categories[]"]:checked').each(function () {
-            var categoryId = parseInt($(this).val(), 10);
-            if (categoryId > 0 && autoCreateCategoryIds[categoryId]) {
-                found = true;
+    function getCategoryMode($form) {
+        var $checked = $form.find('input[name="ll_category_mode"]:checked');
+        if ($checked.length) {
+            return ($checked.val() || 'existing').toString();
+        }
+
+        return 'existing';
+    }
+
+    function getScopeMode($form) {
+        if ($form.find('[data-ll-wordset-scope-locked="1"]').length) {
+            return 'single';
+        }
+
+        var $checked = $form.find('input[name="ll_wordset_scope_mode"]:checked');
+        if ($checked.length) {
+            return ($checked.val() || 'single').toString();
+        }
+
+        return 'single';
+    }
+
+    function getSelectedWordsetIds($form) {
+        var ids = [];
+
+        if ($form.find('[data-ll-wordset-scope-locked="1"]').length) {
+            var lockedId = parseInt($form.find('input[name="ll_single_wordset_id"]').val(), 10);
+            if (lockedId > 0) {
+                ids.push(lockedId);
+            }
+            return ids;
+        }
+
+        if (getScopeMode($form) === 'multiple') {
+            $form.find('[data-ll-multi-wordset]:checked').each(function () {
+                var parsed = parseInt($(this).val(), 10);
+                if (parsed > 0) {
+                    ids.push(parsed);
+                }
+            });
+            return ids;
+        }
+
+        var singleId = parseInt($form.find('[data-ll-single-wordset]').val(), 10);
+        if (singleId > 0) {
+            ids.push(singleId);
+        }
+
+        return ids;
+    }
+
+    function getSelectedWordsetNames($form) {
+        var names = [];
+
+        if ($form.find('[data-ll-wordset-scope-locked="1"]').length) {
+            var lockedLabel = $.trim($form.find('[data-ll-wordset-scope-locked="1"] strong').first().text() || '');
+            return lockedLabel ? [lockedLabel] : [];
+        }
+
+        if (getScopeMode($form) === 'multiple') {
+            $form.find('[data-ll-multi-wordset]:checked').each(function () {
+                var label = $.trim($(this).attr('data-ll-wordset-label') || '');
+                if (label) {
+                    names.push(label);
+                }
+            });
+            return names;
+        }
+
+        var singleText = $.trim($form.find('[data-ll-single-wordset] option:selected').text() || '');
+        if (parseInt($form.find('[data-ll-single-wordset]').val(), 10) > 0 && singleText) {
+            names.push(singleText);
+        }
+
+        return names;
+    }
+
+    function optionMatchesScope($option, selectedWordsetIds) {
+        var optionValue = parseInt($option.val(), 10);
+        if (!(optionValue > 0)) {
+            return true;
+        }
+
+        if (!selectedWordsetIds.length) {
+            return true;
+        }
+
+        if (($option.attr('data-ll-category-shared') || '0').toString() === '1') {
+            return true;
+        }
+
+        var optionWordsetIds = parseIdList($option.attr('data-ll-category-wordsets'));
+        if (!optionWordsetIds.length) {
+            return false;
+        }
+
+        var visible = false;
+        $.each(optionWordsetIds, function (_, wordsetId) {
+            if ($.inArray(wordsetId, selectedWordsetIds) !== -1) {
+                visible = true;
                 return false;
             }
             return true;
         });
-        return found;
+
+        return visible;
     }
 
-    function syncFormState($form, autoCreateCategoryIds) {
-        var hasNewTitle = $.trim($form.find('[data-ll-new-category-title]').val() || '') !== '';
-        var creatingNew = hasNewTitle;
+    function syncCategoryOptionVisibility($form) {
+        var selectedWordsetIds = getSelectedWordsetIds($form);
 
+        $.each([
+            $form.find('[data-ll-existing-category]'),
+            $form.find('[data-ll-new-category-parent]')
+        ], function (_, $select) {
+            if (!$select.length) {
+                return;
+            }
+
+            var selectedValue = ($select.val() || '').toString();
+            var selectedStillVisible = (selectedValue === '' || selectedValue === '0');
+
+            $select.find('option').each(function () {
+                var $option = $(this);
+                var visible = optionMatchesScope($option, selectedWordsetIds);
+                $option.prop('disabled', !visible);
+                $option.prop('hidden', !visible);
+
+                if (visible && selectedValue !== '' && selectedValue === ($option.val() || '').toString()) {
+                    selectedStillVisible = true;
+                }
+            });
+
+            if (!selectedStillVisible) {
+                $select.val('0');
+            }
+        });
+    }
+
+    function syncTargetPreview($form) {
+        var categoryMode = getCategoryMode($form);
+        var categoryLabel = '';
+        var wordsetNames = getSelectedWordsetNames($form);
+        var $preview = $form.find('[data-ll-target-preview]');
+
+        if (categoryMode === 'new') {
+            categoryLabel = $.trim($form.find('[data-ll-new-category-title]').val() || '');
+        } else {
+            var $selectedOption = $form.find('[data-ll-existing-category] option:selected');
+            if ($selectedOption.length && parseInt($selectedOption.val(), 10) > 0) {
+                categoryLabel = $.trim($selectedOption.text() || '');
+            }
+        }
+
+        if (!categoryLabel || !wordsetNames.length) {
+            toggleSection($preview, false);
+            return;
+        }
+
+        $preview.find('[data-ll-target-preview-category]').text(categoryLabel);
+        $preview.find('[data-ll-target-preview-wordsets]').text(wordsetNames.join(', '));
+        toggleSection($preview, true);
+    }
+
+    function syncAutoCreateNote($form) {
+        var $note = $form.find('[data-ll-autocreate-note]');
+        var show = false;
+
+        if (getCategoryMode($form) === 'new') {
+            show = isNewCategoryAutocreateEligible($form) && getSelectedWordsetIds($form).length > 0;
+        } else {
+            var $selectedOption = $form.find('[data-ll-existing-category] option:selected');
+            show = $selectedOption.length
+                && parseInt($selectedOption.val(), 10) > 0
+                && ($selectedOption.attr('data-ll-category-autocreate') || '0').toString() === '1'
+                && getSelectedWordsetIds($form).length > 0;
+        }
+
+        toggleSection($note, show);
+    }
+
+    function syncFormState($form) {
+        var categoryMode = getCategoryMode($form);
+        var scopeMode = getScopeMode($form);
+        var scopeLocked = $form.find('[data-ll-wordset-scope-locked="1"]').length > 0;
         var $existingWrap = $form.find('[data-ll-category-existing-wrap]');
+        var $newWrap = $form.find('[data-ll-new-category-wrap]');
         var $advancedWrap = $form.find('[data-ll-new-category-advanced]');
-        var $wordsetWrap = $form.find('[data-ll-wordset-wrap]');
+        var $singleWrap = $form.find('[data-ll-single-wordset-wrap]');
+        var $multiWrap = $form.find('[data-ll-multi-wordset-wrap]');
         var $prompt = $form.find('[data-ll-new-category-prompt]');
         var $option = $form.find('[data-ll-new-category-option]');
 
         syncPromptOptionRules($prompt, $option);
 
-        $existingWrap.toggle(!creatingNew);
-        $advancedWrap.toggle(creatingNew);
+        toggleSection($singleWrap, scopeLocked || scopeMode !== 'multiple');
+        toggleSection($multiWrap, !scopeLocked && scopeMode === 'multiple');
+        toggleSection($existingWrap, categoryMode !== 'new');
+        toggleSection($newWrap, categoryMode === 'new');
+        toggleSection($advancedWrap, categoryMode === 'new');
 
-        var shouldShowWordset = creatingNew
-            ? isNewCategoryAutocreateEligible($form)
-            : hasEligibleExistingCategory($form, autoCreateCategoryIds);
-        $wordsetWrap.toggle(shouldShowWordset);
+        syncCategoryOptionVisibility($form);
+        syncTargetPreview($form);
+        syncAutoCreateNote($form);
     }
 
     function collectLargeImageNames(fileList, thresholdBytes) {
@@ -158,7 +344,7 @@
         if (!largeImageNames.length) {
             $message.text('');
             $files.text('');
-            $warning.hide().attr('hidden', 'hidden');
+            toggleSection($warning, false);
             return;
         }
 
@@ -168,24 +354,28 @@
 
         $message.text(messageText);
         $files.text(filesLabel ? (filesLabel + ' ' + filesText) : filesText);
-        $warning.show().removeAttr('hidden');
+        toggleSection($warning, true);
     }
 
     $(function () {
         var cfg = window.llImageUploadFormData || {};
-        var autoCreateCategoryIds = toIdSet(cfg.autoCreateCategoryIds);
 
         $('[data-ll-image-upload-form]').each(function () {
             var $form = $(this);
 
-            $form.on('change input', 'input[name="ll_word_categories[]"], [data-ll-new-category-title], [data-ll-new-category-prompt], [data-ll-new-category-option]', function () {
-                syncFormState($form, autoCreateCategoryIds);
-            });
+            $form.on(
+                'change input',
+                'input[name="ll_wordset_scope_mode"], [data-ll-single-wordset], [data-ll-multi-wordset], input[name="ll_category_mode"], [data-ll-existing-category], [data-ll-new-category-title], [data-ll-new-category-parent], [data-ll-new-category-prompt], [data-ll-new-category-option]',
+                function () {
+                    syncFormState($form);
+                }
+            );
+
             $form.on('change', '[data-ll-image-file-input]', function () {
                 syncLargeImageWarning($form, cfg);
             });
 
-            syncFormState($form, autoCreateCategoryIds);
+            syncFormState($form);
             syncLargeImageWarning($form, cfg);
         });
     });
