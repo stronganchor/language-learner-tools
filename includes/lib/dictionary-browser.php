@@ -95,6 +95,88 @@ function ll_tools_dictionary_normalize_language_key(string $value): string {
 }
 
 /**
+ * Normalize one browse-letter value for the current dictionary title language.
+ */
+function ll_tools_dictionary_normalize_browse_letter(string $value, string $language = ''): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return '';
+    }
+
+    if (function_exists('mb_substr')) {
+        $value = mb_substr($value, 0, 1, 'UTF-8');
+    } else {
+        $value = substr($value, 0, 1);
+    }
+
+    if ($value === '' || preg_match('/[\p{L}\p{N}]/u', $value) !== 1) {
+        return '';
+    }
+
+    return function_exists('ll_tools_uppercase_first_char_for_language')
+        ? ll_tools_uppercase_first_char_for_language($value, $language)
+        : (function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value));
+}
+
+/**
+ * Resolve the active title language code for a dictionary wordset.
+ */
+function ll_tools_dictionary_get_wordset_title_language_code(int $wordset_id = 0): string {
+    if ($wordset_id <= 0 || !function_exists('ll_tools_get_wordset_title_language_label')) {
+        return '';
+    }
+
+    return ll_tools_dictionary_normalize_language_key((string) ll_tools_get_wordset_title_language_label([$wordset_id]));
+}
+
+/**
+ * Return a preferred browse alphabet for languages with non-ASCII core letters.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_get_language_browse_alphabet(string $language = ''): array {
+    $language = ll_tools_dictionary_normalize_language_key($language);
+    if ($language === '') {
+        return [];
+    }
+
+    $alphabets = [
+        'tr' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'],
+        'tur' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'J', 'K', 'L', 'M', 'N', 'O', 'Ö', 'P', 'R', 'S', 'Ş', 'T', 'U', 'Ü', 'V', 'Y', 'Z'],
+        'zza' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'diq' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+        'kiu' => ['A', 'B', 'C', 'Ç', 'D', 'E', 'Ê', 'F', 'G', 'Ğ', 'H', 'I', 'İ', 'Î', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'Ş', 'T', 'U', 'Û', 'V', 'W', 'X', 'Y', 'Z'],
+    ];
+
+    return array_values(array_map(static function (string $letter) use ($language): string {
+        return ll_tools_dictionary_normalize_browse_letter($letter, $language);
+    }, (array) ($alphabets[$language] ?? [])));
+}
+
+/**
+ * Determine whether one dictionary entry title belongs to a browse-letter bucket.
+ */
+function ll_tools_dictionary_entry_matches_browse_letter(int $entry_id, string $letter, string $language = ''): bool {
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0) {
+        return false;
+    }
+
+    $letter = ll_tools_dictionary_normalize_browse_letter($letter, $language);
+    if ($letter === '') {
+        return false;
+    }
+
+    $title = trim((string) get_the_title($entry_id));
+    if ($title === '') {
+        return false;
+    }
+
+    $first_letter = ll_tools_dictionary_normalize_browse_letter($title, $language);
+    return $first_letter !== '' && $first_letter === $letter;
+}
+
+/**
  * Sanitize a translations map keyed by language code.
  *
  * @param mixed $translations Raw translations payload.
@@ -1206,16 +1288,11 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     global $wpdb;
 
     $search = trim((string) ($args['search'] ?? ''));
-    $letter = trim((string) ($args['letter'] ?? ''));
-    if ($letter !== '' && function_exists('mb_substr')) {
-        $letter = mb_substr($letter, 0, 1, 'UTF-8');
-    } elseif ($letter !== '') {
-        $letter = substr($letter, 0, 1);
-    }
-
     $page = max(1, (int) ($args['page'] ?? 1));
     $per_page = max(1, min(100, (int) ($args['per_page'] ?? 20)));
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
+    $title_language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
+    $letter = ll_tools_dictionary_normalize_browse_letter((string) ($args['letter'] ?? ''), $title_language);
     $pos_slug = sanitize_title((string) ($args['pos_slug'] ?? ''));
     $sense_limit = max(1, min(8, (int) ($args['sense_limit'] ?? 3)));
     $linked_word_limit = max(0, min(8, (int) ($args['linked_word_limit'] ?? 4)));
@@ -1322,8 +1399,80 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             $contains_norm,
         ];
     } elseif ($letter !== '') {
-        $where[] = 'p.post_title LIKE %s';
-        $params[] = $wpdb->esc_like($letter) . '%';
+        $where_sql = implode(' AND ', $where);
+        $query_sql = "
+            SELECT DISTINCT p.ID
+            FROM {$wpdb->posts} p
+            {$joins}
+            WHERE {$where_sql}
+        ";
+        $candidate_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($query_sql, $params)))));
+        $filtered_ids = array_values(array_filter($candidate_ids, static function (int $entry_id) use ($letter, $title_language): bool {
+            return ll_tools_dictionary_entry_matches_browse_letter($entry_id, $letter, $title_language);
+        }));
+
+        if (!empty($filtered_ids)) {
+            usort($filtered_ids, static function (int $left_id, int $right_id) use ($title_language): int {
+                $left_title = (string) get_the_title($left_id);
+                $right_title = (string) get_the_title($right_id);
+                $compared = function_exists('ll_tools_locale_compare_strings')
+                    ? ll_tools_locale_compare_strings($left_title, $right_title, $title_language)
+                    : strnatcasecmp($left_title, $right_title);
+                if ($compared !== 0) {
+                    return $compared;
+                }
+
+                return $left_id <=> $right_id;
+            });
+        }
+
+        $total = count($filtered_ids);
+        $total_pages = max(1, (int) ceil($total / $per_page));
+        if ($total === 0) {
+            return [
+                'items' => [],
+                'total' => 0,
+                'page' => 1,
+                'per_page' => $per_page,
+                'total_pages' => 1,
+                'search' => $search,
+                'letter' => $letter,
+                'wordset_id' => $wordset_id,
+                'pos_slug' => $pos_slug,
+                'preferred_languages' => $preferred_languages,
+            ];
+        }
+
+        if ($page > $total_pages) {
+            $page = $total_pages;
+        }
+        $offset = ($page - 1) * $per_page;
+        $ids = array_slice($filtered_ids, $offset, $per_page);
+
+        if (!empty($ids)) {
+            update_postmeta_cache($ids);
+        }
+
+        $items = [];
+        foreach ($ids as $entry_id) {
+            $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit, $preferred_languages);
+            if (!empty($item)) {
+                $items[] = $item;
+            }
+        }
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $per_page,
+            'total_pages' => $total_pages,
+            'search' => $search,
+            'letter' => $letter,
+            'wordset_id' => $wordset_id,
+            'pos_slug' => $pos_slug,
+            'preferred_languages' => $preferred_languages,
+        ];
     }
 
     $where_sql = implode(' AND ', $where);
@@ -1425,38 +1574,43 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
         ? (array) $wpdb->get_col($wpdb->prepare($sql, $params))
         : (array) $wpdb->get_col($sql);
 
-    $language = ($wordset_id > 0 && function_exists('ll_tools_get_wordset_title_language_label'))
-        ? (string) ll_tools_get_wordset_title_language_label([$wordset_id])
-        : '';
+    $language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
 
     $letters = [];
     foreach ($rows as $row) {
-        $letter = trim((string) $row);
+        $letter = ll_tools_dictionary_normalize_browse_letter((string) $row, $language);
         if ($letter === '') {
             continue;
         }
-        if (function_exists('mb_substr')) {
-            $letter = mb_substr($letter, 0, 1, 'UTF-8');
-        } else {
-            $letter = substr($letter, 0, 1);
-        }
-        if ($letter === '' || preg_match('/[\p{L}\p{N}]/u', $letter) !== 1) {
-            continue;
-        }
-        $letter = function_exists('ll_tools_uppercase_first_char_for_language')
-            ? ll_tools_uppercase_first_char_for_language($letter, $language)
-            : (function_exists('mb_strtoupper') ? mb_strtoupper($letter, 'UTF-8') : strtoupper($letter));
         $letters[$letter] = true;
     }
 
-    $letters = array_keys($letters);
-    usort($letters, static function (string $left, string $right): int {
+    $alphabet = ll_tools_dictionary_get_language_browse_alphabet($language);
+    $ordered = [];
+
+    foreach ($alphabet as $letter) {
+        if ($letter === '' || isset($ordered[$letter])) {
+            continue;
+        }
+        $ordered[$letter] = true;
+    }
+
+    $extras = array_values(array_diff(array_keys($letters), array_keys($ordered)));
+    usort($extras, static function (string $left, string $right) use ($language): int {
         return function_exists('ll_tools_locale_compare_strings')
-            ? ll_tools_locale_compare_strings($left, $right)
+            ? ll_tools_locale_compare_strings($left, $right, $language)
             : strnatcasecmp($left, $right);
     });
 
-    return $letters;
+    foreach ($extras as $letter) {
+        $ordered[$letter] = true;
+    }
+
+    if (empty($ordered)) {
+        return [];
+    }
+
+    return array_keys($ordered);
 }
 
 /**

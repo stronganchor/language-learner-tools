@@ -40,6 +40,14 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'def_lang' => 'Turkish',
             ],
             [
+                'entry' => 'Bari',
+                'definition' => 'shore',
+                'entry_type' => 'noun',
+                'page_number' => '17',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'Turkish',
+            ],
+            [
                 'entry' => 'Biya',
                 'definition' => 'come',
                 'entry_type' => 'verb',
@@ -62,8 +70,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'skip_review_rows' => true,
         ]);
 
-        $this->assertSame(3, (int) ($summary['rows_grouped'] ?? 0));
-        $this->assertSame(3, (int) ($summary['entries_created'] ?? 0));
+        $this->assertSame(4, (int) ($summary['rows_grouped'] ?? 0));
+        $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
 
         $roce_entry_id = ll_tools_dictionary_find_entry_by_title('Roce', $wordset_id);
         $this->assertGreaterThan(0, $roce_entry_id);
@@ -92,11 +100,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('linked word', strtolower($search_html));
 
         $_GET = [
+            'll_dictionary_letter' => 'B',
             'll_dictionary_page' => '2',
         ];
 
         $paged_html = do_shortcode(sprintf('[ll_dictionary wordset="%d" per_page="1"]', $wordset_id));
-        $this->assertStringContainsString('Showing 2-2 of 3', $paged_html);
+        $this->assertStringContainsString('Showing 2-2 of 2', $paged_html);
         $this->assertStringContainsString('Biya', $paged_html);
     }
 
@@ -209,6 +218,75 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Translations', $detail_html);
         $this->assertStringContainsString('Related Entries', $detail_html);
         $this->assertStringContainsString('Ava rê', $detail_html);
+    }
+
+    public function test_shortcode_starts_compact_and_exposes_language_specific_letter_browse(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $wordset = wp_insert_term('Zazaki Browse Wordset', 'wordset', ['slug' => 'zazaki-browse-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Ava',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Êvar',
+                'definition' => 'evening',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'İnce',
+                'definition' => 'thin',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Ûsiv',
+                'definition' => 'something',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'wordset_id' => $wordset_id,
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_review_rows' => true,
+        ]);
+
+        $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));
+
+        $_GET = [];
+        $idle_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $this->assertStringContainsString('ll-dictionary__toolbar is-collapsed', $idle_html);
+        $this->assertStringContainsString('name="ll_dictionary_q"', $idle_html);
+        $this->assertStringNotContainsString('ll-dictionary__results', $idle_html);
+        $this->assertStringNotContainsString('Showing 1-20', $idle_html);
+        $this->assertStringContainsString('ll_dictionary_letter=Ê', $idle_html);
+        $this->assertStringContainsString('ll_dictionary_letter=İ', $idle_html);
+        $this->assertStringContainsString('ll_dictionary_letter=Û', $idle_html);
+
+        $_GET = [
+            'll_dictionary_letter' => 'Ê',
+        ];
+        $letter_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $this->assertStringContainsString('Êvar', $letter_html);
+        $this->assertStringNotContainsString('Ava', $letter_html);
+        $this->assertStringContainsString('Showing 1-1 of 1', $letter_html);
     }
 
     private function ensurePartOfSpeechTerm(string $slug, string $label): void

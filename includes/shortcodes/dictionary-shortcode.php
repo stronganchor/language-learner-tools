@@ -990,9 +990,17 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
     if ($search !== '') {
         $letter = '';
     }
+    $has_active_browse_query = ($search !== '' || $letter !== '' || $pos_slug !== '');
 
-    $query = function_exists('ll_tools_dictionary_query_entries')
-        ? ll_tools_dictionary_query_entries([
+    $query = [
+        'items' => [],
+        'total' => 0,
+        'page' => 1,
+        'per_page' => max(1, (int) $atts['per_page']),
+        'total_pages' => 1,
+    ];
+    if ($has_active_browse_query && function_exists('ll_tools_dictionary_query_entries')) {
+        $query = ll_tools_dictionary_query_entries([
             'search' => $search,
             'letter' => $letter,
             'page' => $page,
@@ -1003,8 +1011,8 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
             'linked_word_limit' => max(0, (int) $atts['linked_word_limit']),
             'preferred_languages' => $preferred_languages,
             'post_status' => ['publish'],
-        ])
-        : ['items' => [], 'total' => 0, 'page' => 1, 'total_pages' => 1];
+        ]);
+    }
 
     $items = (array) ($query['items'] ?? []);
     $total = max(0, (int) ($query['total'] ?? 0));
@@ -1052,102 +1060,103 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         <?php if ($requested_entry_id > 0) : ?>
             <?php echo ll_tools_dictionary_render_detail_view($requested_entry_id, $base_url, $preferred_languages); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php else : ?>
-            <div class="ll-dictionary__toolbar">
+            <div class="ll-dictionary__toolbar<?php echo $has_active_browse_query ? ' is-expanded' : ' is-collapsed'; ?>">
                 <form class="ll-dictionary__form" method="get" action="<?php echo esc_url($base_url); ?>">
                     <?php echo ll_tools_dictionary_preserve_non_dictionary_query_inputs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    <div class="ll-dictionary__field ll-dictionary__field--search">
-                        <label class="screen-reader-text" for="ll-dictionary-search"><?php esc_html_e('Search dictionary', 'll-tools-text-domain'); ?></label>
-                        <input
-                            type="search"
-                            id="ll-dictionary-search"
-                            class="ll-dictionary__input"
-                            name="ll_dictionary_q"
-                            value="<?php echo esc_attr($search); ?>"
-                            placeholder="<?php echo esc_attr__('Search', 'll-tools-text-domain'); ?>"
-                        >
+                    <div class="ll-dictionary__search-row">
+                        <div class="ll-dictionary__field ll-dictionary__field--search">
+                            <label class="screen-reader-text" for="ll-dictionary-search"><?php esc_html_e('Search dictionary', 'll-tools-text-domain'); ?></label>
+                            <input
+                                type="search"
+                                id="ll-dictionary-search"
+                                class="ll-dictionary__input"
+                                name="ll_dictionary_q"
+                                value="<?php echo esc_attr($search); ?>"
+                                placeholder="<?php echo esc_attr__('Search dictionary', 'll-tools-text-domain'); ?>"
+                            >
+                        </div>
+                        <div class="ll-dictionary__actions ll-dictionary__actions--primary">
+                            <button class="ll-dictionary__button" type="submit"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
+                            <?php if ($has_active_browse_query) : ?>
+                                <a class="ll-dictionary__button ll-dictionary__button--ghost" href="<?php echo esc_url($reset_url); ?>"><?php esc_html_e('Reset', 'll-tools-text-domain'); ?></a>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                    <?php if (!empty($pos_options)) : ?>
-                        <div class="ll-dictionary__field ll-dictionary__field--select">
-                            <label class="screen-reader-text" for="ll-dictionary-pos"><?php esc_html_e('Filter by part of speech', 'll-tools-text-domain'); ?></label>
-                            <select id="ll-dictionary-pos" class="ll-dictionary__select" name="ll_dictionary_pos">
-                                <option value=""><?php esc_html_e('All types', 'll-tools-text-domain'); ?></option>
-                                <?php foreach ($pos_options as $option) : ?>
-                                    <option value="<?php echo esc_attr((string) $option['slug']); ?>" <?php selected($pos_slug, (string) $option['slug']); ?>>
+                    <div class="ll-dictionary__toolbar-panel">
+                        <?php if (!empty($pos_options)) : ?>
+                            <div class="ll-dictionary__field ll-dictionary__field--select">
+                                <label class="screen-reader-text" for="ll-dictionary-pos"><?php esc_html_e('Filter by part of speech', 'll-tools-text-domain'); ?></label>
+                                <select id="ll-dictionary-pos" class="ll-dictionary__select" name="ll_dictionary_pos">
+                                    <option value=""><?php esc_html_e('All types', 'll-tools-text-domain'); ?></option>
+                                    <?php foreach ($pos_options as $option) : ?>
+                                        <option value="<?php echo esc_attr((string) $option['slug']); ?>" <?php selected($pos_slug, (string) $option['slug']); ?>>
                                         <?php echo esc_html((string) $option['label']); ?>
                                     </option>
                                 <?php endforeach; ?>
-                            </select>
-                        </div>
-                    <?php endif; ?>
-                    <div class="ll-dictionary__actions">
-                        <button class="ll-dictionary__button" type="submit"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
-                        <?php if ($search !== '' || $letter !== '' || $pos_slug !== '') : ?>
-                            <a class="ll-dictionary__button ll-dictionary__button--ghost" href="<?php echo esc_url($reset_url); ?>"><?php esc_html_e('Reset', 'll-tools-text-domain'); ?></a>
+                                </select>
+                            </div>
+                        <?php endif; ?>
+                        <p class="ll-dictionary__hint"><?php esc_html_e('Type to search, or open the alphabet below.', 'll-tools-text-domain'); ?></p>
+                        <?php if (!empty($letters)) : ?>
+                            <nav class="ll-dictionary__letters" aria-label="<?php echo esc_attr__('Browse dictionary by letter', 'll-tools-text-domain'); ?>">
+                                <?php foreach ($letters as $browse_letter) : ?>
+                                    <?php
+                                    $browse_url = ll_tools_dictionary_build_url($base_url, [
+                                        'll_dictionary_letter' => (string) $browse_letter,
+                                        'll_dictionary_pos' => $pos_slug,
+                                    ]);
+                                    ?>
+                                    <a class="ll-dictionary__letter<?php echo $browse_letter === $letter ? ' is-active' : ''; ?>" href="<?php echo esc_url($browse_url); ?>">
+                                        <?php echo esc_html((string) $browse_letter); ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </nav>
                         <?php endif; ?>
                     </div>
                 </form>
+            </div>
 
-                <?php if (!empty($letters)) : ?>
-                    <nav class="ll-dictionary__letters" aria-label="<?php echo esc_attr__('Browse dictionary by letter', 'll-tools-text-domain'); ?>">
-                        <a class="ll-dictionary__letter<?php echo $letter === '' ? ' is-active' : ''; ?>" href="<?php echo esc_url(ll_tools_dictionary_build_url($base_url, [
-                            'll_dictionary_pos' => $pos_slug,
-                        ])); ?>">
-                            <?php esc_html_e('All', 'll-tools-text-domain'); ?>
-                        </a>
-                        <?php foreach ($letters as $browse_letter) : ?>
+            <?php if ($has_active_browse_query) : ?>
+                <div class="ll-dictionary__meta">
+                    <?php if ($total > 0) : ?>
+                        <p class="ll-dictionary__count">
                             <?php
-                            $browse_url = ll_tools_dictionary_build_url($base_url, [
-                                'll_dictionary_letter' => (string) $browse_letter,
-                                'll_dictionary_pos' => $pos_slug,
-                            ]);
+                            echo esc_html(sprintf(
+                                /* translators: 1: first visible result number, 2: last visible result number, 3: total result count */
+                                __('Showing %1$d-%2$d of %3$d', 'll-tools-text-domain'),
+                                $start_index,
+                                $end_index,
+                                $total
+                            ));
                             ?>
-                            <a class="ll-dictionary__letter<?php echo $browse_letter === $letter ? ' is-active' : ''; ?>" href="<?php echo esc_url($browse_url); ?>">
-                                <?php echo esc_html((string) $browse_letter); ?>
-                            </a>
-                        <?php endforeach; ?>
-                    </nav>
-                <?php endif; ?>
-            </div>
-
-            <div class="ll-dictionary__meta">
-                <?php if ($total > 0) : ?>
-                    <p class="ll-dictionary__count">
-                        <?php
-                        echo esc_html(sprintf(
-                            /* translators: 1: first visible result number, 2: last visible result number, 3: total result count */
-                            __('Showing %1$d-%2$d of %3$d', 'll-tools-text-domain'),
-                            $start_index,
-                            $end_index,
-                            $total
-                        ));
-                        ?>
-                    </p>
-                <?php else : ?>
-                    <p class="ll-dictionary__count"><?php esc_html_e('No entries found.', 'll-tools-text-domain'); ?></p>
-                <?php endif; ?>
-            </div>
-
-            <?php if (!empty($items)) : ?>
-                <div class="ll-dictionary__results">
-                    <?php foreach ($items as $item) : ?>
-                        <?php
-                        $entry_id = isset($item['id']) ? (int) $item['id'] : 0;
-                        $detail_url = $entry_id > 0
-                            ? ll_tools_dictionary_build_detail_url($base_url, $entry_id, $search, $letter, $pos_slug, $current_page)
-                            : '';
-                        ?>
-                        <?php echo ll_tools_dictionary_render_result_card((array) $item, $detail_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                    <?php endforeach; ?>
-                </div>
-                <?php echo ll_tools_dictionary_render_pagination($query, $base_url, $search, $letter, $pos_slug); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-            <?php else : ?>
-                <div class="ll-dictionary__empty">
-                    <?php if ($search !== '') : ?>
-                        <p><?php esc_html_e('Try a shorter query, another spelling, or switch to letter browsing.', 'll-tools-text-domain'); ?></p>
+                        </p>
                     <?php else : ?>
-                        <p><?php esc_html_e('Import a dictionary or migrate the legacy table to populate this view.', 'll-tools-text-domain'); ?></p>
+                        <p class="ll-dictionary__count"><?php esc_html_e('No entries found.', 'll-tools-text-domain'); ?></p>
                     <?php endif; ?>
                 </div>
+
+                <?php if (!empty($items)) : ?>
+                    <div class="ll-dictionary__results">
+                        <?php foreach ($items as $item) : ?>
+                            <?php
+                            $entry_id = isset($item['id']) ? (int) $item['id'] : 0;
+                            $detail_url = $entry_id > 0
+                                ? ll_tools_dictionary_build_detail_url($base_url, $entry_id, $search, $letter, $pos_slug, $current_page)
+                                : '';
+                            ?>
+                            <?php echo ll_tools_dictionary_render_result_card((array) $item, $detail_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php echo ll_tools_dictionary_render_pagination($query, $base_url, $search, $letter, $pos_slug); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                <?php else : ?>
+                    <div class="ll-dictionary__empty">
+                        <?php if ($search !== '') : ?>
+                            <p><?php esc_html_e('Try a shorter query, another spelling, or switch to letter browsing.', 'll-tools-text-domain'); ?></p>
+                        <?php else : ?>
+                            <p><?php esc_html_e('No entries matched this filter yet.', 'll-tools-text-domain'); ?></p>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
         <?php endif; ?>
     </section>
