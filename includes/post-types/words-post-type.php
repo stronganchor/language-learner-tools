@@ -1429,10 +1429,188 @@ function ll_words_bulk_reprocess_admin_notice() {
 add_action('admin_notices', 'll_words_bulk_reprocess_admin_notice');
 
 /**
+ * Build quick-edit category visibility IDs keyed by word set ID.
+ *
+ * Categories are grouped by their isolation origin so each word set prefers its
+ * isolated copy while still falling back to the shared source term if isolation
+ * is incomplete. Ancestors are included so the checklist tree keeps context.
+ *
+ * @return array<string,array<int,int>>
+ */
+function ll_words_get_quick_edit_category_ids_by_wordset(): array {
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($wordsets) || empty($wordsets)) {
+        return [];
+    }
+
+    $categories = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($categories) || empty($categories)) {
+        return [];
+    }
+
+    $source_by_origin = [];
+    $isolated_by_origin = [];
+
+    foreach ($categories as $category) {
+        if (!($category instanceof WP_Term) || $category->taxonomy !== 'word-category') {
+            continue;
+        }
+
+        $term_id = (int) $category->term_id;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $origin_id = function_exists('ll_tools_get_category_isolation_source_id')
+            ? (int) ll_tools_get_category_isolation_source_id($category)
+            : 0;
+        if ($origin_id <= 0) {
+            $origin_id = $term_id;
+        }
+
+        $owner_wordset_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($category)
+            : 0;
+
+        if ($owner_wordset_id > 0) {
+            if (!isset($isolated_by_origin[$origin_id])) {
+                $isolated_by_origin[$origin_id] = [];
+            }
+
+            if (
+                !isset($isolated_by_origin[$origin_id][$owner_wordset_id])
+                || $term_id < (int) $isolated_by_origin[$origin_id][$owner_wordset_id]
+            ) {
+                $isolated_by_origin[$origin_id][$owner_wordset_id] = $term_id;
+            }
+            continue;
+        }
+
+        if (!isset($source_by_origin[$origin_id]) || $term_id < (int) $source_by_origin[$origin_id]) {
+            $source_by_origin[$origin_id] = $term_id;
+        }
+    }
+
+    $origin_ids = array_values(array_unique(array_merge(
+        array_map('intval', array_keys($source_by_origin)),
+        array_map('intval', array_keys($isolated_by_origin))
+    )));
+    sort($origin_ids, SORT_NUMERIC);
+
+    $category_ids_by_wordset = [];
+    foreach ($wordsets as $wordset) {
+        if (!($wordset instanceof WP_Term) || $wordset->taxonomy !== 'wordset') {
+            continue;
+        }
+
+        $wordset_id = (int) $wordset->term_id;
+        if ($wordset_id <= 0) {
+            continue;
+        }
+
+        $visible_ids = [];
+        foreach ($origin_ids as $origin_id) {
+            $effective_id = isset($isolated_by_origin[$origin_id][$wordset_id])
+                ? (int) $isolated_by_origin[$origin_id][$wordset_id]
+                : (int) ($source_by_origin[$origin_id] ?? 0);
+            if ($effective_id <= 0) {
+                continue;
+            }
+
+            $visible_ids[$effective_id] = $effective_id;
+            foreach ((array) get_ancestors($effective_id, 'word-category', 'taxonomy') as $ancestor_id) {
+                $ancestor_id = (int) $ancestor_id;
+                if ($ancestor_id > 0) {
+                    $visible_ids[$ancestor_id] = $ancestor_id;
+                }
+            }
+        }
+
+        $ids = array_values(array_map('intval', array_keys($visible_ids)));
+        sort($ids, SORT_NUMERIC);
+        $category_ids_by_wordset[(string) $wordset_id] = $ids;
+    }
+
+    return $category_ids_by_wordset;
+}
+
+/**
+ * Build quick-edit word set term rows for client-side scope resolution.
+ *
+ * @return array<int,array{id:int,name:string,slug:string}>
+ */
+function ll_words_get_quick_edit_wordset_rows(): array {
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($wordsets) || empty($wordsets)) {
+        return [];
+    }
+
+    usort($wordsets, static function (WP_Term $left, WP_Term $right): int {
+        $left_name = (string) $left->name;
+        $right_name = (string) $right->name;
+
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            $cmp = ll_tools_locale_compare_strings($left_name, $right_name);
+        } else {
+            $cmp = strnatcasecmp($left_name, $right_name);
+        }
+
+        return ($cmp !== 0) ? $cmp : (((int) $left->term_id) <=> ((int) $right->term_id));
+    });
+
+    $rows = [];
+    foreach ($wordsets as $wordset) {
+        if (!($wordset instanceof WP_Term) || $wordset->taxonomy !== 'wordset') {
+            continue;
+        }
+
+        $rows[] = [
+            'id' => (int) $wordset->term_id,
+            'name' => (string) $wordset->name,
+            'slug' => (string) $wordset->slug,
+        ];
+    }
+
+    return $rows;
+}
+
+/**
+ * Build the localized quick-edit scope configuration for words list tables.
+ *
+ * @return array<string,mixed>
+ */
+function ll_words_get_quick_edit_scope_config(): array {
+    return [
+        'wordsets' => ll_words_get_quick_edit_wordset_rows(),
+        'categoryIdsByWordset' => ll_words_get_quick_edit_category_ids_by_wordset(),
+        'strings' => [
+            'selectWordsetNotice' => __('Select a word set to edit categories.', 'll-tools-text-domain'),
+            'outOfScopeCategoryTitle' => __('This category is currently assigned but does not belong to the selected word set.', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+/**
  * Enqueue admin script for bulk edit category handling
  */
 function ll_words_enqueue_bulk_edit_script($hook) {
     ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/bulk-category-edit.js', 'll_words_get_common_categories');
+
+    global $pagenow, $typenow;
+    if ($pagenow !== 'edit.php' || $typenow !== 'words') {
+        return;
+    }
+
+    wp_localize_script('ll-words-bulk-edit', 'llWordsQuickEditData', ll_words_get_quick_edit_scope_config());
 }
 add_action('admin_enqueue_scripts', 'll_words_enqueue_bulk_edit_script');
 
