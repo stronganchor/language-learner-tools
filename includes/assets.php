@@ -184,6 +184,10 @@ function ll_tools_request_needs_public_assets(): bool {
         return true;
     }
 
+    if (is_singular('ll_content_lesson')) {
+        return true;
+    }
+
     if (is_singular()) {
         $post = get_post();
         if ($post instanceof WP_Post && ll_tools_post_content_has_public_assets_shortcodes($post)) {

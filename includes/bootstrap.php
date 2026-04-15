@@ -24,6 +24,7 @@ require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
+require_once(__DIR__ . '/post-types/content-lesson-post-type.php');
 require_once(__DIR__ . '/lib/dictionary-sources.php');
 require_once(__DIR__ . '/lib/dictionary-browser.php');
 
@@ -106,6 +107,7 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
     ll_tools_register_autopage_activation(LL_TOOLS_MAIN_FILE);
 }
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
+require_once(__DIR__ . '/pages/content-lesson-pages.php');
 require_once(__DIR__ . '/pages/wordset-games.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');

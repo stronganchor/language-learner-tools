@@ -141,6 +141,13 @@ if (have_posts()) {
     $category_slug = ($category && !is_wp_error($category)) ? $category->slug : '';
     $category_name = ($category && !is_wp_error($category)) ? $category->name : $display_name;
     $embed_base = ($category_slug !== '') ? home_url('/embed/' . $category_slug) : '';
+    $related_content_lessons = (
+        $wordset_id > 0
+        && $category_id > 0
+        && function_exists('ll_tools_get_content_lessons_for_vocab_lesson')
+    )
+        ? ll_tools_get_content_lessons_for_vocab_lesson($wordset_id, $category_id)
+        : [];
     $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
     $mode_labels = [
         'practice'  => __('Practice', 'll-tools-text-domain'),
@@ -899,6 +906,16 @@ if (have_posts()) {
         </header>
 
         <div class="ll-vocab-lesson-content">
+            <?php
+            if (!empty($related_content_lessons) && function_exists('ll_tools_render_content_lesson_cards')) {
+                echo ll_tools_render_content_lesson_cards($related_content_lessons, [
+                    'title' => __('From Main Lessons', 'll-tools-text-domain'),
+                    'description' => __('Return to the main audio/video lesson that introduced this vocabulary.', 'll-tools-text-domain'),
+                    'context' => 'vocab',
+                    'open_label' => __('Open main lesson', 'll-tools-text-domain'),
+                ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+            }
+            ?>
             <?php if ($defer_grid && is_array($grid_shell_spec)) : ?>
                 <div
                     class="ll-vocab-lesson-grid-shell is-loading"

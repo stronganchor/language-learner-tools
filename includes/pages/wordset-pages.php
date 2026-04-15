@@ -7071,6 +7071,20 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             </section>
 
+            <?php
+            if (function_exists('ll_tools_get_content_lessons_for_wordset') && function_exists('ll_tools_render_content_lesson_cards')) {
+                $wordset_content_lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
+                if (!empty($wordset_content_lessons)) {
+                    echo ll_tools_render_content_lesson_cards($wordset_content_lessons, [
+                        'title' => __('Main Lessons', 'll-tools-text-domain'),
+                        'description' => __('Start with a story or video lesson, then open the related vocab drills below.', 'll-tools-text-domain'),
+                        'context' => 'wordset',
+                        'open_label' => __('Open main lesson', 'll-tools-text-domain'),
+                    ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                }
+            }
+            ?>
+
             <?php if (empty($visible_categories)) : ?>
                 <div class="ll-wordset-empty">
                     <?php if ($show_enable_lessons_button) : ?>

@@ -152,7 +152,7 @@ if (!function_exists('ll_tools_get_dashboard_related_page_title_map')) {
 
 if (!function_exists('ll_tools_get_dashboard_related_post_types')) {
     function ll_tools_get_dashboard_related_post_types(): array {
-        return ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_vocab_lesson'];
+        return ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_vocab_lesson', 'll_content_lesson'];
     }
 }
 
@@ -630,6 +630,13 @@ function ll_tools_render_tools_hub_page() {
 
     $content_admin_links = [
         [
+            'label' => __('Content Lessons', 'll-tools-text-domain'),
+            'description' => __('Edit main audio/video lessons and synced transcript content.', 'll-tools-text-domain'),
+            'url' => admin_url('edit.php?post_type=ll_content_lesson'),
+            'cap' => 'view_ll_tools',
+            'icon' => 'dashicons-format-audio',
+        ],
+        [
             'label' => __('Vocab Lessons', 'll-tools-text-domain'),
             'description' => __('Edit lesson post content and ordering used for vocab lesson pages.', 'll-tools-text-domain'),
             'url' => admin_url('edit.php?post_type=ll_vocab_lesson'),
@@ -714,6 +721,7 @@ function ll_tools_hide_legacy_admin_menu_entries() {
     remove_menu_page('edit.php?post_type=words');
     remove_menu_page('edit.php?post_type=word_images');
     remove_menu_page('edit.php?post_type=ll_vocab_lesson');
+    remove_menu_page('edit.php?post_type=ll_content_lesson');
 }
 add_action('admin_menu', 'll_tools_hide_legacy_admin_menu_entries', 999);
 
@@ -753,7 +761,7 @@ function ll_tools_force_dashboard_parent_file($parent_file) {
     }
 
     $screen = get_current_screen();
-    $tracked_post_types = ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_vocab_lesson'];
+    $tracked_post_types = ['words', 'word_images', 'word_audio', 'll_dictionary_entry', 'll_vocab_lesson', 'll_content_lesson'];
     if ($screen instanceof WP_Screen) {
         if (!empty($screen->post_type) && in_array($screen->post_type, $tracked_post_types, true)) {
             return $menu_slug;
@@ -817,6 +825,7 @@ function ll_tools_force_dashboard_submenu_file($submenu_file) {
                 'word_audio' => 'edit.php?post_type=word_audio',
                 'll_dictionary_entry' => 'edit.php?post_type=ll_dictionary_entry',
                 'll_vocab_lesson' => ll_tools_get_tools_hub_page_slug(),
+                'll_content_lesson' => ll_tools_get_tools_hub_page_slug(),
             ];
             if (isset($map[$screen->post_type])) {
                 return $map[$screen->post_type];
