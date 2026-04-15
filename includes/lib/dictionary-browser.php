@@ -1176,6 +1176,9 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     }
 
     $saved_entry_id = (int) $saved_entry_id;
+    if (function_exists('ll_tools_get_dictionary_entry_import_key')) {
+        ll_tools_get_dictionary_entry_import_key($saved_entry_id, true);
+    }
     update_post_meta($saved_entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $merged_senses);
 
     if ($translation !== '') {

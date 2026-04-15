@@ -87,6 +87,18 @@
     margin-top: 14px;
 }
 
+.ll-dictionary-import-admin__history {
+    max-width: 980px;
+}
+
+.ll-dictionary-import-admin__undo-form {
+    margin: 0;
+}
+
+.ll-dictionary-import-admin__undo-form .button {
+    margin: 0;
+}
+
 @media (max-width: 782px) {
     .ll-dictionary-import-admin__status-head {
         flex-direction: column;

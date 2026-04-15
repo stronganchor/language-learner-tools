@@ -19,7 +19,7 @@ jQuery(function ($) {
     var processing = false;
 
     function setBusy(isBusy) {
-        $('#ll-dictionary-import-form :submit, #ll-dictionary-legacy-form :submit').prop('disabled', !!isBusy);
+        $('[data-ll-dictionary-job-form] :submit').prop('disabled', !!isBusy);
     }
 
     function showRuntime() {
@@ -197,19 +197,16 @@ jQuery(function ($) {
         });
     }
 
-    $('#ll-dictionary-import-form').on('submit', function (event) {
+    $('[data-ll-dictionary-job-form]').on('submit', function (event) {
         event.preventDefault();
-        startJobFromForm(this);
-    });
-
-    $('#ll-dictionary-legacy-form').on('submit', function (event) {
-        event.preventDefault();
-        var $legacyForm = $(this);
-        $legacyForm.find('input[name="ll_dictionary_wordset_id"]').val($('#ll-dictionary-wordset').val() || '0');
-        $legacyForm.find('input[name="ll_dictionary_entry_lang"]').val($('#ll-dictionary-entry-lang').val() || '');
-        $legacyForm.find('input[name="ll_dictionary_def_lang"]').val($('#ll-dictionary-def-lang').val() || '');
-        $legacyForm.find('input[name="ll_dictionary_skip_review_rows"]').val($('input[name="ll_dictionary_skip_review_rows"]').is(':checked') ? '1' : '0');
-        $legacyForm.find('input[name="ll_dictionary_replace_existing_senses"]').val($('input[name="ll_dictionary_replace_existing_senses"]').is(':checked') ? '1' : '0');
+        var $form = $(this);
+        if ($form.attr('id') === 'll-dictionary-legacy-form') {
+            $form.find('input[name="ll_dictionary_wordset_id"]').val($('#ll-dictionary-wordset').val() || '0');
+            $form.find('input[name="ll_dictionary_entry_lang"]').val($('#ll-dictionary-entry-lang').val() || '');
+            $form.find('input[name="ll_dictionary_def_lang"]').val($('#ll-dictionary-def-lang').val() || '');
+            $form.find('input[name="ll_dictionary_skip_review_rows"]').val($('input[name="ll_dictionary_skip_review_rows"]').is(':checked') ? '1' : '0');
+            $form.find('input[name="ll_dictionary_replace_existing_senses"]').val($('input[name="ll_dictionary_replace_existing_senses"]').is(':checked') ? '1' : '0');
+        }
         startJobFromForm(this);
     });
 

@@ -5,24 +5,42 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 {
     protected function tearDown(): void
     {
-        $last_job_id = function_exists('ll_tools_dictionary_import_get_last_job_id')
-            ? ll_tools_dictionary_import_get_last_job_id(get_current_user_id())
-            : '';
-        if ($last_job_id !== '' && function_exists('ll_tools_dictionary_import_get_job')) {
-            $job = ll_tools_dictionary_import_get_job($last_job_id);
-            if (is_array($job) && function_exists('ll_tools_dictionary_import_delete_path')) {
-                ll_tools_dictionary_import_delete_path((string) ($job['job_dir'] ?? ''));
+        global $wpdb;
+
+        if (function_exists('ll_tools_dictionary_import_get_job_option_key')) {
+            $like = $wpdb->esc_like(LL_TOOLS_DICTIONARY_IMPORT_JOB_OPTION_PREFIX) . '%';
+            $option_names = $wpdb->get_col($wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $like
+            ));
+            foreach ((array) $option_names as $option_name) {
+                $job = get_option((string) $option_name);
+                if (is_array($job) && function_exists('ll_tools_dictionary_import_delete_path')) {
+                    ll_tools_dictionary_import_delete_path((string) ($job['job_dir'] ?? ''));
+                }
+                delete_option((string) $option_name);
             }
-            delete_option(ll_tools_dictionary_import_get_job_option_key($last_job_id));
         }
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
+        }
+        if (function_exists('ll_tools_dictionary_import_read_history')) {
+            foreach (ll_tools_dictionary_import_read_history() as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $backup_path = (string) ($entry['backup_snapshot_path'] ?? '');
+                if ($backup_path !== '' && file_exists($backup_path)) {
+                    @unlink($backup_path);
+                }
+            }
         }
         $_GET = [];
         $_POST = [];
         $_FILES = [];
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
         unset($GLOBALS['ll_tools_dictionary_source_registry_cache']);
         parent::tearDown();
     }
@@ -465,6 +483,212 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $detail_html = do_shortcode('[ll_dictionary]');
         $this->assertStringContainsString('Palu Wordset', $detail_html);
         $this->assertStringContainsString('Bingol Wordset', $detail_html);
+    }
+
+    public function test_dictionary_snapshot_override_and_undo_preserve_linked_words(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        ll_tools_update_dictionary_source_registry([
+            [
+                'id' => 'dezd',
+                'label' => 'DEZD',
+                'attribution_text' => 'Original DEZD attribution.',
+                'attribution_url' => 'https://example.com/dezd',
+                'default_dialects' => [],
+            ],
+            [
+                'id' => 'harun',
+                'label' => 'Harun Turgut',
+                'attribution_text' => 'Original Harun attribution.',
+                'attribution_url' => 'https://example.com/harun',
+                'default_dialects' => ['Palu - Bingöl'],
+            ],
+        ]);
+
+        $dar_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree',
+                'entry_type' => 'noun',
+                'source_dictionary' => 'Harun Turgut',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($dar_result);
+
+        $roc_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Roc',
+                'definition' => 'day',
+                'entry_type' => 'noun',
+                'source_dictionary' => 'DEZD',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($roc_result);
+
+        $dar_entry_id = (int) ($dar_result['entry_id'] ?? 0);
+        $roc_entry_id = (int) ($roc_result['entry_id'] ?? 0);
+        $this->assertGreaterThan(0, $dar_entry_id);
+        $this->assertGreaterThan(0, $roc_entry_id);
+
+        $dar_import_key = ll_tools_get_dictionary_entry_import_key($dar_entry_id, true);
+        $this->assertNotSame('', $dar_import_key);
+
+        $palu_wordset = wp_insert_term('Palu Snapshot Wordset', 'wordset', ['slug' => 'palu-snapshot-wordset']);
+        $bingol_wordset = wp_insert_term('Bingol Snapshot Wordset', 'wordset', ['slug' => 'bingol-snapshot-wordset']);
+        $this->assertIsArray($palu_wordset);
+        $this->assertIsArray($bingol_wordset);
+        $palu_wordset_id = (int) $palu_wordset['term_id'];
+        $bingol_wordset_id = (int) $bingol_wordset['term_id'];
+
+        $palu_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Dar',
+        ]);
+        wp_set_object_terms($palu_word_id, [$palu_wordset_id], 'wordset', false);
+        update_post_meta($palu_word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $dar_entry_id);
+
+        $bingol_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Dar',
+        ]);
+        wp_set_object_terms($bingol_word_id, [$bingol_wordset_id], 'wordset', false);
+        update_post_meta($bingol_word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $dar_entry_id);
+
+        $snapshot = ll_tools_dictionary_build_snapshot();
+        $this->assertSame(2, (int) ($snapshot['entry_count'] ?? 0));
+        $this->assertSame('ll-tools-dictionary-snapshot', $snapshot['format'] ?? '');
+
+        $snapshot['sources'] = [
+            [
+                'id' => 'dezd',
+                'label' => 'DEZD',
+                'attribution_text' => 'Updated DEZD attribution.',
+                'attribution_url' => 'https://example.com/dezd-updated',
+                'default_dialects' => ['Siverek'],
+            ],
+            [
+                'id' => 'harun',
+                'label' => 'Harun Turgut',
+                'attribution_text' => 'Updated Harun attribution.',
+                'attribution_url' => 'https://example.com/harun-updated',
+                'default_dialects' => ['Palu - Bingöl'],
+            ],
+        ];
+
+        $snapshot['entries'] = array_values(array_filter(array_map(static function (array $entry): ?array {
+            if (($entry['title'] ?? '') === 'Roc') {
+                return null;
+            }
+            if (($entry['title'] ?? '') === 'Dar') {
+                $entry['translation'] = 'tree updated';
+                $entry['senses'][0]['definition'] = 'tree updated';
+                $entry['senses'][0]['source_id'] = 'harun';
+                $entry['senses'][0]['source_dictionary'] = 'Harun Turgut';
+                return $entry;
+            }
+
+            return $entry;
+        }, (array) ($snapshot['entries'] ?? []))));
+
+        $snapshot['entries'][] = [
+            'import_key' => ll_tools_dictionary_generate_import_key(),
+            'title' => 'Ava',
+            'status' => 'publish',
+            'translation' => 'water',
+            'wordset' => null,
+            'senses' => [
+                [
+                    'definition' => 'water',
+                    'entry_type' => 'noun',
+                    'entry_lang' => 'Zazaki',
+                    'def_lang' => 'English',
+                    'source_id' => 'dezd',
+                    'source_dictionary' => 'DEZD',
+                    'dialects' => ['Siverek'],
+                    'translations' => [
+                        'en' => 'water',
+                    ],
+                ],
+            ],
+        ];
+        $snapshot['entry_count'] = count($snapshot['entries']);
+
+        $job = ll_tools_dictionary_import_create_snapshot_job_from_snapshot($snapshot, [
+            'snapshot_mode' => 'override',
+        ], 'dictionary-site.json');
+        $this->assertIsArray($job);
+        $this->assertSame('running', $job['status']);
+        $this->assertNotSame('', (string) ($job['backup_snapshot_path'] ?? ''));
+        $this->assertFileExists((string) $job['backup_snapshot_path']);
+
+        while (is_array($job) && (string) ($job['status'] ?? '') === 'running') {
+            $job = ll_tools_dictionary_import_process_job($job);
+        }
+
+        $this->assertIsArray($job);
+        $this->assertSame('completed', $job['status']);
+        $this->assertSame(1, (int) ($job['summary']['entries_created'] ?? 0));
+        $this->assertGreaterThanOrEqual(1, (int) ($job['summary']['entries_updated'] ?? 0));
+        $this->assertSame(1, (int) ($job['summary']['entries_deleted'] ?? 0));
+
+        $dar_entry_after_id = ll_tools_dictionary_find_entry_by_import_key($dar_import_key);
+        $this->assertSame($dar_entry_id, $dar_entry_after_id);
+        $this->assertContains($palu_word_id, ll_tools_get_dictionary_entry_word_ids($dar_entry_after_id, -1));
+        $this->assertContains($bingol_word_id, ll_tools_get_dictionary_entry_word_ids($dar_entry_after_id, -1));
+        $this->assertSame('tree updated', ll_tools_get_dictionary_entry_translation($dar_entry_after_id));
+        $this->assertSame(0, ll_tools_dictionary_find_entry_by_title('Roc', 0));
+        $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
+
+        $sources_after_override = ll_tools_get_dictionary_source_registry();
+        $this->assertSame('Updated DEZD attribution.', $sources_after_override['dezd']['attribution_text'] ?? '');
+        $this->assertSame('https://example.com/harun-updated', $sources_after_override['harun']['attribution_url'] ?? '');
+
+        $history = ll_tools_dictionary_import_read_history();
+        $this->assertNotEmpty($history);
+        $latest_history = $history[0];
+        $this->assertSame('snapshot', $latest_history['type'] ?? '');
+        $this->assertSame('dictionary-site.json', $latest_history['source_label'] ?? '');
+
+        $undo_job = ll_tools_dictionary_import_create_undo_job((string) ($latest_history['id'] ?? ''));
+        $this->assertIsArray($undo_job);
+
+        while (is_array($undo_job) && (string) ($undo_job['status'] ?? '') === 'running') {
+            $undo_job = ll_tools_dictionary_import_process_job($undo_job);
+        }
+
+        $this->assertIsArray($undo_job);
+        $this->assertSame('completed', $undo_job['status']);
+        $this->assertSame($dar_entry_id, ll_tools_dictionary_find_entry_by_import_key($dar_import_key));
+        $this->assertSame('tree', ll_tools_get_dictionary_entry_translation($dar_entry_id));
+        $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Roc', 0));
+        $this->assertSame(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
+        $this->assertContains($palu_word_id, ll_tools_get_dictionary_entry_word_ids($dar_entry_id, -1));
+        $this->assertContains($bingol_word_id, ll_tools_get_dictionary_entry_word_ids($dar_entry_id, -1));
+
+        $history_after_undo = ll_tools_dictionary_import_read_history();
+        $this->assertNotEmpty($history_after_undo);
+        $this->assertSame('undo', $history_after_undo[0]['history_mode'] ?? '');
+        $this->assertNotEmpty($history_after_undo[1]['undone_at'] ?? 0);
+
+        $sources_after_undo = ll_tools_get_dictionary_source_registry();
+        $this->assertSame('Original DEZD attribution.', $sources_after_undo['dezd']['attribution_text'] ?? '');
+        $this->assertSame('https://example.com/harun', $sources_after_undo['harun']['attribution_url'] ?? '');
     }
 
     public function test_shortcode_starts_compact_and_exposes_language_specific_letter_browse(): void
