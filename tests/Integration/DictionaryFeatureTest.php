@@ -570,6 +570,106 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($second_item['linked_word_count'] ?? 0));
     }
 
+    public function test_find_entry_by_title_backfills_lookup_meta_without_wordset_join_regression(): void
+    {
+        $wordset = wp_insert_term('Legacy Dictionary Wordset', 'wordset', ['slug' => 'legacy-dictionary-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Legacy Dar',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
+        delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY);
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $resolved_id = ll_tools_dictionary_find_entry_by_title('Legacy Dar', $wordset_id);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame($entry_id, $resolved_id);
+        $this->assertSame('legacy dar', (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY, true));
+
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString('ll_dictionary_entry_lookup_title', $queries_sql);
+        $this->assertStringNotContainsString('ll_dictionary_entry_wordset_id', $queries_sql);
+        $this->assertStringNotContainsString('CAST(COALESCE', $queries_sql);
+        $this->assertStringNotContainsString('ORDER BY p.ID ASC LIMIT 1', $queries_sql);
+    }
+
+    public function test_dictionary_letter_browse_avoids_search_meta_join_regression(): void
+    {
+        global $wpdb;
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $first = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $second = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Dımılki',
+                'definition' => 'Zazaki',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($first);
+        $this->assertIsArray($second);
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $results = ll_tools_dictionary_query_entries([
+                'letter' => 'D',
+                'page' => 1,
+                'per_page' => 10,
+                'sense_limit' => 1,
+                'linked_word_limit' => 0,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $this->assertSame(2, (int) ($results['total'] ?? 0));
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString("SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'", $queries_sql);
+        $this->assertStringNotContainsString('lookup_title.meta_value', $queries_sql);
+        $this->assertStringNotContainsString('lookup_translation.meta_value', $queries_sql);
+        $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
+    }
+
     public function test_dictionary_entry_detail_spans_multiple_wordsets_when_words_share_one_entry(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
