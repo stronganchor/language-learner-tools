@@ -41,7 +41,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION);
         unset($GLOBALS['ll_tools_dictionary_source_registry_cache']);
+        unset($GLOBALS['ll_tools_dictionary_browser_cache_version']);
         parent::tearDown();
     }
 
@@ -407,6 +409,165 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('License and attribution details', $detail_html);
         $this->assertStringContainsString('https://example.com/dezd-license', $detail_html);
         $this->assertStringContainsString('https://example.com/harun-license', $detail_html);
+    }
+
+    public function test_dictionary_scope_filter_index_refreshes_after_source_and_entry_updates(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $wordset = wp_insert_term('Dictionary Cache Wordset', 'wordset', ['slug' => 'dictionary-cache-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, 'll_language', 'zza');
+
+        ll_tools_update_dictionary_source_registry([
+            [
+                'id' => 'harun',
+                'label' => 'Harun Turgut',
+                'attribution_text' => 'Original attribution.',
+                'attribution_url' => 'https://example.com/harun',
+                'default_dialects' => ['Palu - Bingöl'],
+            ],
+        ]);
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Ava',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'source_id' => 'harun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'wordset_id' => $wordset_id,
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_review_rows' => true,
+        ]);
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $initial_index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
+        $this->assertContains('A', (array) ($initial_index['letters'] ?? []));
+        $this->assertContains('Palu - Bingöl', (array) ($initial_index['dialect_options'] ?? []));
+        $this->assertSame('noun', (string) ($initial_index['pos_options'][0]['slug'] ?? ''));
+        $this->assertSame('Harun Turgut', (string) ($initial_index['source_options'][0]['label'] ?? ''));
+
+        ll_tools_update_dictionary_source_registry([
+            [
+                'id' => 'harun',
+                'label' => 'Harun Updated',
+                'attribution_text' => 'Updated attribution.',
+                'attribution_url' => 'https://example.com/harun-updated',
+                'default_dialects' => ['Palu - Bingöl'],
+            ],
+        ]);
+
+        $updated_index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
+        $this->assertSame('Harun Updated', (string) ($updated_index['source_options'][0]['label'] ?? ''));
+
+        $follow_up_summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Êvar',
+                'definition' => 'evening',
+                'entry_type' => 'noun',
+                'source_id' => 'harun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'wordset_id' => $wordset_id,
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_review_rows' => true,
+        ]);
+
+        $this->assertSame(1, (int) ($follow_up_summary['entries_created'] ?? 0));
+        $this->assertContains('Ê', ll_tools_dictionary_get_available_letters($wordset_id));
+    }
+
+    public function test_dictionary_query_cache_refreshes_after_linked_word_updates(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $entry_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($entry_result);
+        $entry_id = (int) ($entry_result['entry_id'] ?? 0);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $palu_wordset = wp_insert_term('Palu Cache Wordset', 'wordset', ['slug' => 'palu-cache-wordset']);
+        $bingol_wordset = wp_insert_term('Bingol Cache Wordset', 'wordset', ['slug' => 'bingol-cache-wordset']);
+        $this->assertIsArray($palu_wordset);
+        $this->assertIsArray($bingol_wordset);
+        $palu_wordset_id = (int) $palu_wordset['term_id'];
+        $bingol_wordset_id = (int) $bingol_wordset['term_id'];
+
+        $palu_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Dar',
+        ]);
+        update_post_meta($palu_word_id, 'word_translation', 'tree');
+        wp_set_object_terms($palu_word_id, [$palu_wordset_id], 'wordset', false);
+        $this->assertIsArray(ll_tools_assign_dictionary_entry_to_word($palu_word_id, $entry_id, ''));
+
+        $first_query = ll_tools_dictionary_query_entries([
+            'search' => 'Dar',
+            'page' => 1,
+            'per_page' => 5,
+            'sense_limit' => 1,
+            'linked_word_limit' => 4,
+            'post_status' => ['publish'],
+        ]);
+
+        $this->assertSame(1, (int) ($first_query['total'] ?? 0));
+        $first_item = (array) (($first_query['items'][0] ?? []));
+        $this->assertSame(1, (int) ($first_item['linked_word_count'] ?? 0));
+        $this->assertSame(['Palu Cache Wordset'], array_values(array_map('strval', (array) ($first_item['wordset_names'] ?? []))));
+
+        $bingol_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Dar',
+        ]);
+        update_post_meta($bingol_word_id, 'word_translation', 'tree');
+        wp_set_object_terms($bingol_word_id, [$bingol_wordset_id], 'wordset', false);
+        $this->assertIsArray(ll_tools_assign_dictionary_entry_to_word($bingol_word_id, $entry_id, ''));
+
+        $second_query = ll_tools_dictionary_query_entries([
+            'search' => 'Dar',
+            'page' => 1,
+            'per_page' => 5,
+            'sense_limit' => 1,
+            'linked_word_limit' => 4,
+            'post_status' => ['publish'],
+        ]);
+
+        $this->assertSame(1, (int) ($second_query['total'] ?? 0));
+        $second_item = (array) (($second_query['items'][0] ?? []));
+        $wordset_names = array_values(array_map('strval', (array) ($second_item['wordset_names'] ?? [])));
+        sort($wordset_names);
+        $this->assertSame(['Bingol Cache Wordset', 'Palu Cache Wordset'], $wordset_names);
+        $this->assertSame(2, (int) ($second_item['linked_word_count'] ?? 0));
     }
 
     public function test_dictionary_entry_detail_spans_multiple_wordsets_when_words_share_one_entry(): void

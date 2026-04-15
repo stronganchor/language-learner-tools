@@ -395,9 +395,34 @@ function ll_tools_dictionary_get_public_word_ids_for_entry(int $entry_id, int $l
  * @return array<int,array<string,mixed>>
  */
 function ll_tools_dictionary_collect_related_entries(int $entry_id, array $preferred_languages = [], int $limit = 6): array {
+    static $request_cache = [];
+
     $entry_id = (int) $entry_id;
     if ($entry_id <= 0 || !function_exists('ll_tools_is_dictionary_entry_id') || !ll_tools_is_dictionary_entry_id($entry_id)) {
         return [];
+    }
+
+    $normalized_preferred_languages = [];
+    foreach ($preferred_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key === '' || in_array($language_key, $normalized_preferred_languages, true)) {
+            continue;
+        }
+        $normalized_preferred_languages[] = $language_key;
+    }
+
+    $cache_args = [
+        'entry_id' => $entry_id,
+        'preferred_languages' => $normalized_preferred_languages,
+        'limit' => max(1, $limit),
+    ];
+    if (function_exists('ll_tools_dictionary_browser_get_cached_payload')) {
+        $cached = ll_tools_dictionary_browser_get_cached_payload('related_entries', $cache_args, $request_cache);
+        if (is_array($cached)) {
+            return $cached;
+        }
     }
 
     $title = trim((string) get_the_title($entry_id));
@@ -541,7 +566,18 @@ function ll_tools_dictionary_collect_related_entries(int $entry_id, array $prefe
             : strnatcasecmp($left_title, $right_title);
     });
 
-    return array_slice($related, 0, max(1, $limit));
+    $related = array_slice($related, 0, max(1, $limit));
+    if (function_exists('ll_tools_dictionary_browser_store_cached_payload')) {
+        return ll_tools_dictionary_browser_store_cached_payload(
+            'related_entries',
+            $cache_args,
+            $related,
+            10 * MINUTE_IN_SECONDS,
+            $request_cache
+        );
+    }
+
+    return $related;
 }
 
 function ll_tools_dictionary_render_badge(string $text, string $modifier = '', string $url = ''): string {
@@ -1131,18 +1167,24 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         : ($wordset_name !== '' ? $wordset_name : __('Dictionary', 'll-tools-text-domain'));
 
     $base_url = ll_tools_dictionary_get_current_base_url();
-    $letters = function_exists('ll_tools_dictionary_get_available_letters')
-        ? ll_tools_dictionary_get_available_letters($wordset_id)
-        : [];
-    $pos_options = function_exists('ll_tools_dictionary_get_pos_filter_options')
-        ? ll_tools_dictionary_get_pos_filter_options($wordset_id)
-        : [];
-    $source_options = function_exists('ll_tools_dictionary_get_source_filter_options')
-        ? ll_tools_dictionary_get_source_filter_options($wordset_id)
-        : [];
-    $dialect_options = function_exists('ll_tools_dictionary_get_dialect_filter_options')
-        ? ll_tools_dictionary_get_dialect_filter_options($wordset_id)
-        : [];
+    $letters = [];
+    $pos_options = [];
+    $source_options = [];
+    $dialect_options = [];
+    if ($requested_entry_id <= 0) {
+        $letters = function_exists('ll_tools_dictionary_get_available_letters')
+            ? ll_tools_dictionary_get_available_letters($wordset_id)
+            : [];
+        $pos_options = function_exists('ll_tools_dictionary_get_pos_filter_options')
+            ? ll_tools_dictionary_get_pos_filter_options($wordset_id)
+            : [];
+        $source_options = function_exists('ll_tools_dictionary_get_source_filter_options')
+            ? ll_tools_dictionary_get_source_filter_options($wordset_id)
+            : [];
+        $dialect_options = function_exists('ll_tools_dictionary_get_dialect_filter_options')
+            ? ll_tools_dictionary_get_dialect_filter_options($wordset_id)
+            : [];
+    }
     $reset_url = ll_tools_dictionary_build_url($base_url);
 
     ob_start();

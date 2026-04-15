@@ -149,6 +149,9 @@ function ll_tools_update_dictionary_source_registry($raw): array {
     $sources = ll_tools_dictionary_sanitize_source_registry($raw);
     update_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION, $sources, false);
     $GLOBALS['ll_tools_dictionary_source_registry_cache'] = $sources;
+    if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
 
     return $sources;
 }

@@ -7,6 +7,29 @@ const { execFileSync } = require('child_process');
 const ADMIN_USER = process.env.LL_E2E_ADMIN_USER || '';
 const ADMIN_PASS = process.env.LL_E2E_ADMIN_PASS || '';
 
+async function dismissAdminEmailVerification(page) {
+  if (!/action=confirm_admin_email/.test(page.url())) {
+    return;
+  }
+
+  const remindLaterLink = page.getByRole('link', { name: /Remind me later/i }).first();
+  if ((await remindLaterLink.count()) > 0) {
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
+      remindLaterLink.click()
+    ]);
+    return;
+  }
+
+  const confirmButton = page.getByRole('button', { name: /The email is correct/i }).first();
+  if ((await confirmButton.count()) > 0) {
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
+      confirmButton.click()
+    ]);
+  }
+}
+
 function psQuote(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
@@ -115,6 +138,7 @@ async function ensureLoggedIntoImportPage(page) {
     ]);
   }
 
+  await dismissAdminEmailVerification(page);
   await expect(page).toHaveURL(/\/wp-admin\/tools\.php\?page=ll-import/);
   await expect(previewImportForm(page).locator('#ll_import_existing')).toBeVisible({ timeout: 60000 });
 }

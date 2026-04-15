@@ -161,6 +161,12 @@ Wordset-boundary changes should also include:
 
 1. `tests/bin/run-e2e.sh specs/flashcard-loader-wordset-isolation.spec.js`
 
+Dictionary import/search changes should also include:
+
+1. `tests/bin/run-tests.sh Integration/DictionaryFeatureTest.php`
+2. `tests/bin/run-e2e.sh specs/admin-import-preview-undo.spec.js` when the admin importer flow changes
+3. Add or update a dedicated Playwright spec if the public `[ll_dictionary]` interaction model changes, because current browser coverage is still weighted toward admin import plus PHPUnit integration
+
 ## 9) Known Environment-Dependent Skips
 
 - `ExternalCsvBundleImportTest::test_import_decodes_windows_1255_csv_values_and_generates_quiz_page`

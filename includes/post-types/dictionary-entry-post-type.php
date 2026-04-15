@@ -113,14 +113,39 @@ function ll_tools_get_dictionary_entry_linked_wordset_ids($entry_id): array {
 }
 
 /**
- * Return all wordset IDs relevant to one dictionary entry.
+ * Parse one cached dictionary-entry scope index string.
  *
- * Explicit browse scope and linked learning wordsets are both included.
+ * @param string $scope_index Cached scope index.
+ * @return int[]
+ */
+function ll_tools_dictionary_parse_wordset_scope_index(string $scope_index): array {
+    $scope_index = trim((string) $scope_index);
+    if ($scope_index === '') {
+        return [];
+    }
+
+    $parts = array_values(array_filter(array_map('trim', explode('|', trim($scope_index, '|'))), static function (string $value): bool {
+        return $value !== '' && ctype_digit($value);
+    }));
+    if (empty($parts)) {
+        return [];
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $parts), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($ids, SORT_NUMERIC);
+
+    return $ids;
+}
+
+/**
+ * Recalculate relevant wordset IDs for one dictionary entry.
  *
  * @param int $entry_id Dictionary entry ID.
  * @return int[]
  */
-function ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id): array {
+function ll_tools_dictionary_recalculate_entry_scope_wordset_ids($entry_id): array {
     $entry_id = (int) $entry_id;
     if (!ll_tools_is_dictionary_entry_id($entry_id)) {
         return [];
@@ -142,6 +167,37 @@ function ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id): array {
     sort($scope_ids, SORT_NUMERIC);
 
     return $scope_ids;
+}
+
+/**
+ * Return all wordset IDs relevant to one dictionary entry.
+ *
+ * Explicit browse scope and linked learning wordsets are both included.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return int[]
+ */
+function ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id): array {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return [];
+    }
+
+    $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id);
+    $stored_scope_ids = ll_tools_dictionary_parse_wordset_scope_index(
+        (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY, true)
+    );
+
+    if (!empty($stored_scope_ids)) {
+        if ($explicit_wordset_id > 0 && !in_array($explicit_wordset_id, $stored_scope_ids, true)) {
+            $stored_scope_ids[] = $explicit_wordset_id;
+            sort($stored_scope_ids, SORT_NUMERIC);
+        }
+
+        return $stored_scope_ids;
+    }
+
+    return ll_tools_dictionary_recalculate_entry_scope_wordset_ids($entry_id);
 }
 
 /**
@@ -179,7 +235,9 @@ function ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id): void {
         delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY);
     }
 
-    $scope_index = ll_tools_dictionary_build_wordset_scope_index(ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id));
+    $scope_index = ll_tools_dictionary_build_wordset_scope_index(
+        ll_tools_dictionary_recalculate_entry_scope_wordset_ids($entry_id)
+    );
     if ($scope_index !== '') {
         update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY, $scope_index);
     } else {
@@ -204,9 +262,9 @@ function ll_tools_get_dictionary_entry_wordset_id($entry_id) {
         return $explicit_wordset_id;
     }
 
-    $linked_wordset_ids = ll_tools_get_dictionary_entry_linked_wordset_ids($entry_id);
-    if (count($linked_wordset_ids) === 1) {
-        return (int) $linked_wordset_ids[0];
+    $scope_wordset_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id);
+    if (count($scope_wordset_ids) === 1) {
+        return (int) $scope_wordset_ids[0];
     }
 
     return 0;
@@ -840,6 +898,9 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
         if ($previous_entry_id > 0 && $previous_entry_id !== $entry_id) {
             ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
         }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
         return [
             'entry_id'    => $entry_id,
             'entry_title' => (string) get_the_title($entry_id),
@@ -872,7 +933,7 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
             }
 
             $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($candidate_id);
-            $linked_wordset_ids = ll_tools_get_dictionary_entry_linked_wordset_ids($candidate_id);
+            $scope_wordset_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($candidate_id);
             $matches_wordset_context = function_exists('ll_tools_dictionary_entry_matches_wordset_context')
                 ? ll_tools_dictionary_entry_matches_wordset_context($candidate_id, $wordset_id)
                 : in_array($wordset_id, ll_tools_get_dictionary_entry_scope_wordset_ids($candidate_id), true);
@@ -888,10 +949,10 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
             if ($is_shared_candidate) {
                 $candidate_score += 20;
             }
-            if (in_array($wordset_id, $linked_wordset_ids, true)) {
+            if (in_array($wordset_id, $scope_wordset_ids, true)) {
                 $candidate_score += 10;
             }
-            if (empty($linked_wordset_ids)) {
+            if (empty($scope_wordset_ids)) {
                 $candidate_score += 5;
             }
 
@@ -910,6 +971,9 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
             ll_tools_refresh_dictionary_entry_wordset_scope_meta($best_candidate_id);
             if ($previous_entry_id > 0 && $previous_entry_id !== $best_candidate_id) {
                 ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
+            }
+            if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+                ll_tools_bump_dictionary_browser_cache_version();
             }
 
             return [
@@ -939,6 +1003,9 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
         if ($previous_entry_id > 0 && $previous_entry_id !== $new_entry_id) {
             ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
         }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
         return [
             'entry_id'    => $new_entry_id,
             'entry_title' => (string) get_the_title($new_entry_id),
@@ -949,6 +1016,9 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
     delete_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY);
     if ($previous_entry_id > 0) {
         ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
+    }
+    if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
     }
     return [
         'entry_id'    => 0,
@@ -2159,3 +2229,82 @@ function ll_tools_dictionary_entry_cleanup_links_on_delete($post_id) {
     }
 }
 add_action('before_delete_post', 'll_tools_dictionary_entry_cleanup_links_on_delete');
+
+/**
+ * Invalidate dictionary browser caches when linked entry content changes.
+ *
+ * @param int          $post_id Post ID.
+ * @param WP_Post|null $post    Post object when available.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_post_save($post_id, $post = null): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || wp_is_post_revision($post_id)) {
+        return;
+    }
+
+    $post_type = $post instanceof WP_Post ? (string) $post->post_type : (string) get_post_type($post_id);
+    if (!in_array($post_type, ['ll_dictionary_entry', 'words'], true)) {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('save_post_ll_dictionary_entry', 'll_tools_dictionary_browser_invalidate_on_post_save', 60, 2);
+add_action('save_post_words', 'll_tools_dictionary_browser_invalidate_on_post_save', 60, 2);
+
+/**
+ * Invalidate dictionary browser caches when linked terms change.
+ *
+ * @param int|string $object_id Object ID.
+ * @param mixed      $terms     Assigned terms.
+ * @param mixed      $tt_ids    Term taxonomy IDs.
+ * @param string     $taxonomy  Taxonomy slug.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_terms_change($object_id, $terms, $tt_ids, $taxonomy): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    if (!in_array($taxonomy, ['wordset', 'part_of_speech'], true)) {
+        return;
+    }
+
+    $post_id = (int) $object_id;
+    if ($post_id <= 0 || get_post_type($post_id) !== 'words') {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('set_object_terms', 'll_tools_dictionary_browser_invalidate_on_terms_change', 20, 4);
+
+/**
+ * Invalidate dictionary browser caches when source posts are deleted.
+ *
+ * @param int $post_id Deleted post ID.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_post_delete($post_id): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return;
+    }
+
+    $post_type = (string) get_post_type($post_id);
+    if (!in_array($post_type, ['ll_dictionary_entry', 'words'], true)) {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('before_delete_post', 'll_tools_dictionary_browser_invalidate_on_post_delete', 20);

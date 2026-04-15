@@ -148,6 +148,7 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 - Recorder "new word" flow (`ll_prepare_new_word_recording_handler`) creating draft words and categories with recording types.
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
+- Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
 - Additional integration tests also cover wordset games availability and pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
 
 ## 6) Browser E2E tests (Playwright)
@@ -238,6 +239,7 @@ tests/bin/run-e2e.sh specs/wordset-pages-listening-launch.spec.js
 - If needed, set `COMPOSER_PHAR` to a custom Composer PHAR path.
 - If `run-tests.sh` fails with `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`, set an explicit Local PHP binary:
   - `PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh`
+- Dictionary browser/import changes should always include `tests/bin/run-tests.sh Integration/DictionaryFeatureTest.php` before the full suite. Dictionary admin-import UI changes should also include `tests/bin/run-e2e.sh specs/admin-import-preview-undo.spec.js`.
 - One PHPUnit import regression may be skipped on some machines:
   - `ExternalCsvBundleImportTest::test_import_decodes_windows_1255_csv_values_and_generates_quiz_page`
   - This depends on runtime `iconv` / `mbstring` support for reliably round-tripping the non-UTF Hebrew fixture encoding.
