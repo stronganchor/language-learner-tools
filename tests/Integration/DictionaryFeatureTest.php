@@ -5,6 +5,19 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 {
     protected function tearDown(): void
     {
+        $last_job_id = function_exists('ll_tools_dictionary_import_get_last_job_id')
+            ? ll_tools_dictionary_import_get_last_job_id(get_current_user_id())
+            : '';
+        if ($last_job_id !== '' && function_exists('ll_tools_dictionary_import_get_job')) {
+            $job = ll_tools_dictionary_import_get_job($last_job_id);
+            if (is_array($job) && function_exists('ll_tools_dictionary_import_delete_path')) {
+                ll_tools_dictionary_import_delete_path((string) ($job['job_dir'] ?? ''));
+            }
+            delete_option(ll_tools_dictionary_import_get_job_option_key($last_job_id));
+        }
+        if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
+            ll_tools_dictionary_import_clear_active_job_id();
+        }
         $_GET = [];
         $_POST = [];
         $_FILES = [];
@@ -138,6 +151,65 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('moon', ll_tools_dictionary_lookup_best('Mij', 'Zazaki', 'English', false));
         $this->assertSame('Mij', ll_tools_dictionary_lookup_best('moon', 'English', 'Zazaki', true));
         $this->assertSame('moon', ll_dictionary_lookup_best('Mij', 'Zazaki', 'English', false));
+    }
+
+    public function test_dictionary_import_job_processes_rows_in_batches_with_resume_snapshot(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $job = ll_tools_dictionary_import_create_tsv_job_from_rows([
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Roce',
+                'definition' => 'day',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Ava',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_review_rows' => true,
+        ], 'harun.tsv');
+
+        $this->assertIsArray($job);
+        $this->assertSame('running', $job['status']);
+        $this->assertNotSame('', ll_tools_dictionary_import_get_active_job_id());
+
+        $runningSnapshot = ll_tools_dictionary_import_get_job_snapshot($job);
+        $this->assertSame('running', $runningSnapshot['status']);
+        $this->assertStringContainsString('Keep', (string) $runningSnapshot['advice_title']);
+
+        $processedJob = ll_tools_dictionary_import_process_job($job);
+        $this->assertIsArray($processedJob);
+        $this->assertSame('completed', $processedJob['status']);
+        $this->assertSame('', ll_tools_dictionary_import_get_active_job_id());
+        $this->assertSame(3, (int) ($processedJob['summary']['entries_created'] ?? 0));
+
+        $completedSnapshot = ll_tools_dictionary_import_get_job_snapshot($processedJob);
+        $this->assertSame('completed', $completedSnapshot['status']);
+        $this->assertStringContainsString('Safe', (string) $completedSnapshot['advice_title']);
+        $this->assertStringContainsString('Processed 3 rows into 3 dictionary headwords', (string) $completedSnapshot['summary_html']);
+
+        $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Dar', 0));
+        $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Roce', 0));
+        $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
     }
 
     public function test_header_tsv_import_supports_multilingual_gloss_columns(): void

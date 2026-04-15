@@ -1231,13 +1231,13 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
 }
 
 /**
- * Import prepared dictionary rows into ll_dictionary_entry posts.
+ * Group raw dictionary import rows into prepared headword buckets.
  *
  * @param array<int,array<string|int,mixed>> $rows Raw rows.
  * @param array<string,mixed>                $options Import options.
- * @return array<string,mixed>
+ * @return array{grouped_rows:array<int,array<int,array<string,mixed>>>,summary:array<string,mixed>}
  */
-function ll_tools_dictionary_import_rows(array $rows, array $options = []): array {
+function ll_tools_dictionary_group_import_rows(array $rows, array $options = []): array {
     if (function_exists('set_time_limit')) {
         @set_time_limit(0);
     }
@@ -1286,7 +1286,33 @@ function ll_tools_dictionary_import_rows(array $rows, array $options = []): arra
     }
 
     $summary['rows_grouped'] = count($grouped_rows);
+
+    return [
+        'grouped_rows' => array_values($grouped_rows),
+        'summary' => $summary,
+    ];
+}
+
+/**
+ * Import prepared headword groups into ll_dictionary_entry posts.
+ *
+ * @param array<int,array<int,array<string,mixed>>> $grouped_rows Grouped prepared rows.
+ * @param array<string,mixed>                       $options Import options.
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_apply_grouped_import_rows(array $grouped_rows, array $options = []): array {
+    $summary = [
+        'entries_created' => 0,
+        'entries_updated' => 0,
+        'entry_ids' => [],
+        'errors' => [],
+    ];
+
     foreach ($grouped_rows as $group_rows) {
+        if (!is_array($group_rows) || empty($group_rows)) {
+            continue;
+        }
+
         $result = ll_tools_dictionary_upsert_entry_from_rows($group_rows, $options);
         if (is_wp_error($result)) {
             $summary['errors'][] = $result->get_error_message();
@@ -1304,7 +1330,31 @@ function ll_tools_dictionary_import_rows(array $rows, array $options = []): arra
         }
     }
 
-    $summary['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', $summary['entry_ids']))));
+    $summary['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', (array) $summary['entry_ids']))));
+    $summary['error_count'] = count((array) $summary['errors']);
+
+    return $summary;
+}
+
+/**
+ * Import prepared dictionary rows into ll_dictionary_entry posts.
+ *
+ * @param array<int,array<string|int,mixed>> $rows Raw rows.
+ * @param array<string,mixed>                $options Import options.
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_import_rows(array $rows, array $options = []): array {
+    $grouped = ll_tools_dictionary_group_import_rows($rows, $options);
+    $summary = isset($grouped['summary']) && is_array($grouped['summary']) ? $grouped['summary'] : [];
+    $import_summary = ll_tools_dictionary_apply_grouped_import_rows(
+        isset($grouped['grouped_rows']) && is_array($grouped['grouped_rows']) ? $grouped['grouped_rows'] : [],
+        $options
+    );
+
+    $summary['entries_created'] = (int) ($import_summary['entries_created'] ?? 0);
+    $summary['entries_updated'] = (int) ($import_summary['entries_updated'] ?? 0);
+    $summary['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', (array) ($import_summary['entry_ids'] ?? [])))));
+    $summary['errors'] = array_values(array_filter(array_map('strval', (array) ($import_summary['errors'] ?? []))));
     $summary['error_count'] = count($summary['errors']);
 
     return $summary;
