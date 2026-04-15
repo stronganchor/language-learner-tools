@@ -24,6 +24,7 @@ require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
+require_once(__DIR__ . '/lib/dictionary-sources.php');
 require_once(__DIR__ . '/lib/dictionary-browser.php');
 
 // Include taxonomies
@@ -85,6 +86,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/bulk-translation-admin.php');
     require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
     require_once(__DIR__ . '/admin/dictionary-import-admin.php');
+    require_once(__DIR__ . '/admin/dictionary-sources-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
     require_once(__DIR__ . '/admin/offline-app-export.php');
     require_once(__DIR__ . '/admin/user-progress-report.php');

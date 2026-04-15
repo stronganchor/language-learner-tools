@@ -9,7 +9,7 @@ function ll_tools_get_dictionary_page_config(): array {
         'created_notice_transient' => 'll_dictionary_page_created',
         'shortcode_search' => '[ll_dictionary',
         'post_title' => __('Dictionary', 'll-tools-text-domain'),
-        'post_content' => '[ll_dictionary]',
+        'post_content' => '[ll_dictionary wordset="0"]',
         'error_context' => 'dictionary page',
         'notice_title' => __('Dictionary Page Created!', 'll-tools-text-domain'),
         /* translators: %s: URL of the created dictionary page */

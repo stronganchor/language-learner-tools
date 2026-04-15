@@ -216,20 +216,25 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         'entry_lang' => '',
         'def_lang' => '',
         'search_terms' => '',
+        'source_id' => '',
         'source_dictionary' => '',
         'source_row_idx' => '',
         'raw_headword' => '',
         'title_keys' => '',
+        'dialects' => [],
         'translations' => [],
     ];
 
     foreach ($clean as $key => $unused) {
-        if ($key === 'translations') {
+        if ($key === 'translations' || $key === 'dialects') {
             continue;
         }
         $clean[$key] = trim(sanitize_text_field((string) ($sense[$key] ?? '')));
     }
 
+    $clean['source_id'] = ll_tools_dictionary_resolve_source_id((string) $clean['source_id'], (string) $clean['source_dictionary']);
+    $clean['source_dictionary'] = ll_tools_dictionary_resolve_source_label((string) $clean['source_id'], (string) $clean['source_dictionary']);
+    $clean['dialects'] = ll_tools_dictionary_sanitize_dialect_list($sense['dialects'] ?? []);
     $clean['translations'] = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
 
     if ($clean['definition'] !== '') {
@@ -243,14 +248,40 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
 }
 
 /**
+ * Return normalized source data for one sense.
+ *
+ * @param array<string,mixed> $sense Sense payload.
+ * @return array{id:string,label:string,attribution_text:string,attribution_url:string,default_dialects:string[]}
+ */
+function ll_tools_dictionary_get_sense_source(array $sense): array {
+    return ll_tools_dictionary_build_source_payload(
+        (string) ($sense['source_id'] ?? ''),
+        (string) ($sense['source_dictionary'] ?? '')
+    );
+}
+
+/**
+ * Return all normalized dialect labels attached to one sense.
+ *
+ * @param array<string,mixed> $sense Sense payload.
+ * @return string[]
+ */
+function ll_tools_dictionary_get_sense_dialects(array $sense): array {
+    return ll_tools_dictionary_sanitize_dialect_list($sense['dialects'] ?? []);
+}
+
+/**
  * Create a stable sense hash for de-duplication.
  *
  * @param array<string,mixed> $sense Sanitized sense.
  */
 function ll_tools_dictionary_sense_hash(array $sense): string {
     $parts = [];
-    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
+    foreach (['definition', 'gender_number', 'entry_type', 'parent', 'needs_review', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
         $parts[] = ll_tools_dictionary_normalize_search_text((string) ($sense[$key] ?? ''));
+    }
+    foreach (ll_tools_dictionary_get_sense_dialects($sense) as $dialect) {
+        $parts[] = 'dialect:' . ll_tools_dictionary_normalize_dialect_key($dialect);
     }
     $translations = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
     ksort($translations);
@@ -351,7 +382,7 @@ function ll_tools_get_dictionary_entry_senses($entry_id): array {
             $clean = ll_tools_dictionary_sanitize_sense($sense);
             $has_content = false;
             foreach ($clean as $key => $value) {
-                if ($key === 'translations') {
+                if ($key === 'translations' || $key === 'dialects') {
                     if (!empty($value) && is_array($value)) {
                         $has_content = true;
                         break;
@@ -402,6 +433,177 @@ function ll_tools_get_dictionary_entry_senses($entry_id): array {
     }
 
     return [];
+}
+
+/**
+ * Collect unique source payloads used by a senses list.
+ *
+ * @param array<int,array<string,mixed>> $senses Senses list.
+ * @return array<int,array{id:string,label:string,attribution_text:string,attribution_url:string,default_dialects:string[]}>
+ */
+function ll_tools_dictionary_collect_sources(array $senses): array {
+    $sources = [];
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        $source = ll_tools_dictionary_get_sense_source($sense);
+        $label = trim((string) ($source['label'] ?? ''));
+        $key = trim((string) ($source['id'] ?? ''));
+        if ($label === '' && $key === '') {
+            continue;
+        }
+
+        $lookup = $key !== '' ? $key : ll_tools_dictionary_normalize_dialect_key($label);
+        if ($lookup === '' || isset($sources[$lookup])) {
+            continue;
+        }
+        $sources[$lookup] = $source;
+    }
+
+    uasort($sources, static function (array $left, array $right): int {
+        $left_label = (string) ($left['label'] ?? '');
+        $right_label = (string) ($right['label'] ?? '');
+
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left_label, $right_label)
+            : strnatcasecmp($left_label, $right_label);
+    });
+
+    return array_values($sources);
+}
+
+/**
+ * Collect unique dialect labels used by a senses list.
+ *
+ * @param array<int,array<string,mixed>> $senses Senses list.
+ * @return string[]
+ */
+function ll_tools_dictionary_collect_dialects(array $senses): array {
+    $dialects = [];
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        foreach (ll_tools_dictionary_get_sense_dialects($sense) as $dialect) {
+            $key = ll_tools_dictionary_normalize_dialect_key($dialect);
+            if ($key === '' || isset($dialects[$key])) {
+                continue;
+            }
+            $dialects[$key] = $dialect;
+        }
+    }
+
+    $labels = array_values($dialects);
+    usort($labels, static function (string $left, string $right): int {
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left, $right)
+            : strnatcasecmp($left, $right);
+    });
+
+    return $labels;
+}
+
+/**
+ * Determine whether one wordset's display label matches a dialect list.
+ *
+ * @param int      $wordset_id Wordset ID.
+ * @param string[] $dialects   Dialect labels.
+ */
+function ll_tools_dictionary_wordset_matches_dialect_labels(int $wordset_id, array $dialects): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || empty($dialects)) {
+        return false;
+    }
+
+    $term = get_term($wordset_id, 'wordset');
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return false;
+    }
+
+    $lookup_keys = [];
+    foreach ([(string) $term->name, (string) $term->slug] as $candidate) {
+        $candidate_key = ll_tools_dictionary_normalize_dialect_key(str_replace('-', ' ', trim($candidate)));
+        if ($candidate_key !== '') {
+            $lookup_keys[$candidate_key] = true;
+        }
+    }
+
+    if (empty($lookup_keys)) {
+        return false;
+    }
+
+    foreach ($dialects as $dialect) {
+        $dialect_key = ll_tools_dictionary_normalize_dialect_key($dialect);
+        if ($dialect_key !== '' && isset($lookup_keys[$dialect_key])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Determine whether one dictionary entry should appear in a wordset-scoped dictionary view.
+ */
+function ll_tools_dictionary_entry_matches_wordset_context(int $entry_id, int $wordset_id): bool {
+    $entry_id = (int) $entry_id;
+    $wordset_id = (int) $wordset_id;
+    if ($entry_id <= 0 || $wordset_id <= 0) {
+        return true;
+    }
+
+    if (in_array($wordset_id, ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id), true)) {
+        return true;
+    }
+
+    return ll_tools_dictionary_wordset_matches_dialect_labels(
+        $wordset_id,
+        ll_tools_dictionary_collect_dialects(ll_tools_get_dictionary_entry_senses($entry_id))
+    );
+}
+
+/**
+ * Determine whether one dictionary entry contains a matching source filter.
+ */
+function ll_tools_dictionary_entry_matches_source_filter(int $entry_id, string $source_filter): bool {
+    $entry_id = (int) $entry_id;
+    $source_filter_id = ll_tools_dictionary_normalize_source_id($source_filter);
+    $source_filter_label = ll_tools_dictionary_normalize_dialect_key($source_filter);
+    if ($entry_id <= 0 || ($source_filter_id === '' && $source_filter_label === '')) {
+        return true;
+    }
+
+    foreach (ll_tools_dictionary_collect_sources(ll_tools_get_dictionary_entry_senses($entry_id)) as $source) {
+        $source_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
+        $source_label_key = ll_tools_dictionary_normalize_dialect_key((string) ($source['label'] ?? ''));
+        if (($source_filter_id !== '' && $source_id === $source_filter_id) || ($source_filter_label !== '' && $source_label_key === $source_filter_label)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Determine whether one dictionary entry contains a matching dialect filter.
+ */
+function ll_tools_dictionary_entry_matches_dialect_filter(int $entry_id, string $dialect_filter): bool {
+    $entry_id = (int) $entry_id;
+    $dialect_filter = ll_tools_dictionary_normalize_dialect_key($dialect_filter);
+    if ($entry_id <= 0 || $dialect_filter === '') {
+        return true;
+    }
+
+    foreach (ll_tools_dictionary_collect_dialects(ll_tools_get_dictionary_entry_senses($entry_id)) as $dialect) {
+        if (ll_tools_dictionary_normalize_dialect_key($dialect) === $dialect_filter) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -524,10 +726,15 @@ function ll_tools_dictionary_build_search_index(string $title, string $translati
     $parts = [$title, $translation, $content];
 
     foreach ($senses as $sense) {
-        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
+        foreach (['definition', 'gender_number', 'entry_type', 'parent', 'page_number', 'entry_lang', 'def_lang', 'search_terms', 'source_id', 'source_dictionary', 'source_row_idx', 'raw_headword', 'title_keys'] as $key) {
             $value = trim((string) ($sense[$key] ?? ''));
             if ($value !== '') {
                 $parts[] = $value;
+            }
+        }
+        foreach (ll_tools_dictionary_get_sense_dialects((array) $sense) as $dialect) {
+            if ($dialect !== '') {
+                $parts[] = $dialect;
             }
         }
         foreach (ll_tools_dictionary_get_sense_translations((array) $sense) as $lang => $text) {
@@ -696,6 +903,26 @@ function ll_tools_dictionary_collect_row_translations(array $row): array {
 }
 
 /**
+ * Collect any dialect columns from an import row.
+ *
+ * @param array<string|int,mixed> $row Raw import row.
+ * @return string[]
+ */
+function ll_tools_dictionary_collect_row_dialects(array $row): array {
+    $dialects = [];
+
+    if (isset($row['dialects'])) {
+        $dialects = ll_tools_dictionary_sanitize_dialect_list($row['dialects']);
+    }
+
+    if (empty($dialects) && isset($row['dialect'])) {
+        $dialects = ll_tools_dictionary_sanitize_dialect_list($row['dialect']);
+    }
+
+    return $dialects;
+}
+
+/**
  * Normalize one import row.
  *
  * @param array<string|int,mixed> $row Raw import row.
@@ -714,10 +941,12 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         'entry_lang' => '',
         'def_lang' => '',
         'search_terms' => '',
+        'source_id' => '',
         'source_dictionary' => '',
         'source_row_idx' => '',
         'raw_headword' => '',
         'title_keys' => '',
+        'dialects' => [],
         'translations' => [],
     ];
 
@@ -733,10 +962,18 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
     $prepared['entry_lang'] = trim(sanitize_text_field((string) ($row['entry_lang'] ?? $defaults['entry_lang'] ?? '')));
     $prepared['def_lang'] = trim(sanitize_text_field((string) ($row['def_lang'] ?? $defaults['def_lang'] ?? '')));
     $prepared['search_terms'] = trim(sanitize_text_field((string) ($row['search_terms'] ?? '')));
+    $prepared['source_id'] = trim(sanitize_text_field((string) ($row['source_id'] ?? '')));
     $prepared['source_dictionary'] = trim(sanitize_text_field((string) ($row['source_dictionary'] ?? '')));
     $prepared['source_row_idx'] = trim(sanitize_text_field((string) ($row['source_row_idx'] ?? '')));
     $prepared['raw_headword'] = trim(sanitize_text_field((string) ($row['raw_headword'] ?? '')));
     $prepared['title_keys'] = trim(sanitize_text_field((string) ($row['title_keys'] ?? '')));
+    $prepared['dialects'] = ll_tools_dictionary_collect_row_dialects($row);
+
+    $prepared['source_id'] = ll_tools_dictionary_resolve_source_id($prepared['source_id'], $prepared['source_dictionary']);
+    $prepared['source_dictionary'] = ll_tools_dictionary_resolve_source_label($prepared['source_id'], $prepared['source_dictionary']);
+    if (empty($prepared['dialects'])) {
+        $prepared['dialects'] = ll_tools_dictionary_get_source_default_dialects($prepared['source_id'], $prepared['source_dictionary']);
+    }
 
     if ($raw_definition !== '') {
         if ($prepared['search_terms'] === '') {
@@ -828,6 +1065,8 @@ function ll_tools_dictionary_find_entry_by_title(string $title, int $wordset_id 
     if ($wordset_id > 0) {
         $sql .= " AND CAST(COALESCE(wordset_meta.meta_value, '0') AS UNSIGNED) = %d";
         $params[] = $wordset_id;
+    } else {
+        $sql .= " AND CAST(COALESCE(wordset_meta.meta_value, '0') AS UNSIGNED) = 0";
     }
 
     $sql .= " ORDER BY p.ID ASC LIMIT 1";
@@ -897,10 +1136,12 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
             'entry_lang' => (string) ($row['entry_lang'] ?? ''),
             'def_lang' => (string) ($row['def_lang'] ?? ''),
             'search_terms' => (string) ($row['search_terms'] ?? ''),
+            'source_id' => (string) ($row['source_id'] ?? ''),
             'source_dictionary' => (string) ($row['source_dictionary'] ?? ''),
             'source_row_idx' => (string) ($row['source_row_idx'] ?? ''),
             'raw_headword' => (string) ($row['raw_headword'] ?? ''),
             'title_keys' => (string) ($row['title_keys'] ?? ''),
+            'dialects' => $row['dialects'] ?? [],
             'translations' => $row['translations'] ?? [],
         ]);
         $incoming_senses[] = $sense;
@@ -976,6 +1217,9 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     }
 
     ll_tools_dictionary_refresh_entry_search_meta($saved_entry_id);
+    if (function_exists('ll_tools_refresh_dictionary_entry_wordset_scope_meta')) {
+        ll_tools_refresh_dictionary_entry_wordset_scope_meta($saved_entry_id);
+    }
 
     return [
         'entry_id' => $saved_entry_id,
@@ -1156,7 +1400,7 @@ function ll_tools_dictionary_import_legacy_table(array $options = []) {
 /**
  * Build front-end preview data for words linked to a dictionary entry.
  *
- * @return array<int,array{word_text:string,translation_text:string}>
+ * @return array<int,array{word_text:string,translation_text:string,wordset_id:int,wordset_name:string}>
  */
 function ll_tools_dictionary_get_linked_word_previews(int $entry_id, int $limit = 4): array {
     $entry_id = (int) $entry_id;
@@ -1177,9 +1421,21 @@ function ll_tools_dictionary_get_linked_word_previews(int $entry_id, int $limit 
         if ($word_text === '') {
             continue;
         }
+        $wordset_id = function_exists('ll_tools_get_word_primary_wordset_id')
+            ? (int) ll_tools_get_word_primary_wordset_id((int) $word_id)
+            : 0;
+        $wordset_name = '';
+        if ($wordset_id > 0) {
+            $wordset = get_term($wordset_id, 'wordset');
+            if ($wordset && !is_wp_error($wordset)) {
+                $wordset_name = (string) $wordset->name;
+            }
+        }
         $items[] = [
             'word_text' => $word_text,
             'translation_text' => $translation_text,
+            'wordset_id' => $wordset_id,
+            'wordset_name' => $wordset_name,
         ];
     }
 
@@ -1234,6 +1490,12 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
             $wordset_name = (string) $wordset->name;
         }
     }
+    $linked_wordsets = function_exists('ll_tools_get_dictionary_entry_scope_wordsets')
+        ? ll_tools_get_dictionary_entry_scope_wordsets($entry_id)
+        : [];
+    $wordset_names = array_values(array_filter(array_map(static function (array $item): string {
+        return trim((string) ($item['name'] ?? ''));
+    }, $linked_wordsets)));
 
     $pos_slug = function_exists('ll_tools_get_dictionary_entry_primary_pos_slug')
         ? ll_tools_get_dictionary_entry_primary_pos_slug($entry_id)
@@ -1259,6 +1521,8 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
     $linked_word_count = function_exists('ll_tools_count_dictionary_entry_words')
         ? (int) ll_tools_count_dictionary_entry_words($entry_id)
         : 0;
+    $sources = ll_tools_dictionary_collect_sources($senses);
+    $dialects = ll_tools_dictionary_collect_dialects($senses);
 
     return [
         'id' => $entry_id,
@@ -1268,11 +1532,15 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'page_number' => $page_number,
         'wordset_id' => $wordset_id,
         'wordset_name' => $wordset_name,
+        'wordset_names' => $wordset_names,
+        'linked_wordsets' => $linked_wordsets,
         'pos_slug' => $pos_slug,
         'pos_label' => $pos_label,
         'linked_word_count' => $linked_word_count,
         'linked_words' => ll_tools_dictionary_get_linked_word_previews($entry_id, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
+        'sources' => $sources,
+        'dialects' => $dialects,
         'senses' => array_slice($senses, 0, max(1, $sense_limit)),
         'sense_count' => count($senses),
     ];
@@ -1294,6 +1562,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $title_language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
     $letter = ll_tools_dictionary_normalize_browse_letter((string) ($args['letter'] ?? ''), $title_language);
     $pos_slug = sanitize_title((string) ($args['pos_slug'] ?? ''));
+    $source_id = ll_tools_dictionary_normalize_source_id((string) ($args['source_id'] ?? ''));
+    $dialect = trim(sanitize_text_field((string) ($args['dialect'] ?? '')));
     $sense_limit = max(1, min(8, (int) ($args['sense_limit'] ?? 3)));
     $linked_word_limit = max(0, min(8, (int) ($args['linked_word_limit'] ?? 4)));
     $preferred_languages = [];
@@ -1313,9 +1583,6 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         LEFT JOIN {$wpdb->postmeta} translation
                ON translation.post_id = p.ID
               AND translation.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY) . "'
-        LEFT JOIN {$wpdb->postmeta} wordset_meta
-               ON wordset_meta.post_id = p.ID
-              AND wordset_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY) . "'
         LEFT JOIN {$wpdb->postmeta} pos_meta
                ON pos_meta.post_id = p.ID
               AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
@@ -1336,11 +1603,6 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
     $where[] = "p.post_status IN ({$status_placeholders})";
     $params = array_merge($params, $statuses);
-
-    if ($wordset_id > 0) {
-        $where[] = "CAST(COALESCE(wordset_meta.meta_value, '0') AS UNSIGNED) = %d";
-        $params[] = $wordset_id;
-    }
 
     if ($pos_slug !== '') {
         $where[] = "pos_meta.meta_value = %s";
@@ -1398,88 +1660,54 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             $prefix_raw,
             $contains_norm,
         ];
-    } elseif ($letter !== '') {
-        $where_sql = implode(' AND ', $where);
-        $query_sql = "
-            SELECT DISTINCT p.ID
-            FROM {$wpdb->posts} p
-            {$joins}
-            WHERE {$where_sql}
-        ";
-        $candidate_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($query_sql, $params)))));
-        $filtered_ids = array_values(array_filter($candidate_ids, static function (int $entry_id) use ($letter, $title_language): bool {
-            return ll_tools_dictionary_entry_matches_browse_letter($entry_id, $letter, $title_language);
-        }));
-
-        if (!empty($filtered_ids)) {
-            usort($filtered_ids, static function (int $left_id, int $right_id) use ($title_language): int {
-                $left_title = (string) get_the_title($left_id);
-                $right_title = (string) get_the_title($right_id);
-                $compared = function_exists('ll_tools_locale_compare_strings')
-                    ? ll_tools_locale_compare_strings($left_title, $right_title, $title_language)
-                    : strnatcasecmp($left_title, $right_title);
-                if ($compared !== 0) {
-                    return $compared;
-                }
-
-                return $left_id <=> $right_id;
-            });
-        }
-
-        $total = count($filtered_ids);
-        $total_pages = max(1, (int) ceil($total / $per_page));
-        if ($total === 0) {
-            return [
-                'items' => [],
-                'total' => 0,
-                'page' => 1,
-                'per_page' => $per_page,
-                'total_pages' => 1,
-                'search' => $search,
-                'letter' => $letter,
-                'wordset_id' => $wordset_id,
-                'pos_slug' => $pos_slug,
-                'preferred_languages' => $preferred_languages,
-            ];
-        }
-
-        if ($page > $total_pages) {
-            $page = $total_pages;
-        }
-        $offset = ($page - 1) * $per_page;
-        $ids = array_slice($filtered_ids, $offset, $per_page);
-
-        if (!empty($ids)) {
-            update_postmeta_cache($ids);
-        }
-
-        $items = [];
-        foreach ($ids as $entry_id) {
-            $item = ll_tools_dictionary_get_entry_data($entry_id, $sense_limit, $linked_word_limit, $preferred_languages);
-            if (!empty($item)) {
-                $items[] = $item;
-            }
-        }
-
-        return [
-            'items' => $items,
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $per_page,
-            'total_pages' => $total_pages,
-            'search' => $search,
-            'letter' => $letter,
-            'wordset_id' => $wordset_id,
-            'pos_slug' => $pos_slug,
-            'preferred_languages' => $preferred_languages,
-        ];
     }
 
     $where_sql = implode(' AND ', $where);
-    $count_sql = "SELECT COUNT(DISTINCT p.ID) FROM {$wpdb->posts} p {$joins} WHERE {$where_sql}";
-    $total = (int) $wpdb->get_var($wpdb->prepare($count_sql, $params));
-    $total_pages = max(1, (int) ceil($total / $per_page));
+    $query_sql = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        {$joins}
+        WHERE {$where_sql}
+        ORDER BY {$order_sql}
+    ";
+    $query_params = array_merge($params, $order_params);
+    $candidate_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($query_sql, $query_params)))));
 
+    $filtered_ids = [];
+    foreach ($candidate_ids as $entry_id) {
+        if ($wordset_id > 0 && !ll_tools_dictionary_entry_matches_wordset_context($entry_id, $wordset_id)) {
+            continue;
+        }
+        if ($source_id !== '' && !ll_tools_dictionary_entry_matches_source_filter($entry_id, $source_id)) {
+            continue;
+        }
+        if ($dialect !== '' && !ll_tools_dictionary_entry_matches_dialect_filter($entry_id, $dialect)) {
+            continue;
+        }
+        if ($letter !== '' && !ll_tools_dictionary_entry_matches_browse_letter($entry_id, $letter, $title_language)) {
+            continue;
+        }
+
+        $filtered_ids[] = $entry_id;
+    }
+
+    if ($letter !== '' && !empty($filtered_ids) && $search === '') {
+        usort($filtered_ids, static function (int $left_id, int $right_id) use ($title_language): int {
+            $left_title = (string) get_the_title($left_id);
+            $right_title = (string) get_the_title($right_id);
+            $compared = function_exists('ll_tools_locale_compare_strings')
+                ? ll_tools_locale_compare_strings($left_title, $right_title, $title_language)
+                : strnatcasecmp($left_title, $right_title);
+            if ($compared !== 0) {
+                return $compared;
+            }
+
+            return $left_id <=> $right_id;
+        });
+    }
+
+    $total = count($filtered_ids);
+    $total_pages = max(1, (int) ceil($total / $per_page));
     if ($total === 0) {
         return [
             'items' => [],
@@ -1490,6 +1718,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             'search' => $search,
             'letter' => $letter,
             'wordset_id' => $wordset_id,
+            'source_id' => $source_id,
+            'dialect' => $dialect,
             'pos_slug' => $pos_slug,
             'preferred_languages' => $preferred_languages,
         ];
@@ -1499,17 +1729,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         $page = $total_pages;
     }
     $offset = ($page - 1) * $per_page;
-
-    $query_sql = "
-        SELECT DISTINCT p.ID
-        FROM {$wpdb->posts} p
-        {$joins}
-        WHERE {$where_sql}
-        ORDER BY {$order_sql}
-        LIMIT %d OFFSET %d
-    ";
-    $query_params = array_merge($params, $order_params, [$per_page, $offset]);
-    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($query_sql, $query_params)))));
+    $ids = array_slice($filtered_ids, $offset, $per_page);
 
     if (!empty($ids)) {
         update_postmeta_cache($ids);
@@ -1532,9 +1752,31 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'search' => $search,
         'letter' => $letter,
         'wordset_id' => $wordset_id,
+        'source_id' => $source_id,
+        'dialect' => $dialect,
         'pos_slug' => $pos_slug,
         'preferred_languages' => $preferred_languages,
     ];
+}
+
+/**
+ * Return published dictionary entry IDs for scope-sensitive filter builders.
+ *
+ * @return int[]
+ */
+function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id = 0): array {
+    global $wpdb;
+
+    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col(
+        "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'"
+    ))));
+    if ($wordset_id <= 0) {
+        return $ids;
+    }
+
+    return array_values(array_filter($ids, static function (int $entry_id) use ($wordset_id): bool {
+        return ll_tools_dictionary_entry_matches_wordset_context($entry_id, $wordset_id);
+    }));
 }
 
 /**
@@ -1543,42 +1785,10 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
  * @return string[]
  */
 function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
-    global $wpdb;
-
-    $joins = '';
-    $where = [
-        "p.post_type = 'll_dictionary_entry'",
-        "p.post_status = 'publish'",
-        "p.post_title <> ''",
-    ];
-    $params = [];
-
-    if ($wordset_id > 0) {
-        $joins .= "
-            LEFT JOIN {$wpdb->postmeta} wordset_meta
-                   ON wordset_meta.post_id = p.ID
-                  AND wordset_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY) . "'
-        ";
-        $where[] = "CAST(COALESCE(wordset_meta.meta_value, '0') AS UNSIGNED) = %d";
-        $params[] = $wordset_id;
-    }
-
-    $sql = "
-        SELECT DISTINCT SUBSTRING(p.post_title, 1, 1) AS first_letter
-        FROM {$wpdb->posts} p
-        {$joins}
-        WHERE " . implode(' AND ', $where) . "
-    ";
-
-    $rows = $params
-        ? (array) $wpdb->get_col($wpdb->prepare($sql, $params))
-        : (array) $wpdb->get_col($sql);
-
     $language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
-
     $letters = [];
-    foreach ($rows as $row) {
-        $letter = ll_tools_dictionary_normalize_browse_letter((string) $row, $language);
+    foreach (ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id) as $entry_id) {
+        $letter = ll_tools_dictionary_normalize_browse_letter((string) get_the_title($entry_id), $language);
         if ($letter === '') {
             continue;
         }
@@ -1619,45 +1829,9 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
  * @return array<int,array{slug:string,label:string}>
  */
 function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array {
-    global $wpdb;
-
-    $joins = "
-        INNER JOIN {$wpdb->postmeta} pos_meta
-                ON pos_meta.post_id = p.ID
-               AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
-    ";
-    $where = [
-        "p.post_type = 'll_dictionary_entry'",
-        "p.post_status = 'publish'",
-        "pos_meta.meta_value <> ''",
-    ];
-    $params = [];
-
-    if ($wordset_id > 0) {
-        $joins .= "
-            LEFT JOIN {$wpdb->postmeta} wordset_meta
-                   ON wordset_meta.post_id = p.ID
-                  AND wordset_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY) . "'
-        ";
-        $where[] = "CAST(COALESCE(wordset_meta.meta_value, '0') AS UNSIGNED) = %d";
-        $params[] = $wordset_id;
-    }
-
-    $sql = "
-        SELECT DISTINCT pos_meta.meta_value
-        FROM {$wpdb->posts} p
-        {$joins}
-        WHERE " . implode(' AND ', $where) . '
-        ORDER BY pos_meta.meta_value ASC
-    ';
-
-    $rows = $params
-        ? (array) $wpdb->get_col($wpdb->prepare($sql, $params))
-        : (array) $wpdb->get_col($sql);
-
     $options = [];
-    foreach ($rows as $slug) {
-        $slug = sanitize_title((string) $slug);
+    foreach (ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id) as $entry_id) {
+        $slug = sanitize_title((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, true));
         if ($slug === '') {
             continue;
         }
@@ -1665,12 +1839,13 @@ function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array 
         $label = ($term && !is_wp_error($term))
             ? (string) $term->name
             : $slug;
-        $options[] = [
+        $options[$slug] = [
             'slug' => $slug,
             'label' => $label,
         ];
     }
 
+    $options = array_values($options);
     usort($options, static function (array $left, array $right): int {
         $left_label = (string) ($left['label'] ?? '');
         $right_label = (string) ($right['label'] ?? '');
@@ -1680,6 +1855,66 @@ function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array 
     });
 
     return $options;
+}
+
+/**
+ * Collect available source filter options for the current dictionary scope.
+ *
+ * @return array<int,array{id:string,label:string}>
+ */
+function ll_tools_dictionary_get_source_filter_options(int $wordset_id = 0): array {
+    $options = [];
+    foreach (ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id) as $entry_id) {
+        foreach (ll_tools_dictionary_collect_sources(ll_tools_get_dictionary_entry_senses($entry_id)) as $source) {
+            $source_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
+            $label = trim((string) ($source['label'] ?? ''));
+            if ($source_id === '' || $label === '') {
+                continue;
+            }
+            $options[$source_id] = [
+                'id' => $source_id,
+                'label' => $label,
+            ];
+        }
+    }
+
+    $items = array_values($options);
+    usort($items, static function (array $left, array $right): int {
+        $left_label = (string) ($left['label'] ?? '');
+        $right_label = (string) ($right['label'] ?? '');
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left_label, $right_label)
+            : strnatcasecmp($left_label, $right_label);
+    });
+
+    return $items;
+}
+
+/**
+ * Collect available dialect filter options for the current dictionary scope.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_get_dialect_filter_options(int $wordset_id = 0): array {
+    $dialects = [];
+    foreach (ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id) as $entry_id) {
+        foreach (ll_tools_dictionary_collect_dialects(ll_tools_get_dictionary_entry_senses($entry_id)) as $dialect) {
+            $key = ll_tools_dictionary_normalize_dialect_key($dialect);
+            if ($key === '' || isset($dialects[$key])) {
+                continue;
+            }
+            $dialects[$key] = $dialect;
+        }
+    }
+
+    $labels = array_values($dialects);
+    usort($labels, static function (string $left, string $right): int {
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left, $right)
+            : strnatcasecmp($left, $right);
+    });
+
+    return $labels;
 }
 
 /**

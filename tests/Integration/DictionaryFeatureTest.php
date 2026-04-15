@@ -6,8 +6,18 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
     protected function tearDown(): void
     {
         $_GET = [];
+        $_POST = [];
+        $_FILES = [];
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
+        delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
+        unset($GLOBALS['ll_tools_dictionary_source_registry_cache']);
         parent::tearDown();
+    }
+
+    public function test_dictionary_shortcode_defaults_to_unscoped_page_configuration(): void
+    {
+        $this->assertSame(0, ll_tools_dictionary_shortcode_resolve_wordset_id(''));
+        $this->assertSame('[ll_dictionary wordset="0"]', ll_tools_get_dictionary_page_config()['post_content']);
     }
 
     public function test_import_groups_duplicate_headwords_and_shortcode_paginates_results(): void
@@ -218,6 +228,171 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Translations', $detail_html);
         $this->assertStringContainsString('Related Entries', $detail_html);
         $this->assertStringContainsString('Ava rê', $detail_html);
+    }
+
+    public function test_dictionary_sources_apply_defaults_and_render_attribution_filters(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        ll_tools_update_dictionary_source_registry([
+            [
+                'id' => 'dezd',
+                'label' => 'DEZD',
+                'attribution_text' => 'Used with permission from the DEZD glossary.',
+                'attribution_url' => 'https://example.com/dezd-license',
+                'default_dialects' => [],
+            ],
+            [
+                'id' => 'harun-turgut',
+                'label' => 'Harun Turgut',
+                'attribution_text' => 'Used with permission from Harun Turgut.',
+                'attribution_url' => 'https://example.com/harun-license',
+                'default_dialects' => ['Palu - Bingöl'],
+            ],
+        ]);
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree',
+                'entry_type' => 'noun',
+                'source_dictionary' => 'Harun Turgut',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree trunk',
+                'entry_type' => 'noun',
+                'source_dictionary' => 'DEZD',
+                'dialects' => 'Siverek',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_review_rows' => true,
+        ]);
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Dar', 0);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertCount(2, $senses);
+        $source_ids = array_values(array_filter(array_map(static function (array $sense): string {
+            return (string) ($sense['source_id'] ?? '');
+        }, $senses)));
+        $this->assertContains('dezd', $source_ids);
+        $this->assertContains('harun-turgut', $source_ids);
+
+        $dialects = ll_tools_dictionary_collect_dialects($senses);
+        $this->assertContains('Palu - Bingöl', $dialects);
+        $this->assertContains('Siverek', $dialects);
+
+        $_GET = [
+            'll_dictionary_source' => 'harun-turgut',
+        ];
+
+        $filtered_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('name="ll_dictionary_source"', $filtered_html);
+        $this->assertStringContainsString('name="ll_dictionary_dialect"', $filtered_html);
+        $this->assertStringContainsString('Dar', $filtered_html);
+        $this->assertStringContainsString('Harun Turgut', $filtered_html);
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+
+        $detail_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('DEZD', $detail_html);
+        $this->assertStringContainsString('Harun Turgut', $detail_html);
+        $this->assertStringContainsString('Palu - Bingöl', $detail_html);
+        $this->assertStringContainsString('Siverek', $detail_html);
+        $this->assertStringContainsString('License and attribution details', $detail_html);
+        $this->assertStringContainsString('https://example.com/dezd-license', $detail_html);
+        $this->assertStringContainsString('https://example.com/harun-license', $detail_html);
+    }
+
+    public function test_dictionary_entry_detail_spans_multiple_wordsets_when_words_share_one_entry(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $entry_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Dar',
+                'definition' => 'tree',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($entry_result);
+        $entry_id = (int) ($entry_result['entry_id'] ?? 0);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $palu_wordset = wp_insert_term('Palu Wordset', 'wordset', ['slug' => 'palu-wordset']);
+        $bingol_wordset = wp_insert_term('Bingol Wordset', 'wordset', ['slug' => 'bingol-wordset']);
+        $this->assertIsArray($palu_wordset);
+        $this->assertIsArray($bingol_wordset);
+        $palu_wordset_id = (int) $palu_wordset['term_id'];
+        $bingol_wordset_id = (int) $bingol_wordset['term_id'];
+
+        $palu_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Dar',
+        ]);
+        update_post_meta($palu_word_id, 'word_translation', 'tree');
+        wp_set_object_terms($palu_word_id, [$palu_wordset_id], 'wordset', false);
+
+        $bingol_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Dar',
+        ]);
+        update_post_meta($bingol_word_id, 'word_translation', 'tree');
+        wp_set_object_terms($bingol_word_id, [$bingol_wordset_id], 'wordset', false);
+
+        $first_link_result = ll_tools_assign_dictionary_entry_to_word($palu_word_id, $entry_id, '');
+        $second_link_result = ll_tools_assign_dictionary_entry_to_word($bingol_word_id, $entry_id, '');
+        $this->assertIsArray($first_link_result);
+        $this->assertIsArray($second_link_result);
+
+        $scope_wordset_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id);
+        sort($scope_wordset_ids);
+        $expected_scope_ids = [$palu_wordset_id, $bingol_wordset_id];
+        sort($expected_scope_ids);
+        $this->assertSame($expected_scope_ids, $scope_wordset_ids);
+        $this->assertSame(0, ll_tools_get_dictionary_entry_wordset_id($entry_id));
+
+        $_GET = [
+            'll_dictionary_q' => 'Dar',
+        ];
+
+        $search_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Palu Wordset', $search_html);
+        $this->assertStringContainsString('Bingol Wordset', $search_html);
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+
+        $detail_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Palu Wordset', $detail_html);
+        $this->assertStringContainsString('Bingol Wordset', $detail_html);
     }
 
     public function test_shortcode_starts_compact_and_exposes_language_specific_letter_browse(): void
