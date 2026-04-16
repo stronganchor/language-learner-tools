@@ -99,6 +99,85 @@ normalize_windows_php_bootstrap_paths() {
     fi
 }
 
+escape_php_single_quoted_value() {
+    local value="$1"
+    value="${value//\\/\\\\}"
+    value="${value//\'/\'\\\'\'}"
+    printf '%s\n' "$value"
+}
+
+detect_runtime_php_binary() {
+    local runtime_binary
+    runtime_binary="$("$PHP_LOCAL" -r "echo PHP_BINARY;" 2>/dev/null || true)"
+    if [[ -n "$runtime_binary" ]]; then
+        printf '%s\n' "$runtime_binary"
+        return 0
+    fi
+
+    if [[ -n "${PHP_BIN:-}" && -x "${PHP_BIN}" ]]; then
+        printf '%s\n' "${PHP_BIN}"
+        return 0
+    fi
+
+    return 1
+}
+
+expected_wp_tests_php_binary() {
+    if [[ "$php_family" == "Windows" ]] && command -v wslpath >/dev/null 2>&1; then
+        local runtime_binary runtime_binary_win runtime_binary_unix php_dir_win
+        runtime_binary="$(detect_runtime_php_binary || true)"
+        if [[ -n "$runtime_binary" ]]; then
+            runtime_binary_win="$runtime_binary"
+            if [[ "$runtime_binary_win" == /mnt/* ]]; then
+                runtime_binary_win="$(wslpath -w "$runtime_binary_win")"
+            fi
+
+            if [[ "$runtime_binary_win" == [A-Za-z]:\\* ]]; then
+                runtime_binary_unix="$(wslpath -u "$runtime_binary_win" 2>/dev/null || true)"
+                if [[ -n "$runtime_binary_unix" ]]; then
+                    php_dir_win="$(wslpath -w "$(dirname "$runtime_binary_unix")")"
+                    printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
+                        "$runtime_binary_win" \
+                        "$php_dir_win"
+                    return 0
+                fi
+            fi
+        fi
+    fi
+
+    if [[ -n "${PHP_BIN:-}" ]]; then
+        printf '%s\n' "${PHP_BIN}"
+        return 0
+    fi
+
+    printf 'php\n'
+}
+
+wp_tests_config_matches_env() {
+    local cfg="$1"
+    if [[ ! -f "$cfg" ]]; then
+        return 1
+    fi
+
+    local expected_db_name expected_db_host expected_core_raw expected_core expected_php_binary
+    expected_db_name="$(escape_php_single_quoted_value "${WP_TEST_DB_NAME:-wordpress_test}")"
+    expected_db_host="$(escape_php_single_quoted_value "${WP_TEST_DB_HOST:-127.0.0.1:3306}")"
+    expected_php_binary="$(escape_php_single_quoted_value "$(expected_wp_tests_php_binary)")"
+
+    expected_core_raw="${WP_CORE_DIR%/}/"
+    if [[ "$php_family" == "Windows" && "$expected_core_raw" == /mnt/* ]] && command -v wslpath >/dev/null 2>&1; then
+        expected_core_raw="$(wslpath -w "${WP_CORE_DIR%/}")\\"
+    fi
+    expected_core="$(escape_php_single_quoted_value "$expected_core_raw")"
+
+    grep -F "define( 'DB_NAME', '${expected_db_name}' );" "$cfg" >/dev/null 2>&1 || return 1
+    grep -F "define( 'DB_HOST', '${expected_db_host}' );" "$cfg" >/dev/null 2>&1 || return 1
+    grep -F "define( 'WP_PHP_BINARY', '${expected_php_binary}' );" "$cfg" >/dev/null 2>&1 || return 1
+    grep -F "define( 'ABSPATH', '${expected_core}' );" "$cfg" >/dev/null 2>&1 || return 1
+
+    return 0
+}
+
 ensure_wordpress_test_framework() {
     local tests_includes="$WP_TESTS_DIR/includes"
     local tests_functions="$tests_includes/functions.php"
@@ -116,6 +195,8 @@ ensure_wordpress_test_framework() {
     fi
     if [[ ! -f "$tests_config" ]]; then
         needs_install=1
+    elif ! wp_tests_config_matches_env "$tests_config"; then
+        needs_install=1
     fi
     if [[ ! -d "$core_includes" ]]; then
         needs_install=1
@@ -128,8 +209,11 @@ ensure_wordpress_test_framework() {
         echo "WordPress test framework is missing or incomplete." >&2
         echo "WP_TESTS_DIR=$WP_TESTS_DIR" >&2
         echo "WP_CORE_DIR=$WP_CORE_DIR" >&2
+        if [[ -f "$tests_config" ]]; then
+            echo "Detected stale WordPress test config; regenerating bootstrap." >&2
+        fi
         echo "Running tests/bin/install-wp-tests.sh to repair the local bootstrap..." >&2
-        if ! "$SCRIPT_DIR/install-wp-tests.sh" \
+        if ! LL_TOOLS_PHP_OS_FAMILY="$php_family" "$SCRIPT_DIR/install-wp-tests.sh" \
             "${WP_TEST_DB_NAME:-wordpress_test}" \
             "${WP_TEST_DB_USER:-root}" \
             "${WP_TEST_DB_PASS:-root}" \
@@ -139,6 +223,23 @@ ensure_wordpress_test_framework() {
             echo "If WP_TESTS_DIR or WP_CORE_DIR are stale, rerun tests/bin/setup-local-env.sh and then tests/bin/install-wp-tests.sh manually." >&2
             exit 1
         fi
+    fi
+}
+
+maybe_reset_wordpress_test_database() {
+    if [[ "${RESET_DB:-0}" != "1" ]]; then
+        return
+    fi
+
+    echo "Resetting WordPress test database bootstrap..." >&2
+    if ! LL_TOOLS_PHP_OS_FAMILY="$php_family" RESET_DB=1 "$SCRIPT_DIR/install-wp-tests.sh" \
+        "${WP_TEST_DB_NAME:-wordpress_test}" \
+        "${WP_TEST_DB_USER:-root}" \
+        "${WP_TEST_DB_PASS:-root}" \
+        "${WP_TEST_DB_HOST:-127.0.0.1:3306}"
+    then
+        echo "Database reset failed." >&2
+        exit 1
     fi
 }
 
@@ -234,6 +335,7 @@ if [[ "$php_family" == "Windows" ]]; then
 fi
 
 ensure_wordpress_test_framework
+maybe_reset_wordpress_test_database
 
 needs_install=0
 if [[ ! -f "vendor/autoload.php" ]]; then

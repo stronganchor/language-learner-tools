@@ -43,6 +43,138 @@ download() {
     return 1
 }
 
+detect_php_runtime_family() {
+    if [[ -n "${LL_TOOLS_PHP_OS_FAMILY:-}" ]]; then
+        printf '%s\n' "${LL_TOOLS_PHP_OS_FAMILY}"
+        return 0
+    fi
+
+    local php_local="${SCRIPT_DIR}/php-local.sh"
+    if [[ -x "$php_local" ]]; then
+        "$php_local" -r "echo PHP_OS_FAMILY;" 2>/dev/null || true
+        return 0
+    fi
+
+    if [[ -n "${PHP_BIN:-}" && -x "${PHP_BIN}" ]]; then
+        "${PHP_BIN}" -r "echo PHP_OS_FAMILY;" 2>/dev/null || true
+        return 0
+    fi
+
+    if command -v php >/dev/null 2>&1; then
+        php -r "echo PHP_OS_FAMILY;" 2>/dev/null || true
+        return 0
+    fi
+
+    return 1
+}
+
+runtime_uses_windows_php() {
+    local family
+    family="$(detect_php_runtime_family)"
+    [[ "$family" == "Windows" ]]
+}
+
+detect_mysql_bin() {
+    if [[ -n "${MYSQL_BIN:-}" && -x "${MYSQL_BIN}" ]]; then
+        printf '%s\n' "${MYSQL_BIN}"
+        return 0
+    fi
+
+    if command -v "${MYSQL_BIN:-mysql}" >/dev/null 2>&1; then
+        command -v "${MYSQL_BIN:-mysql}"
+        return 0
+    fi
+
+    local base candidate
+    for base in \
+        "$HOME/AppData/Roaming/Local/lightning-services" \
+        "/mnt/c/Users/${USER}/AppData/Roaming/Local/lightning-services" \
+        /mnt/c/Users/*/AppData/Roaming/Local/lightning-services
+    do
+        if [[ -d "$base" ]]; then
+            candidate="$(find "$base" -maxdepth 6 -type f -iname mysql.exe 2>/dev/null | sort -V | tail -n 1 || true)"
+            if [[ -n "$candidate" ]]; then
+                printf '%s\n' "$candidate"
+                return 0
+            fi
+        fi
+    done
+
+    return 1
+}
+
+detect_runtime_php_binary() {
+    local php_local="${SCRIPT_DIR}/php-local.sh"
+    local runtime_binary=""
+
+    if [[ -n "${PHP_BIN:-}" && -x "${PHP_BIN}" ]]; then
+        if [[ "${PHP_BIN}" == *.exe ]]; then
+            printf '%s\n' "${PHP_BIN}"
+            return 0
+        fi
+
+        runtime_binary="$("${PHP_BIN}" -r "echo PHP_BINARY;" 2>/dev/null || true)"
+        if [[ -n "$runtime_binary" ]]; then
+            printf '%s\n' "$runtime_binary"
+            return 0
+        fi
+    fi
+
+    if [[ -x "$php_local" ]]; then
+        runtime_binary="$("$php_local" -r "echo PHP_BINARY;" 2>/dev/null || true)"
+        if [[ -n "$runtime_binary" ]]; then
+            printf '%s\n' "$runtime_binary"
+            return 0
+        fi
+    fi
+
+    if command -v php >/dev/null 2>&1; then
+        runtime_binary="$(php -r "echo PHP_BINARY;" 2>/dev/null || true)"
+        if [[ -n "$runtime_binary" ]]; then
+            printf '%s\n' "$runtime_binary"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+build_wp_php_binary() {
+    if [[ -n "${WP_PHP_BINARY:-}" ]]; then
+        printf '%s\n' "${WP_PHP_BINARY}"
+        return 0
+    fi
+
+    if runtime_uses_windows_php && command -v wslpath >/dev/null 2>&1; then
+        local runtime_binary runtime_binary_win runtime_binary_unix php_dir_win
+        runtime_binary="$(detect_runtime_php_binary || true)"
+        if [[ -n "$runtime_binary" ]]; then
+            runtime_binary_win="$runtime_binary"
+            if [[ "$runtime_binary_win" == /mnt/* ]]; then
+                runtime_binary_win="$(wslpath -w "$runtime_binary_win")"
+            fi
+
+            if [[ "$runtime_binary_win" == [A-Za-z]:\\* ]]; then
+                runtime_binary_unix="$(wslpath -u "$runtime_binary_win" 2>/dev/null || true)"
+                if [[ -n "$runtime_binary_unix" ]]; then
+                    php_dir_win="$(wslpath -w "$(dirname "$runtime_binary_unix")")"
+                    printf '"%s" -n -d extension_dir="%s\\ext" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll\n' \
+                        "$runtime_binary_win" \
+                        "$php_dir_win"
+                    return 0
+                fi
+            fi
+        fi
+    fi
+
+    if [[ -n "${PHP_BIN:-}" ]]; then
+        printf '%s\n' "${PHP_BIN}"
+        return 0
+    fi
+
+    printf 'php\n'
+}
+
 install_wp_core() {
     if [[ -d "$WP_CORE_DIR/wp-includes" && -f "$WP_CORE_DIR/wp-settings.php" ]]; then
         return
@@ -105,20 +237,13 @@ write_wp_tests_config() {
     esc_db_pass="${DB_PASS//\'/\'\\\'\'}"
     esc_db_host="${DB_HOST_RAW//\'/\'\\\'\'}"
     esc_core="${WP_CORE_DIR%/}/"
-    if [[ -n "${PHP_BIN:-}" && "${PHP_BIN}" == *.exe && "$esc_core" == /mnt/* ]] && command -v wslpath >/dev/null 2>&1; then
+    if runtime_uses_windows_php && [[ "$esc_core" == /mnt/* ]] && command -v wslpath >/dev/null 2>&1; then
         esc_core="$(wslpath -w "${WP_CORE_DIR%/}")\\"
     fi
     esc_core="${esc_core//\\/\\\\}"
     esc_core="${esc_core//\'/\'\\\'\'}"
 
-    wp_php_binary="${WP_PHP_BINARY:-php}"
-    if [[ -n "${PHP_BIN:-}" && "${PHP_BIN}" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
-        php_bin_win="$(wslpath -w "$PHP_BIN")"
-        php_dir_win="$(wslpath -w "$(dirname "$PHP_BIN")")"
-        wp_php_binary="\"${php_bin_win}\" -n -d extension_dir=\"${php_dir_win}\\ext\" -d extension=php_openssl.dll -d extension=php_mbstring.dll -d extension=php_curl.dll -d extension=php_fileinfo.dll -d extension=php_zip.dll -d extension=php_mysqli.dll -d extension=php_pdo_mysql.dll"
-    elif [[ -n "${PHP_BIN:-}" ]]; then
-        wp_php_binary="${PHP_BIN}"
-    fi
+    wp_php_binary="$(build_wp_php_binary)"
     esc_php_binary="${wp_php_binary//\\/\\\\}"
     esc_php_binary="${esc_php_binary//\'/\'\\\'\'}"
 
@@ -143,17 +268,20 @@ PHP
 }
 
 create_test_database() {
+    local mysql_bin
+
     if [[ "$SKIP_DB_CREATE" == "1" ]]; then
         echo "Skipping database creation (SKIP_DB_CREATE=1)."
         return
     fi
 
-    if ! command -v "$MYSQL_BIN" >/dev/null 2>&1 && [[ ! -x "$MYSQL_BIN" ]]; then
+    mysql_bin="$(detect_mysql_bin || true)"
+    if [[ -z "$mysql_bin" ]]; then
         echo "MySQL client not found (${MYSQL_BIN}); skipping DB create." >&2
         return
     fi
 
-    local mysql_cmd=("$MYSQL_BIN" "-h" "$db_host" "-u" "$DB_USER")
+    local mysql_cmd=("$mysql_bin" "-h" "$db_host" "-u" "$DB_USER")
     if [[ -n "$db_port" ]]; then
         mysql_cmd+=("-P" "$db_port")
     fi
