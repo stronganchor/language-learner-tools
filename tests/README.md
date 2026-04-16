@@ -12,7 +12,7 @@ This directory contains the plugin test framework:
   - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports.
 - `bin/install-wp-tests.sh`: installs WordPress core + wordpress-tests-lib and writes `wp-tests-config.php`.
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
-- `bin/run-tests.sh`: installs test deps (if needed) and runs PHPUnit.
+- `bin/run-tests.sh`: installs test deps (if needed), repairs missing WordPress test libraries when possible, and runs PHPUnit.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
 - `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
 - `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.
@@ -85,6 +85,9 @@ cd tests
 composer test
 ```
 
+If `WP_TESTS_DIR` or `WP_CORE_DIR` are missing or stale, `tests/bin/run-tests.sh` will try to repair the local WordPress test framework automatically by invoking `tests/bin/install-wp-tests.sh` before PHPUnit starts.
+If the test database itself is dirty or bootstrap shows `Duplicate entry '1' for key 'PRIMARY'` in `wptests_terms`, rerun with `LL_TOOLS_RESET_WP_TEST_DB=1` to force `install-wp-tests.sh` to drop and recreate the local test database before PHPUnit starts.
+
 ## 4.1) One-command local flow (Local by Flywheel)
 
 From plugin root:
@@ -111,6 +114,7 @@ tests/bin/setup-local-http-env.sh
 
 Some Local installs keep stale ports in `local-site.json`; in that case inspect the active runtime MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) and temporarily override `WP_TEST_DB_HOST`.
 `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and (when runtime detection succeeds) `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` to show which Local runtime files were used.
+If the WordPress test library itself is missing or incomplete, `run-tests.sh` now prints the broken paths and attempts a self-repair before it hands off to PHPUnit.
 
 ## 4.2) Using a `.env` file
 

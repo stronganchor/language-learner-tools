@@ -112,7 +112,12 @@ When behavior changes intentionally:
 ## 7) Common Failures and Fixes
 
 `WordPress test library not found`:
-- Fix `WP_TESTS_DIR` so it contains `includes/functions.php`.
+- `tests/bin/run-tests.sh` now tries to repair the local WordPress test framework automatically when `WP_TESTS_DIR` or `WP_CORE_DIR` are missing or incomplete.
+- If that still fails, fix `WP_TESTS_DIR` so it contains `includes/functions.php`.
+
+`Duplicate entry '1' for key 'PRIMARY'` during `wp_install_defaults`:
+- This usually means the test database is stale or another test runner is using the same DB.
+- Retry with `LL_TOOLS_RESET_WP_TEST_DB=1 tests/bin/run-tests.sh ...` to force a fresh local test database.
 
 Local site returns `500`:
 - Check Local DB service and `DB_HOST` in site `wp-config.php`.

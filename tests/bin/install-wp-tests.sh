@@ -14,6 +14,7 @@ WP_VERSION="${5:-${WP_VERSION:-latest}}"
 WP_TESTS_DIR="${WP_TESTS_DIR:-/tmp/wordpress-tests-lib}"
 WP_CORE_DIR="${WP_CORE_DIR:-/tmp/wordpress}"
 SKIP_DB_CREATE="${SKIP_DB_CREATE:-0}"
+RESET_DB="${RESET_DB:-0}"
 MYSQL_BIN="${MYSQL_BIN:-mysql}"
 
 db_host="$DB_HOST_RAW"
@@ -145,7 +146,13 @@ create_test_database() {
     if [[ -n "$DB_PASS" ]]; then
         mysql_cmd+=("--password=${DB_PASS}")
     fi
-    mysql_cmd+=("-e" "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+
+    if [[ "$RESET_DB" == "1" ]]; then
+        echo "Resetting WordPress test database ${DB_NAME}."
+        mysql_cmd+=("-e" "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+    else
+        mysql_cmd+=("-e" "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+    fi
 
     "${mysql_cmd[@]}"
 }

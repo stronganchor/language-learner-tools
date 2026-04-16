@@ -45,6 +45,51 @@ done
 if [[ -z "${WP_TESTS_DIR:-}" ]]; then
     export WP_TESTS_DIR="/tmp/wordpress-tests-lib"
 fi
+if [[ -z "${WP_CORE_DIR:-}" ]]; then
+    export WP_CORE_DIR="/tmp/wordpress"
+fi
+if [[ -n "${LL_TOOLS_RESET_WP_TEST_DB:-}" ]]; then
+    export RESET_DB="${LL_TOOLS_RESET_WP_TEST_DB}"
+fi
+
+ensure_wordpress_test_framework() {
+    local tests_includes="$WP_TESTS_DIR/includes"
+    local tests_functions="$tests_includes/functions.php"
+    local tests_bootstrap="$tests_includes/bootstrap.php"
+    local tests_config="$WP_TESTS_DIR/wp-tests-config.php"
+    local core_includes="$WP_CORE_DIR/wp-includes"
+    local needs_install=0
+
+    if [[ ! -f "$tests_functions" ]]; then
+        needs_install=1
+    fi
+    if [[ ! -f "$tests_bootstrap" ]]; then
+        needs_install=1
+    fi
+    if [[ ! -f "$tests_config" ]]; then
+        needs_install=1
+    fi
+    if [[ ! -d "$core_includes" ]]; then
+        needs_install=1
+    fi
+
+    if [[ "$needs_install" == "1" ]]; then
+        echo "WordPress test framework is missing or incomplete." >&2
+        echo "WP_TESTS_DIR=$WP_TESTS_DIR" >&2
+        echo "WP_CORE_DIR=$WP_CORE_DIR" >&2
+        echo "Running tests/bin/install-wp-tests.sh to repair the local bootstrap..." >&2
+        if ! "$SCRIPT_DIR/install-wp-tests.sh" \
+            "${WP_TEST_DB_NAME:-wordpress_test}" \
+            "${WP_TEST_DB_USER:-root}" \
+            "${WP_TEST_DB_PASS:-root}" \
+            "${WP_TEST_DB_HOST:-127.0.0.1:3306}"
+        then
+            echo "Automatic recovery failed." >&2
+            echo "If WP_TESTS_DIR or WP_CORE_DIR are stale, rerun tests/bin/setup-local-env.sh and then tests/bin/install-wp-tests.sh manually." >&2
+            exit 1
+        fi
+    fi
+}
 
 cd "$TESTS_DIR"
 
@@ -103,6 +148,8 @@ if [[ "$php_family" == "Windows" ]]; then
         append_wslenv_var "WP_CORE_DIR/p"
     fi
 fi
+
+ensure_wordpress_test_framework
 
 needs_install=0
 if [[ ! -f "vendor/autoload.php" ]]; then
