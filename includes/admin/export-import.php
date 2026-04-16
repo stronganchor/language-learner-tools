@@ -11030,6 +11030,9 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             $origin_word_id_to_imported[$origin_id] = $word_id;
         }
 
+        $mode = isset($options['wordset_mode']) ? sanitize_key((string) $options['wordset_mode']) : 'create_from_export';
+        $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+
         $category_ids = [];
         foreach ((array) ($item['categories'] ?? []) as $cat_slug) {
             $cat_slug = sanitize_title((string) $cat_slug);
@@ -11038,12 +11041,19 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             }
         }
         $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids))));
-        if (!empty($category_ids)) {
-            wp_set_object_terms($word_id, $category_ids, 'word-category', false);
+        $effective_category_ids = $category_ids;
+        if ($mode === 'assign_existing' && $target_wordset_id > 0 && function_exists('ll_tools_get_isolated_category_ids_for_wordsets')) {
+            $isolated_ids = ll_tools_get_isolated_category_ids_for_wordsets($category_ids, [$target_wordset_id]);
+            if (!empty($isolated_ids)) {
+                $effective_category_ids = array_values(array_unique(array_filter(array_map('intval', $isolated_ids), static function (int $id): bool {
+                    return $id > 0;
+                })));
+            }
+        }
+        if (!empty($effective_category_ids)) {
+            wp_set_object_terms($word_id, $effective_category_ids, 'word-category', false);
         }
 
-        $mode = isset($options['wordset_mode']) ? sanitize_key((string) $options['wordset_mode']) : 'create_from_export';
-        $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
         $wordset_ids = [];
         if ($mode === 'assign_existing' && $target_wordset_id > 0) {
             $wordset_ids[] = $target_wordset_id;
@@ -11083,7 +11093,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             }
             $word_label_index_global[$word_label_key][$word_id] = true;
 
-            foreach ($category_ids as $category_id) {
+            foreach ($effective_category_ids as $category_id) {
                 $category_id = (int) $category_id;
                 if ($category_id <= 0) {
                     continue;
@@ -11109,7 +11119,7 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
             if (!empty($wrong_texts)) {
                 $pending_specific_wrong_answers[$word_id] = [
                     'word_slug' => $slug,
-                    'category_ids' => $category_ids,
+                    'category_ids' => $effective_category_ids,
                     'wrong_texts' => $wrong_texts,
                 ];
             }
@@ -11122,13 +11132,13 @@ function ll_tools_import_full_bundle_payload(array $payload, $extract_dir, array
                 return $value !== '';
             }));
             $source_image_file = isset($item['featured_image']['file']) ? ltrim((string) $item['featured_image']['file'], '/') : '';
-            if (!empty($wrong_image_files) && $source_image_file !== '' && !empty($category_ids) && !empty($wordset_ids)) {
+            if (!empty($wrong_image_files) && $source_image_file !== '' && !empty($effective_category_ids) && !empty($wordset_ids)) {
                 $pending_preferred_wrong_image_groups[] = [
                     'word_id' => $word_id,
                     'word_slug' => $slug,
                     'source_image_file' => $source_image_file,
                     'wrong_image_files' => $wrong_image_files,
-                    'category_ids' => $category_ids,
+                    'category_ids' => $effective_category_ids,
                     'wordset_ids' => $wordset_ids,
                 ];
             }

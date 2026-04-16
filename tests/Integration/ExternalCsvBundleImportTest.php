@@ -155,6 +155,20 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
         return $paths;
     }
 
+    private function getEffectiveCategoryIdForWordset(WP_Term $term, int $wordset_id): int
+    {
+        $term_id = (int) $term->term_id;
+        if ($term_id <= 0) {
+            return 0;
+        }
+
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            return max(0, (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true));
+        }
+
+        return $term_id;
+    }
+
     private function findQuizPageIdByCategoryId(int $category_id): int
     {
         if ($category_id <= 0) {
@@ -266,16 +280,18 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $fruits_term = get_term_by('name', $fruits_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $animals_term);
             $this->assertInstanceOf(WP_Term::class, $fruits_term);
+            $animals_category_id = $this->getEffectiveCategoryIdForWordset($animals_term, $wordset_id);
+            $fruits_category_id = $this->getEffectiveCategoryIdForWordset($fruits_term, $wordset_id);
 
-            $this->assertSame('image', (string) get_term_meta((int) $animals_term->term_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('text_title', (string) get_term_meta((int) $animals_term->term_id, 'll_quiz_option_type', true));
-            $this->assertSame('text_title', (string) get_term_meta((int) $fruits_term->term_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('image', (string) get_term_meta((int) $fruits_term->term_id, 'll_quiz_option_type', true));
+            $this->assertSame('image', (string) get_term_meta($animals_category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('text_title', (string) get_term_meta($animals_category_id, 'll_quiz_option_type', true));
+            $this->assertSame('text_title', (string) get_term_meta($fruits_category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('image', (string) get_term_meta($fruits_category_id, 'll_quiz_option_type', true));
 
-            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', (int) $animals_term->term_id);
-            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', (int) $animals_term->term_id);
-            $bird_word_id = $this->findWordIdByTitleAndCategory('Bird', (int) $animals_term->term_id);
-            $apple_word_id = $this->findWordIdByTitleAndCategory('Apple', (int) $fruits_term->term_id);
+            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $animals_category_id);
+            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $animals_category_id);
+            $bird_word_id = $this->findWordIdByTitleAndCategory('Bird', $animals_category_id);
+            $apple_word_id = $this->findWordIdByTitleAndCategory('Apple', $fruits_category_id);
 
             $this->assertGreaterThan(0, $cat_word_id);
             $this->assertGreaterThan(0, $dog_word_id);
@@ -353,18 +369,20 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $audio_term = get_term_by('name', $audio_category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $text_term);
             $this->assertInstanceOf(WP_Term::class, $audio_term);
+            $text_category_id = $this->getEffectiveCategoryIdForWordset($text_term, $wordset_id);
+            $audio_category_id = $this->getEffectiveCategoryIdForWordset($audio_term, $wordset_id);
 
-            $this->assertSame('text_translation', (string) get_term_meta((int) $text_term->term_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('text_title', (string) get_term_meta((int) $text_term->term_id, 'll_quiz_option_type', true));
-            $this->assertSame('audio', (string) get_term_meta((int) $audio_term->term_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('text_title', (string) get_term_meta((int) $audio_term->term_id, 'll_quiz_option_type', true));
+            $this->assertSame('text_translation', (string) get_term_meta($text_category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('text_title', (string) get_term_meta($text_category_id, 'll_quiz_option_type', true));
+            $this->assertSame('audio', (string) get_term_meta($audio_category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('text_title', (string) get_term_meta($audio_category_id, 'll_quiz_option_type', true));
 
-            $text_cat_word_id = $this->findWordIdByTitleAndCategory('Cat', (int) $text_term->term_id);
-            $text_dog_word_id = $this->findWordIdByTitleAndCategory('Dog', (int) $text_term->term_id);
-            $text_bird_word_id = $this->findWordIdByTitleAndCategory('Bird', (int) $text_term->term_id);
-            $audio_cat_word_id = $this->findWordIdByTitleAndCategory('Cat', (int) $audio_term->term_id);
-            $audio_dog_word_id = $this->findWordIdByTitleAndCategory('Dog', (int) $audio_term->term_id);
-            $audio_bird_word_id = $this->findWordIdByTitleAndCategory('Bird', (int) $audio_term->term_id);
+            $text_cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $text_category_id);
+            $text_dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $text_category_id);
+            $text_bird_word_id = $this->findWordIdByTitleAndCategory('Bird', $text_category_id);
+            $audio_cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $audio_category_id);
+            $audio_dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $audio_category_id);
+            $audio_bird_word_id = $this->findWordIdByTitleAndCategory('Bird', $audio_category_id);
 
             $this->assertGreaterThan(0, $text_cat_word_id);
             $this->assertGreaterThan(0, $text_dog_word_id);
@@ -462,7 +480,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $this->assertSame('text_translation', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
             $this->assertSame('text_title', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
@@ -556,7 +574,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $this->assertSame('text_title', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
             $this->assertSame('image', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
@@ -661,7 +679,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $this->assertSame('audio_text_translation', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
             $this->assertSame('text_title', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
@@ -761,7 +779,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $this->assertSame('image', (string) get_term_meta($category_id, 'll_quiz_prompt_type', true));
             $this->assertSame('text_audio', (string) get_term_meta($category_id, 'll_quiz_option_type', true));
@@ -873,7 +891,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $true_ids = $this->findWordIdsByTitleAndCategory('True', $category_id);
             $false_ids = $this->findWordIdsByTitleAndCategory('False', $category_id);
@@ -941,13 +959,14 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $audio_term = get_term_by('name', $audio_category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $audio_term);
+            $audio_category_id = $this->getEffectiveCategoryIdForWordset($audio_term, $wordset_id);
 
-            $this->assertSame('audio', (string) get_term_meta((int) $audio_term->term_id, 'll_quiz_prompt_type', true));
-            $this->assertSame('text_title', (string) get_term_meta((int) $audio_term->term_id, 'll_quiz_option_type', true));
+            $this->assertSame('audio', (string) get_term_meta($audio_category_id, 'll_quiz_prompt_type', true));
+            $this->assertSame('text_title', (string) get_term_meta($audio_category_id, 'll_quiz_option_type', true));
 
-            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', (int) $audio_term->term_id);
-            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', (int) $audio_term->term_id);
-            $lynx_word_id = $this->findWordIdByTitleAndCategory('Lynx', (int) $audio_term->term_id);
+            $cat_word_id = $this->findWordIdByTitleAndCategory('Cat', $audio_category_id);
+            $dog_word_id = $this->findWordIdByTitleAndCategory('Dog', $audio_category_id);
+            $lynx_word_id = $this->findWordIdByTitleAndCategory('Lynx', $audio_category_id);
 
             $this->assertGreaterThan(0, $cat_word_id);
             $this->assertGreaterThan(0, $dog_word_id);
@@ -1033,11 +1052,13 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $term_b = get_term_by('name', $category_b, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term_a);
             $this->assertInstanceOf(WP_Term::class, $term_b);
+            $category_a_id = $this->getEffectiveCategoryIdForWordset($term_a, $wordset_id);
+            $category_b_id = $this->getEffectiveCategoryIdForWordset($term_b, $wordset_id);
 
-            $alpha_id = $this->findWordIdByTitleAndCategory('Alpha', (int) $term_a->term_id);
-            $beta_id = $this->findWordIdByTitleAndCategory('Beta', (int) $term_a->term_id);
-            $shared_in_a_id = $this->findWordIdByTitleAndCategory('Shared Wrong', (int) $term_a->term_id);
-            $shared_in_b_id = $this->findWordIdByTitleAndCategory('Shared Wrong', (int) $term_b->term_id);
+            $alpha_id = $this->findWordIdByTitleAndCategory('Alpha', $category_a_id);
+            $beta_id = $this->findWordIdByTitleAndCategory('Beta', $category_a_id);
+            $shared_in_a_id = $this->findWordIdByTitleAndCategory('Shared Wrong', $category_a_id);
+            $shared_in_b_id = $this->findWordIdByTitleAndCategory('Shared Wrong', $category_b_id);
 
             $this->assertGreaterThan(0, $alpha_id);
             $this->assertGreaterThan(0, $beta_id);
@@ -1049,7 +1070,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $this->assertNotContains($shared_in_b_id, $alpha_wrong_ids);
             $this->assertSame(['Shared Wrong', 'Beta'], $this->getSpecificWrongTextsForWord($alpha_id));
 
-            $lesson_a_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, (int) $term_a->term_id);
+            $lesson_a_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_a_id);
             $this->assertContains($alpha_id, $lesson_a_word_ids);
             $this->assertContains($beta_id, $lesson_a_word_ids);
             $this->assertNotContains($shared_in_b_id, $lesson_a_word_ids);
@@ -1129,7 +1150,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $shalom_id = $this->findWordIdByTitleAndCategory('שלום', $category_id);
             $todah_id = $this->findWordIdByTitleAndCategory('תודה', $category_id);
@@ -1261,7 +1282,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
 
             $term = get_term_by('name', $category_name, 'word-category');
             $this->assertInstanceOf(WP_Term::class, $term);
-            $category_id = (int) $term->term_id;
+            $category_id = $this->getEffectiveCategoryIdForWordset($term, $wordset_id);
 
             $hiy_id = $this->findWordIdByTitleAndCategory('הִיא', $category_id);
             $at_id = $this->findWordIdByTitleAndCategory('אַתְּ', $category_id);
