@@ -182,9 +182,31 @@ done
 
 phpunit_options=()
 phpunit_targets=()
+phpunit_option_expects_value=0
+
+phpunit_option_requires_value() {
+    case "$1" in
+        -c|--configuration|--bootstrap|--filter|--testsuite|--group|--exclude-group|--printer|--order-by|--random-order-seed|--cache-result-file|--coverage-clover|--coverage-cobertura|--coverage-crap4j|--coverage-html|--coverage-php|--coverage-text|--coverage-xml|--log-junit|--testdox-html|--testdox-text)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 for arg in "${normalized_args[@]}"; do
+    if [[ "$phpunit_option_expects_value" == "1" ]]; then
+        phpunit_options+=("$arg")
+        phpunit_option_expects_value=0
+        continue
+    fi
+
     if [[ "$arg" == -* ]]; then
         phpunit_options+=("$arg")
+        if [[ "$arg" != *=* ]] && phpunit_option_requires_value "$arg"; then
+            phpunit_option_expects_value=1
+        fi
     else
         phpunit_targets+=("$arg")
     fi
