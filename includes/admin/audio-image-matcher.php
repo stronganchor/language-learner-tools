@@ -66,20 +66,18 @@ function ll_aim_enqueue_admin_assets($hook) {
         'before'
     );
 
-    $wordsets = get_terms([
-        'taxonomy'   => 'wordset',
-        'hide_empty' => false,
-    ]);
-    if (is_wp_error($wordsets)) {
-        $wordsets = [];
-    }
+    $preselected_wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $active_wordset_id = function_exists('ll_tools_get_active_wordset_id')
+        ? ll_tools_get_active_wordset_id($preselected_wordset_id)
+        : ( $preselected_wordset_id ?: 0 );
+    $initial_category_rows = ll_aim_get_category_options_for_wordset($active_wordset_id);
 
     wp_localize_script('ll-audio-image-matcher', 'llAimData', [
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce'   => wp_create_nonce('ll_aim_admin'),
-        'categoryOptionsByWordset' => function_exists('ll_aim_get_category_options_by_wordset')
-            ? ll_aim_get_category_options_by_wordset((array) $wordsets)
-            : [],
+        'initialWordsetId' => $active_wordset_id,
+        'initialCategoryId' => isset($_GET['term_id']) ? intval($_GET['term_id']) : 0,
+        'initialCategoryRows' => $initial_category_rows,
         'i18n'    => [
             'loadingDefault' => __('Loading…', 'll-tools-text-domain'),
             'loadingImages' => __('Loading images…', 'll-tools-text-domain'),
@@ -98,30 +96,38 @@ function ll_aim_enqueue_admin_assets($hook) {
 }
 add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
 
-function ll_aim_get_category_options_by_wordset(array $wordsets): array {
-    $options = [
-        '0' => function_exists('ll_tools_get_word_category_selector_rows')
-            ? ll_tools_get_word_category_selector_rows(0, [
-                'post_types' => ['words'],
-                'post_statuses' => ['publish'],
-            ])
-            : [],
-    ];
+function ll_aim_get_category_options_for_wordset(int $wordset_id): array {
+    static $cache = [];
 
-    foreach ($wordsets as $wordset) {
-        if (!($wordset instanceof WP_Term) || $wordset->taxonomy !== 'wordset') {
-            continue;
-        }
+    $wordset_id = max(0, (int) $wordset_id);
+    $cache_key = (string) $wordset_id;
 
-        $options[(string) $wordset->term_id] = function_exists('ll_tools_get_word_category_selector_rows')
-            ? ll_tools_get_word_category_selector_rows((int) $wordset->term_id, [
-                'post_types' => ['words'],
-                'post_statuses' => ['publish'],
-            ])
-            : [];
+    if (array_key_exists($cache_key, $cache)) {
+        return $cache[$cache_key];
     }
 
-    return $options;
+    $cache[$cache_key] = function_exists('ll_tools_get_word_category_selector_rows')
+        ? ll_tools_get_word_category_selector_rows($wordset_id, [
+            'post_types' => ['words'],
+            'post_statuses' => ['publish'],
+        ])
+        : [];
+
+    return $cache[$cache_key];
+}
+
+function ll_aim_get_category_options_handler() {
+    ll_aim_verify_ajax_request();
+
+    $wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    if (function_exists('ll_tools_get_active_wordset_id')) {
+        $wordset_id = ll_tools_get_active_wordset_id($wordset_id);
+    }
+
+    wp_send_json_success([
+        'wordset_id' => (int) $wordset_id,
+        'rows' => ll_aim_get_category_options_for_wordset((int) $wordset_id),
+    ]);
 }
 
 /**
@@ -151,8 +157,10 @@ function ll_render_audio_image_matcher_page() {
         }
     }
 
-    $category_option_map = ll_aim_get_category_options_by_wordset((array) $wordsets);
-    $cats = $category_option_map[(string) $pre_wordset_id] ?? $category_option_map['0'] ?? [];
+    $cats = ll_aim_get_category_options_for_wordset($pre_wordset_id);
+    if (empty($cats)) {
+        $cats = ll_aim_get_category_options_for_wordset(0);
+    }
 
     $pre_rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
 
@@ -266,6 +274,7 @@ function ll_aim_get_images_handler() {
     wp_send_json_success(['images' => $out]);
 }
 add_action('wp_ajax_ll_aim_get_images', 'll_aim_get_images_handler');
+add_action('wp_ajax_ll_aim_get_category_options', 'll_aim_get_category_options_handler');
 
 /**
  * AJAX: Next "words" post with audio; include/skip existing thumbnails based on rematch flag

@@ -1,7 +1,11 @@
 /* /js/audio-image-matcher.js */
 (function ($) {
     const i18n = (window.llAimData && window.llAimData.i18n) || {};
-    const categoryOptionsByWordset = (window.llAimData && window.llAimData.categoryOptionsByWordset) || {};
+    const initialWordsetId = parseInt((window.llAimData && window.llAimData.initialWordsetId) || '0', 10) || 0;
+    const initialCategoryId = parseInt((window.llAimData && window.llAimData.initialCategoryId) || '0', 10) || 0;
+    const initialCategoryRows = Array.isArray(window.llAimData && window.llAimData.initialCategoryRows)
+        ? window.llAimData.initialCategoryRows
+        : [];
     const $start = $('#ll-aim-start');
     const $skip = $('#ll-aim-skip');
     const $stage = $('#ll-aim-stage');
@@ -23,6 +27,10 @@
     let excludeIds = [];
     let cachedImages = [];
     let currentWord = null;
+    const categoryOptionsCache = {};
+    const pendingCategoryOptionsRequests = {};
+
+    categoryOptionsCache[String(initialWordsetId)] = initialCategoryRows.slice();
 
     function t(key, fallback) {
         const value = i18n[key];
@@ -43,15 +51,50 @@
     function uiLoading(m) { $status.text(m || t('loadingDefault', 'Loading…')); }
     function uiReady() { $stage.show(); $skip.prop('disabled', false); $status.text(''); }
 
-    function renderCategoryOptions(preferredValue) {
+    async function fetchCategoryOptions(wordsetIdValue) {
+        const wordsetKey = String(parseInt(wordsetIdValue || '0', 10) || 0);
+        if (Array.isArray(categoryOptionsCache[wordsetKey])) {
+            return categoryOptionsCache[wordsetKey];
+        }
+
+        if (pendingCategoryOptionsRequests[wordsetKey]) {
+            return pendingCategoryOptionsRequests[wordsetKey];
+        }
+
+        const request = (async () => {
+            const u = new URL(getAjaxBase());
+            u.searchParams.set('action', 'll_aim_get_category_options');
+            u.searchParams.set('wordset_id', wordsetKey);
+            if (window.llAimData && window.llAimData.nonce) {
+                u.searchParams.set('nonce', window.llAimData.nonce);
+            }
+
+            try {
+                const res = await fetch(u.toString(), { credentials: 'same-origin' });
+                const json = await res.json();
+                const rows = (json && json.data && Array.isArray(json.data.rows)) ? json.data.rows : [];
+                categoryOptionsCache[wordsetKey] = rows;
+                return rows;
+            } catch (e) {
+                const fallback = Array.isArray(categoryOptionsCache['0']) ? categoryOptionsCache['0'] : [];
+                categoryOptionsCache[wordsetKey] = fallback;
+                return fallback;
+            } finally {
+                delete pendingCategoryOptionsRequests[wordsetKey];
+            }
+        })();
+
+        pendingCategoryOptionsRequests[wordsetKey] = request;
+        return request;
+    }
+
+    async function renderCategoryOptions(preferredValue) {
         if (!$catSel.length) {
             return;
         }
 
         const selectedWordsetId = parseInt(($wsSel.val() || '0'), 10) || 0;
-        const rows = Array.isArray(categoryOptionsByWordset[String(selectedWordsetId)])
-            ? categoryOptionsByWordset[String(selectedWordsetId)]
-            : (Array.isArray(categoryOptionsByWordset['0']) ? categoryOptionsByWordset['0'] : []);
+        const rows = await fetchCategoryOptions(selectedWordsetId);
         const currentValue = (preferredValue !== undefined && preferredValue !== null)
             ? String(preferredValue)
             : String($catSel.val() || '');
@@ -261,6 +304,7 @@
 
     // Start button wiring — captures both category and wordset, (re)loads data
     $start.on('click', async () => {
+        await renderCategoryOptions();
         termId = parseInt(($catSel.val() || '0'), 10) || 0;
         wordsetId = parseInt((($wsSel.val() || '0')), 10) || 0;
 
@@ -291,7 +335,7 @@
     });
 
     $wsSel.on('change', () => {
-        renderCategoryOptions();
+        renderCategoryOptions().catch(() => {});
         cachedImages = [];
         excludeIds = [];
         uiIdle();
@@ -312,11 +356,11 @@
         buildImageGrid();
     });
 
-    (function preselectFromURL() {
+    (async function preselectFromURL() {
         const q = new URLSearchParams(location.search);
         const id = q.get('term_id') || q.get('category') || q.get('cat') || q.get('word_category');
         const slug = q.get('category_slug') || q.get('slug');
-        renderCategoryOptions();
+        await renderCategoryOptions(initialCategoryId);
         if (!id && !slug) return;
 
         let val = null;
@@ -339,6 +383,6 @@
         if (!val) return;
         $catSel.val(val).trigger('change');
         // Autostart disabled; user must click "Start Matching."
-    })();
+    })().catch(() => {});
 
 })(jQuery);
