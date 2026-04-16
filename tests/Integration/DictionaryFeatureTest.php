@@ -322,6 +322,132 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Ava rê', $detail_html);
     }
 
+    public function test_header_tsv_import_supports_short_gloss_column_names(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $wordset = wp_insert_term('Harun Gloss Wordset', 'wordset', ['slug' => 'harun-gloss-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $temp_file = tempnam(sys_get_temp_dir(), 'lltd_');
+        $this->assertNotFalse($temp_file);
+
+        $tsv = implode("\n", [
+            "entry\tdefinition\tentry_type\tdefinition_tr\tgloss_de\ttranslation_en",
+            "Ruec\t\tnoun\tgüneş\tSonne\tsun",
+        ]);
+        $this->assertNotFalse(file_put_contents($temp_file, $tsv));
+
+        try {
+            $rows = ll_tools_dictionary_parse_tsv_file($temp_file);
+            $this->assertIsArray($rows);
+
+            $summary = ll_tools_dictionary_import_rows($rows, [
+                'wordset_id' => $wordset_id,
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'Turkish',
+                'skip_review_rows' => true,
+            ]);
+        } finally {
+            @unlink($temp_file);
+        }
+
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Ruec', $wordset_id);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertCount(1, $senses);
+        $this->assertSame('güneş', $senses[0]['definition']);
+        $this->assertSame('tr', $senses[0]['def_lang']);
+        $this->assertSame([
+            'tr' => 'güneş',
+            'de' => 'Sonne',
+            'en' => 'sun',
+        ], $senses[0]['translations']);
+        $this->assertSame('güneş', ll_tools_get_dictionary_entry_translation($entry_id));
+    }
+
+    public function test_dictionary_search_prioritizes_exact_aliases_and_hides_duplicate_entry_type_badges(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $exact_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Roj, Ruec',
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'raw_headword' => 'ruec',
+                'title_keys' => 'ruec|roj',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $prefix_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ruecarek',
+                'definition' => 'sunlight',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $contains_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Mij û ruec',
+                'definition' => 'moon and sun',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($exact_result);
+        $this->assertIsArray($prefix_result);
+        $this->assertIsArray($contains_result);
+
+        $query = ll_tools_dictionary_query_entries([
+            'search' => 'ruec',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+
+        $titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($query['items'] ?? [])));
+
+        $this->assertSame('Roj, Ruec', $titles[0] ?? '');
+
+        $entry_id = (int) ($exact_result['entry_id'] ?? 0);
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+
+        $detail_html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('ll-dictionary__badge--pos', $detail_html);
+        $this->assertStringNotContainsString('ll-dictionary__badge--type', $detail_html);
+    }
+
     public function test_dictionary_sources_apply_defaults_and_render_attribution_filters(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

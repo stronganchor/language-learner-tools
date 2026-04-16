@@ -595,12 +595,44 @@ function ll_tools_dictionary_render_badge(string $text, string $modifier = '', s
     return '<span class="' . esc_attr($classes) . '">' . $content . '</span>';
 }
 
+function ll_tools_dictionary_should_render_entry_type_badge(string $entry_type, string $pos_slug = '', string $pos_label = ''): bool {
+    $entry_type = trim((string) $entry_type);
+    if ($entry_type === '') {
+        return false;
+    }
+
+    $pos_slug = sanitize_title((string) $pos_slug);
+    $pos_label = trim((string) $pos_label);
+
+    if (function_exists('ll_tools_dictionary_resolve_pos_slug_from_entry_type')) {
+        $entry_type_slug = ll_tools_dictionary_resolve_pos_slug_from_entry_type($entry_type);
+        if ($entry_type_slug !== '' && $pos_slug !== '' && $entry_type_slug === $pos_slug) {
+            return false;
+        }
+    }
+
+    $normalize = static function (string $value): string {
+        return function_exists('ll_tools_dictionary_normalize_search_text')
+            ? ll_tools_dictionary_normalize_search_text($value)
+            : strtolower(trim($value));
+    };
+
+    $entry_lookup = $normalize($entry_type);
+    $pos_lookup = $normalize($pos_label);
+    if ($entry_lookup !== '' && $pos_lookup !== '' && $entry_lookup === $pos_lookup) {
+        return false;
+    }
+
+    return true;
+}
+
 /**
  * @param array<string,mixed> $item
  */
 function ll_tools_dictionary_render_result_card(array $item, string $detail_url = ''): string {
     $title = trim((string) ($item['title'] ?? ''));
     $translation = trim((string) ($item['translation'] ?? ''));
+    $pos_slug = sanitize_title((string) ($item['pos_slug'] ?? ''));
     $pos_label = trim((string) ($item['pos_label'] ?? ''));
     $entry_type = trim((string) ($item['entry_type'] ?? ''));
     $wordset_name = trim((string) ($item['wordset_name'] ?? ''));
@@ -636,7 +668,7 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
     if ($pos_label !== '') {
         $html .= ll_tools_dictionary_render_badge($pos_label, 'pos');
     }
-    if ($entry_type !== '' && $entry_type !== $pos_label) {
+    if (ll_tools_dictionary_should_render_entry_type_badge($entry_type, $pos_slug, $pos_label)) {
         $html .= ll_tools_dictionary_render_badge($entry_type, 'type');
     }
     foreach ($wordset_names as $name) {
@@ -855,7 +887,11 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     if (!empty($entry['pos_label'])) {
         $html .= ll_tools_dictionary_render_badge((string) $entry['pos_label'], 'pos');
     }
-    if (!empty($entry['entry_type']) && (string) $entry['entry_type'] !== (string) ($entry['pos_label'] ?? '')) {
+    if (ll_tools_dictionary_should_render_entry_type_badge(
+        (string) ($entry['entry_type'] ?? ''),
+        (string) ($entry['pos_slug'] ?? ''),
+        (string) ($entry['pos_label'] ?? '')
+    )) {
         $html .= ll_tools_dictionary_render_badge((string) $entry['entry_type'], 'type');
     }
     foreach ($wordset_names as $wordset_name) {

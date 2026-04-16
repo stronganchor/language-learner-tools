@@ -1705,7 +1705,7 @@ function ll_tools_render_dictionary_import_page(): void {
                     <td>
                         <input type="file" name="ll_dictionary_tsv" id="ll-dictionary-tsv" accept=".tsv,text/tab-separated-values" required>
                         <p class="description">
-                            <?php esc_html_e('Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include source_id, source_dictionary, source_row_idx, raw_headword, title_keys, dialect, dialects, and multilingual gloss columns like definition_full_tr, definition_full_en, and definition_full_de.', 'll-tools-text-domain'); ?>
+                            <?php esc_html_e('Expected columns: entry, definition, gender_number, entry_type, parent, needs_review, page_number. Header-based TSVs can also include source_id, source_dictionary, source_row_idx, raw_headword, title_keys, dialect, dialects, and multilingual gloss columns like definition_full_tr, definition_tr, gloss_tr, translation_en, and definition_full_de.', 'll-tools-text-domain'); ?>
                         </p>
                         <p class="description">
                             <?php esc_html_e('Large imports now run in short batches with a live progress bar. Keep this window open while the import is running; if you close it, reopening this screen will let you resume the same job.', 'll-tools-text-domain'); ?>

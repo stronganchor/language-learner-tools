@@ -1128,6 +1128,30 @@ function ll_tools_dictionary_resolve_pos_slug_from_entry_type(string $entry_type
 }
 
 /**
+ * Resolve one supported import-language suffix from a TSV header token.
+ */
+function ll_tools_dictionary_resolve_import_translation_language(string $value): string {
+    $value = trim((string) $value, " \t\n\r\0\x0B_-");
+    if ($value === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_resolve_language_code_from_label')) {
+        $resolved = (string) ll_tools_resolve_language_code_from_label($value, 'lower');
+        if (preg_match('/^[a-z]{2,3}$/', $resolved) === 1) {
+            return $resolved;
+        }
+    }
+
+    $normalized = ll_tools_dictionary_normalize_language_key($value);
+    if (preg_match('/^[a-z]{2,3}$/', $normalized) === 1) {
+        return $normalized;
+    }
+
+    return '';
+}
+
+/**
  * Collect any per-language translation columns from an import row.
  *
  * @param array<string|int,mixed> $row Raw import row.
@@ -1156,11 +1180,19 @@ function ll_tools_dictionary_collect_row_translations(array $row): array {
         $language = '';
         if (strpos($column, 'definition_full_') === 0) {
             $language = substr($column, strlen('definition_full_'));
+        } elseif (strpos($column, 'gloss_full_') === 0) {
+            $language = substr($column, strlen('gloss_full_'));
+        } elseif (strpos($column, 'definition_') === 0) {
+            $language = substr($column, strlen('definition_'));
+        } elseif (strpos($column, 'gloss_') === 0) {
+            $language = substr($column, strlen('gloss_'));
         } elseif (strpos($column, 'translation_') === 0) {
             $language = substr($column, strlen('translation_'));
+        } elseif (strpos($column, 'meaning_') === 0) {
+            $language = substr($column, strlen('meaning_'));
         }
 
-        $language_key = ll_tools_dictionary_normalize_language_key($language);
+        $language_key = ll_tools_dictionary_resolve_import_translation_language($language);
         $text = trim(sanitize_text_field((string) $value));
         if ($language_key === '' || $text === '' || isset($translations[$language_key])) {
             continue;
@@ -2094,6 +2126,29 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
             return $left_id <=> $right_id;
         });
+    } elseif ($search !== '' && !empty($filtered_ids)) {
+        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $title_language): int {
+            $left_rank = ll_tools_dictionary_get_entry_search_rank($left_id, $search);
+            $right_rank = ll_tools_dictionary_get_entry_search_rank($right_id, $search);
+
+            foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
+                $compared = ((int) ($left_rank[$field] ?? 0)) <=> ((int) ($right_rank[$field] ?? 0));
+                if ($compared !== 0) {
+                    return $compared;
+                }
+            }
+
+            $left_title = (string) ($left_rank['title'] ?? get_the_title($left_id));
+            $right_title = (string) ($right_rank['title'] ?? get_the_title($right_id));
+            $compared = function_exists('ll_tools_locale_compare_strings')
+                ? ll_tools_locale_compare_strings($left_title, $right_title, $title_language)
+                : strnatcasecmp($left_title, $right_title);
+            if ($compared !== 0) {
+                return $compared;
+            }
+
+            return $left_id <=> $right_id;
+        });
     }
 
     $total = count($filtered_ids);
@@ -2441,6 +2496,208 @@ function ll_tools_dictionary_lookup_text_score(string $candidate, string $term):
     }
 
     return 99;
+}
+
+/**
+ * Split one headword/alias string into unique searchable candidates.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_split_lookup_candidates(string $value): array {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return [];
+    }
+
+    $parts = preg_split('/\s*(?:\||,|;|\/)\s*/u', $value, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($parts) || empty($parts)) {
+        $parts = [$value];
+    } else {
+        array_unshift($parts, $value);
+    }
+
+    $unique = [];
+    $seen = [];
+    foreach ($parts as $part) {
+        $part = trim((string) $part);
+        $lookup = ll_tools_dictionary_entry_normalize_lookup_value($part);
+        if ($part === '' || $lookup === '' || isset($seen[$lookup])) {
+            continue;
+        }
+
+        $seen[$lookup] = true;
+        $unique[] = $part;
+    }
+
+    return $unique;
+}
+
+/**
+ * Collect searchable headword candidates for one dictionary entry.
+ *
+ * @param array<int,array<string,mixed>> $senses Entry senses.
+ * @return string[]
+ */
+function ll_tools_dictionary_get_entry_headword_candidates(int $entry_id, array $senses): array {
+    $candidates = [];
+    $seen = [];
+
+    $append = static function (string $candidate) use (&$candidates, &$seen): void {
+        $candidate = trim($candidate);
+        $lookup = ll_tools_dictionary_entry_normalize_lookup_value($candidate);
+        if ($candidate === '' || $lookup === '' || isset($seen[$lookup])) {
+            return;
+        }
+
+        $seen[$lookup] = true;
+        $candidates[] = $candidate;
+    };
+
+    foreach (ll_tools_dictionary_split_lookup_candidates((string) get_the_title($entry_id)) as $candidate) {
+        $append($candidate);
+    }
+
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        foreach (['raw_headword', 'title_keys'] as $field) {
+            foreach (ll_tools_dictionary_split_lookup_candidates((string) ($sense[$field] ?? '')) as $candidate) {
+                $append($candidate);
+            }
+        }
+    }
+
+    return $candidates;
+}
+
+/**
+ * Collect searchable translation candidates for one dictionary entry.
+ *
+ * @param array<int,array<string,mixed>> $senses Entry senses.
+ * @return string[]
+ */
+function ll_tools_dictionary_get_entry_translation_candidates(array $senses): array {
+    $candidates = [];
+    $seen = [];
+
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        foreach (ll_tools_dictionary_get_sense_lookup_candidates($sense, 'auto', true) as $candidate) {
+            $candidate = trim((string) $candidate);
+            $lookup = ll_tools_dictionary_entry_normalize_lookup_value($candidate);
+            if ($candidate === '' || $lookup === '' || isset($seen[$lookup])) {
+                continue;
+            }
+
+            $seen[$lookup] = true;
+            $candidates[] = $candidate;
+        }
+    }
+
+    return $candidates;
+}
+
+/**
+ * Build one sortable search-rank tuple for a dictionary entry.
+ *
+ * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
+ */
+function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term): array {
+    static $request_cache = [];
+
+    $entry_id = (int) $entry_id;
+    $term = trim((string) $term);
+    $cache_key = $entry_id . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
+    if ($cache_key !== '' && isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $measure_length = static function (string $value): int {
+        return function_exists('mb_strlen') ? (int) mb_strlen($value, 'UTF-8') : strlen($value);
+    };
+
+    $title = trim((string) get_the_title($entry_id));
+    $title_length = $title !== '' ? $measure_length($title) : PHP_INT_MAX;
+    $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+    $headword_candidates = ll_tools_dictionary_get_entry_headword_candidates($entry_id, $senses);
+    $translation_candidates = ll_tools_dictionary_get_entry_translation_candidates($senses);
+
+    $headword_score = 99;
+    $headword_length = PHP_INT_MAX;
+    foreach ($headword_candidates as $candidate) {
+        $score = ll_tools_dictionary_lookup_text_score($candidate, $term);
+        $length = $measure_length($candidate);
+        if ($score < $headword_score || ($score === $headword_score && $length < $headword_length)) {
+            $headword_score = $score;
+            $headword_length = $length;
+        }
+    }
+
+    $translation_score = 99;
+    $translation_length = PHP_INT_MAX;
+    foreach ($translation_candidates as $candidate) {
+        $score = ll_tools_dictionary_lookup_text_score($candidate, $term);
+        $length = $measure_length($candidate);
+        if ($score < $translation_score || ($score === $translation_score && $length < $translation_length)) {
+            $translation_score = $score;
+            $translation_length = $length;
+        }
+    }
+
+    $search_index = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, true));
+    $fulltext_score = $search_index !== '' ? ll_tools_dictionary_lookup_text_score($search_index, $term) : 99;
+
+    $bucket = 7;
+    $secondary_score = $fulltext_score;
+    $secondary_length = $title_length;
+
+    if ($headword_score <= 1) {
+        $bucket = 0;
+        $secondary_score = $headword_score;
+        $secondary_length = $headword_length;
+    } elseif ($translation_score <= 1) {
+        $bucket = 1;
+        $secondary_score = $translation_score;
+        $secondary_length = $translation_length;
+    } elseif ($headword_score <= 3) {
+        $bucket = 2;
+        $secondary_score = $headword_score;
+        $secondary_length = $headword_length;
+    } elseif ($translation_score <= 3) {
+        $bucket = 3;
+        $secondary_score = $translation_score;
+        $secondary_length = $translation_length;
+    } elseif ($headword_score <= 5) {
+        $bucket = 4;
+        $secondary_score = $headword_score;
+        $secondary_length = $headword_length;
+    } elseif ($translation_score <= 5) {
+        $bucket = 5;
+        $secondary_score = $translation_score;
+        $secondary_length = $translation_length;
+    } elseif ($fulltext_score <= 5) {
+        $bucket = 6;
+        $secondary_score = $fulltext_score;
+        $secondary_length = $title_length;
+    }
+
+    $rank = [
+        'bucket' => $bucket,
+        'secondary_score' => $secondary_score,
+        'secondary_length' => $secondary_length,
+        'title' => $title,
+    ];
+
+    if ($cache_key !== '') {
+        $request_cache[$cache_key] = $rank;
+    }
+
+    return $rank;
 }
 
 /**
