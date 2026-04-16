@@ -915,6 +915,87 @@ if (!function_exists('ll_tools_login_window_resolve_login_identifier')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_login_attempt_limit_config')) {
+    function ll_tools_login_window_login_attempt_limit_config(): array {
+        return [
+            'limit' => max(0, (int) apply_filters('ll_tools_login_ip_attempt_limit', 5)),
+            'window' => max(MINUTE_IN_SECONDS, (int) apply_filters('ll_tools_login_ip_attempt_window', 10 * MINUTE_IN_SECONDS)),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_login_window_login_attempt_key')) {
+    function ll_tools_login_window_login_attempt_key(string $ip): string {
+        return 'll_tools_login_attempt_' . substr(md5($ip), 0, 24);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_get_login_rate_limit_status')) {
+    function ll_tools_login_window_get_login_rate_limit_status(string $ip = ''): array {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_login_attempt_limit_config();
+        if ($ip === '' || $config['limit'] <= 0) {
+            return [
+                'limited' => false,
+                'attempts' => 0,
+                'limit' => $config['limit'],
+                'window' => $config['window'],
+                'ip' => $ip,
+            ];
+        }
+
+        $attempts = (int) get_transient(ll_tools_login_window_login_attempt_key($ip));
+
+        return [
+            'limited' => ($attempts >= $config['limit']),
+            'attempts' => $attempts,
+            'limit' => $config['limit'],
+            'window' => $config['window'],
+            'ip' => $ip,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_login_window_record_login_attempt')) {
+    function ll_tools_login_window_record_login_attempt(string $ip = ''): void {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        $config = ll_tools_login_window_login_attempt_limit_config();
+        if ($ip === '' || $config['limit'] <= 0) {
+            return;
+        }
+
+        $key = ll_tools_login_window_login_attempt_key($ip);
+        $attempts = (int) get_transient($key);
+        set_transient($key, $attempts + 1, $config['window']);
+    }
+}
+
+if (!function_exists('ll_tools_login_window_reset_login_attempts')) {
+    function ll_tools_login_window_reset_login_attempts(string $ip = ''): void {
+        if ($ip === '') {
+            $ip = ll_tools_login_window_get_client_ip();
+        }
+
+        if ($ip === '') {
+            return;
+        }
+
+        delete_transient(ll_tools_login_window_login_attempt_key($ip));
+    }
+}
+
+if (!function_exists('ll_tools_login_window_login_rate_limit_message')) {
+    function ll_tools_login_window_login_rate_limit_message(): string {
+        return __('Too many login attempts from this connection. Please try again in a few minutes.', 'll-tools-text-domain');
+    }
+}
+
 if (!function_exists('ll_tools_handle_frontend_login')) {
     function ll_tools_handle_frontend_login(): void {
         $raw_redirect = isset($_POST['redirect_to']) ? wp_unslash((string) $_POST['redirect_to']) : '';
@@ -936,9 +1017,25 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
             exit;
         }
 
+        $request_ip = ll_tools_login_window_get_client_ip();
         $identifier = isset($_POST['log']) ? ll_tools_login_window_trimmed_identifier($_POST['log']) : '';
         $password = isset($_POST['pwd']) ? (string) wp_unslash($_POST['pwd']) : '';
         $remember = !empty($_POST['rememberme']);
+
+        $rate_limit_status = ll_tools_login_window_get_login_rate_limit_status($request_ip);
+        if (!empty($rate_limit_status['limited'])) {
+            $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
+                'type' => 'error',
+                'form' => 'login',
+                'messages' => [ll_tools_login_window_login_rate_limit_message()],
+                'prefill' => [
+                    'login_identifier' => $identifier,
+                    'login_remember' => $remember ? '1' : '0',
+                ],
+            ], 'login');
+            wp_safe_redirect($redirect_to);
+            exit;
+        }
 
         $errors = [];
         if ($identifier === '') {
@@ -958,6 +1055,7 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
                     'login_remember' => $remember ? '1' : '0',
                 ],
             ], 'login');
+            ll_tools_login_window_record_login_attempt($request_ip);
             wp_safe_redirect($redirect_to);
             exit;
         }
@@ -983,9 +1081,12 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
                     'login_remember' => $remember ? '1' : '0',
                 ],
             ], 'login');
+            ll_tools_login_window_record_login_attempt($request_ip);
             wp_safe_redirect($redirect_to);
             exit;
         }
+
+        ll_tools_login_window_reset_login_attempts($request_ip);
 
         $requested_redirect = ll_tools_get_valid_login_redirect_request($raw_redirect);
         $final_redirect = apply_filters(
