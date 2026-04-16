@@ -16,6 +16,13 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
             $wordset_id = $this->ensure_term('wordset', 'Private Study Wordset', 'private-study-wordset');
             $category_id = $this->create_private_category('Private Study Category', 'private-study-category');
             $word_id = $this->create_word($wordset_id, $category_id, 'Private Study Word', 'Private Study Translation');
+            $assigned_categories = wp_get_post_terms($word_id, 'word-category', [
+                'orderby' => 'term_id',
+                'order' => 'ASC',
+            ]);
+            $this->assertNotEmpty($assigned_categories);
+            $assigned_category_term = $assigned_categories[0];
+            $this->assertInstanceOf(WP_Term::class, $assigned_category_term);
 
             $learner_id = self::factory()->user->create(['role' => 'll_tools_learner']);
 
@@ -38,10 +45,11 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
                 'option_type' => 'text_title',
             ]);
 
-            $this->assertSame([$category_id], $this->category_ids_from_rows($visible_categories));
+            $this->assertSame([(int) $assigned_category_term->term_id], $this->category_ids_from_rows($visible_categories));
             $this->assertCount(1, $visible_words);
             $this->assertSame($word_id, (int) ($visible_words[0]['id'] ?? 0));
             $this->assertTrue(ll_tools_user_can_view_category($category_id, $learner_id));
+            $this->assertTrue(ll_tools_user_can_view_category($assigned_category_term, $learner_id));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
@@ -167,6 +175,13 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
         set_post_thumbnail($word_id, $attachment_id);
         wp_set_object_terms($word_id, [$category_id], 'word-category');
         wp_set_object_terms($word_id, [$wordset_id], 'wordset');
+        $assigned_categories = wp_get_post_terms($word_id, 'word-category', [
+            'orderby' => 'term_id',
+            'order' => 'ASC',
+        ]);
+        $this->assertNotEmpty($assigned_categories);
+        $assigned_category_term = $assigned_categories[0];
+        $this->assertInstanceOf(WP_Term::class, $assigned_category_term);
 
         $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
         update_user_meta($recorder_id, 'll_recording_config', [
@@ -238,8 +253,8 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($allowed_response['success'] ?? false));
         $this->assertCount(1, (array) ($allowed_response['data']['recording_types'] ?? []));
         $this->assertSame('question', (string) ($allowed_response['data']['recording_types'][0]['slug'] ?? ''));
-        $this->assertSame($category_id, (int) ($allowed_response['data']['category']['term_id'] ?? 0));
-        $this->assertSame(['question'], array_values((array) get_term_meta($category_id, 'll_desired_recording_types', true)));
+        $this->assertSame((int) $assigned_category_term->term_id, (int) ($allowed_response['data']['category']['term_id'] ?? 0));
+        $this->assertSame(['question'], array_values((array) get_term_meta((int) $assigned_category_term->term_id, 'll_desired_recording_types', true)));
         $this->assertSame(1, $this->count_words_by_title('Allowed Private Word'));
     }
 

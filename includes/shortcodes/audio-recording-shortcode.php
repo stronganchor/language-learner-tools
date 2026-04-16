@@ -4014,7 +4014,11 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     });
 
     if (!empty($category_slug)) {
-        $target_slugs = $is_uncategorized_request ? ['uncategorized'] : [$category_slug];
+        $target_slug = $category_slug;
+        if (!$is_uncategorized_request && $active_category_term instanceof WP_Term && !is_wp_error($active_category_term)) {
+            $target_slug = (string) $active_category_term->slug;
+        }
+        $target_slugs = $is_uncategorized_request ? ['uncategorized'] : [$target_slug];
     } else {
         $target_slugs = array_keys($items_by_category);
     }

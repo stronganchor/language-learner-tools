@@ -304,8 +304,16 @@ function ll_tools_get_category_visibility($category): string {
         return 'public';
     }
 
+    $meta_term_id = $term_id;
+    if (function_exists('ll_tools_get_category_isolation_source_id')) {
+        $source_term_id = (int) ll_tools_get_category_isolation_source_id($term_id);
+        if ($source_term_id > 0 && $source_term_id !== $term_id) {
+            $meta_term_id = $source_term_id;
+        }
+    }
+
     $visibility = ll_tools_normalize_category_visibility(
-        get_term_meta($term_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true)
+        get_term_meta($meta_term_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, true)
     );
     return (string) apply_filters('ll_tools_category_visibility', $visibility, $term_id);
 }
@@ -362,9 +370,28 @@ function ll_tools_get_category_access_user_ids($category): array {
         return [];
     }
 
-    $user_ids = ll_tools_normalize_category_access_user_ids(
-        get_term_meta($term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true)
-    );
+    $meta_term_ids = [$term_id];
+    if (function_exists('ll_tools_get_category_isolation_source_id')) {
+        $source_term_id = (int) ll_tools_get_category_isolation_source_id($term_id);
+        if ($source_term_id > 0 && $source_term_id !== $term_id) {
+            $meta_term_ids[] = $source_term_id;
+        }
+    }
+
+    $user_ids = [];
+    foreach (array_values(array_unique(array_map('intval', $meta_term_ids))) as $meta_term_id) {
+        if ($meta_term_id <= 0) {
+            continue;
+        }
+
+        $user_ids = array_merge(
+            $user_ids,
+            ll_tools_normalize_category_access_user_ids(
+                get_term_meta($meta_term_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, true)
+            )
+        );
+    }
+
     return array_values(array_unique(array_map('intval', (array) apply_filters('ll_tools_category_access_user_ids', $user_ids, $term_id))));
 }
 

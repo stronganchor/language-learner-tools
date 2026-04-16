@@ -397,7 +397,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $text_rows = ll_get_words_by_category(
                 $text_category_name,
                 'text',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'text_translation',
                     'option_type' => 'text_title',
@@ -416,7 +416,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $audio_rows = ll_get_words_by_category(
                 $audio_category_name,
                 'text_title',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'audio',
                     'option_type' => 'text_title',
