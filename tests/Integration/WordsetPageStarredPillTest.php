@@ -10,8 +10,8 @@ final class WordsetPageStarredPillTest extends LL_Tools_TestCase
 
         $fixture = $this->createWordsetFixture();
         $wordset_id = (int) $fixture['wordset_id'];
-        $category_a_id = (int) $fixture['category_a_id'];
-        $category_b_id = (int) $fixture['category_b_id'];
+        $category_a_id = (int) $fixture['category_a_effective_id'];
+        $category_b_id = (int) $fixture['category_b_effective_id'];
         $category_a_word_ids = array_values(array_map('intval', (array) ($fixture['category_a_word_ids'] ?? [])));
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
@@ -75,6 +75,8 @@ final class WordsetPageStarredPillTest extends LL_Tools_TestCase
      *   wordset_id:int,
      *   category_a_id:int,
      *   category_b_id:int,
+     *   category_a_effective_id:int,
+     *   category_b_effective_id:int,
      *   category_a_word_ids:int[],
      *   category_b_word_ids:int[]
      * }
@@ -121,10 +123,35 @@ final class WordsetPageStarredPillTest extends LL_Tools_TestCase
             );
         }
 
+        $category_a_effective_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_a_id, $wordset_id, true)
+            : $category_a_id;
+        $category_b_effective_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_b_id, $wordset_id, true)
+            : $category_b_id;
+
+        $lesson_a_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Wordset Star Lesson A ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_a_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_a_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_a_effective_id);
+
+        $lesson_b_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Wordset Star Lesson B ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_b_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_b_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_b_effective_id);
+
         return [
             'wordset_id' => $wordset_id,
             'category_a_id' => $category_a_id,
             'category_b_id' => $category_b_id,
+            'category_a_effective_id' => $category_a_effective_id,
+            'category_b_effective_id' => $category_b_effective_id,
             'category_a_word_ids' => $category_a_word_ids,
             'category_b_word_ids' => $category_b_word_ids,
         ];

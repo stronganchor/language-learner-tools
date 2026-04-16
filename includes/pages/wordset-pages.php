@@ -107,7 +107,7 @@ function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
     return array_keys($normalized);
 }
 
-function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
+function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_limit = 2): array {
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return [];
@@ -634,7 +634,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         return [];
     }
 
-    $rows = ll_tools_get_wordset_page_category_rows($wordset_id);
+    $rows = ll_tools_get_wordset_page_category_rows($wordset_id, $preview_limit);
     if (empty($rows)) {
         return [];
     }
