@@ -685,6 +685,9 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             return is_array($row) ? (int) ($row['category_id'] ?? 0) : 0;
         }, (array) ($pool['words'] ?? [])))));
 
+        $rootAId = $this->resolveEffectiveCategoryId($rootAId, $wordsetId);
+        $rootBId = $this->resolveEffectiveCategoryId($rootBId, $wordsetId);
+
         sort($expectedIds);
         sort($returnedIds);
         sort($returnedCategoryIds);
@@ -820,6 +823,9 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $bubbleReturnedIds = array_values(array_filter(array_map(static function ($row): int {
             return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
         }, (array) ($bubblePool['words'] ?? []))));
+
+        $spaceCategoryId = $this->resolveEffectiveCategoryId($spaceCategoryId, $wordsetId);
+        $bubbleCategoryId = $this->resolveEffectiveCategoryId($bubbleCategoryId, $wordsetId);
 
         sort($spaceExpectedIds);
         sort($bubbleExpectedIds);
@@ -1822,6 +1828,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         array $recordingTypes,
         int $attachmentId = 0
     ): int {
+        $categoryId = $this->resolveEffectiveCategoryId($categoryId, $wordsetId);
         $wordId = self::factory()->post->create([
             'post_type' => 'words',
             'post_status' => 'publish',
@@ -1986,6 +1993,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         global $wpdb;
         $table = ll_tools_user_progress_table_names()['words'];
         $now = gmdate('Y-m-d H:i:s');
+        $categoryId = $this->resolveEffectiveCategoryId($categoryId, $wordsetId);
 
         $data = array_merge([
             'user_id' => $userId,
@@ -2010,6 +2018,16 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         ], $overrides);
 
         $wpdb->replace($table, $data);
+    }
+
+    private function resolveEffectiveCategoryId(int $categoryId, int $wordsetId): int
+    {
+        if ($categoryId <= 0 || $wordsetId <= 0 || !function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            return $categoryId;
+        }
+
+        $effectiveCategoryId = (int) ll_tools_get_effective_category_id_for_wordset($categoryId, $wordsetId, true);
+        return $effectiveCategoryId > 0 ? $effectiveCategoryId : $categoryId;
     }
 
     private function runJsonEndpoint(callable $callback): array
