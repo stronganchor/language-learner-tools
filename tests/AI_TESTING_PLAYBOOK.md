@@ -113,6 +113,7 @@ When behavior changes intentionally:
 
 `WordPress test library not found`:
 - `tests/bin/run-tests.sh` now tries to repair the local WordPress test framework automatically when `WP_TESTS_DIR` or `WP_CORE_DIR` are missing or incomplete.
+- On this Local/WSL setup, Windows `php.exe` should use the Windows temp bootstrap paths instead of `/tmp` because WordPress' bootstrap uses `is_readable()` checks that fail on WSL UNC paths.
 - If that still fails, fix `WP_TESTS_DIR` so it contains `includes/functions.php`.
 
 `Duplicate entry '1' for key 'PRIMARY'` during `wp_install_defaults`:

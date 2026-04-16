@@ -115,6 +115,8 @@ tests/bin/setup-local-http-env.sh
 Some Local installs keep stale ports in `local-site.json`; in that case inspect the active runtime MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) and temporarily override `WP_TEST_DB_HOST`.
 `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and (when runtime detection succeeds) `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` to show which Local runtime files were used.
 If the WordPress test library itself is missing or incomplete, `run-tests.sh` now prints the broken paths and attempts a self-repair before it hands off to PHPUnit.
+When the test runtime is Windows `php.exe`, the bootstrap now defaults to the Windows temp directory (`%TEMP%/wordpress` and `%TEMP%/wordpress-tests-lib`) because WordPress' own bootstrap checks are not reliable against WSL UNC paths.
+Repeated repair attempts reuse cached WordPress archives in `/tmp` so the installer does not redownload core and `wordpress-develop` on every run.
 
 ## 4.2) Using a `.env` file
 

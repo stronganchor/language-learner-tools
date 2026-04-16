@@ -27,6 +27,10 @@ fi
 download() {
     local url="$1"
     local dest="$2"
+    if [[ -s "$dest" ]]; then
+        echo "Reusing cached archive: $dest"
+        return 0
+    fi
     if command -v curl >/dev/null 2>&1; then
         curl -fsSL "$url" -o "$dest"
         return 0
@@ -40,9 +44,10 @@ download() {
 }
 
 install_wp_core() {
-    if [[ -d "$WP_CORE_DIR/wp-includes" ]]; then
+    if [[ -d "$WP_CORE_DIR/wp-includes" && -f "$WP_CORE_DIR/wp-settings.php" ]]; then
         return
     fi
+    rm -rf "$WP_CORE_DIR"
     mkdir -p "$WP_CORE_DIR"
     local archive="/tmp/wordpress-${WP_VERSION}.tar.gz"
     local slug="latest"
@@ -55,10 +60,11 @@ install_wp_core() {
 }
 
 install_wp_tests_lib() {
-    if [[ -d "$WP_TESTS_DIR/includes" && -d "$WP_TESTS_DIR/data" ]]; then
+    if [[ -f "$WP_TESTS_DIR/includes/functions.php" && -f "$WP_TESTS_DIR/includes/bootstrap.php" && -d "$WP_TESTS_DIR/data" ]]; then
         return
     fi
 
+    rm -rf "$WP_TESTS_DIR"
     mkdir -p "$WP_TESTS_DIR"
     if command -v svn >/dev/null 2>&1; then
         svn co --quiet https://develop.svn.wordpress.org/trunk/tests/phpunit/includes/ "$WP_TESTS_DIR/includes"
@@ -77,8 +83,16 @@ install_wp_tests_lib() {
         echo "Unable to unpack wordpress-develop test library." >&2
         exit 1
     fi
-    cp -R "$src_root/tests/phpunit/includes" "$WP_TESTS_DIR/includes"
-    cp -R "$src_root/tests/phpunit/data" "$WP_TESTS_DIR/data"
+    local includes_src
+    local data_src
+    includes_src="$(find "$src_root" -type d -path '*/tests/phpunit/includes' | head -n 1)"
+    data_src="$(find "$src_root" -type d -path '*/tests/phpunit/data' | head -n 1)"
+    if [[ -z "$includes_src" || -z "$data_src" ]]; then
+        echo "Unable to locate wordpress-develop test library directories." >&2
+        exit 1
+    fi
+    cp -R "$includes_src" "$WP_TESTS_DIR/includes"
+    cp -R "$data_src" "$WP_TESTS_DIR/data"
     rm -rf "$extract_root" "$archive"
 }
 

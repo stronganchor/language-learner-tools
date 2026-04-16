@@ -52,12 +52,60 @@ if [[ -n "${LL_TOOLS_RESET_WP_TEST_DB:-}" ]]; then
     export RESET_DB="${LL_TOOLS_RESET_WP_TEST_DB}"
 fi
 
+get_windows_temp_dir_for_bootstrap() {
+    if ! command -v cmd.exe >/dev/null 2>&1 || ! command -v wslpath >/dev/null 2>&1; then
+        return 1
+    fi
+
+    local win_temp
+    win_temp="$(cmd.exe /d /c echo %TEMP% 2>/dev/null | tr -d '\r' | tail -n 1)"
+    if [[ -z "$win_temp" ]]; then
+        return 1
+    fi
+
+    wslpath -u "$win_temp"
+}
+
+normalize_windows_php_bootstrap_paths() {
+    if [[ "$php_family" != "Windows" ]]; then
+        return
+    fi
+    if [[ "${LL_TOOLS_USE_WINDOWS_TEMP_WP_BOOTSTRAP:-1}" != "1" ]]; then
+        return
+    fi
+
+    local win_temp target_tests_dir target_core_dir changed=0
+    win_temp="$(get_windows_temp_dir_for_bootstrap || true)"
+    if [[ -z "$win_temp" || ! -d "$win_temp" ]]; then
+        return
+    fi
+
+    target_tests_dir="${win_temp}/wordpress-tests-lib"
+    target_core_dir="${win_temp}/wordpress"
+
+    if [[ -z "${WP_TESTS_DIR:-}" || "${WP_TESTS_DIR:-}" == "/tmp/wordpress-tests-lib" ]]; then
+        export WP_TESTS_DIR="$target_tests_dir"
+        changed=1
+    fi
+    if [[ -z "${WP_CORE_DIR:-}" || "${WP_CORE_DIR:-}" == "/tmp/wordpress" ]]; then
+        export WP_CORE_DIR="$target_core_dir"
+        changed=1
+    fi
+
+    if [[ "$changed" == "1" ]]; then
+        echo "Using Windows-accessible WordPress test paths." >&2
+        echo "WP_TESTS_DIR=$WP_TESTS_DIR" >&2
+        echo "WP_CORE_DIR=$WP_CORE_DIR" >&2
+    fi
+}
+
 ensure_wordpress_test_framework() {
     local tests_includes="$WP_TESTS_DIR/includes"
     local tests_functions="$tests_includes/functions.php"
     local tests_bootstrap="$tests_includes/bootstrap.php"
     local tests_config="$WP_TESTS_DIR/wp-tests-config.php"
     local core_includes="$WP_CORE_DIR/wp-includes"
+    local core_settings="$WP_CORE_DIR/wp-settings.php"
     local needs_install=0
 
     if [[ ! -f "$tests_functions" ]]; then
@@ -70,6 +118,9 @@ ensure_wordpress_test_framework() {
         needs_install=1
     fi
     if [[ ! -d "$core_includes" ]]; then
+        needs_install=1
+    fi
+    if [[ ! -f "$core_settings" ]]; then
         needs_install=1
     fi
 
@@ -105,6 +156,7 @@ cleanup_ll_tools_test_lock() {
 trap cleanup_ll_tools_test_lock EXIT
 
 php_family="$("$PHP_LOCAL" -r "echo PHP_OS_FAMILY;")"
+normalize_windows_php_bootstrap_paths
 
 normalize_phpunit_arg() {
     local arg="$1"
