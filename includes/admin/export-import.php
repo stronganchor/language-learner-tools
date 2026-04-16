@@ -10789,14 +10789,37 @@ function ll_tools_import_replace_post_meta_values(int $post_id, array $meta, str
         return;
     }
 
+    $sync_word_translation_aliases = ($post_type === 'words');
+    $word_translation_alias_keys = ['word_translation', 'word_english_meaning'];
+    $word_translation_alias_values = [];
+
     foreach ($meta as $key => $values) {
         $key = (string) $key;
         if (!ll_tools_import_should_replace_post_meta_key($key, $post_type)) {
             continue;
         }
+        if ($sync_word_translation_aliases && in_array($key, $word_translation_alias_keys, true)) {
+            $word_translation_alias_values[$key] = array_values((array) $values);
+            continue;
+        }
         delete_post_meta($post_id, $key);
         foreach ((array) $values as $val) {
             add_post_meta($post_id, $key, maybe_unserialize($val));
+        }
+    }
+
+    if ($sync_word_translation_aliases && !empty($word_translation_alias_values)) {
+        foreach ($word_translation_alias_keys as $alias_key) {
+            delete_post_meta($post_id, $alias_key);
+        }
+
+        foreach ($word_translation_alias_keys as $alias_key) {
+            if (!array_key_exists($alias_key, $word_translation_alias_values)) {
+                continue;
+            }
+            foreach ($word_translation_alias_values[$alias_key] as $val) {
+                add_post_meta($post_id, $alias_key, maybe_unserialize($val));
+            }
         }
     }
 }
