@@ -27,7 +27,10 @@ function ll_tools_dictionary_enqueue_assets(): void {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
             'minChars' => 2,
-            'debounceMs' => 220,
+            'debounceMs' => 160,
+            'loadingCards' => 3,
+            'cacheSize' => 24,
+            'loadingLabel' => __('Loading dictionary results...', 'll-tools-text-domain'),
         ]);
         $script_localized = true;
     }

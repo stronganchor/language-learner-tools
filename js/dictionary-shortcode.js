@@ -3,7 +3,12 @@
     const ajaxUrl = typeof config.ajaxUrl === 'string' ? config.ajaxUrl : '';
     const nonce = typeof config.nonce === 'string' ? config.nonce : '';
     const minChars = Number.isFinite(Number(config.minChars)) ? Math.max(1, Number(config.minChars)) : 2;
-    const debounceMs = Number.isFinite(Number(config.debounceMs)) ? Math.max(80, Number(config.debounceMs)) : 220;
+    const debounceMs = Number.isFinite(Number(config.debounceMs)) ? Math.max(80, Number(config.debounceMs)) : 160;
+    const loadingCards = Number.isFinite(Number(config.loadingCards)) ? Math.max(1, Math.min(4, Number(config.loadingCards))) : 3;
+    const cacheSize = Number.isFinite(Number(config.cacheSize)) ? Math.max(0, Math.min(64, Number(config.cacheSize))) : 24;
+    const loadingLabel = typeof config.loadingLabel === 'string' && config.loadingLabel
+        ? config.loadingLabel
+        : 'Loading dictionary results...';
 
     if (!ajaxUrl) {
         return;
@@ -24,6 +29,24 @@
         let debounceTimer = 0;
         let activeController = null;
         let activeRequestId = 0;
+        const responseCache = new Map();
+
+        const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
+            switch (char) {
+            case '&':
+                return '&amp;';
+            case '<':
+                return '&lt;';
+            case '>':
+                return '&gt;';
+            case '"':
+                return '&quot;';
+            case '\'':
+                return '&#39;';
+            default:
+                return char;
+            }
+        });
 
         const getFieldValue = (name) => {
             const field = form.elements.namedItem(name);
@@ -65,6 +88,7 @@
         };
 
         const cancelActiveRequest = () => {
+            window.clearTimeout(debounceTimer);
             if (activeController) {
                 activeController.abort();
                 activeController = null;
@@ -72,6 +96,72 @@
 
             activeRequestId += 1;
             results.removeAttribute('aria-busy');
+        };
+
+        const renderResponsePayload = (payload) => {
+            if (!payload || !payload.success || !payload.data) {
+                throw new Error('invalid_payload');
+            }
+
+            results.innerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
+            setActiveState(Boolean(payload.data.has_active_query));
+
+            if (payload.data.url && window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState(null, '', String(payload.data.url));
+            }
+        };
+
+        const buildLoadingMarkup = () => {
+            const markup = [
+                '<div class="ll-dictionary__loading" role="status" aria-live="polite" aria-label="',
+                escapeHtml(loadingLabel),
+                '">',
+                '<span class="screen-reader-text">',
+                escapeHtml(loadingLabel),
+                '</span>',
+                '<div class="ll-dictionary__loading-meta" aria-hidden="true"></div>',
+            ];
+
+            for (let index = 0; index < loadingCards; index += 1) {
+                const titleClass = index % 3 === 1
+                    ? ' ll-dictionary__loading-line--title-short'
+                    : (index % 3 === 2 ? ' ll-dictionary__loading-line--title-medium' : '');
+                const lineClass = index % 2 === 0
+                    ? ' ll-dictionary__loading-line--body-short'
+                    : '';
+                const pillClass = index % 2 === 0
+                    ? ' ll-dictionary__loading-pill--wide'
+                    : '';
+
+                markup.push(
+                    '<article class="ll-dictionary__loading-card" aria-hidden="true">',
+                    '<div class="ll-dictionary__loading-head">',
+                    '<div class="ll-dictionary__loading-stack">',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--title', titleClass, '"></span>',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body', lineClass, '"></span>',
+                    '</div>',
+                    '<div class="ll-dictionary__loading-pills">',
+                    '<span class="ll-dictionary__loading-pill', pillClass, '"></span>',
+                    '<span class="ll-dictionary__loading-pill"></span>',
+                    '</div>',
+                    '</div>',
+                    '<div class="ll-dictionary__loading-stack">',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body"></span>',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body ll-dictionary__loading-line--body-short"></span>',
+                    '</div>',
+                    '</article>'
+                );
+            }
+
+            markup.push('</div>');
+            return markup.join('');
+        };
+
+        const showLoadingState = () => {
+            cancelActiveRequest();
+            results.innerHTML = buildLoadingMarkup();
+            results.setAttribute('aria-busy', 'true');
+            setActiveState(true);
         };
 
         const clearResults = () => {
@@ -82,6 +172,48 @@
             const baseUrl = root.dataset.baseUrl || window.location.href;
             if (window.history && typeof window.history.replaceState === 'function') {
                 window.history.replaceState(null, '', baseUrl);
+            }
+        };
+
+        const canRunQuery = () => {
+            const search = String(searchInput.value || '').trim();
+            if (search !== '' && search.length < minChars && !hasNonSearchQuery()) {
+                return false;
+            }
+
+            return !(search === '' && !hasActiveQuery());
+        };
+
+        const buildRequestCacheKey = (page) => JSON.stringify({
+            wordsetId: root.dataset.wordsetId || '0',
+            perPage: root.dataset.perPage || '20',
+            senseLimit: root.dataset.senseLimit || '3',
+            linkedWordLimit: root.dataset.linkedWordLimit || '4',
+            glossLang: root.dataset.glossLang || '',
+            query: String(searchInput.value || '').trim(),
+            letter: String(letterInput.value || '').trim(),
+            pos: getFieldValue('ll_dictionary_pos'),
+            source: getFieldValue('ll_dictionary_source'),
+            dialect: getFieldValue('ll_dictionary_dialect'),
+            page: String(Math.max(1, page || 1)),
+        });
+
+        const storeCachedResponse = (key, payload) => {
+            if (!cacheSize || !key) {
+                return;
+            }
+
+            if (responseCache.has(key)) {
+                responseCache.delete(key);
+            }
+            responseCache.set(key, payload);
+
+            while (responseCache.size > cacheSize) {
+                const oldestKey = responseCache.keys().next().value;
+                if (!oldestKey) {
+                    break;
+                }
+                responseCache.delete(oldestKey);
             }
         };
 
@@ -106,6 +238,14 @@
         };
 
         const requestResults = (page, fallbackToFullSubmit) => {
+            const requestPage = Math.max(1, page || 1);
+            const cacheKey = buildRequestCacheKey(requestPage);
+            if (cacheSize > 0 && responseCache.has(cacheKey)) {
+                renderResponsePayload(responseCache.get(cacheKey));
+                results.removeAttribute('aria-busy');
+                return;
+            }
+
             if (activeController) {
                 activeController.abort();
             }
@@ -117,7 +257,7 @@
             fetch(ajaxUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
-                body: buildPayload(page),
+                body: buildPayload(requestPage),
                 signal: activeController.signal,
             })
                 .then((response) => {
@@ -127,16 +267,12 @@
                     return response.json();
                 })
                 .then((payload) => {
-                    if (requestId !== activeRequestId || !payload || !payload.success || !payload.data) {
+                    if (requestId !== activeRequestId) {
                         throw new Error('invalid_payload');
                     }
 
-                    results.innerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
-                    setActiveState(Boolean(payload.data.has_active_query));
-
-                    if (payload.data.url && window.history && typeof window.history.replaceState === 'function') {
-                        window.history.replaceState(null, '', String(payload.data.url));
-                    }
+                    storeCachedResponse(cacheKey, payload);
+                    renderResponsePayload(payload);
                 })
                 .catch((error) => {
                     if (error && error.name === 'AbortError') {
@@ -149,20 +285,20 @@
                 })
                 .finally(() => {
                     if (requestId === activeRequestId) {
+                        activeController = null;
                         results.removeAttribute('aria-busy');
                     }
                 });
         };
 
         const triggerLiveSearch = (page) => {
-            const search = String(searchInput.value || '').trim();
-            if (search !== '' && search.length < minChars && !hasNonSearchQuery()) {
+            if (!canRunQuery()) {
                 clearResults();
                 return;
             }
-            if (search === '' && !hasActiveQuery()) {
-                clearResults();
-                return;
+
+            if (!results.hasAttribute('aria-busy')) {
+                showLoadingState();
             }
 
             requestResults(page || 1, false);
@@ -180,21 +316,25 @@
                 letterInput.value = '';
             }
 
-            const search = String(searchInput.value || '').trim();
-            if (search === '' && !hasActiveQuery()) {
+            if (!canRunQuery()) {
                 clearResults();
                 return;
             }
 
-            if (search === '' || search.length >= minChars) {
-                scheduleLiveSearch();
-            }
+            showLoadingState();
+            scheduleLiveSearch();
         });
 
         ['ll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].forEach((name) => {
             const field = form.elements.namedItem(name);
             if (field) {
                 field.addEventListener('change', () => {
+                    if (!canRunQuery()) {
+                        clearResults();
+                        return;
+                    }
+
+                    showLoadingState();
                     triggerLiveSearch(1);
                 });
             }
@@ -206,6 +346,7 @@
             }
 
             event.preventDefault();
+            showLoadingState();
             requestResults(1, true);
         });
 
@@ -243,6 +384,7 @@
             setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
             setFieldValue('ll_dictionary_dialect', url.searchParams.get('ll_dictionary_dialect') || '');
 
+            showLoadingState();
             requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
         });
     });
