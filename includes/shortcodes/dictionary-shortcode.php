@@ -611,6 +611,110 @@ function ll_tools_dictionary_render_badge(string $text, string $modifier = '', s
     return '<span class="' . esc_attr($classes) . '">' . $content . '</span>';
 }
 
+function ll_tools_dictionary_measure_text_length(string $text): int {
+    return function_exists('mb_strlen')
+        ? (int) mb_strlen($text, 'UTF-8')
+        : strlen($text);
+}
+
+function ll_tools_dictionary_render_text_block(string $text, string $modifier = '', int $collapse_threshold = 0): string {
+    $text = trim((string) $text);
+    if ($text === '') {
+        return '';
+    }
+
+    $modifier = sanitize_html_class($modifier);
+    $classes = 'll-dictionary__text-block';
+    $content_classes = 'll-dictionary__text-block-content';
+    if ($modifier !== '') {
+        $classes .= ' ll-dictionary__text-block--' . $modifier;
+        $content_classes .= ' ll-dictionary__text-block-content--' . $modifier;
+    }
+
+    $content = nl2br(esc_html($text));
+    $should_collapse = $collapse_threshold > 0 && ll_tools_dictionary_measure_text_length($text) > $collapse_threshold;
+    if (!$should_collapse) {
+        return '<div class="' . esc_attr($classes) . '"><div class="' . esc_attr($content_classes) . '">' . $content . '</div></div>';
+    }
+
+    return '<div class="' . esc_attr($classes) . ' is-collapsed" data-ll-dictionary-text-block>'
+        . '<div class="' . esc_attr($content_classes) . '">' . $content . '</div>'
+        . '<button type="button" class="ll-dictionary__text-toggle" data-ll-dictionary-toggle'
+        . '" data-expand-label="' . esc_attr__('Show more', 'll-tools-text-domain') . '"'
+        . ' data-collapse-label="' . esc_attr__('Show less', 'll-tools-text-domain') . '"'
+        . ' aria-expanded="false">'
+        . esc_html__('Show more', 'll-tools-text-domain')
+        . '</button></div>';
+}
+
+/**
+ * @param array<int,array{language:string,label:string,values:array<int,string>}> $translation_groups
+ */
+function ll_tools_dictionary_render_translation_groups(array $translation_groups): string {
+    if (empty($translation_groups)) {
+        return '';
+    }
+
+    $html = '<div class="ll-dictionary__translation-groups">';
+    foreach ($translation_groups as $group) {
+        $label = trim((string) ($group['label'] ?? ''));
+        $values = array_values(array_filter(array_map('strval', (array) ($group['values'] ?? [])), static function (string $value): bool {
+            return trim($value) !== '';
+        }));
+        if ($label === '' || empty($values)) {
+            continue;
+        }
+
+        $html .= '<article class="ll-dictionary__translation-group">';
+        $html .= '<div class="ll-dictionary__translation-label">' . esc_html($label) . '</div>';
+        $html .= '<div class="ll-dictionary__translation-values">';
+        foreach ($values as $value) {
+            $html .= '<div class="ll-dictionary__translation-chip">' . nl2br(esc_html($value)) . '</div>';
+        }
+        $html .= '</div></article>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+/**
+ * @param array<int,array<string,mixed>> $senses
+ * @return string[]
+ */
+function ll_tools_dictionary_collect_parent_notes(array $senses): array {
+    $notes = [];
+    $seen = [];
+
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        $parent = trim((string) ($sense['parent'] ?? ''));
+        if ($parent === '') {
+            continue;
+        }
+
+        $note = sprintf(
+            /* translators: %s: parent dictionary headword */
+            __('Parent: %s', 'll-tools-text-domain'),
+            $parent
+        );
+        $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+            ? ll_tools_dictionary_entry_normalize_lookup_value($note)
+            : strtolower($note);
+        if ($lookup === '' || isset($seen[$lookup])) {
+            continue;
+        }
+
+        $seen[$lookup] = true;
+        $notes[] = $note;
+    }
+
+    return $notes;
+}
+
 function ll_tools_dictionary_should_render_entry_type_badge(string $entry_type, string $pos_slug = '', string $pos_label = ''): bool {
     $entry_type = trim((string) $entry_type);
     if ($entry_type === '') {
@@ -676,7 +780,7 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
     }
     $html .= '</h3>';
     if ($translation !== '') {
-        $html .= '<p class="ll-dictionary__summary">' . esc_html($translation) . '</p>';
+        $html .= '<div class="ll-dictionary__summary">' . ll_tools_dictionary_render_text_block($translation, 'summary', 220) . '</div>';
     }
     $html .= '</div>';
     $html .= '<div class="ll-dictionary__badges">';
@@ -719,7 +823,12 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
     $html .= '</div></div>';
 
     if (!empty($senses)) {
-        $html .= '<ol class="ll-dictionary__sense-list">';
+        $summary_lookup = $translation !== '' && function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+            ? ll_tools_dictionary_entry_normalize_lookup_value($translation)
+            : strtolower($translation);
+        $rendered_sense_count = 0;
+        $summary_replaced_sense = 0;
+        $sense_items_html = '';
         foreach ($senses as $sense) {
             if (!is_array($sense)) {
                 continue;
@@ -732,6 +841,13 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
             $gender = trim((string) ($sense['gender_number'] ?? ''));
             $parent = trim((string) ($sense['parent'] ?? ''));
             if ($definition === '') {
+                continue;
+            }
+            $definition_lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+                ? ll_tools_dictionary_entry_normalize_lookup_value($definition)
+                : strtolower($definition);
+            if ($summary_lookup !== '' && $definition_lookup !== '' && $definition_lookup === $summary_lookup) {
+                $summary_replaced_sense = 1;
                 continue;
             }
 
@@ -749,52 +865,24 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
                     $parent
                 );
             }
-            $translation_rows = [];
-            $visible_lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
-                ? ll_tools_dictionary_entry_normalize_lookup_value($definition)
-                : strtolower($definition);
-            $translations = function_exists('ll_tools_dictionary_get_sense_translations')
-                ? ll_tools_dictionary_get_sense_translations($sense)
-                : [];
-            foreach ($translations as $language => $text) {
-                $text = trim((string) $text);
-                if ($text === '') {
-                    continue;
-                }
-
-                $text_lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
-                    ? ll_tools_dictionary_entry_normalize_lookup_value($text)
-                    : strtolower($text);
-                if ($text_lookup !== '' && $text_lookup === $visible_lookup) {
-                    continue;
-                }
-
-                $label = function_exists('ll_tools_dictionary_get_language_label')
-                    ? ll_tools_dictionary_get_language_label((string) $language)
-                    : strtoupper((string) $language);
-                $translation_rows[] = '<span class="ll-dictionary__sense-translation">'
-                    . '<span class="ll-dictionary__sense-lang">' . esc_html($label) . '</span>'
-                    . '<span class="ll-dictionary__sense-value">' . esc_html($text) . '</span>'
-                    . '</span>';
-            }
-
-            $html .= '<li class="ll-dictionary__sense-item">';
-            $html .= '<span class="ll-dictionary__sense-text">' . esc_html($definition) . '</span>';
-            if (!empty($translation_rows)) {
-                $html .= '<span class="ll-dictionary__sense-translations">' . implode('', $translation_rows) . '</span>';
-            }
+            $sense_items_html .= '<li class="ll-dictionary__sense-item">';
+            $sense_items_html .= ll_tools_dictionary_render_text_block($definition, 'sense', 240);
             if (!empty($meta_parts)) {
-                $html .= '<span class="ll-dictionary__sense-meta">' . esc_html(implode(' • ', $meta_parts)) . '</span>';
+                $sense_items_html .= '<span class="ll-dictionary__sense-meta">' . esc_html(implode(' • ', $meta_parts)) . '</span>';
             }
-            $html .= '</li>';
+            $sense_items_html .= '</li>';
+            $rendered_sense_count++;
         }
-        $html .= '</ol>';
-        if ($sense_count > count($senses)) {
+        if ($sense_items_html !== '') {
+            $html .= '<ol class="ll-dictionary__sense-list">' . $sense_items_html . '</ol>';
+        }
+        $hidden_sense_count = max(0, $sense_count - $rendered_sense_count - $summary_replaced_sense);
+        if ($hidden_sense_count > 0) {
             $html .= '<p class="ll-dictionary__more">';
             $html .= esc_html(sprintf(
                 /* translators: %d: number of hidden senses */
-                _n('+ %d more sense', '+ %d more senses', $sense_count - count($senses), 'll-tools-text-domain'),
-                $sense_count - count($senses)
+                _n('+ %d more sense', '+ %d more senses', $hidden_sense_count, 'll-tools-text-domain'),
+                $hidden_sense_count
             ));
             $html .= '</p>';
         }
@@ -848,6 +936,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         $senses = ll_tools_get_dictionary_entry_senses($entry_id);
     }
     $translation_groups = ll_tools_dictionary_collect_translation_groups($senses, $preferred_languages);
+    $parent_notes = ll_tools_dictionary_collect_parent_notes($senses);
     $sources = function_exists('ll_tools_dictionary_collect_sources') ? ll_tools_dictionary_collect_sources($senses) : [];
     $dialects = ll_tools_dictionary_collect_entry_dialects($senses);
     $wordset_names = array_values(array_filter(array_map('strval', (array) ($entry['wordset_names'] ?? []))));
@@ -875,7 +964,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     $html .= '<header class="ll-dictionary__detail-header">';
     $html .= '<div class="ll-dictionary__detail-heading-wrap">';
     $html .= '<h3 class="ll-dictionary__detail-title">' . esc_html($title) . '</h3>';
-    if ($summary !== '') {
+    if ($summary !== '' && empty($translation_groups)) {
         $html .= '<p class="ll-dictionary__detail-summary">' . esc_html($summary) . '</p>';
     }
     $html .= '</div>';
@@ -915,21 +1004,19 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
 
     if (!empty($translation_groups)) {
         $html .= '<section class="ll-dictionary__detail-section">';
-        $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Translations', 'll-tools-text-domain') . '</h4>';
-        $html .= '<div class="ll-dictionary__translation-groups">';
-        foreach ($translation_groups as $group) {
-            $html .= '<div class="ll-dictionary__translation-group">';
-            $html .= '<div class="ll-dictionary__translation-label">' . esc_html((string) ($group['label'] ?? '')) . '</div>';
-            $html .= '<div class="ll-dictionary__translation-values">';
-            foreach ((array) ($group['values'] ?? []) as $value) {
-                $html .= '<span class="ll-dictionary__translation-chip">' . esc_html((string) $value) . '</span>';
+        $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Definitions', 'll-tools-text-domain') . '</h4>';
+        $html .= ll_tools_dictionary_render_translation_groups($translation_groups);
+        if (!empty($parent_notes)) {
+            $html .= '<div class="ll-dictionary__detail-notes">';
+            foreach ($parent_notes as $note) {
+                $html .= '<p class="ll-dictionary__detail-note">' . esc_html($note) . '</p>';
             }
-            $html .= '</div></div>';
+            $html .= '</div>';
         }
-        $html .= '</div></section>';
+        $html .= '</section>';
     }
 
-    if (!empty($senses)) {
+    if (empty($translation_groups) && !empty($senses)) {
         $html .= '<section class="ll-dictionary__detail-section">';
         $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Senses', 'll-tools-text-domain') . '</h4>';
         $html .= '<ol class="ll-dictionary__sense-list ll-dictionary__sense-list--detail">';

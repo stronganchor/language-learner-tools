@@ -360,6 +360,23 @@
         }
 
         root.addEventListener('click', (event) => {
+            const textToggle = event.target.closest('[data-ll-dictionary-toggle]');
+            if (textToggle) {
+                const textBlock = textToggle.closest('[data-ll-dictionary-text-block]');
+                if (!textBlock) {
+                    return;
+                }
+
+                event.preventDefault();
+                const willExpand = textBlock.classList.contains('is-collapsed');
+                textBlock.classList.toggle('is-collapsed', !willExpand);
+                textToggle.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+                textToggle.textContent = willExpand
+                    ? (textToggle.getAttribute('data-collapse-label') || 'Show less')
+                    : (textToggle.getAttribute('data-expand-label') || 'Show more');
+                return;
+            }
+
             const link = event.target.closest('.ll-dictionary__pagination a, .ll-dictionary__letters a');
             if (!link || !link.href || link.getAttribute('href') === '#') {
                 return;

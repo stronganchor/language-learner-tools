@@ -468,9 +468,22 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
         $this->assertStringContainsString('Back to dictionary', $detail_html);
-        $this->assertStringContainsString('Translations', $detail_html);
+        $this->assertStringContainsString('Definitions', $detail_html);
         $this->assertStringContainsString('Related Entries', $detail_html);
         $this->assertStringContainsString('Ava rê', $detail_html);
+        $this->assertStringNotContainsString('ll-dictionary__detail-summary', $detail_html);
+        $this->assertSame(1, substr_count($detail_html, 'll-dictionary__translation-label">DE<'));
+        $this->assertSame(1, substr_count($detail_html, 'll-dictionary__translation-label">EN<'));
+        $this->assertSame(1, substr_count($detail_html, 'll-dictionary__translation-label">TR<'));
+
+        $de_position = strpos($detail_html, '>DE<');
+        $en_position = strpos($detail_html, '>EN<');
+        $tr_position = strpos($detail_html, '>TR<');
+        $this->assertIsInt($de_position);
+        $this->assertIsInt($en_position);
+        $this->assertIsInt($tr_position);
+        $this->assertLessThan($en_position, $de_position);
+        $this->assertLessThan($tr_position, $de_position);
     }
 
     public function test_header_tsv_import_supports_short_gloss_column_names(): void
@@ -522,6 +535,15 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'en' => 'sun',
         ], $senses[0]['translations']);
         $this->assertSame('güneş', ll_tools_get_dictionary_entry_translation($entry_id));
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+
+        $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
+        $this->assertStringContainsString('Definitions', $detail_html);
+        $this->assertSame(1, substr_count($detail_html, 'güneş'));
+        $this->assertStringContainsString('>TR<', $detail_html);
     }
 
     public function test_import_strips_visible_provenance_prefixes_from_glosses(): void
@@ -621,6 +643,42 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $detail_html = do_shortcode('[ll_dictionary]');
         $this->assertStringContainsString('ll-dictionary__badge--pos', $detail_html);
         $this->assertStringNotContainsString('ll-dictionary__badge--type', $detail_html);
+    }
+
+    public function test_dictionary_search_results_clamp_long_summaries_with_expand_toggle(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $long_definition = 'The way of God, the way of truth, authentic faith of the Alevi Zonê Ma/Kirmancki speakers. '
+            . 'A religion that follows the Alevi Four Gates and Forty Level Doctrine. '
+            . 'Within this gradual development, the human being can move from ham to insan-i kamil. '
+            . 'A humanistic, nature-loving religious community with shared social ethics and mutual aid.';
+
+        $result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Raa haqi',
+                'definition' => $long_definition,
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $this->assertIsArray($result);
+
+        $_GET = [
+            'll_dictionary_q' => 'Raa',
+        ];
+
+        $html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('Show more', $html);
+        $this->assertStringContainsString('data-ll-dictionary-text-block', $html);
+        $this->assertStringContainsString('Raa haqi', $html);
     }
 
     public function test_dictionary_sources_apply_defaults_and_render_attribution_filters(): void

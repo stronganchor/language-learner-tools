@@ -378,6 +378,48 @@
     color: var(--ll-dictionary-muted);
 }
 
+.ll-dictionary__text-block {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-dictionary__text-block-content {
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+}
+
+.ll-dictionary__text-block.is-collapsed .ll-dictionary__text-block-content--summary,
+.ll-dictionary__text-block.is-collapsed .ll-dictionary__text-block-content--sense {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+}
+
+.ll-dictionary__text-block.is-collapsed .ll-dictionary__text-block-content--summary {
+    -webkit-line-clamp: 4;
+}
+
+.ll-dictionary__text-block.is-collapsed .ll-dictionary__text-block-content--sense {
+    -webkit-line-clamp: 3;
+}
+
+.ll-dictionary__text-toggle {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ll-dictionary-accent);
+    font: inherit;
+    font-size: 0.92rem;
+    cursor: pointer;
+}
+
+.ll-dictionary__text-toggle:hover,
+.ll-dictionary__text-toggle:focus {
+    color: #09563e;
+    text-decoration: underline;
+}
+
 .ll-dictionary__badges {
     display: flex;
     flex-wrap: wrap;
@@ -546,29 +588,33 @@
 
 .ll-dictionary__translation-group {
     display: grid;
-    gap: 8px;
+    gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid var(--ll-dictionary-border);
+    border-radius: 22px;
+    background: #fff;
 }
 
 .ll-dictionary__translation-label {
     font-weight: 700;
-    color: var(--ll-dictionary-ink);
+    color: var(--ll-dictionary-accent);
+    letter-spacing: 0.08em;
+    font-size: 0.84rem;
 }
 
 .ll-dictionary__translation-values {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    display: grid;
+    gap: 10px;
 }
 
 .ll-dictionary__translation-chip {
-    display: inline-flex;
-    align-items: center;
-    min-height: 34px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: #fff;
-    border: 1px solid var(--ll-dictionary-border);
+    display: block;
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: var(--ll-dictionary-ink);
+    line-height: 1.7;
+    overflow-wrap: anywhere;
 }
 
 .ll-dictionary__sense-list--detail {
@@ -578,6 +624,17 @@
 .ll-dictionary__source-item {
     display: grid;
     gap: 8px;
+}
+
+.ll-dictionary__detail-notes {
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.ll-dictionary__detail-note {
+    margin: 0;
+    color: var(--ll-dictionary-muted);
 }
 
 .ll-dictionary__source-heading {
