@@ -3,6 +3,28 @@ declare(strict_types=1);
 
 final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
 {
+    /** @var mixed */
+    private $originalIsolationOption = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalIsolationOption === null) {
+            delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
+        } else {
+            update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, $this->originalIsolationOption, false);
+        }
+
+        parent::tearDown();
+    }
+
     public function test_mismatch_data_recommends_text_when_more_audio_words_have_text_than_images(): void
     {
         $this->setCurrentUserToAdministrator();

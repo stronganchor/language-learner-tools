@@ -3,10 +3,27 @@ declare(strict_types=1);
 
 final class WordsetPrerequisiteQuizzableCategoryTest extends LL_Tools_TestCase
 {
+    /** @var mixed */
+    private $originalIsolationOption = null;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+    }
+
     protected function tearDown(): void
     {
         $_POST = [];
         $_REQUEST = [];
+
+        if ($this->originalIsolationOption === null) {
+            delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
+        } else {
+            update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, $this->originalIsolationOption, false);
+        }
 
         parent::tearDown();
     }
