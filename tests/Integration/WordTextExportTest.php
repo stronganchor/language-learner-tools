@@ -55,9 +55,14 @@ final class WordTextExportTest extends LL_Tools_TestCase
         $this->assertFalse(is_wp_error($category));
         $this->assertIsArray($category);
         $category_id = (int) $category['term_id'];
-        $category_term = get_term($category_id, 'word-category');
-        $this->assertInstanceOf(WP_Term::class, $category_term);
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        $effective_category_id = $category_id;
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        }
+        $assigned_category_term = get_term($effective_category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $assigned_category_term);
+        $this->assertFalse(is_wp_error($assigned_category_term));
 
         update_post_meta($word_id, 'word_example_sentence', 'Merheba dunya');
         update_post_meta($word_id, 'word_example_sentence_translation', 'Hello world');
@@ -126,8 +131,8 @@ final class WordTextExportTest extends LL_Tools_TestCase
         $this->assertSame('', (string) $title_row['recording_id']);
         $this->assertSame('', (string) $title_row['word_audio_id']);
         $this->assertSame('', (string) $title_row['recording_type']);
-        $this->assertSame((string) $category_term->slug, (string) $title_row['category_slug']);
-        $this->assertSame((string) $category_term->name, (string) $title_row['category_name']);
+        $this->assertSame((string) $assigned_category_term->slug, (string) $title_row['category_slug']);
+        $this->assertSame((string) $assigned_category_term->name, (string) $title_row['category_name']);
         $this->assertSame('', (string) $title_row['speaker_user_id']);
         $this->assertSame('', (string) $title_row['speaker_name']);
         $this->assertSame('', (string) $title_row['recording_text']);
@@ -143,8 +148,8 @@ final class WordTextExportTest extends LL_Tools_TestCase
         $this->assertSame((string) $recording_id, (string) $recording_row['recording_id']);
         $this->assertSame((string) $recording_id, (string) $recording_row['word_audio_id']);
         $this->assertSame('isolation', (string) $recording_row['recording_type']);
-        $this->assertSame((string) $category_term->slug, (string) $recording_row['category_slug']);
-        $this->assertSame((string) $category_term->name, (string) $recording_row['category_name']);
+        $this->assertSame((string) $assigned_category_term->slug, (string) $recording_row['category_slug']);
+        $this->assertSame((string) $assigned_category_term->name, (string) $recording_row['category_name']);
         $this->assertSame((string) $speaker_id, (string) $recording_row['speaker_user_id']);
         $this->assertSame('Speaker Export', (string) $recording_row['speaker_name']);
         $this->assertSame('Merheba sentence', (string) $recording_row['recording_text']);
