@@ -1429,10 +1429,8 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
             continue;
         }
 
-        if ($target_field === 'recording_ipa') {
-            $word['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
-        }
         $word['recording_text'] = trim((string) ($isolation_audio['recording_text'] ?? ''));
+        $word['recording_ipa'] = trim((string) ($isolation_audio['recording_ipa'] ?? ''));
 
         $target_text = ($target_field === 'recording_ipa')
             ? trim((string) ($word['recording_ipa'] ?? ''))

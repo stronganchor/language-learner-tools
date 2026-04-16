@@ -734,6 +734,8 @@
                 ? word.category_names.map(function (entry) { return String(entry || ''); }).filter(Boolean)
                 : [],
             similar_word_id: String(word.similar_word_id || ''),
+            recording_text: String(word.recording_text || ''),
+            recording_ipa: String(word.recording_ipa || ''),
             practice_correct_recording_types: Array.isArray(word.practice_correct_recording_types)
                 ? uniqueStringList(word.practice_correct_recording_types)
                 : [],
