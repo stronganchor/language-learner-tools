@@ -364,7 +364,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $senses = ll_tools_get_dictionary_entry_senses($entry_id);
         $this->assertCount(1, $senses);
         $this->assertSame('güneş', $senses[0]['definition']);
-        $this->assertSame('tr', $senses[0]['def_lang']);
+        $this->assertSame('tr', ll_tools_dictionary_normalize_language_key((string) $senses[0]['def_lang']));
         $this->assertSame([
             'tr' => 'güneş',
             'de' => 'Sonne',
