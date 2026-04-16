@@ -287,7 +287,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
         $name        = html_entity_decode($term->name, ENT_QUOTES, 'UTF-8');
         $translation = '';
-        if ($enable_translation) {
+        if ($use_translations) {
             $t = get_term_meta($term_id, 'term_translation', true);
             if (!empty($t)) $translation = html_entity_decode($t, ENT_QUOTES, 'UTF-8');
         }
