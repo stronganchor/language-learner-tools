@@ -138,6 +138,13 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertIsInt($attachment_id);
         $this->assertGreaterThan(0, $attachment_id);
 
+        $metadata = function_exists('wp_generate_attachment_metadata')
+            ? wp_generate_attachment_metadata($attachment_id, $file_path)
+            : [];
+        if (is_array($metadata) && !empty($metadata)) {
+            wp_update_attachment_metadata($attachment_id, $metadata);
+        }
+
         $relative_path = function_exists('_wp_relative_upload_path')
             ? (string) _wp_relative_upload_path($file_path)
             : '';
