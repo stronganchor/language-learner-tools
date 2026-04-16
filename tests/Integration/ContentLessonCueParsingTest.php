@@ -162,6 +162,14 @@ TSV;
         $this->assertSame([(int) $fixture['isolated_one_id']], $saved_category_ids);
     }
 
+    public function test_content_lesson_metabox_renders_translated_media_url_placeholder(): void
+    {
+        $messages = require LL_TOOLS_BASE_PATH . 'languages/ll-tools-text-domain-tr_TR.l10n.php';
+        $this->assertIsArray($messages);
+        $this->assertArrayHasKey('messages', $messages);
+        $this->assertSame('Doğrudan medya URL\'sini buraya yapıştır.', $messages['messages']['Paste the direct media URL here.'] ?? null);
+    }
+
     /**
      * @return array<string,int>
      */

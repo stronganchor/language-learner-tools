@@ -805,7 +805,7 @@ function ll_tools_render_content_lesson_metabox($post): void {
                         name="ll_content_lesson_media_url"
                         value="<?php echo esc_attr($media_url); ?>"
                         class="regular-text code"
-                        placeholder="https://"
+                        placeholder="<?php echo esc_attr__('Paste the direct media URL here.', 'll-tools-text-domain'); ?>"
                     />
                     <p class="description">
                         <?php esc_html_e('Use a direct file URL for the audio or video you want to play on the lesson page.', 'll-tools-text-domain'); ?>

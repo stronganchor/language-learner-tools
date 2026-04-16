@@ -32,8 +32,8 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 
     $is_missing_audio = empty($word_post) || empty($audio_file);
 
-    // Keep track of instances of word_audio with no matching audio file
-    if (current_user_can('administrator')) {
+    // Keep track of instances of word_audio with no matching audio file for site admins.
+    if (current_user_can('manage_options')) {
         if ($is_missing_audio) {
             // Cache the missing audio instance
             ll_cache_missing_audio_instance($normalized_content, $host_post_id);

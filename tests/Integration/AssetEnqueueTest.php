@@ -68,6 +68,14 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         $this->assertStringContainsString('closeConfirm', $localized);
     }
 
+    public function test_quiz_pages_script_localizes_turkish_close_label(): void
+    {
+        $messages = require LL_TOOLS_BASE_PATH . 'languages/ll-tools-text-domain-tr_TR.l10n.php';
+        $this->assertIsArray($messages);
+        $this->assertArrayHasKey('messages', $messages);
+        $this->assertSame('Kapat', $messages['messages']['Close'] ?? null);
+    }
+
     public function test_public_asset_bundle_enqueues_login_window_styles(): void
     {
         ll_tools_enqueue_public_assets();

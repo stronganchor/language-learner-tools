@@ -24,7 +24,7 @@ test('quiz trigger opens iframe fallback modal when flashcard launcher is absent
     window.llQuizPages = {
       labels: {
         defaultTitle: 'Quiz',
-        closeLabel: 'Close',
+        closeLabel: 'Kapat',
         iframeTitle: 'Quiz Content'
       }
     };
@@ -40,6 +40,10 @@ test('quiz trigger opens iframe fallback modal when flashcard launcher is absent
 
   await expect(page.locator('.ll-quiz-overlay')).toHaveCount(1);
   await expect(page.locator('.ll-quiz-modal')).toBeVisible();
+  await expect(page.locator('.ll-quiz-modal button')).toHaveAccessibleName('Kapat');
+  const closeButtonText = await page.locator('.ll-quiz-modal button').evaluate((node) => node.textContent || '');
+  expect(closeButtonText).toContain('×');
+  expect(closeButtonText).toContain('Kapat');
   await expect(page.locator('.ll-quiz-iframe')).toHaveAttribute(
     'src',
     'https://example.com/embed/demo-category?mode=practice'

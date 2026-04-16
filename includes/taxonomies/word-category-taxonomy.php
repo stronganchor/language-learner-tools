@@ -3409,11 +3409,19 @@ function ll_tools_normalize_words_audio_urls(array $rows): array {
 function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $category_context = ll_tools_get_word_category_query_context($categoryName);
     $wordset_terms = [];
+    $requested_wordset_terms = [];
     if (!empty($wordset_id)) {
         $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
         $wordset_terms = array_values(array_filter($wordset_terms, static function ($id): bool {
             return $id > 0;
         }));
+        $requested_wordset_terms = $wordset_terms;
+        if (function_exists('ll_tools_filter_viewable_wordset_ids')) {
+            $wordset_terms = ll_tools_filter_viewable_wordset_ids($wordset_terms, (int) get_current_user_id());
+        }
+        if (!empty($requested_wordset_terms) && empty($wordset_terms)) {
+            return 0;
+        }
     }
 
     $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, $wordset_terms);
@@ -3749,9 +3757,17 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
 function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordset_id = null, $quiz_config = []) {
     $category_context = ll_tools_get_word_category_query_context($categoryName);
     $wordset_terms = [];
+    $requested_wordset_terms = [];
     if (!empty($wordset_id)) {
         $wordset_terms = is_array($wordset_id) ? array_map('intval', $wordset_id) : [(int) $wordset_id];
         $wordset_terms = array_filter($wordset_terms, function ($id) { return $id > 0; });
+        $requested_wordset_terms = $wordset_terms;
+        if (function_exists('ll_tools_filter_viewable_wordset_ids')) {
+            $wordset_terms = ll_tools_filter_viewable_wordset_ids($wordset_terms, (int) get_current_user_id());
+        }
+        if (!empty($requested_wordset_terms) && empty($wordset_terms)) {
+            return [];
+        }
     }
 
     $category_context = ll_tools_remap_word_category_query_context_for_wordset($category_context, $wordset_terms);

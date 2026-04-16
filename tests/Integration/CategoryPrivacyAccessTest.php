@@ -55,6 +55,91 @@ final class CategoryPrivacyAccessTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_user_can_view_category($category_id, $admin_id));
     }
 
+    public function test_private_wordset_is_hidden_from_public_flashcard_queries_and_initial_render(): void
+    {
+        $min_words_filter = static function (): int {
+            return 1;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $wordset_id = $this->ensure_term('wordset', 'Private Flashcard Wordset', 'private-flashcard-wordset');
+            update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+
+            $category_id = $this->ensure_term('word-category', 'Public Flashcard Category', 'public-flashcard-category');
+            update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
+            update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+
+            $word_id = $this->create_word($wordset_id, $category_id, 'Private Flashcard Word', 'Private Flashcard Translation');
+
+            wp_set_current_user(0);
+
+            $rows = ll_get_words_by_category('Public Flashcard Category', 'text_title', [$wordset_id], [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_title',
+            ]);
+            $count = ll_get_words_by_category_count('Public Flashcard Category', 'text_title', [$wordset_id], [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_title',
+            ]);
+
+            $this->assertSame([], $rows);
+            $this->assertSame(0, $count);
+            $this->assertFalse(ll_tools_user_can_view_wordset($wordset_id, 0));
+
+            $shortcode = do_shortcode('[flashcard_widget category="Public Flashcard Category" wordset="private-flashcard-wordset" wordset_fallback="false"]');
+            $this->assertStringContainsString('id="ll-tools-flashcard-container"', $shortcode);
+
+            $localized_main = wp_scripts()->get_data('ll-flc-main', 'data');
+            $this->assertIsString($localized_main);
+            $this->assertStringContainsString('"wordsetIds":[]', $localized_main);
+            $this->assertStringNotContainsString('Private Flashcard Word', $localized_main);
+            $this->assertStringNotContainsString('Private Flashcard Translation', $localized_main);
+            $this->assertStringNotContainsString('"Public Flashcard Category"', $localized_main);
+
+            $_POST = [
+                'category' => 'Public Flashcard Category',
+                'display_mode' => 'text_title',
+                'option_type' => 'text_title',
+                'prompt_type' => 'text_title',
+                'wordset' => 'private-flashcard-wordset',
+                'wordset_fallback' => '0',
+            ];
+            $_REQUEST = $_POST;
+
+            try {
+                $ajax_response = $this->run_json_endpoint(static function (): void {
+                    ll_get_words_by_category_ajax();
+                });
+            } finally {
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertTrue((bool) ($ajax_response['success'] ?? false));
+            $this->assertSame([], $ajax_response['data'] ?? null);
+
+            $admin_id = self::factory()->user->create(['role' => 'administrator']);
+            wp_set_current_user($admin_id);
+
+            $admin_rows = ll_get_words_by_category('Public Flashcard Category', 'text_title', [$wordset_id], [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_title',
+            ]);
+            $admin_count = ll_get_words_by_category_count('Public Flashcard Category', 'text_title', [$wordset_id], [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_title',
+            ]);
+
+            $this->assertCount(1, $admin_rows);
+            $this->assertSame($word_id, (int) ($admin_rows[0]['id'] ?? 0));
+            $this->assertSame(1, $admin_count);
+        } finally {
+            wp_set_current_user(0);
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
     public function test_private_category_recorder_queue_and_new_word_flow_require_assignment(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

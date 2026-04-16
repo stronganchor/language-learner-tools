@@ -49,6 +49,9 @@ function ll_flashcards_resolve_wordset_ids(string $wordset_spec = '', bool $fall
     $ids = array_map('intval', (array) $ids);
     $ids = array_filter($ids, function ($id) { return $id > 0; });
     $ids = array_values(array_unique($ids));
+    if (function_exists('ll_tools_filter_viewable_wordset_ids')) {
+        $ids = ll_tools_filter_viewable_wordset_ids($ids, (int) get_current_user_id());
+    }
 
     return $ids;
 }
@@ -849,6 +852,8 @@ function ll_tools_flashcard_widget($atts) {
     $wordset_ids = ll_flashcards_resolve_wordset_ids($atts['wordset'], $atts['wordset_fallback']);
     $wordset_ids = array_map('intval', (array) $wordset_ids);
     $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
+    $explicit_wordset_requested = ($atts['wordset'] !== '');
+    $blocked_explicit_wordset = ($explicit_wordset_requested && empty($wordset_ids));
 
     $embed     = strtolower((string)$atts['embed']) === 'true';
     $quiz_font = (string) get_option('ll_quiz_font');
@@ -857,10 +862,18 @@ function ll_tools_flashcard_widget($atts) {
     $use_translations = ll_flashcards_should_use_translations($wordset_ids);
 
     // 2) categories list (+ whether they were preselected)
-    [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations, $wordset_ids);
+    if ($blocked_explicit_wordset) {
+        $categories = [];
+        $preselected = false;
+        $selected_category_data = [];
+        $firstCategoryName = '';
+        $words_data = [];
+    } else {
+        [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations, $wordset_ids);
 
-    // 3) initial words batch so the UI isn't empty - NOW WORDSET AWARE
-    [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories, $wordset_ids, $atts['wordset'] !== '');
+        // 3) initial words batch so the UI isn't empty - NOW WORDSET AWARE
+        [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories, $wordset_ids, $explicit_wordset_requested);
+    }
 
     // 4) label shown above play button
     $category_label_text = ll_flashcards_category_label($selected_category_data, $firstCategoryName, $embed, $wordset_ids);

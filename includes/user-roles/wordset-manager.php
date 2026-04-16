@@ -56,10 +56,10 @@ add_action('admin_menu', 'customize_admin_menu_for_wordset_manager', 999);
  * @return bool False to hide the admin bar for non-admins.
  */
 function hide_admin_bar_for_non_admins() {
-    if (!current_user_can('administrator')) {
+    if (!current_user_can('manage_options')) {
         return false;
     }
-    return true; 
+    return true;
 }
 add_filter('show_admin_bar', 'hide_admin_bar_for_non_admins');
 

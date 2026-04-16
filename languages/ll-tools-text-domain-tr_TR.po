@@ -563,7 +563,7 @@ msgstr "Yeni Ses Kaydı Ekle"
 
 #: includes/post-types/dictionary-entry-post-type.php:373
 msgid "Add New Dictionary Entry"
-msgstr "Yeni Sözlük Girdisi Ekleme"
+msgstr "Yeni Sözlük Girdisi Ekle"
 
 #: includes/post-types/word-audio-post-type.php:13
 msgid "Add New Recording"
@@ -917,7 +917,7 @@ msgstr "Ses kaydedici kullanıcı ata"
 
 #: includes/pages/wordset-pages.php:3954
 msgid "Assign Recorder"
-msgstr "Kaydedici Atama"
+msgstr "Ses Kaydedici Ata"
 
 #: includes/post-types/dictionary-entry-post-type.php:625
 msgid "Assign this word to a word set before linking a dictionary entry."
@@ -2271,7 +2271,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:171
 #: includes/admin/recording-types-admin.php:163
 msgid "Delete"
-msgstr "Silme"
+msgstr "Sil"
 
 #. translators: %s: recording title
 #: includes/admin/audio-processor-admin.php:154
@@ -2551,7 +2551,7 @@ msgstr "Düzenle"
 
 #: includes/post-types/word-audio-post-type.php:15
 msgid "Edit Audio Recording"
-msgstr "Ses Kaydını Düzenleme"
+msgstr "Ses Kaydını Düzenle"
 
 #: includes/post-types/dictionary-entry-post-type.php:374
 msgid "Edit Dictionary Entry"
@@ -3345,7 +3345,7 @@ msgstr "Seçilenler için çevirileri al"
 
 #: includes/admin/export-import.php:1206
 msgid "Gloss languages"
-msgstr "Parlaklık dilleri"
+msgstr "Açıklama dilleri"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1111
 msgid "Go"
@@ -5969,7 +5969,7 @@ msgstr "Ana Kelime (ID)"
 
 #: includes/taxonomies/wordset-taxonomy.php:377
 msgid "Parent Word Set"
-msgstr "Ebeveyn Kelime Seti"
+msgstr "Üst Kelime Seti"
 
 #: includes/taxonomies/wordset-taxonomy.php:378
 msgid "Parent Word Set:"
@@ -7081,7 +7081,7 @@ msgstr "İşlenmiş %d ses dosyası kaydedilsin mi?"
 #: includes/shortcodes/editor-hub-shortcode.php:986
 #: includes/shortcodes/editor-hub-shortcode.php:1061
 msgid "Save & Next"
-msgstr "Kaydet & Sonraki"
+msgstr "Kaydet ve Sonrakine Geç"
 
 #: includes/admin/audio-processor-admin.php:118
 msgid "Save All Changes"
@@ -7267,7 +7267,7 @@ msgstr "Kelime Derslerini Ara"
 
 #: includes/taxonomies/wordset-taxonomy.php:369
 msgid "Search Word Sets"
-msgstr "Kelime Arama Setleri"
+msgstr "Kelime Setlerinde Ara"
 
 #: includes/pages/wordset-pages.php:3447
 msgid "Search words"
@@ -9989,3 +9989,274 @@ msgstr "← Kelime Setlerine Geri Dön"
 #: includes/shortcodes/flashcard-widget.php:322
 msgid "✓"
 msgstr "✓"
+
+#: includes/admin/missing-audio-admin-page.php:51
+msgid "Missing audio instances cache has been cleared."
+msgstr "Eksik ses örnekleri önbelleği temizlendi."
+
+#: includes/admin/missing-audio-admin-page.php:70
+#, php-format
+msgid "Scan complete. Found %1$d missing audio entry across %2$d post."
+msgid_plural "Scan complete. Found %1$d missing audio entries across %2$d posts."
+msgstr[0] "%2$d gönderi içinde %1$d eksik ses girdisi bulundu."
+msgstr[1] "%2$d gönderi içinde %1$d eksik ses girdisi bulundu."
+
+#: includes/admin/missing-audio-admin-page.php:83
+msgid "Please provide both a label and a regex pattern."
+msgstr "Lütfen hem bir etiket hem de bir regex kalıbı gir."
+
+#: includes/admin/missing-audio-admin-page.php:85 includes/admin/missing-audio-admin-page.php:106
+msgid "The regex pattern is invalid. Please fix it and try again."
+msgstr "Regex kalıbı geçersiz. Lütfen düzeltip tekrar dene."
+
+#: includes/admin/missing-audio-admin-page.php:88
+msgid "Regex pattern saved."
+msgstr "Regex kalıbı kaydedildi."
+
+#: includes/admin/missing-audio-admin-page.php:96
+msgid "Regex pattern removed."
+msgstr "Regex kalıbı kaldırıldı."
+
+#: includes/admin/missing-audio-admin-page.php:112
+msgid "Please choose a saved regex or enter one to run."
+msgstr "Lütfen kaydedilmiş bir regex seç ya da çalıştırmak için bir regex gir."
+
+#: includes/admin/missing-audio-admin-page.php:123
+#, php-format
+msgid "Preview only. Found %1$d match across %2$d post."
+msgid_plural "Preview only. Found %1$d matches across %2$d posts."
+msgstr[0] "Sadece önizleme. %2$d gönderi içinde %1$d eşleşme bulundu."
+msgstr[1] "Sadece önizleme. %2$d gönderi içinde %1$d eşleşme bulundu."
+
+#: includes/admin/missing-audio-admin-page.php:141
+#, php-format
+msgid "Inserted %1$d shortcode across %2$d post."
+msgid_plural "Inserted %1$d shortcodes across %2$d posts."
+msgstr[0] "%2$d gönderi içinde %1$d kısaltma eklendi."
+msgstr[1] "%2$d gönderi içinde %1$d kısaltma eklendi."
+
+#: includes/admin/missing-audio-admin-page.php:156
+msgid "Please choose at least one header to target."
+msgstr "Lütfen hedeflemek için en az bir başlık seç."
+
+#: includes/admin/missing-audio-admin-page.php:167
+#, php-format
+msgid "Preview only. Found %1$d cell across %2$d post."
+msgid_plural "Preview only. Found %1$d cells across %2$d posts."
+msgstr[0] "Sadece önizleme. %2$d gönderi içinde %1$d hücre bulundu."
+msgstr[1] "Sadece önizleme. %2$d gönderi içinde %1$d hücre bulundu."
+
+#: includes/admin/missing-audio-admin-page.php:184
+msgid "Invalid word provided."
+msgstr "Geçersiz kelime girildi."
+
+#: includes/admin/missing-audio-admin-page.php:211
+msgid "Removed word from missing audio list"
+msgstr "Kelime eksik ses listesinden kaldırıldı"
+
+#: includes/admin/missing-audio-admin-page.php:213
+msgid " and stripped [word_audio] shortcode"
+msgstr " ve [word_audio] kısaltması silindi"
+
+#: includes/admin/missing-audio-admin-page.php:217
+msgid "No changes made. The word may have already been removed."
+msgstr "Değişiklik yapılmadı. Kelime zaten kaldırılmış olabilir."
+
+#: includes/admin/missing-audio-admin-page.php:226
+msgid "Language Learner Tools - Missing Audio"
+msgstr "Dil Öğrenme Araçları - Eksik Ses"
+
+#: includes/admin/missing-audio-admin-page.php:230
+msgid "Scan All Posts for Missing Audio"
+msgstr "Tüm Yazıları Eksik Ses İçin Tara"
+
+#: includes/admin/missing-audio-admin-page.php:231
+msgid "Clear Cache"
+msgstr "Önbelleği Temizle"
+
+#: includes/admin/missing-audio-admin-page.php:234
+msgid "Regex → Insert [word_audio]"
+msgstr "Regex → [word_audio] Ekle"
+
+#: includes/admin/missing-audio-admin-page.php:235
+msgid "Find text via regex and wrap it with the %s shortcode. Patterns are stored for re-use and tagged with a comment label."
+msgstr "Metni regex ile bul ve %s kısaltmasıyla sar. Kalıplar yeniden kullanım için saklanır ve yorum etiketiyle işaretlenir."
+
+#: includes/admin/missing-audio-admin-page.php:237
+msgid "Saved Regex Patterns"
+msgstr "Kaydedilmiş Regex Kalıpları"
+
+#: includes/admin/missing-audio-admin-page.php:241
+msgid "Label / comment"
+msgstr "Etiket / yorum"
+
+#: includes/admin/missing-audio-admin-page.php:242
+msgid "e.g., Words in bold tags"
+msgstr "örn. kalın etiket içindeki kelimeler"
+
+#: includes/admin/missing-audio-admin-page.php:245
+msgid "Regex (PHP delimiters required)"
+msgstr "Regex (PHP ayraçları gerekli)"
+
+#: includes/admin/missing-audio-admin-page.php:246
+msgid "#<strong>([^<]+)</strong>#i"
+msgstr "#<strong>([^<]+)</strong>#i"
+
+#: includes/admin/missing-audio-admin-page.php:249
+msgid "Save Pattern"
+msgstr "Kalıbı Kaydet"
+
+#: includes/admin/missing-audio-admin-page.php:271
+msgid "No saved patterns yet."
+msgstr "Henüz kaydedilmiş kalıp yok."
+
+#: includes/admin/missing-audio-admin-page.php:273
+msgid "Find Matches & Insert Shortcodes"
+msgstr "Eşleşmeleri Bul ve Kısaltmaları Ekle"
+
+#: includes/admin/missing-audio-admin-page.php:277
+msgid "Saved pattern"
+msgstr "Kaydedilmiş kalıp"
+
+#: includes/admin/missing-audio-admin-page.php:279
+msgid "— Select a saved pattern —"
+msgstr "— Kaydedilmiş bir kalıp seç —"
+
+#: includes/admin/missing-audio-admin-page.php:289
+msgid "Or paste regex to run"
+msgstr "Ya da çalıştırmak için regex yapıştır"
+
+#: includes/admin/missing-audio-admin-page.php:290
+msgid "#\\b[A-Za-z]+\\b#u"
+msgstr "#\\b[A-Za-z]+\\b#u"
+
+#: includes/admin/missing-audio-admin-page.php:292
+msgid "Uses PHP regex with delimiters. Matches are wrapped as %s."
+msgstr "PHP regex'i ayraçlarla kullanır. Eşleşmeler %s ile sarılır."
+
+#: includes/admin/missing-audio-admin-page.php:294
+msgid "Preview Matches"
+msgstr "Eşleşmeleri Önizle"
+
+#: includes/admin/missing-audio-admin-page.php:295
+msgid "Insert Shortcodes Now"
+msgstr "Kısaltmaları Şimdi Ekle"
+
+#: includes/admin/missing-audio-admin-page.php:300
+msgid "Preview Results"
+msgstr "Önizleme Sonuçları"
+
+#: includes/admin/missing-audio-admin-page.php:305
+#, php-format
+msgid "Found %1$d match across %2$d post. No content has been changed yet. Uncheck items you want to exclude before applying."
+msgid_plural "Found %1$d matches across %2$d posts. No content has been changed yet. Uncheck items you want to exclude before applying."
+msgstr[0] "%2$d gönderi içinde %1$d eşleşme bulundu. Henüz içerik değiştirilmedi. Uygulamadan önce hariç tutmak istediklerinin işaretini kaldır."
+msgstr[1] "%2$d gönderi içinde %1$d eşleşme bulundu. Henüz içerik değiştirilmedi. Uygulamadan önce hariç tutmak istediklerinin işaretini kaldır."
+
+#: includes/admin/missing-audio-admin-page.php:324 includes/admin/missing-audio-admin-page.php:393
+msgid "Exclude"
+msgstr "Hariç Tut"
+
+#: includes/admin/missing-audio-admin-page.php:332
+msgid "No matches found for that regex."
+msgstr "Bu regex için eşleşme bulunamadı."
+
+#: includes/admin/missing-audio-admin-page.php:337
+msgid "Insertion Summary"
+msgstr "Ekleme Özeti"
+
+#: includes/admin/missing-audio-admin-page.php:342
+#, php-format
+msgid "Updated %1$d post, inserted %2$d shortcode."
+msgid_plural "Updated %1$d posts, inserted %2$d shortcodes."
+msgstr[0] "%1$d gönderi güncellendi, %2$d kısaltma eklendi."
+msgstr[1] "%1$d gönderi güncellendi, %2$d kısaltma eklendi."
+
+#: includes/admin/missing-audio-admin-page.php:357
+msgid "Table Column → Insert [word_audio]"
+msgstr "Tablo Sütunu → [word_audio] Ekle"
+
+#: includes/admin/missing-audio-admin-page.php:358
+msgid "Find HTML tables, choose header(s), and wrap every cell in those columns with %s. Existing shortcodes are skipped."
+msgstr "HTML tabloları bul, başlık(lar) seç ve o sütunlardaki her hücreyi %s ile sar. Mevcut kısaltmalar atlanır."
+
+#: includes/admin/missing-audio-admin-page.php:361
+msgid "Select column headers to target"
+msgstr "Hedeflenecek sütun başlıklarını seç"
+
+#: includes/admin/missing-audio-admin-page.php:366
+#, php-format
+msgid "%1$d unique header found. Use Ctrl/Cmd-click or Shift-click to select multiple."
+msgid_plural "%1$d unique headers found. Use Ctrl/Cmd-click or Shift-click to select multiple."
+msgstr[0] "%1$d benzersiz başlık bulundu. Birden fazlasını seçmek için Ctrl/Cmd-tıklama veya Shift-tıklama kullan."
+msgstr[1] "%1$d benzersiz başlık bulundu. Birden fazlasını seçmek için Ctrl/Cmd-tıklama veya Shift-tıklama kullan."
+
+#: includes/admin/missing-audio-admin-page.php:375
+msgid "No table headers found in the scanned post types."
+msgstr "Taranan gönderi türlerinde tablo başlığı bulunamadı."
+
+#: includes/admin/missing-audio-admin-page.php:378
+msgid "Preview Table Matches"
+msgstr "Tablo Eşleşmelerini Önizle"
+
+#: includes/admin/missing-audio-admin-page.php:379
+msgid "Insert Shortcodes in Column Now"
+msgstr "Kısaltmaları Sütuna Şimdi Ekle"
+
+#: includes/admin/missing-audio-admin-page.php:384
+msgid "Table Preview Results"
+msgstr "Tablo Önizleme Sonuçları"
+
+#: includes/admin/missing-audio-admin-page.php:389
+#, php-format
+msgid "Found %1$d cell across %2$d post. No content has been changed yet. Uncheck items you want to exclude before applying."
+msgid_plural "Found %1$d cells across %2$d posts. No content has been changed yet. Uncheck items you want to exclude before applying."
+msgstr[0] "%2$d gönderi içinde %1$d hücre bulundu. Henüz içerik değiştirilmedi. Uygulamadan önce hariç tutmak istediklerinin işaretini kaldır."
+msgstr[1] "%2$d gönderi içinde %1$d hücre bulundu. Henüz içerik değiştirilmedi. Uygulamadan önce hariç tutmak istediklerinin işaretini kaldır."
+
+#: includes/admin/missing-audio-admin-page.php:408
+msgid "No matching tables or cells found for the selected headers."
+msgstr "Seçilen başlıklar için eşleşen tablo veya hücre bulunamadı."
+
+#: includes/admin/missing-audio-admin-page.php:413
+msgid "Table Insertion Summary"
+msgstr "Tablo Ekleme Özeti"
+
+#: includes/admin/missing-audio-admin-page.php:418
+#, php-format
+msgid "Updated %1$d post, inserted %2$d shortcode."
+msgid_plural "Updated %1$d posts, inserted %2$d shortcodes."
+msgstr[0] "%1$d gönderi güncellendi, %2$d kısaltma eklendi."
+msgstr[1] "%1$d gönderi güncellendi, %2$d kısaltma eklendi."
+
+#: includes/admin/missing-audio-admin-page.php:441
+msgid "Current Missing Audio"
+msgstr "Geçerli Eksik Sesler"
+
+#: includes/admin/missing-audio-admin-page.php:445
+msgid "Word"
+msgstr "Kelime"
+
+#: includes/admin/missing-audio-admin-page.php:446
+msgid "Post"
+msgstr "Gönderi"
+
+#: includes/admin/missing-audio-admin-page.php:447
+msgid "Actions"
+msgstr "Eylemler"
+
+#: includes/admin/missing-audio-admin-page.php:455
+msgid "N/A"
+msgstr "Yok"
+
+#: includes/admin/missing-audio-admin-page.php:464
+msgid "Remove & strip shortcode"
+msgstr "Kaldır ve kısaltmayı sil"
+
+#: includes/admin/missing-audio-admin-page.php:470
+msgid "No missing audio instances found."
+msgstr "Eksik ses örneği bulunamadı."
+
+#: includes/post-types/content-lesson-post-type.php:808
+msgid "Paste the direct media URL here."
+msgstr "Doğrudan medya URL'sini buraya yapıştır."

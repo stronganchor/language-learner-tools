@@ -402,6 +402,33 @@ function ll_tools_user_can_view_wordset($wordset, int $user_id = 0): bool {
     return (bool) apply_filters('ll_tools_user_can_view_wordset', $allowed, $wordset_id, $user_id);
 }
 
+/**
+ * Normalize a requested wordset list down to the subset visible to the given user.
+ *
+ * @param array<int|string> $wordset_ids
+ * @param int $user_id
+ * @return int[]
+ */
+function ll_tools_filter_viewable_wordset_ids(array $wordset_ids, int $user_id = 0): array {
+    $normalized_ids = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    }));
+
+    if (empty($normalized_ids)) {
+        return [];
+    }
+
+    if (!function_exists('ll_tools_user_can_view_wordset')) {
+        return array_values(array_unique($normalized_ids));
+    }
+
+    $visible_ids = array_filter($normalized_ids, static function (int $wordset_id) use ($user_id): bool {
+        return ll_tools_user_can_view_wordset($wordset_id, $user_id);
+    });
+
+    return array_values(array_unique(array_map('intval', $visible_ids)));
+}
+
 // Register the "wordset" taxonomy
 function ll_tools_register_wordset_taxonomy() {
     $labels = [
