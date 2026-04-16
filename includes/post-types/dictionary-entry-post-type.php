@@ -421,6 +421,24 @@ function ll_tools_get_dictionary_entry_translation($entry_id): string {
 
     $translation = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
     if ($translation !== '') {
+        $source_aliases = [];
+        if (function_exists('ll_tools_get_dictionary_entry_senses') && function_exists('ll_tools_dictionary_collect_import_source_aliases')) {
+            foreach (ll_tools_get_dictionary_entry_senses($entry_id) as $sense) {
+                if (!is_array($sense)) {
+                    continue;
+                }
+                foreach (ll_tools_dictionary_collect_import_source_aliases($sense) as $alias) {
+                    if (!in_array($alias, $source_aliases, true)) {
+                        $source_aliases[] = $alias;
+                    }
+                }
+            }
+        }
+
+        if (function_exists('ll_tools_dictionary_normalize_import_gloss_text')) {
+            $translation = ll_tools_dictionary_normalize_import_gloss_text($translation, $source_aliases);
+        }
+
         return $translation;
     }
 

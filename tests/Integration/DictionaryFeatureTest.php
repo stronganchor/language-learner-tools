@@ -524,6 +524,30 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('güneş', ll_tools_get_dictionary_entry_translation($entry_id));
     }
 
+    public function test_import_strips_visible_provenance_prefixes_from_glosses(): void
+    {
+        $prepared = ll_tools_dictionary_prepare_import_row([
+            'entry' => 'Zur',
+            'definition' => 'harun@p399: zuma || dezd: zurna',
+            'translation_en' => 'harun@p399: shawm || dezd: oboe',
+            'source_id' => 'harun | dezd',
+            'source_dictionary' => 'Palu - Bingöl Harun Turgut | DEZD - Kirmancki Dictionary',
+            'source_row_idx' => 'harun:harun_p399_b0034:entry | dezd:dezd:19662:zurna',
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'Turkish',
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'Turkish',
+        ]);
+
+        $this->assertSame('Zur', $prepared['entry']);
+        $this->assertSame('zuma; zurna', $prepared['definition']);
+        $this->assertSame([
+            'en' => 'shawm; oboe',
+            'tr' => 'zuma; zurna',
+        ], $prepared['translations']);
+    }
+
     public function test_dictionary_search_prioritizes_exact_aliases_and_hides_duplicate_entry_type_badges(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -629,6 +653,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'definition' => 'tree',
                 'entry_type' => 'noun',
                 'source_dictionary' => 'Harun Turgut',
+                'page_number' => '400',
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
             ],
@@ -638,6 +663,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'entry_type' => 'noun',
                 'source_dictionary' => 'DEZD',
                 'dialects' => 'Siverek',
+                'page_number' => '52',
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
             ],
@@ -683,9 +709,11 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Harun Turgut', $detail_html);
         $this->assertStringContainsString('Palu - Bingöl', $detail_html);
         $this->assertStringContainsString('Siverek', $detail_html);
-        $this->assertStringContainsString('License and attribution details', $detail_html);
+        $this->assertStringContainsString('About this source', $detail_html);
         $this->assertStringContainsString('https://example.com/dezd-license', $detail_html);
         $this->assertStringContainsString('https://example.com/harun-license', $detail_html);
+        $this->assertStringNotContainsString('Page 400', $detail_html);
+        $this->assertStringNotContainsString('Page 52', $detail_html);
     }
 
     public function test_dictionary_scope_filter_index_refreshes_after_source_and_entry_updates(): void

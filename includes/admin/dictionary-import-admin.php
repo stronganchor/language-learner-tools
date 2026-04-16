@@ -1645,7 +1645,7 @@ function ll_tools_render_dictionary_import_page(): void {
             <?php esc_html_e('Manage dictionary imports, exports, and legacy migration in one place. TSV rows are grouped by headword so search, browse, bulk translations, and word-linking all use the same data.', 'll-tools-text-domain'); ?>
         </p>
         <p>
-            <?php esc_html_e('Use the Dictionary Sources screen to define per-dictionary attribution text, license URLs, and default dialect tags before importing rows from a new source.', 'll-tools-text-domain'); ?>
+            <?php esc_html_e('Use the Dictionary Sources screen to define per-dictionary attribution text, source detail URLs, and default dialect tags before importing rows from a new source.', 'll-tools-text-domain'); ?>
         </p>
         <p>
             <?php esc_html_e('Whole-site dictionary snapshots preserve stable import keys so you can export the site dictionary, edit it locally, then reimport it in override mode without breaking linked learning words that already point at those dictionary entries.', 'll-tools-text-domain'); ?>

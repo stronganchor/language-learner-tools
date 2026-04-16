@@ -653,7 +653,6 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
     $entry_type = trim((string) ($item['entry_type'] ?? ''));
     $wordset_name = trim((string) ($item['wordset_name'] ?? ''));
     $wordset_names = array_values(array_filter(array_map('strval', (array) ($item['wordset_names'] ?? []))));
-    $page_number = trim((string) ($item['page_number'] ?? ''));
     $sense_count = max(0, (int) ($item['sense_count'] ?? 0));
     $linked_word_count = max(0, (int) ($item['linked_word_count'] ?? 0));
     $senses = (array) ($item['senses'] ?? []);
@@ -694,16 +693,6 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
         }
         $html .= ll_tools_dictionary_render_badge($name, 'wordset');
     }
-    if ($page_number !== '') {
-        $html .= ll_tools_dictionary_render_badge(
-            sprintf(
-                /* translators: %s: source page number */
-                __('p. %s', 'll-tools-text-domain'),
-                $page_number
-            ),
-            'page'
-        );
-    }
     if ($linked_word_count > 0) {
         $html .= ll_tools_dictionary_render_badge(
             sprintf(
@@ -742,7 +731,6 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
             $sense_type = trim((string) ($sense['entry_type'] ?? ''));
             $gender = trim((string) ($sense['gender_number'] ?? ''));
             $parent = trim((string) ($sense['parent'] ?? ''));
-            $sense_page = trim((string) ($sense['page_number'] ?? ''));
             if ($definition === '') {
                 continue;
             }
@@ -761,14 +749,6 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
                     $parent
                 );
             }
-            if ($sense_page !== '') {
-                $meta_parts[] = sprintf(
-                    /* translators: %s: source page number */
-                    __('Page %s', 'll-tools-text-domain'),
-                    $sense_page
-                );
-            }
-
             $translation_rows = [];
             $visible_lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
                 ? ll_tools_dictionary_entry_normalize_lookup_value($definition)
@@ -917,9 +897,6 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         }
         $html .= ll_tools_dictionary_render_badge($wordset_name, 'wordset');
     }
-    if (!empty($entry['page_number'])) {
-        $html .= ll_tools_dictionary_render_badge(sprintf(__('p. %s', 'll-tools-text-domain'), (string) $entry['page_number']), 'page');
-    }
     foreach ($sources as $source) {
         $label = trim((string) ($source['label'] ?? ''));
         if ($label === '') {
@@ -974,12 +951,6 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
             if (!empty($sense['parent'])) {
                 $meta_parts[] = sprintf(__('Parent: %s', 'll-tools-text-domain'), (string) $sense['parent']);
             }
-            if (!empty($sense['page_number'])) {
-                $meta_parts[] = sprintf(__('Page %s', 'll-tools-text-domain'), (string) $sense['page_number']);
-            }
-            if (!empty($sense['source_dictionary'])) {
-                $meta_parts[] = (string) $sense['source_dictionary'];
-            }
             foreach ((array) (function_exists('ll_tools_dictionary_get_sense_dialects') ? ll_tools_dictionary_get_sense_dialects((array) $sense) : []) as $dialect) {
                 $dialect = trim((string) $dialect);
                 if ($dialect !== '') {
@@ -1031,7 +1002,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
                 $html .= '<p class="ll-dictionary__source-copy">' . esc_html($attribution_text) . '</p>';
             }
             if ($attribution_url !== '') {
-                $html .= '<p class="ll-dictionary__source-copy"><a href="' . esc_url($attribution_url) . '">' . esc_html__('License and attribution details', 'll-tools-text-domain') . '</a></p>';
+                $html .= '<p class="ll-dictionary__source-copy"><a href="' . esc_url($attribution_url) . '">' . esc_html__('About this source', 'll-tools-text-domain') . '</a></p>';
             }
             $html .= '</div>';
         }

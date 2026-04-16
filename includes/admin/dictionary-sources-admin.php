@@ -60,7 +60,7 @@ function ll_tools_render_dictionary_sources_page(): void {
     <div class="wrap">
         <h1><?php esc_html_e('LL Dictionary Sources', 'll-tools-text-domain'); ?></h1>
         <p>
-            <?php esc_html_e('Define reusable source records for imported dictionaries. Each source can carry a public attribution statement, a longer license/copyright URL, and default dialect tags that are applied when an import row does not provide its own dialect field.', 'll-tools-text-domain'); ?>
+            <?php esc_html_e('Define reusable source records for imported dictionaries. Each source can carry a short public attribution statement, a public source-information page URL for the dictionary badges, and default dialect tags that are applied when an import row does not provide its own dialect field.', 'll-tools-text-domain'); ?>
         </p>
         <p>
             <?php
@@ -89,7 +89,7 @@ function ll_tools_render_dictionary_sources_page(): void {
                         <th scope="col"><?php esc_html_e('Source ID', 'll-tools-text-domain'); ?></th>
                         <th scope="col"><?php esc_html_e('Label', 'll-tools-text-domain'); ?></th>
                         <th scope="col"><?php esc_html_e('Attribution Text', 'll-tools-text-domain'); ?></th>
-                        <th scope="col"><?php esc_html_e('License / Details URL', 'll-tools-text-domain'); ?></th>
+                        <th scope="col"><?php esc_html_e('Source Page / Details URL', 'll-tools-text-domain'); ?></th>
                         <th scope="col"><?php esc_html_e('Default Dialects', 'll-tools-text-domain'); ?></th>
                     </tr>
                 </thead>
@@ -113,7 +113,7 @@ function ll_tools_render_dictionary_sources_page(): void {
                                 <textarea class="large-text" rows="3" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][attribution_text]"><?php echo esc_textarea($attribution_text); ?></textarea>
                             </td>
                             <td style="width:24%;">
-                                <input type="url" class="large-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][attribution_url]" value="<?php echo esc_attr($attribution_url); ?>" placeholder="<?php echo esc_attr__('https://example.com/dictionary-license', 'll-tools-text-domain'); ?>">
+                                <input type="url" class="large-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][attribution_url]" value="<?php echo esc_attr($attribution_url); ?>" placeholder="<?php echo esc_attr__('https://example.com/dictionary-source/dezd', 'll-tools-text-domain'); ?>">
                             </td>
                             <td style="width:16%;">
                                 <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][default_dialects]" value="<?php echo esc_attr($default_dialects); ?>" placeholder="<?php echo esc_attr__('Palu, Bingöl', 'll-tools-text-domain'); ?>">

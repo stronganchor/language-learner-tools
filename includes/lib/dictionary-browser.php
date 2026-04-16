@@ -281,12 +281,138 @@ function ll_tools_dictionary_entry_matches_browse_letter(int $entry_id, string $
 }
 
 /**
+ * Collect likely provenance aliases from one imported row or stored sense.
+ *
+ * @param array<string|int,mixed> $context Row or sense payload.
+ * @return string[]
+ */
+function ll_tools_dictionary_collect_import_source_aliases(array $context): array {
+    $aliases = [];
+    $seen = [];
+
+    $register = static function (string $value) use (&$aliases, &$seen): void {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return;
+        }
+
+        $key = strtolower($value);
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $seen[$key] = true;
+        $aliases[] = $value;
+    };
+
+    foreach (['source_id', 'source_dictionary', 'source_row_idx'] as $field) {
+        $raw_value = isset($context[$field]) ? (string) $context[$field] : '';
+        $parts = preg_split('/\s*[|,;]+\s*/', $raw_value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        foreach ($parts as $part) {
+            $part = trim(sanitize_text_field((string) $part));
+            if ($part === '') {
+                continue;
+            }
+
+            if ($field === 'source_row_idx') {
+                $part = trim((string) strtok($part, ':'));
+            }
+
+            $normalized = ll_tools_dictionary_normalize_source_id($part);
+            if ($normalized !== '') {
+                $register($normalized);
+            }
+
+            if ($field !== 'source_dictionary' || $normalized === '') {
+                continue;
+            }
+
+            foreach (preg_split('/-+/', $normalized, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $token) {
+                if (strlen($token) < 4 || in_array($token, ['dictionary', 'sozluk', 'soezluk', 'kirmancki', 'zazaca', 'turkce'], true)) {
+                    continue;
+                }
+                $register($token);
+            }
+        }
+    }
+
+    usort($aliases, static function (string $left, string $right): int {
+        return strlen($right) <=> strlen($left);
+    });
+
+    return $aliases;
+}
+
+/**
+ * Strip visible provenance prefixes like "dezd:" or "harun@p123:" from one gloss segment.
+ */
+function ll_tools_dictionary_strip_import_provenance_prefix(string $value, array $source_aliases = []): string {
+    $value = trim(sanitize_text_field($value));
+    if ($value === '') {
+        return '';
+    }
+
+    foreach ($source_aliases as $alias) {
+        $alias = ll_tools_dictionary_normalize_source_id((string) $alias);
+        if ($alias === '') {
+            continue;
+        }
+
+        $pattern = '/^' . preg_quote($alias, '/') . '(?:[@:][a-z0-9._-]+)*\s*:\s*/iu';
+        $stripped = preg_replace($pattern, '', $value, 1, $count);
+        if (is_string($stripped) && $count > 0) {
+            return trim($stripped);
+        }
+    }
+
+    $fallback = preg_replace('/^[a-z0-9_-]+@p?[a-z0-9._-]+\s*:\s*/iu', '', $value, 1);
+    return trim(is_string($fallback) ? $fallback : $value);
+}
+
+/**
+ * Normalize one imported gloss string for public display while preserving content.
+ */
+function ll_tools_dictionary_normalize_import_gloss_text(string $value, array $source_aliases = []): string {
+    $value = trim(sanitize_text_field($value));
+    if ($value === '') {
+        return '';
+    }
+
+    $segments = preg_split('/\s*\|\|\s*/', $value, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+    if (empty($segments)) {
+        return '';
+    }
+
+    $clean_segments = [];
+    $seen = [];
+    foreach ($segments as $segment) {
+        $segment = ll_tools_dictionary_strip_import_provenance_prefix((string) $segment, $source_aliases);
+        if ($segment === '') {
+            continue;
+        }
+
+        $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+            ? ll_tools_dictionary_entry_normalize_lookup_value($segment)
+            : ll_tools_dictionary_normalize_search_text($segment);
+        if ($lookup === '' || isset($seen[$lookup])) {
+            continue;
+        }
+
+        $seen[$lookup] = true;
+        $clean_segments[] = $segment;
+    }
+
+    return trim(implode('; ', $clean_segments));
+}
+
+/**
  * Sanitize a translations map keyed by language code.
  *
  * @param mixed $translations Raw translations payload.
  * @return array<string,string>
  */
-function ll_tools_dictionary_sanitize_translations_map($translations): array {
+function ll_tools_dictionary_sanitize_translations_map($translations, array $source_aliases = []): array {
     if (!is_array($translations)) {
         return [];
     }
@@ -294,7 +420,7 @@ function ll_tools_dictionary_sanitize_translations_map($translations): array {
     $clean = [];
     foreach ($translations as $lang => $text) {
         $lang_key = ll_tools_dictionary_normalize_language_key((string) $lang);
-        $text = trim(sanitize_text_field((string) $text));
+        $text = ll_tools_dictionary_normalize_import_gloss_text((string) $text, $source_aliases);
         if ($lang_key === '' || $text === '') {
             continue;
         }
@@ -329,6 +455,8 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         'translations' => [],
     ];
 
+    $source_aliases = ll_tools_dictionary_collect_import_source_aliases($sense);
+
     foreach ($clean as $key => $unused) {
         if ($key === 'translations' || $key === 'dialects') {
             continue;
@@ -336,10 +464,14 @@ function ll_tools_dictionary_sanitize_sense(array $sense): array {
         $clean[$key] = trim(sanitize_text_field((string) ($sense[$key] ?? '')));
     }
 
+    foreach (['definition', 'search_terms'] as $text_key) {
+        $clean[$text_key] = ll_tools_dictionary_normalize_import_gloss_text((string) $clean[$text_key], $source_aliases);
+    }
+
     $clean['source_id'] = ll_tools_dictionary_resolve_source_id((string) $clean['source_id'], (string) $clean['source_dictionary']);
     $clean['source_dictionary'] = ll_tools_dictionary_resolve_source_label((string) $clean['source_id'], (string) $clean['source_dictionary']);
     $clean['dialects'] = ll_tools_dictionary_sanitize_dialect_list($sense['dialects'] ?? []);
-    $clean['translations'] = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? []);
+    $clean['translations'] = ll_tools_dictionary_sanitize_translations_map($sense['translations'] ?? [], $source_aliases);
 
     if ($clean['definition'] !== '') {
         $def_lang_key = ll_tools_dictionary_normalize_language_key((string) $clean['def_lang']);
@@ -1157,7 +1289,7 @@ function ll_tools_dictionary_resolve_import_translation_language(string $value):
  * @param array<string|int,mixed> $row Raw import row.
  * @return array<string,string>
  */
-function ll_tools_dictionary_collect_row_translations(array $row): array {
+function ll_tools_dictionary_collect_row_translations(array $row, array $source_aliases = []): array {
     $translations = [];
 
     if (isset($row['translations']) && is_array($row['translations'])) {
@@ -1193,7 +1325,7 @@ function ll_tools_dictionary_collect_row_translations(array $row): array {
         }
 
         $language_key = ll_tools_dictionary_resolve_import_translation_language($language);
-        $text = trim(sanitize_text_field((string) $value));
+        $text = ll_tools_dictionary_normalize_import_gloss_text((string) $value, $source_aliases);
         if ($language_key === '' || $text === '' || isset($translations[$language_key])) {
             continue;
         }
@@ -1201,7 +1333,7 @@ function ll_tools_dictionary_collect_row_translations(array $row): array {
         $translations[$language_key] = $text;
     }
 
-    return ll_tools_dictionary_sanitize_translations_map($translations);
+    return ll_tools_dictionary_sanitize_translations_map($translations, $source_aliases);
 }
 
 /**
@@ -1252,7 +1384,8 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         'translations' => [],
     ];
 
-    $raw_definition = trim(sanitize_text_field((string) ($row['definition'] ?? $row[1] ?? '')));
+    $source_aliases = ll_tools_dictionary_collect_import_source_aliases($row);
+    $raw_definition = ll_tools_dictionary_normalize_import_gloss_text((string) ($row['definition'] ?? $row[1] ?? ''), $source_aliases);
 
     $prepared['entry'] = trim(sanitize_text_field((string) ($row['entry'] ?? $row[0] ?? '')));
     $prepared['definition'] = $raw_definition;
@@ -1263,7 +1396,7 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
     $prepared['page_number'] = trim(sanitize_text_field((string) ($row['page_number'] ?? $row[6] ?? '')));
     $prepared['entry_lang'] = trim(sanitize_text_field((string) ($row['entry_lang'] ?? $defaults['entry_lang'] ?? '')));
     $prepared['def_lang'] = trim(sanitize_text_field((string) ($row['def_lang'] ?? $defaults['def_lang'] ?? '')));
-    $prepared['search_terms'] = trim(sanitize_text_field((string) ($row['search_terms'] ?? '')));
+    $prepared['search_terms'] = ll_tools_dictionary_normalize_import_gloss_text((string) ($row['search_terms'] ?? ''), $source_aliases);
     $prepared['source_id'] = trim(sanitize_text_field((string) ($row['source_id'] ?? '')));
     $prepared['source_dictionary'] = trim(sanitize_text_field((string) ($row['source_dictionary'] ?? '')));
     $prepared['source_row_idx'] = trim(sanitize_text_field((string) ($row['source_row_idx'] ?? '')));
@@ -1285,13 +1418,13 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
         }
     }
 
-    $translations = ll_tools_dictionary_collect_row_translations($row);
+    $translations = ll_tools_dictionary_collect_row_translations($row, $source_aliases);
     $def_lang_key = ll_tools_dictionary_normalize_language_key($prepared['def_lang']);
     if ($raw_definition !== '' && $def_lang_key !== '' && empty($translations[$def_lang_key])) {
         $translations[$def_lang_key] = $raw_definition;
     }
 
-    $prepared['translations'] = ll_tools_dictionary_sanitize_translations_map($translations);
+    $prepared['translations'] = ll_tools_dictionary_sanitize_translations_map($translations, $source_aliases);
     if (!empty($prepared['translations'])) {
         $prepared['definition'] = ll_tools_dictionary_get_preferred_translation_text([
             'definition' => $raw_definition,
