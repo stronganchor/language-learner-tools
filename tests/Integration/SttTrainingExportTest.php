@@ -98,6 +98,13 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $category_term = get_term($category_id, 'word-category');
         $this->assertInstanceOf(WP_Term::class, $category_term);
         wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        $assigned_categories = wp_get_post_terms($word_id, 'word-category', [
+            'orderby' => 'term_id',
+            'order' => 'ASC',
+        ]);
+        $this->assertNotEmpty($assigned_categories);
+        $assigned_category_term = $assigned_categories[0];
+        $this->assertInstanceOf(WP_Term::class, $assigned_category_term);
 
         $recording_id = $this->createAudioRecording($word_id, 'stt-zip.mp3', [
             'recording_text' => 'Bravo text',
@@ -124,8 +131,8 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $this->assertTrue((bool) $entries[0]['needs_review']);
         $this->assertSame('needs_review', (string) $entries[0]['review_status']);
         $this->assertSame('isolation', (string) $entries[0]['recording_type']);
-        $this->assertSame((string) $category_term->slug, (string) $entries[0]['category_slug']);
-        $this->assertSame((string) $category_term->name, (string) $entries[0]['category_name']);
+        $this->assertSame((string) $assigned_category_term->slug, (string) $entries[0]['category_slug']);
+        $this->assertSame((string) $assigned_category_term->name, (string) $entries[0]['category_name']);
         $this->assertSame($speaker_id, (int) $entries[0]['speaker_user_id']);
         $this->assertSame('Speaker Bravo', (string) $entries[0]['speaker_name']);
         $this->assertSame(
@@ -172,8 +179,8 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertSame((string) $recording_id, (string) ($csv_entry['recording_id'] ?? ''));
             $this->assertSame((string) $recording_id, (string) ($csv_entry['word_audio_id'] ?? ''));
             $this->assertSame('isolation', (string) ($csv_entry['recording_type'] ?? ''));
-            $this->assertSame((string) $category_term->slug, (string) ($csv_entry['category_slug'] ?? ''));
-            $this->assertSame((string) $category_term->name, (string) ($csv_entry['category_name'] ?? ''));
+            $this->assertSame((string) $assigned_category_term->slug, (string) ($csv_entry['category_slug'] ?? ''));
+            $this->assertSame((string) $assigned_category_term->name, (string) ($csv_entry['category_name'] ?? ''));
             $this->assertSame((string) $speaker_id, (string) ($csv_entry['speaker_user_id'] ?? ''));
             $this->assertSame('Speaker Bravo', (string) ($csv_entry['speaker_name'] ?? ''));
             $this->assertSame('Bravo text', (string) ($csv_entry['recording_text'] ?? ''));
@@ -193,8 +200,8 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertSame($recording_id, (int) ($json_entry['word_audio_id'] ?? 0));
             $this->assertSame('isolation', (string) ($json_entry['recording_type'] ?? ''));
             $this->assertSame(['isolation'], $json_entry['recording_types'] ?? []);
-            $this->assertSame((string) $category_term->slug, (string) ($json_entry['category_slug'] ?? ''));
-            $this->assertSame((string) $category_term->name, (string) ($json_entry['category_name'] ?? ''));
+            $this->assertSame((string) $assigned_category_term->slug, (string) ($json_entry['category_slug'] ?? ''));
+            $this->assertSame((string) $assigned_category_term->name, (string) ($json_entry['category_name'] ?? ''));
             $this->assertSame($speaker_id, (int) ($json_entry['speaker_user_id'] ?? 0));
             $this->assertSame('Speaker Bravo', (string) ($json_entry['speaker_name'] ?? ''));
             $this->assertSame('needs_review', (string) ($json_entry['review_status'] ?? ''));
