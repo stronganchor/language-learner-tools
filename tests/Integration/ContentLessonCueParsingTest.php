@@ -3,6 +3,23 @@ declare(strict_types=1);
 
 final class ContentLessonCueParsingTest extends LL_Tools_TestCase
 {
+    /** @var array<string,mixed> */
+    private $postBackup = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->postBackup = $_POST;
+    }
+
+    protected function tearDown(): void
+    {
+        $_POST = $this->postBackup;
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        parent::tearDown();
+    }
+
     public function test_content_lesson_parses_supported_timing_formats(): void
     {
         $vtt = <<<VTT
@@ -95,5 +112,118 @@ TSV;
         $this->assertCount(1, $related_vocab_items);
         $this->assertSame($category_id, (int) $related_vocab_items[0]['id']);
         $this->assertNotSame('', (string) $related_vocab_items[0]['url']);
+    }
+
+    public function test_content_lesson_category_rows_scope_to_selected_wordset(): void
+    {
+        $fixture = $this->createScopedCategoryFixture();
+
+        $rows = ll_tools_get_content_lesson_selectable_category_rows(
+            (int) $fixture['wordset_one_id'],
+            [(int) $fixture['isolated_two_id']]
+        );
+
+        $row_ids = array_values(array_map(static function (array $row): int {
+            return (int) ($row['id'] ?? 0);
+        }, $rows));
+
+        $this->assertContains((int) $fixture['isolated_one_id'], $row_ids);
+        $this->assertNotContains((int) $fixture['isolated_two_id'], $row_ids);
+    }
+
+    public function test_content_lesson_save_remaps_selected_categories_into_current_wordset_sandbox(): void
+    {
+        $fixture = $this->createScopedCategoryFixture();
+        $this->setCurrentUserWithViewCapability();
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'draft',
+            'post_title' => 'Scoped Content Lesson',
+        ]);
+        $lesson = get_post($lesson_id);
+        $this->assertInstanceOf(WP_Post::class, $lesson);
+
+        $_POST = [
+            'll_tools_content_lesson_nonce' => wp_create_nonce('ll_tools_content_lesson_save'),
+            'll_content_lesson_wordset_id' => (string) $fixture['wordset_one_id'],
+            'll_content_lesson_media_type' => 'audio',
+            'll_content_lesson_media_url' => 'https://example.com/story.mp3',
+            'll_content_lesson_transcript_format' => 'auto',
+            'll_content_lesson_transcript_source' => '',
+            'll_content_lesson_category_ids' => [(string) $fixture['isolated_two_id']],
+        ];
+
+        ll_tools_save_content_lesson_metabox($lesson_id, $lesson);
+
+        $saved_category_ids = get_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, true);
+        $saved_category_ids = is_array($saved_category_ids) ? array_values(array_map('intval', $saved_category_ids)) : [];
+
+        $this->assertSame([(int) $fixture['isolated_one_id']], $saved_category_ids);
+    }
+
+    /**
+     * @return array<string,int>
+     */
+    private function createScopedCategoryFixture(): array
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_one_id = $this->ensureTerm('wordset', 'Lesson Scope One', 'lesson-scope-one');
+        $wordset_two_id = $this->ensureTerm('wordset', 'Lesson Scope Two', 'lesson-scope-two');
+        $source_category_id = $this->ensureTerm('word-category', 'Lesson Shared Trees', 'lesson-shared-trees');
+
+        $isolated_one_id = (int) ll_tools_get_or_create_isolated_category_copy($source_category_id, $wordset_one_id);
+        $isolated_two_id = (int) ll_tools_get_or_create_isolated_category_copy($source_category_id, $wordset_two_id);
+
+        $this->createWordInScope('Lesson Scope One Tree', $wordset_one_id, $isolated_one_id);
+        $this->createWordInScope('Lesson Scope Two Tree', $wordset_two_id, $isolated_two_id);
+
+        return [
+            'wordset_one_id' => $wordset_one_id,
+            'wordset_two_id' => $wordset_two_id,
+            'isolated_one_id' => $isolated_one_id,
+            'isolated_two_id' => $isolated_two_id,
+        ];
+    }
+
+    private function ensureTerm(string $taxonomy, string $name, string $slug): int
+    {
+        $existing = term_exists($slug, $taxonomy);
+        if (is_array($existing) && !empty($existing['term_id'])) {
+            return (int) $existing['term_id'];
+        }
+        if (is_int($existing) && $existing > 0) {
+            return $existing;
+        }
+
+        $inserted = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
+        $this->assertIsArray($inserted);
+
+        return (int) $inserted['term_id'];
+    }
+
+    private function createWordInScope(string $title, int $wordset_id, int $category_id): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+
+        return $word_id;
+    }
+
+    private function setCurrentUserWithViewCapability(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
     }
 }
