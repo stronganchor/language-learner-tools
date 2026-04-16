@@ -133,7 +133,10 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id): array {
         : sanitize_key((string) get_option('ll_translation_language', ''));
     $label_locale_sig = sanitize_key((string) get_locale());
     $cache_context_sig = substr(md5($label_locale_sig . '|' . $translation_enabled . '|' . $translation_target), 0, 8);
-    $cache_key = 'll_wordset_page_cats_' . $wordset_id . '_' . $min_words . '_' . $ordering_sig . '_' . $cache_context_sig;
+    // Preview rows are size-sensitive: image categories and text categories can
+    // produce different slot counts for different callers in the same request.
+    $preview_limit_sig = max(1, (int) $preview_limit);
+    $cache_key = 'll_wordset_page_cats_' . $wordset_id . '_' . $min_words . '_' . $preview_limit_sig . '_' . $ordering_sig . '_' . $cache_context_sig;
     $cached = wp_cache_get($cache_key, 'll_tools');
     if ($cached !== false) {
         return $cached;

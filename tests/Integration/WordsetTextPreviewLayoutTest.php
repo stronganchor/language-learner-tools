@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
 {
+    private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
+
     public function test_text_based_categories_keep_multi_slot_previews_on_the_main_wordset_page(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -63,6 +65,25 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-card__preview has-text', $card_markup);
         $this->assertSame(4, substr_count($card_markup, 'll-wordset-preview-item--text'));
         $this->assertSame(0, substr_count($card_markup, 'll-wordset-preview-item--empty'));
+    }
+
+    public function test_category_preview_cache_respects_requested_slot_size_for_image_categories(): void
+    {
+        $fixture = $this->createImagePreviewFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['category_id'];
+
+        $first = ll_tools_get_wordset_page_categories($wordset_id, 1);
+        $first_category = $this->findCategoryRow($first, $category_id);
+        $this->assertIsArray($first_category);
+        $this->assertSame(1, (int) ($first_category['preview_limit'] ?? 0));
+        $this->assertCount(1, (array) ($first_category['preview'] ?? []));
+
+        $second = ll_tools_get_wordset_page_categories($wordset_id, 3);
+        $second_category = $this->findCategoryRow($second, $category_id);
+        $this->assertIsArray($second_category);
+        $this->assertSame(3, (int) ($second_category['preview_limit'] ?? 0));
+        $this->assertCount(3, (array) ($second_category['preview'] ?? []));
     }
 
     /**
@@ -136,6 +157,116 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
 
         return (int) $word_id;
+    }
+
+    /**
+     * @return array{wordset_id:int,category_id:int}
+     */
+    private function createImagePreviewFixture(): array
+    {
+        $wordset = wp_insert_term('Wordset Image Preview ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category_term = wp_insert_term('Wordset Image Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($category_term));
+        $this->assertIsArray($category_term);
+        $category_id = (int) $category_term['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+
+        $lesson_post_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Wordset Image Preview Lesson ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_post_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_post_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+
+        for ($index = 1; $index <= 3; $index++) {
+            $this->createWordWithImage(
+                'Wordset Image Word ' . $index . ' ' . wp_generate_password(4, false),
+                $category_id,
+                $wordset_id,
+                'wordset-image-preview-' . $index . '.png'
+            );
+        }
+
+        return [
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+        ];
+    }
+
+    private function createWordWithImage(string $title, int $category_id, int $wordset_id, string $filename): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title,
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+
+        $attachment_id = $this->createImageAttachment($filename);
+        set_post_thumbnail($word_id, $attachment_id);
+
+        return (int) $word_id;
+    }
+
+    private function createImageAttachment(string $filename): int
+    {
+        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($bytes);
+
+        $upload = wp_upload_bits($filename, null, $bytes);
+        $this->assertIsArray($upload);
+        $this->assertSame('', (string) ($upload['error'] ?? ''));
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        $filetype = wp_check_filetype(basename($file_path), null);
+        $attachment_id = wp_insert_attachment([
+            'post_mime_type' => (string) ($filetype['type'] ?? 'image/png'),
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+            'post_content' => '',
+            'post_status' => 'inherit',
+        ], $file_path);
+
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        $relative_path = function_exists('_wp_relative_upload_path')
+            ? (string) _wp_relative_upload_path($file_path)
+            : '';
+        if ($relative_path === '') {
+            $relative_path = ltrim((string) wp_normalize_path($file_path), '/');
+        }
+        update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
+
+        return (int) $attachment_id;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $categories
+     * @return array<string,mixed>|null
+     */
+    private function findCategoryRow(array $categories, int $category_id): ?array
+    {
+        foreach ($categories as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if ((int) ($row['id'] ?? 0) === $category_id) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     private function extractCategoryCardMarkup(string $html, int $category_id): string
