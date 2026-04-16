@@ -66,7 +66,7 @@ function ll_tools_render_dictionary_sources_page(): void {
             <?php
             echo wp_kses_post(sprintf(
                 /* translators: %s: URL to the dictionary import tools screen */
-                __('After saving sources here, use them from the <a href="%s">Dictionary Import</a> screen with the TSV columns <code>source_id</code> or <code>source_dictionary</code>.', 'll-tools-text-domain'),
+                __('After saving sources here, use them from the <a href="%s">Dictionary Manager</a> screen with the TSV columns <code>source_id</code> or <code>source_dictionary</code>.', 'll-tools-text-domain'),
                 esc_url($import_url)
             ));
             ?>

@@ -25,12 +25,12 @@ function ll_tools_current_user_can_dictionary_import(): bool {
 }
 
 /**
- * Register the dictionary importer admin page.
+ * Register the dictionary manager admin page.
  */
 function ll_tools_register_dictionary_import_page(): void {
     add_management_page(
-        __('LL Dictionary Import', 'll-tools-text-domain'),
-        __('LL Dictionary Import', 'll-tools-text-domain'),
+        __('LL Dictionary Manager', 'll-tools-text-domain'),
+        __('LL Dictionary Manager', 'll-tools-text-domain'),
         ll_tools_get_dictionary_import_capability(),
         'll-dictionary-import',
         'll_tools_render_dictionary_import_page'
@@ -1640,9 +1640,9 @@ function ll_tools_render_dictionary_import_page(): void {
     $recent_imports = ll_tools_dictionary_import_get_recent_history_entries();
     ?>
     <div class="wrap ll-dictionary-import-admin">
-        <h1><?php esc_html_e('LL Dictionary Import', 'll-tools-text-domain'); ?></h1>
+        <h1><?php esc_html_e('LL Dictionary Manager', 'll-tools-text-domain'); ?></h1>
         <p>
-            <?php esc_html_e('Import TSV dictionaries or migrate the older one-off dictionary table into LL Tools dictionary entries. Imported rows are grouped by headword so search, browse, bulk translations, and word-linking all use the same data.', 'll-tools-text-domain'); ?>
+            <?php esc_html_e('Manage dictionary imports, exports, and legacy migration in one place. TSV rows are grouped by headword so search, browse, bulk translations, and word-linking all use the same data.', 'll-tools-text-domain'); ?>
         </p>
         <p>
             <?php esc_html_e('Use the Dictionary Sources screen to define per-dictionary attribution text, license URLs, and default dialect tags before importing rows from a new source.', 'll-tools-text-domain'); ?>
