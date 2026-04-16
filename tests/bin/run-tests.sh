@@ -180,6 +180,16 @@ for arg in "$@"; do
     normalized_args+=("$(normalize_phpunit_arg "$arg")")
 done
 
+phpunit_options=()
+phpunit_targets=()
+for arg in "${normalized_args[@]}"; do
+    if [[ "$arg" == -* ]]; then
+        phpunit_options+=("$arg")
+    else
+        phpunit_targets+=("$arg")
+    fi
+done
+
 append_wslenv_var() {
     local entry="$1"
     if [[ -z "${WSLENV:-}" ]]; then
@@ -223,15 +233,35 @@ if [[ "$needs_install" == "1" ]]; then
     fi
 fi
 
+run_phpunit_once() {
+    local phpunit_bin="$1"
+    local target="$2"
+
+    "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_options[@]}" "$target"
+}
+
+phpunit_bin=""
 if [[ -f "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" ]]; then
-    "$PHP_LOCAL" "$TESTS_DIR/vendor/phpunit/phpunit/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
-    exit $?
+    phpunit_bin="$TESTS_DIR/vendor/phpunit/phpunit/phpunit"
+elif [[ -x "$TESTS_DIR/vendor/bin/phpunit" ]]; then
+    phpunit_bin="$TESTS_DIR/vendor/bin/phpunit"
 fi
 
-if [[ -x "$TESTS_DIR/vendor/bin/phpunit" ]]; then
-    "$PHP_LOCAL" "$TESTS_DIR/vendor/bin/phpunit" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
-    exit $?
+if [[ -z "$phpunit_bin" ]]; then
+    echo "PHPUnit was not found after dependency install." >&2
+    exit 1
 fi
 
-echo "PHPUnit was not found after dependency install." >&2
-exit 1
+if [[ "${#phpunit_targets[@]}" -gt 1 ]]; then
+    # PHPUnit on this runner only executes the first positional test target when
+    # multiple explicit file paths are passed, so run them serially instead.
+    for target in "${phpunit_targets[@]}"; do
+        if run_phpunit_once "$phpunit_bin" "$target"; then
+            continue
+        fi
+        exit $?
+    done
+    exit 0
+fi
+
+exec "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
