@@ -52,22 +52,16 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         $this->assertFalse(is_wp_error($category_a));
         $this->assertIsArray($category_a);
         $category_a_id = (int) $category_a['term_id'];
-        update_term_meta($category_a_id, 'll_quiz_prompt_type', 'text_title');
-        update_term_meta($category_a_id, 'll_quiz_option_type', 'text_title');
 
         $category_b = wp_insert_term('Offline UI Category B ' . wp_generate_password(6, false), 'word-category');
         $this->assertFalse(is_wp_error($category_b));
         $this->assertIsArray($category_b);
         $category_b_id = (int) $category_b['term_id'];
-        update_term_meta($category_b_id, 'll_quiz_prompt_type', 'text_title');
-        update_term_meta($category_b_id, 'll_quiz_option_type', 'text_title');
 
         $category_draft_only = wp_insert_term('Offline UI Draft Only ' . wp_generate_password(6, false), 'word-category');
         $this->assertFalse(is_wp_error($category_draft_only));
         $this->assertIsArray($category_draft_only);
         $category_draft_only_id = (int) $category_draft_only['term_id'];
-        update_term_meta($category_draft_only_id, 'll_quiz_prompt_type', 'text_title');
-        update_term_meta($category_draft_only_id, 'll_quiz_option_type', 'text_title');
 
         $word_a = self::factory()->post->create([
             'post_type'   => 'words',
@@ -100,6 +94,13 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         ]);
         wp_set_post_terms($draft_word, [$category_draft_only_id], 'word-category', false);
         wp_set_post_terms($draft_word, [$wordset_a_id], 'wordset', false);
+
+        $category_a_id = $this->getOfflineWordCategoryId($word_a) ?: $category_a_id;
+        $category_b_id = $this->getOfflineWordCategoryId($word_b) ?: $category_b_id;
+        $category_draft_only_id = $this->getOfflineWordCategoryId($draft_word) ?: $category_draft_only_id;
+        $category_a_id = $this->applyOfflineWordsetCategoryConfig($category_a_id, $wordset_a_id, 'text_title', 'text_title');
+        $category_b_id = $this->applyOfflineWordsetCategoryConfig($category_b_id, $wordset_b_id, 'text_title', 'text_title');
+        $category_draft_only_id = $this->applyOfflineWordsetCategoryConfig($category_draft_only_id, $wordset_a_id, 'text_title', 'text_title');
 
         $options = ll_tools_offline_app_get_wordset_category_options($wordset_a_id);
         $option_ids = array_values(array_filter(array_map(static function ($row): int {
@@ -134,9 +135,6 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             $this->assertFalse(is_wp_error($category_term));
             $this->assertIsArray($category_term);
             $category_id = (int) $category_term['term_id'];
-
-            update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
-            update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
 
             $recording_term = wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);
             if (is_wp_error($recording_term)) {
@@ -197,6 +195,9 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 'ID'          => $word_id,
                 'post_status' => 'publish',
             ]);
+
+            $category_id = $this->getOfflineWordCategoryId($word_id) ?: $category_id;
+            $this->applyOfflineWordsetCategoryConfig($category_id, $wordset_id, 'audio', 'text_translation');
 
             for ($index = 2; $index <= 5; $index += 1) {
                 $extra_word_id = $this->createPublishedOfflineBundleWord(
@@ -456,14 +457,9 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $recording_type_id = (int) $recording_term['term_id'];
             }
 
-            foreach ([$category_55_id, $category_6_id] as $category_id) {
-                update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
-                update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
-            }
-
             update_term_meta($wordset_id, 'll_wordset_category_ordering_mode', 'none');
 
-            $this->createPublishedOfflineBundleWord(
+            $word_55_id = $this->createPublishedOfflineBundleWord(
                 'Order Word 55',
                 'Order Translation 55',
                 $category_55_id,
@@ -472,7 +468,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 'offline-order-55.png',
                 'offline-order-55.mp3'
             );
-            $this->createPublishedOfflineBundleWord(
+            $word_6_id = $this->createPublishedOfflineBundleWord(
                 'Order Word 6',
                 'Order Translation 6',
                 $category_6_id,
@@ -481,6 +477,11 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 'offline-order-6.png',
                 'offline-order-6.mp3'
             );
+
+            $category_55_id = $this->getOfflineWordCategoryId($word_55_id) ?: $category_55_id;
+            $category_6_id = $this->getOfflineWordCategoryId($word_6_id) ?: $category_6_id;
+            $this->applyOfflineWordsetCategoryConfig($category_55_id, $wordset_id, 'audio', 'text_translation');
+            $this->applyOfflineWordsetCategoryConfig($category_6_id, $wordset_id, 'audio', 'text_translation');
 
             $bundle = ll_tools_build_offline_app_bundle([
                 'wordset_id' => $wordset_id,
@@ -710,5 +711,27 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
         ]);
 
         return (int) $word_id;
+    }
+
+    private function applyOfflineWordsetCategoryConfig(int $category_id, int $wordset_id, string $prompt_type, string $option_type): int
+    {
+        if ($category_id <= 0 || $wordset_id <= 0) {
+            return 0;
+        }
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', $prompt_type);
+        update_term_meta($category_id, 'll_quiz_option_type', $option_type);
+
+        return $category_id;
+    }
+
+    private function getOfflineWordCategoryId(int $word_id): int
+    {
+        $term_ids = wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids']);
+        if (is_wp_error($term_ids) || empty($term_ids)) {
+            return 0;
+        }
+
+        return (int) ($term_ids[0] ?? 0);
     }
 }
