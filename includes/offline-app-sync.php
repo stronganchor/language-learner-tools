@@ -140,6 +140,135 @@ if (!function_exists('ll_tools_offline_app_request_string')) {
     }
 }
 
+if (!function_exists('ll_tools_offline_app_normalize_ip')) {
+    function ll_tools_offline_app_normalize_ip($candidate): string {
+        $candidate = trim((string) $candidate);
+        if ($candidate === '') {
+            return '';
+        }
+
+        if (strpos($candidate, ',') !== false) {
+            $parts = explode(',', $candidate);
+            foreach ($parts as $part) {
+                $normalized = ll_tools_offline_app_normalize_ip($part);
+                if ($normalized !== '') {
+                    return $normalized;
+                }
+            }
+
+            return '';
+        }
+
+        $candidate = trim($candidate, "[] \t\n\r\0\x0B");
+        if (substr_count($candidate, ':') === 1 && strpos($candidate, '.') !== false) {
+            $segments = explode(':', $candidate, 2);
+            if (count($segments) === 2 && filter_var($segments[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $candidate = $segments[0];
+            }
+        }
+
+        return filter_var($candidate, FILTER_VALIDATE_IP) ? $candidate : '';
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_get_client_ip')) {
+    function ll_tools_offline_app_get_client_ip(): string {
+        $candidates = apply_filters('ll_tools_offline_app_login_ip_candidates', [
+            isset($_SERVER['REMOTE_ADDR']) ? wp_unslash((string) $_SERVER['REMOTE_ADDR']) : '',
+        ]);
+
+        foreach ((array) $candidates as $candidate) {
+            $normalized = ll_tools_offline_app_normalize_ip($candidate);
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_login_attempt_limit_config')) {
+    function ll_tools_offline_app_login_attempt_limit_config(): array {
+        return [
+            'limit' => max(0, (int) apply_filters('ll_tools_offline_app_login_ip_attempt_limit', 10)),
+            'window' => max(MINUTE_IN_SECONDS, (int) apply_filters('ll_tools_offline_app_login_ip_attempt_window', 15 * MINUTE_IN_SECONDS)),
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_login_attempt_key')) {
+    function ll_tools_offline_app_login_attempt_key(string $ip): string {
+        return 'll_tools_offline_login_' . substr(md5($ip), 0, 24);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_get_login_rate_limit_status')) {
+    function ll_tools_offline_app_get_login_rate_limit_status(string $ip = ''): array {
+        if ($ip === '') {
+            $ip = ll_tools_offline_app_get_client_ip();
+        }
+
+        $config = ll_tools_offline_app_login_attempt_limit_config();
+        if ($ip === '' || $config['limit'] <= 0) {
+            return [
+                'limited' => false,
+                'attempts' => 0,
+                'limit' => $config['limit'],
+                'window' => $config['window'],
+                'ip' => $ip,
+            ];
+        }
+
+        $attempts = (int) get_transient(ll_tools_offline_app_login_attempt_key($ip));
+
+        return [
+            'limited' => ($attempts >= $config['limit']),
+            'attempts' => $attempts,
+            'limit' => $config['limit'],
+            'window' => $config['window'],
+            'ip' => $ip,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_record_login_attempt')) {
+    function ll_tools_offline_app_record_login_attempt(string $ip = ''): void {
+        if ($ip === '') {
+            $ip = ll_tools_offline_app_get_client_ip();
+        }
+
+        $config = ll_tools_offline_app_login_attempt_limit_config();
+        if ($ip === '' || $config['limit'] <= 0) {
+            return;
+        }
+
+        $key = ll_tools_offline_app_login_attempt_key($ip);
+        $attempts = (int) get_transient($key);
+        set_transient($key, $attempts + 1, $config['window']);
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_reset_login_attempts')) {
+    function ll_tools_offline_app_reset_login_attempts(string $ip = ''): void {
+        if ($ip === '') {
+            $ip = ll_tools_offline_app_get_client_ip();
+        }
+
+        if ($ip === '') {
+            return;
+        }
+
+        delete_transient(ll_tools_offline_app_login_attempt_key($ip));
+    }
+}
+
+if (!function_exists('ll_tools_offline_app_login_rate_limit_message')) {
+    function ll_tools_offline_app_login_rate_limit_message(): string {
+        return __('Too many login attempts. Please try again in a few minutes.', 'll-tools-text-domain');
+    }
+}
+
 if (!function_exists('ll_tools_offline_app_decode_json_payload')) {
     function ll_tools_offline_app_decode_json_payload($raw): array {
         if (is_array($raw)) {
@@ -533,6 +662,13 @@ if (!function_exists('ll_tools_offline_app_build_sync_response')) {
 if (!function_exists('ll_tools_offline_app_login_ajax')) {
     function ll_tools_offline_app_login_ajax(): void {
         ll_tools_offline_app_prepare_json_response();
+
+        $request_ip = ll_tools_offline_app_get_client_ip();
+        $rate_limit_status = ll_tools_offline_app_get_login_rate_limit_status($request_ip);
+        if (!empty($rate_limit_status['limited'])) {
+            wp_send_json_error(['message' => ll_tools_offline_app_login_rate_limit_message()], 429);
+        }
+        ll_tools_offline_app_record_login_attempt($request_ip);
 
         $identifier = ll_tools_offline_app_request_string('identifier');
         $password = isset($_POST['password']) ? (string) wp_unslash($_POST['password']) : '';
