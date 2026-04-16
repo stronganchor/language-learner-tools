@@ -15,9 +15,50 @@
         }
     }
 
+    function getScrollBehavior() {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            return 'auto';
+        }
+
+        return 'smooth';
+    }
+
+    function scrollCueIntoTranscript(transcript, activeButton) {
+        if (!transcript || !activeButton || transcript.scrollHeight <= transcript.clientHeight) {
+            return;
+        }
+
+        var transcriptRect = transcript.getBoundingClientRect();
+        var buttonRect = activeButton.getBoundingClientRect();
+        var topComfort = transcriptRect.top + Math.max(20, transcript.clientHeight * 0.16);
+        var bottomComfort = transcriptRect.bottom - Math.max(34, transcript.clientHeight * 0.3);
+
+        if (buttonRect.top >= topComfort && buttonRect.bottom <= bottomComfort) {
+            return;
+        }
+
+        var buttonTop = transcript.scrollTop + (buttonRect.top - transcriptRect.top);
+        var buttonCenter = buttonTop + (buttonRect.height / 2);
+        var preferredCenter = transcript.clientHeight * 0.38;
+        var maxScrollTop = Math.max(0, transcript.scrollHeight - transcript.clientHeight);
+        var targetScrollTop = Math.max(0, Math.min(maxScrollTop, buttonCenter - preferredCenter));
+
+        if (typeof transcript.scrollTo === 'function') {
+            transcript.scrollTo({
+                top: targetScrollTop,
+                behavior: getScrollBehavior()
+            });
+            return;
+        }
+
+        transcript.scrollTop = targetScrollTop;
+    }
+
     function setActiveCue(root, cueId) {
         var activeId = String(cueId || '');
+        var previousActiveId = String(root.__llContentLessonActiveCueId || '');
         var buttons = root.querySelectorAll('[data-ll-content-lesson-cue]');
+        var transcript = root.querySelector('[data-ll-content-lesson-transcript]');
         var activeButton = null;
 
         Array.prototype.forEach.call(buttons, function (button) {
@@ -29,16 +70,10 @@
             }
         });
 
-        if (activeButton && typeof activeButton.scrollIntoView === 'function') {
-            var rect = activeButton.getBoundingClientRect();
-            var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-            if (viewportHeight > 0 && (rect.top < 110 || rect.bottom > (viewportHeight - 90))) {
-                activeButton.scrollIntoView({
-                    block: 'nearest',
-                    inline: 'nearest',
-                    behavior: 'smooth'
-                });
-            }
+        root.__llContentLessonActiveCueId = activeId;
+
+        if (activeButton && activeId !== '' && activeId !== previousActiveId) {
+            scrollCueIntoTranscript(transcript, activeButton);
         }
     }
 
