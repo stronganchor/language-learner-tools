@@ -3,40 +3,13 @@
 
     function getAdminUiConfig() {
         var cfg = window.llToolsImportUi || {};
-        var fullExportCategoriesByWordset = {};
-
-        if (cfg.fullExportCategoriesByWordset && typeof cfg.fullExportCategoriesByWordset === 'object') {
-            Object.keys(cfg.fullExportCategoriesByWordset).forEach(function (wordsetId) {
-                var rawRows = cfg.fullExportCategoriesByWordset[wordsetId];
-                if (!Array.isArray(rawRows)) {
-                    return;
-                }
-
-                fullExportCategoriesByWordset[wordsetId] = rawRows.reduce(function (rows, rawRow) {
-                    if (!rawRow || typeof rawRow !== 'object') {
-                        return rows;
-                    }
-
-                    var rowId = parseInt(rawRow.id, 10);
-                    var rowLabel = typeof rawRow.label === 'string' ? rawRow.label : '';
-                    if (!rowId || !rowLabel) {
-                        return rows;
-                    }
-
-                    rows.push({
-                        id: rowId,
-                        label: rowLabel
-                    });
-
-                    return rows;
-                }, []);
-            });
-        }
 
         return {
             ajaxUrl: typeof cfg.ajaxUrl === 'string' ? cfg.ajaxUrl : '',
             exportPageUrl: typeof cfg.exportPageUrl === 'string' ? cfg.exportPageUrl : '',
             importPageUrl: typeof cfg.importPageUrl === 'string' ? cfg.importPageUrl : '',
+            fullExportCategoriesAjaxAction: typeof cfg.fullExportCategoriesAjaxAction === 'string' ? cfg.fullExportCategoriesAjaxAction : '',
+            fullExportCategoriesNonce: typeof cfg.fullExportCategoriesNonce === 'string' ? cfg.fullExportCategoriesNonce : '',
             processingTitle: typeof cfg.processingTitle === 'string' ? cfg.processingTitle : '',
             processingMessageKeepOpen: typeof cfg.processingMessageKeepOpen === 'string' ? cfg.processingMessageKeepOpen : '',
             processingMessageBackground: typeof cfg.processingMessageBackground === 'string' ? cfg.processingMessageBackground : '',
@@ -53,9 +26,10 @@
             exportProcessingReload: typeof cfg.exportProcessingReload === 'string' ? cfg.exportProcessingReload : '',
             copyButtonCopied: typeof cfg.copyButtonCopied === 'string' ? cfg.copyButtonCopied : 'Copied',
             copyButtonFailed: typeof cfg.copyButtonFailed === 'string' ? cfg.copyButtonFailed : 'Copy failed',
-            fullExportCategoriesByWordset: fullExportCategoriesByWordset,
             fullExportCategoriesPrompt: typeof cfg.fullExportCategoriesPrompt === 'string' ? cfg.fullExportCategoriesPrompt : 'Select a word set first',
-            fullExportCategoriesEmpty: typeof cfg.fullExportCategoriesEmpty === 'string' ? cfg.fullExportCategoriesEmpty : 'No categories found for this word set'
+            fullExportCategoriesLoading: typeof cfg.fullExportCategoriesLoading === 'string' ? cfg.fullExportCategoriesLoading : 'Loading categories for the selected word set...',
+            fullExportCategoriesEmpty: typeof cfg.fullExportCategoriesEmpty === 'string' ? cfg.fullExportCategoriesEmpty : 'No categories found for this word set',
+            fullExportCategoriesRequestFailed: typeof cfg.fullExportCategoriesRequestFailed === 'string' ? cfg.fullExportCategoriesRequestFailed : 'Could not load categories for this word set. Reload the page and try again.'
         };
     }
 
@@ -637,6 +611,9 @@
             return;
         }
 
+        var fullExportCategoriesByWordset = {};
+        var fullExportCategoryLoads = {};
+
         function getSelectedOptionValues(select) {
             if (!select || !select.options) {
                 return [];
@@ -650,6 +627,106 @@
             }
 
             return values;
+        }
+
+        function getWordsetCacheKey(wordsetId) {
+            var parsed = parseInt(wordsetId, 10);
+            return parsed > 0 ? String(parsed) : '';
+        }
+
+        function normalizeCategoryRows(rawRows) {
+            if (!Array.isArray(rawRows)) {
+                return [];
+            }
+
+            return rawRows.reduce(function (rows, rawRow) {
+                if (!rawRow || typeof rawRow !== 'object') {
+                    return rows;
+                }
+
+                var rowId = parseInt(rawRow.id, 10);
+                var rowLabel = typeof rawRow.label === 'string' ? rawRow.label : '';
+                if (!rowId || !rowLabel) {
+                    return rows;
+                }
+
+                rows.push({
+                    id: rowId,
+                    label: rowLabel
+                });
+
+                return rows;
+            }, []);
+        }
+
+        function cacheCategoryRows(wordsetId, rows) {
+            var cacheKey = getWordsetCacheKey(wordsetId);
+            if (!cacheKey) {
+                return [];
+            }
+
+            fullExportCategoriesByWordset[cacheKey] = normalizeCategoryRows(rows);
+            return fullExportCategoriesByWordset[cacheKey];
+        }
+
+        function getCachedCategoryRows(wordsetId) {
+            var cacheKey = getWordsetCacheKey(wordsetId);
+            if (!cacheKey || !Object.prototype.hasOwnProperty.call(fullExportCategoriesByWordset, cacheKey)) {
+                return null;
+            }
+
+            return fullExportCategoriesByWordset[cacheKey];
+        }
+
+        function fetchCategoryRows(wordsetId) {
+            var cacheKey = getWordsetCacheKey(wordsetId);
+            if (!cacheKey || !config.ajaxUrl || !config.fullExportCategoriesAjaxAction || !config.fullExportCategoriesNonce) {
+                return Promise.resolve([]);
+            }
+
+            if (Object.prototype.hasOwnProperty.call(fullExportCategoriesByWordset, cacheKey)) {
+                return Promise.resolve(fullExportCategoriesByWordset[cacheKey]);
+            }
+
+            if (fullExportCategoryLoads[cacheKey]) {
+                return fullExportCategoryLoads[cacheKey];
+            }
+
+            var payload = new FormData();
+            payload.set('action', config.fullExportCategoriesAjaxAction);
+            payload.set('_wpnonce', config.fullExportCategoriesNonce);
+            payload.set('wordset_id', cacheKey);
+
+            fullExportCategoryLoads[cacheKey] = fetch(config.ajaxUrl, {
+                method: 'POST',
+                body: payload,
+                credentials: 'same-origin'
+            }).then(readJsonResponse).then(function (responseData) {
+                var rows = cacheCategoryRows(cacheKey, responseData && responseData.rows ? responseData.rows : []);
+                return rows;
+            }).finally(function () {
+                delete fullExportCategoryLoads[cacheKey];
+            });
+
+            return fullExportCategoryLoads[cacheKey];
+        }
+
+        if (fullWordsetSelect) {
+            var initialCacheRows = [];
+            for (var initialIndex = 0; initialIndex < multiCategorySelect.options.length; initialIndex++) {
+                var initialOption = multiCategorySelect.options[initialIndex];
+                var initialId = parseInt(initialOption && initialOption.value ? initialOption.value : '', 10);
+                var initialLabel = initialOption && typeof initialOption.textContent === 'string' ? initialOption.textContent : '';
+                if (!initialId || !initialLabel) {
+                    continue;
+                }
+
+                initialCacheRows.push({
+                    id: initialId,
+                    label: initialLabel
+                });
+            }
+            cacheCategoryRows(fullWordsetSelect.value, initialCacheRows);
         }
 
         function replaceCategoryOptions(rows, emptyLabel) {
@@ -678,23 +755,38 @@
             multiCategorySelect.setAttribute('data-no-categories', '0');
         }
 
-        function syncCategoryOptions() {
-            if (!fullWordsetSelect) {
-                return;
-            }
-
-            var selectedWordsetId = parseInt(fullWordsetSelect.value, 10);
-            if (!selectedWordsetId) {
+        function syncCategoryOptionsForWordset(wordsetId) {
+            var cacheKey = getWordsetCacheKey(wordsetId);
+            if (!cacheKey) {
                 replaceCategoryOptions([], config.fullExportCategoriesPrompt);
                 return;
             }
 
-            var rows = config.fullExportCategoriesByWordset[String(selectedWordsetId)];
-            replaceCategoryOptions(rows, config.fullExportCategoriesEmpty);
+            var cachedRows = getCachedCategoryRows(cacheKey);
+            if (cachedRows !== null) {
+                replaceCategoryOptions(cachedRows, config.fullExportCategoriesEmpty);
+                return;
+            }
+
+            replaceCategoryOptions([], config.fullExportCategoriesLoading);
+            fetchCategoryRows(cacheKey).then(function (rows) {
+                if (!fullWordsetSelect || getWordsetCacheKey(fullWordsetSelect.value) !== cacheKey) {
+                    return;
+                }
+
+                replaceCategoryOptions(rows, config.fullExportCategoriesEmpty);
+                syncEnablementState();
+            }).catch(function () {
+                if (!fullWordsetSelect || getWordsetCacheKey(fullWordsetSelect.value) !== cacheKey) {
+                    return;
+                }
+
+                replaceCategoryOptions([], config.fullExportCategoriesRequestFailed);
+                syncEnablementState();
+            });
         }
 
-        function syncUi() {
-            syncCategoryOptions();
+        function syncEnablementState() {
             var templateEnabled = !!(exportTemplate && exportTemplate.checked);
             var noCategories = multiCategorySelect.getAttribute('data-no-categories') === '1';
             if (exportTemplate) {
@@ -717,14 +809,31 @@
             multiCategorySelect.disabled = noCategories || !includeFull.checked || templateEnabled;
         }
 
-        includeFull.addEventListener('change', syncUi);
+        function syncCategoryOptions() {
+            if (!fullWordsetSelect) {
+                syncEnablementState();
+                return;
+            }
+
+            var selectedWordsetId = parseInt(fullWordsetSelect.value, 10);
+            syncCategoryOptionsForWordset(selectedWordsetId);
+        }
+
+        includeFull.addEventListener('change', function () {
+            syncCategoryOptions();
+            syncEnablementState();
+        });
         if (fullWordsetSelect) {
-            fullWordsetSelect.addEventListener('change', syncUi);
+            fullWordsetSelect.addEventListener('change', function () {
+                syncCategoryOptions();
+                syncEnablementState();
+            });
         }
         if (exportTemplate) {
-            exportTemplate.addEventListener('change', syncUi);
+            exportTemplate.addEventListener('change', syncEnablementState);
         }
-        syncUi();
+        syncCategoryOptions();
+        syncEnablementState();
     }
 
     function initExportWordTextDialectSync() {

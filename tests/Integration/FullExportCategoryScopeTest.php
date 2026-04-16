@@ -49,16 +49,12 @@ final class FullExportCategoryScopeTest extends LL_Tools_TestCase
         $config = $this->extractLocalizedConfig($localized);
         $this->assertIsArray($config);
 
-        $categories_by_wordset = $config['fullExportCategoriesByWordset'] ?? null;
-        $this->assertIsArray($categories_by_wordset);
-
-        $wordset_one_rows = $categories_by_wordset[(string) $fixture['wordset_one_id']] ?? null;
-        $wordset_two_rows = $categories_by_wordset[(string) $fixture['wordset_two_id']] ?? null;
-
-        $this->assertIsArray($wordset_one_rows);
-        $this->assertIsArray($wordset_two_rows);
-        $this->assertSame(['Shared Trees'], $this->extractRowLabels($wordset_one_rows));
-        $this->assertSame(['Shared Trees', 'Wordset Two Only'], $this->extractRowLabels($wordset_two_rows));
+        $this->assertArrayNotHasKey('fullExportCategoriesByWordset', $config);
+        $this->assertSame('ll_tools_export_full_bundle_categories', (string) ($config['fullExportCategoriesAjaxAction'] ?? ''));
+        $this->assertNotSame('', (string) ($config['fullExportCategoriesNonce'] ?? ''));
+        $this->assertSame('Select a word set first', (string) ($config['fullExportCategoriesPrompt'] ?? ''));
+        $this->assertSame('Loading categories for the selected word set...', (string) ($config['fullExportCategoriesLoading'] ?? ''));
+        $this->assertSame('Could not load categories for this word set. Reload the page and try again.', (string) ($config['fullExportCategoriesRequestFailed'] ?? ''));
     }
 
     public function test_export_page_full_export_categories_follow_selected_wordset(): void
@@ -78,6 +74,35 @@ final class FullExportCategoryScopeTest extends LL_Tools_TestCase
         $select_markup = $this->extractSelectMarkup($output, 'll_full_export_category_ids');
         $this->assertStringContainsString('Shared Trees', $select_markup);
         $this->assertStringNotContainsString('Wordset Two Only', $select_markup);
+    }
+
+    public function test_ajax_full_export_categories_returns_rows_for_requested_wordset(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createIsolatedWordsetFixture();
+
+        $_POST = [
+            '_wpnonce' => wp_create_nonce('ll_tools_export_full_bundle_categories'),
+            'wordset_id' => (string) $fixture['wordset_two_id'],
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_export_full_bundle_categories();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $this->assertSame((string) $fixture['wordset_two_id'], (string) ($response['data']['wordsetId'] ?? ''));
+        $rows = $response['data']['rows'] ?? null;
+        $this->assertIsArray($rows);
+        $this->assertSame(['Shared Trees', 'Wordset Two Only'], $this->extractRowLabels($rows));
     }
 
     /**
@@ -158,6 +183,45 @@ final class FullExportCategoryScopeTest extends LL_Tools_TestCase
         $this->assertArrayHasKey(1, $matches);
 
         return (string) $matches[1];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function run_json_endpoint(callable $callback): array
+    {
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $die_ajax_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_ajax_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            $callback();
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_ajax_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected JSON response payload.');
+        return $decoded;
     }
 
     /**

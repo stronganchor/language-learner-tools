@@ -95,6 +95,7 @@ add_action('admin_post_ll_tools_export_wordset_csv', 'll_tools_handle_export_wor
 add_action('admin_post_ll_tools_export_stt_training_bundle', 'll_tools_handle_export_stt_training_bundle');
 add_action('wp_ajax_ll_tools_start_export_bundle', 'll_tools_ajax_start_export_bundle');
 add_action('wp_ajax_ll_tools_run_export_bundle_batch', 'll_tools_ajax_run_export_bundle_batch');
+add_action('wp_ajax_ll_tools_export_full_bundle_categories', 'll_tools_ajax_export_full_bundle_categories');
 add_action('admin_enqueue_scripts', 'll_tools_enqueue_export_import_assets');
 
 function ll_tools_enqueue_export_import_assets($hook) {
@@ -109,25 +110,12 @@ function ll_tools_enqueue_export_import_assets($hook) {
 
     ll_enqueue_asset_by_timestamp('/css/export-import-admin.css', 'll-tools-export-import-admin', [], false);
     ll_enqueue_asset_by_timestamp('/js/export-import-admin.js', 'll-tools-export-import-admin-js', [], true);
-    $full_export_categories_by_wordset = [];
-    $wordsets = get_terms([
-        'taxonomy'   => 'wordset',
-        'hide_empty' => false,
-        'fields'     => 'ids',
-    ]);
-    if (!is_wp_error($wordsets)) {
-        foreach ((array) $wordsets as $wordset_id) {
-            $wordset_id = (int) $wordset_id;
-            if ($wordset_id <= 0) {
-                continue;
-            }
-            $full_export_categories_by_wordset[$wordset_id] = ll_tools_export_get_category_selector_rows($wordset_id);
-        }
-    }
     wp_localize_script('ll-tools-export-import-admin-js', 'llToolsImportUi', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'exportPageUrl' => ll_tools_get_export_import_page_url(ll_tools_get_export_page_slug()),
         'importPageUrl' => ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug()),
+        'fullExportCategoriesAjaxAction' => 'll_tools_export_full_bundle_categories',
+        'fullExportCategoriesNonce' => wp_create_nonce('ll_tools_export_full_bundle_categories'),
         'processingTitle' => __('Import in progress', 'll-tools-text-domain'),
         'processingMessageKeepOpen' => __('Keep this window open while import runs. Closing it can interrupt the request.', 'll-tools-text-domain'),
         'processingMessageBackground' => __('You can switch tabs, but do not close this tab until it finishes.', 'll-tools-text-domain'),
@@ -144,9 +132,51 @@ function ll_tools_enqueue_export_import_assets($hook) {
         'exportProcessingReload' => __('Back to export page', 'll-tools-text-domain'),
         'copyButtonCopied' => __('Copied', 'll-tools-text-domain'),
         'copyButtonFailed' => __('Copy failed', 'll-tools-text-domain'),
-        'fullExportCategoriesByWordset' => $full_export_categories_by_wordset,
         'fullExportCategoriesPrompt' => __('Select a word set first', 'll-tools-text-domain'),
+        'fullExportCategoriesLoading' => __('Loading categories for the selected word set...', 'll-tools-text-domain'),
         'fullExportCategoriesEmpty' => __('No categories found for this word set', 'll-tools-text-domain'),
+        'fullExportCategoriesRequestFailed' => __('Could not load categories for this word set. Reload the page and try again.', 'll-tools-text-domain'),
+    ]);
+}
+
+function ll_tools_export_get_full_bundle_category_rows_for_wordset(int $wordset_id): array {
+    static $cache = [];
+
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    if (array_key_exists($wordset_id, $cache)) {
+        return $cache[$wordset_id];
+    }
+
+    $rows = ll_tools_export_get_category_selector_rows($wordset_id);
+    $cache[$wordset_id] = is_array($rows) ? array_values($rows) : [];
+
+    return $cache[$wordset_id];
+}
+
+function ll_tools_ajax_export_full_bundle_categories(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to access export tools.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_tools_export_full_bundle_categories');
+
+    $wordset_id = isset($_POST['wordset_id']) ? (int) wp_unslash((string) $_POST['wordset_id']) : 0;
+    if ($wordset_id <= 0) {
+        wp_send_json_success([
+            'wordsetId' => 0,
+            'rows' => [],
+        ]);
+    }
+
+    wp_send_json_success([
+        'wordsetId' => $wordset_id,
+        'rows' => ll_tools_export_get_full_bundle_category_rows_for_wordset($wordset_id),
     ]);
 }
 
