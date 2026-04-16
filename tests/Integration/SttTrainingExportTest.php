@@ -8,7 +8,7 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($admin_id);
 
-        $wordset = wp_insert_term('STT Render Wordset', 'wordset');
+        $wordset = wp_insert_term('STT Render Wordset ' . wp_generate_password(6, false, false), 'wordset');
         $this->assertFalse(is_wp_error($wordset));
 
         ob_start();
@@ -91,7 +91,7 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_Term::class, $wordset);
 
         $word_id = $this->createWord($wordset_id, 'Bravo', 'Bravo translation');
-        $category = wp_insert_term('STT Zip Category', 'word-category');
+        $category = wp_insert_term('STT Zip Category ' . wp_generate_password(6, false, false), 'word-category');
         $this->assertFalse(is_wp_error($category));
         $this->assertIsArray($category);
         $category_id = (int) $category['term_id'];

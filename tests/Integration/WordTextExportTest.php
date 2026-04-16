@@ -48,7 +48,10 @@ final class WordTextExportTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createWordset('Word Text CSV');
         $word_id = $this->createWord($wordset_id, 'Merheba', 'Hello');
-        $category = wp_insert_term('Greetings', 'word-category');
+        $category = wp_insert_term(
+            'Greetings ' . wp_generate_password(6, false, false),
+            'word-category'
+        );
         $this->assertFalse(is_wp_error($category));
         $this->assertIsArray($category);
         $category_id = (int) $category['term_id'];

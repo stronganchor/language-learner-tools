@@ -80,7 +80,12 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->ensurePartOfSpeechTerm('noun', 'Noun');
         $this->ensurePartOfSpeechTerm('verb', 'Verb');
 
-        $wordset = wp_insert_term('Dictionary Test Wordset', 'wordset', ['slug' => 'dictionary-test-wordset']);
+        $suffix = wp_generate_password(6, false, false);
+        $wordset = wp_insert_term(
+            'Dictionary Test Wordset ' . $suffix,
+            'wordset',
+            ['slug' => 'dictionary-test-wordset-' . $suffix]
+        );
         $this->assertIsArray($wordset);
         $wordset_id = (int) $wordset['term_id'];
 
