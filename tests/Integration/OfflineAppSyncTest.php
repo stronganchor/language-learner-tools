@@ -108,8 +108,9 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $sync_data = is_array($sync['data'] ?? null) ? $sync['data'] : [];
             $this->assertSame(2, (int) (($sync_data['stats'] ?? [])['processed'] ?? 0));
             $this->assertSame([$fixture['word_id']], array_values(array_map('intval', (array) ($sync_data['scope_word_ids'] ?? []))));
+            $effective_category_id = $fixture['effective_category_id'];
             $synced_category_ids = array_values(array_map('intval', (array) (($sync_data['state'] ?? [])['category_ids'] ?? [])));
-            $this->assertNotEmpty($synced_category_ids);
+            $this->assertContains($effective_category_id, $synced_category_ids);
             $this->assertSame([$fixture['word_id']], array_values(array_map('intval', (array) (($sync_data['state'] ?? [])['starred_word_ids'] ?? []))));
             $this->assertSame('only', (string) (($sync_data['state'] ?? [])['star_mode'] ?? ''));
             $this->assertTrue((bool) (($sync_data['state'] ?? [])['fast_transitions'] ?? false));
@@ -132,7 +133,7 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
 
             $category_progress = (array) ($sync_data['category_progress'] ?? []);
             $this->assertTrue(
-                array_key_exists($fixture['category_id'], $category_progress) || array_key_exists((string) $fixture['category_id'], $category_progress)
+                array_key_exists($effective_category_id, $category_progress) || array_key_exists((string) $effective_category_id, $category_progress)
             );
             $this->assertArrayHasKey('recommendation_queue', $sync_data);
             $this->assertArrayHasKey('next_activity', $sync_data);
@@ -309,6 +310,13 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         $this->assertFalse(is_wp_error($category));
         $this->assertIsArray($category);
         $category_id = (int) $category['term_id'];
+        $effective_category_id = $category_id;
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $resolved_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($resolved_category_id > 0) {
+                $effective_category_id = $resolved_category_id;
+            }
+        }
         update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
 
@@ -324,6 +332,7 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
         return [
             'wordset_id' => $wordset_id,
             'category_id' => $category_id,
+            'effective_category_id' => $effective_category_id,
             'word_id' => $word_id,
         ];
     }
