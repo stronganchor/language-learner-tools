@@ -625,6 +625,12 @@ register_activation_hook(__FILE__, function () {
     if (function_exists('ll_tools_install_user_progress_schema')) {
         ll_tools_install_user_progress_schema();
     }
+    if (function_exists('ll_tools_install_dictionary_lookup_schema')) {
+        ll_tools_install_dictionary_lookup_schema();
+    }
+    if (function_exists('ll_tools_schedule_dictionary_lookup_rebuild')) {
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+    }
 });
 
 // Ensure this runs after CPTs/taxonomies are included (bootstrap requires them early).

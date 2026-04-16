@@ -1973,12 +1973,27 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
     $candidate_ids = [];
     $used_published_scope_cache = false;
+    $search_results_pre_ranked = false;
     if ($search === '' && $statuses === ['publish']) {
         $used_published_scope_cache = true;
         $candidate_ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
         $needs_meta_cache = ($pos_slug !== '' || $source_id !== '' || $dialect !== '');
         if ($needs_meta_cache && !empty($candidate_ids)) {
             update_postmeta_cache($candidate_ids);
+        }
+    } elseif (
+        $search !== ''
+        && function_exists('ll_tools_dictionary_lookup_is_ready')
+        && ll_tools_dictionary_lookup_is_ready()
+        && function_exists('ll_tools_dictionary_query_entry_ids_from_lookup_table')
+    ) {
+        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses);
+        $search_results_pre_ranked = !empty($candidate_ids);
+        if (!empty($candidate_ids)) {
+            $needs_meta_cache = ($pos_slug !== '' || $source_id !== '' || $dialect !== '');
+            if ($needs_meta_cache) {
+                update_postmeta_cache($candidate_ids);
+            }
         }
     } else {
         $joins = [];
@@ -2126,7 +2141,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
             return $left_id <=> $right_id;
         });
-    } elseif ($search !== '' && !empty($filtered_ids)) {
+    } elseif ($search !== '' && !empty($filtered_ids) && !$search_results_pre_ranked) {
         usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $title_language): int {
             $left_rank = ll_tools_dictionary_get_entry_search_rank($left_id, $search);
             $right_rank = ll_tools_dictionary_get_entry_search_rank($right_id, $search);

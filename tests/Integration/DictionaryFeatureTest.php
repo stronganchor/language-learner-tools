@@ -42,8 +42,27 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
+        delete_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION);
+        delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
+        wp_clear_scheduled_hook(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK);
+        foreach (get_posts([
+            'post_type' => ['ll_dictionary_entry', 'words'],
+            'post_status' => 'any',
+            'numberposts' => -1,
+            'fields' => 'ids',
+            'orderby' => 'ID',
+            'order' => 'ASC',
+            'suppress_filters' => false,
+        ]) as $post_id) {
+            wp_delete_post((int) $post_id, true);
+        }
+        if (function_exists('ll_tools_dictionary_lookup_table_name') && function_exists('ll_tools_dictionary_lookup_table_exists') && ll_tools_dictionary_lookup_table_exists()) {
+            $wpdb->query('TRUNCATE TABLE ' . ll_tools_dictionary_lookup_table_name());
+        }
         unset($GLOBALS['ll_tools_dictionary_source_registry_cache']);
         unset($GLOBALS['ll_tools_dictionary_browser_cache_version']);
+        ll_tools_bump_dictionary_browser_cache_version();
         parent::tearDown();
     }
 
@@ -171,6 +190,138 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('moon', ll_tools_dictionary_lookup_best('Mij', 'Zazaki', 'English', false));
         $this->assertSame('Mij', ll_tools_dictionary_lookup_best('moon', 'English', 'Zazaki', true));
         $this->assertSame('moon', ll_dictionary_lookup_best('Mij', 'Zazaki', 'English', false));
+    }
+
+    public function test_dictionary_lookup_rebuild_populates_index_rows_for_existing_entries(): void
+    {
+        global $wpdb;
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Roj, Ruec',
+            'post_content' => 'sun',
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, [
+            [
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+                'raw_headword' => 'ruec',
+                'title_keys' => 'ruec|roj',
+                'translations' => [
+                    'en' => 'sun',
+                    'tr' => 'gunes',
+                ],
+            ],
+        ]);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+
+        $table = ll_tools_dictionary_lookup_table_name();
+        $rows = $wpdb->get_results($wpdb->prepare(
+            "SELECT lookup_kind, lookup_value
+             FROM {$table}
+             WHERE entry_id = %d
+             ORDER BY lookup_kind ASC, lookup_value ASC",
+            $entry_id
+        ), ARRAY_A);
+
+        $this->assertNotEmpty($rows);
+        $pairs = array_map(static function (array $row): string {
+            return (string) ($row['lookup_kind'] ?? '') . ':' . (string) ($row['lookup_value'] ?? '');
+        }, $rows);
+
+        $this->assertContains('headword:roj, ruec', $pairs);
+        $this->assertContains('headword:roj', $pairs);
+        $this->assertContains('headword:ruec', $pairs);
+        $this->assertContains('translation:sun', $pairs);
+        $this->assertContains('translation:gunes', $pairs);
+        $this->assertTrue(ll_tools_dictionary_lookup_is_ready());
+    }
+
+    public function test_dictionary_search_uses_lookup_table_when_ready(): void
+    {
+        global $wpdb;
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $exact_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Roj, Ruec',
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'raw_headword' => 'ruec',
+                'title_keys' => 'ruec|roj',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $prefix_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ruecarek',
+                'definition' => 'sunlight',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($exact_result);
+        $this->assertIsArray($prefix_result);
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+
+        $queries = [];
+        $capture = static function (string $query) use (&$queries): string {
+            $queries[] = $query;
+            return $query;
+        };
+
+        add_filter('query', $capture);
+        try {
+            $results = ll_tools_dictionary_query_entries([
+                'search' => 'ruec',
+                'page' => 1,
+                'per_page' => 10,
+                'sense_limit' => 1,
+                'linked_word_limit' => 0,
+                'post_status' => ['publish'],
+            ]);
+        } finally {
+            remove_filter('query', $capture);
+        }
+
+        $titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($results['items'] ?? [])));
+
+        $this->assertSame('Roj, Ruec', $titles[0] ?? '');
+
+        $queries_sql = implode("\n", $queries);
+        $this->assertStringContainsString(ll_tools_dictionary_lookup_table_name(), $queries_sql);
+        $this->assertStringNotContainsString('lookup_title.meta_value', $queries_sql);
+        $this->assertStringNotContainsString('lookup_translation.meta_value', $queries_sql);
+        $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
+
+        $lookup_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM " . ll_tools_dictionary_lookup_table_name());
+        $this->assertGreaterThan(0, $lookup_count);
     }
 
     public function test_dictionary_import_job_processes_rows_in_batches_with_resume_snapshot(): void

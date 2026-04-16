@@ -220,6 +220,16 @@
     margin: 0;
 }
 
+.ll-dictionary__browse-results {
+    display: grid;
+    gap: 14px;
+}
+
+.ll-dictionary__browse-results[aria-busy="true"] {
+    opacity: 0.68;
+    transition: opacity 0.18s ease;
+}
+
 .ll-dictionary__count {
     color: var(--ll-dictionary-muted);
     font-size: 0.96rem;
