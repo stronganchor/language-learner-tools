@@ -1848,6 +1848,29 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: inline-block;
 }
 
+.ll-wordset-card__content-top-spacer {
+    width: 22px;
+    height: 22px;
+    display: inline-block;
+}
+
+.ll-wordset-card__content-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(20, 89, 82, 0.12);
+    color: #145952;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
 .ll-wordset-card__lesson-link {
     text-decoration: none !important;
     color: inherit !important;
@@ -1866,6 +1889,87 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     align-content: start;
     align-items: start;
     position: relative;
+}
+
+.ll-wordset-card__preview--content {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    min-height: 100%;
+}
+
+.ll-wordset-card__content-stage {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    min-height: 100%;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(20, 89, 82, 0.14);
+    background:
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 52%),
+        linear-gradient(160deg, rgba(20, 89, 82, 0.1), rgba(255, 255, 255, 0.92));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.ll-wordset-card__content-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: #ffffff;
+    color: #145952;
+    box-shadow: 0 8px 18px rgba(20, 89, 82, 0.12);
+    flex: 0 0 auto;
+}
+
+.ll-wordset-card__content-icon-wrap svg {
+    width: 28px;
+    height: 28px;
+}
+
+.ll-wordset-card__content-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ll-wordset-card__content-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ll-wordset-card__content-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(20, 89, 82, 0.12);
+    color: #1f2937;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.ll-wordset-card__content-pill--media {
+    color: #145952;
+}
+
+.ll-wordset-card__content-excerpt {
+    margin: 0 !important;
+    color: #334155;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .ll-wordset-card__starred-pill {
@@ -2125,6 +2229,32 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 6px;
     row-gap: 6px;
     flex-wrap: wrap;
+}
+
+.ll-wordset-card__content-open {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(20, 89, 82, 0.18);
+    background: #ffffff;
+    color: #145952 !important;
+    font-weight: 700;
+    text-decoration: none !important;
+    box-shadow: 0 6px 14px rgba(20, 89, 82, 0.12);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.ll-wordset-card__content-open:hover,
+.ll-wordset-card__content-open:focus,
+.ll-wordset-card__content-open:focus-visible {
+    background: #f5fbfa;
+    border-color: rgba(20, 89, 82, 0.3);
+    box-shadow: 0 8px 18px rgba(20, 89, 82, 0.18);
+    transform: translateY(-1px);
+    outline: none;
 }
 
 .ll-wordset-card__quiz-btn {
@@ -2756,6 +2886,173 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: #f8fafc;
     color: var(--ll-wp-muted);
     font-size: 0.84rem;
+}
+
+.ll-wordset-recorder-queue-card {
+    gap: 12px;
+}
+
+.ll-wordset-recorder-queue-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ll-wordset-recorder-queue-card__identity {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.ll-wordset-recorder-queue-card__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ll-wp-text);
+}
+
+.ll-wordset-recorder-queue-card__identity-meta {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--ll-wp-muted);
+    font-size: 0.82rem;
+}
+
+.ll-wordset-recorder-queue-card__summary,
+.ll-wordset-recorder-queue-card__notes {
+    gap: 6px;
+}
+
+.ll-wordset-recorder-queue-card__columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.ll-wordset-recorder-queue-column {
+    min-width: 0;
+    display: grid;
+    gap: 8px;
+}
+
+.ll-wordset-recorder-queue-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+    max-height: 420px;
+    overflow-y: auto;
+}
+
+.ll-wordset-recorder-queue-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1px solid #d8dde6;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 10px;
+}
+
+.ll-wordset-recorder-queue-item.is-hidden-item {
+    background: #f8fafc;
+}
+
+.ll-wordset-recorder-queue-item__media {
+    display: flex;
+}
+
+.ll-wordset-recorder-queue-item__thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef4fb;
+    color: #135e96;
+    font-weight: 700;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.ll-wordset-recorder-queue-item__thumb img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+
+.ll-wordset-recorder-queue-item__content {
+    min-width: 0;
+    display: grid;
+    gap: 6px;
+}
+
+.ll-wordset-recorder-queue-item__title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ll-wordset-recorder-queue-item__title {
+    min-width: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--ll-wp-text);
+    overflow-wrap: anywhere;
+}
+
+.ll-wordset-recorder-queue-item__secondary,
+.ll-wordset-recorder-queue-item__note {
+    margin: 0;
+    color: var(--ll-wp-muted);
+    font-size: 0.83rem;
+    line-height: 1.45;
+}
+
+.ll-wordset-recorder-queue-item__types {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ll-wordset-recorder-queue-item__category,
+.ll-wordset-recorder-queue-item__type {
+    min-height: 24px;
+    padding: 4px 9px;
+    font-size: 0.74rem;
+}
+
+.ll-wordset-recorder-queue-item__form {
+    margin: 0;
+    align-self: center;
+}
+
+.ll-wordset-page .ll-wordset-recorder-queue-item__action {
+    min-height: 38px !important;
+    padding: 8px 12px !important;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .ll-wordset-recorder-queue-item {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .ll-wordset-recorder-queue-item__form {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
 }
 
 .ll-wordset-queue-list {

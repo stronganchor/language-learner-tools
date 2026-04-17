@@ -162,6 +162,111 @@ TSV;
         $this->assertSame([(int) $fixture['isolated_one_id']], $saved_category_ids);
     }
 
+    public function test_content_lesson_save_filters_mixed_grid_prerequisites_to_quizzable_wordset_lessons(): void
+    {
+        $fixture = $this->createMixedLessonFixture();
+        $this->setCurrentUserWithViewCapability();
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'draft',
+            'post_title' => 'Mixed Grid Story',
+        ]);
+        $lesson = get_post($lesson_id);
+        $this->assertInstanceOf(WP_Post::class, $lesson);
+
+        $_POST = [
+            'll_tools_content_lesson_nonce' => wp_create_nonce('ll_tools_content_lesson_save'),
+            'll_content_lesson_wordset_id' => (string) $fixture['wordset_id'],
+            'll_content_lesson_media_type' => 'audio',
+            'll_content_lesson_media_url' => 'https://example.com/mixed-grid-story.mp3',
+            'll_content_lesson_transcript_format' => 'auto',
+            'll_content_lesson_transcript_source' => '',
+            'll_content_lesson_category_ids' => [(string) $fixture['category_c_id']],
+            'll_content_lesson_show_in_mix' => '1',
+            'll_content_lesson_prereq_category_ids' => [
+                (string) $fixture['category_a_id'],
+                (string) $fixture['non_quizzable_category_id'],
+            ],
+        ];
+
+        ll_tools_save_content_lesson_metabox($lesson_id, $lesson);
+
+        $this->assertTrue(ll_tools_get_content_lesson_show_in_mix($lesson_id));
+        $this->assertSame(
+            [(int) $fixture['category_a_id']],
+            ll_tools_get_content_lesson_prereq_category_ids($lesson_id)
+        );
+    }
+
+    public function test_wordset_page_renders_mixed_content_lessons_between_vocab_cards(): void
+    {
+        $fixture = $this->createMixedLessonFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $content_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Bravo Story Bridge',
+            'post_excerpt' => 'Review the story before the final vocab drill.',
+            'menu_order' => 5,
+        ]);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, 'audio');
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, [$fixture['category_c_id']]);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META, '1');
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_PREREQ_CATEGORY_IDS_META, [
+            $fixture['category_a_id'],
+            $fixture['category_b_id'],
+        ]);
+
+        $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
+            if ((int) $filter_wordset_id > 0 && (string) $view === 'main') {
+                return false;
+            }
+            return (bool) $should_bootstrap;
+        };
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 4);
+
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        try {
+            try {
+                $html = ll_tools_render_wordset_page_content($wordset_id, [
+                    'show_title' => false,
+                    'wrapper_tag' => 'div',
+                ]);
+            } finally {
+                $_GET = $original_get;
+                set_query_var('ll_wordset_page', $original_wordset_page);
+                set_query_var('ll_wordset_view', $original_wordset_view);
+            }
+        } finally {
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
+        }
+
+        $alpha_pos = strpos($html, 'data-cat-id="' . (int) $fixture['category_a_id'] . '"');
+        $bravo_pos = strpos($html, 'data-cat-id="' . (int) $fixture['category_b_id'] . '"');
+        $content_pos = strpos($html, 'data-lesson-id="' . (int) $content_lesson_id . '"');
+        $charlie_pos = strpos($html, 'data-cat-id="' . (int) $fixture['category_c_id'] . '"');
+
+        $this->assertNotFalse($alpha_pos);
+        $this->assertNotFalse($bravo_pos);
+        $this->assertNotFalse($content_pos);
+        $this->assertNotFalse($charlie_pos);
+        $this->assertTrue($alpha_pos < $bravo_pos);
+        $this->assertTrue($bravo_pos < $content_pos);
+        $this->assertTrue($content_pos < $charlie_pos);
+        $this->assertStringContainsString('ll-wordset-card ll-wordset-card--content', $html);
+    }
+
     public function test_content_lesson_metabox_renders_translated_media_url_placeholder(): void
     {
         $messages = require LL_TOOLS_BASE_PATH . 'languages/ll-tools-text-domain-tr_TR.l10n.php';
@@ -221,6 +326,91 @@ TSV;
 
         wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
         wp_set_object_terms($word_id, [$category_id], 'word-category', false);
+
+        return $word_id;
+    }
+
+    /**
+     * @return array{wordset_id:int,category_a_id:int,category_b_id:int,category_c_id:int,non_quizzable_category_id:int}
+     */
+    private function createMixedLessonFixture(): array
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset = wp_insert_term('Mixed Lesson Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($wordset);
+        $this->assertFalse(is_wp_error($wordset));
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        update_option('ll_vocab_lesson_wordsets', [$wordset_id], false);
+
+        $category_a_id = $this->ensureTerm('word-category', 'Alpha Lesson ' . wp_generate_password(4, false), 'alpha-lesson-' . wp_generate_password(4, false));
+        $category_b_id = $this->ensureTerm('word-category', 'Bravo Lesson ' . wp_generate_password(4, false), 'bravo-lesson-' . wp_generate_password(4, false));
+        $category_c_id = $this->ensureTerm('word-category', 'Charlie Lesson ' . wp_generate_password(4, false), 'charlie-lesson-' . wp_generate_password(4, false));
+        $non_quizzable_category_id = $this->ensureTerm('word-category', 'Sparse Lesson ' . wp_generate_password(4, false), 'sparse-lesson-' . wp_generate_password(4, false));
+
+        foreach ([$category_a_id, $category_b_id, $category_c_id, $non_quizzable_category_id] as $category_id) {
+            update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+            update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        }
+
+        $this->createVocabLessonFixturePosts($wordset_id, $category_a_id, 'Alpha');
+        $this->createVocabLessonFixturePosts($wordset_id, $category_b_id, 'Bravo');
+        $this->createVocabLessonFixturePosts($wordset_id, $category_c_id, 'Charlie');
+
+        for ($index = 1; $index <= 2; $index++) {
+            $this->createWordWithAudio(
+                'Sparse Word ' . $index,
+                'Sparse Translation ' . $index,
+                $non_quizzable_category_id,
+                $wordset_id,
+                'sparse-word-' . $index . '.mp3'
+            );
+        }
+
+        return [
+            'wordset_id' => $wordset_id,
+            'category_a_id' => $category_a_id,
+            'category_b_id' => $category_b_id,
+            'category_c_id' => $category_c_id,
+            'non_quizzable_category_id' => $non_quizzable_category_id,
+        ];
+    }
+
+    private function createVocabLessonFixturePosts(int $wordset_id, int $category_id, string $prefix): void
+    {
+        for ($index = 1; $index <= 5; $index++) {
+            $this->createWordWithAudio(
+                $prefix . ' Word ' . $index,
+                $prefix . ' Translation ' . $index,
+                $category_id,
+                $wordset_id,
+                strtolower($prefix) . '-word-' . $index . '.mp3'
+            );
+        }
+
+        $result = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
+        $this->assertIsArray($result);
+        $this->assertNotEmpty((int) ($result['post_id'] ?? 0));
+    }
+
+    private function createWordWithAudio(string $title, string $translation, int $category_id, int $wordset_id, string $audio_file_name): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', $translation);
+
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $title,
+        ]);
+        update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
 
         return $word_id;
     }

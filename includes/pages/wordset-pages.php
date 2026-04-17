@@ -757,6 +757,183 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
     return apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
 }
 
+function ll_tools_wordset_page_render_content_lesson_icon(string $media_type, string $class = 'll-wordset-card__content-icon'): string {
+    $media_type = sanitize_key($media_type);
+    if ($media_type === 'video') {
+        return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+            . '<rect x="3.5" y="5.5" width="11" height="13" rx="2.5" stroke="currentColor" stroke-width="1.8"/>'
+            . '<path d="M14.5 9.5 20.5 6.5v11l-6-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '</svg>';
+    }
+
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+        . '<path d="M4 14h4l5 4V6L8 10H4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'
+        . '<path d="M16.2 9.3a4.5 4.5 0 0 1 0 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M18.8 6.8a8 8 0 0 1 0 10.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
+function ll_tools_wordset_page_render_content_lesson_card(array $lesson): string {
+    $lesson_id = isset($lesson['id']) ? (int) $lesson['id'] : 0;
+    $lesson_title = isset($lesson['title']) ? (string) $lesson['title'] : '';
+    $lesson_url = isset($lesson['url']) ? (string) $lesson['url'] : '';
+    $lesson_excerpt = isset($lesson['excerpt']) ? (string) $lesson['excerpt'] : '';
+    $media_type = isset($lesson['media_type']) ? (string) $lesson['media_type'] : 'audio';
+    $media_label = isset($lesson['media_label']) ? (string) $lesson['media_label'] : '';
+    $category_count = isset($lesson['category_count']) ? (int) $lesson['category_count'] : 0;
+    $action_label = __('Open lesson', 'll-tools-text-domain');
+    $action_aria_label = $lesson_title !== ''
+        ? sprintf(__('Open %s', 'll-tools-text-domain'), $lesson_title)
+        : $action_label;
+
+    ob_start();
+    ?>
+    <article
+        class="ll-wordset-card ll-wordset-card--content"
+        role="listitem"
+        data-ll-wordset-card-type="content"
+        data-lesson-id="<?php echo esc_attr((string) $lesson_id); ?>">
+        <div class="ll-wordset-card__top">
+            <span class="ll-wordset-card__content-top-spacer" aria-hidden="true"></span>
+            <a class="ll-wordset-card__heading" href="<?php echo esc_url($lesson_url); ?>" aria-label="<?php echo esc_attr($lesson_title); ?>">
+                <h2 class="ll-wordset-card__title"><?php echo esc_html($lesson_title); ?></h2>
+            </a>
+            <span class="ll-wordset-card__content-badge"><?php echo esc_html__('Main lesson', 'll-tools-text-domain'); ?></span>
+        </div>
+        <a class="ll-wordset-card__lesson-link" href="<?php echo esc_url($lesson_url); ?>" aria-label="<?php echo esc_attr($lesson_title); ?>">
+            <div class="ll-wordset-card__preview ll-wordset-card__preview--content has-text">
+                <div class="ll-wordset-card__content-stage">
+                    <span class="ll-wordset-card__content-icon-wrap" aria-hidden="true">
+                        <?php echo ll_tools_wordset_page_render_content_lesson_icon($media_type); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </span>
+                    <div class="ll-wordset-card__content-copy">
+                        <div class="ll-wordset-card__content-pills">
+                            <?php if ($media_label !== '') : ?>
+                                <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--media"><?php echo esc_html($media_label); ?></span>
+                            <?php endif; ?>
+                            <?php if ($category_count > 0) : ?>
+                                <span class="ll-wordset-card__content-pill ll-wordset-card__content-pill--count">
+                                    <?php
+                                    echo esc_html(sprintf(
+                                        _n('%d vocab lesson', '%d vocab lessons', $category_count, 'll-tools-text-domain'),
+                                        $category_count
+                                    ));
+                                    ?>
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if ($lesson_excerpt !== '') : ?>
+                            <p class="ll-wordset-card__content-excerpt"><?php echo esc_html($lesson_excerpt); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </a>
+        <div class="ll-wordset-card__quiz-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Lesson actions for %s', 'll-tools-text-domain'), $lesson_title)); ?>">
+            <a class="ll-wordset-card__content-open ll-study-btn tiny" href="<?php echo esc_url($lesson_url); ?>" aria-label="<?php echo esc_attr($action_aria_label); ?>">
+                <?php echo esc_html($action_label); ?>
+            </a>
+        </div>
+    </article>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_wordset_page_build_mixed_lesson_cards(array $ordered_categories, array $content_lessons): array {
+    if (empty($ordered_categories) && empty($content_lessons)) {
+        return [];
+    }
+
+    $category_order_lookup = [];
+    foreach ($ordered_categories as $index => $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $category_id = isset($category['id']) ? (int) $category['id'] : 0;
+        if ($category_id > 0) {
+            $category_order_lookup[$category_id] = (int) $index;
+        }
+    }
+
+    $content_buckets = [];
+    foreach ($content_lessons as $lesson) {
+        if (!is_array($lesson) || empty($lesson['show_in_mix'])) {
+            continue;
+        }
+
+        $anchor_index = -1;
+        $prereq_ids = array_values(array_filter(array_map('intval', (array) ($lesson['prereq_category_ids'] ?? [])), static function (int $category_id): bool {
+            return $category_id > 0;
+        }));
+
+        foreach ($prereq_ids as $prereq_id) {
+            if (isset($category_order_lookup[$prereq_id])) {
+                $anchor_index = max($anchor_index, (int) $category_order_lookup[$prereq_id]);
+            }
+        }
+
+        if (!isset($content_buckets[$anchor_index]) || !is_array($content_buckets[$anchor_index])) {
+            $content_buckets[$anchor_index] = [];
+        }
+
+        $content_buckets[$anchor_index][] = $lesson;
+    }
+
+    foreach ($content_buckets as &$bucket) {
+        usort($bucket, static function (array $left, array $right): int {
+            $left_menu_order = isset($left['menu_order']) ? (int) $left['menu_order'] : 0;
+            $right_menu_order = isset($right['menu_order']) ? (int) $right['menu_order'] : 0;
+            if ($left_menu_order !== $right_menu_order) {
+                return $left_menu_order <=> $right_menu_order;
+            }
+
+            $left_title = isset($left['title']) ? (string) $left['title'] : '';
+            $right_title = isset($right['title']) ? (string) $right['title'] : '';
+            $cmp = function_exists('ll_tools_locale_compare_strings')
+                ? ll_tools_locale_compare_strings($left_title, $right_title)
+                : strnatcasecmp($left_title, $right_title);
+            if ($cmp !== 0) {
+                return $cmp;
+            }
+
+            return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+        });
+    }
+    unset($bucket);
+
+    $cards = [];
+    if (!empty($content_buckets[-1])) {
+        foreach ($content_buckets[-1] as $lesson) {
+            $cards[] = [
+                'type' => 'content',
+                'data' => $lesson,
+            ];
+        }
+    }
+
+    foreach ($ordered_categories as $index => $category) {
+        if (is_array($category) && empty($category['hidden'])) {
+            $cards[] = [
+                'type' => 'category',
+                'data' => $category,
+            ];
+        }
+
+        if (!empty($content_buckets[$index])) {
+            foreach ($content_buckets[$index] as $lesson) {
+                $cards[] = [
+                    'type' => 'content',
+                    'data' => $lesson,
+                ];
+            }
+        }
+    }
+
+    return $cards;
+}
+
 function ll_tools_wordset_page_normalize_search_text(string $value): string {
     $text = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
     $text = wp_strip_all_tags($text);
@@ -5691,6 +5868,24 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $hidden_category_count = count($hidden_categories);
+    $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
+        ? ll_tools_get_content_lessons_for_wordset($wordset_id)
+        : [];
+    $featured_content_lessons = [];
+    $mixed_content_lessons = [];
+    foreach ($wordset_content_lessons as $content_lesson) {
+        if (!is_array($content_lesson)) {
+            continue;
+        }
+
+        if (!empty($content_lesson['show_in_mix'])) {
+            $mixed_content_lessons[] = $content_lesson;
+            continue;
+        }
+
+        $featured_content_lessons[] = $content_lesson;
+    }
+    $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
 
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
     $visible_category_count = count($visible_category_ids);
@@ -7074,21 +7269,21 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             </section>
 
-            <?php
-            if (function_exists('ll_tools_get_content_lessons_for_wordset') && function_exists('ll_tools_render_content_lesson_cards')) {
-                $wordset_content_lessons = ll_tools_get_content_lessons_for_wordset($wordset_id);
-                if (!empty($wordset_content_lessons)) {
-                    echo ll_tools_render_content_lesson_cards($wordset_content_lessons, [
-                        'title' => __('Main Lessons', 'll-tools-text-domain'),
-                        'description' => __('Start with a story or video lesson, then open the related vocab drills below.', 'll-tools-text-domain'),
-                        'context' => 'wordset',
-                        'open_label' => __('Open main lesson', 'll-tools-text-domain'),
-                    ]); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                }
-            }
-            ?>
+            <?php if (!empty($featured_content_lessons)) : ?>
+                <section class="ll-content-lessons-section ll-content-lessons-section--wordset-featured">
+                    <div class="ll-content-lessons-section__head">
+                        <h2 class="ll-content-lessons-section__title"><?php echo esc_html__('Main Lessons', 'll-tools-text-domain'); ?></h2>
+                        <p class="ll-content-lessons-section__description"><?php echo esc_html__('Start with a story or video lesson, then open the related vocab drills and practice cards below.', 'll-tools-text-domain'); ?></p>
+                    </div>
+                    <div class="ll-wordset-grid ll-wordset-grid--content-lessons" role="list">
+                        <?php foreach ($featured_content_lessons as $lesson) : ?>
+                            <?php echo ll_tools_wordset_page_render_content_lesson_card($lesson); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endif; ?>
 
-            <?php if (empty($visible_categories)) : ?>
+            <?php if (empty($mixed_lesson_cards)) : ?>
                 <div class="ll-wordset-empty">
                     <?php if ($show_enable_lessons_button) : ?>
                         <p class="ll-wordset-empty__message">
@@ -7138,8 +7333,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                     </div>
                 <?php endif; ?>
                 <div class="ll-wordset-grid" role="list">
-                    <?php foreach ($visible_categories as $cat) : ?>
+                    <?php foreach ($mixed_lesson_cards as $card) : ?>
+                        <?php if (($card['type'] ?? '') === 'content') : ?>
+                            <?php echo ll_tools_wordset_page_render_content_lesson_card((array) ($card['data'] ?? [])); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            <?php continue; ?>
+                        <?php endif; ?>
                         <?php
+                        $cat = (isset($card['data']) && is_array($card['data'])) ? $card['data'] : [];
                         $cat_id = (int) ($cat['id'] ?? 0);
                         $preview_style = '';
                         if (!empty($cat['preview_aspect_ratio'])) {

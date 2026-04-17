@@ -51,6 +51,13 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
         'wordset_id' => $wordset_id,
         'category_ids' => $category_ids,
         'category_count' => count($category_ids),
+        'show_in_mix' => function_exists('ll_tools_get_content_lesson_show_in_mix')
+            ? ll_tools_get_content_lesson_show_in_mix((int) $lesson->ID)
+            : false,
+        'prereq_category_ids' => function_exists('ll_tools_get_content_lesson_prereq_category_ids')
+            ? ll_tools_get_content_lesson_prereq_category_ids((int) $lesson->ID)
+            : [],
+        'menu_order' => isset($lesson->menu_order) ? (int) $lesson->menu_order : 0,
     ];
 }
 
