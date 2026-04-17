@@ -80,7 +80,7 @@ function ll_tools_render_dictionary_sources_page(): void {
             <?php wp_nonce_field('ll_tools_dictionary_sources', 'll_dictionary_sources_nonce'); ?>
 
             <p class="description">
-                <?php esc_html_e('Use a stable source ID such as "dezd" or "harun-turgut". Leave both the ID and label blank to remove a row. Separate multiple default dialects with commas.', 'll-tools-text-domain'); ?>
+                <?php esc_html_e('Use a stable source ID such as "regional-dictionary" or "community-archive". Leave both the ID and label blank to remove a row. Separate multiple default dialects with commas.', 'll-tools-text-domain'); ?>
             </p>
 
             <table class="widefat striped" style="margin-top:16px;">
@@ -104,19 +104,19 @@ function ll_tools_render_dictionary_sources_page(): void {
                         ?>
                         <tr>
                             <td style="width:14%;">
-                                <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][id]" value="<?php echo esc_attr($source_id); ?>" placeholder="<?php echo esc_attr__('dezd', 'll-tools-text-domain'); ?>">
+                                <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][id]" value="<?php echo esc_attr($source_id); ?>" placeholder="<?php echo esc_attr__('regional-dictionary', 'll-tools-text-domain'); ?>">
                             </td>
                             <td style="width:16%;">
-                                <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][label]" value="<?php echo esc_attr($label); ?>" placeholder="<?php echo esc_attr__('DEZD', 'll-tools-text-domain'); ?>">
+                                <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][label]" value="<?php echo esc_attr($label); ?>" placeholder="<?php echo esc_attr__('Regional Dictionary', 'll-tools-text-domain'); ?>">
                             </td>
                             <td style="width:30%;">
                                 <textarea class="large-text" rows="3" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][attribution_text]"><?php echo esc_textarea($attribution_text); ?></textarea>
                             </td>
                             <td style="width:24%;">
-                                <input type="url" class="large-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][attribution_url]" value="<?php echo esc_attr($attribution_url); ?>" placeholder="<?php echo esc_attr__('https://example.com/dictionary-source/dezd', 'll-tools-text-domain'); ?>">
+                                <input type="url" class="large-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][attribution_url]" value="<?php echo esc_attr($attribution_url); ?>" placeholder="<?php echo esc_attr__('https://example.com/dictionary-source/regional-dictionary', 'll-tools-text-domain'); ?>">
                             </td>
                             <td style="width:16%;">
-                                <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][default_dialects]" value="<?php echo esc_attr($default_dialects); ?>" placeholder="<?php echo esc_attr__('Palu, Bingöl', 'll-tools-text-domain'); ?>">
+                                <input type="text" class="regular-text" name="ll_dictionary_sources[<?php echo esc_attr((string) $index); ?>][default_dialects]" value="<?php echo esc_attr($default_dialects); ?>" placeholder="<?php echo esc_attr__('Northern, Southern', 'll-tools-text-domain'); ?>">
                             </td>
                         </tr>
                     <?php endforeach; ?>
