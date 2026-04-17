@@ -198,6 +198,21 @@
             return checkMinMax(Math.max(seededCount, grownCount), categoryName);
         }
 
+        function isForcedReplayTarget(targetWord) {
+            return !!(targetWord && targetWord.__practiceForcedReplay);
+        }
+
+        function getEffectiveOptionCount(categoryName, targetWord) {
+            const progressedCount = getProgressDrivenOptionCount(categoryName, targetWord);
+            if (!isForcedReplayTarget(targetWord)) {
+                return progressedCount;
+            }
+
+            // Wrong-answer replays should ease the next round instead of adding a
+            // new distractor because the word was just seen again.
+            return checkMinMax(Math.max(MINIMUM_NUMBER_OF_OPTIONS, progressedCount - 1), categoryName);
+        }
+
         /**
          * Helper function to get the maximum card size based on the plugin's imageSize setting.
          *
@@ -317,7 +332,7 @@
             }
 
             wrongIndexes.length = 0; // Reset wrongIndexes for the next round
-            const clampedCount = getProgressDrivenOptionCount(currentCategoryName, targetWord);
+            const clampedCount = getEffectiveOptionCount(currentCategoryName, targetWord);
             categoryOptionsCount[currentCategoryName] = clampedCount;
             return clampedCount;
         }

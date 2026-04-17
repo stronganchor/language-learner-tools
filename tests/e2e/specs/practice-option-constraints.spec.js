@@ -847,6 +847,59 @@ test('practice option count can keep growing during the current session from loc
   });
 });
 
+test('practice forced replays downgrade the next option count instead of upgrading it', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard"></div><div id="ll-tools-flashcard-content"></div>');
+  await page.addScriptTag({ content: jquerySource });
+  await page.evaluate(() => {
+    const animals = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }];
+    window.llToolsFlashcardsData = {
+      imageSize: 'small',
+      maxOptionsOverride: 9
+    };
+    window.categoryNames = ['Animals'];
+    window.wordsByCategory = {
+      Animals: animals
+    };
+    window.optionWordsByCategory = {
+      Animals: animals
+    };
+  });
+  await page.addScriptTag({ content: optionsSource });
+
+  const counts = await page.evaluate(() => {
+    window.FlashcardOptions.initializeOptionsCount(2);
+    return {
+      regularReplayCandidate: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 1,
+        progress_status: 'new',
+        progress_total_coverage: 0,
+        practice_exposure_count: 1
+      }),
+      forcedReplayCandidate: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 1,
+        progress_status: 'new',
+        progress_total_coverage: 0,
+        practice_exposure_count: 1,
+        __practiceForcedReplay: true
+      }),
+      minimumForcedReplay: window.FlashcardOptions.calculateNumberOfOptions([], false, 'Animals', {
+        id: 2,
+        progress_status: 'new',
+        progress_total_coverage: 0,
+        practice_exposure_count: 0,
+        __practiceForcedReplay: true
+      })
+    };
+  });
+
+  expect(counts).toEqual({
+    regularReplayCandidate: 3,
+    forcedReplayCandidate: 2,
+    minimumForcedReplay: 2
+  });
+});
+
 test('practice mode calculates option count from the selected target word', async ({ page }) => {
   await mountPracticeModeHarness(page, {
     state: {
@@ -893,6 +946,62 @@ test('practice mode calculates option count from the selected target word', asyn
       categoryName: 'Objects',
       targetWordId: 101
     }
+  });
+});
+
+test('practice selector marks forced replays so the next round can downgrade options', async ({ page }) => {
+  const category = 'Replay category';
+  const replayWord = {
+    id: 2051,
+    title: 'Replay word',
+    label: 'Replay word',
+    image: 'https://img.test/replay-option-word.jpg',
+    audio: 'https://audio.test/replay-option-word.mp3'
+  };
+  const otherWord = {
+    id: 2052,
+    title: 'Other word',
+    label: 'Other word',
+    image: 'https://img.test/other-option-word.jpg',
+    audio: 'https://audio.test/other-option-word.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'audio', option_type: 'image' }],
+    targetCategoryName: category,
+    wordsByCategory: {
+      [category]: [replayWord, otherWord]
+    },
+    optionWordsByCategory: {
+      [category]: [replayWord, otherWord]
+    },
+    state: {
+      categoryNames: [category],
+      currentCategoryName: category,
+      currentCategoryRoundCount: 1,
+      categoryRoundCount: {
+        [category]: 1
+      },
+      categoryRepetitionQueues: {
+        [category]: [{ wordData: replayWord, reappearRound: 0, forceReplay: true }]
+      },
+      lastWordShownId: otherWord.id
+    }
+  });
+
+  const targetMeta = await page.evaluate(() => {
+    const target = window.LLFlashcards.Selection.selectTargetWordAndCategory();
+    return target ? {
+      id: Number(target.id) || 0,
+      categoryName: String(target.__categoryName || ''),
+      isForcedReplay: !!target.__practiceForcedReplay
+    } : null;
+  });
+
+  expect(targetMeta).toEqual({
+    id: 2051,
+    categoryName: category,
+    isForcedReplay: true
   });
 });
 

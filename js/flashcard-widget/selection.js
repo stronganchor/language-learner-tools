@@ -1381,12 +1381,20 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const starredLookup = opts.starredLookup || getStarredLookup();
         const starMode = opts.starMode || getStarMode();
+        const isForcedReplay = !!opts.isForcedReplay;
 
         if (!opts.didRecordPlay) {
             recordPlay(target.id, starredLookup, starMode);
         }
 
         try { target.__categoryName = categoryName; } catch (_) { /* no-op */ }
+        try {
+            if (isForcedReplay) {
+                target.__practiceForcedReplay = true;
+            } else {
+                delete target.__practiceForcedReplay;
+            }
+        } catch (_) { /* no-op */ }
         State.lastWordShownId = target.id;
 
         if (State.currentCategoryName !== categoryName) {
@@ -1678,6 +1686,7 @@
         };
         let target = null;
         let didRecordPlay = false;
+        let isForcedReplayTarget = false;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
         const starredLookup = getStarredLookup();
         const starMode = getStarMode();
@@ -1701,6 +1710,7 @@
                     // Skip if this is the same word we just showed
                     if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
+                        isForcedReplayTarget = !!queuedItem.forceReplay;
                         if (queuedItem.forceReplay && State.practiceForcedReplays) {
                             const key = String(queuedWord.id);
                             const val = State.practiceForcedReplays[key];
@@ -1802,6 +1812,7 @@
 
             if (queueCandidate) {
                 target = queueCandidate.wordData;
+                isForcedReplayTarget = !!queueCandidate.forceReplay;
                 const qi = queue.findIndex(it => it.wordData.id === target.id);
                 if (queueCandidate.forceReplay && State.practiceForcedReplays) {
                     const key = String(target.id);
@@ -1820,7 +1831,8 @@
             return commitSelectedTarget(target, candidateCategoryName, {
                 didRecordPlay: didRecordPlay,
                 starredLookup: starredLookup,
-                starMode: starMode
+                starMode: starMode,
+                isForcedReplay: isForcedReplayTarget
             });
         }
         return target;
