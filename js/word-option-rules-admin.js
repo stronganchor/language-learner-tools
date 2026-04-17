@@ -108,6 +108,23 @@
             }
         }
 
+        function getGroupLabelText(label) {
+            var normalizedLabel = typeof label === 'string' ? label.trim() : '';
+            return normalizedLabel || t('groupLabelFallback', 'Group');
+        }
+
+        function updateGroupCellLabels(groupId, label) {
+            var cells = table.querySelectorAll('td[data-group-id="' + groupId + '"]');
+            var visibleLabel = getGroupLabelText(label);
+            cells.forEach(function (cell) {
+                cell.setAttribute('data-group-label', label || '');
+                var cellLabel = cell.querySelector('[data-group-cell-label]');
+                if (cellLabel) {
+                    cellLabel.textContent = visibleLabel;
+                }
+            });
+        }
+
         function updateCheckboxLabels(groupId, label) {
             var cells = table.querySelectorAll('td[data-group-id="' + groupId + '"] input[type="checkbox"]');
             var ariaLabel = label
@@ -138,8 +155,13 @@
                 var td = document.createElement('td');
                 td.className = 'll-tools-word-options-group-cell';
                 td.setAttribute('data-group-id', groupId);
+                td.setAttribute('data-group-label', label || '');
                 var labelEl = document.createElement('label');
                 labelEl.className = 'll-tools-word-options-group-check';
+                var groupLabel = document.createElement('span');
+                groupLabel.className = 'll-tools-word-options-group-cell-label';
+                groupLabel.setAttribute('data-group-cell-label', '');
+                groupLabel.textContent = getGroupLabelText(label || '');
                 var checkbox = document.createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.name = 'group_members[' + groupId + '][]';
@@ -150,6 +172,7 @@
                         ? formatText(t('assignToGroupNamedTemplate', 'Assign to group %s'), [label])
                         : t('assignToGroup', 'Assign to group')
                 );
+                labelEl.appendChild(groupLabel);
                 labelEl.appendChild(checkbox);
                 td.appendChild(labelEl);
                 row.appendChild(td);
@@ -196,6 +219,7 @@
             addGroupColumn(groupId, label || '');
             input.addEventListener('input', function () {
                 updateHeaderLabel(groupId, input.value);
+                updateGroupCellLabels(groupId, input.value);
                 updateCheckboxLabels(groupId, input.value);
             });
         }
@@ -226,9 +250,11 @@
             }
             var groupId = row.getAttribute('data-group-id');
             updateHeaderLabel(groupId, input.value);
+            updateGroupCellLabels(groupId, input.value);
             updateCheckboxLabels(groupId, input.value);
             input.addEventListener('input', function () {
                 updateHeaderLabel(groupId, input.value);
+                updateGroupCellLabels(groupId, input.value);
                 updateCheckboxLabels(groupId, input.value);
             });
         });

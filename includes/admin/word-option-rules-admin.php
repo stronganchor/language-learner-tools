@@ -290,6 +290,7 @@ function ll_enqueue_word_option_rules_admin_assets($hook) {
         'assignToGroup' => __('Assign to group', 'll-tools-text-domain'),
         /* translators: %s: group label */
         'assignToGroupNamedTemplate' => __('Assign to group %s', 'll-tools-text-domain'),
+        'groupLabelFallback' => __('Group', 'll-tools-text-domain'),
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_word_option_rules_admin_assets');
@@ -1668,8 +1669,10 @@ function ll_render_word_option_rules_admin_page() {
             $group_id = $group_ids[$idx] ?? ('g' . $idx);
             $is_checked = in_array($label, $word_groups, true);
             $checkbox_label = sprintf(__('Assign to group %s', 'll-tools-text-domain'), $label);
-            echo '<td class="ll-tools-word-options-group-cell" data-group-id="' . esc_attr($group_id) . '">';
+            $group_display_label = $label !== '' ? $label : __('Group', 'll-tools-text-domain');
+            echo '<td class="ll-tools-word-options-group-cell" data-group-id="' . esc_attr($group_id) . '" data-group-label="' . esc_attr($label) . '">';
             echo '<label class="ll-tools-word-options-group-check">';
+            echo '<span class="ll-tools-word-options-group-cell-label" data-group-cell-label>' . esc_html($group_display_label) . '</span>';
             echo '<input type="checkbox" name="group_members[' . esc_attr($group_id) . '][]" value="' . esc_attr($word_id) . '" ' . checked($is_checked, true, false) . ' aria-label="' . esc_attr($checkbox_label) . '" />';
             echo '</label>';
             echo '</td>';

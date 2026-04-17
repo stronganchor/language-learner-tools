@@ -11,16 +11,17 @@ const adminCssSource = fs.readFileSync(
   'utf8'
 );
 
-function buildGroupHeaderCells(count) {
-  return Array.from({ length: count }, (_, index) => (
-    `<th scope="col" data-group-id="g${index}"><span class="ll-tools-word-options-group-header">Group ${index + 1}</span></th>`
+function buildGroupHeaderCells(labels) {
+  return labels.map((label, index) => (
+    `<th scope="col" data-group-id="g${index}"><span class="ll-tools-word-options-group-header">${label}</span></th>`
   )).join('');
 }
 
-function buildGroupRowCells(count, checkedIndex) {
-  return Array.from({ length: count }, (_, index) => (
-    `<td class="ll-tools-word-options-group-cell" data-group-id="g${index}">
+function buildGroupRowCells(labels, checkedIndex) {
+  return labels.map((label, index) => (
+    `<td class="ll-tools-word-options-group-cell" data-group-id="g${index}" data-group-label="${label}">
       <label class="ll-tools-word-options-group-check">
+        <span class="ll-tools-word-options-group-cell-label" data-group-cell-label>${label}</span>
         <input type="checkbox"${index === checkedIndex ? ' checked' : ''} aria-label="Assign to group ${index + 1}">
       </label>
     </td>`
@@ -28,7 +29,15 @@ function buildGroupRowCells(count, checkedIndex) {
 }
 
 function buildIframeDoc() {
-  const groupCount = 7;
+  const groupLabels = [
+    '01 Core travel words',
+    '02 Airport help',
+    '03 Tickets',
+    '04 Hotel',
+    '05 Transit',
+    '06 Problems',
+    '07 Questions'
+  ];
 
   return `<!doctype html>
 <html lang="en">
@@ -87,7 +96,7 @@ function buildIframeDoc() {
                         <th scope="col">Image</th>
                         <th scope="col">Audio</th>
                         <th scope="col">Word</th>
-                        ${buildGroupHeaderCells(groupCount)}
+                        ${buildGroupHeaderCells(groupLabels)}
                       </tr>
                     </thead>
                     <tbody>
@@ -98,7 +107,7 @@ function buildIframeDoc() {
                           <span class="ll-tools-word-options-word-title">Boarding pass</span>
                           <span class="ll-tools-word-options-word-id">#11</span>
                         </td>
-                        ${buildGroupRowCells(groupCount, 0)}
+                        ${buildGroupRowCells(groupLabels, 0)}
                       </tr>
                       <tr data-word-id="12">
                         <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-thumb-placeholder">No image</span></td>
@@ -107,7 +116,7 @@ function buildIframeDoc() {
                           <span class="ll-tools-word-options-word-title">Passport control</span>
                           <span class="ll-tools-word-options-word-id">#12</span>
                         </td>
-                        ${buildGroupRowCells(groupCount, 1)}
+                        ${buildGroupRowCells(groupLabels, 1)}
                       </tr>
                     </tbody>
                   </table>
@@ -255,6 +264,8 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
     const groupsWrap = document.querySelector('.ll-tools-word-options-table-wrap--groups');
     const groupRow = document.querySelector('.ll-tools-word-options-group-row');
     const pairAdd = document.querySelector('.ll-tools-word-options-pair-add');
+    const firstGroupCell = document.querySelector('.ll-tools-word-options-group-cell');
+    const firstGroupCellLabel = firstGroupCell ? firstGroupCell.querySelector('[data-group-cell-label]') : null;
     const measuredElements = [
       '.ll-tools-word-options-group-input',
       '.ll-tools-word-options-add-group',
@@ -283,6 +294,8 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
       groupsWrapScrollWidth: groupsWrap ? groupsWrap.scrollWidth : 0,
       groupRowDirection: groupRow ? window.getComputedStyle(groupRow).flexDirection : '',
       pairAddDirection: pairAdd ? window.getComputedStyle(pairAdd).flexDirection : '',
+      firstGroupCellLabelDisplay: firstGroupCellLabel ? window.getComputedStyle(firstGroupCellLabel).display : '',
+      firstGroupCellLabelText: firstGroupCellLabel ? firstGroupCellLabel.textContent.trim() : '',
       maxOffscreenRight
     };
   });
@@ -290,8 +303,10 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
   expect(frameMetrics.rootScrollWidth).toBeLessThanOrEqual(frameMetrics.rootClientWidth + 1);
   expect(frameMetrics.bodyScrollWidth).toBeLessThanOrEqual(frameMetrics.bodyClientWidth + 1);
   expect(frameMetrics.wrapScrollWidth).toBeLessThanOrEqual(frameMetrics.wrapClientWidth + 1);
-  expect(frameMetrics.groupsWrapScrollWidth).toBeGreaterThan(frameMetrics.groupsWrapClientWidth + 10);
+  expect(frameMetrics.groupsWrapScrollWidth).toBeLessThanOrEqual(frameMetrics.groupsWrapClientWidth + 1);
   expect(frameMetrics.groupRowDirection).toBe('column');
   expect(frameMetrics.pairAddDirection).toBe('column');
+  expect(frameMetrics.firstGroupCellLabelDisplay).not.toBe('none');
+  expect(frameMetrics.firstGroupCellLabelText).toBe('01 Core travel words');
   expect(frameMetrics.maxOffscreenRight).toBeLessThanOrEqual(1);
 });

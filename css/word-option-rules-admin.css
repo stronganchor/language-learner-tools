@@ -1,3 +1,10 @@
+.ll-tools-word-options {
+  --ll-word-options-mobile-card-bg: #fff;
+  --ll-word-options-mobile-border: #dcdcde;
+  --ll-word-options-mobile-divider: #ebecef;
+  --ll-word-options-mobile-label: #1d2327;
+}
+
 .ll-tools-word-options .ll-tools-word-options-filter,
 .ll-tools-word-options .ll-tools-word-options-pair-add {
   display: flex;
@@ -233,6 +240,18 @@
   text-align: center;
 }
 
+.ll-tools-word-options .ll-tools-word-options-group-check {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.ll-tools-word-options .ll-tools-word-options-group-cell-label {
+  display: none;
+}
+
 .ll-tools-word-options .ll-tools-word-options-group-check input[type="checkbox"] {
   transform: scale(1.05);
 }
@@ -392,6 +411,99 @@
   vertical-align: middle;
 }
 
+@media (max-width: 782px) {
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups {
+    overflow: visible;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table {
+    display: block;
+    min-width: 0;
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table thead {
+    border: 0;
+    clip: rect(0, 0, 0, 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] {
+    background: var(--ll-word-options-mobile-card-bg);
+    border: 1px solid var(--ll-word-options-mobile-border);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] > td {
+    background: transparent;
+    border: 0;
+    display: block;
+    padding: 0;
+    width: 100%;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] > .ll-tools-word-options-word {
+    gap: 4px;
+    min-width: 0;
+    order: 1;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] > .ll-tools-word-options-media:nth-child(1) {
+    order: 2;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] > .ll-tools-word-options-media:nth-child(2) {
+    order: 3;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] > .ll-tools-word-options-media {
+    min-width: 0;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table tbody tr[data-word-id] > .ll-tools-word-options-group-cell {
+    border-top: 1px solid var(--ll-word-options-mobile-divider);
+    min-width: 0;
+    order: 4;
+    padding-top: 10px;
+    text-align: left;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-group-check {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-group-cell-label {
+    color: var(--ll-word-options-mobile-label);
+    display: block;
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups .ll-tools-word-options-group-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+}
+
 body.ll-tools-word-options-iframe {
   background: #f6f1e6;
   overflow-x: hidden;
@@ -425,6 +537,10 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   --ll-word-options-accent: #1f6b5c;
   --ll-word-options-accent-strong: #174f44;
   --ll-word-options-soft: #eef5f0;
+  --ll-word-options-mobile-card-bg: rgba(255, 255, 255, 0.96);
+  --ll-word-options-mobile-border: #e5dccd;
+  --ll-word-options-mobile-divider: #ece2d2;
+  --ll-word-options-mobile-label: #2d2a25;
   background:
     radial-gradient(circle at top left, rgba(31, 107, 92, 0.08), transparent 38%),
     linear-gradient(180deg, #f8f5ee 0%, #f4efe4 100%);
