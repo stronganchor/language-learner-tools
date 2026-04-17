@@ -445,19 +445,23 @@ add_action('admin_init', 'll_tools_dictionary_lookup_maybe_process_admin_batch',
  * @param string[] $statuses Allowed post statuses.
  * @return int[]
  */
-function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, array $statuses): array {
+function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, array $statuses, string $search_scope = 'all'): array {
     static $request_cache = [];
     global $wpdb;
 
     $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
         ? ll_tools_dictionary_entry_normalize_lookup_value($search)
         : trim(strtolower($search));
+    $search_scope = function_exists('ll_tools_dictionary_normalize_search_scope')
+        ? ll_tools_dictionary_normalize_search_scope($search_scope)
+        : trim(strtolower($search_scope));
     if ($lookup === '' || empty($statuses) || !ll_tools_dictionary_lookup_is_ready()) {
         return [];
     }
 
     $cache_args = [
         'search' => $lookup,
+        'search_scope' => $search_scope,
         'statuses' => array_values($statuses),
     ];
     $cached = function_exists('ll_tools_dictionary_browser_get_cached_payload')
@@ -477,6 +481,12 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
     $contains_lookup = '%' . $wpdb->esc_like($lookup) . '%';
     $lookup_length = function_exists('mb_strlen') ? mb_strlen($lookup, 'UTF-8') : strlen($lookup);
     $use_contains = ($lookup_length >= 3);
+    $kind_where = '';
+    if ($search_scope === 'headword') {
+        $kind_where = " AND l.lookup_kind = 'headword'";
+    } elseif ($search_scope !== '' && $search_scope !== 'all') {
+        $kind_where = " AND l.lookup_kind = 'translation'";
+    }
 
     $case_sql = "
         CASE
@@ -522,6 +532,7 @@ function ll_tools_dictionary_query_entry_ids_from_lookup_table(string $search, a
                 ON p.ID = l.entry_id
         WHERE p.post_type = 'll_dictionary_entry'
           AND p.post_status IN ({$status_placeholders})
+          {$kind_where}
           AND {$where_sql}
         GROUP BY l.entry_id, p.post_title
         ORDER BY

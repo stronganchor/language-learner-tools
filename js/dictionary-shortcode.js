@@ -20,9 +20,10 @@
         const toolbar = root.querySelector('.ll-dictionary__toolbar');
         const resetLink = root.querySelector('[data-ll-dictionary-reset]');
         const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
+        const scopeInput = form ? form.querySelector('select[name="ll_dictionary_scope"]') : null;
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
 
-        if (!form || !results || !toolbar || !searchInput || !letterInput) {
+        if (!form || !results || !toolbar || !searchInput || !scopeInput || !letterInput) {
             return;
         }
 
@@ -191,6 +192,7 @@
             linkedWordLimit: root.dataset.linkedWordLimit || '4',
             glossLang: root.dataset.glossLang || '',
             query: String(searchInput.value || '').trim(),
+            scope: getFieldValue('ll_dictionary_scope') || 'all',
             letter: String(letterInput.value || '').trim(),
             pos: getFieldValue('ll_dictionary_pos'),
             source: getFieldValue('ll_dictionary_source'),
@@ -228,6 +230,7 @@
             payload.set('gloss_lang', root.dataset.glossLang || '');
             payload.set('base_url', root.dataset.baseUrl || window.location.href);
             payload.set('ll_dictionary_q', String(searchInput.value || '').trim());
+            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
             payload.set('ll_dictionary_page', String(Math.max(1, page || 1)));
             payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
@@ -325,7 +328,7 @@
             scheduleLiveSearch();
         });
 
-        ['ll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].forEach((name) => {
+        ['ll_dictionary_scope', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].forEach((name) => {
             const field = form.elements.namedItem(name);
             if (field) {
                 field.addEventListener('change', () => {
@@ -353,7 +356,11 @@
         if (resetLink) {
             resetLink.addEventListener('click', (event) => {
                 event.preventDefault();
-                form.reset();
+                setFieldValue('ll_dictionary_q', '');
+                setFieldValue('ll_dictionary_scope', 'all');
+                setFieldValue('ll_dictionary_pos', '');
+                setFieldValue('ll_dictionary_source', '');
+                setFieldValue('ll_dictionary_dialect', '');
                 letterInput.value = '';
                 clearResults();
             });
@@ -396,6 +403,7 @@
             event.preventDefault();
 
             searchInput.value = url.searchParams.get('ll_dictionary_q') || '';
+            setFieldValue('ll_dictionary_scope', url.searchParams.get('ll_dictionary_scope') || 'all');
             letterInput.value = url.searchParams.get('ll_dictionary_letter') || '';
             setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
             setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');

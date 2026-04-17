@@ -329,6 +329,106 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, $lookup_count);
     }
 
+    public function test_dictionary_search_scope_limits_headwords_and_language_specific_translations(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        ll_tools_install_dictionary_lookup_schema();
+
+        $translation_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Ava',
+                'definition' => 'water',
+                'entry_type' => 'noun',
+                'translations' => [
+                    'tr' => 'su',
+                    'en' => 'water',
+                    'de' => 'Wasser',
+                ],
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+        $headword_result = ll_tools_dictionary_upsert_entry_from_rows([
+            [
+                'entry' => 'Su',
+                'definition' => 'spring',
+                'entry_type' => 'noun',
+                'translations' => [
+                    'tr' => 'kaynak',
+                    'en' => 'spring',
+                    'de' => 'Quelle',
+                ],
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertIsArray($translation_result);
+        $this->assertIsArray($headword_result);
+
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
+        ll_tools_dictionary_lookup_process_rebuild_batch();
+
+        $all_query = ll_tools_dictionary_query_entries([
+            'search' => 'su',
+            'search_scope' => 'all',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $translation_query = ll_tools_dictionary_query_entries([
+            'search' => 'su',
+            'search_scope' => 'tr',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+        $headword_query = ll_tools_dictionary_query_entries([
+            'search' => 'su',
+            'search_scope' => 'headword',
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
+
+        $all_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($all_query['items'] ?? [])));
+        $translation_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($translation_query['items'] ?? [])));
+        $headword_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($headword_query['items'] ?? [])));
+
+        $this->assertSame(['Su', 'Ava'], array_slice($all_titles, 0, 2));
+        $this->assertSame(['Ava'], $translation_titles);
+        $this->assertSame(['Su'], $headword_titles);
+
+        $_GET = [
+            'll_dictionary_q' => 'su',
+            'll_dictionary_scope' => 'tr',
+        ];
+        $html = do_shortcode('[ll_dictionary]');
+        $this->assertStringContainsString('name="ll_dictionary_scope"', $html);
+        $this->assertStringContainsString('value="tr" selected=\'selected\'', $html);
+    }
+
     public function test_dictionary_import_job_processes_rows_in_batches_with_resume_snapshot(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

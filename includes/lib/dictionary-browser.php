@@ -199,6 +199,55 @@ function ll_tools_dictionary_normalize_language_key(string $value): string {
 }
 
 /**
+ * Normalize a public dictionary search scope value.
+ */
+function ll_tools_dictionary_normalize_search_scope(string $value): string {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return 'all';
+    }
+
+    $normalized = strtolower(preg_replace('/[^a-z0-9_-]+/i', '', $value) ?? '');
+    if ($normalized === '' || $normalized === 'all') {
+        return 'all';
+    }
+
+    if (in_array($normalized, ['headword', 'entry', 'title', 'zazaki'], true)) {
+        return 'headword';
+    }
+
+    $language_key = ll_tools_dictionary_normalize_language_key($value);
+    if ($language_key === '') {
+        return 'all';
+    }
+
+    if (in_array($language_key, ['zza', 'diq', 'kiu'], true)) {
+        return 'headword';
+    }
+
+    return $language_key;
+}
+
+/**
+ * Determine whether a search scope should only match entry/headword text.
+ */
+function ll_tools_dictionary_search_scope_uses_headword(string $scope): bool {
+    return ll_tools_dictionary_normalize_search_scope($scope) === 'headword';
+}
+
+/**
+ * Resolve a requested translation language code from a search scope.
+ */
+function ll_tools_dictionary_search_scope_translation_language(string $scope): string {
+    $scope = ll_tools_dictionary_normalize_search_scope($scope);
+    if ($scope === 'all' || $scope === 'headword') {
+        return '';
+    }
+
+    return $scope;
+}
+
+/**
  * Normalize one browse-letter value for the current dictionary title language.
  */
 function ll_tools_dictionary_normalize_browse_letter(string $value, string $language = ''): string {
@@ -2061,6 +2110,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     global $wpdb;
 
     $search = trim((string) ($args['search'] ?? ''));
+    $search_scope = ll_tools_dictionary_normalize_search_scope((string) ($args['search_scope'] ?? 'all'));
     $page = max(1, (int) ($args['page'] ?? 1));
     $per_page = max(1, min(100, (int) ($args['per_page'] ?? 20)));
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
@@ -2087,6 +2137,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
     $cache_args = [
         'search' => $search,
+        'search_scope' => $search_scope,
         'page' => $page,
         'per_page' => $per_page,
         'wordset_id' => $wordset_id,
@@ -2120,10 +2171,10 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         && ll_tools_dictionary_lookup_is_ready()
         && function_exists('ll_tools_dictionary_query_entry_ids_from_lookup_table')
     ) {
-        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses);
-        $search_results_pre_ranked = !empty($candidate_ids);
+        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope);
+        $search_results_pre_ranked = ($search_scope === 'all') && !empty($candidate_ids);
         if (!empty($candidate_ids)) {
-            $needs_meta_cache = ($pos_slug !== '' || $source_id !== '' || $dialect !== '');
+            $needs_meta_cache = ($search_scope !== 'all' || $pos_slug !== '' || $source_id !== '' || $dialect !== '');
             if ($needs_meta_cache) {
                 update_postmeta_cache($candidate_ids);
             }
@@ -2257,6 +2308,12 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         if ($letter !== '' && !ll_tools_dictionary_entry_matches_browse_letter($entry_id, $letter, $title_language)) {
             continue;
         }
+        if ($search !== '' && $search_scope !== 'all') {
+            $rank = ll_tools_dictionary_get_entry_search_rank($entry_id, $search, $search_scope);
+            if ((int) ($rank['bucket'] ?? 7) >= 7) {
+                continue;
+            }
+        }
 
         $filtered_ids[] = $entry_id;
     }
@@ -2275,9 +2332,9 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             return $left_id <=> $right_id;
         });
     } elseif ($search !== '' && !empty($filtered_ids) && !$search_results_pre_ranked) {
-        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $title_language): int {
-            $left_rank = ll_tools_dictionary_get_entry_search_rank($left_id, $search);
-            $right_rank = ll_tools_dictionary_get_entry_search_rank($right_id, $search);
+        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $search_scope, $title_language): int {
+            $left_rank = ll_tools_dictionary_get_entry_search_rank($left_id, $search, $search_scope);
+            $right_rank = ll_tools_dictionary_get_entry_search_rank($right_id, $search, $search_scope);
 
             foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
                 $compared = ((int) ($left_rank[$field] ?? 0)) <=> ((int) ($right_rank[$field] ?? 0));
@@ -2726,16 +2783,17 @@ function ll_tools_dictionary_get_entry_headword_candidates(int $entry_id, array 
  * @param array<int,array<string,mixed>> $senses Entry senses.
  * @return string[]
  */
-function ll_tools_dictionary_get_entry_translation_candidates(array $senses): array {
+function ll_tools_dictionary_get_entry_translation_candidates(array $senses, string $requested_language = 'auto'): array {
     $candidates = [];
     $seen = [];
+    $allow_fallback = ($requested_language === '' || strtolower($requested_language) === 'auto');
 
     foreach ($senses as $sense) {
         if (!is_array($sense)) {
             continue;
         }
 
-        foreach (ll_tools_dictionary_get_sense_lookup_candidates($sense, 'auto', true) as $candidate) {
+        foreach (ll_tools_dictionary_get_sense_lookup_candidates($sense, $requested_language, $allow_fallback) as $candidate) {
             $candidate = trim((string) $candidate);
             $lookup = ll_tools_dictionary_entry_normalize_lookup_value($candidate);
             if ($candidate === '' || $lookup === '' || isset($seen[$lookup])) {
@@ -2755,12 +2813,13 @@ function ll_tools_dictionary_get_entry_translation_candidates(array $senses): ar
  *
  * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
  */
-function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term): array {
+function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term, string $scope = 'all'): array {
     static $request_cache = [];
 
     $entry_id = (int) $entry_id;
     $term = trim((string) $term);
-    $cache_key = $entry_id . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
+    $scope = ll_tools_dictionary_normalize_search_scope($scope);
+    $cache_key = $entry_id . ':' . $scope . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
     if ($cache_key !== '' && isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
         return $request_cache[$cache_key];
     }
@@ -2772,8 +2831,15 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term):
     $title = trim((string) get_the_title($entry_id));
     $title_length = $title !== '' ? $measure_length($title) : PHP_INT_MAX;
     $senses = ll_tools_get_dictionary_entry_senses($entry_id);
-    $headword_candidates = ll_tools_dictionary_get_entry_headword_candidates($entry_id, $senses);
-    $translation_candidates = ll_tools_dictionary_get_entry_translation_candidates($senses);
+    $translation_language = ll_tools_dictionary_search_scope_translation_language($scope);
+    $use_headword = ($scope === 'all' || ll_tools_dictionary_search_scope_uses_headword($scope));
+    $use_translation = ($scope === 'all' || $translation_language !== '');
+    $headword_candidates = $use_headword
+        ? ll_tools_dictionary_get_entry_headword_candidates($entry_id, $senses)
+        : [];
+    $translation_candidates = $use_translation
+        ? ll_tools_dictionary_get_entry_translation_candidates($senses, $translation_language !== '' ? $translation_language : 'auto')
+        : [];
 
     $headword_score = 99;
     $headword_length = PHP_INT_MAX;
@@ -2797,7 +2863,9 @@ function ll_tools_dictionary_get_entry_search_rank(int $entry_id, string $term):
         }
     }
 
-    $search_index = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, true));
+    $search_index = ($scope === 'all')
+        ? trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY, true))
+        : '';
     $fulltext_score = $search_index !== '' ? ll_tools_dictionary_lookup_text_score($search_index, $term) : 99;
 
     $bucket = 7;

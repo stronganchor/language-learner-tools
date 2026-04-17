@@ -76,6 +76,10 @@
     flex: 0 1 220px;
 }
 
+.ll-dictionary__field--scope {
+    flex-basis: 170px;
+}
+
 .ll-dictionary__input,
 .ll-dictionary__select,
 .ll-dictionary__button,
