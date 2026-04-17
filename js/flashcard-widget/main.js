@@ -3765,6 +3765,16 @@
         if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') return Promise.resolve(false);
         const audio = audioApi.getCurrentTargetAudio();
         if (!audio) return Promise.resolve(false);
+        if (audioApi && typeof audioApi.waitForAudioPlayable === 'function') {
+            return Promise.resolve(audioApi.waitForAudioPlayable(audio, {
+                minReadyState: 3,
+                timeoutMs: Math.max(1200, timeoutMs)
+            })).then(function (ready) {
+                return !!ready;
+            }).catch(function () {
+                return !!(audio.readyState >= 2 && !audio.error);
+            });
+        }
         if (audio.readyState >= 2 && !audio.error) return Promise.resolve(true);
 
         return new Promise(function (resolve) {

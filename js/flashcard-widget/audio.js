@@ -79,6 +79,12 @@
         function initializeAudio() {
             correctAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/right-answer.mp3');
             wrongAudio = new Audio(llToolsFlashcardsData.plugin_dir + './media/wrong-answer.mp3');
+            correctAudio.__options = { type: 'feedback-correct', minReadyState: 2, readyTimeoutMs: 900 };
+            wrongAudio.__options = { type: 'feedback-wrong', minReadyState: 2, readyTimeoutMs: 900 };
+            try { correctAudio.preload = 'auto'; } catch (_) { /* no-op */ }
+            try { wrongAudio.preload = 'auto'; } catch (_) { /* no-op */ }
+            try { correctAudio.load(); } catch (_) { /* no-op */ }
+            try { wrongAudio.load(); } catch (_) { /* no-op */ }
 
             // Mark feedback audio with special session ID so they're never cleaned up
             correctAudio.__sessionId = -1;
@@ -119,9 +125,10 @@
             var audio = document.createElement('audio');
             // Required for analyser/visualizer usage on cross-origin audio (B2, CDN, etc.).
             audio.crossOrigin = 'anonymous';
-            audio.src = resolvedUrl;
             audio.__sessionId = currentSession;
             audio.__options = options;
+            try { audio.preload = 'auto'; } catch (_) { /* no-op */ }
+            audio.src = resolvedUrl;
 
             // Register it
             activeAudioElements.set(audio, currentSession);
@@ -133,6 +140,146 @@
             }, { once: true });
 
             return audio;
+        }
+
+        function getAudioDesiredReadyState(audio, overrideState) {
+            var numeric = parseInt(overrideState, 10);
+            if (numeric >= 4) { return 4; }
+            if (numeric >= 3) { return 3; }
+            if (numeric >= 2) { return 2; }
+
+            var options = (audio && audio.__options && typeof audio.__options === 'object')
+                ? audio.__options
+                : {};
+            var configured = parseInt(options.minReadyState, 10);
+            if (configured >= 4) { return 4; }
+            if (configured >= 3) { return 3; }
+            if (configured >= 2) { return 2; }
+
+            var type = String(options.type || '').trim().toLowerCase();
+            if (type === 'target' || type === 'introduction') {
+                return 3;
+            }
+
+            return 2;
+        }
+
+        function getAudioReadyTimeout(audio, overrideMs) {
+            var numeric = parseInt(overrideMs, 10);
+            if (numeric > 0) {
+                return numeric;
+            }
+
+            var options = (audio && audio.__options && typeof audio.__options === 'object')
+                ? audio.__options
+                : {};
+            var configured = parseInt(options.readyTimeoutMs, 10);
+            if (configured > 0) {
+                return configured;
+            }
+
+            var type = String(options.type || '').trim().toLowerCase();
+            if (type === 'target' || type === 'introduction') {
+                return 1800;
+            }
+
+            return 900;
+        }
+
+        function isAudioPlayable(audio, minReadyState) {
+            if (!audio) {
+                return false;
+            }
+
+            try {
+                if (audio.error) {
+                    return false;
+                }
+            } catch (_) { /* no-op */ }
+
+            var desiredReadyState = getAudioDesiredReadyState(audio, minReadyState);
+            var readyState = 0;
+
+            try {
+                readyState = (typeof audio.readyState === 'number') ? audio.readyState : 0;
+            } catch (_) {
+                readyState = 0;
+            }
+
+            return readyState >= desiredReadyState;
+        }
+
+        function waitForAudioPlayable(audio, options) {
+            options = options || {};
+
+            if (!audio) {
+                return Promise.resolve(false);
+            }
+
+            var desiredReadyState = getAudioDesiredReadyState(audio, options.minReadyState);
+            if (isAudioPlayable(audio, desiredReadyState)) {
+                return Promise.resolve(true);
+            }
+
+            return new Promise(function (resolve) {
+                var settled = false;
+                var timeoutId = null;
+
+                var checkReady = function () {
+                    if (isAudioPlayable(audio, desiredReadyState)) {
+                        finish(true);
+                    }
+                };
+
+                var detach = function () {
+                    try { audio.removeEventListener('canplaythrough', checkReady); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('canplay', checkReady); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadeddata', checkReady); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('loadedmetadata', checkReady); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('progress', checkReady); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('playing', checkReady); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('error', onFailure); } catch (_) { /* no-op */ }
+                    try { audio.removeEventListener('abort', onFailure); } catch (_) { /* no-op */ }
+                };
+
+                var finish = function (ready) {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                        timeoutId = null;
+                    }
+                    detach();
+                    resolve(!!ready);
+                };
+
+                var onFailure = function () {
+                    finish(false);
+                };
+
+                try { audio.addEventListener('canplaythrough', checkReady, { once: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('canplay', checkReady, { once: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('loadeddata', checkReady, { once: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('loadedmetadata', checkReady, { once: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('progress', checkReady, { passive: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('playing', checkReady, { once: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('error', onFailure, { once: true }); } catch (_) { /* no-op */ }
+                try { audio.addEventListener('abort', onFailure, { once: true }); } catch (_) { /* no-op */ }
+
+                timeoutId = setTimeout(function () {
+                    var fallbackReady = false;
+                    try {
+                        fallbackReady = !!(audio && typeof audio.readyState === 'number' && audio.readyState >= 2 && !audio.error);
+                    } catch (_) {
+                        fallbackReady = false;
+                    }
+                    finish(fallbackReady);
+                }, Math.max(250, getAudioReadyTimeout(audio, options.timeoutMs)));
+
+                checkReady();
+            });
         }
 
         /**
@@ -187,38 +334,57 @@
                 return Promise.resolve();
             }
 
-            try {
-                // Reset if already playing
-                if (!audio.paused) {
-                    audio.pause();
-                    audio.currentTime = 0;
+            return waitForAudioPlayable(audio).catch(function () {
+                return false;
+            }).then(function () {
+                if (playbackSuspended) {
+                    log('Audio: Playback suspended after readiness wait, skipping play request');
+                    return stopAudio(audio).then(function () { return; });
                 }
 
-                if (isAudioMutedForQuizGate(audio) && requestQuizSoundGate(audio, { reason: 'muted', force: false })) {
-                    return Promise.reject(new Error('Quiz audio is muted'));
+                if (!isCurrentSession(audio)) {
+                    log('Audio: Ignoring ready play from old session');
+                    return;
                 }
 
-                return audio.play().catch(function (e) {
-                    // Browser-specific interruption when a late pause hits just after play()
-                    if (e && e.name === 'AbortError') {
-                        // Retry once after a short tick *if* we're still in the current session
-                        return new Promise(function (r) { setTimeout(r, 80); }).then(function () {
-                            if (!isCurrentSession(audio)) return;
-                            return audio.play().catch(function () { /* swallow second abort */ });
-                        });
+                try {
+                    // Reset if already playing
+                    if (!audio.paused) {
+                        audio.pause();
+                        audio.currentTime = 0;
                     }
 
-                    if (e.name === 'NotAllowedError' && !autoplayBlocked) {
-                        autoplayBlocked = true;
-                        requestQuizSoundGate(audio, { reason: 'autoplay-blocked', force: false });
+                    if (isAudioMutedForQuizGate(audio) && requestQuizSoundGate(audio, { reason: 'muted', force: false })) {
+                        return Promise.reject(new Error('Quiz audio is muted'));
                     }
-                    error('Audio: Play failed', e);
-                    throw e;
-                });
-            } catch (e) {
-                error('Audio: Play error', e);
-                return Promise.reject(e);
-            }
+
+                    return audio.play().catch(function (e) {
+                        // Browser-specific interruption when a late pause hits just after play()
+                        if (e && e.name === 'AbortError') {
+                            // Retry once after a short tick *if* we're still in the current session
+                            return new Promise(function (r) { setTimeout(r, 80); }).then(function () {
+                                if (!isCurrentSession(audio)) return;
+                                return waitForAudioPlayable(audio).catch(function () {
+                                    return false;
+                                }).then(function () {
+                                    if (!isCurrentSession(audio)) return;
+                                    return audio.play().catch(function () { /* swallow second abort */ });
+                                });
+                            });
+                        }
+
+                        if (e.name === 'NotAllowedError' && !autoplayBlocked) {
+                            autoplayBlocked = true;
+                            requestQuizSoundGate(audio, { reason: 'autoplay-blocked', force: false });
+                        }
+                        error('Audio: Play failed', e);
+                        throw e;
+                    });
+                } catch (e) {
+                    error('Audio: Play error', e);
+                    return Promise.reject(e);
+                }
+            });
         }
 
         /**
@@ -509,6 +675,8 @@
             var audioElement = document.createElement('audio');
             try { audioElement.controls = true; } catch (_) { /* no-op */ }
             try { audioElement.crossOrigin = 'anonymous'; } catch (_) { /* no-op */ }
+            try { audioElement.preload = 'auto'; } catch (_) { /* no-op */ }
+            audioElement.__options = { type: 'target', minReadyState: 3, readyTimeoutMs: 2200 };
             audioElement.src = audioSrc;
             if (mount) {
                 mount.appendChild(audioElement);
@@ -518,9 +686,7 @@
 
             currentTargetAudio = audioElement;
             currentTargetAudio.__sessionId = currentSession;
-            currentTargetAudio.__options = { type: 'target' };
             activeAudioElements.set(currentTargetAudio, currentSession);
-            try { currentTargetAudio.preload = 'auto'; } catch (_) { /* no-op */ }
             try { currentTargetAudio.load(); } catch (_) { /* no-op */ }
 
             targetAudioHasPlayed = false;
@@ -703,6 +869,7 @@
             createIntroductionAudio: createIntroductionAudio,
             isCurrentSession: isCurrentSession,
             playAudio: playAudio,
+            waitForAudioPlayable: waitForAudioPlayable,
             pauseAllAudio: pauseAllAudio,
             suspendPlayback: suspendPlayback,
             // Expose full-session flush so callers can clean everything
