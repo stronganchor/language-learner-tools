@@ -57,6 +57,9 @@ function ll_tools_get_content_lesson_card_data(WP_Post $lesson): array {
         'prereq_category_ids' => function_exists('ll_tools_get_content_lesson_prereq_category_ids')
             ? ll_tools_get_content_lesson_prereq_category_ids((int) $lesson->ID)
             : [],
+        'prereq_lesson_ids' => function_exists('ll_tools_get_content_lesson_prereq_lesson_ids')
+            ? ll_tools_get_content_lesson_prereq_lesson_ids((int) $lesson->ID)
+            : [],
         'menu_order' => isset($lesson->menu_order) ? (int) $lesson->menu_order : 0,
     ];
 }

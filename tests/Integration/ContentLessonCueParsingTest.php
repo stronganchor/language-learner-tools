@@ -199,6 +199,62 @@ TSV;
         );
     }
 
+    public function test_content_lesson_save_filters_content_lesson_prerequisites_to_same_wordset_lessons(): void
+    {
+        $fixture = $this->createMixedLessonFixture();
+        $this->setCurrentUserWithViewCapability();
+
+        $valid_prereq_lesson_id = $this->createPublishedContentLesson(
+            (int) $fixture['wordset_id'],
+            'Earlier Story',
+            [(int) $fixture['category_b_id']],
+            [
+                'show_in_mix' => true,
+                'prereq_category_ids' => [(int) $fixture['category_a_id']],
+            ]
+        );
+
+        $other_wordset = wp_insert_term('Other Content Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertIsArray($other_wordset);
+        $other_wordset_id = (int) ($other_wordset['term_id'] ?? 0);
+        $invalid_prereq_lesson_id = $this->createPublishedContentLesson(
+            $other_wordset_id,
+            'Wrong Wordset Story',
+            []
+        );
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'draft',
+            'post_title' => 'Follow-Up Story',
+        ]);
+        $lesson = get_post($lesson_id);
+        $this->assertInstanceOf(WP_Post::class, $lesson);
+
+        $_POST = [
+            'll_tools_content_lesson_nonce' => wp_create_nonce('ll_tools_content_lesson_save'),
+            'll_content_lesson_wordset_id' => (string) $fixture['wordset_id'],
+            'll_content_lesson_media_type' => 'audio',
+            'll_content_lesson_media_url' => 'https://example.com/follow-up-story.mp3',
+            'll_content_lesson_transcript_format' => 'auto',
+            'll_content_lesson_transcript_source' => '',
+            'll_content_lesson_category_ids' => [(string) $fixture['category_c_id']],
+            'll_content_lesson_show_in_mix' => '1',
+            'll_content_lesson_prereq_lesson_ids' => [
+                (string) $valid_prereq_lesson_id,
+                (string) $invalid_prereq_lesson_id,
+                (string) $lesson_id,
+            ],
+        ];
+
+        ll_tools_save_content_lesson_metabox($lesson_id, $lesson);
+
+        $this->assertSame(
+            [$valid_prereq_lesson_id],
+            ll_tools_get_content_lesson_prereq_lesson_ids($lesson_id)
+        );
+    }
+
     public function test_wordset_page_renders_mixed_content_lessons_between_vocab_cards(): void
     {
         $fixture = $this->createMixedLessonFixture();
@@ -265,6 +321,80 @@ TSV;
         $this->assertTrue($bravo_pos < $content_pos);
         $this->assertTrue($content_pos < $charlie_pos);
         $this->assertStringContainsString('ll-wordset-card ll-wordset-card--content', $html);
+    }
+
+    public function test_wordset_page_renders_content_lesson_prerequisites_in_sequence(): void
+    {
+        $fixture = $this->createMixedLessonFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $bridge_lesson_id = $this->createPublishedContentLesson(
+            $wordset_id,
+            'Bridge Story',
+            [(int) $fixture['category_c_id']],
+            [
+                'show_in_mix' => true,
+                'prereq_category_ids' => [(int) $fixture['category_b_id']],
+                'menu_order' => 5,
+                'excerpt' => 'Story first.',
+            ]
+        );
+        $practice_lesson_id = $this->createPublishedContentLesson(
+            $wordset_id,
+            'Bridge Practice',
+            [(int) $fixture['category_c_id']],
+            [
+                'show_in_mix' => true,
+                'prereq_lesson_ids' => [$bridge_lesson_id],
+                'menu_order' => 10,
+                'excerpt' => 'Practice second.',
+            ]
+        );
+
+        $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
+            if ((int) $filter_wordset_id > 0 && (string) $view === 'main') {
+                return false;
+            }
+            return (bool) $should_bootstrap;
+        };
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 4);
+
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        try {
+            try {
+                $html = ll_tools_render_wordset_page_content($wordset_id, [
+                    'show_title' => false,
+                    'wrapper_tag' => 'div',
+                ]);
+            } finally {
+                $_GET = $original_get;
+                set_query_var('ll_wordset_page', $original_wordset_page);
+                set_query_var('ll_wordset_view', $original_wordset_view);
+            }
+        } finally {
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
+        }
+
+        $bravo_pos = strpos($html, 'data-cat-id="' . (int) $fixture['category_b_id'] . '"');
+        $bridge_pos = strpos($html, 'data-lesson-id="' . $bridge_lesson_id . '"');
+        $practice_pos = strpos($html, 'data-lesson-id="' . $practice_lesson_id . '"');
+        $charlie_pos = strpos($html, 'data-cat-id="' . (int) $fixture['category_c_id'] . '"');
+
+        $this->assertNotFalse($bravo_pos);
+        $this->assertNotFalse($bridge_pos);
+        $this->assertNotFalse($practice_pos);
+        $this->assertNotFalse($charlie_pos);
+        $this->assertTrue($bravo_pos < $bridge_pos);
+        $this->assertTrue($bridge_pos < $practice_pos);
+        $this->assertTrue($practice_pos < $charlie_pos);
     }
 
     public function test_content_lesson_metabox_renders_translated_media_url_placeholder(): void
@@ -391,6 +521,43 @@ TSV;
         $result = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
         $this->assertIsArray($result);
         $this->assertNotEmpty((int) ($result['post_id'] ?? 0));
+    }
+
+    private function createPublishedContentLesson(int $wordset_id, string $title, array $category_ids, array $args = []): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => $title,
+            'post_excerpt' => (string) ($args['excerpt'] ?? ''),
+            'menu_order' => isset($args['menu_order']) ? (int) $args['menu_order'] : 0,
+        ]);
+
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, (string) ($args['media_type'] ?? 'audio'));
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_CATEGORY_IDS_META, array_values(array_map('intval', $category_ids)));
+
+        if (!empty($args['show_in_mix'])) {
+            update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_SHOW_IN_MIX_META, '1');
+        }
+
+        if (!empty($args['prereq_category_ids'])) {
+            update_post_meta(
+                $lesson_id,
+                LL_TOOLS_CONTENT_LESSON_PREREQ_CATEGORY_IDS_META,
+                array_values(array_map('intval', (array) $args['prereq_category_ids']))
+            );
+        }
+
+        if (!empty($args['prereq_lesson_ids'])) {
+            update_post_meta(
+                $lesson_id,
+                LL_TOOLS_CONTENT_LESSON_PREREQ_LESSON_IDS_META,
+                array_values(array_map('intval', (array) $args['prereq_lesson_ids']))
+            );
+        }
+
+        return $lesson_id;
     }
 
     private function createWordWithAudio(string $title, string $translation, int $category_id, int $wordset_id, string $audio_file_name): int

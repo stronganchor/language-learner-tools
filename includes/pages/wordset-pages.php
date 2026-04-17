@@ -845,44 +845,8 @@ function ll_tools_wordset_page_build_mixed_lesson_cards(array $ordered_categorie
         return [];
     }
 
-    $category_order_lookup = [];
-    foreach ($ordered_categories as $index => $category) {
-        if (!is_array($category)) {
-            continue;
-        }
-
-        $category_id = isset($category['id']) ? (int) $category['id'] : 0;
-        if ($category_id > 0) {
-            $category_order_lookup[$category_id] = (int) $index;
-        }
-    }
-
-    $content_buckets = [];
-    foreach ($content_lessons as $lesson) {
-        if (!is_array($lesson) || empty($lesson['show_in_mix'])) {
-            continue;
-        }
-
-        $anchor_index = -1;
-        $prereq_ids = array_values(array_filter(array_map('intval', (array) ($lesson['prereq_category_ids'] ?? [])), static function (int $category_id): bool {
-            return $category_id > 0;
-        }));
-
-        foreach ($prereq_ids as $prereq_id) {
-            if (isset($category_order_lookup[$prereq_id])) {
-                $anchor_index = max($anchor_index, (int) $category_order_lookup[$prereq_id]);
-            }
-        }
-
-        if (!isset($content_buckets[$anchor_index]) || !is_array($content_buckets[$anchor_index])) {
-            $content_buckets[$anchor_index] = [];
-        }
-
-        $content_buckets[$anchor_index][] = $lesson;
-    }
-
-    foreach ($content_buckets as &$bucket) {
-        usort($bucket, static function (array $left, array $right): int {
+    $sort_lessons = static function (array &$lessons): void {
+        uasort($lessons, static function (array $left, array $right): int {
             $left_menu_order = isset($left['menu_order']) ? (int) $left['menu_order'] : 0;
             $right_menu_order = isset($right['menu_order']) ? (int) $right['menu_order'] : 0;
             if ($left_menu_order !== $right_menu_order) {
@@ -900,8 +864,91 @@ function ll_tools_wordset_page_build_mixed_lesson_cards(array $ordered_categorie
 
             return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
         });
+    };
+
+    $category_order_lookup = [];
+    foreach ($ordered_categories as $index => $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        $category_id = isset($category['id']) ? (int) $category['id'] : 0;
+        if ($category_id > 0) {
+            $category_order_lookup[$category_id] = (int) $index;
+        }
     }
-    unset($bucket);
+
+    $pending_lessons = [];
+    foreach ($content_lessons as $lesson) {
+        if (!is_array($lesson) || empty($lesson['show_in_mix'])) {
+            continue;
+        }
+
+        $lesson_id = isset($lesson['id']) ? (int) $lesson['id'] : 0;
+        if ($lesson_id <= 0) {
+            continue;
+        }
+
+        $pending_lessons[$lesson_id] = $lesson;
+    }
+    $sort_lessons($pending_lessons);
+
+    $content_buckets = [];
+    $placed_lesson_anchor_lookup = [];
+    while (!empty($pending_lessons)) {
+        $ready_lessons = [];
+        foreach ($pending_lessons as $lesson_id => $lesson) {
+            $prereq_lesson_ids = array_values(array_filter(array_map('intval', (array) ($lesson['prereq_lesson_ids'] ?? [])), static function (int $prereq_lesson_id): bool {
+                return $prereq_lesson_id > 0;
+            }));
+            $is_ready = true;
+            foreach ($prereq_lesson_ids as $prereq_lesson_id) {
+                if (isset($pending_lessons[$prereq_lesson_id])) {
+                    $is_ready = false;
+                    break;
+                }
+            }
+
+            if ($is_ready) {
+                $ready_lessons[$lesson_id] = $lesson;
+            }
+        }
+
+        if (empty($ready_lessons)) {
+            $ready_lessons = $pending_lessons;
+        }
+        $sort_lessons($ready_lessons);
+
+        foreach ($ready_lessons as $lesson_id => $lesson) {
+            unset($pending_lessons[$lesson_id]);
+
+            $prereq_category_ids = array_values(array_filter(array_map('intval', (array) ($lesson['prereq_category_ids'] ?? [])), static function (int $category_id): bool {
+                return $category_id > 0;
+            }));
+            $anchor_index = -1;
+            foreach ($prereq_category_ids as $prereq_category_id) {
+                if (isset($category_order_lookup[$prereq_category_id])) {
+                    $anchor_index = max($anchor_index, (int) $category_order_lookup[$prereq_category_id]);
+                }
+            }
+
+            $prereq_lesson_ids = array_values(array_filter(array_map('intval', (array) ($lesson['prereq_lesson_ids'] ?? [])), static function (int $prereq_lesson_id): bool {
+                return $prereq_lesson_id > 0;
+            }));
+            foreach ($prereq_lesson_ids as $prereq_lesson_id) {
+                if (isset($placed_lesson_anchor_lookup[$prereq_lesson_id])) {
+                    $anchor_index = max($anchor_index, (int) $placed_lesson_anchor_lookup[$prereq_lesson_id]);
+                }
+            }
+
+            if (!isset($content_buckets[$anchor_index]) || !is_array($content_buckets[$anchor_index])) {
+                $content_buckets[$anchor_index] = [];
+            }
+
+            $content_buckets[$anchor_index][] = $lesson;
+            $placed_lesson_anchor_lookup[$lesson_id] = $anchor_index;
+        }
+    }
 
     $cards = [];
     if (!empty($content_buckets[-1])) {
