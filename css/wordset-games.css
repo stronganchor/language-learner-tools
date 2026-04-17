@@ -1406,12 +1406,13 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     justify-content: center;
     align-content: start;
     align-items: stretch;
-    padding: 1px 0 2px;
+    padding: 1px 0 clamp(12px, 2vh, 20px);
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
     min-height: 0;
     height: 100%;
+    position: relative;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
     grid-template-areas:
@@ -1422,6 +1423,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         "cards"
         "actions";
     row-gap: clamp(8px, 1vw, 12px);
+    padding-bottom: clamp(78px, 11vh, 96px);
 }
 
 .ll-wordset-lineup-stage__card--tile {
@@ -1478,13 +1480,17 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__actions {
     grid-area: actions;
+    position: absolute;
+    right: clamp(14px, 2vw, 20px);
+    bottom: clamp(14px, 2vw, 20px);
     justify-content: flex-end;
-    align-self: end;
     min-height: 46px;
     padding-top: 0;
     background: none;
-    position: relative;
     z-index: 1;
+    width: auto;
+    margin: 0;
+    flex-wrap: nowrap;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__action {
@@ -1496,7 +1502,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     min-width: 0;
     width: fit-content;
     padding-inline: 18px;
-    margin-left: auto;
+    margin-left: 0;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__topline {
