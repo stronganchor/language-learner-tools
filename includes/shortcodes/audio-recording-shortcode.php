@@ -3367,7 +3367,8 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  * @param array  $wordset_term_ids
  * @param string $include_types_csv Comma-separated slugs to include
  * @param string $exclude_types_csv Comma-separated slugs to exclude
- * @param bool   $include_hidden Whether to include words hidden by the current recorder.
+ * @param bool   $include_hidden Whether to include words hidden by the target recorder.
+ * @param int    $user_id        Optional recorder user ID to scope per-user queue state.
  * @return array [
  *   [
  *     'id'            => int,
@@ -3388,7 +3389,7 @@ function ll_resolve_wordset_term_ids_or_default($wordset_spec) {
  *   ...
  * ]
  */
-function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false) {
+function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = [], $include_types_csv = '', $exclude_types_csv = '', $include_hidden = false, $user_id = 0) {
     if (empty($wordset_term_ids)) {
         $default_id = ll_get_default_wordset_term_id();
         if ($default_id) {
@@ -3398,7 +3399,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
 
     $is_uncategorized_request = ($category_slug === 'uncategorized');
     $uncategorized_label = __('Uncategorized', 'll-tools-text-domain');
-    $current_uid = get_current_user_id();
+    $current_uid = $user_id > 0 ? (int) $user_id : get_current_user_id();
     $title_role = function_exists('ll_tools_get_wordset_title_language_role')
         ? ll_tools_get_wordset_title_language_role($wordset_term_ids)
         : get_option('ll_word_title_language_role', 'target');
@@ -4043,7 +4044,7 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     unset($item);
 
     if (!$include_hidden) {
-        $result = ll_tools_filter_hidden_recording_items($result, get_current_user_id());
+        $result = ll_tools_filter_hidden_recording_items($result, $current_uid);
     }
 
     if (function_exists('ll_tools_protect_maqqef_for_display')) {

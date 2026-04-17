@@ -287,6 +287,38 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertSame(['isolation'], array_values((array) ($target['my_existing_types'] ?? [])));
     }
 
+    public function test_images_needing_audio_can_be_scoped_to_another_users_hidden_queue(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Scoped Queue', 'recorder-scoped-queue');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+
+        update_option('ll_uncategorized_desired_recording_types', ['isolation']);
+
+        $manager_user_id = self::factory()->user->create(['role' => 'administrator']);
+        $recorder_user_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        wp_set_current_user($manager_user_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Scoped Queue Word',
+        ]);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset');
+
+        ll_tools_add_hidden_recording_word($recorder_user_id, [
+            'word_id' => $word_id,
+            'title' => 'Scoped Queue Word',
+        ]);
+
+        $visible_items = ll_get_images_needing_audio('', [$wordset_id], '', '', false, $recorder_user_id);
+        $hidden_items = ll_get_images_needing_audio('', [$wordset_id], '', '', true, $recorder_user_id);
+
+        $this->assertSame([], $visible_items);
+        $this->assertCount(1, $hidden_items);
+        $this->assertSame($word_id, (int) ($hidden_items[0]['word_id'] ?? 0));
+    }
+
     public function test_recorder_category_resolver_remaps_isolated_slug_to_requested_wordset(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
