@@ -1366,32 +1366,99 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__cards {
-    flex-wrap: wrap;
-    overflow: visible;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(clamp(72px, 11vw, 118px), 1fr));
+    gap: clamp(8px, 1vw, 12px);
+    overflow: auto;
+    overscroll-behavior: contain;
+    justify-content: stretch;
+    align-content: start;
+    align-items: stretch;
+    padding-bottom: 4px;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
+    min-height: 0;
+    height: min(68vh, max(280px, calc(100dvh - 250px)), 720px);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
 }
 
 .ll-wordset-lineup-stage__card--tile {
-    min-width: clamp(110px, 15vw, 148px);
-    max-width: min(148px, 30vw);
-    padding: 12px;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: clamp(70px, 11vw, 112px);
+    padding: clamp(8px, 1.1vw, 12px);
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    justify-items: stretch;
+    position: relative;
+    transition:
+        transform 160ms ease,
+        box-shadow 160ms ease,
+        border-color 160ms ease;
 }
 
 .ll-wordset-lineup-stage__card--tile.is-static {
     border-style: dashed;
-    opacity: 0.82;
+    opacity: 0.9;
 }
 
 .ll-wordset-lineup-stage__card-text--tile {
-    font-size: clamp(1.4rem, 3vw, 2rem);
-    line-height: 1.15;
+    font-size: clamp(1.85rem, 5.5vw, 3.1rem);
+    line-height: 1;
     text-align: center;
+    font-weight: 900;
+    letter-spacing: -0.03em;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card-order {
     min-width: 28px;
     height: 28px;
     font-size: 0.74rem;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card-body {
+    height: 100%;
+    gap: 0;
+    align-content: center;
+    justify-items: center;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__prompt-image-frame {
+    width: min(160px, 36vw, 100%);
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__actions {
+    justify-content: space-between;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__action {
+    flex: 1 1 120px;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile[data-ll-wordset-unscramble-tile] {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile[data-ll-wordset-unscramble-tile]:focus-visible {
+    outline: 3px solid rgba(217, 119, 6, 0.38);
+    outline-offset: 2px;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile.is-dragging {
+    cursor: grabbing;
+    z-index: 4;
+    transform: translate3d(var(--ll-unscramble-drag-x, 0px), var(--ll-unscramble-drag-y, 0px), 0) scale(1.04);
+    box-shadow: 0 22px 36px rgba(180, 83, 9, 0.22);
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile.is-drop-target {
+    border-color: rgba(217, 119, 6, 0.34);
+    box-shadow: 0 16px 30px rgba(217, 119, 6, 0.16);
 }
 
 .ll-wordset-lineup-stage__move--placeholder {
@@ -2318,9 +2385,26 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         width: 100%;
     }
 
-    .ll-wordset-lineup-stage__card--tile {
-        min-width: min(31vw, 136px);
-        max-width: min(31vw, 136px);
+    .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
+        height: min(62vh, max(250px, calc(100dvh - 190px)), 620px);
+    }
+
+    .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__cards {
+        grid-template-columns: repeat(auto-fit, minmax(clamp(64px, 21vw, 104px), 1fr));
+        gap: 8px;
+    }
+
+    .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__prompt-image-frame {
+        width: min(120px, 34vw, 100%);
+    }
+
+    .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile {
+        min-height: clamp(64px, 19vw, 96px);
+        padding: 8px;
+    }
+
+    .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card-text--tile {
+        font-size: clamp(1.45rem, 9vw, 2.4rem);
     }
 
     .ll-wordset-speaking-stack-stage {

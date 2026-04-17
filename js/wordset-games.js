@@ -10,6 +10,7 @@
     const SPEAKING_STACK_GAME_SLUG = 'speaking-stack';
     const GAME_LENGTH_ALL = 'all';
     const MODULE_NS = '.llWordsetGames';
+    const UNSCRAMBLE_DRAG_NS = '.llWordsetGamesUnscrambleDrag';
     const GAME_PROMPT_RECORDING_TYPES = ['question', 'isolation', 'introduction'];
     const CARD_RATIO_MIN = 0.55;
     const CARD_RATIO_MAX = 2.5;
@@ -235,6 +236,41 @@
             copy[swapIndex] = temp;
         }
         return copy;
+    }
+
+    function getOrderedIdSignature(list) {
+        return (Array.isArray(list) ? list : []).map(function (entry) {
+            return toInt(entry && entry.id);
+        }).join(',');
+    }
+
+    function shuffleAvoidingSignatures(list, forbiddenSignatures, maxAttempts) {
+        const source = Array.isArray(list) ? list.slice() : [];
+        if (source.length < 2) {
+            return source;
+        }
+
+        const blocked = {};
+        const signatures = Array.isArray(forbiddenSignatures) ? forbiddenSignatures : [forbiddenSignatures];
+        signatures.forEach(function (signature) {
+            const normalized = String(signature || '');
+            if (normalized !== '') {
+                blocked[normalized] = true;
+            }
+        });
+
+        let candidate = source.slice();
+        let attempts = Math.max(1, toInt(maxAttempts) || 12);
+
+        while (attempts > 0) {
+            candidate = shuffle(source);
+            if (!blocked[getOrderedIdSignature(candidate)]) {
+                return candidate;
+            }
+            attempts -= 1;
+        }
+
+        return candidate;
     }
 
     function escapeHtml(text) {
@@ -825,18 +861,9 @@
             return source;
         }
 
-        const signature = source.map(function (entry) {
-            return toInt(entry && entry.id);
-        }).join(',');
-        let candidate = source.slice();
-        let attempts = Math.max(1, toInt(maxAttempts) || 6);
-
-        while (attempts > 0) {
-            candidate = shuffle(source);
-            if (candidate.map(function (entry) { return toInt(entry && entry.id); }).join(',') !== signature) {
-                return candidate;
-            }
-            attempts -= 1;
+        const candidate = shuffleAvoidingSignatures(source, getOrderedIdSignature(source), maxAttempts);
+        if (getOrderedIdSignature(candidate) !== getOrderedIdSignature(source)) {
+            return candidate;
         }
 
         const rotated = source.slice(1).concat(source.slice(0, 1));
@@ -6448,6 +6475,38 @@
         return limitLaunchWords(words, desiredCount);
     }
 
+    function selectShuffledRoundWords(ctx, gameSlug, entry, roundGoal) {
+        const words = selectRoundWords(entry, roundGoal);
+        if (words.length < 2) {
+            return words;
+        }
+
+        ctx.runWordOrderHistory = (ctx.runWordOrderHistory && typeof ctx.runWordOrderHistory === 'object')
+            ? ctx.runWordOrderHistory
+            : {};
+
+        const historyKey = normalizeGameSlug(gameSlug || '');
+        const previousSignature = String(ctx.runWordOrderHistory[historyKey] || '');
+        const fallbackSignature = previousSignature || getOrderedIdSignature(words);
+        let shuffledWords = shuffleAvoidingSignatures(words, fallbackSignature, 18);
+        let shuffledSignature = getOrderedIdSignature(shuffledWords);
+
+        if (shuffledSignature === fallbackSignature) {
+            const baseSignature = getOrderedIdSignature(words);
+            if (baseSignature !== fallbackSignature) {
+                shuffledWords = words.slice();
+                shuffledSignature = baseSignature;
+            } else {
+                const rotatedWords = words.slice(1).concat(words.slice(0, 1));
+                shuffledWords = rotatedWords.length === words.length ? rotatedWords : words.slice();
+                shuffledSignature = getOrderedIdSignature(shuffledWords);
+            }
+        }
+
+        ctx.runWordOrderHistory[historyKey] = shuffledSignature;
+        return shuffledWords;
+    }
+
     function selectRoundTargets(entry, roundGoal) {
         const targets = Array.isArray(entry && entry.playableTargets) ? entry.playableTargets.slice() : [];
         const desiredCount = Math.max(0, toInt(roundGoal));
@@ -6480,6 +6539,7 @@
         if (!ctx) {
             return;
         }
+        teardownUnscrambleDrag(ctx);
         if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
             ctx.$lineupProgress.text('');
         }
@@ -6517,8 +6577,12 @@
             ctx.$lineupShuffle.prop('disabled', true);
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
-            ctx.$lineupCheck.text(String(ctx.i18n.gamesLineupCheck || 'Check')).prop('hidden', false);
-            ctx.$lineupCheck.prop('disabled', true);
+            ctx.$lineupCheck
+                .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
+                .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
+                .addClass('ll-wordset-lineup-stage__action--primary')
+                .prop('hidden', false)
+                .prop('disabled', true);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
             ctx.$lineupNext.prop('hidden', true).prop('disabled', true);
@@ -6589,6 +6653,37 @@
         });
     }
 
+    function getUnscrambleMovableSlotIndices(units) {
+        const slots = [];
+        (Array.isArray(units) ? units : []).forEach(function (unit, index) {
+            if (unit && unit.movable) {
+                slots.push(index);
+            }
+        });
+        return slots;
+    }
+
+    function applyUnscrambleMovableUnitOrder(units, movableUnits) {
+        const sourceUnits = cloneUnscrambleUnits(units);
+        const sourceMovableUnits = Array.isArray(movableUnits) ? movableUnits : [];
+        let movableIndex = 0;
+
+        return sourceUnits.map(function (unit) {
+            if (!unit.movable) {
+                return unit;
+            }
+
+            const nextUnit = sourceMovableUnits[movableIndex] || unit;
+            movableIndex += 1;
+            return {
+                id: toInt(nextUnit.id) || unit.id,
+                text: String(nextUnit.text || ''),
+                movable: true,
+                target_position: unit.target_position
+            };
+        });
+    }
+
     function buildUnscrambleOrder(units, maxAttempts) {
         const sourceUnits = cloneUnscrambleUnits(units);
         const movableUnits = sourceUnits.filter(function (unit) {
@@ -6611,20 +6706,7 @@
             remaining -= 1;
         }
 
-        let movableIndex = 0;
-        return sourceUnits.map(function (unit) {
-            if (!unit.movable) {
-                return unit;
-            }
-            const nextUnit = shuffledMovable[movableIndex] || unit;
-            movableIndex += 1;
-            return {
-                id: nextUnit.id,
-                text: nextUnit.text,
-                movable: true,
-                target_position: unit.target_position
-            };
-        });
+        return applyUnscrambleMovableUnitOrder(sourceUnits, shuffledMovable);
     }
 
     function findUnscrambleSwapIndex(units, currentIndex, moveDirection) {
@@ -6637,6 +6719,25 @@
             pointer += direction;
         }
         return -1;
+    }
+
+    function reorderUnscrambleUnits(units, currentIndex, targetIndex) {
+        const sourceUnits = cloneUnscrambleUnits(units);
+        const movableSlotIndices = getUnscrambleMovableSlotIndices(sourceUnits);
+        const sourceSlot = movableSlotIndices.indexOf(currentIndex);
+        const targetSlot = movableSlotIndices.indexOf(targetIndex);
+
+        if (sourceSlot < 0 || targetSlot < 0 || sourceSlot === targetSlot) {
+            return null;
+        }
+
+        const movableUnits = movableSlotIndices.map(function (slotIndex) {
+            return sourceUnits[slotIndex];
+        });
+        const movedUnit = movableUnits.splice(sourceSlot, 1)[0];
+        movableUnits.splice(targetSlot, 0, movedUnit);
+
+        return applyUnscrambleMovableUnitOrder(sourceUnits, movableUnits);
     }
 
     function evaluateUnscrambleOrder(run) {
@@ -6767,6 +6868,10 @@
             ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || words.length < 2);
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
+            ctx.$lineupCheck
+                .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
+                .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
+                .addClass('ll-wordset-lineup-stage__action--primary');
             ctx.$lineupCheck.prop('hidden', false);
             ctx.$lineupCheck.prop('disabled', !!run.sequenceLocked || words.length < 2);
         }
@@ -7028,7 +7133,6 @@
         }
 
         const word = run.currentWord;
-        const direction = normalizeLineupDirection(word.unscramble_direction || 'ltr');
         const units = Array.isArray(run.currentOrder) ? run.currentOrder.slice() : [];
         const checkState = (run.lineupCheck && typeof run.lineupCheck === 'object') ? run.lineupCheck : null;
 
@@ -7056,35 +7160,22 @@
                 const isMovable = !!(unit && unit.movable);
                 const isCorrect = !!(checkState && checkState.correctUnitIds && checkState.correctUnitIds[unitId]);
                 const isIncorrect = !!(checkState && checkState.incorrectUnitIds && checkState.incorrectUnitIds[unitId]);
-                const moveEarlierIndex = findUnscrambleSwapIndex(units, index, 'earlier');
-                const moveLaterIndex = findUnscrambleSwapIndex(units, index, 'later');
-                const canMoveEarlier = !run.sequenceLocked && isMovable && moveEarlierIndex >= 0;
-                const canMoveLater = !run.sequenceLocked && isMovable && moveLaterIndex >= 0;
                 const tileText = String(unit && unit.text || '');
+                const tileAriaLabel = tileText.trim() !== ''
+                    ? tileText
+                    : String(ctx.i18n.gamesUnscrambleStaticTile || 'Fixed tile');
 
                 return '' +
                     '<li class="ll-wordset-lineup-stage__card ll-wordset-lineup-stage__card--tile'
                         + (isMovable ? '' : ' is-static')
                         + (isCorrect ? ' is-correct' : '')
                         + (isIncorrect ? ' is-incorrect' : '')
-                        + '" data-ll-wordset-lineup-card data-lineup-index="' + escapeHtml(String(index + 1)) + '" data-unit-id="' + escapeHtml(String(unitId)) + '">' +
-                        '<div class="ll-wordset-lineup-stage__card-order" aria-hidden="true">' + (isMovable ? escapeHtml(String(index + 1)) : '&nbsp;') + '</div>' +
+                        + '" data-ll-wordset-lineup-card'
+                        + (isMovable ? ' data-ll-wordset-unscramble-tile="1" tabindex="0"' : '')
+                        + ' data-lineup-index="' + escapeHtml(String(index + 1)) + '" data-unit-id="' + escapeHtml(String(unitId)) + '"'
+                        + (isMovable ? ' aria-label="' + escapeHtml(tileAriaLabel) + '"' : ' aria-hidden="true"') + '>' +
                         '<div class="ll-wordset-lineup-stage__card-body">' +
                             '<p class="ll-wordset-lineup-stage__card-text ll-wordset-lineup-stage__card-text--tile" dir="auto">' + escapeHtml(tileText || '\u00A0') + '</p>' +
-                            '<div class="ll-wordset-lineup-stage__card-actions">' +
-                                (isMovable
-                                    ? (
-                                        '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-unscramble-move="earlier"' + (canMoveEarlier ? '' : ' disabled') + '>' +
-                                            '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'earlier')) + '</span>' +
-                                            '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveEarlier || 'Move earlier')) + '</span>' +
-                                        '</button>' +
-                                        '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-unscramble-move="later"' + (canMoveLater ? '' : ' disabled') + '>' +
-                                            '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'later')) + '</span>' +
-                                            '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveLater || 'Move later')) + '</span>' +
-                                        '</button>'
-                                    )
-                                    : '<span class="ll-wordset-lineup-stage__move ll-wordset-lineup-stage__move--placeholder" aria-hidden="true"></span>') +
-                            '</div>' +
                         '</div>' +
                     '</li>';
             }).join('');
@@ -7096,7 +7187,12 @@
             ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || Math.max(0, toInt(word.unscramble_movable_unit_count)) < 2);
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
-            ctx.$lineupCheck.prop('hidden', true).prop('disabled', true);
+            ctx.$lineupCheck
+                .text(String(ctx.i18n.gamesUnscrambleSkip || 'Skip'))
+                .removeClass('ll-wordset-lineup-stage__action--primary')
+                .addClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
+                .prop('hidden', !!run.sequenceLocked)
+                .prop('disabled', !!run.sequenceLocked);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
             const isLastWord = (toInt(run.currentWordIndex) + 1) >= getRunTotalRounds(run);
@@ -7178,12 +7274,340 @@
             return false;
         }
 
-        const moved = currentOrder.splice(currentIndex, 1)[0];
-        currentOrder.splice(targetIndex, 0, moved);
-        run.currentOrder = currentOrder;
+        return moveUnscrambleTileToIndex(ctx, currentIndex, targetIndex);
+    }
+
+    function moveUnscrambleTileToIndex(ctx, currentIndex, targetIndex) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || run.sequenceLocked) {
+            return false;
+        }
+
+        const reorderedUnits = reorderUnscrambleUnits(run.currentOrder, parseInt(currentIndex, 10), parseInt(targetIndex, 10));
+        if (!reorderedUnits) {
+            return false;
+        }
+
+        run.currentOrder = reorderedUnits;
         run.currentMoveCount = Math.max(0, toInt(run.currentMoveCount)) + 1;
         run.moveCount = Math.max(0, toInt(run.moveCount)) + 1;
         syncUnscrambleStatus(ctx);
+        return true;
+    }
+
+    function getChangedTouchByIdentifier(touchList, touchId) {
+        if (!touchList || typeof touchList.length !== 'number' || touchList.length < 1) {
+            return null;
+        }
+
+        if (touchId === null || typeof touchId === 'undefined') {
+            return touchList[0] || null;
+        }
+
+        for (let index = 0; index < touchList.length; index += 1) {
+            if (touchList[index] && touchList[index].identifier === touchId) {
+                return touchList[index];
+            }
+        }
+
+        return null;
+    }
+
+    function getEventClientPoint(event, touchId) {
+        if (!event || typeof event !== 'object') {
+            return null;
+        }
+
+        const activeTouch = getChangedTouchByIdentifier(event.touches, touchId)
+            || getChangedTouchByIdentifier(event.changedTouches, touchId);
+        if (activeTouch) {
+            return {
+                x: Number(activeTouch.clientX) || 0,
+                y: Number(activeTouch.clientY) || 0
+            };
+        }
+
+        if (typeof event.clientX === 'number' || typeof event.clientY === 'number') {
+            return {
+                x: Number(event.clientX) || 0,
+                y: Number(event.clientY) || 0
+            };
+        }
+
+        return null;
+    }
+
+    function focusUnscrambleTile(ctx, unitId) {
+        const targetUnitId = toInt(unitId);
+        if (!ctx || !targetUnitId || !ctx.$lineupCards || !ctx.$lineupCards.length) {
+            return;
+        }
+
+        const focusTile = function () {
+            const $tile = ctx.$lineupCards.find('[data-ll-wordset-unscramble-tile][data-unit-id="' + String(targetUnitId) + '"]').first();
+            if ($tile.length) {
+                $tile.trigger('focus');
+            }
+        };
+
+        if (typeof root.requestAnimationFrame === 'function') {
+            root.requestAnimationFrame(focusTile);
+            return;
+        }
+
+        focusTile();
+    }
+
+    function getUnscrambleKeyboardMoveDirection(direction, event) {
+        const isRtl = normalizeLineupDirection(direction) === 'rtl';
+        if (matchesKey(event, ['arrowleft', 'a'], ['arrowleft', 'keya'])) {
+            return isRtl ? 'later' : 'earlier';
+        }
+        if (matchesKey(event, ['arrowright', 'd'], ['arrowright', 'keyd'])) {
+            return isRtl ? 'earlier' : 'later';
+        }
+        return '';
+    }
+
+    function clearUnscrambleDragUi(ctx) {
+        const drag = ctx && ctx.unscrambleDrag;
+        if (!drag) {
+            return;
+        }
+
+        if (ctx.$lineupStage && ctx.$lineupStage.length) {
+            ctx.$lineupStage.removeAttr('data-unscramble-dragging');
+        }
+        if (drag.$tile && drag.$tile.length) {
+            drag.$tile
+                .removeClass('is-dragging')
+                .css('--ll-unscramble-drag-x', '0px')
+                .css('--ll-unscramble-drag-y', '0px');
+        }
+        if (drag.$targetTile && drag.$targetTile.length) {
+            drag.$targetTile.removeClass('is-drop-target');
+        }
+    }
+
+    function teardownUnscrambleDrag(ctx) {
+        const drag = ctx && ctx.unscrambleDrag;
+        if (!drag) {
+            return;
+        }
+
+        clearUnscrambleDragUi(ctx);
+        if (drag.pointerId !== null && drag.tile && typeof drag.tile.releasePointerCapture === 'function') {
+            try {
+                drag.tile.releasePointerCapture(drag.pointerId);
+            } catch (error) {
+                // Ignore stale pointer capture release attempts.
+            }
+        }
+        ctx.unscrambleDrag = null;
+    }
+
+    function setUnscrambleDragTarget(ctx, target) {
+        const drag = ctx && ctx.unscrambleDrag;
+        if (!drag) {
+            return;
+        }
+
+        if (drag.$targetTile && drag.$targetTile.length) {
+            drag.$targetTile.removeClass('is-drop-target');
+        }
+
+        drag.targetIndex = target ? target.index : drag.sourceIndex;
+        drag.$targetTile = target ? $(target.element) : null;
+
+        if (drag.$targetTile && drag.$targetTile.length) {
+            drag.$targetTile.addClass('is-drop-target');
+        }
+    }
+
+    function getUnscrambleDragTarget(ctx, drag, point) {
+        if (!ctx || !drag || !point || !ctx.$lineupCards || !ctx.$lineupCards.length) {
+            return null;
+        }
+
+        const cardsElement = ctx.$lineupCards.get(0);
+        const tileSelector = '[data-ll-wordset-unscramble-tile]';
+        let targetElement = null;
+
+        if (root.document && typeof root.document.elementFromPoint === 'function') {
+            const hitTarget = root.document.elementFromPoint(point.x, point.y);
+            if (hitTarget && typeof hitTarget.closest === 'function') {
+                targetElement = hitTarget.closest(tileSelector);
+            }
+        }
+
+        if (!targetElement || targetElement === drag.tile) {
+            const candidateTiles = cardsElement.querySelectorAll ? cardsElement.querySelectorAll(tileSelector) : [];
+            let closestDistance = Infinity;
+            Array.prototype.forEach.call(candidateTiles, function (candidate) {
+                if (!candidate || candidate === drag.tile || typeof candidate.getBoundingClientRect !== 'function') {
+                    return;
+                }
+
+                const rect = candidate.getBoundingClientRect();
+                const centerX = rect.left + (rect.width / 2);
+                const centerY = rect.top + (rect.height / 2);
+                const dx = centerX - point.x;
+                const dy = centerY - point.y;
+                const distance = Math.sqrt((dx * dx) + (dy * dy));
+
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                    targetElement = candidate;
+                }
+            });
+        }
+
+        if (!targetElement || targetElement === drag.tile) {
+            return null;
+        }
+
+        const targetIndex = toInt(targetElement.getAttribute('data-lineup-index')) - 1;
+        if (targetIndex < 0 || targetIndex === drag.sourceIndex) {
+            return null;
+        }
+
+        return {
+            element: targetElement,
+            index: targetIndex
+        };
+    }
+
+    function startUnscrambleTileDrag(ctx, event, tileElement) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || run.ended || run.sequenceLocked || !tileElement) {
+            return;
+        }
+        if (shouldIgnoreSyntheticMouseFromTouch(ctx, event, 'unscramble-drag')) {
+            return;
+        }
+        if (typeof event.button === 'number' && event.button !== 0) {
+            return;
+        }
+
+        const $tile = $(tileElement);
+        const sourceIndex = toInt($tile.attr('data-lineup-index')) - 1;
+        const unitId = toInt($tile.attr('data-unit-id'));
+        const point = getEventClientPoint(event);
+
+        if (sourceIndex < 0 || !unitId || !point) {
+            return;
+        }
+
+        if (ctx.unscrambleDrag) {
+            teardownUnscrambleDrag(ctx);
+        }
+
+        ctx.unscrambleDrag = {
+            sourceIndex: sourceIndex,
+            targetIndex: sourceIndex,
+            unitId: unitId,
+            tile: tileElement,
+            $tile: $tile,
+            $targetTile: null,
+            pointerId: (typeof event.pointerId === 'number') ? event.pointerId : null,
+            touchId: event.changedTouches && event.changedTouches.length ? event.changedTouches[0].identifier : null,
+            startX: point.x,
+            startY: point.y,
+            hasMoved: false
+        };
+
+        if (ctx.unscrambleDrag.pointerId !== null && typeof tileElement.setPointerCapture === 'function') {
+            try {
+                tileElement.setPointerCapture(ctx.unscrambleDrag.pointerId);
+            } catch (error) {
+                // Ignore pointer capture failures and continue with document listeners.
+            }
+        }
+
+        if (event.cancelable !== false) {
+            event.preventDefault();
+        }
+    }
+
+    function updateUnscrambleTileDrag(ctx, event) {
+        const drag = ctx && ctx.unscrambleDrag;
+        if (!drag) {
+            return;
+        }
+        if (drag.pointerId !== null && typeof event.pointerId === 'number' && event.pointerId !== drag.pointerId) {
+            return;
+        }
+        if (drag.touchId !== null && event.changedTouches && !getChangedTouchByIdentifier(event.changedTouches, drag.touchId) && !getChangedTouchByIdentifier(event.touches, drag.touchId)) {
+            return;
+        }
+
+        const point = getEventClientPoint(event, drag.touchId);
+        if (!point) {
+            return;
+        }
+
+        const offsetX = point.x - drag.startX;
+        const offsetY = point.y - drag.startY;
+        if (!drag.hasMoved && Math.sqrt((offsetX * offsetX) + (offsetY * offsetY)) < 6) {
+            return;
+        }
+
+        if (!drag.hasMoved) {
+            drag.hasMoved = true;
+            if (ctx.$lineupStage && ctx.$lineupStage.length) {
+                ctx.$lineupStage.attr('data-unscramble-dragging', '1');
+            }
+            drag.$tile.addClass('is-dragging');
+        }
+
+        if (event.cancelable !== false) {
+            event.preventDefault();
+        }
+
+        drag.$tile
+            .css('--ll-unscramble-drag-x', offsetX + 'px')
+            .css('--ll-unscramble-drag-y', offsetY + 'px');
+        setUnscrambleDragTarget(ctx, getUnscrambleDragTarget(ctx, drag, point));
+    }
+
+    function finishUnscrambleTileDrag(ctx, event) {
+        const drag = ctx && ctx.unscrambleDrag;
+        if (!drag) {
+            return;
+        }
+        if (event && drag.pointerId !== null && typeof event.pointerId === 'number' && event.pointerId !== drag.pointerId) {
+            return;
+        }
+        if (event && drag.touchId !== null && event.changedTouches && !getChangedTouchByIdentifier(event.changedTouches, drag.touchId)) {
+            return;
+        }
+
+        const sourceIndex = drag.sourceIndex;
+        const targetIndex = drag.targetIndex;
+        const unitId = drag.unitId;
+        const shouldMove = !!drag.hasMoved && targetIndex >= 0 && targetIndex !== sourceIndex;
+
+        teardownUnscrambleDrag(ctx);
+
+        if (shouldMove && moveUnscrambleTileToIndex(ctx, sourceIndex, targetIndex)) {
+            markRunActivity(ctx);
+            focusUnscrambleTile(ctx, unitId);
+        }
+    }
+
+    function skipUnscrambleWord(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || run.ended || run.sequenceLocked) {
+            return false;
+        }
+
+        const nextIndex = toInt(run.currentWordIndex) + 1;
+        if (nextIndex >= getRunTotalRounds(run)) {
+            finishUnscrambleRun(ctx);
+            return true;
+        }
+
+        showUnscrambleWord(ctx, nextIndex);
         return true;
     }
 
@@ -7224,6 +7648,7 @@
             return;
         }
 
+        teardownUnscrambleDrag(ctx);
         run.currentWordIndex = targetIndex;
         run.currentWord = word;
         run.currentOrder = buildUnscrambleOrder(word.unscramble_units, toInt((getGameConfig(ctx, run) || {}).shuffleRetries) || 6);
@@ -7242,6 +7667,7 @@
 
         run.ended = true;
         run.sequenceLocked = true;
+        teardownUnscrambleDrag(ctx);
         pausePromptAudio(ctx);
         stopFeedbackAudio(ctx);
         stopTransientAudio(ctx);
@@ -7284,7 +7710,7 @@
     function startUnscrambleRun(ctx, entry) {
         const gameSlug = normalizeGameSlug(entry && entry.slug);
         const keepModalOpen = isRunModalVisible(ctx);
-        const selectedWords = selectRoundWords(entry, getEntryRoundGoalCount(ctx, entry));
+        const selectedWords = selectShuffledRoundWords(ctx, gameSlug, entry, getEntryRoundGoalCount(ctx, entry));
         if (!selectedWords.length) {
             return;
         }
@@ -10689,25 +11115,22 @@
             }
         });
 
-        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-unscramble-move]', function (event) {
-            event.preventDefault();
-            if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
-                return;
-            }
-            const direction = String($(this).attr('data-ll-wordset-unscramble-move') || '');
-            const index = toInt($(this).closest('[data-ll-wordset-lineup-card]').attr('data-lineup-index')) - 1;
-            if (moveUnscrambleTile(ctx, index, direction)) {
-                markRunActivity(ctx);
-            }
-        });
-
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-check]', function (event) {
             event.preventDefault();
-            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+            if (!ctx.run || ctx.run.ended) {
                 return;
             }
-            markRunActivity(ctx);
-            checkLineupSequence(ctx);
+            if (isLineupRun(ctx, ctx.run)) {
+                if (ctx.run.sequenceLocked) {
+                    return;
+                }
+                markRunActivity(ctx);
+                checkLineupSequence(ctx);
+                return;
+            }
+            if (isUnscrambleRun(ctx, ctx.run) && skipUnscrambleWord(ctx)) {
+                markRunActivity(ctx);
+            }
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-next]', function (event) {
@@ -10737,9 +11160,46 @@
             }
         });
 
+        ctx.$page.on('keydown' + MODULE_NS, '[data-ll-wordset-unscramble-tile]', function (event) {
+            if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+                return;
+            }
+
+            const direction = getUnscrambleKeyboardMoveDirection(
+                ctx.run.currentWord ? ctx.run.currentWord.unscramble_direction : 'ltr',
+                event
+            );
+            if (!direction) {
+                return;
+            }
+
+            const index = toInt($(this).attr('data-lineup-index')) - 1;
+            const unitId = toInt($(this).attr('data-unit-id'));
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (moveUnscrambleTile(ctx, index, direction)) {
+                markRunActivity(ctx);
+                focusUnscrambleTile(ctx, unitId);
+            }
+        });
+
         const pointerControls = getPrimaryPressStartEvents();
         const pointerRelease = getPrimaryPressReleaseEvents();
         const documentPointerRelease = getDocumentPressReleaseEvents();
+        const dragMoveEvents = root.PointerEvent
+            ? 'pointermove' + UNSCRAMBLE_DRAG_NS
+            : 'mousemove' + UNSCRAMBLE_DRAG_NS + ' touchmove' + UNSCRAMBLE_DRAG_NS;
+        const dragEndEvents = root.PointerEvent
+            ? 'pointerup' + UNSCRAMBLE_DRAG_NS + ' pointercancel' + UNSCRAMBLE_DRAG_NS
+            : 'mouseup' + UNSCRAMBLE_DRAG_NS + ' touchend' + UNSCRAMBLE_DRAG_NS + ' touchcancel' + UNSCRAMBLE_DRAG_NS;
+
+        ctx.$page.on(pointerControls, '[data-ll-wordset-unscramble-tile]', function (event) {
+            if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+                return;
+            }
+            startUnscrambleTileDrag(ctx, event.originalEvent || event, this);
+        });
 
         ctx.$page.on(pointerControls, '[data-ll-wordset-game-control]', function (event) {
             event.preventDefault();
@@ -10787,6 +11247,14 @@
                 setControlState(ctx, 'fire', false);
             }
         );
+
+        $(root.document).off(UNSCRAMBLE_DRAG_NS);
+        $(root.document).on(dragMoveEvents, function (event) {
+            updateUnscrambleTileDrag(ctx, event.originalEvent || event);
+        });
+        $(root.document).on(dragEndEvents, function (event) {
+            finishUnscrambleTileDrag(ctx, event.originalEvent || event);
+        });
     }
 
     function buildGameConfig(rawConfig, defaults) {

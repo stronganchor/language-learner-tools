@@ -3540,6 +3540,8 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesUnscramblePromptLabel' => __('Clue', 'll-tools-text-domain'),
         'gamesUnscrambleStatus' => __('%1$d of %2$d letters are in the right place.', 'll-tools-text-domain'),
         'gamesUnscrambleCorrect' => __('Solved.', 'll-tools-text-domain'),
+        'gamesUnscrambleSkip' => __('Skip', 'll-tools-text-domain'),
+        'gamesUnscrambleStaticTile' => __('Fixed tile', 'll-tools-text-domain'),
         'gamesUnscrambleDoneTitle' => __('Unscramble complete', 'll-tools-text-domain'),
         'gamesUnscrambleSummary' => __('Solved: %1$d of %2$d · Moves: %3$d', 'll-tools-text-domain'),
         'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
