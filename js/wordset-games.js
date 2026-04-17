@@ -7244,6 +7244,7 @@
         }
 
         const word = run.currentWord;
+        const direction = normalizeLineupDirection(word.unscramble_direction);
         const units = Array.isArray(run.currentOrder) ? run.currentOrder.slice() : [];
         const checkState = (run.lineupCheck && typeof run.lineupCheck === 'object') ? run.lineupCheck : null;
 
