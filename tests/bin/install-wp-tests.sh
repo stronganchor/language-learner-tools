@@ -16,6 +16,7 @@ WP_CORE_DIR="${WP_CORE_DIR:-/tmp/wordpress}"
 SKIP_DB_CREATE="${SKIP_DB_CREATE:-0}"
 RESET_DB="${RESET_DB:-0}"
 MYSQL_BIN="${MYSQL_BIN:-mysql}"
+ALLOW_LIVE_SITE_TEST_DB="${ALLOW_LIVE_SITE_TEST_DB:-0}"
 
 db_host="$DB_HOST_RAW"
 db_port=""
@@ -23,6 +24,19 @@ if [[ "$DB_HOST_RAW" == *:* ]]; then
     db_host="${DB_HOST_RAW%:*}"
     db_port="${DB_HOST_RAW##*:}"
 fi
+
+find_up() {
+    local target="$1"
+    local dir="$2"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/$target" ]]; then
+            echo "$dir/$target"
+            return 0
+        fi
+        dir="$(dirname "$dir")"
+    done
+    return 1
+}
 
 download() {
     local url="$1"
@@ -175,6 +189,150 @@ build_wp_php_binary() {
     printf 'php\n'
 }
 
+normalize_db_target() {
+    local raw_target="$1"
+    local host="$raw_target"
+    local port="3306"
+
+    if [[ "$raw_target" == *:* ]]; then
+        host="${raw_target%:*}"
+        port="${raw_target##*:}"
+    fi
+
+    if [[ "$host" == "localhost" ]]; then
+        host="127.0.0.1"
+    fi
+
+    printf '%s:%s\n' "$host" "$port"
+}
+
+detect_live_site_db_target() {
+    if [[ -n "${LOCAL_LIVE_DB_NAME:-}" && -n "${LOCAL_LIVE_DB_HOST:-}" ]]; then
+        printf '%s\n%s\n' "${LOCAL_LIVE_DB_NAME}" "$(normalize_db_target "${LOCAL_LIVE_DB_HOST}")"
+        return 0
+    fi
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 1
+    fi
+
+    local local_site_json
+    local site_root
+    local_site_json="${LOCAL_SITE_JSON:-}"
+    if [[ -z "$local_site_json" ]]; then
+        local_site_json="$(find_up "local-site.json" "$PROJECT_ROOT" || true)"
+    fi
+    if [[ -z "$local_site_json" || ! -f "$local_site_json" ]]; then
+        return 1
+    fi
+
+    site_root="$(cd "$PROJECT_ROOT/../../.." && pwd -P)"
+
+    readarray -t parsed < <(python3 - "$local_site_json" "$site_root" <<'PY'
+import glob
+import json
+import pathlib
+import re
+import sys
+
+local_site_json = pathlib.Path(sys.argv[1])
+site_root = pathlib.Path(sys.argv[2]).resolve()
+data = json.loads(local_site_json.read_text(encoding="utf-8"))
+db = data.get("mysql", {})
+db_name = db.get("database", "local")
+
+port = ""
+services = data.get("services", {})
+mysql = services.get("mysql", {})
+ports = mysql.get("ports", {})
+if isinstance(ports, dict):
+    mysql_ports = ports.get("MYSQL")
+    if isinstance(mysql_ports, list) and mysql_ports:
+        port = str(mysql_ports[0])
+
+for conf_path in sorted(glob.glob("/mnt/c/Users/*/AppData/Roaming/Local/run/*/conf/nginx/site.conf")):
+    conf_file = pathlib.Path(conf_path)
+    try:
+        nginx_text = conf_file.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        continue
+
+    root_match = re.search(r'^\s*root\s+"([^"]+)";', nginx_text, re.MULTILINE)
+    if not root_match:
+        continue
+
+    root_win = root_match.group(1).replace("\\", "/")
+    if re.match(r"^[A-Za-z]:/", root_win):
+        root_unix = "/mnt/" + root_win[0].lower() + "/" + root_win[3:]
+    else:
+        root_unix = root_win
+
+    try:
+        root_path = pathlib.Path(root_unix).resolve()
+    except OSError:
+        continue
+
+    if root_path != site_root:
+        continue
+
+    mysql_conf = conf_file.parents[2] / "conf" / "mysql" / "my.cnf"
+    if not mysql_conf.is_file():
+        continue
+
+    try:
+        mysql_text = mysql_conf.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        continue
+
+    port_match = re.search(r'^\s*port\s*=\s*(\d+)\s*$', mysql_text, re.MULTILINE)
+    if port_match:
+        port = port_match.group(1)
+        break
+
+print(db_name)
+print(f"127.0.0.1:{port or '3306'}")
+PY
+)
+
+    if [[ ${#parsed[@]} -lt 2 ]]; then
+        return 1
+    fi
+
+    printf '%s\n%s\n' "${parsed[0]}" "$(normalize_db_target "${parsed[1]}")"
+}
+
+ensure_safe_database_target() {
+    local live_db_name=""
+    local live_db_host=""
+    local current_target
+
+    readarray -t live_db < <(detect_live_site_db_target || true)
+    if [[ ${#live_db[@]} -ge 2 ]]; then
+        live_db_name="${live_db[0]}"
+        live_db_host="${live_db[1]}"
+    fi
+
+    if [[ -z "$live_db_name" || -z "$live_db_host" ]]; then
+        return 0
+    fi
+
+    current_target="$(normalize_db_target "$DB_HOST_RAW")"
+    if [[ "$DB_NAME" != "$live_db_name" || "$current_target" != "$live_db_host" ]]; then
+        return 0
+    fi
+
+    if [[ "$ALLOW_LIVE_SITE_TEST_DB" == "1" ]]; then
+        echo "ALLOW_LIVE_SITE_TEST_DB=1 set; using live site database target ${DB_NAME} @ ${current_target}." >&2
+        return 0
+    fi
+
+    echo "Refusing to use the live Local site database for WordPress tests." >&2
+    echo "Live DB target: ${live_db_name} @ ${live_db_host}" >&2
+    echo "Requested test DB target: ${DB_NAME} @ ${current_target}" >&2
+    echo "Set WP_TEST_DB_NAME to an isolated database such as '${live_db_name}_test', or export ALLOW_LIVE_SITE_TEST_DB=1 to override intentionally." >&2
+    exit 1
+}
+
 install_wp_core() {
     if [[ -d "$WP_CORE_DIR/wp-includes" && -f "$WP_CORE_DIR/wp-settings.php" ]]; then
         return
@@ -299,6 +457,7 @@ create_test_database() {
     "${mysql_cmd[@]}"
 }
 
+ensure_safe_database_target
 install_wp_core
 install_wp_tests_lib
 write_wp_tests_config

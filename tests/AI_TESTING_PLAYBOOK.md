@@ -48,6 +48,7 @@ npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec
 - For Local/WSL setups:
   - `tests/bin/setup-local-env.sh` resolves DB + PHP helpers.
     - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
+    - It keeps the live Local DB host credentials but emits an isolated `WP_TEST_DB_NAME` by default so PHPUnit does not target the main site schema.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
 - If Local changed ports recently, prefer `eval "$(tests/bin/setup-local-env.sh)"` over stale values left in `tests/.env`.
@@ -134,6 +135,7 @@ tests/bin/setup-local-http-env.sh
 WP_TEST_DB_HOST=127.0.0.1:<port> tests/bin/run-tests.sh
 ```
 - `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and, when runtime detection succeeds, `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` for quick debugging.
+- `tests/bin/install-wp-tests.sh` refuses to target the detected live Local site DB unless `ALLOW_LIVE_SITE_TEST_DB=1` is set deliberately.
 
 `Deadlock found when trying to get lock` during PHPUnit:
 - Usually caused by running multiple `tests/bin/run-tests.sh` commands in parallel against the same `wptests` DB.

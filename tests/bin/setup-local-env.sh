@@ -69,7 +69,7 @@ print(port if port else '3306')
 PY
 )
 
-db_name="${parsed[0]:-local_test}"
+site_db_name="${parsed[0]:-local}"
 db_user="${parsed[1]:-root}"
 db_pass="${parsed[2]:-root}"
 db_port="${parsed[3]:-3306}"
@@ -146,6 +146,14 @@ if [[ "$active_db_port" =~ ^[0-9]+$ ]]; then
     db_port_source="local_runtime"
 fi
 
+default_test_db_name="${site_db_name}_test"
+if [[ "$site_db_name" == "local" ]]; then
+    default_test_db_name="local_test"
+elif [[ "$site_db_name" == *_test || "$site_db_name" == *_tests || "$site_db_name" == *_testing || "$site_db_name" == *_suite ]]; then
+    default_test_db_name="${site_db_name}_suite"
+fi
+
+db_name="${WP_TEST_DB_NAME:-$default_test_db_name}"
 host_value="127.0.0.1:${db_port}"
 tests_dir_default="${WP_TESTS_DIR:-/tmp/wordpress-tests-lib}"
 core_dir_default="${WP_CORE_DIR:-/tmp/wordpress}"
@@ -193,6 +201,8 @@ if [[ -n "$mysql_candidate" ]]; then
 fi
 
 echo "export LOCAL_DB_PORT_SOURCE='${db_port_source//\'/\'\\\'\'}'"
+echo "export LOCAL_LIVE_DB_NAME='${site_db_name//\'/\'\\\'\'}'"
+echo "export LOCAL_LIVE_DB_HOST='${host_value//\'/\'\\\'\'}'"
 if [[ -n "$active_mysql_conf" ]]; then
     echo "export LOCAL_ACTIVE_MYSQL_CONF='${active_mysql_conf//\'/\'\\\'\'}'"
 fi

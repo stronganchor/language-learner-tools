@@ -10,7 +10,9 @@ This directory contains the plugin test framework:
 - `Integration/*Test.php`: first integration tests.
 - `bin/setup-local-env.sh`: detects Local site DB settings and prints export commands.
   - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports.
+  - Keeps the detected Local DB host/user/password, but defaults `WP_TEST_DB_NAME` to an isolated test schema instead of the live site schema.
 - `bin/install-wp-tests.sh`: installs WordPress core + wordpress-tests-lib and writes `wp-tests-config.php`.
+  - Refuses to target the live Local site database unless `ALLOW_LIVE_SITE_TEST_DB=1` is set explicitly.
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
 - `bin/run-tests.sh`: installs test deps (if needed), repairs missing WordPress test libraries when possible, and runs PHPUnit.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
@@ -114,6 +116,7 @@ tests/bin/setup-local-http-env.sh
 
 Some Local installs keep stale ports in `local-site.json`; in that case inspect the active runtime MySQL config (`.../Local/run/<id>/conf/mysql/my.cnf`) and temporarily override `WP_TEST_DB_HOST`.
 `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and (when runtime detection succeeds) `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` to show which Local runtime files were used.
+It also exports `LOCAL_LIVE_DB_NAME` / `LOCAL_LIVE_DB_HOST` so `install-wp-tests.sh` can block accidental writes to the live site database.
 If the WordPress test library itself is missing or incomplete, `run-tests.sh` now prints the broken paths and attempts a self-repair before it hands off to PHPUnit.
 When the test runtime is Windows `php.exe`, the bootstrap now defaults to the Windows temp directory (`%TEMP%/wordpress` and `%TEMP%/wordpress-tests-lib`) because WordPress' own bootstrap checks are not reliable against WSL UNC paths.
 Repeated repair attempts reuse cached WordPress archives in `/tmp` so the installer does not redownload core and `wordpress-develop` on every run.
