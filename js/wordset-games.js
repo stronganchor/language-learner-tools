@@ -7227,6 +7227,65 @@
         }
     }
 
+    function getUnscrambleSolvedWordAudioSource(word) {
+        const currentWord = (word && typeof word === 'object') ? word : {};
+        const preferredSource = String(currentWord.speaking_best_correct_audio_url || '').trim();
+        if (preferredSource) {
+            return preferredSource;
+        }
+
+        const selectedPromptAudio = selectPromptAudio(currentWord, ['isolation']);
+        if (selectedPromptAudio && selectedPromptAudio.url) {
+            return String(selectedPromptAudio.url).trim();
+        }
+
+        return String(currentWord.audio || '').trim();
+    }
+
+    function queueUnscrambleSolvedWordAdvance(ctx, run, word) {
+        if (!ctx || !run || !word || run.ended || run.unscrambleCompletionQueued) {
+            return;
+        }
+
+        const solvedWord = word;
+        const solvedWordIndex = Math.max(0, toInt(run.currentWordIndex));
+        const solvedWordId = toInt(solvedWord && solvedWord.id);
+        const audioSource = getUnscrambleSolvedWordAudioSource(solvedWord);
+
+        run.unscrambleCompletionQueued = true;
+
+        let playback = playFeedbackSound(ctx, 'correct');
+        if (audioSource) {
+            playback = playback.then(function () {
+                if (!ctx.run || ctx.run !== run || run.ended || run.currentWord !== solvedWord || !run.sequenceLocked) {
+                    return false;
+                }
+
+                return playQueuedAudioSources(ctx, [audioSource], {
+                    cacheKey: 'unscramble-word:' + String(solvedWordId > 0 ? solvedWordId : audioSource),
+                    volume: getPromptAudioVolume(ctx, run),
+                    pausePrompt: false
+                });
+            });
+        }
+
+        Promise.resolve(playback).catch(function () {
+            return false;
+        }).then(function () {
+            if (!ctx.run || ctx.run !== run || run.ended || !run.sequenceLocked || run.currentWord !== solvedWord) {
+                return;
+            }
+            if (Math.max(0, toInt(run.currentWordIndex)) !== solvedWordIndex) {
+                return;
+            }
+            if (solvedWordId > 0 && toInt(run.currentWord && run.currentWord.id) !== solvedWordId) {
+                return;
+            }
+
+            advanceUnscrambleWord(ctx);
+        });
+    }
+
     function syncUnscrambleStatus(ctx) {
         const run = ctx && ctx.run;
         if (!run || !isUnscrambleRun(ctx, run) || !run.currentWord) {
@@ -7258,6 +7317,8 @@
                         needed_retry: neededRetry ? 1 : 0
                     });
                 }
+
+                queueUnscrambleSolvedWordAdvance(ctx, run, run.currentWord);
             }
 
             setLineupStatus(ctx, String(ctx.i18n.gamesUnscrambleCorrect || 'Solved.'), 'correct');
@@ -7676,6 +7737,7 @@
         run.currentOrder = buildUnscrambleOrder(word.unscramble_units, toInt((getGameConfig(ctx, run) || {}).shuffleRetries) || 6);
         run.currentMoveCount = 0;
         run.sequenceLocked = false;
+        run.unscrambleCompletionQueued = false;
         run.lineupCheck = null;
         getLineupPromptState(run, word, UNSCRAMBLE_GAME_SLUG);
         syncUnscrambleStatus(ctx);
@@ -7763,6 +7825,7 @@
             lineupPromptState: {},
             lineupCheck: null,
             sequenceLocked: false,
+            unscrambleCompletionQueued: false,
             controls: {
                 left: false,
                 right: false,

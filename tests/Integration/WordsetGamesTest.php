@@ -1080,6 +1080,34 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('!', $unitText);
     }
 
+    public function test_unscramble_includes_preferred_word_audio_url_when_available(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Prompt', 5, ['unscramble']);
+        $this->ensureRecordingTypeTerm('isolation');
+
+        foreach ((array) $fixture['word_ids'] as $index => $wordId) {
+            $audioPostId = self::factory()->post->create([
+                'post_type' => 'word_audio',
+                'post_status' => 'publish',
+                'post_parent' => (int) $wordId,
+                'post_title' => 'Unscramble Audio ' . ($index + 1),
+            ]);
+            update_post_meta($audioPostId, 'audio_file_path', '/wp-content/uploads/unscramble-audio-' . ($index + 1) . '.mp3');
+            update_post_meta($audioPostId, 'recording_text', 'Unscramble Audio ' . ($index + 1));
+            wp_set_post_terms($audioPostId, ['isolation'], 'recording_type', false);
+        }
+
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertIsArray($launch);
+        $this->assertTrue((bool) ($launch['launchable'] ?? false));
+
+        $firstWord = (array) ($launch['words'][0] ?? []);
+        $this->assertNotSame('', (string) ($firstWord['speaking_best_correct_audio_url'] ?? ''));
+    }
+
     public function test_unscramble_stays_hidden_when_all_words_are_too_short_to_scramble(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);

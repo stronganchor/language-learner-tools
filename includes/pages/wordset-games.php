@@ -1070,6 +1070,7 @@ function ll_tools_wordset_games_resolve_unscramble_prompt(array $word, string $a
 }
 
 function ll_tools_wordset_games_build_unscramble_word_entry(array $word, int $wordset_id): ?array {
+    $word_id = (int) ($word['id'] ?? 0);
     $answer_text = ll_tools_wordset_games_resolve_unscramble_answer_text($word);
     if ($answer_text === '') {
         return null;
@@ -1102,6 +1103,10 @@ function ll_tools_wordset_games_build_unscramble_word_entry(array $word, int $wo
     $word['unscramble_prompt_text'] = (string) ($prompt['text'] ?? '');
     $word['unscramble_prompt_image'] = (string) ($prompt['image'] ?? '');
     $word['unscramble_direction'] = ll_tools_wordset_games_lineup_default_direction_for_wordset($wordset_id);
+    $word['speaking_best_correct_audio_url'] = trim((string) ($word['speaking_best_correct_audio_url'] ?? ''));
+    if ($word['speaking_best_correct_audio_url'] === '' && $word_id > 0) {
+        $word['speaking_best_correct_audio_url'] = trim((string) ll_tools_wordset_games_get_best_correct_audio_url($word_id, $word));
+    }
 
     return $word;
 }
