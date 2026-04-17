@@ -1388,10 +1388,10 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(clamp(72px, 11vw, 118px), 1fr));
-    gap: clamp(8px, 1vw, 12px);
-    overflow: auto;
-    overscroll-behavior: contain;
+    grid-template-columns: repeat(var(--ll-unscramble-unit-count, 8), minmax(0, 1fr));
+    gap: clamp(4px, 0.7vw, 10px);
+    overflow: hidden;
+    overscroll-behavior: none;
     justify-content: stretch;
     align-content: start;
     align-items: stretch;
@@ -1417,8 +1417,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     width: 100%;
     min-width: 0;
     max-width: none;
-    min-height: clamp(70px, 11vw, 112px);
-    padding: clamp(8px, 1.1vw, 12px);
+    min-height: clamp(56px, calc(118px - (var(--ll-unscramble-unit-count, 8) * 3px)), 112px);
+    padding: clamp(2px, 0.5vw, 8px);
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
     justify-items: stretch;
@@ -1435,11 +1435,14 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-lineup-stage__card-text--tile {
-    font-size: clamp(1.85rem, 5.5vw, 3.1rem);
+    font-size: clamp(1rem, calc(3.3rem - (var(--ll-unscramble-unit-count, 8) * 0.15rem)), 3.1rem);
     line-height: 1;
     text-align: center;
     font-weight: 900;
     letter-spacing: -0.03em;
+    white-space: nowrap;
+    word-break: keep-all;
+    overflow-wrap: normal;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card-order {
@@ -2487,8 +2490,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__cards {
-        grid-template-columns: repeat(auto-fit, minmax(clamp(64px, 21vw, 104px), 1fr));
-        gap: 8px;
+        gap: 4px;
     }
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__prompt-image-frame {
@@ -2496,12 +2498,12 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile {
-        min-height: clamp(64px, 19vw, 96px);
-        padding: 8px;
+        min-height: clamp(48px, calc(90px - (var(--ll-unscramble-unit-count, 8) * 2px)), 88px);
+        padding: 2px;
     }
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card-text--tile {
-        font-size: clamp(1.45rem, 9vw, 2.4rem);
+        font-size: clamp(0.72rem, calc(2.25rem - (var(--ll-unscramble-unit-count, 8) * 0.11rem)), 2rem);
     }
 
     .ll-wordset-speaking-stack-stage {

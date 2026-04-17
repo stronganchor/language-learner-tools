@@ -3418,6 +3418,9 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
             'maxTileCount' => function_exists('ll_tools_wordset_games_unscramble_max_tile_count')
                 ? ll_tools_wordset_games_unscramble_max_tile_count()
                 : 18,
+            'maxUnitCount' => function_exists('ll_tools_wordset_games_unscramble_max_unit_count')
+                ? ll_tools_wordset_games_unscramble_max_unit_count()
+                : 14,
             'maxLoadedWords' => function_exists('ll_tools_wordset_games_unscramble_launch_word_cap')
                 ? ll_tools_wordset_games_unscramble_launch_word_cap()
                 : 60,

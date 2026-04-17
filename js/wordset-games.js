@@ -827,6 +827,7 @@
             unscramble_prompt_text: String(word.unscramble_prompt_text || ''),
             unscramble_prompt_image: String(word.unscramble_prompt_image || ''),
             unscramble_direction: normalizeLineupDirection(word.unscramble_direction || ''),
+            unscramble_unit_count: Math.max(0, toInt(word.unscramble_unit_count)),
             unscramble_movable_unit_count: Math.max(0, toInt(word.unscramble_movable_unit_count)),
             unscramble_units: normalizeUnscrambleUnits(word.unscramble_units)
         };
@@ -3547,6 +3548,10 @@
             const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
             const minTileCount = Math.max(2, toInt(entry.minimum_tile_count) || toInt(gameConfig && gameConfig.minTileCount) || 3);
             const maxTileCount = Math.max(minTileCount, toInt(entry.maximum_tile_count) || toInt(gameConfig && gameConfig.maxTileCount) || 18);
+            const maxUnitCount = Math.max(
+                minTileCount,
+                toInt(entry.maximum_unit_count) || toInt(gameConfig && gameConfig.maxUnitCount) || maxTileCount
+            );
             const maxLoadedWords = Math.max(
                 minimumCount,
                 toInt(entry.launch_word_cap)
@@ -3556,6 +3561,11 @@
             const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
                 .map(normalizeWord)
                 .filter(function (word) {
+                    const unitCount = Math.max(
+                        0,
+                        toInt(word.unscramble_unit_count)
+                            || (Array.isArray(word.unscramble_units) ? word.unscramble_units.length : 0)
+                    );
                     const movableCount = Math.max(
                         0,
                         toInt(word.unscramble_movable_unit_count)
@@ -3568,6 +3578,7 @@
                         && (String(word.unscramble_prompt_text || '').trim() !== '' || String(word.unscramble_prompt_image || '').trim() !== '')
                         && Array.isArray(word.unscramble_units)
                         && word.unscramble_units.length > 0
+                        && unitCount <= maxUnitCount
                         && movableCount >= minTileCount
                         && movableCount <= maxTileCount;
                 });
@@ -3584,6 +3595,7 @@
                 minimum_word_count: minimumCount,
                 minimum_tile_count: minTileCount,
                 maximum_tile_count: maxTileCount,
+                maximum_unit_count: maxUnitCount,
                 category_ids: uniqueIntList(entry.category_ids || [])
             });
         }
@@ -6572,6 +6584,7 @@
         }
         if (ctx.$lineupCards && ctx.$lineupCards.length) {
             ctx.$lineupCards.empty().attr('dir', 'ltr');
+            ctx.$lineupCards.css('--ll-unscramble-unit-count', '');
         }
         if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
             ctx.$lineupShuffle.prop('disabled', true);
@@ -7155,6 +7168,7 @@
         });
 
         if (ctx.$lineupCards && ctx.$lineupCards.length) {
+            const unitCount = Math.max(1, units.length);
             const markup = units.map(function (unit, index) {
                 const unitId = toInt(unit && unit.id);
                 const isMovable = !!(unit && unit.movable);
@@ -7180,7 +7194,10 @@
                     '</li>';
             }).join('');
 
-            ctx.$lineupCards.html(markup).attr('dir', direction);
+            ctx.$lineupCards
+                .html(markup)
+                .attr('dir', direction)
+                .css('--ll-unscramble-unit-count', String(unitCount));
         }
 
         if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
@@ -11415,6 +11432,7 @@
             slug: UNSCRAMBLE_GAME_SLUG,
             minTileCount: Math.max(2, toInt(unscramble.minTileCount) || 3),
             maxTileCount: Math.max(2, toInt(unscramble.maxTileCount) || 18),
+            maxUnitCount: Math.max(2, toInt(unscramble.maxUnitCount) || 14),
             maxLoadedWords: Math.max(1, toInt(unscramble.maxLoadedWords) || 60),
             shuffleRetries: Math.max(1, toInt(unscramble.shuffleRetries) || 6)
         };

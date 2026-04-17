@@ -86,6 +86,13 @@ function ll_tools_wordset_games_unscramble_max_tile_count(): int {
     );
 }
 
+function ll_tools_wordset_games_unscramble_max_unit_count(): int {
+    return max(
+        ll_tools_wordset_games_unscramble_min_tile_count(),
+        (int) apply_filters('ll_tools_wordset_games_unscramble_max_unit_count', 14)
+    );
+}
+
 function ll_tools_wordset_games_speaking_isolation_max_duration_seconds(): float {
     return max(0.5, (float) apply_filters('ll_tools_wordset_games_speaking_isolation_max_duration_seconds', 3.25));
 }
@@ -921,7 +928,29 @@ function ll_tools_wordset_games_unscramble_normalize_compare_text(string $text):
     return strtolower($text);
 }
 
-function ll_tools_wordset_games_resolve_unscramble_prompt(array $word): array {
+function ll_tools_wordset_games_resolve_unscramble_answer_text(array $word): string {
+    $word_id = (int) ($word['id'] ?? 0);
+    $answer_text = '';
+
+    if ($word_id > 0) {
+        $raw_post_title = get_post_field('post_title', $word_id);
+        if (is_string($raw_post_title)) {
+            $answer_text = trim(html_entity_decode($raw_post_title, ENT_QUOTES, 'UTF-8'));
+        }
+    }
+
+    if ($answer_text === '') {
+        $answer_text = trim((string) ($word['title'] ?? ''));
+    }
+
+    if ($answer_text !== '' && function_exists('ll_tools_protect_maqqef_for_display')) {
+        $answer_text = ll_tools_protect_maqqef_for_display($answer_text);
+    }
+
+    return trim($answer_text);
+}
+
+function ll_tools_wordset_games_resolve_unscramble_prompt(array $word, string $answer_text = ''): array {
     $image = trim((string) ($word['image'] ?? ''));
     if ($image !== '') {
         return [
@@ -931,7 +960,10 @@ function ll_tools_wordset_games_resolve_unscramble_prompt(array $word): array {
         ];
     }
 
-    $title = ll_tools_wordset_games_unscramble_normalize_compare_text((string) ($word['title'] ?? ''));
+    $answer = $answer_text !== ''
+        ? $answer_text
+        : ll_tools_wordset_games_resolve_unscramble_answer_text($word);
+    $normalized_answer = ll_tools_wordset_games_unscramble_normalize_compare_text($answer);
     $candidates = [
         trim((string) ($word['translation'] ?? '')),
         trim((string) ($word['prompt_label'] ?? '')),
@@ -943,7 +975,7 @@ function ll_tools_wordset_games_resolve_unscramble_prompt(array $word): array {
             continue;
         }
 
-        if (ll_tools_wordset_games_unscramble_normalize_compare_text($candidate) === $title) {
+        if (ll_tools_wordset_games_unscramble_normalize_compare_text($candidate) === $normalized_answer) {
             continue;
         }
 
@@ -962,26 +994,33 @@ function ll_tools_wordset_games_resolve_unscramble_prompt(array $word): array {
 }
 
 function ll_tools_wordset_games_build_unscramble_word_entry(array $word, int $wordset_id): ?array {
-    $answer_text = trim((string) ($word['title'] ?? ''));
+    $answer_text = ll_tools_wordset_games_resolve_unscramble_answer_text($word);
     if ($answer_text === '') {
         return null;
     }
 
     $units = ll_tools_wordset_games_build_unscramble_units($answer_text);
+    $unit_count = count($units);
     $movable_unit_count = ll_tools_wordset_games_count_unscramble_movable_units($units);
     $minimum_tile_count = ll_tools_wordset_games_unscramble_min_tile_count();
     $maximum_tile_count = ll_tools_wordset_games_unscramble_max_tile_count();
-    if ($movable_unit_count < $minimum_tile_count || $movable_unit_count > $maximum_tile_count) {
+    $maximum_unit_count = ll_tools_wordset_games_unscramble_max_unit_count();
+    if (
+        $movable_unit_count < $minimum_tile_count
+        || $movable_unit_count > $maximum_tile_count
+        || $unit_count > $maximum_unit_count
+    ) {
         return null;
     }
 
-    $prompt = ll_tools_wordset_games_resolve_unscramble_prompt($word);
+    $prompt = ll_tools_wordset_games_resolve_unscramble_prompt($word, $answer_text);
     if (($prompt['type'] ?? '') === '') {
         return null;
     }
 
     $word['unscramble_answer_text'] = $answer_text;
     $word['unscramble_units'] = $units;
+    $word['unscramble_unit_count'] = $unit_count;
     $word['unscramble_movable_unit_count'] = $movable_unit_count;
     $word['unscramble_prompt_type'] = (string) ($prompt['type'] ?? '');
     $word['unscramble_prompt_text'] = (string) ($prompt['text'] ?? '');
@@ -1899,6 +1938,9 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
             'description' => __('See the clue. Put the letters back in order.', 'll-tools-text-domain'),
             'minimum_word_count' => $unscramble_minimum,
             'available_word_count' => $unscramble_available,
+            'minimum_tile_count' => ll_tools_wordset_games_unscramble_min_tile_count(),
+            'maximum_tile_count' => ll_tools_wordset_games_unscramble_max_tile_count(),
+            'maximum_unit_count' => ll_tools_wordset_games_unscramble_max_unit_count(),
             'launch_word_cap' => (int) ($unscramble_pool['launch_word_cap'] ?? ll_tools_wordset_games_unscramble_launch_word_cap()),
             'launch_word_count' => (int) ($unscramble_pool['launch_word_count'] ?? 0),
             'launchable' => $unscramble_available >= $unscramble_minimum,
@@ -3602,6 +3644,9 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             'description' => __('See the clue. Put the letters back in order.', 'll-tools-text-domain'),
             'minimum_word_count' => (int) ($unscramble_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count()),
             'available_word_count' => $available_count,
+            'minimum_tile_count' => ll_tools_wordset_games_unscramble_min_tile_count(),
+            'maximum_tile_count' => ll_tools_wordset_games_unscramble_max_tile_count(),
+            'maximum_unit_count' => ll_tools_wordset_games_unscramble_max_unit_count(),
             'launch_word_cap' => (int) ($unscramble_pool['launch_word_cap'] ?? ll_tools_wordset_games_unscramble_launch_word_cap()),
             'launch_word_count' => (int) ($unscramble_pool['launch_word_count'] ?? 0),
             'launchable' => $available_count >= (int) ($unscramble_pool['minimum_word_count'] ?? ll_tools_wordset_games_min_word_count()),
