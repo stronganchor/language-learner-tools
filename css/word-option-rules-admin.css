@@ -3,6 +3,8 @@
   --ll-word-options-mobile-border: #dcdcde;
   --ll-word-options-mobile-divider: #ebecef;
   --ll-word-options-mobile-label: #1d2327;
+  --ll-word-options-table-header-bg: #f6f7f7;
+  --ll-word-options-table-header-border: #c3c4c7;
 }
 
 .ll-tools-word-options .ll-tools-word-options-filter,
@@ -38,6 +40,38 @@
   min-width: 100%;
   table-layout: auto;
   width: max-content;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table thead th {
+  background: var(--ll-word-options-table-header-bg);
+  box-shadow: inset 0 -1px 0 var(--ll-word-options-table-header-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table-wrap--groups[data-has-cloned-header="1"] {
+  position: relative;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table-wrap--groups[data-has-cloned-header="1"] > .ll-tools-word-options-table[data-ll-group-table] > thead {
+  visibility: hidden;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table-wrap--groups > .ll-tools-word-options-table--cloned-head {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  left: 0;
+  margin-top: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  z-index: 4;
+}
+
+.ll-tools-word-options .ll-tools-word-options-table-wrap--groups > .ll-tools-word-options-table--cloned-head thead th {
+  position: static;
 }
 
 .ll-tools-word-options .ll-tools-word-options-input {
@@ -411,6 +445,13 @@
   vertical-align: middle;
 }
 
+@media (min-width: 783px) {
+  .ll-tools-word-options .ll-tools-word-options-table-wrap--groups {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+  }
+}
+
 @media (max-width: 782px) {
   .ll-tools-word-options .ll-tools-word-options-table-wrap--groups {
     overflow: visible;
@@ -541,6 +582,8 @@ body.ll-tools-word-options-iframe .wrap.ll-tools-word-options--iframe {
   --ll-word-options-mobile-border: #e5dccd;
   --ll-word-options-mobile-divider: #ece2d2;
   --ll-word-options-mobile-label: #2d2a25;
+  --ll-word-options-table-header-bg: #f6f1e6;
+  --ll-word-options-table-header-border: #e5dccd;
   background:
     radial-gradient(circle at top left, rgba(31, 107, 92, 0.08), transparent 38%),
     linear-gradient(180deg, #f8f5ee 0%, #f4efe4 100%);

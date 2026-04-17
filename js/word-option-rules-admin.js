@@ -84,6 +84,7 @@
         var groupList = document.querySelector('[data-ll-group-list]');
         var addBtn = document.querySelector('[data-group-add]');
         var table = document.querySelector('[data-ll-group-table]');
+        var tableWrap = table ? table.closest('.ll-tools-word-options-table-wrap--groups') : null;
         if (!groupList || !addBtn || !table) {
             return;
         }
@@ -91,6 +92,89 @@
         var nextIndex = parseInt(groupList.getAttribute('data-next-index') || '0', 10);
         if (isNaN(nextIndex) || nextIndex < 0) {
             nextIndex = 0;
+        }
+        var stickyHeaderTable = null;
+        var stickyHeaderSyncFrame = 0;
+        var desktopMediaQuery = window.matchMedia ? window.matchMedia('(min-width: 783px)') : null;
+
+        function syncStickyHeaderOffset() {
+            if (!stickyHeaderTable || !tableWrap) {
+                return;
+            }
+
+            stickyHeaderTable.style.transform = 'translate(' + (-tableWrap.scrollLeft) + 'px, ' + tableWrap.scrollTop + 'px)';
+        }
+
+        function clearStickyHeader() {
+            if (stickyHeaderSyncFrame) {
+                window.cancelAnimationFrame(stickyHeaderSyncFrame);
+                stickyHeaderSyncFrame = 0;
+            }
+
+            if (stickyHeaderTable) {
+                stickyHeaderTable.remove();
+                stickyHeaderTable = null;
+            }
+
+            if (tableWrap) {
+                tableWrap.removeAttribute('data-has-cloned-header');
+            }
+        }
+
+        function rebuildStickyHeader() {
+            var head;
+            var headRow;
+            var originalCells;
+            var clonedCells;
+
+            stickyHeaderSyncFrame = 0;
+
+            if (!tableWrap || (desktopMediaQuery && !desktopMediaQuery.matches)) {
+                clearStickyHeader();
+                return;
+            }
+
+            head = table.querySelector('thead');
+            headRow = head ? head.querySelector('tr') : null;
+            if (!head || !headRow || !headRow.children.length) {
+                clearStickyHeader();
+                return;
+            }
+
+            if (!stickyHeaderTable) {
+                stickyHeaderTable = document.createElement('table');
+                stickyHeaderTable.className = 'widefat ll-tools-word-options-table ll-tools-word-options-table--cloned-head';
+                stickyHeaderTable.setAttribute('aria-hidden', 'true');
+                tableWrap.insertBefore(stickyHeaderTable, table);
+            }
+
+            stickyHeaderTable.innerHTML = '';
+            stickyHeaderTable.appendChild(head.cloneNode(true));
+            tableWrap.setAttribute('data-has-cloned-header', '1');
+
+            originalCells = Array.prototype.slice.call(headRow.children);
+            clonedCells = Array.prototype.slice.call(stickyHeaderTable.querySelectorAll('thead th'));
+            stickyHeaderTable.style.width = Math.max(table.scrollWidth, table.offsetWidth, tableWrap.clientWidth) + 'px';
+
+            clonedCells.forEach(function (cell, index) {
+                var originalCell = originalCells[index];
+                var width = originalCell ? originalCell.getBoundingClientRect().width : 0;
+                if (width > 0) {
+                    cell.style.width = width + 'px';
+                    cell.style.minWidth = width + 'px';
+                    cell.style.maxWidth = width + 'px';
+                }
+            });
+
+            syncStickyHeaderOffset();
+        }
+
+        function requestStickyHeaderSync() {
+            if (stickyHeaderSyncFrame) {
+                return;
+            }
+
+            stickyHeaderSyncFrame = window.requestAnimationFrame(rebuildStickyHeader);
         }
 
         function getWordRows() {
@@ -106,6 +190,7 @@
             if (header) {
                 header.textContent = label || '';
             }
+            requestStickyHeaderSync();
         }
 
         function getGroupLabelText(label) {
@@ -188,6 +273,7 @@
             cells.forEach(function (cell) {
                 cell.remove();
             });
+            requestStickyHeaderSync();
         }
 
         function addGroupRow(label) {
@@ -258,6 +344,21 @@
                 updateCheckboxLabels(groupId, input.value);
             });
         });
+
+        if (tableWrap) {
+            tableWrap.addEventListener('scroll', syncStickyHeaderOffset, { passive: true });
+        }
+
+        window.addEventListener('resize', requestStickyHeaderSync);
+        if (desktopMediaQuery) {
+            if (typeof desktopMediaQuery.addEventListener === 'function') {
+                desktopMediaQuery.addEventListener('change', requestStickyHeaderSync);
+            } else if (typeof desktopMediaQuery.addListener === 'function') {
+                desktopMediaQuery.addListener(requestStickyHeaderSync);
+            }
+        }
+
+        requestStickyHeaderSync();
     }
 
     function initPairSelectExclusions() {

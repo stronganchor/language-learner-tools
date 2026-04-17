@@ -10,6 +10,10 @@ const adminCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/word-option-rules-admin.css'),
   'utf8'
 );
+const adminJsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/word-option-rules-admin.js'),
+  'utf8'
+);
 
 function buildGroupHeaderCells(labels) {
   return labels.map((label, index) => (
@@ -28,7 +32,26 @@ function buildGroupRowCells(labels, checkedIndex) {
   )).join('');
 }
 
-function buildIframeDoc() {
+function buildWordRows(labels, rowCount) {
+  return Array.from({ length: rowCount }, (_, index) => {
+    const wordId = 11 + index;
+    const label = index % 2 === 0 ? `Boarding pass ${index + 1}` : `Passport control ${index + 1}`;
+
+    return `
+      <tr data-word-id="${wordId}">
+        <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-thumb-placeholder">No image</span></td>
+        <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-audio-missing">No audio</span></td>
+        <td class="ll-tools-word-options-word">
+          <span class="ll-tools-word-options-word-title">${label}</span>
+          <span class="ll-tools-word-options-word-id">#${wordId}</span>
+        </td>
+        ${buildGroupRowCells(labels, index % labels.length)}
+      </tr>
+    `;
+  }).join('');
+}
+
+function buildIframeDoc({ rowCount = 2 } = {}) {
   const groupLabels = [
     '01 Core travel words',
     '02 Airport help',
@@ -80,13 +103,13 @@ function buildIframeDoc() {
 
                 <div class="ll-tools-word-options-group-editor">
                   <h3>Group names</h3>
-                  <div class="ll-tools-word-options-group-list">
+                  <div class="ll-tools-word-options-group-list" data-ll-group-list data-next-index="1">
                     <div class="ll-tools-word-options-group-row" data-group-id="g0">
-                      <input type="text" class="ll-tools-word-options-group-input" value="01 Core travel words">
-                      <button type="button" class="button button-secondary ll-tools-button">Remove</button>
+                      <input type="text" class="ll-tools-word-options-group-input" value="01 Core travel words" data-group-name-input>
+                      <button type="button" class="button button-secondary ll-tools-button" data-group-remove>Remove</button>
                     </div>
                   </div>
-                  <button type="button" class="button button-secondary ll-tools-button ll-tools-word-options-add-group">Add group</button>
+                  <button type="button" class="button button-secondary ll-tools-button ll-tools-word-options-add-group" data-group-add>Add group</button>
                 </div>
 
                 <div class="ll-tools-word-options-table-wrap ll-tools-word-options-table-wrap--groups">
@@ -99,26 +122,7 @@ function buildIframeDoc() {
                         ${buildGroupHeaderCells(groupLabels)}
                       </tr>
                     </thead>
-                    <tbody>
-                      <tr data-word-id="11">
-                        <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-thumb-placeholder">No image</span></td>
-                        <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-audio-missing">No audio</span></td>
-                        <td class="ll-tools-word-options-word">
-                          <span class="ll-tools-word-options-word-title">Boarding pass</span>
-                          <span class="ll-tools-word-options-word-id">#11</span>
-                        </td>
-                        ${buildGroupRowCells(groupLabels, 0)}
-                      </tr>
-                      <tr data-word-id="12">
-                        <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-thumb-placeholder">No image</span></td>
-                        <td class="ll-tools-word-options-media"><span class="ll-tools-word-options-audio-missing">No audio</span></td>
-                        <td class="ll-tools-word-options-word">
-                          <span class="ll-tools-word-options-word-title">Passport control</span>
-                          <span class="ll-tools-word-options-word-id">#12</span>
-                        </td>
-                        ${buildGroupRowCells(groupLabels, 1)}
-                      </tr>
-                    </tbody>
+                    <tbody>${buildWordRows(groupLabels, rowCount)}</tbody>
                   </table>
                 </div>
 
@@ -176,7 +180,10 @@ function buildIframeDoc() {
         </div>
       </div>
     </div>
-  </body>
+  <script>
+    ${adminJsSource}
+  </script>
+</body>
 </html>`;
 }
 
@@ -228,7 +235,7 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
   const iframe = page.locator('#ll-mobile-word-options-frame');
   await iframe.evaluate((node, srcdoc) => {
     node.setAttribute('srcdoc', srcdoc);
-  }, buildIframeDoc());
+  }, buildIframeDoc({ rowCount: 2 }));
 
   await page.waitForFunction(() => {
     const frame = document.querySelector('#ll-mobile-word-options-frame');
@@ -309,4 +316,104 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
   expect(frameMetrics.firstGroupCellLabelDisplay).not.toBe('none');
   expect(frameMetrics.firstGroupCellLabelText).toBe('01 Core travel words');
   expect(frameMetrics.maxOffscreenRight).toBeLessThanOrEqual(1);
+});
+
+test('word options popup keeps table headers sticky in wide layouts', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setContent(`
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+          }
+
+          *, *::before, *::after {
+            box-sizing: border-box;
+          }
+
+          ${modalCssSource}
+        </style>
+      </head>
+      <body>
+        <div class="ll-vocab-lesson-word-options-modal">
+          <button type="button" class="ll-vocab-lesson-word-options-modal__backdrop" aria-label="Close"></button>
+          <div class="ll-vocab-lesson-word-options-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="ll-vocab-lesson-word-options-title">
+            <div class="ll-vocab-lesson-word-options-modal__header">
+              <div class="ll-vocab-lesson-word-options-modal__title-wrap">
+                <h2 class="ll-vocab-lesson-word-options-modal__title" id="ll-vocab-lesson-word-options-title">Word options</h2>
+                <div class="ll-vocab-lesson-word-options-modal__meta">
+                  <span class="ll-vocab-lesson-word-options-modal__meta-chip">Travel</span>
+                  <span class="ll-vocab-lesson-word-options-modal__meta-chip">Beginner Set</span>
+                </div>
+              </div>
+              <button type="button" class="ll-vocab-lesson-word-options-modal__close" aria-label="Close">x</button>
+            </div>
+            <div class="ll-vocab-lesson-word-options-modal__frame-shell">
+              <iframe id="ll-desktop-word-options-frame" class="ll-vocab-lesson-word-options-modal__frame" title="Lesson word option rules"></iframe>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+
+  const iframe = page.locator('#ll-desktop-word-options-frame');
+  await iframe.evaluate((node, srcdoc) => {
+    node.setAttribute('srcdoc', srcdoc);
+  }, buildIframeDoc({ rowCount: 24 }));
+
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#ll-desktop-word-options-frame');
+    return !!(frame && frame.contentDocument && frame.contentDocument.querySelector('.ll-tools-word-options-form'));
+  });
+
+  const iframeHandle = await iframe.elementHandle();
+  const frame = await iframeHandle.contentFrame();
+  await frame.waitForTimeout(500);
+
+  const stickyMetrics = await frame.evaluate(async () => {
+    const groupsWrap = document.querySelector('.ll-tools-word-options-table-wrap--groups');
+    const stickyHeader = document.querySelector('.ll-tools-word-options-table-wrap--groups .ll-tools-word-options-table--cloned-head thead th[data-group-id="g0"]');
+
+    if (!groupsWrap || !stickyHeader) {
+      return null;
+    }
+
+    const wrapTop = groupsWrap.getBoundingClientRect().top;
+    const initialTop = stickyHeader.getBoundingClientRect().top;
+    const hasClonedHeader = groupsWrap.getAttribute('data-has-cloned-header');
+    const initialScrollTop = groupsWrap.scrollTop;
+
+    groupsWrap.scrollTop = 320;
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+
+    const stickyTop = stickyHeader.getBoundingClientRect().top;
+    const stickyBottom = stickyHeader.getBoundingClientRect().bottom;
+    const viewportHeight = window.innerHeight;
+
+    return {
+      hasClonedHeader,
+      initialTop,
+      wrapTop,
+      initialScrollTop,
+      wrapScrollTop: groupsWrap.scrollTop,
+      stickyTop,
+      stickyBottom,
+      viewportHeight
+    };
+  });
+
+  expect(stickyMetrics).not.toBeNull();
+  expect(stickyMetrics.hasClonedHeader).toBe('1');
+  expect(stickyMetrics.initialTop).toBeGreaterThan(150);
+  expect(stickyMetrics.initialScrollTop).toBe(0);
+  expect(stickyMetrics.wrapScrollTop).toBeGreaterThanOrEqual(300);
+  expect(Math.abs(stickyMetrics.stickyTop - stickyMetrics.wrapTop)).toBeLessThanOrEqual(2);
+  expect(stickyMetrics.stickyBottom).toBeLessThanOrEqual(stickyMetrics.viewportHeight);
 });
