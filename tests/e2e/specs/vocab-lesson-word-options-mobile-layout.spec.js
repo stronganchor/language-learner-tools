@@ -21,12 +21,12 @@ function buildGroupHeaderCells(labels) {
   )).join('');
 }
 
-function buildGroupRowCells(labels, checkedIndex) {
+function buildGroupRowCells(labels, checkedIndex, wordId) {
   return labels.map((label, index) => (
     `<td class="ll-tools-word-options-group-cell" data-group-id="g${index}" data-group-label="${label}">
       <label class="ll-tools-word-options-group-check">
         <span class="ll-tools-word-options-group-cell-label" data-group-cell-label>${label}</span>
-        <input type="checkbox"${index === checkedIndex ? ' checked' : ''} aria-label="Assign to group ${index + 1}">
+        <input type="checkbox" name="group_members[g${index}][]" value="${wordId}"${index === checkedIndex ? ' checked' : ''} aria-label="Assign to group ${index + 1}">
       </label>
     </td>`
   )).join('');
@@ -45,7 +45,7 @@ function buildWordRows(labels, rowCount) {
           <span class="ll-tools-word-options-word-title">${label}</span>
           <span class="ll-tools-word-options-word-id">#${wordId}</span>
         </td>
-        ${buildGroupRowCells(labels, index % labels.length)}
+        ${buildGroupRowCells(labels, index % labels.length, wordId)}
       </tr>
     `;
   }).join('');
@@ -126,9 +126,12 @@ function buildIframeDoc({ rowCount = 2 } = {}) {
                   </table>
                 </div>
 
-                <p class="ll-tools-word-options-actions">
-                  <button type="submit" class="button button-primary ll-tools-button">Save lesson rules</button>
-                </p>
+                <div class="ll-tools-word-options-actions">
+                  <span class="ll-tools-word-options-save-status" data-ll-word-options-save-status data-state="idle" role="status" aria-live="polite" hidden>
+                    <span class="ll-tools-word-options-save-status-icon" aria-hidden="true"></span>
+                    <span class="ll-tools-word-options-save-status-message" data-ll-word-options-save-status-message hidden></span>
+                  </span>
+                </div>
 
                 <h2>Blocked Pairs</h2>
                 <p class="description">Blocked pairs will never appear as wrong answers for each other.</p>
@@ -180,6 +183,15 @@ function buildIframeDoc({ rowCount = 2 } = {}) {
         </div>
       </div>
     </div>
+  <script>
+    window.ajaxurl = '/fake-admin-ajax.php';
+    window.llWordOptionRulesI18n = {
+      ajaxUrl: '/fake-admin-ajax.php',
+      autosaveSaving: 'Saving word options...',
+      autosaveSaved: 'Word options saved.',
+      autosaveError: 'Unable to save word options.'
+    };
+  </script>
   <script>
     ${adminJsSource}
   </script>
@@ -316,6 +328,114 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
   expect(frameMetrics.firstGroupCellLabelDisplay).not.toBe('none');
   expect(frameMetrics.firstGroupCellLabelText).toBe('01 Core travel words');
   expect(frameMetrics.maxOffscreenRight).toBeLessThanOrEqual(1);
+});
+
+test('word options popup autosaves group changes without a manual save button', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setContent(`
+    <!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+          }
+
+          *, *::before, *::after {
+            box-sizing: border-box;
+          }
+
+          ${modalCssSource}
+        </style>
+      </head>
+      <body>
+        <div class="ll-vocab-lesson-word-options-modal">
+          <button type="button" class="ll-vocab-lesson-word-options-modal__backdrop" aria-label="Close"></button>
+          <div class="ll-vocab-lesson-word-options-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="ll-vocab-lesson-word-options-title">
+            <div class="ll-vocab-lesson-word-options-modal__header">
+              <div class="ll-vocab-lesson-word-options-modal__title-wrap">
+                <h2 class="ll-vocab-lesson-word-options-modal__title" id="ll-vocab-lesson-word-options-title">Word options</h2>
+                <div class="ll-vocab-lesson-word-options-modal__meta">
+                  <span class="ll-vocab-lesson-word-options-modal__meta-chip">Travel</span>
+                  <span class="ll-vocab-lesson-word-options-modal__meta-chip">Beginner Set</span>
+                </div>
+              </div>
+              <button type="button" class="ll-vocab-lesson-word-options-modal__close" aria-label="Close">x</button>
+            </div>
+            <div class="ll-vocab-lesson-word-options-modal__frame-shell">
+              <iframe id="ll-autosave-word-options-frame" class="ll-vocab-lesson-word-options-modal__frame" title="Lesson word option rules"></iframe>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `);
+
+  const iframe = page.locator('#ll-autosave-word-options-frame');
+  await iframe.evaluate((node, srcdoc) => {
+    node.setAttribute('srcdoc', srcdoc);
+  }, buildIframeDoc({ rowCount: 2 }));
+
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#ll-autosave-word-options-frame');
+    return !!(frame && frame.contentDocument && frame.contentDocument.querySelector('.ll-tools-word-options-form'));
+  });
+
+  const iframeHandle = await iframe.elementHandle();
+  const frame = await iframeHandle.contentFrame();
+
+  await frame.evaluate(() => {
+    window.__llAutosaveCalls = [];
+    window.fetch = function (url, options) {
+      const entries = options && options.body && typeof options.body.entries === 'function'
+        ? Array.from(options.body.entries()).reduce((acc, [key, value]) => {
+            if (!acc[key]) {
+              acc[key] = [];
+            }
+            acc[key].push(String(value));
+            return acc;
+          }, {})
+        : {};
+
+      window.__llAutosaveCalls.push({
+        url: String(url || ''),
+        entries
+      });
+
+      return Promise.resolve({
+        ok: true,
+        json: function () {
+          return Promise.resolve({
+            success: true,
+            data: {
+              message: 'Word options saved.'
+            }
+          });
+        }
+      });
+    };
+  });
+
+  await expect(frame.locator('.ll-tools-word-options-actions .ll-tools-button')).toHaveCount(0);
+
+  await frame.locator('tr[data-word-id="11"] td[data-group-id="g1"] input[type="checkbox"]').check();
+
+  await expect.poll(async () => (
+    frame.evaluate(() => window.__llAutosaveCalls.length)
+  )).toBe(1);
+
+  const autosavePayload = await frame.evaluate(() => window.__llAutosaveCalls[0] || null);
+
+  expect(autosavePayload).not.toBeNull();
+  expect(autosavePayload.url).toContain('/fake-admin-ajax.php');
+  expect(autosavePayload.entries.action).toContain('ll_tools_save_word_option_rules_async');
+  expect(autosavePayload.entries['group_members[g1][]']).toContain('11');
+
+  await expect(frame.locator('[data-ll-word-options-save-status]')).toHaveAttribute('data-state', 'saved');
 });
 
 test('word options popup keeps table headers sticky in wide layouts', async ({ page }) => {

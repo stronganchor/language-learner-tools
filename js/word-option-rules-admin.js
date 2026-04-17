@@ -41,6 +41,212 @@
         return output;
     }
 
+    function initWordOptionRulesAutosave() {
+        var form = document.querySelector('.ll-tools-word-options-form');
+        var status = form ? form.querySelector('[data-ll-word-options-save-status]') : null;
+        var statusMessage = status ? status.querySelector('[data-ll-word-options-save-status-message]') : null;
+        var ajaxUrl = (typeof i18n.ajaxUrl === 'string' && i18n.ajaxUrl !== '')
+            ? i18n.ajaxUrl
+            : ((typeof window.ajaxurl === 'string' && window.ajaxurl !== '') ? window.ajaxurl : '');
+        var debounceTimer = 0;
+        var resetTimer = 0;
+        var inFlight = false;
+        var queued = false;
+
+        if (!form || !ajaxUrl || typeof window.fetch !== 'function' || typeof window.FormData !== 'function') {
+            return null;
+        }
+
+        function clearDebounceTimer() {
+            if (!debounceTimer) {
+                return;
+            }
+
+            window.clearTimeout(debounceTimer);
+            debounceTimer = 0;
+        }
+
+        function clearResetTimer() {
+            if (!resetTimer) {
+                return;
+            }
+
+            window.clearTimeout(resetTimer);
+            resetTimer = 0;
+        }
+
+        function setStatus(nextState, message) {
+            var state = ['saving', 'saved', 'error'].indexOf((nextState || '').toString()) !== -1
+                ? nextState.toString()
+                : 'idle';
+            var text = (message || '').toString();
+
+            if (!status) {
+                return;
+            }
+
+            status.setAttribute('data-state', state);
+            status.setAttribute('aria-label', text);
+
+            if (state === 'idle') {
+                status.setAttribute('hidden', 'hidden');
+            } else {
+                status.removeAttribute('hidden');
+            }
+
+            if (!statusMessage) {
+                return;
+            }
+
+            if (state === 'idle' || text === '') {
+                statusMessage.textContent = '';
+                statusMessage.setAttribute('hidden', 'hidden');
+                return;
+            }
+
+            statusMessage.textContent = text;
+            statusMessage.removeAttribute('hidden');
+        }
+
+        function scheduleStatusReset(delayMs) {
+            clearResetTimer();
+            resetTimer = window.setTimeout(function () {
+                resetTimer = 0;
+                setStatus('idle', '');
+            }, delayMs);
+        }
+
+        function handleSaveFailure(message) {
+            inFlight = false;
+            setStatus('error', message || t('autosaveError', 'Unable to save word options.'));
+        }
+
+        function performSave() {
+            var formData;
+
+            if (inFlight) {
+                queued = true;
+                return;
+            }
+
+            queued = false;
+            inFlight = true;
+            clearResetTimer();
+            setStatus('saving', t('autosaveSaving', 'Saving word options...'));
+
+            formData = new window.FormData(form);
+            formData.set('action', 'll_tools_save_word_option_rules_async');
+            formData.set('ll_scroll', String(Math.max(0, Math.round(getScrollTop()))));
+
+            window.fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: formData
+            }).then(function (response) {
+                return response.json().catch(function () {
+                    return {
+                        success: false,
+                        data: {}
+                    };
+                }).then(function (payload) {
+                    return {
+                        ok: response.ok,
+                        payload: payload
+                    };
+                });
+            }).then(function (result) {
+                var payload = result && result.payload ? result.payload : {};
+                var data = payload && typeof payload.data === 'object' && payload.data ? payload.data : {};
+                var message = (typeof data.message === 'string' && data.message !== '')
+                    ? data.message
+                    : t('autosaveSaved', 'Word options saved.');
+
+                inFlight = false;
+
+                if (!result.ok || !payload.success) {
+                    handleSaveFailure((typeof data.message === 'string' && data.message !== '')
+                        ? data.message
+                        : t('autosaveError', 'Unable to save word options.'));
+                    return;
+                }
+
+                setStatus('saved', message);
+                scheduleStatusReset(1600);
+
+                if (queued) {
+                    performSave();
+                }
+            }).catch(function () {
+                handleSaveFailure(t('autosaveError', 'Unable to save word options.'));
+            });
+        }
+
+        function scheduleSave(delayMs) {
+            clearDebounceTimer();
+            queued = true;
+            debounceTimer = window.setTimeout(function () {
+                debounceTimer = 0;
+                performSave();
+            }, typeof delayMs === 'number' ? delayMs : 700);
+        }
+
+        function saveNow() {
+            clearDebounceTimer();
+            queued = true;
+            performSave();
+        }
+
+        function isAutosaveField(target) {
+            return !!(
+                target
+                && target.matches
+                && (
+                    target.matches('[data-group-name-input]')
+                    || target.matches('.ll-tools-word-options-group-cell input[type="checkbox"]')
+                    || target.matches('input[type="checkbox"][name^="pair_recording_types["]')
+                )
+            );
+        }
+
+        form.addEventListener('input', function (event) {
+            if (isAutosaveField(event.target)) {
+                scheduleSave();
+            }
+        });
+
+        form.addEventListener('change', function (event) {
+            if (isAutosaveField(event.target)) {
+                scheduleSave();
+            }
+        });
+
+        form.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && event.target && event.target.matches && event.target.matches('[data-group-name-input]')) {
+                event.preventDefault();
+                saveNow();
+            }
+        });
+
+        form.addEventListener('submit', function (event) {
+            var submitter = event.submitter || null;
+            var submitName = submitter && submitter.name ? submitter.name.toString() : '';
+
+            clearDebounceTimer();
+
+            if (submitName === 'add_pair' || submitName === 'remove_pair') {
+                return;
+            }
+
+            event.preventDefault();
+            saveNow();
+        });
+
+        return {
+            schedule: scheduleSave,
+            saveNow: saveNow
+        };
+    }
+
     function initWordsetMemory() {
         var select = document.querySelector('#ll-word-option-wordset');
         var storageKey = 'llWordOptionRulesLastWordsetId';
@@ -80,7 +286,7 @@
         });
     }
 
-    function initGroupManager() {
+    function initGroupManager(autosaveController) {
         var groupList = document.querySelector('[data-ll-group-list]');
         var addBtn = document.querySelector('[data-group-add]');
         var table = document.querySelector('[data-ll-group-table]');
@@ -308,6 +514,10 @@
                 updateGroupCellLabels(groupId, input.value);
                 updateCheckboxLabels(groupId, input.value);
             });
+
+            if (autosaveController && typeof autosaveController.schedule === 'function') {
+                autosaveController.schedule(150);
+            }
         }
 
         addBtn.addEventListener('click', function (event) {
@@ -327,6 +537,9 @@
             var groupId = row.getAttribute('data-group-id');
             row.remove();
             removeGroupColumn(groupId);
+            if (autosaveController && typeof autosaveController.schedule === 'function') {
+                autosaveController.schedule(150);
+            }
         });
 
         groupList.querySelectorAll('[data-group-name-input]').forEach(function (input) {
@@ -488,8 +701,10 @@
         }
     });
 
+    var autosaveController = initWordOptionRulesAutosave();
+
     initWordsetMemory();
-    initGroupManager();
+    initGroupManager(autosaveController);
     initPairSelectExclusions();
     initScrollPersistence();
 

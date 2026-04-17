@@ -286,11 +286,15 @@ function ll_enqueue_word_option_rules_admin_assets($hook) {
     ll_enqueue_asset_by_timestamp('/css/word-option-rules-admin.css', 'll-tools-word-option-rules-admin', [], false);
     ll_enqueue_asset_by_timestamp('/js/word-option-rules-admin.js', 'll-tools-word-option-rules-admin-js', [], true);
     wp_localize_script('ll-tools-word-option-rules-admin-js', 'llWordOptionRulesI18n', [
+        'ajaxUrl' => admin_url('admin-ajax.php'),
         'remove' => __('Remove', 'll-tools-text-domain'),
         'assignToGroup' => __('Assign to group', 'll-tools-text-domain'),
         /* translators: %s: group label */
         'assignToGroupNamedTemplate' => __('Assign to group %s', 'll-tools-text-domain'),
         'groupLabelFallback' => __('Group', 'll-tools-text-domain'),
+        'autosaveSaving' => __('Saving word options...', 'll-tools-text-domain'),
+        'autosaveSaved' => __('Word options saved.', 'll-tools-text-domain'),
+        'autosaveError' => __('Unable to save word options.', 'll-tools-text-domain'),
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_enqueue_word_option_rules_admin_assets');
@@ -1683,10 +1687,12 @@ function ll_render_word_option_rules_admin_page() {
     echo '</table>';
     echo '</div>';
 
-    echo '<p class="ll-tools-word-options-actions">';
-    $save_label = $is_iframe ? __('Save lesson rules', 'll-tools-text-domain') : __('Save groups', 'll-tools-text-domain');
-    echo '<button type="submit" class="button button-primary ll-tools-button" name="save_groups" value="1">' . esc_html($save_label) . '</button>';
-    echo '</p>';
+    echo '<div class="ll-tools-word-options-actions">';
+    echo '<span class="ll-tools-word-options-save-status" data-ll-word-options-save-status data-state="idle" role="status" aria-live="polite" hidden>';
+    echo '<span class="ll-tools-word-options-save-status-icon" aria-hidden="true"></span>';
+    echo '<span class="ll-tools-word-options-save-status-message" data-ll-word-options-save-status-message hidden></span>';
+    echo '</span>';
+    echo '</div>';
 
     echo '<h2>' . esc_html__('Blocked Pairs', 'll-tools-text-domain') . '</h2>';
     echo '<p class="description">' . esc_html__('Blocked pairs will never appear as wrong answers for each other.', 'll-tools-text-domain') . '</p>';
@@ -1965,44 +1971,42 @@ function ll_render_word_option_rules_admin_page() {
     echo '</div>';
 }
 
-function ll_tools_handle_word_option_rules_save() {
-    if (!current_user_can('view_ll_tools')) {
-        wp_die(__('Permission denied.', 'll-tools-text-domain'));
-    }
+function ll_tools_save_word_option_rules_from_request(array $request) {
+    $wordset_id = isset($request['wordset_id']) ? (int) $request['wordset_id'] : 0;
+    $category_id = isset($request['category_id']) ? (int) $request['category_id'] : 0;
+    $scroll_position = isset($request['ll_scroll']) ? max(0, (int) wp_unslash((string) $request['ll_scroll'])) : 0;
 
-    check_admin_referer('ll_word_option_rules_save');
-
-    $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
-    $category_id = isset($_POST['category_id']) ? (int) $_POST['category_id'] : 0;
-    $scroll_position = ll_tools_word_option_rules_get_submitted_scroll_position();
     if ($wordset_id > 0 && !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
-        wp_die(__('Permission denied.', 'll-tools-text-domain'));
+        return new WP_Error('forbidden', __('Permission denied.', 'll-tools-text-domain'), [
+            'status' => 403,
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'scroll_position' => $scroll_position,
+        ]);
     }
 
     if ($wordset_id <= 0 || $category_id <= 0) {
-        $redirect_args = [
-            'll_word_options_error' => 1,
-        ];
-        if ($scroll_position > 0) {
-            $redirect_args['ll_scroll'] = $scroll_position;
-        }
-        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $redirect_args));
-        exit;
+        return new WP_Error('missing_selection', __('Select a word set and category to manage word option rules.', 'll-tools-text-domain'), [
+            'status' => 400,
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'scroll_position' => $scroll_position,
+        ]);
     }
 
     $word_ids = ll_tools_word_option_rules_get_word_ids($wordset_id, $category_id);
     $word_lookup = array_fill_keys($word_ids, true);
 
     $groups = [];
-    $raw_group_names = isset($_POST['group_names']) && is_array($_POST['group_names']) ? $_POST['group_names'] : [];
-    $raw_group_members = isset($_POST['group_members']) && is_array($_POST['group_members']) ? $_POST['group_members'] : [];
+    $raw_group_names = isset($request['group_names']) && is_array($request['group_names']) ? $request['group_names'] : [];
+    $raw_group_members = isset($request['group_members']) && is_array($request['group_members']) ? $request['group_members'] : [];
 
     if (!empty($raw_group_names)) {
         $groups_map = [];
         $label_order = [];
         foreach ($raw_group_names as $group_id => $label) {
-            $group_id = sanitize_text_field(wp_unslash($group_id));
-            $label = sanitize_text_field(wp_unslash($label));
+            $group_id = sanitize_text_field(wp_unslash((string) $group_id));
+            $label = sanitize_text_field(wp_unslash((string) $label));
             $label = trim($label);
             if ($label === '') {
                 continue;
@@ -2025,7 +2029,7 @@ function ll_tools_handle_word_option_rules_save() {
 
         foreach ($label_order as $label) {
             $ids_in_group = array_keys($groups_map[$label] ?? []);
-            $ids_in_group = array_values(array_unique(array_filter(array_map('intval', $ids_in_group), function ($id) {
+            $ids_in_group = array_values(array_unique(array_filter(array_map('intval', $ids_in_group), static function ($id) {
                 return $id > 0;
             })));
             if (!empty($ids_in_group)) {
@@ -2037,13 +2041,13 @@ function ll_tools_handle_word_option_rules_save() {
         }
     } else {
         $labels_by_word = [];
-        $raw_labels = isset($_POST['group_label']) && is_array($_POST['group_label']) ? $_POST['group_label'] : [];
+        $raw_labels = isset($request['group_label']) && is_array($request['group_label']) ? $request['group_label'] : [];
         foreach ($raw_labels as $word_id => $label) {
             $word_id = (int) $word_id;
             if ($word_id <= 0 || !isset($word_lookup[$word_id])) {
                 continue;
             }
-            $label = sanitize_text_field(wp_unslash($label));
+            $label = sanitize_text_field(wp_unslash((string) $label));
             $label = trim($label);
             if ($label === '') {
                 continue;
@@ -2166,11 +2170,11 @@ function ll_tools_handle_word_option_rules_save() {
     }
 
     if ($allow_manual_pair_recording_type_controls && !empty($pairs_map)) {
-        $raw_present = isset($_POST['pair_recording_types_present']) && is_array($_POST['pair_recording_types_present'])
-            ? $_POST['pair_recording_types_present']
+        $raw_present = isset($request['pair_recording_types_present']) && is_array($request['pair_recording_types_present'])
+            ? $request['pair_recording_types_present']
             : [];
-        $raw_selected = isset($_POST['pair_recording_types']) && is_array($_POST['pair_recording_types'])
-            ? $_POST['pair_recording_types']
+        $raw_selected = isset($request['pair_recording_types']) && is_array($request['pair_recording_types'])
+            ? $request['pair_recording_types']
             : [];
         $present_map = [];
         foreach ($raw_present as $raw_key => $present) {
@@ -2216,13 +2220,13 @@ function ll_tools_handle_word_option_rules_save() {
         }
     }
 
-    $remove_pairs = isset($_POST['remove_pairs']) && is_array($_POST['remove_pairs']) ? $_POST['remove_pairs'] : [];
-    $single_remove = isset($_POST['remove_pair']) ? sanitize_text_field(wp_unslash($_POST['remove_pair'])) : '';
+    $remove_pairs = isset($request['remove_pairs']) && is_array($request['remove_pairs']) ? $request['remove_pairs'] : [];
+    $single_remove = isset($request['remove_pair']) ? sanitize_text_field(wp_unslash((string) $request['remove_pair'])) : '';
     if ($single_remove !== '') {
         $remove_pairs[] = $single_remove;
     }
     foreach ($remove_pairs as $raw_pair) {
-        $raw_pair = sanitize_text_field(wp_unslash($raw_pair));
+        $raw_pair = sanitize_text_field(wp_unslash((string) $raw_pair));
         if ($raw_pair === '') {
             continue;
         }
@@ -2253,9 +2257,9 @@ function ll_tools_handle_word_option_rules_save() {
         }
     }
 
-    if (!empty($_POST['add_pair'])) {
-        $pair_a = isset($_POST['pair_a']) ? (int) $_POST['pair_a'] : 0;
-        $pair_b = isset($_POST['pair_b']) ? (int) $_POST['pair_b'] : 0;
+    if (!empty($request['add_pair'])) {
+        $pair_a = isset($request['pair_a']) ? (int) $request['pair_a'] : 0;
+        $pair_b = isset($request['pair_b']) ? (int) $request['pair_b'] : 0;
         if ($pair_a > 0 && $pair_b > 0 && $pair_a !== $pair_b && isset($word_lookup[$pair_a]) && isset($word_lookup[$pair_b])) {
             $a = $pair_a;
             $b = $pair_b;
@@ -2264,10 +2268,10 @@ function ll_tools_handle_word_option_rules_save() {
                 $a = $b;
                 $b = $tmp;
             }
-            $new_pair_recording_types = isset($_POST['new_pair_recording_types']) && is_array($_POST['new_pair_recording_types'])
+            $new_pair_recording_types = isset($request['new_pair_recording_types']) && is_array($request['new_pair_recording_types'])
                 ? array_map(static function ($value): string {
                     return (string) wp_unslash($value);
-                }, $_POST['new_pair_recording_types'])
+                }, $request['new_pair_recording_types'])
                 : [];
             $pair_rule = ll_tools_word_option_rules_build_manual_pair_rule(
                 $a,
@@ -2283,31 +2287,91 @@ function ll_tools_handle_word_option_rules_save() {
         }
     }
 
-    $pairs = array_values($pairs_map);
-
     if (!function_exists('ll_tools_update_word_option_rules')) {
+        return new WP_Error('save_unavailable', __('Unable to save word option rules.', 'll-tools-text-domain'), [
+            'status' => 500,
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+            'scroll_position' => $scroll_position,
+        ]);
+    }
+
+    ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, array_values($pairs_map), array_values($similar_image_override_map));
+
+    return [
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'scroll_position' => $scroll_position,
+        'message' => __('Word option rules saved.', 'll-tools-text-domain'),
+    ];
+}
+
+function ll_tools_handle_word_option_rules_save() {
+    if (!current_user_can('view_ll_tools')) {
+        wp_die(__('Permission denied.', 'll-tools-text-domain'));
+    }
+
+    check_admin_referer('ll_word_option_rules_save');
+
+    $result = ll_tools_save_word_option_rules_from_request($_POST);
+    if (is_wp_error($result)) {
+        $data = $result->get_error_data();
+        if ($result->get_error_code() === 'forbidden') {
+            wp_die($result->get_error_message());
+        }
+
         $redirect_args = [
             'll_word_options_error' => 1,
         ];
-        if ($scroll_position > 0) {
-            $redirect_args['ll_scroll'] = $scroll_position;
+        if (!empty($data['scroll_position'])) {
+            $redirect_args['ll_scroll'] = (int) $data['scroll_position'];
         }
-        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $redirect_args));
+        wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url(
+            isset($data['wordset_id']) ? (int) $data['wordset_id'] : 0,
+            isset($data['category_id']) ? (int) $data['category_id'] : 0,
+            $redirect_args
+        ));
         exit;
     }
-
-    ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs, array_values($similar_image_override_map));
 
     $redirect_args = [
         'll_word_options_updated' => 1,
     ];
-    if ($scroll_position > 0) {
-        $redirect_args['ll_scroll'] = $scroll_position;
+    if (!empty($result['scroll_position'])) {
+        $redirect_args['ll_scroll'] = (int) $result['scroll_position'];
     }
-    wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url($wordset_id, $category_id, $redirect_args));
+    wp_safe_redirect(ll_tools_word_option_rules_get_redirect_url(
+        (int) ($result['wordset_id'] ?? 0),
+        (int) ($result['category_id'] ?? 0),
+        $redirect_args
+    ));
     exit;
 }
 add_action('admin_post_ll_tools_save_word_option_rules', 'll_tools_handle_word_option_rules_save');
+
+function ll_tools_handle_word_option_rules_save_ajax() {
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error([
+            'message' => __('Permission denied.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_word_option_rules_save');
+
+    $result = ll_tools_save_word_option_rules_from_request($_POST);
+    if (is_wp_error($result)) {
+        $data = $result->get_error_data();
+        $status = isset($data['status']) ? (int) $data['status'] : 400;
+        wp_send_json_error([
+            'message' => $result->get_error_message(),
+        ], $status > 0 ? $status : 400);
+    }
+
+    wp_send_json_success([
+        'message' => (string) ($result['message'] ?? __('Word option rules saved.', 'll-tools-text-domain')),
+    ]);
+}
+add_action('wp_ajax_ll_tools_save_word_option_rules_async', 'll_tools_handle_word_option_rules_save_ajax');
 
 function ll_tools_handle_export_word_option_rules() {
     if (!current_user_can('view_ll_tools')) {
