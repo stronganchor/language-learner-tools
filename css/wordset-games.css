@@ -20,7 +20,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-game-run-modal {
-    --ll-wordset-game-run-pad: clamp(16px, 2.8vw, 28px);
+    --ll-wordset-game-run-pad: clamp(10px, 1.8vw, 20px);
     position: fixed;
     inset: 0;
     z-index: 100000;
@@ -44,18 +44,20 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-game-run-modal__dialog {
     position: relative;
     z-index: 1;
-    width: min(100%, 1220px);
+    width: min(100%, 1480px);
     height: 100%;
     overflow: hidden;
     box-sizing: border-box;
     display: grid;
-    align-items: center;
+    align-items: stretch;
+    justify-items: center;
     padding: 0;
 }
 
 .ll-wordset-game-run-modal__dialog .ll-wordset-game-stage {
-    width: min(100%, 860px);
+    width: min(100%, 94vw);
     max-width: 100%;
+    height: min(100%, calc(100dvh - (var(--ll-wordset-game-run-pad) * 2)));
     max-height: calc(100dvh - (var(--ll-wordset-game-run-pad) * 2));
     margin: 0 auto;
 }
@@ -66,13 +68,13 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-game-run-modal__dialog .ll-wordset-game-stage[data-ll-wordset-active-game="line-up"] {
-    width: min(100%, 1040px);
-    max-width: min(100%, 1040px);
+    width: min(100%, 1360px);
+    max-width: min(100%, 1360px);
 }
 
 .ll-wordset-game-run-modal__dialog .ll-wordset-game-stage[data-ll-wordset-active-game="unscramble"] {
-    width: min(100%, 1040px);
-    max-width: min(100%, 1040px);
+    width: min(100%, 1360px);
+    max-width: min(100%, 1360px);
 }
 
 .ll-wordset-games-page {
@@ -346,8 +348,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     max-width: min(100%, 760px, max(420px, calc(100vh - 180px)));
     margin-right: auto;
     margin-top: 16px;
-    padding: 16px;
-    border-radius: 28px;
+    padding: clamp(14px, 1.5vw, 22px);
+    border-radius: clamp(24px, 2.5vw, 36px);
     border: 1px solid rgba(148, 163, 184, 0.22);
     background:
         radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 24%),
@@ -355,6 +357,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     box-shadow: 0 28px 60px rgba(15, 23, 42, 0.12);
     display: grid;
     align-content: start;
+    overflow: hidden;
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="bubble-pop"] {
@@ -1162,6 +1165,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         radial-gradient(circle at top left, rgba(94, 234, 212, 0.18), transparent 26%),
         linear-gradient(180deg, rgba(248, 255, 254, 0.98), rgba(240, 253, 250, 0.96));
     max-width: min(100%, 1120px);
+    grid-template-rows: auto minmax(0, 1fr);
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="line-up"] .ll-wordset-game-stage__canvas-wrap {
@@ -1178,6 +1182,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         radial-gradient(circle at top left, rgba(251, 191, 36, 0.2), transparent 28%),
         linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 247, 237, 0.96));
     max-width: min(100%, 1120px);
+    grid-template-rows: auto minmax(0, 1fr);
 }
 
 .ll-wordset-game-stage[data-ll-wordset-active-game="unscramble"] .ll-wordset-game-stage__canvas-wrap {
@@ -1189,12 +1194,23 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
         0 20px 42px rgba(180, 83, 9, 0.12);
 }
 
+.ll-wordset-game-stage[data-ll-wordset-active-game="line-up"] .ll-wordset-game-stage__canvas-wrap,
+.ll-wordset-game-stage[data-ll-wordset-active-game="unscramble"] .ll-wordset-game-stage__canvas-wrap {
+    min-height: 0;
+    height: 100%;
+    display: grid;
+}
+
 .ll-wordset-lineup-stage {
-    min-height: min(64vh, 720px);
+    min-height: 0;
+    height: 100%;
     padding: clamp(14px, 2vw, 20px);
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
     gap: 14px;
-    align-content: start;
+    align-content: stretch;
+    overflow: hidden;
 }
 
 .ll-wordset-lineup-stage__topline,
@@ -1233,6 +1249,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     color: rgba(15, 23, 42, 0.78);
     font-size: 0.95rem;
     font-weight: 700;
+    grid-row: 2;
 }
 
 .ll-wordset-lineup-stage__prompt {
@@ -1241,6 +1258,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     gap: 14px;
     flex-wrap: wrap;
     min-height: 0;
+    grid-row: 3;
 }
 
 .ll-wordset-lineup-stage__prompt-image-frame {
@@ -1283,6 +1301,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     display: inline-flex;
     align-items: center;
     font-weight: 800;
+    grid-row: 4;
 }
 
 .ll-wordset-lineup-stage__status[data-lineup-status-kind="correct"] {
@@ -1306,6 +1325,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: thin;
+    min-height: 0;
+    grid-row: 5;
 }
 
 .ll-wordset-lineup-stage__card {
@@ -1379,8 +1400,17 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
     min-height: 0;
-    height: min(68vh, max(280px, calc(100dvh - 250px)), 720px);
+    height: 100%;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+        "topline"
+        "instruction"
+        "prompt"
+        "status"
+        "cards"
+        "actions";
+    row-gap: clamp(10px, 1.3vw, 16px);
 }
 
 .ll-wordset-lineup-stage__card--tile {
@@ -1426,15 +1456,44 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__prompt-image-frame {
-    width: min(160px, 36vw, 100%);
+    width: min(100%, 260px);
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__actions {
+    grid-area: actions;
     justify-content: space-between;
+    align-self: end;
+    padding-top: clamp(8px, 1vw, 12px);
+    background:
+        linear-gradient(180deg, rgba(255, 247, 237, 0), rgba(255, 247, 237, 0.88) 22%, rgba(255, 247, 237, 0.98) 100%);
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__action {
     flex: 1 1 120px;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__topline {
+    grid-area: topline;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__instruction {
+    grid-area: instruction;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__prompt {
+    grid-area: prompt;
+    align-self: stretch;
+    align-content: start;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__status {
+    grid-area: status;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__cards {
+    grid-area: cards;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__card--tile[data-ll-wordset-unscramble-tile] {
@@ -1472,6 +1531,17 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     display: inline-flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+.ll-wordset-lineup-stage__topline {
+    grid-row: 1;
+}
+
+.ll-wordset-lineup-stage__actions {
+    grid-row: 6;
+    position: relative;
+    z-index: 1;
+    padding-top: 4px;
 }
 
 .ll-wordset-games-page button.ll-wordset-lineup-stage__move,
@@ -1539,6 +1609,20 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-games-page button.ll-wordset-lineup-stage__action--ghost {
     background: rgba(255, 255, 255, 0.94) !important;
+}
+
+@media (min-width: 980px) {
+    .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
+        grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+        grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "topline topline"
+            "instruction instruction"
+            "prompt status"
+            "prompt cards"
+            "actions actions";
+        column-gap: clamp(16px, 2vw, 24px);
+    }
 }
 
 .ll-wordset-speaking-stack-stage {
@@ -2247,6 +2331,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
     .ll-wordset-game-run-modal__dialog .ll-wordset-game-stage {
         max-width: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
     }
 
     .ll-wordset-game-card {
@@ -2278,7 +2364,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
     .ll-wordset-game-stage {
         padding: 12px;
-        border-radius: 24px;
+        border-radius: 18px;
+        margin-top: 0;
     }
 
     .ll-wordset-game-stage__hud {
@@ -2367,7 +2454,8 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-lineup-stage {
-        min-height: min(60vh, 660px);
+        min-height: 0;
+        height: 100%;
         padding: 14px;
         gap: 12px;
     }
@@ -2386,7 +2474,16 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     }
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
-        height: min(62vh, max(250px, calc(100dvh - 190px)), 620px);
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+        grid-template-areas:
+            "topline"
+            "instruction"
+            "prompt"
+            "status"
+            "cards"
+            "actions";
+        height: 100%;
     }
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__cards {
