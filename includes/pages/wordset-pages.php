@@ -8849,6 +8849,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                 <ol class="ll-wordset-lineup-stage__cards" data-ll-wordset-lineup-cards></ol>
                                 <div class="ll-wordset-lineup-stage__actions">
                                     <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--ghost" data-ll-wordset-lineup-shuffle><?php echo esc_html__('Shuffle', 'll-tools-text-domain'); ?></button>
+                                    <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip" data-ll-wordset-unscramble-skip hidden><?php echo esc_html__('Skip', 'll-tools-text-domain'); ?></button>
                                     <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--primary" data-ll-wordset-lineup-check><?php echo esc_html__('Check', 'll-tools-text-domain'); ?></button>
                                     <button type="button" class="ll-wordset-lineup-stage__action ll-wordset-lineup-stage__action--primary" data-ll-wordset-lineup-next hidden><?php echo esc_html__('Next', 'll-tools-text-domain'); ?></button>
                                 </div>
