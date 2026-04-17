@@ -703,6 +703,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 .ll-wordset-game-stage__overlay {
     position: absolute;
     inset: 16px;
+    z-index: 12;
     border-radius: 22px;
     display: flex;
     align-items: center;
@@ -1472,10 +1473,19 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     align-self: end;
     padding-top: 0;
     background: none;
+    position: relative;
+    z-index: 1;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__action {
     flex: 1 1 120px;
+}
+
+.ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__action--skip {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: auto;
+    padding-inline: 18px;
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__topline {
