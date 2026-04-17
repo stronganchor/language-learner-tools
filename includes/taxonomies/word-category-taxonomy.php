@@ -1279,6 +1279,10 @@ function ll_tools_get_category_game_definitions(): array {
             'slug' => 'bubble-pop',
             'label' => __('Bubble Pop', 'll-tools-text-domain'),
         ],
+        'unscramble' => [
+            'slug' => 'unscramble',
+            'label' => __('Unscramble', 'll-tools-text-domain'),
+        ],
         'speaking-practice' => [
             'slug' => 'speaking-practice',
             'label' => __('Speaking Practice', 'll-tools-text-domain'),
@@ -1397,6 +1401,72 @@ function ll_tools_seed_existing_categories_enabled_games(): void {
     update_option('ll_seeded_category_enabled_games_v1', 1);
 }
 add_action('admin_init', 'll_tools_seed_existing_categories_enabled_games');
+
+function ll_tools_should_upgrade_category_enabled_games_for_unscramble(array $enabled_games, bool $has_existing_meta = true): bool {
+    $enabled_games = ll_tools_normalize_category_enabled_games($enabled_games);
+    if (in_array('unscramble', $enabled_games, true)) {
+        return false;
+    }
+
+    if (!$has_existing_meta) {
+        return true;
+    }
+
+    $legacy_defaults = ll_tools_normalize_category_enabled_games(array_values(array_filter(
+        ll_tools_get_category_default_enabled_game_slugs(),
+        static function (string $game_slug): bool {
+            return $game_slug !== 'unscramble';
+        }
+    )));
+
+    return empty(array_diff($enabled_games, $legacy_defaults))
+        && empty(array_diff($legacy_defaults, $enabled_games));
+}
+
+function ll_tools_seed_existing_categories_enabled_games_v2(): void {
+    if (!is_admin()) {
+        return;
+    }
+    if (get_option('ll_seeded_category_enabled_games_v2', false)) {
+        return;
+    }
+
+    $term_ids = get_terms([
+        'taxonomy' => 'word-category',
+        'hide_empty' => false,
+        'fields' => 'ids',
+    ]);
+    if (is_wp_error($term_ids) || empty($term_ids)) {
+        update_option('ll_seeded_category_enabled_games_v2', 1);
+        return;
+    }
+
+    foreach ((array) $term_ids as $term_id) {
+        $term_id = (int) $term_id;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $has_existing_meta = metadata_exists('term', $term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY);
+        $enabled_games = $has_existing_meta
+            ? ll_tools_get_category_enabled_games($term_id)
+            : [];
+        if (!ll_tools_should_upgrade_category_enabled_games_for_unscramble($enabled_games, $has_existing_meta)) {
+            continue;
+        }
+
+        if (!$has_existing_meta) {
+            update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, ll_tools_get_category_default_enabled_game_slugs());
+            continue;
+        }
+
+        $enabled_games[] = 'unscramble';
+        update_term_meta($term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, ll_tools_normalize_category_enabled_games($enabled_games));
+    }
+
+    update_option('ll_seeded_category_enabled_games_v2', 1);
+}
+add_action('admin_init', 'll_tools_seed_existing_categories_enabled_games_v2');
 
 function ll_tools_normalize_category_lineup_direction($value): string {
     $direction = sanitize_key((string) $value);

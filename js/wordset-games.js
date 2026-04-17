@@ -4,6 +4,7 @@
     const api = root.LLWordsetGames = root.LLWordsetGames || {};
     const DEFAULT_GAME_SLUG = 'space-shooter';
     const BUBBLE_POP_GAME_SLUG = 'bubble-pop';
+    const UNSCRAMBLE_GAME_SLUG = 'unscramble';
     const LINEUP_GAME_SLUG = 'line-up';
     const SPEAKING_PRACTICE_GAME_SLUG = 'speaking-practice';
     const SPEAKING_STACK_GAME_SLUG = 'speaking-stack';
@@ -285,6 +286,16 @@
                     '<rect x="16.4" y="6.1" width="4.1" height="11.8" rx="1.2" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4"></rect>' +
                     '<path d="M5.55 4.2H18.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>' +
                     '<path d="M17.15 3L18.85 4.2L17.15 5.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>' +
+                '</svg>';
+        }
+        if (normalizedSlug === UNSCRAMBLE_GAME_SLUG) {
+            return '' +
+                '<svg class="ll-wordset-game-card__icon-svg" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">' +
+                    '<rect x="3.6" y="5.1" width="5.6" height="5.6" rx="1.4" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.4"></rect>' +
+                    '<rect x="10.4" y="12.7" width="5.6" height="5.6" rx="1.4" fill="currentColor" fill-opacity="0.22" stroke="currentColor" stroke-width="1.4"></rect>' +
+                    '<rect x="17.1" y="5.1" width="3.3" height="3.3" rx="1.05" fill="currentColor" fill-opacity="0.14" stroke="currentColor" stroke-width="1.2"></rect>' +
+                    '<path d="M9.7 7.9H14.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"></path>' +
+                    '<path d="M13 6.7L14.45 7.9L13 9.1" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"></path>' +
                 '</svg>';
         }
         if (normalizedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
@@ -708,6 +719,22 @@
         return out;
     }
 
+    function normalizeUnscrambleUnits(rawUnits) {
+        return (Array.isArray(rawUnits) ? rawUnits : [])
+            .map(function (unit, index) {
+                const row = (unit && typeof unit === 'object') ? unit : {};
+                return {
+                    id: toInt(row.id) || (index + 1),
+                    text: String(row.text || ''),
+                    movable: !!row.movable,
+                    target_position: Math.max(0, toInt(row.target_position) || index)
+                };
+            })
+            .filter(function (unit) {
+                return unit.text !== '';
+            });
+    }
+
     function normalizeWord(rawWord) {
         const word = (rawWord && typeof rawWord === 'object') ? rawWord : {};
         const categoryIds = uniqueIntList(word.category_ids || []);
@@ -758,7 +785,14 @@
                     target_label: String(word.speaking_display_texts.target_label || '')
                 }
                 : null,
-            speaking_best_correct_audio_url: String(word.speaking_best_correct_audio_url || '')
+            speaking_best_correct_audio_url: String(word.speaking_best_correct_audio_url || ''),
+            unscramble_answer_text: String(word.unscramble_answer_text || ''),
+            unscramble_prompt_type: String(word.unscramble_prompt_type || ''),
+            unscramble_prompt_text: String(word.unscramble_prompt_text || ''),
+            unscramble_prompt_image: String(word.unscramble_prompt_image || ''),
+            unscramble_direction: normalizeLineupDirection(word.unscramble_direction || ''),
+            unscramble_movable_unit_count: Math.max(0, toInt(word.unscramble_movable_unit_count)),
+            unscramble_units: normalizeUnscrambleUnits(word.unscramble_units)
         };
     }
 
@@ -967,6 +1001,10 @@
         return normalizeGameSlug(run && run.slug) === LINEUP_GAME_SLUG;
     }
 
+    function isUnscrambleRun(ctx, run) {
+        return normalizeGameSlug(run && run.slug) === UNSCRAMBLE_GAME_SLUG;
+    }
+
     function isSpeakingStackRun(ctx, run) {
         return normalizeGameSlug(run && run.slug) === SPEAKING_STACK_GAME_SLUG;
     }
@@ -1001,6 +1039,9 @@
         }
         if (requestedSlug === LINEUP_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelLineup || 'Line-Up sequence board');
+        }
+        if (requestedSlug === UNSCRAMBLE_GAME_SLUG) {
+            return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelUnscramble || 'Unscramble game board');
         }
         if (requestedSlug === SPEAKING_PRACTICE_GAME_SLUG) {
             return String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelSpeakingPractice || 'Speaking practice panel');
@@ -3475,6 +3516,50 @@
         const entry = $.extend({}, rawEntry || {});
         const normalizedSlug = normalizeGameSlug(entry.slug || slug);
         const gameConfig = getGameConfig(ctx, slug);
+        if (normalizedSlug === UNSCRAMBLE_GAME_SLUG) {
+            const minimumCount = Math.max(1, toInt(entry.minimum_word_count) || ctx.minimumWordCount);
+            const minTileCount = Math.max(2, toInt(entry.minimum_tile_count) || toInt(gameConfig && gameConfig.minTileCount) || 3);
+            const maxTileCount = Math.max(minTileCount, toInt(entry.maximum_tile_count) || toInt(gameConfig && gameConfig.maxTileCount) || 18);
+            const maxLoadedWords = Math.max(
+                minimumCount,
+                toInt(entry.launch_word_cap)
+                    || toInt(gameConfig && gameConfig.maxLoadedWords)
+                    || minimumCount
+            );
+            const eligibleWords = (Array.isArray(entry.words) ? entry.words : [])
+                .map(normalizeWord)
+                .filter(function (word) {
+                    const movableCount = Math.max(
+                        0,
+                        toInt(word.unscramble_movable_unit_count)
+                            || (Array.isArray(word.unscramble_units)
+                                ? word.unscramble_units.filter(function (unit) { return !!unit.movable; }).length
+                                : 0)
+                    );
+                    return word.id > 0
+                        && String(word.unscramble_answer_text || '').trim() !== ''
+                        && (String(word.unscramble_prompt_text || '').trim() !== '' || String(word.unscramble_prompt_image || '').trim() !== '')
+                        && Array.isArray(word.unscramble_units)
+                        && word.unscramble_units.length > 0
+                        && movableCount >= minTileCount
+                        && movableCount <= maxTileCount;
+                });
+            const words = limitLaunchWords(eligibleWords, maxLoadedWords);
+
+            return $.extend({}, entry, {
+                slug: normalizedSlug,
+                words: words,
+                playableTargets: words.slice(),
+                available_word_count: toInt(entry.available_word_count) || eligibleWords.length,
+                launch_word_cap: maxLoadedWords,
+                launch_word_count: words.length,
+                launchable: !!entry.launchable && words.length >= minimumCount,
+                minimum_word_count: minimumCount,
+                minimum_tile_count: minTileCount,
+                maximum_tile_count: maxTileCount,
+                category_ids: uniqueIntList(entry.category_ids || [])
+            });
+        }
         if (normalizedSlug === LINEUP_GAME_SLUG) {
             const minimumSequenceCount = Math.max(1, toInt(entry.minimum_sequence_count) || 1);
             const minimumSequenceLength = Math.max(
@@ -4776,33 +4861,34 @@
         const isSpeakingStack = gameSlug === SPEAKING_STACK_GAME_SLUG;
         const isBubble = gameSlug === BUBBLE_POP_GAME_SLUG;
         const isLineup = gameSlug === LINEUP_GAME_SLUG;
+        const isUnscramble = gameSlug === UNSCRAMBLE_GAME_SLUG;
 
         if (ctx && ctx.$stage && ctx.$stage.length) {
             ctx.$stage.attr('data-ll-wordset-active-game', gameSlug || '');
         }
         if (ctx && ctx.$hud && ctx.$hud.length) {
-            ctx.$hud.prop('hidden', isSpeaking || isLineup);
+            ctx.$hud.prop('hidden', isSpeaking || isLineup || isUnscramble);
         }
         if (ctx && ctx.$controlsWrap && ctx.$controlsWrap.length) {
-            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking || isSpeakingStack || isLineup);
+            ctx.$controlsWrap.prop('hidden', isBubble || isSpeaking || isSpeakingStack || isLineup || isUnscramble);
         }
         if (ctx && ctx.$canvasWrap && ctx.$canvasWrap.length) {
             ctx.$canvasWrap.prop('hidden', isSpeaking);
         }
         if (ctx && ctx.$canvas && ctx.$canvas.length) {
-            ctx.$canvas.prop('hidden', isLineup);
+            ctx.$canvas.prop('hidden', isLineup || isUnscramble);
         }
         if (ctx && ctx.$replayAudioButton && ctx.$replayAudioButton.length) {
-            ctx.$replayAudioButton.prop('hidden', isSpeaking || isSpeakingStack || isLineup);
+            ctx.$replayAudioButton.prop('hidden', isSpeaking || isSpeakingStack || isLineup || isUnscramble);
         }
         if (ctx && ctx.$pauseButton && ctx.$pauseButton.length) {
-            ctx.$pauseButton.prop('hidden', isSpeaking || isLineup);
+            ctx.$pauseButton.prop('hidden', isSpeaking || isLineup || isUnscramble);
         }
         if (ctx && ctx.$coins && ctx.$coins.length) {
-            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack || isLineup);
+            ctx.$coins.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack || isLineup || isUnscramble);
         }
         if (ctx && ctx.$lives && ctx.$lives.length) {
-            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack || isLineup);
+            ctx.$lives.closest('.ll-wordset-game-stage__stat').prop('hidden', isSpeaking || isSpeakingStack || isLineup || isUnscramble);
         }
         if (ctx && ctx.$speakingStage && ctx.$speakingStage.length) {
             ctx.$speakingStage.prop('hidden', !isSpeaking);
@@ -4811,7 +4897,8 @@
             ctx.$speakingStackStage.prop('hidden', !isSpeakingStack);
         }
         if (ctx && ctx.$lineupStage && ctx.$lineupStage.length) {
-            ctx.$lineupStage.prop('hidden', !isLineup);
+            ctx.$lineupStage.prop('hidden', !(isLineup || isUnscramble));
+            ctx.$lineupStage.attr('data-lineup-mode', isUnscramble ? 'unscramble' : (isLineup ? 'line-up' : ''));
         }
         if (ctx && ctx.canvas && typeof ctx.canvas.setAttribute === 'function') {
             ctx.canvas.setAttribute('aria-label', gameSlug ? getBoardLabel(ctx, gameSlug) : String(ctx && ctx.i18n && ctx.i18n.gamesBoardLabelDefault || 'Wordset game board'));
@@ -6402,6 +6489,24 @@
         if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
             ctx.$lineupInstruction.text(String(ctx.i18n.gamesLineupInstruction || 'Put the cards in the correct order.'));
         }
+        if (ctx.$lineupPrompt && ctx.$lineupPrompt.length) {
+            ctx.$lineupPrompt.prop('hidden', true);
+        }
+        if (ctx.$lineupPromptImageWrap && ctx.$lineupPromptImageWrap.length) {
+            ctx.$lineupPromptImageWrap.prop('hidden', true);
+        }
+        if (ctx.$lineupPromptImage && ctx.$lineupPromptImage.length) {
+            ctx.$lineupPromptImage.attr('src', '').attr('alt', '');
+        }
+        if (ctx.$lineupPromptTextWrap && ctx.$lineupPromptTextWrap.length) {
+            ctx.$lineupPromptTextWrap.prop('hidden', true);
+        }
+        if (ctx.$lineupPromptText && ctx.$lineupPromptText.length) {
+            ctx.$lineupPromptText.text('');
+        }
+        if (ctx.$lineupPromptLabel && ctx.$lineupPromptLabel.length) {
+            ctx.$lineupPromptLabel.text(String(ctx.i18n.gamesUnscramblePromptLabel || 'Clue'));
+        }
         if (ctx.$lineupStatus && ctx.$lineupStatus.length) {
             ctx.$lineupStatus.text('').attr('data-lineup-status-kind', '').prop('hidden', true);
         }
@@ -6412,6 +6517,7 @@
             ctx.$lineupShuffle.prop('disabled', true);
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
+            ctx.$lineupCheck.text(String(ctx.i18n.gamesLineupCheck || 'Check')).prop('hidden', false);
             ctx.$lineupCheck.prop('disabled', true);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
@@ -6438,7 +6544,140 @@
         run.lineupCheck = null;
     }
 
-    function getLineupPromptState(run, word) {
+    function setLineupPrompt(ctx, prompt) {
+        const data = (prompt && typeof prompt === 'object') ? prompt : {};
+        const promptType = String(data.type || '').trim().toLowerCase();
+        const promptText = String(data.text || '').trim();
+        const promptImage = String(data.image || '').trim();
+        const showPrompt = promptType === 'image'
+            ? promptImage !== ''
+            : promptText !== '';
+
+        if (ctx.$lineupPrompt && ctx.$lineupPrompt.length) {
+            ctx.$lineupPrompt.prop('hidden', !showPrompt);
+        }
+        if (ctx.$lineupPromptImageWrap && ctx.$lineupPromptImageWrap.length) {
+            ctx.$lineupPromptImageWrap.prop('hidden', !(showPrompt && promptType === 'image' && promptImage !== ''));
+        }
+        if (ctx.$lineupPromptImage && ctx.$lineupPromptImage.length) {
+            ctx.$lineupPromptImage
+                .attr('src', promptType === 'image' ? promptImage : '')
+                .attr('alt', promptType === 'image'
+                    ? String(ctx.i18n.gamesUnscramblePromptLabel || 'Clue')
+                    : '');
+        }
+        if (ctx.$lineupPromptTextWrap && ctx.$lineupPromptTextWrap.length) {
+            ctx.$lineupPromptTextWrap.prop('hidden', !(showPrompt && promptType !== 'image' && promptText !== ''));
+        }
+        if (ctx.$lineupPromptText && ctx.$lineupPromptText.length) {
+            ctx.$lineupPromptText.text(promptType === 'image' ? '' : promptText);
+        }
+        if (ctx.$lineupPromptLabel && ctx.$lineupPromptLabel.length) {
+            ctx.$lineupPromptLabel.text(String(ctx.i18n.gamesUnscramblePromptLabel || 'Clue'));
+        }
+    }
+
+    function cloneUnscrambleUnits(units) {
+        return (Array.isArray(units) ? units : []).map(function (unit, index) {
+            const row = (unit && typeof unit === 'object') ? unit : {};
+            return {
+                id: toInt(row.id) || (index + 1),
+                text: String(row.text || ''),
+                movable: !!row.movable,
+                target_position: Math.max(0, toInt(row.target_position) || index)
+            };
+        });
+    }
+
+    function buildUnscrambleOrder(units, maxAttempts) {
+        const sourceUnits = cloneUnscrambleUnits(units);
+        const movableUnits = sourceUnits.filter(function (unit) {
+            return !!unit.movable;
+        });
+        if (movableUnits.length < 2) {
+            return sourceUnits;
+        }
+
+        const signature = movableUnits.map(function (unit) { return String(unit.id); }).join(',');
+        const attempts = Math.max(1, toInt(maxAttempts) || 6);
+        let shuffledMovable = movableUnits.slice();
+        let remaining = attempts;
+
+        while (remaining > 0) {
+            shuffledMovable = shuffle(movableUnits);
+            if (shuffledMovable.map(function (unit) { return String(unit.id); }).join(',') !== signature) {
+                break;
+            }
+            remaining -= 1;
+        }
+
+        let movableIndex = 0;
+        return sourceUnits.map(function (unit) {
+            if (!unit.movable) {
+                return unit;
+            }
+            const nextUnit = shuffledMovable[movableIndex] || unit;
+            movableIndex += 1;
+            return {
+                id: nextUnit.id,
+                text: nextUnit.text,
+                movable: true,
+                target_position: unit.target_position
+            };
+        });
+    }
+
+    function findUnscrambleSwapIndex(units, currentIndex, moveDirection) {
+        const direction = moveDirection === 'earlier' ? -1 : 1;
+        let pointer = currentIndex + direction;
+        while (pointer >= 0 && pointer < units.length) {
+            if (units[pointer] && units[pointer].movable) {
+                return pointer;
+            }
+            pointer += direction;
+        }
+        return -1;
+    }
+
+    function evaluateUnscrambleOrder(run) {
+        const targetWord = run && run.currentWord;
+        const currentUnits = Array.isArray(run && run.currentOrder) ? run.currentOrder : [];
+        const targetUnits = Array.isArray(targetWord && targetWord.unscramble_units) ? targetWord.unscramble_units : [];
+        const totalCount = Math.min(currentUnits.length, targetUnits.length);
+        const correctUnitIds = {};
+        const incorrectUnitIds = {};
+        let matchedCount = 0;
+        let movableCount = 0;
+
+        for (let index = 0; index < totalCount; index += 1) {
+            const currentUnit = currentUnits[index] || null;
+            const targetUnit = targetUnits[index] || null;
+            const currentId = toInt(currentUnit && currentUnit.id);
+            const targetId = toInt(targetUnit && targetUnit.id);
+            const currentMovable = !!(currentUnit && currentUnit.movable);
+
+            if (!currentMovable) {
+                continue;
+            }
+
+            movableCount += 1;
+            if (currentId > 0 && currentId === targetId) {
+                correctUnitIds[currentId] = true;
+                matchedCount += 1;
+            } else if (currentId > 0) {
+                incorrectUnitIds[currentId] = true;
+            }
+        }
+
+        return {
+            matchedCount: matchedCount,
+            totalCount: movableCount,
+            correctUnitIds: correctUnitIds,
+            incorrectUnitIds: incorrectUnitIds
+        };
+    }
+
+    function getLineupPromptState(run, word, gameSlug) {
         if (!run || !word) {
             return null;
         }
@@ -6456,7 +6695,7 @@
             run.lineupPromptState[wordId] = {
                 target: word,
                 recordingType: '',
-                gameSlug: LINEUP_GAME_SLUG,
+                gameSlug: normalizeGameSlug(gameSlug || LINEUP_GAME_SLUG),
                 exposureTracked: false,
                 hadWrongBefore: false
             };
@@ -6489,6 +6728,7 @@
         if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
             ctx.$lineupInstruction.text(String(ctx.i18n.gamesLineupInstruction || 'Put the cards in the correct order.'));
         }
+        setLineupPrompt(ctx, null);
 
         if (ctx.$lineupCards && ctx.$lineupCards.length) {
             const markup = words.map(function (word, index) {
@@ -6527,6 +6767,7 @@
             ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || words.length < 2);
         }
         if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
+            ctx.$lineupCheck.prop('hidden', false);
             ctx.$lineupCheck.prop('disabled', !!run.sequenceLocked || words.length < 2);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
@@ -6779,6 +7020,331 @@
         renderLineupSequence(ctx);
     }
 
+    function renderUnscrambleWord(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || !run.currentWord) {
+            resetLineupStage(ctx);
+            return;
+        }
+
+        const word = run.currentWord;
+        const direction = normalizeLineupDirection(word.unscramble_direction || 'ltr');
+        const units = Array.isArray(run.currentOrder) ? run.currentOrder.slice() : [];
+        const checkState = (run.lineupCheck && typeof run.lineupCheck === 'object') ? run.lineupCheck : null;
+
+        if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
+            ctx.$lineupProgress.text(formatMessage(
+                ctx.i18n.gamesUnscrambleProgress || 'Word %1$d of %2$d',
+                [Math.max(1, toInt(run.currentWordIndex) + 1), Math.max(1, getRunTotalRounds(run))]
+            ));
+        }
+        if (ctx.$lineupCategory && ctx.$lineupCategory.length) {
+            ctx.$lineupCategory.text(String(word.category_name || ''));
+        }
+        if (ctx.$lineupInstruction && ctx.$lineupInstruction.length) {
+            ctx.$lineupInstruction.text(String(ctx.i18n.gamesUnscrambleInstruction || 'Put the tiles back in the right order.'));
+        }
+        setLineupPrompt(ctx, {
+            type: String(word.unscramble_prompt_type || ''),
+            text: String(word.unscramble_prompt_text || ''),
+            image: String(word.unscramble_prompt_image || '')
+        });
+
+        if (ctx.$lineupCards && ctx.$lineupCards.length) {
+            const markup = units.map(function (unit, index) {
+                const unitId = toInt(unit && unit.id);
+                const isMovable = !!(unit && unit.movable);
+                const isCorrect = !!(checkState && checkState.correctUnitIds && checkState.correctUnitIds[unitId]);
+                const isIncorrect = !!(checkState && checkState.incorrectUnitIds && checkState.incorrectUnitIds[unitId]);
+                const moveEarlierIndex = findUnscrambleSwapIndex(units, index, 'earlier');
+                const moveLaterIndex = findUnscrambleSwapIndex(units, index, 'later');
+                const canMoveEarlier = !run.sequenceLocked && isMovable && moveEarlierIndex >= 0;
+                const canMoveLater = !run.sequenceLocked && isMovable && moveLaterIndex >= 0;
+                const tileText = String(unit && unit.text || '');
+
+                return '' +
+                    '<li class="ll-wordset-lineup-stage__card ll-wordset-lineup-stage__card--tile'
+                        + (isMovable ? '' : ' is-static')
+                        + (isCorrect ? ' is-correct' : '')
+                        + (isIncorrect ? ' is-incorrect' : '')
+                        + '" data-ll-wordset-lineup-card data-lineup-index="' + escapeHtml(String(index + 1)) + '" data-unit-id="' + escapeHtml(String(unitId)) + '">' +
+                        '<div class="ll-wordset-lineup-stage__card-order" aria-hidden="true">' + (isMovable ? escapeHtml(String(index + 1)) : '&nbsp;') + '</div>' +
+                        '<div class="ll-wordset-lineup-stage__card-body">' +
+                            '<p class="ll-wordset-lineup-stage__card-text ll-wordset-lineup-stage__card-text--tile" dir="auto">' + escapeHtml(tileText || '\u00A0') + '</p>' +
+                            '<div class="ll-wordset-lineup-stage__card-actions">' +
+                                (isMovable
+                                    ? (
+                                        '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-unscramble-move="earlier"' + (canMoveEarlier ? '' : ' disabled') + '>' +
+                                            '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'earlier')) + '</span>' +
+                                            '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveEarlier || 'Move earlier')) + '</span>' +
+                                        '</button>' +
+                                        '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-unscramble-move="later"' + (canMoveLater ? '' : ' disabled') + '>' +
+                                            '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'later')) + '</span>' +
+                                            '<span class="screen-reader-text">' + escapeHtml(String(ctx.i18n.gamesLineupMoveLater || 'Move later')) + '</span>' +
+                                        '</button>'
+                                    )
+                                    : '<span class="ll-wordset-lineup-stage__move ll-wordset-lineup-stage__move--placeholder" aria-hidden="true"></span>') +
+                            '</div>' +
+                        '</div>' +
+                    '</li>';
+            }).join('');
+
+            ctx.$lineupCards.html(markup).attr('dir', direction);
+        }
+
+        if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
+            ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || Math.max(0, toInt(word.unscramble_movable_unit_count)) < 2);
+        }
+        if (ctx.$lineupCheck && ctx.$lineupCheck.length) {
+            ctx.$lineupCheck.prop('hidden', true).prop('disabled', true);
+        }
+        if (ctx.$lineupNext && ctx.$lineupNext.length) {
+            const isLastWord = (toInt(run.currentWordIndex) + 1) >= getRunTotalRounds(run);
+            ctx.$lineupNext
+                .text(String(isLastWord
+                    ? (ctx.i18n.gamesLineupFinish || 'Finish')
+                    : (ctx.i18n.gamesLineupNext || 'Next')))
+                .prop('hidden', !run.sequenceLocked)
+                .prop('disabled', !run.sequenceLocked);
+        }
+    }
+
+    function syncUnscrambleStatus(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || !run.currentWord) {
+            return;
+        }
+
+        const check = evaluateUnscrambleOrder(run);
+        run.lineupCheck = check;
+
+        if (check.totalCount > 0 && check.matchedCount >= check.totalCount) {
+            if (!run.sequenceLocked) {
+                const promptState = getLineupPromptState(run, run.currentWord, UNSCRAMBLE_GAME_SLUG);
+                run.sequenceLocked = true;
+                run.promptsResolved = Math.max(0, toInt(run.promptsResolved)) + 1;
+                run.solvedWordCount = Math.max(0, toInt(run.solvedWordCount)) + 1;
+
+                if (promptState) {
+                    const neededRetry = Math.max(0, toInt(run.currentMoveCount)) > 0;
+                    queueExposureOnce(ctx, promptState, {
+                        event_source: 'unscramble',
+                        prompt_type: String(run.currentWord.unscramble_prompt_type || ''),
+                        tile_count: check.totalCount
+                    });
+                    queueOutcome(ctx, promptState, true, neededRetry, {
+                        event_source: 'unscramble',
+                        prompt_type: String(run.currentWord.unscramble_prompt_type || ''),
+                        tile_count: check.totalCount,
+                        moves: Math.max(0, toInt(run.currentMoveCount)),
+                        needed_retry: neededRetry ? 1 : 0
+                    });
+                }
+            }
+
+            setLineupStatus(ctx, String(ctx.i18n.gamesUnscrambleCorrect || 'Solved.'), 'correct');
+            renderUnscrambleWord(ctx);
+            return;
+        }
+
+        setLineupStatus(
+            ctx,
+            formatMessage(
+                ctx.i18n.gamesUnscrambleStatus || '%1$d of %2$d letters are in the right place.',
+                [Math.max(0, check.matchedCount), Math.max(1, check.totalCount)]
+            ),
+            'progress'
+        );
+        renderUnscrambleWord(ctx);
+    }
+
+    function moveUnscrambleTile(ctx, index, direction) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || run.sequenceLocked) {
+            return false;
+        }
+
+        const currentOrder = cloneUnscrambleUnits(run.currentOrder);
+        const currentIndex = parseInt(index, 10);
+        if (!currentOrder.length || !isFinite(currentIndex) || currentIndex < 0 || currentIndex >= currentOrder.length) {
+            return false;
+        }
+        if (!currentOrder[currentIndex] || !currentOrder[currentIndex].movable) {
+            return false;
+        }
+
+        const targetIndex = findUnscrambleSwapIndex(currentOrder, currentIndex, direction);
+        if (targetIndex < 0 || targetIndex === currentIndex) {
+            return false;
+        }
+
+        const moved = currentOrder.splice(currentIndex, 1)[0];
+        currentOrder.splice(targetIndex, 0, moved);
+        run.currentOrder = currentOrder;
+        run.currentMoveCount = Math.max(0, toInt(run.currentMoveCount)) + 1;
+        run.moveCount = Math.max(0, toInt(run.moveCount)) + 1;
+        syncUnscrambleStatus(ctx);
+        return true;
+    }
+
+    function shuffleUnscrambleTiles(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || run.sequenceLocked || !run.currentWord) {
+            return false;
+        }
+
+        const sourceUnits = Array.isArray(run.currentWord.unscramble_units) ? run.currentWord.unscramble_units : [];
+        if (!sourceUnits.length || Math.max(0, toInt(run.currentWord.unscramble_movable_unit_count)) < 2) {
+            return false;
+        }
+
+        const gameConfig = getGameConfig(ctx, run) || {};
+        run.currentOrder = buildUnscrambleOrder(sourceUnits, toInt(gameConfig.shuffleRetries) || 6);
+        run.currentMoveCount = Math.max(0, toInt(run.currentMoveCount)) + 1;
+        run.moveCount = Math.max(0, toInt(run.moveCount)) + 1;
+        syncUnscrambleStatus(ctx);
+        return true;
+    }
+
+    function showUnscrambleWord(ctx, index) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run)) {
+            return;
+        }
+
+        const targetIndex = Math.max(0, toInt(index));
+        if (targetIndex >= getRunTotalRounds(run)) {
+            finishUnscrambleRun(ctx);
+            return;
+        }
+
+        const word = run.words[targetIndex];
+        if (!word || !Array.isArray(word.unscramble_units) || !word.unscramble_units.length) {
+            finishUnscrambleRun(ctx);
+            return;
+        }
+
+        run.currentWordIndex = targetIndex;
+        run.currentWord = word;
+        run.currentOrder = buildUnscrambleOrder(word.unscramble_units, toInt((getGameConfig(ctx, run) || {}).shuffleRetries) || 6);
+        run.currentMoveCount = 0;
+        run.sequenceLocked = false;
+        run.lineupCheck = null;
+        getLineupPromptState(run, word, UNSCRAMBLE_GAME_SLUG);
+        syncUnscrambleStatus(ctx);
+    }
+
+    function finishUnscrambleRun(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || run.ended) {
+            return;
+        }
+
+        run.ended = true;
+        run.sequenceLocked = true;
+        pausePromptAudio(ctx);
+        stopFeedbackAudio(ctx);
+        stopTransientAudio(ctx);
+        resetRunControls(run);
+        clearControlUi(ctx);
+        updatePauseUi(ctx);
+        flushProgress(ctx);
+
+        showOverlay(
+            ctx,
+            String(ctx.i18n.gamesUnscrambleDoneTitle || 'Unscramble complete'),
+            formatMessage(ctx.i18n.gamesUnscrambleSummary || 'Solved: %1$d of %2$d · Moves: %3$d', [
+                Math.max(0, toInt(run.solvedWordCount)),
+                Math.max(1, getRunTotalRounds(run)),
+                Math.max(0, toInt(run.moveCount))
+            ]),
+            {
+                mode: 'game-over',
+                primaryLabel: String(ctx.i18n.gamesNewGame || 'New game'),
+                secondaryLabel: String(ctx.i18n.gamesBackToCatalog || 'Back to games')
+            }
+        );
+    }
+
+    function advanceUnscrambleWord(ctx) {
+        const run = ctx && ctx.run;
+        if (!run || !isUnscrambleRun(ctx, run) || run.ended) {
+            return;
+        }
+
+        const nextIndex = toInt(run.currentWordIndex) + 1;
+        if (nextIndex >= getRunTotalRounds(run)) {
+            finishUnscrambleRun(ctx);
+            return;
+        }
+
+        showUnscrambleWord(ctx, nextIndex);
+    }
+
+    function startUnscrambleRun(ctx, entry) {
+        const gameSlug = normalizeGameSlug(entry && entry.slug);
+        const keepModalOpen = isRunModalVisible(ctx);
+        const selectedWords = selectRoundWords(entry, getEntryRoundGoalCount(ctx, entry));
+        if (!selectedWords.length) {
+            return;
+        }
+
+        resetGamesSurface(ctx, {
+            keepModalOpen: keepModalOpen
+        });
+        ctx.$stage.prop('hidden', false);
+        ctx.activeGameSlug = gameSlug;
+        updateStageGameUi(ctx, entry);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
+        showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
+            mode: 'loading',
+            primaryLabel: '',
+            secondaryLabel: ''
+        });
+
+        ctx.run = {
+            slug: gameSlug,
+            words: selectedWords.slice(),
+            currentWordIndex: 0,
+            currentWord: null,
+            currentOrder: [],
+            currentMoveCount: 0,
+            moveCount: 0,
+            solvedWordCount: 0,
+            lineupPromptState: {},
+            lineupCheck: null,
+            sequenceLocked: false,
+            controls: {
+                left: false,
+                right: false,
+                fire: false
+            },
+            coins: 0,
+            lives: 1,
+            promptsResolved: 0,
+            totalRounds: selectedWords.length,
+            loadingShownAt: currentTimestamp(),
+            loadingHideTimer: 0,
+            paused: false,
+            ended: false,
+            rafId: 0
+        };
+
+        setTrackerContext(ctx);
+        updatePauseUi(ctx);
+        resetLineupStage(ctx);
+
+        const run = ctx.run;
+        applyInitialPromptWhenReady(ctx, run, function () {
+            if (!ctx.run || ctx.run !== run || run.ended) {
+                return;
+            }
+            hideOverlay(ctx);
+            showUnscrambleWord(ctx, 0);
+        });
+    }
+
     function startLineupRun(ctx, entry) {
         const gameSlug = normalizeGameSlug(entry && entry.slug);
         const gameConfig = getGameConfig(ctx, gameSlug) || {};
@@ -6847,6 +7413,10 @@
 
     function startRun(ctx, entry) {
         const gameSlug = normalizeGameSlug(entry && entry.slug);
+        if (gameSlug === UNSCRAMBLE_GAME_SLUG) {
+            startUnscrambleRun(ctx, entry);
+            return;
+        }
         if (gameSlug === LINEUP_GAME_SLUG) {
             startLineupRun(ctx, entry);
             return;
@@ -10119,6 +10689,18 @@
             }
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-unscramble-move]', function (event) {
+            event.preventDefault();
+            if (!ctx.run || !isUnscrambleRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+                return;
+            }
+            const direction = String($(this).attr('data-ll-wordset-unscramble-move') || '');
+            const index = toInt($(this).closest('[data-ll-wordset-lineup-card]').attr('data-lineup-index')) - 1;
+            if (moveUnscrambleTile(ctx, index, direction)) {
+                markRunActivity(ctx);
+            }
+        });
+
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-check]', function (event) {
             event.preventDefault();
             if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
@@ -10130,18 +10712,27 @@
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-next]', function (event) {
             event.preventDefault();
-            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || !ctx.run.sequenceLocked) {
+            if (!ctx.run || ctx.run.ended || !ctx.run.sequenceLocked) {
                 return;
             }
-            advanceLineupSequence(ctx);
+            if (isLineupRun(ctx, ctx.run)) {
+                advanceLineupSequence(ctx);
+                return;
+            }
+            if (isUnscrambleRun(ctx, ctx.run)) {
+                advanceUnscrambleWord(ctx);
+            }
         });
 
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-shuffle]', function (event) {
             event.preventDefault();
-            if (!ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || ctx.run.sequenceLocked) {
+            if (!ctx.run || ctx.run.ended || ctx.run.sequenceLocked) {
                 return;
             }
-            if (shuffleLineupCards(ctx)) {
+            const shuffled = isLineupRun(ctx, ctx.run)
+                ? shuffleLineupCards(ctx)
+                : (isUnscrambleRun(ctx, ctx.run) ? shuffleUnscrambleTiles(ctx) : false);
+            if (shuffled) {
                 markRunActivity(ctx);
             }
         });
@@ -10249,6 +10840,9 @@
         const bubblePop = (gamesCfg.bubblePop && typeof gamesCfg.bubblePop === 'object')
             ? gamesCfg.bubblePop
             : {};
+        const unscramble = (gamesCfg.unscramble && typeof gamesCfg.unscramble === 'object')
+            ? gamesCfg.unscramble
+            : {};
         const lineUp = (gamesCfg.lineUp && typeof gamesCfg.lineUp === 'object')
             ? gamesCfg.lineUp
             : {};
@@ -10348,6 +10942,13 @@
             minimumSequenceLength: Math.max(2, toInt(lineUp.minimumSequenceLength) || 3),
             maxLoadedSequences: Math.max(1, toInt(lineUp.maxLoadedSequences) || 60),
             shuffleRetries: Math.max(1, toInt(lineUp.shuffleRetries) || 6)
+        };
+        gameConfigs[UNSCRAMBLE_GAME_SLUG] = {
+            slug: UNSCRAMBLE_GAME_SLUG,
+            minTileCount: Math.max(2, toInt(unscramble.minTileCount) || 3),
+            maxTileCount: Math.max(2, toInt(unscramble.maxTileCount) || 18),
+            maxLoadedWords: Math.max(1, toInt(unscramble.maxLoadedWords) || 60),
+            shuffleRetries: Math.max(1, toInt(unscramble.shuffleRetries) || 6)
         };
         gameConfigs[SPEAKING_PRACTICE_GAME_SLUG] = $.extend({}, buildGameConfig(speakingPractice, {
             slug: SPEAKING_PRACTICE_GAME_SLUG,
@@ -10480,6 +11081,12 @@
             $lineupProgress: $gamesRoot.find('[data-ll-wordset-lineup-progress]').first(),
             $lineupCategory: $gamesRoot.find('[data-ll-wordset-lineup-category]').first(),
             $lineupInstruction: $gamesRoot.find('[data-ll-wordset-lineup-instruction]').first(),
+            $lineupPrompt: $gamesRoot.find('[data-ll-wordset-lineup-prompt]').first(),
+            $lineupPromptLabel: $gamesRoot.find('[data-ll-wordset-lineup-prompt-label]').first(),
+            $lineupPromptImageWrap: $gamesRoot.find('[data-ll-wordset-lineup-prompt-image-wrap]').first(),
+            $lineupPromptImage: $gamesRoot.find('[data-ll-wordset-lineup-prompt-image]').first(),
+            $lineupPromptTextWrap: $gamesRoot.find('[data-ll-wordset-lineup-prompt-text-wrap]').first(),
+            $lineupPromptText: $gamesRoot.find('[data-ll-wordset-lineup-prompt-text]').first(),
             $lineupStatus: $gamesRoot.find('[data-ll-wordset-lineup-status]').first(),
             $lineupCards: $gamesRoot.find('[data-ll-wordset-lineup-cards]').first(),
             $lineupShuffle: $gamesRoot.find('[data-ll-wordset-lineup-shuffle]').first(),
@@ -10546,6 +11153,7 @@
             gameConfigs: gameConfigs,
             spaceShooter: gameConfigs[DEFAULT_GAME_SLUG],
             bubblePop: gameConfigs[BUBBLE_POP_GAME_SLUG],
+            unscramble: gameConfigs[UNSCRAMBLE_GAME_SLUG],
             lineUp: gameConfigs[LINEUP_GAME_SLUG],
             speakingPractice: gameConfigs[SPEAKING_PRACTICE_GAME_SLUG],
             speakingStack: gameConfigs[SPEAKING_STACK_GAME_SLUG],

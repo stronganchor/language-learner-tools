@@ -3341,6 +3341,19 @@ function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array 
             'maxLoadedSequences' => 60,
             'shuffleRetries' => 6,
         ],
+        'unscramble' => [
+            'slug' => 'unscramble',
+            'minTileCount' => function_exists('ll_tools_wordset_games_unscramble_min_tile_count')
+                ? ll_tools_wordset_games_unscramble_min_tile_count()
+                : 3,
+            'maxTileCount' => function_exists('ll_tools_wordset_games_unscramble_max_tile_count')
+                ? ll_tools_wordset_games_unscramble_max_tile_count()
+                : 18,
+            'maxLoadedWords' => function_exists('ll_tools_wordset_games_unscramble_launch_word_cap')
+                ? ll_tools_wordset_games_unscramble_launch_word_cap()
+                : 60,
+            'shuffleRetries' => 6,
+        ],
         'speakingPractice' => [
             'slug' => 'speaking-practice',
             'maxLoadedWords' => function_exists('ll_tools_wordset_games_speaking_practice_launch_word_cap')
@@ -3438,6 +3451,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesBoardLabelSpaceShooter' => __('Space Shooter game board', 'll-tools-text-domain'),
         'gamesBoardLabelBubblePop' => __('Bubble Pop game board', 'll-tools-text-domain'),
         'gamesBoardLabelLineup' => __('Line-Up sequence board', 'll-tools-text-domain'),
+        'gamesBoardLabelUnscramble' => __('Unscramble game board', 'll-tools-text-domain'),
         'gamesBoardLabelSpeakingPractice' => __('Speaking practice panel', 'll-tools-text-domain'),
         'gamesBoardLabelSpeakingStack' => __('Word Stack game board', 'll-tools-text-domain'),
         'gamesLineupInstruction' => __('Put the cards in the correct order.', 'll-tools-text-domain'),
@@ -3452,6 +3466,13 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesLineupTryAgain' => __('Not quite yet. %1$d of %2$d are in the right place.', 'll-tools-text-domain'),
         'gamesLineupDoneTitle' => __('Line-Up complete', 'll-tools-text-domain'),
         'gamesLineupSummary' => __('Perfect: %1$d of %2$d · Retries: %3$d', 'll-tools-text-domain'),
+        'gamesUnscrambleInstruction' => __('Put the tiles back in the right order.', 'll-tools-text-domain'),
+        'gamesUnscrambleProgress' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
+        'gamesUnscramblePromptLabel' => __('Clue', 'll-tools-text-domain'),
+        'gamesUnscrambleStatus' => __('%1$d of %2$d letters are in the right place.', 'll-tools-text-domain'),
+        'gamesUnscrambleCorrect' => __('Solved.', 'll-tools-text-domain'),
+        'gamesUnscrambleDoneTitle' => __('Unscramble complete', 'll-tools-text-domain'),
+        'gamesUnscrambleSummary' => __('Solved: %1$d of %2$d · Moves: %3$d', 'll-tools-text-domain'),
         'gamesSpeakingCheckingApi' => __('Checking speaking game connection...', 'll-tools-text-domain'),
         'gamesSpeakingApiUnavailable' => __('Speaking practice is unavailable on this device right now.', 'll-tools-text-domain'),
         'gamesSpeakingRound' => __('Word %1$d of %2$d', 'll-tools-text-domain'),
@@ -8741,6 +8762,15 @@ function ll_tools_render_wordset_games_shell(array $args): string {
                                     <span class="ll-wordset-lineup-stage__category" data-ll-wordset-lineup-category></span>
                                 </div>
                                 <p class="ll-wordset-lineup-stage__instruction" data-ll-wordset-lineup-instruction><?php echo esc_html__('Put the cards in the correct order.', 'll-tools-text-domain'); ?></p>
+                                <div class="ll-wordset-lineup-stage__prompt" data-ll-wordset-lineup-prompt hidden>
+                                    <figure class="ll-wordset-lineup-stage__prompt-image-frame" data-ll-wordset-lineup-prompt-image-wrap hidden>
+                                        <img class="ll-wordset-lineup-stage__prompt-image" data-ll-wordset-lineup-prompt-image alt="" />
+                                    </figure>
+                                    <div class="ll-wordset-lineup-stage__prompt-text-wrap" data-ll-wordset-lineup-prompt-text-wrap hidden>
+                                        <span class="screen-reader-text" data-ll-wordset-lineup-prompt-label><?php echo esc_html__('Clue', 'll-tools-text-domain'); ?></span>
+                                        <p class="ll-wordset-lineup-stage__prompt-text" data-ll-wordset-lineup-prompt-text dir="auto"></p>
+                                    </div>
+                                </div>
                                 <p class="ll-wordset-lineup-stage__status" data-ll-wordset-lineup-status hidden></p>
                                 <ol class="ll-wordset-lineup-stage__cards" data-ll-wordset-lineup-cards></ol>
                                 <div class="ll-wordset-lineup-stage__actions">

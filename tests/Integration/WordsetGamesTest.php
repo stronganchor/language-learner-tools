@@ -747,6 +747,26 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame([], (array) ($pool['words'] ?? []));
     }
 
+    public function test_unscramble_category_upgrade_only_targets_legacy_default_game_selection(): void
+    {
+        $this->assertTrue(ll_tools_should_upgrade_category_enabled_games_for_unscramble([
+            'space-shooter',
+            'bubble-pop',
+            'speaking-practice',
+            'speaking-stack',
+        ]));
+        $this->assertTrue(ll_tools_should_upgrade_category_enabled_games_for_unscramble([], false));
+        $this->assertFalse(ll_tools_should_upgrade_category_enabled_games_for_unscramble([
+            'space-shooter',
+            'unscramble',
+            'speaking-practice',
+        ]));
+        $this->assertFalse(ll_tools_should_upgrade_category_enabled_games_for_unscramble([
+            'space-shooter',
+            'bubble-pop',
+        ]));
+    }
+
     public function test_category_game_availability_can_be_cherry_picked_per_game(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
@@ -942,6 +962,106 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertIsArray($launch);
         $this->assertFalse((bool) ($launch['launchable'] ?? true));
         $this->assertSame('lineup_not_configured', (string) ($launch['reason_code'] ?? ''));
+    }
+
+    public function test_unscramble_launch_uses_text_clues_when_available(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Unscramble Clue', 5, ['unscramble']);
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertArrayHasKey('unscramble', $catalog);
+        $this->assertIsArray($launch);
+        $this->assertTrue((bool) ($launch['launchable'] ?? false));
+        $this->assertSame(5, (int) ($launch['available_word_count'] ?? 0));
+        $this->assertCount(5, (array) ($launch['words'] ?? []));
+
+        $firstWord = (array) ($launch['words'][0] ?? []);
+        $this->assertSame('text', (string) ($firstWord['unscramble_prompt_type'] ?? ''));
+        $this->assertNotSame('', (string) ($firstWord['unscramble_prompt_text'] ?? ''));
+        $this->assertNotSame(
+            (string) ($firstWord['unscramble_answer_text'] ?? ''),
+            (string) ($firstWord['unscramble_prompt_text'] ?? '')
+        );
+        $this->assertSame('rtl', (string) ($firstWord['unscramble_direction'] ?? ''));
+        $this->assertGreaterThanOrEqual(3, (int) ($firstWord['unscramble_movable_unit_count'] ?? 0));
+        $this->assertNotEmpty((array) ($firstWord['unscramble_units'] ?? []));
+    }
+
+    public function test_unscramble_prefers_image_clues_when_word_images_exist(): void
+    {
+        $fixture = $this->createUnscrambleFixture(true, 'Picture Clue', 5, ['unscramble']);
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertIsArray($launch);
+        $this->assertTrue((bool) ($launch['launchable'] ?? false));
+
+        $firstWord = (array) ($launch['words'][0] ?? []);
+        $this->assertSame('image', (string) ($firstWord['unscramble_prompt_type'] ?? ''));
+        $this->assertNotSame('', (string) ($firstWord['unscramble_prompt_image'] ?? ''));
+    }
+
+    public function test_unscramble_stays_hidden_when_all_words_are_too_short_to_scramble(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Unscramble Short Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Unscramble Short Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($wordsetId, 'll_language', 'he');
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'text_title');
+        $this->setCategoryEnabledGames($categoryId, ['unscramble']);
+
+        foreach (['א', 'ב', 'ג', 'ד', 'ה'] as $index => $title) {
+            $wordId = self::factory()->post->create([
+                'post_type' => 'words',
+                'post_status' => 'publish',
+                'post_title' => $title,
+            ]);
+            wp_set_post_terms($wordId, [$categoryId], 'word-category', false);
+            wp_set_post_terms($wordId, [$wordsetId], 'wordset', false);
+            update_post_meta($wordId, 'word_translation', $title);
+            set_post_thumbnail($wordId, $this->createImageAttachment('unscramble-short-' . ($index + 1) . '.jpg'));
+        }
+
+        $fixture = [
+            'user_id' => $userId,
+            'wordset_id' => $wordsetId,
+        ];
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertArrayNotHasKey('unscramble', $catalog);
+        $this->assertNull($launch);
+    }
+
+    public function test_unscramble_shows_locked_card_when_fewer_than_minimum_words_are_ready(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Few Clue', 3, ['unscramble']);
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertArrayHasKey('unscramble', $catalog);
+        $this->assertFalse((bool) ($catalog['unscramble']['launchable'] ?? true));
+        $this->assertSame('not_enough_words', (string) ($catalog['unscramble']['reason_code'] ?? ''));
+        $this->assertIsArray($launch);
+        $this->assertFalse((bool) ($launch['launchable'] ?? true));
+        $this->assertSame(3, (int) ($launch['available_word_count'] ?? 0));
     }
 
     public function test_wordset_games_frontend_config_uses_three_cards_for_large_image_wordsets(): void
@@ -1805,9 +1925,9 @@ final class WordsetGamesTest extends LL_Tools_TestCase
     private function setCategoryEnabledGames(int $categoryId, ?array $games = null): void
     {
         $games = $games ?? (
-            function_exists('ll_tools_get_category_game_slugs')
-                ? ll_tools_get_category_game_slugs()
-                : ['space-shooter', 'bubble-pop', 'speaking-practice', 'speaking-stack']
+            function_exists('ll_tools_get_category_default_enabled_game_slugs')
+                ? ll_tools_get_category_default_enabled_game_slugs()
+                : ['space-shooter', 'bubble-pop', 'unscramble', 'speaking-practice', 'speaking-stack']
         );
         $normalizedGames = function_exists('ll_tools_normalize_category_enabled_games')
             ? ll_tools_normalize_category_enabled_games($games)
@@ -1902,6 +2022,54 @@ final class WordsetGamesTest extends LL_Tools_TestCase
                 $categoryId,
                 $wordsetId,
                 false,
+                []
+            );
+        }
+
+        return [
+            'user_id' => $userId,
+            'wordset_id' => $wordsetId,
+            'category_id' => $categoryId,
+            'word_ids' => $wordIds,
+        ];
+    }
+
+    /**
+     * @return array{user_id:int,wordset_id:int,category_id:int,word_ids:int[]}
+     */
+    private function createUnscrambleFixture(
+        bool $withImage,
+        string $translationPrefix = 'Unscramble Translation',
+        int $wordCount = 5,
+        ?array $enabledGames = null
+    ): array {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordset = wp_insert_term('Unscramble Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Unscramble Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+
+        update_term_meta($wordsetId, 'll_language', 'he');
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'text_title');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'text_title');
+        if ($enabledGames !== null) {
+            $this->setCategoryEnabledGames($categoryId, $enabledGames);
+        }
+
+        $wordIds = [];
+        for ($index = 1; $index <= $wordCount; $index++) {
+            $wordIds[] = $this->createWordWithGameMedia(
+                'Unscramble Word ' . $index,
+                $translationPrefix === '' ? '' : ($translationPrefix . ' ' . $index),
+                $categoryId,
+                $wordsetId,
+                $withImage,
                 []
             );
         }
