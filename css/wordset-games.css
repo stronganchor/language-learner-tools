@@ -1414,16 +1414,14 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     height: 100%;
     position: relative;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr);
     grid-template-areas:
         "topline"
         "instruction"
         "prompt"
         "status"
-        "cards"
-        "actions";
+        "cards";
     row-gap: clamp(8px, 1vw, 12px);
-    padding-top: clamp(60px, 9vh, 82px);
 }
 
 .ll-wordset-lineup-stage__card--tile {
@@ -1479,15 +1477,15 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__actions {
-    grid-area: actions;
-    position: absolute;
-    right: clamp(14px, 2vw, 20px);
-    top: clamp(14px, 2vw, 20px);
+    grid-area: topline;
+    position: relative;
+    justify-self: end;
+    align-self: start;
     justify-content: flex-end;
     min-height: 46px;
     padding-top: 0;
     background: none;
-    z-index: 1;
+    z-index: 2;
     width: auto;
     margin: 0;
     flex-wrap: nowrap;
@@ -1507,7 +1505,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__topline {
     grid-area: topline;
-    padding-right: clamp(96px, 12vw, 140px);
+    padding-right: clamp(120px, 14vw, 168px);
 }
 
 .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] .ll-wordset-lineup-stage__instruction {
@@ -2533,14 +2531,13 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
 
     .ll-wordset-lineup-stage[data-lineup-mode="unscramble"] {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto auto auto auto minmax(0, 1fr) auto;
+        grid-template-rows: auto auto auto auto minmax(0, 1fr);
         grid-template-areas:
             "topline"
             "instruction"
             "prompt"
             "status"
-            "cards"
-            "actions";
+            "cards";
         height: 100%;
     }
 
