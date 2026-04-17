@@ -168,7 +168,7 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
-Representative current E2E specs (`tests/e2e/specs/`, 49 files at the time of writing):
+Representative current E2E specs (`tests/e2e/specs/`, 51 files at the time of writing):
 
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.

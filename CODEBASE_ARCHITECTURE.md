@@ -61,7 +61,7 @@ read_first:
   - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`.
 - `includes/pages/embed-page.php`
   - Minimal page for iframes; noindex; uses `[flashcard_widget]`.
-  - Accepts `?wordset=<slug>` and `?mode=practice|learning|listening`.
+  - Accepts `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
   - Posts `ll-embed-ready` to parent when initialized.
 - `includes/pages/recording-page.php`
   - Ensures a default recording page with `[audio_recording_interface]`.

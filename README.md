@@ -21,6 +21,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - Auto-generated quiz pages under `/quiz/<category>`.
   - Embeddable pages under `/embed/<category>` render a minimal page that includes `[flashcard_widget embed="true"]`.
   - Both support wordset filtering and mode selection via URL parameters.
+  - `/embed/<category>` supports `?wordset=<slug>` and `?mode=<practice|learning|listening|gender|self-check>`.
 
 - **Audio recording & processing**
   - **Audio Recorder Role**: Dedicated user role for contributors to record audio.
@@ -82,7 +83,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
    ```
    - `quiz_mode="practice"` for traditional adaptive quizzing (default)
    - `quiz_mode="learning"` for guided learning with word introduction
-   - To embed a minimal page for a category, link to `/embed/animals` or `/embed/animals?mode=<practice|learning|listening|gender|self-check>`.
+   - To embed a minimal page for a category, link to `/embed/animals`, `/embed/animals?mode=<practice|learning|listening|gender|self-check>`, or `/embed/animals?wordset=<slug>&mode=<practice|learning|listening|gender|self-check>`.
 
 4. Make a grid of words:
    ```text
