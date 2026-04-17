@@ -400,6 +400,12 @@ function ll_tools_get_wordset_preview_attachment_visual_hash(int $attachment_id)
 
 function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     $limit = max(1, (int) $limit);
+    if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+        if ($effective_category_id > 0) {
+            $category_id = $effective_category_id;
+        }
+    }
     $items = [];
     $seen_preview_word_ids = [];
     $query_limit = max($limit * 3, $limit);
@@ -654,9 +660,25 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         ],
     ]);
     foreach ($lesson_posts as $lesson_id) {
-        $cat_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
-        if ($cat_id > 0) {
-            $lesson_map[$cat_id] = (int) $lesson_id;
+        $stored_category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        if ($stored_category_id <= 0) {
+            continue;
+        }
+
+        $lesson_category_ids = [$stored_category_id];
+        if (function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')) {
+            $lesson_category_ids = ll_tools_get_vocab_lesson_category_meta_candidates($stored_category_id, $wordset_id);
+        } elseif (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_category_id, $wordset_id, false);
+            if ($effective_category_id > 0) {
+                $lesson_category_ids[] = $effective_category_id;
+            }
+        }
+
+        foreach (array_values(array_unique(array_filter(array_map('intval', (array) $lesson_category_ids)))) as $lesson_category_id) {
+            if ($lesson_category_id > 0 && !isset($lesson_map[$lesson_category_id])) {
+                $lesson_map[$lesson_category_id] = (int) $lesson_id;
+            }
         }
     }
 

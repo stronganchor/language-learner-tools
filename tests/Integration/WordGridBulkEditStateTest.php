@@ -132,17 +132,18 @@ final class WordGridBulkEditStateTest extends LL_Tools_TestCase
         delete_post_meta($word_two, 'll_verb_tense');
         delete_post_meta($word_two, 'll_verb_mood');
 
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
         $this->assertSame([$wordset_id], wp_get_post_terms($word_one, 'wordset', ['fields' => 'ids']));
-        $this->assertSame([$category_id], wp_get_post_terms($word_one, 'word-category', ['fields' => 'ids']));
+        $this->assertSame([$effective_category_id], wp_get_post_terms($word_one, 'word-category', ['fields' => 'ids']));
 
-        $lesson_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
+        $lesson_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $effective_category_id);
         $this->assertEqualsCanonicalizing([$word_one, $word_two], array_values(array_map('intval', $lesson_word_ids)));
 
         $nonce = wp_create_nonce('ll_word_grid_edit');
         $_POST = [
             'nonce' => $nonce,
             'wordset_id' => $wordset_id,
-            'category_id' => $category_id,
+            'category_id' => $effective_category_id,
             'mode' => 'pos',
             'snapshot' => wp_json_encode([
                 [
@@ -222,6 +223,18 @@ final class WordGridBulkEditStateTest extends LL_Tools_TestCase
             'post_status' => 'publish',
         ]);
         return $word_id;
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $resolved = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($resolved > 0) {
+                return $resolved;
+            }
+        }
+
+        return $category_id;
     }
 
     private function enableBulkWordsetMeta(int $wordset_id): void

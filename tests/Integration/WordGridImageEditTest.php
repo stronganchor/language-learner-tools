@@ -133,12 +133,19 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($response['success'] ?? false));
 
-        $new_attachment_id = (int) get_post_thumbnail_id($word_image_id);
+        $effective_word_image_id = $this->resolveEffectiveWordImageId($word_image_id, $wordset_id);
+
+        $new_attachment_id = (int) get_post_thumbnail_id($effective_word_image_id);
         $this->assertGreaterThan(0, $new_attachment_id);
         $this->assertNotSame($old_attachment_id, $new_attachment_id);
         $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($word_id));
-        $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($related_word_id));
-        $this->assertSame($word_image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
+        if ($effective_word_image_id !== $word_image_id) {
+            $this->assertSame($old_attachment_id, (int) get_post_thumbnail_id($word_image_id));
+            $this->assertSame($old_attachment_id, (int) get_post_thumbnail_id($related_word_id));
+        } else {
+            $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($related_word_id));
+        }
+        $this->assertSame($effective_word_image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
 
         $image_payload = (array) (($response['data'] ?? [])['image'] ?? []);
         $this->assertSame($new_attachment_id, (int) ($image_payload['id'] ?? 0));
@@ -161,6 +168,19 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         $this->assertIsArray($result);
 
         return (int) ($result['term_id'] ?? 0);
+    }
+
+    private function resolveEffectiveWordImageId(int $wordImageId, int $wordsetId): int
+    {
+        if (
+            function_exists('ll_tools_get_effective_word_image_id_for_wordset')
+            && function_exists('ll_tools_is_wordset_isolation_enabled')
+            && ll_tools_is_wordset_isolation_enabled()
+        ) {
+            return (int) ll_tools_get_effective_word_image_id_for_wordset($wordImageId, $wordsetId);
+        }
+
+        return $wordImageId;
     }
 
     private function createImageAttachment(string $filename): int

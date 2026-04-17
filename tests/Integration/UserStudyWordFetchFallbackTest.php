@@ -3,6 +3,16 @@ declare(strict_types=1);
 
 final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
 {
+    private function resolveEffectiveCategoryId(int $categoryId, int $wordsetId): int
+    {
+        if ($categoryId <= 0 || $wordsetId <= 0 || !function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            return $categoryId;
+        }
+
+        $effectiveCategoryId = (int) ll_tools_get_effective_category_id_for_wordset($categoryId, $wordsetId, false);
+        return $effectiveCategoryId > 0 ? $effectiveCategoryId : $categoryId;
+    }
+
     private function createCategory(string $name, string $promptType = 'text_title', string $optionType = 'text_title'): int
     {
         $term = wp_insert_term($name, 'word-category');
@@ -97,11 +107,12 @@ final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
                 'Fallback Study Word',
                 'Fallback Study Translation'
             );
+            $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
 
             $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
             $study_category = null;
             foreach ($study_categories as $row) {
-                if ((int) ($row['id'] ?? 0) === $category_id) {
+                if ((int) ($row['id'] ?? 0) === $effective_category_id) {
                     $study_category = $row;
                     break;
                 }
@@ -113,10 +124,10 @@ final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
 
             $words_by_category = ll_tools_user_study_words([$category_id], $wordset_id);
 
-            $this->assertArrayHasKey($category_id, $words_by_category);
-            $this->assertCount(1, (array) $words_by_category[$category_id]);
-            $this->assertSame($word_id, (int) ($words_by_category[$category_id][0]['id'] ?? 0));
-            $this->assertSame('Fallback Study Translation', (string) ($words_by_category[$category_id][0]['translation'] ?? ''));
+            $this->assertArrayHasKey($effective_category_id, $words_by_category);
+            $this->assertCount(1, (array) $words_by_category[$effective_category_id]);
+            $this->assertSame($word_id, (int) ($words_by_category[$effective_category_id][0]['id'] ?? 0));
+            $this->assertSame('Fallback Study Translation', (string) ($words_by_category[$effective_category_id][0]['translation'] ?? ''));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
@@ -141,6 +152,7 @@ final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
                 'Progress Study Word',
                 'Progress Study Translation'
             );
+            $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
 
             $this->seedWordProgressRow($user_id, $word_id, $category_id, $wordset_id, [
                 'total_coverage' => 2,
@@ -152,10 +164,10 @@ final class UserStudyWordFetchFallbackTest extends LL_Tools_TestCase
 
             $words_by_category = ll_tools_user_study_words([$category_id], $wordset_id);
 
-            $this->assertArrayHasKey($category_id, $words_by_category);
-            $this->assertCount(1, (array) $words_by_category[$category_id]);
-            $this->assertSame('studied', (string) ($words_by_category[$category_id][0]['status'] ?? ''));
-            $this->assertSame(5, (int) ($words_by_category[$category_id][0]['difficulty_score'] ?? 0));
+            $this->assertArrayHasKey($effective_category_id, $words_by_category);
+            $this->assertCount(1, (array) $words_by_category[$effective_category_id]);
+            $this->assertSame('studied', (string) ($words_by_category[$effective_category_id][0]['status'] ?? ''));
+            $this->assertSame(5, (int) ($words_by_category[$effective_category_id][0]['difficulty_score'] ?? 0));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }

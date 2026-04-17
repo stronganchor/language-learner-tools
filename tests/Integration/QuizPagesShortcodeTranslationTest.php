@@ -86,7 +86,7 @@ final class QuizPagesShortcodeTranslationTest extends LL_Tools_TestCase
         $wordset_id = (int) ($wordset['term_id'] ?? 0);
         $category_id = (int) ($category['term_id'] ?? 0);
 
-        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
 
         $page_id = self::factory()->post->create([
@@ -95,6 +95,18 @@ final class QuizPagesShortcodeTranslationTest extends LL_Tools_TestCase
             'post_title' => 'Quiz Page Fixture',
         ]);
         update_post_meta($page_id, '_ll_tools_word_category_id', $category_id);
+
+        $recording_type = term_exists('isolation', 'recording_type');
+        if (is_array($recording_type) && !empty($recording_type['term_id'])) {
+            $recording_type_id = (int) $recording_type['term_id'];
+        } elseif (is_int($recording_type) && $recording_type > 0) {
+            $recording_type_id = $recording_type;
+        } else {
+            $created_recording_type = wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);
+            $this->assertFalse(is_wp_error($created_recording_type));
+            $this->assertIsArray($created_recording_type);
+            $recording_type_id = (int) ($created_recording_type['term_id'] ?? 0);
+        }
 
         for ($index = 1; $index <= 5; $index++) {
             $word_id = self::factory()->post->create([
@@ -114,6 +126,7 @@ final class QuizPagesShortcodeTranslationTest extends LL_Tools_TestCase
                 'post_title' => 'Quiz Audio ' . $index,
             ]);
             update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/quiz-audio-' . $index . '.mp3');
+            wp_set_post_terms($audio_post_id, [$recording_type_id], 'recording_type', false);
         }
 
         return [

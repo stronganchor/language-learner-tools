@@ -1383,7 +1383,7 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
 
         $option_type = (string) ($category['option_type'] ?? $category['mode'] ?? 'image');
         $words = ll_tools_offline_app_filter_words_to_wordset(
-            ll_get_words_by_category((string) $category['name'], $option_type, [], $category),
+            ll_get_words_by_category((string) $category['name'], $option_type, [$wordset_id], $category),
             $wordset_id
         );
         $rewritten_words = ll_tools_offline_app_rewrite_category_words(

@@ -258,10 +258,18 @@ function ll_get_all_quiz_pages_data($opts = []) {
     }
 
     foreach ($pages as $post_id) {
-        $term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
-        if ($term_id <= 0) continue;
+        $stored_term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
+        if ($stored_term_id <= 0) continue;
 
-        if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true)) {
+        $term_id = $stored_term_id;
+        if ($filtered_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_term_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_term_id, $filtered_wordset_id, false);
+            if ($effective_term_id > 0) {
+                $term_id = $effective_term_id;
+            }
+        }
+
+        if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true) && !in_array($stored_term_id, $allowed_term_ids, true)) {
             continue;
         }
 
@@ -271,7 +279,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
             continue;
         }
 
-        if (!empty($allowed_category_ids) && !isset($allowed_category_ids[$term_id])) {
+        if (!empty($allowed_category_ids) && !isset($allowed_category_ids[$term_id]) && !isset($allowed_category_ids[$stored_term_id])) {
             continue;
         }
         // Eligibility should match flashcard widget: use provided wordset scope; otherwise consider all wordsets
@@ -289,6 +297,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
         $translation = '';
         if ($use_translations) {
             $t = get_term_meta($term_id, 'term_translation', true);
+            if (empty($t) && $stored_term_id > 0 && $stored_term_id !== $term_id) {
+                $t = get_term_meta($stored_term_id, 'term_translation', true);
+            }
             if (!empty($t)) $translation = html_entity_decode($t, ENT_QUOTES, 'UTF-8');
         }
 

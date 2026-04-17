@@ -94,6 +94,7 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
         $category_id = (int) $category_term['term_id'];
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
 
         $word_a = $this->createGenderWordFixture('Gender Analytics A', 'Translation A', 'noun', 'Masculine', $category_id, $wordset_id)[0];
         $word_b = $this->createGenderWordFixture('Gender Analytics B', 'Translation B', 'noun', 'Feminine', $category_id, $wordset_id)[0];
@@ -148,7 +149,7 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
         $categories = (array) ($gender_progress['categories'] ?? []);
         $this->assertCount(1, $categories);
         $category = (array) $categories[0];
-        $this->assertSame($category_id, (int) ($category['id'] ?? 0));
+        $this->assertSame($effective_category_id, (int) ($category['id'] ?? 0));
         $this->assertSame(3, (int) ($category['tracked_word_total'] ?? 0));
         $this->assertSame(1, (int) ($category['not_started_words'] ?? 0));
         $this->assertSame(1, (int) ($category['level_2_words'] ?? 0));
@@ -333,5 +334,17 @@ final class UserProgressGenderTrackingTest extends LL_Tools_TestCase
 
         $inserted = $wpdb->replace($table, $data);
         $this->assertNotFalse($inserted);
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $resolved = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($resolved > 0) {
+                return $resolved;
+            }
+        }
+
+        return $category_id;
     }
 }

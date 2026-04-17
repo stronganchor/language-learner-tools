@@ -387,7 +387,9 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $category_id = (int) $category['term_id'];
         update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
         ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        $this->ensureRecordingType('Isolation', 'isolation');
 
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -427,6 +429,20 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = (string) wp_parse_url($url, PHP_URL_QUERY);
 
         return $path . ($query !== '' ? ('?' . $query) : '');
+    }
+
+    private function ensureRecordingType(string $name, string $slug): int
+    {
+        $existing = get_term_by('slug', $slug, 'recording_type');
+        if ($existing instanceof WP_Term) {
+            return (int) $existing->term_id;
+        }
+
+        $created = wp_insert_term($name, 'recording_type', ['slug' => $slug]);
+        $this->assertFalse(is_wp_error($created));
+        $this->assertIsArray($created);
+
+        return (int) ($created['term_id'] ?? 0);
     }
 
     /**

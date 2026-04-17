@@ -798,7 +798,10 @@ function ll_tools_wordset_games_get_category_lineup_direction(int $category_id):
         return 'auto';
     }
 
-    if (function_exists('ll_tools_get_category_lineup_direction')) {
+    if (function_exists('ll_tools_get_category_lineup_config')) {
+        $config = ll_tools_get_category_lineup_config($category_id);
+        $direction = is_array($config) ? (string) ($config['direction'] ?? 'auto') : 'auto';
+    } elseif (function_exists('ll_tools_get_category_lineup_direction')) {
         $direction = (string) ll_tools_get_category_lineup_direction($category_id);
     } else {
         $direction = (string) get_term_meta(

@@ -2697,6 +2697,66 @@ function ll_tools_resolve_language_code_from_label($raw, $case = 'lower') {
         }
     }
 
+    $label_lookup = str_replace(['_', '-'], ' ', $raw);
+    if (function_exists('remove_accents')) {
+        $label_lookup = remove_accents($label_lookup);
+    }
+    $label_lookup = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', ' ', $label_lookup)));
+    if ($label_lookup !== '') {
+        $label_aliases = [
+            'arabic' => 'ar',
+            'azerbaijani' => 'az',
+            'bosnian' => 'bs',
+            'bulgarian' => 'bg',
+            'catalan' => 'ca',
+            'chinese' => 'zh',
+            'chinese mandarin' => 'zh',
+            'croatian' => 'hr',
+            'czech' => 'cs',
+            'danish' => 'da',
+            'dutch' => 'nl',
+            'english' => 'en',
+            'english american' => 'en',
+            'english british' => 'en',
+            'estonian' => 'et',
+            'finnish' => 'fi',
+            'french' => 'fr',
+            'german' => 'de',
+            'greek' => 'el',
+            'hebrew' => 'he',
+            'hindi' => 'hi',
+            'hungarian' => 'hu',
+            'indonesian' => 'id',
+            'italian' => 'it',
+            'japanese' => 'ja',
+            'korean' => 'ko',
+            'malay' => 'ms',
+            'mandarin' => 'zh',
+            'norwegian' => 'no',
+            'polish' => 'pl',
+            'portuguese' => 'pt',
+            'romanian' => 'ro',
+            'russian' => 'ru',
+            'slovak' => 'sk',
+            'spanish' => 'es',
+            'swedish' => 'sv',
+            'tagalog' => 'tl',
+            'thai' => 'th',
+            'turkish' => 'tr',
+            'turkce' => 'tr',
+            'turkish turkiye turkcesi' => 'tr',
+            'ukrainian' => 'uk',
+            'urdu' => 'ur',
+            'vietnamese' => 'vi',
+            'zazaki' => 'zza',
+            'zaza' => 'zza',
+        ];
+
+        if (isset($label_aliases[$label_lookup])) {
+            return ll_tools_normalize_language_code($label_aliases[$label_lookup], $case);
+        }
+    }
+
     return '';
 }
 

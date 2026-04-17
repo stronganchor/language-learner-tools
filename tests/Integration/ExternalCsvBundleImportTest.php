@@ -501,7 +501,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $rows = ll_get_words_by_category(
                 $category_name,
                 'text_title',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'text_translation',
                     'option_type' => 'text_title',
@@ -706,7 +706,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $rows = ll_get_words_by_category(
                 $category_name,
                 'text_title',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'audio_text_translation',
                     'option_type' => 'text_title',
@@ -807,7 +807,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $rows = ll_get_words_by_category(
                 $category_name,
                 'text_audio',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'image',
                     'option_type' => 'text_audio',
@@ -831,7 +831,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $count = ll_get_words_by_category_count(
                 $category_name,
                 'text_audio',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'image',
                     'option_type' => 'text_audio',
@@ -909,7 +909,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $all_rows = ll_get_words_by_category(
                 $category_name,
                 'text_audio',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'image',
                     'option_type' => 'text_audio',
@@ -985,7 +985,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
             $audio_rows = ll_get_words_by_category(
                 $audio_category_name,
                 'text_title',
-                null,
+                [$wordset_id],
                 [
                     'prompt_type' => 'audio',
                     'option_type' => 'text_title',
@@ -998,7 +998,7 @@ final class ExternalCsvBundleImportTest extends LL_Tools_TestCase
                 $audio_row_by_id[(int) ($row['id'] ?? 0)] = $row;
             }
 
-            $lesson_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, (int) $audio_term->term_id);
+            $lesson_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $audio_category_id);
             $this->assertContains($cat_word_id, $lesson_word_ids);
             $this->assertContains($dog_word_id, $lesson_word_ids);
         } finally {

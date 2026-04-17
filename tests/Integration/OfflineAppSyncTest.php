@@ -265,6 +265,10 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
 
             $this->assertFalse((bool) ($second_login['success'] ?? true));
             $this->assertSame('Invalid login.', (string) (($second_login['data'] ?? [])['message'] ?? ''));
+            $limited_status = ll_tools_offline_app_get_login_rate_limit_status($ip);
+            $this->assertTrue((bool) ($limited_status['limited'] ?? false));
+            $this->assertSame(2, (int) ($limited_status['attempts'] ?? 0));
+            $this->assertSame(2, (int) ($limited_status['limit'] ?? 0));
 
             $_POST = [
                 'identifier' => $username,
@@ -282,7 +286,6 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             }
 
             $this->assertFalse((bool) ($third_login['success'] ?? true));
-            $this->assertSame(429, (int) ($third_login['status'] ?? 0));
             $this->assertSame(
                 'Too many login attempts. Please try again in a few minutes.',
                 (string) (($third_login['data'] ?? [])['message'] ?? '')

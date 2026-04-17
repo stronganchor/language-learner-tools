@@ -739,6 +739,8 @@ function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, 
         'hide_empty' => false,
         'fields'     => 'ids',
         'number'     => 1,
+        'orderby'    => 'term_id',
+        'order'      => 'DESC',
         'meta_query' => [
             [
                 'key'   => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
@@ -772,6 +774,8 @@ function ll_tools_get_existing_isolated_word_image_copy_id(int $source_origin_id
         'fields'          => 'ids',
         'no_found_rows'   => true,
         'suppress_filters'=> true,
+        'orderby'         => 'ID',
+        'order'           => 'DESC',
         'meta_query'      => [
             [
                 'key'   => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
@@ -1573,6 +1577,10 @@ function ll_tools_run_wordset_isolation_migration(): array {
         }
     }
 
+    if (function_exists('ll_tools_repair_word_option_rules_store_for_isolation')) {
+        $result['word_option_rule_scopes_repaired'] = (int) ll_tools_repair_word_option_rules_store_for_isolation(true);
+    }
+
     if (defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
         $lesson_ids = get_posts([
             'post_type'        => 'll_vocab_lesson',
@@ -1587,10 +1595,6 @@ function ll_tools_run_wordset_isolation_migration(): array {
                 $result['lessons_repaired']++;
             }
         }
-    }
-
-    if (function_exists('ll_tools_repair_word_option_rules_store_for_isolation')) {
-        $result['word_option_rule_scopes_repaired'] = (int) ll_tools_repair_word_option_rules_store_for_isolation(true);
     }
 
     global $wpdb;

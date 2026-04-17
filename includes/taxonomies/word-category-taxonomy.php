@@ -55,6 +55,44 @@ function ll_tools_resolve_word_category_term_id($category): int {
 }
 
 /**
+ * Read category term meta, falling back to the source category when an isolated
+ * wordset-owned copy has not stored an explicit override yet.
+ *
+ * @param WP_Term $term
+ * @param string  $meta_key
+ * @param bool    $fallback_when_empty Whether an empty stored value should also fall back.
+ * @return mixed
+ */
+function ll_tools_get_category_meta_with_source_fallback(WP_Term $term, string $meta_key, bool $fallback_when_empty = false) {
+    $term_id = (int) $term->term_id;
+    $value = get_term_meta($term_id, $meta_key, true);
+    $has_local_value = metadata_exists('term', $term_id, $meta_key);
+
+    if ($has_local_value && (!$fallback_when_empty || $value !== '')) {
+        return $value;
+    }
+
+    if (
+        !function_exists('ll_tools_get_category_wordset_owner_id')
+        || !function_exists('ll_tools_get_category_isolation_source_id')
+    ) {
+        return $value;
+    }
+
+    $owner_wordset_id = (int) ll_tools_get_category_wordset_owner_id($term);
+    $source_term_id = (int) ll_tools_get_category_isolation_source_id($term);
+    if ($owner_wordset_id <= 0 || $source_term_id <= 0 || $source_term_id === $term_id) {
+        return $value;
+    }
+
+    if (!metadata_exists('term', $source_term_id, $meta_key)) {
+        return $value;
+    }
+
+    return get_term_meta($source_term_id, $meta_key, true);
+}
+
+/**
  * Normalize a category reference for quiz/count queries.
  *
  * @param mixed $category Category term object, term ID, slug, or display name.
@@ -1185,10 +1223,10 @@ function ll_tools_get_category_quiz_config($term): array {
     }
 
     $term_id = (int) $term->term_id;
-    $use_titles_legacy = get_term_meta($term_id, 'use_word_titles_for_audio', true) === '1';
-    $stored_option_type_raw = get_term_meta($term_id, 'll_quiz_option_type', true);
+    $use_titles_legacy = ll_tools_get_category_meta_with_source_fallback($term, 'use_word_titles_for_audio', true) === '1';
+    $stored_option_type_raw = ll_tools_get_category_meta_with_source_fallback($term, 'll_quiz_option_type', true);
     $stored_option_type = is_string($stored_option_type_raw) ? $stored_option_type_raw : (string) $stored_option_type_raw;
-    $stored_prompt_type_raw = get_term_meta($term_id, 'll_quiz_prompt_type', true);
+    $stored_prompt_type_raw = ll_tools_get_category_meta_with_source_fallback($term, 'll_quiz_prompt_type', true);
     $stored_prompt_type = is_string($stored_prompt_type_raw) ? $stored_prompt_type_raw : (string) $stored_prompt_type_raw;
     $prompt_type = ll_tools_normalize_quiz_prompt_type($stored_prompt_type, $use_titles_legacy);
 
@@ -1356,7 +1394,7 @@ function ll_tools_get_category_enabled_games($term): array {
     }
 
     return ll_tools_normalize_category_enabled_games(
-        get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY, true)
+        ll_tools_get_category_meta_with_source_fallback($term, LL_TOOLS_CATEGORY_ENABLED_GAMES_META_KEY)
     );
 }
 
@@ -1617,8 +1655,8 @@ function ll_tools_get_category_lineup_config($term): array {
     }
 
     $allowed_word_ids = ll_tools_get_category_lineup_allowed_word_ids($term);
-    $raw_word_order = get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY, true);
-    $raw_direction = get_term_meta((int) $term->term_id, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY, true);
+    $raw_word_order = ll_tools_get_category_meta_with_source_fallback($term, LL_TOOLS_CATEGORY_LINEUP_WORD_ORDER_META_KEY);
+    $raw_direction = ll_tools_get_category_meta_with_source_fallback($term, LL_TOOLS_CATEGORY_LINEUP_DIRECTION_META_KEY);
     $config = ll_tools_normalize_category_lineup_config([
         'word_ids' => $raw_word_order,
         'direction' => $raw_direction,

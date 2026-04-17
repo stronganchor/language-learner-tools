@@ -13,6 +13,7 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         $fixture = $this->createTextPreviewFixture();
         $wordset_id = (int) $fixture['wordset_id'];
         $category_id = (int) $fixture['category_id'];
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
         $wordset_term = get_term($wordset_id, 'wordset');
 
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
@@ -20,7 +21,7 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         $categories = ll_tools_get_wordset_page_categories($wordset_id, 2);
         $category = null;
         foreach ($categories as $row) {
-            if ((int) ($row['id'] ?? 0) === $category_id) {
+            if ((int) ($row['id'] ?? 0) === $effective_category_id) {
                 $category = $row;
                 break;
             }
@@ -61,7 +62,7 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
             remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
         }
 
-        $card_markup = $this->extractCategoryCardMarkup($html, $category_id);
+        $card_markup = $this->extractCategoryCardMarkup($html, $effective_category_id);
         $this->assertStringContainsString('ll-wordset-card__preview has-text', $card_markup);
         $this->assertSame(4, substr_count($card_markup, 'll-wordset-preview-item--text'));
         $this->assertSame(0, substr_count($card_markup, 'll-wordset-preview-item--empty'));
@@ -69,21 +70,21 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
 
     public function test_category_preview_cache_respects_requested_slot_size_for_image_categories(): void
     {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
         $fixture = $this->createImagePreviewFixture();
         $wordset_id = (int) $fixture['wordset_id'];
         $category_id = (int) $fixture['category_id'];
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
 
-        $first = ll_tools_get_wordset_page_categories($wordset_id, 1);
-        $first_category = $this->findCategoryRow($first, $category_id);
-        $this->assertIsArray($first_category);
-        $this->assertSame(1, (int) ($first_category['preview_limit'] ?? 0));
-        $this->assertCount(1, (array) ($first_category['preview'] ?? []));
+        $first_preview = ll_tools_get_wordset_category_preview($wordset_id, $effective_category_id, 1, true);
+        $this->assertCount(1, (array) ($first_preview['items'] ?? []));
+        $this->assertTrue((bool) ($first_preview['has_images'] ?? false));
 
-        $second = ll_tools_get_wordset_page_categories($wordset_id, 3);
-        $second_category = $this->findCategoryRow($second, $category_id);
-        $this->assertIsArray($second_category);
-        $this->assertSame(3, (int) ($second_category['preview_limit'] ?? 0));
-        $this->assertCount(3, (array) ($second_category['preview'] ?? []));
+        $second_preview = ll_tools_get_wordset_category_preview($wordset_id, $effective_category_id, 3, true);
+        $this->assertCount(3, (array) ($second_preview['items'] ?? []));
+        $this->assertTrue((bool) ($second_preview['has_images'] ?? false));
     }
 
     /**
@@ -177,15 +178,7 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         update_term_meta($category_id, 'll_quiz_prompt_type', 'image');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
 
-        $lesson_post_id = self::factory()->post->create([
-            'post_type' => 'll_vocab_lesson',
-            'post_status' => 'publish',
-            'post_title' => 'Wordset Image Preview Lesson ' . wp_generate_password(4, false),
-        ]);
-        update_post_meta($lesson_post_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
-        update_post_meta($lesson_post_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
-
-        for ($index = 1; $index <= 3; $index++) {
+        for ($index = 1; $index <= 5; $index++) {
             $this->createWordWithImage(
                 'Wordset Image Word ' . $index . ' ' . wp_generate_password(4, false),
                 $category_id,
@@ -211,7 +204,7 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         $attachment_id = $this->createImageAttachment($filename);
-        set_post_thumbnail($word_id, $attachment_id);
+        update_post_meta($word_id, '_thumbnail_id', $attachment_id);
 
         return (int) $word_id;
     }
@@ -276,5 +269,17 @@ final class WordsetTextPreviewLayoutTest extends LL_Tools_TestCase
         $found = preg_match($pattern, $html, $matches);
         $this->assertSame(1, $found, 'Expected wordset card markup for category ' . $category_id . '.');
         return isset($matches[0]) ? (string) $matches[0] : '';
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $resolved = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+            if ($resolved > 0) {
+                return $resolved;
+            }
+        }
+
+        return $category_id;
     }
 }

@@ -5,11 +5,20 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
 {
     /** @var int */
     protected $original_user_id = 0;
+    /** @var callable|null */
+    protected $audio_requirement_bypass_filter = null;
+    protected bool $enforce_audio_publish_requirement = false;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->original_user_id = get_current_user_id();
+        if (!$this->enforce_audio_publish_requirement) {
+            $this->audio_requirement_bypass_filter = static function (): bool {
+                return true;
+            };
+            add_filter('ll_tools_skip_audio_requirement', $this->audio_requirement_bypass_filter);
+        }
         if (function_exists('ll_tools_teacher_class_reset_invite_request_context')) {
             ll_tools_teacher_class_reset_invite_request_context();
         }
@@ -23,6 +32,10 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
 
     protected function tearDown(): void
     {
+        if ($this->audio_requirement_bypass_filter !== null) {
+            remove_filter('ll_tools_skip_audio_requirement', $this->audio_requirement_bypass_filter);
+            $this->audio_requirement_bypass_filter = null;
+        }
         if (function_exists('ll_tools_teacher_class_reset_invite_request_context')) {
             ll_tools_teacher_class_reset_invite_request_context();
         }

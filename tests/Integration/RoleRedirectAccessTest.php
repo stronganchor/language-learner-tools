@@ -16,7 +16,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
 
-        $this->assertSame(get_permalink($recording_page_id), $redirect);
+        $this->assertSameInternalTarget(get_permalink($recording_page_id), $redirect);
     }
 
     public function test_login_redirect_routes_audio_recorder_to_recording_page_with_saved_locale(): void
@@ -60,7 +60,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
 
-        $this->assertSame(get_permalink($custom_page_id), $redirect);
+        $this->assertSameInternalTarget(get_permalink($custom_page_id), $redirect);
     }
 
     public function test_login_redirect_migrates_internal_legacy_recording_page_url_to_page_id(): void
@@ -78,7 +78,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
 
-        $this->assertSame(get_permalink($legacy_page_id), $redirect);
+        $this->assertSameInternalTarget(get_permalink($legacy_page_id), $redirect);
         $this->assertSame($legacy_page_id, (int) get_user_meta($user_id, 'll_recording_page_id', true));
         $this->assertSame('', (string) get_user_meta($user_id, 'll_recording_page_url', true));
     }
@@ -97,7 +97,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
 
-        $this->assertSame(get_permalink($default_page_id), $redirect);
+        $this->assertSameInternalTarget(get_permalink($default_page_id), $redirect);
         $this->assertSame('', (string) get_user_meta($user_id, 'll_recording_page_id', true));
         $this->assertSame('', (string) get_user_meta($user_id, 'll_recording_page_url', true));
     }
@@ -118,7 +118,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
 
-        $this->assertSame($expected_url, $redirect);
+        $this->assertSameInternalTarget($expected_url, $redirect);
     }
 
     public function test_login_redirect_routes_ll_tools_editor_to_editor_hub_by_default(): void
@@ -134,7 +134,7 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
 
         $redirect = apply_filters('login_redirect', admin_url(), '', $user);
 
-        $this->assertSame(get_permalink($editor_hub_page_id), $redirect);
+        $this->assertSameInternalTarget(get_permalink($editor_hub_page_id), $redirect);
     }
 
     public function test_login_redirect_honors_requested_internal_redirect_for_limited_roles(): void
@@ -176,15 +176,15 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         $learner = $this->create_user_with_role('ll_tools_learner');
         $editor = $this->create_user_with_role('ll_tools_editor');
 
-        $this->assertSame(
+        $this->assertSameInternalTarget(
             get_permalink($recording_page_id),
             apply_filters('login_redirect', admin_url(), $external_request, $recorder)
         );
-        $this->assertSame(
+        $this->assertSameInternalTarget(
             ll_tools_get_wordset_page_view_url($wordset_term),
             apply_filters('login_redirect', admin_url(), $external_request, $learner)
         );
-        $this->assertSame(
+        $this->assertSameInternalTarget(
             get_permalink($editor_hub_page_id),
             apply_filters('login_redirect', admin_url(), $external_request, $editor)
         );
@@ -203,11 +203,11 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         $recorder = $this->create_user_with_role('audio_recorder');
         $learner = $this->create_user_with_role('ll_tools_learner');
 
-        $this->assertSame(
+        $this->assertSameInternalTarget(
             get_permalink($recording_page_id),
             ll_tools_get_limited_role_admin_redirect_target($recorder, true, false)
         );
-        $this->assertSame(
+        $this->assertSameInternalTarget(
             ll_tools_get_wordset_page_view_url($wordset_term),
             ll_tools_get_limited_role_admin_redirect_target($learner, true, false)
         );
@@ -278,5 +278,13 @@ final class RoleRedirectAccessTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_User::class, $user);
         $user->set_role($role);
         return $user;
+    }
+
+    private function assertSameInternalTarget(string $expected, string $actual): void
+    {
+        $this->assertSame(
+            remove_query_arg(['ll_locale', 'll_locale_nonce'], $expected),
+            remove_query_arg(['ll_locale', 'll_locale_nonce'], $actual)
+        );
     }
 }

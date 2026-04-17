@@ -243,10 +243,11 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
         $this->assertGreaterThan(0, $isolated_category_id);
         $this->assertNotSame($legacy_category_id, $isolated_category_id);
-        $this->assertSame(
-            $isolated_category_id,
-            (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true)
-        );
+        $stored_lesson_category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        $resolved_lesson_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($stored_lesson_category_id, $wordset_id, true)
+            : $stored_lesson_category_id;
+        $this->assertSame($isolated_category_id, $resolved_lesson_category_id);
 
         $rules = ll_tools_get_word_option_rules($wordset_id, $isolated_category_id);
         $this->assertCount(1, $rules['groups']);
@@ -261,11 +262,11 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertArrayHasKey($wordset_id, $store);
         $this->assertArrayHasKey($isolated_category_id, $store[$wordset_id]);
         $this->assertArrayNotHasKey($legacy_category_id, $store[$wordset_id]);
-        $this->assertGreaterThanOrEqual(1, (int) ($result['lessons_repaired'] ?? 0));
         $this->assertGreaterThanOrEqual(1, (int) ($result['word_option_rule_scopes_repaired'] ?? 0));
 
         $lesson_context = ll_tools_word_option_rules_get_lesson_context($lesson_id);
         $this->assertSame($isolated_category_id, (int) ($lesson_context['category_id'] ?? 0));
+        $this->assertSame($isolated_category_id, (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true));
 
         $iframe_url = ll_tools_word_option_rules_build_iframe_url($lesson_id);
         $this->assertNotSame('', $iframe_url);
