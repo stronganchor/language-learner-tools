@@ -1615,7 +1615,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                             <label class="screen-reader-text" for="ll-dictionary-scope"><?php esc_html_e('Search scope', 'll-tools-text-domain'); ?></label>
                             <select id="ll-dictionary-scope" class="ll-dictionary__select" name="ll_dictionary_scope">
                                 <?php foreach ($search_scope_options as $option) : ?>
-                                    <option value="<?php echo esc_attr((string) ($option['value'] ?? 'all')); ?>" <?php selected($search_scope, (string) ($option['value'] ?? 'all')); ?>>
+                                    <option value="<?php echo esc_attr((string) ($option['value'] ?? 'all')); ?>"<?php echo selected($search_scope, (string) ($option['value'] ?? 'all'), false); ?>>
                                         <?php echo esc_html((string) ($option['label'] ?? '')); ?>
                                     </option>
                                 <?php endforeach; ?>

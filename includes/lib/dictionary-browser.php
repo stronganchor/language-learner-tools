@@ -2493,7 +2493,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $used_published_scope_cache = false;
     $search_results_pre_ranked = false;
     if ($search === '' && $statuses === ['publish']) {
-        if ($letter !== '' || $pos_slug !== '' || $source_id !== '' || $dialect !== '' || $wordset_id > 0) {
+        if ($pos_slug !== '' || $source_id !== '' || $dialect !== '') {
             $candidate_ids = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
                 $statuses,
                 $wordset_id,
