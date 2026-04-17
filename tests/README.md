@@ -176,6 +176,8 @@ Representative current E2E specs (`tests/e2e/specs/`, 49 files at the time of wr
   - Verifies category gender-support flags normalize correctly before Gender mode enablement checks.
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
   - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
+- `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
+  - Verifies image answer options with translation captions reserve caption space and hide empty captions cleanly.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
   - Verifies rapid practice-mode preference saves keep the latest queued study state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`

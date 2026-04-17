@@ -528,7 +528,7 @@
             || optionType === 'audio'
             || optionType === 'text_audio';
         const requiresImage = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image'))
-            || optionType === 'image';
+            || (Util.optionTypeHasImage ? Util.optionTypeHasImage(optionType) : (optionType === 'image'));
         return { requiresAudio, requiresImage };
     }
 

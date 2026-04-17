@@ -1114,6 +1114,47 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     -webkit-user-drag: none;
 }
 
+.flashcard-container.ll-answer-option-image-caption-card {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    padding: 10px 10px 8px;
+    gap: 6px;
+    box-sizing: border-box;
+}
+
+.flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption-media {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flashcard-container.ll-answer-option-image-caption-card .quiz-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption {
+    flex: 0 0 auto;
+    min-height: 2.6em;
+    padding: 0 4px;
+    margin: 0;
+    color: #1f2937;
+    font-size: clamp(13px, calc(var(--ll-answer-option-font-size-px, 48px) * 0.24), 18px);
+    line-height: 1.25;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption[aria-hidden="true"] {
+    visibility: hidden;
+}
+
 /* Modifier Classes for Flashcard Orientation */
 .flashcard-container.landscape {
     height: auto;

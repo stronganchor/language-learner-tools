@@ -598,11 +598,16 @@
         const mode = String(displayMode || '');
         const text = getWordText(word);
         const audioUrl = getAudioUrl(word);
+        const util = root.LLFlashcards && root.LLFlashcards.Util ? root.LLFlashcards.Util : null;
+        const showImage = mode === 'image' || mode === 'image_text_translation';
+        const imageCaption = (util && typeof util.getImageOptionCaption === 'function')
+            ? String(util.getImageOptionCaption(word, mode) || '').trim()
+            : ((mode === 'image_text_translation') ? String((word && word.translation) || '').trim() : '');
         const $inner = $('<div>', { class: 'll-study-check-prompt-inner' });
 
         let hasContent = false;
         const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
-        if (mode === 'image' && word.image) {
+        if (showImage && word.image) {
             const $imgWrap = $('<div>', { class: 'll-study-check-image' });
             $('<img>', {
                 src: word.image,
@@ -611,6 +616,14 @@
             }).appendTo($imgWrap);
             $inner.append($imgWrap);
             hasContent = true;
+
+            if (imageCaption) {
+                const $caption = $('<div>', { class: 'll-study-check-text ll-study-check-image-caption', text: imageCaption, dir: 'auto' });
+                if (cardsApi && typeof cardsApi.applyAnswerOptionTextStyle === 'function') {
+                    cardsApi.applyAnswerOptionTextStyle($caption, imageCaption);
+                }
+                $inner.append($caption);
+            }
         }
 
         if (isTextMode(mode) && text) {

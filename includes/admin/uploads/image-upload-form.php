@@ -1104,7 +1104,9 @@ function ll_image_upload_create_category_from_request() {
         ? ll_tools_quiz_prompt_type_has_audio($prompt)
         : in_array($prompt, ['audio', 'audio_text_translation', 'audio_text_title'], true);
 
-    if ($prompt_has_image && $option === 'image') {
+    if ($prompt_has_image && function_exists('ll_tools_quiz_option_type_has_image') && ll_tools_quiz_option_type_has_image($option)) {
+        $option = $fallback_text_option;
+    } elseif ($prompt_has_image && $option === 'image') {
         $option = $fallback_text_option;
     }
     if ($prompt_has_audio && $option === 'audio') {
@@ -1188,7 +1190,9 @@ function ll_image_upload_category_supports_autocreate($term_id) {
     $prompt_is_text = function_exists('ll_tools_quiz_prompt_type_has_text')
         ? ll_tools_quiz_prompt_type_has_text($prompt_type)
         : in_array($prompt_type, ['text_translation', 'text_title', 'audio_text_translation', 'audio_text_title', 'image_text_translation', 'image_text_title'], true);
-    $answer_is_image = ($option_type === 'image');
+    $answer_is_image = function_exists('ll_tools_quiz_option_type_has_image')
+        ? ll_tools_quiz_option_type_has_image($option_type)
+        : ($option_type === 'image');
     $answer_is_text = in_array($option_type, ['text_translation', 'text_title'], true);
 
     return !$requires_audio && (

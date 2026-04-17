@@ -129,7 +129,7 @@
         function categoryRequiresImage(config, displayMode) {
             const opt = displayMode || config.option_type || config.mode;
             return (Util.promptTypeHasImage ? Util.promptTypeHasImage(config.prompt_type) : (config.prompt_type === 'image'))
-                || opt === 'image';
+                || (Util.optionTypeHasImage ? Util.optionTypeHasImage(opt) : (opt === 'image'));
         }
 
         function getWordsetKey() {

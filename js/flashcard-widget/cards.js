@@ -340,20 +340,52 @@
             });
     }
 
-    function createImageCard(word) {
+    function getImageCardCaptionText(word, optionType) {
+        if (Util && typeof Util.getImageOptionCaption === 'function') {
+            return Util.getImageOptionCaption(word, optionType);
+        }
+        if (String(optionType || '').trim().toLowerCase() !== 'image_text_translation') {
+            return '';
+        }
+        return String((word && word.translation) || '').trim();
+    }
+
+    function createImageCard(word, optionType) {
+        const hasCaptionMode = String(optionType || '').trim().toLowerCase() === 'image_text_translation';
+        const captionText = hasCaptionMode ? getImageCardCaptionText(word, optionType) : '';
         const $c = $('<div>', {
-            class: 'flashcard-container flashcard-size-' + root.llToolsFlashcardsData.imageSize,
+            class: 'flashcard-container flashcard-size-' + root.llToolsFlashcardsData.imageSize + (hasCaptionMode ? ' ll-answer-option-image-caption-card' : ''),
             'data-word': word.title,
             'data-word-id': word.id,
             css: { display: 'none' }
         });
+
+        const $imageHost = hasCaptionMode
+            ? $('<div>', { class: 'll-answer-option-image-caption-media' }).appendTo($c)
+            : $c;
+
         $('<img>', { src: word.image, alt: '', 'aria-hidden': 'true', class: 'quiz-image', draggable: false })
             .on('load', function () {
                 const fudge = 10;
                 if (this.naturalWidth > this.naturalHeight + fudge) $c.addClass('landscape');
                 else if (this.naturalWidth + fudge < this.naturalHeight) $c.addClass('portrait');
             })
-            .appendTo($c);
+            .appendTo($imageHost);
+
+        if (hasCaptionMode) {
+            const $caption = $('<div>', {
+                class: 'quiz-text ll-answer-option-image-caption',
+                dir: 'auto'
+            }).appendTo($c);
+            if (captionText) {
+                $caption.text(captionText);
+                $c.addClass('ll-answer-option-image-caption-card--has-caption');
+                applyAnswerOptionTextStyle($caption, captionText);
+            } else {
+                $caption.attr('aria-hidden', 'true');
+            }
+        }
+
         return $c;
     }
 
@@ -516,8 +548,8 @@
     function appendWordToContainer(word, optionType, promptType, ordered) {
         const mode = optionType || root.LLFlashcards.Selection.getCurrentDisplayMode();
         const isTextMode = (mode === 'text' || mode === 'text_title' || mode === 'text_translation');
-        const $card = (mode === 'image')
-            ? createImageCard(word)
+        const $card = ((mode === 'image' || mode === 'image_text_translation'))
+            ? createImageCard(word, mode)
             : (mode === 'audio'
                 ? createAudioCard(word, false, promptType)
                 : (mode === 'text_audio'

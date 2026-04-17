@@ -591,6 +591,10 @@ function ll_tools_category_requires_image_answer_aspect_normalization($category_
         return true;
     }
 
+    if (function_exists('ll_tools_quiz_option_type_has_image')) {
+        return ll_tools_quiz_option_type_has_image($option_type);
+    }
+
     return ($option_type === 'image');
 }
 

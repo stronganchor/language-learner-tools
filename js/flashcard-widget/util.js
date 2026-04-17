@@ -126,6 +126,10 @@
             const normalized = Util.normalizePromptType(promptType);
             return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
         },
+        optionTypeHasImage(optionType) {
+            const normalized = Util.normalizeOptionType(optionType);
+            return normalized === 'image' || normalized === 'image_text_translation';
+        },
         isPlainTextOptionType(optionType) {
             const normalized = Util.normalizeOptionType(optionType);
             return normalized === 'text' || normalized === 'text_title' || normalized === 'text_translation';
@@ -209,6 +213,17 @@
             }
 
             return String(word.title || '').trim();
+        },
+        getImageOptionCaption(word, optionType) {
+            if (!word || typeof word !== 'object') {
+                return '';
+            }
+
+            if (Util.normalizeOptionType(optionType) !== 'image_text_translation') {
+                return '';
+            }
+
+            return String(word.translation || '').trim();
         },
         protectMaqafNoBreak(value) {
             const text = (value === null || value === undefined) ? '' : String(value);

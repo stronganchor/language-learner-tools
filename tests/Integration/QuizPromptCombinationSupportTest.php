@@ -125,4 +125,38 @@ final class QuizPromptCombinationSupportTest extends LL_Tools_TestCase
         $this->assertSame((string) ($rows[0]['title'] ?? ''), (string) ($rows[0]['prompt_label'] ?? ''));
         $this->assertNotEmpty((string) ($rows[0]['label'] ?? ''));
     }
+
+    public function test_image_translation_answer_options_require_images_but_not_translations(): void
+    {
+        $category = wp_insert_term('Image Translation Answer Category', 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image_text_translation');
+
+        $with_image_id = $this->createWord($category_id, 'Masa');
+        $this->addAudio($with_image_id, '-audio');
+        $this->addImage($with_image_id, '-image');
+
+        $without_image_id = $this->createWord($category_id, 'Sandalye', 'Chair');
+        $this->addAudio($without_image_id, '-audio');
+
+        $term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = ll_tools_get_category_quiz_config($term);
+        $rows = ll_get_words_by_category('Image Translation Answer Category', 'image_text_translation', null, $config);
+        $count = ll_get_words_by_category_count('Image Translation Answer Category', 'image_text_translation', null, $config);
+
+        $this->assertContains('image_text_translation', ll_tools_get_quiz_option_types());
+        $this->assertSame('image_text_translation', (string) ($config['option_type'] ?? ''));
+        $this->assertTrue(ll_tools_quiz_requires_image($config, 'image_text_translation'));
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, $count);
+        $this->assertSame($with_image_id, (int) ($rows[0]['id'] ?? 0));
+        $this->assertSame('', (string) ($rows[0]['translation'] ?? ''));
+        $this->assertNotEmpty((string) ($rows[0]['image'] ?? ''));
+    }
 }

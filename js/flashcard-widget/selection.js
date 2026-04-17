@@ -39,6 +39,14 @@
         return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
     }
 
+    function optionTypeHasImage(optionType) {
+        if (Util && typeof Util.optionTypeHasImage === 'function') {
+            return !!Util.optionTypeHasImage(optionType);
+        }
+        const normalized = String(optionType || '').trim().toLowerCase();
+        return normalized === 'image' || normalized === 'image_text_translation';
+    }
+
     function getMessage(key, fallback) {
         return (Util && typeof Util.getMessage === 'function')
             ? Util.getMessage(key, fallback)
@@ -691,7 +699,7 @@
         const opt = cfg.option_type || cfg.mode || State.DEFAULT_DISPLAY_MODE;
         const promptType = cfg.prompt_type || 'audio';
         const requiresAudio = promptTypeHasAudio(promptType) || opt === 'audio' || opt === 'text_audio';
-        const requiresImage = promptTypeHasImage(promptType) || opt === 'image';
+        const requiresImage = promptTypeHasImage(promptType) || optionTypeHasImage(opt);
         return { requiresAudio, requiresImage };
     }
 
@@ -1549,7 +1557,7 @@
         const isTextOption = (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
         const isTextPrompt = isTextPromptType(promptType);
         const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
-        const showImage = promptTypeHasImage(promptType) || (isGender && optionType === 'image');
+        const showImage = promptTypeHasImage(promptType) || (isGender && optionTypeHasImage(optionType));
         const showText = isTextPrompt || (isGender && isTextOption);
         const hideAudioControls = (Util && typeof Util.isTextToTextQuizPresentation === 'function')
             ? !!Util.isTextToTextQuizPresentation(promptType, optionType)

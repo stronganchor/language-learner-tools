@@ -23,9 +23,25 @@
         return normalized === 'text' || normalized === 'text_title' || normalized === 'text_translation' || normalized === 'text_audio';
     }
 
+    function isImageOptionType(mode) {
+        const normalized = String(mode || '').toLowerCase();
+        return normalized === 'image' || normalized === 'image_text_translation';
+    }
+
     function isAudioOptionType(mode) {
         const normalized = String(mode || '').toLowerCase();
         return normalized === 'audio' || normalized === 'text_audio';
+    }
+
+    function getImageOptionCaption(word, mode) {
+        const util = root.LLFlashcards && root.LLFlashcards.Util ? root.LLFlashcards.Util : null;
+        if (util && typeof util.getImageOptionCaption === 'function') {
+            return String(util.getImageOptionCaption(word, mode) || '').trim();
+        }
+        if (String(mode || '').toLowerCase() !== 'image_text_translation') {
+            return '';
+        }
+        return String((word && word.translation) || '').trim();
     }
 
     function getWordImageIdentity(word) {
@@ -410,11 +426,12 @@
         $container.empty();
 
         const mode = String(displayType || '');
-        const showImage = mode === 'image';
+        const showImage = isImageOptionType(mode);
         const showText = isTextOptionType(mode);
         const showAudio = isAudioOptionType(mode);
         const text = getWordText(word);
         const audioUrl = showAudio ? getWordAudioUrl(word) : '';
+        const imageCaption = getImageOptionCaption(word, mode);
 
         const $inner = $('<div>', { class: 'll-study-check-prompt-inner' });
         let hasContent = false;
@@ -429,6 +446,12 @@
             }).appendTo($imgWrap);
             $inner.append($imgWrap);
             hasContent = true;
+
+            if (imageCaption) {
+                const $caption = $('<div>', { class: 'll-study-check-text ll-study-check-image-caption', text: imageCaption, dir: 'auto' });
+                applyAnswerOptionTextStyle($caption, imageCaption);
+                $inner.append($caption);
+            }
         }
 
         if (showText && text) {
