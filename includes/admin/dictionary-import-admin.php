@@ -1638,27 +1638,34 @@ function ll_tools_render_dictionary_import_page(): void {
     $wordsets = ll_tools_dictionary_import_get_wordsets();
     $legacy_table_exists = function_exists('ll_tools_dictionary_legacy_table_exists') && ll_tools_dictionary_legacy_table_exists();
     $recent_imports = ll_tools_dictionary_import_get_recent_history_entries();
-    $sources_url = admin_url('tools.php?page=ll-dictionary-sources');
+    $sources_url = function_exists('ll_tools_get_tools_page_url')
+        ? ll_tools_get_tools_page_url('ll-dictionary-sources')
+        : admin_url('tools.php?page=ll-dictionary-sources');
     ?>
     <div class="wrap ll-dictionary-import-admin">
         <h1><?php esc_html_e('LL Dictionary Manager', 'll-tools-text-domain'); ?></h1>
         <p>
             <?php esc_html_e('Manage dictionary imports, exports, and legacy migration in one place. TSV rows are grouped by headword so search, browse, bulk translations, and word-linking all use the same data.', 'll-tools-text-domain'); ?>
         </p>
-        <p>
-            <?php
-            echo wp_kses_post(sprintf(
-                /* translators: %s: URL to the dictionary sources screen */
-                __('Use the <a href="%s">Dictionary Sources</a> screen to define per-dictionary attribution text, source detail URLs, and default dialect tags before importing rows from a new source.', 'll-tools-text-domain'),
-                esc_url($sources_url)
-            ));
-            ?>
-        </p>
+        <div class="ll-dictionary-import-admin__nav-card">
+            <div>
+                <h2 class="ll-dictionary-import-admin__nav-title"><?php esc_html_e('Dictionary Sources', 'll-tools-text-domain'); ?></h2>
+                <p class="ll-dictionary-import-admin__nav-copy">
+                    <?php
+                    echo wp_kses_post(sprintf(
+                        /* translators: %s: URL to the dictionary sources screen */
+                        __('Use the <a href="%s">Dictionary Sources</a> screen to define per-dictionary attribution text, source detail URLs, and default dialect tags before importing rows from a new source.', 'll-tools-text-domain'),
+                        esc_url($sources_url)
+                    ));
+                    ?>
+                </p>
+            </div>
+            <div class="ll-dictionary-import-admin__nav-actions">
+                <a class="button button-primary" href="<?php echo esc_url($sources_url); ?>"><?php esc_html_e('Manage Dictionary Sources', 'll-tools-text-domain'); ?></a>
+            </div>
+        </div>
         <p>
             <?php esc_html_e('Whole-site dictionary snapshots preserve stable import keys so you can export the site dictionary, edit it locally, then reimport it in override mode without breaking linked learning words that already point at those dictionary entries.', 'll-tools-text-domain'); ?>
-        </p>
-        <p>
-            <a class="button button-secondary" href="<?php echo esc_url($sources_url); ?>"><?php esc_html_e('Open Dictionary Sources', 'll-tools-text-domain'); ?></a>
         </p>
 
         <div class="card" style="max-width:920px;margin-top:20px;">

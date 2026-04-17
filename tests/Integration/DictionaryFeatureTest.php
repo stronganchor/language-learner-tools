@@ -862,6 +862,8 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_dictionary_dialect"', $filtered_html);
         $this->assertStringContainsString('Dar', $filtered_html);
         $this->assertStringContainsString('Harun Turgut', $filtered_html);
+        $this->assertStringContainsString('ll-dictionary__badge--external', $filtered_html);
+        $this->assertStringContainsString('aria-label="Open source page for Harun Turgut"', $filtered_html);
 
         $_GET = [
             'll_dictionary_entry' => (string) $entry_id,
@@ -872,11 +874,48 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Harun Turgut', $detail_html);
         $this->assertStringContainsString('Palu - Bingöl', $detail_html);
         $this->assertStringContainsString('Siverek', $detail_html);
-        $this->assertStringContainsString('About this source', $detail_html);
+        $this->assertStringContainsString('View source page', $detail_html);
         $this->assertStringContainsString('https://example.com/dezd-license', $detail_html);
         $this->assertStringContainsString('https://example.com/harun-license', $detail_html);
         $this->assertStringNotContainsString('Page 400', $detail_html);
         $this->assertStringNotContainsString('Page 52', $detail_html);
+    }
+
+    public function test_dictionary_admin_pages_render_source_navigation_and_stacked_source_fields(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        ll_tools_update_dictionary_source_registry([
+            [
+                'id' => 'harun',
+                'label' => 'Harun Turgut',
+                'attribution_text' => 'Used with permission from Harun Turgut.',
+                'attribution_url' => 'https://example.com/harun-license',
+                'default_dialects' => ['Palu - Bingol'],
+            ],
+        ]);
+
+        $previous_server = $_SERVER;
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+
+        ob_start();
+        ll_tools_render_dictionary_import_page();
+        $manager_html = (string) ob_get_clean();
+
+        ob_start();
+        ll_tools_render_dictionary_sources_page();
+        $sources_html = (string) ob_get_clean();
+
+        $_SERVER = $previous_server;
+
+        $this->assertStringContainsString('Manage Dictionary Sources', $manager_html);
+        $this->assertStringContainsString('tools.php?page=ll-dictionary-sources', $manager_html);
+        $this->assertStringContainsString('Back to Dictionary Manager', $sources_html);
+        $this->assertStringContainsString('ll-dictionary-sources-admin__rows', $sources_html);
+        $this->assertStringContainsString('ll-dictionary-sources-admin__field--full', $sources_html);
+        $this->assertStringContainsString('ll_dictionary_sources[0][attribution_url]', $sources_html);
+        $this->assertStringContainsString('Harun Turgut', $sources_html);
     }
 
     public function test_dictionary_scope_filter_index_refreshes_after_source_and_entry_updates(): void

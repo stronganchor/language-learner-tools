@@ -447,6 +447,21 @@
     text-decoration: none;
 }
 
+.ll-dictionary__badge--source {
+    border-color: #cfe5da;
+    background: #eef7f2;
+    color: var(--ll-dictionary-accent);
+}
+
+.ll-dictionary__badge--external {
+    gap: 6px;
+}
+
+.ll-dictionary__badge-icon {
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
 .ll-dictionary__badge:hover,
 .ll-dictionary__badge:focus {
     border-color: var(--ll-dictionary-accent);

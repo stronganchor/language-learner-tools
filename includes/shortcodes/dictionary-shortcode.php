@@ -653,7 +653,22 @@ function ll_tools_dictionary_render_badge(string $text, string $modifier = '', s
 
     $content = esc_html($text);
     if ($url !== '') {
-        return '<a class="' . esc_attr($classes) . '" href="' . esc_url($url) . '">' . $content . '</a>';
+        $classes .= ' ll-dictionary__badge--external';
+        $content .= '<span class="ll-dictionary__badge-icon" aria-hidden="true">&#8599;</span>';
+
+        $aria_label = ($modifier === 'source')
+            ? sprintf(
+                /* translators: %s: source label */
+                __('Open source page for %s', 'll-tools-text-domain'),
+                $text
+            )
+            : sprintf(
+                /* translators: %s: badge label */
+                __('Open link for %s', 'll-tools-text-domain'),
+                $text
+            );
+
+        return '<a class="' . esc_attr($classes) . '" href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer" aria-label="' . esc_attr($aria_label) . '">' . $content . '</a>';
     }
 
     return '<span class="' . esc_attr($classes) . '">' . $content . '</span>';
@@ -1138,7 +1153,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
                 $html .= '<p class="ll-dictionary__source-copy">' . esc_html($attribution_text) . '</p>';
             }
             if ($attribution_url !== '') {
-                $html .= '<p class="ll-dictionary__source-copy"><a href="' . esc_url($attribution_url) . '">' . esc_html__('About this source', 'll-tools-text-domain') . '</a></p>';
+                $html .= '<p class="ll-dictionary__source-copy"><a href="' . esc_url($attribution_url) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('View source page', 'll-tools-text-domain') . '</a></p>';
             }
             $html .= '</div>';
         }

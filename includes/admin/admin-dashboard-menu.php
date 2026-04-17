@@ -514,6 +514,9 @@ function ll_tools_render_tools_hub_page() {
     $dictionary_import_capability = function_exists('ll_tools_get_dictionary_import_capability')
         ? ll_tools_get_dictionary_import_capability()
         : 'manage_options';
+    $dictionary_sources_capability = function_exists('ll_tools_get_dictionary_sources_capability')
+        ? ll_tools_get_dictionary_sources_capability()
+        : $dictionary_import_capability;
     $export_import_capability = function_exists('ll_tools_get_export_import_capability')
         ? ll_tools_get_export_import_capability()
         : 'manage_options';
@@ -562,6 +565,13 @@ function ll_tools_render_tools_hub_page() {
             'url' => ll_tools_get_tools_page_url('ll-dictionary-import'),
             'cap' => $dictionary_import_capability,
             'icon' => 'dashicons-book-alt',
+        ],
+        [
+            'label' => __('Dictionary Sources', 'll-tools-text-domain'),
+            'description' => __('Maintain reusable source labels, attribution text, source-page URLs, and default dialects used by dictionary entries.', 'll-tools-text-domain'),
+            'url' => ll_tools_get_tools_page_url('ll-dictionary-sources'),
+            'cap' => $dictionary_sources_capability,
+            'icon' => 'dashicons-admin-links',
         ],
         [
             'label' => __('Bulk Translations', 'll-tools-text-domain'),
