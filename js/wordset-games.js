@@ -6773,7 +6773,6 @@
             const currentUnit = currentUnits[index] || null;
             const targetUnit = targetUnits[index] || null;
             const currentId = toInt(currentUnit && currentUnit.id);
-            const targetId = toInt(targetUnit && targetUnit.id);
             const currentMovable = !!(currentUnit && currentUnit.movable);
 
             if (!currentMovable) {
@@ -6781,7 +6780,7 @@
             }
 
             movableCount += 1;
-            if (currentId > 0 && currentId === targetId) {
+            if (currentId > 0 && normalizeMatcherText(currentUnit && currentUnit.text) === normalizeMatcherText(targetUnit && targetUnit.text)) {
                 correctUnitIds[currentId] = true;
                 matchedCount += 1;
             } else if (currentId > 0) {

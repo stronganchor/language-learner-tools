@@ -996,9 +996,20 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         update_option('ll_word_title_language_role', 'translation');
 
         try {
-            $fixture = $this->createUnscrambleFixture(false, 'Unscramble Translation', 5, ['unscramble']);
-            update_term_meta((int) $fixture['category_id'], 'll_quiz_prompt_type', 'text_translation');
-            update_term_meta((int) $fixture['category_id'], 'll_quiz_option_type', 'text_translation');
+            $fixture = $this->createUnscrambleFixture(false, 'Turkish', 5, ['unscramble']);
+            update_term_meta(
+                (int) $fixture['wordset_id'],
+                defined('LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY') ? LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY : 'll_wordset_word_title_language_role',
+                'translation'
+            );
+            foreach ((array) $fixture['word_ids'] as $index => $wordId) {
+                wp_update_post([
+                    'ID' => (int) $wordId,
+                    'post_title' => 'Turkish ' . ($index + 1),
+                ]);
+                update_post_meta((int) $wordId, 'word_translation', 'zazaki' . ($index + 1));
+                update_post_meta((int) $wordId, 'word_english_meaning', 'Turkish ' . ($index + 1));
+            }
             wp_set_current_user((int) $fixture['user_id']);
 
             $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
@@ -1009,13 +1020,12 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             $firstWord = (array) ($launch['words'][0] ?? []);
             $wordId = (int) ($firstWord['id'] ?? 0);
             $this->assertGreaterThan(0, $wordId);
-            $displayValues = ll_tools_word_grid_resolve_display_text($wordId);
             $this->assertSame(
-                (string) ($displayValues['word_text'] ?? ''),
+                (string) get_post_meta($wordId, 'word_translation', true),
                 (string) ($firstWord['unscramble_answer_text'] ?? '')
             );
             $this->assertSame(
-                (string) ($displayValues['translation_text'] ?? ''),
+                (string) get_post_field('post_title', $wordId),
                 (string) ($firstWord['unscramble_prompt_text'] ?? '')
             );
         } finally {
@@ -1040,6 +1050,34 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $firstWord = (array) ($launch['words'][0] ?? []);
         $this->assertSame('image', (string) ($firstWord['unscramble_prompt_type'] ?? ''));
         $this->assertNotSame('', (string) ($firstWord['unscramble_prompt_image'] ?? ''));
+    }
+
+    public function test_unscramble_removes_punctuation_from_target_text(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Prompt', 5, ['unscramble']);
+        foreach ((array) $fixture['word_ids'] as $index => $wordId) {
+            wp_update_post([
+                'ID' => (int) $wordId,
+                'post_title' => 'keq-piş ' . ($index + 1) . '!',
+            ]);
+        }
+
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertIsArray($launch);
+        $this->assertTrue((bool) ($launch['launchable'] ?? false));
+
+        $firstWord = (array) ($launch['words'][0] ?? []);
+        $this->assertStringNotContainsString('-', (string) ($firstWord['unscramble_answer_text'] ?? ''));
+        $this->assertStringNotContainsString('!', (string) ($firstWord['unscramble_answer_text'] ?? ''));
+
+        $unitText = implode('', array_map(static function ($unit): string {
+            return is_array($unit) ? (string) ($unit['text'] ?? '') : '';
+        }, (array) ($firstWord['unscramble_units'] ?? [])));
+        $this->assertStringNotContainsString('-', $unitText);
+        $this->assertStringNotContainsString('!', $unitText);
     }
 
     public function test_unscramble_stays_hidden_when_all_words_are_too_short_to_scramble(): void
@@ -1113,6 +1151,44 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }, (array) ($launch['words'] ?? []))));
 
         $this->assertNotContains($tooWideWordId, $launchWordIds);
+    }
+
+    public function test_unscramble_hides_game_when_target_language_text_is_missing(): void
+    {
+        $previousTitleRole = get_option('ll_word_title_language_role', null);
+        update_option('ll_word_title_language_role', 'translation');
+
+        try {
+            $fixture = $this->createUnscrambleFixture(false, 'Turkish Missing', 5, ['unscramble']);
+            update_term_meta(
+                (int) $fixture['wordset_id'],
+                defined('LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY') ? LL_TOOLS_WORDSET_WORD_TITLE_LANGUAGE_ROLE_META_KEY : 'll_wordset_word_title_language_role',
+                'translation'
+            );
+
+            foreach ((array) $fixture['word_ids'] as $index => $wordId) {
+                wp_update_post([
+                    'ID' => (int) $wordId,
+                    'post_title' => 'Turkish Missing ' . ($index + 1),
+                ]);
+                delete_post_meta((int) $wordId, 'word_translation');
+                update_post_meta((int) $wordId, 'word_english_meaning', 'Turkish Missing ' . ($index + 1));
+            }
+
+            wp_set_current_user((int) $fixture['user_id']);
+
+            $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+            $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+            $this->assertArrayNotHasKey('unscramble', $catalog);
+            $this->assertNull($launch);
+        } finally {
+            if ($previousTitleRole === null) {
+                delete_option('ll_word_title_language_role');
+            } else {
+                update_option('ll_word_title_language_role', $previousTitleRole);
+            }
+        }
     }
 
     public function test_unscramble_shows_locked_card_when_fewer_than_minimum_words_are_ready(): void

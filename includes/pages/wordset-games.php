@@ -916,7 +916,8 @@ function ll_tools_wordset_games_count_unscramble_movable_units(array $units): in
 }
 
 function ll_tools_wordset_games_unscramble_normalize_compare_text(string $text): string {
-    $text = trim((string) preg_replace('/\s+/u', ' ', $text));
+    $text = trim((string) preg_replace('/[\p{P}\p{S}]+/u', '', $text));
+    $text = trim((string) preg_replace('/\s+/u', '', $text));
     if ($text === '') {
         return '';
     }
@@ -928,30 +929,82 @@ function ll_tools_wordset_games_unscramble_normalize_compare_text(string $text):
     return strtolower($text);
 }
 
+function ll_tools_wordset_games_prepare_unscramble_answer_text(string $text): string {
+    $text = trim((string) preg_replace('/[\p{P}\p{S}]+/u', '', $text));
+    $text = trim((string) preg_replace('/\s+/u', ' ', $text));
+    return trim($text);
+}
+
 function ll_tools_wordset_games_resolve_unscramble_display_texts(array $word): array {
     $word_id = (int) ($word['id'] ?? 0);
+    $wordset_ids = isset($word['wordset_ids']) && is_array($word['wordset_ids'])
+        ? array_values(array_filter(array_map('intval', $word['wordset_ids']), static function (int $id): bool {
+            return $id > 0;
+        }))
+        : [];
+    if (empty($wordset_ids) && $word_id > 0 && function_exists('ll_tools_get_post_wordset_ids')) {
+        $wordset_ids = array_values(array_filter(array_map('intval', (array) ll_tools_get_post_wordset_ids($word_id)), static function (int $id): bool {
+            return $id > 0;
+        }));
+    }
+
+    $title_role = function_exists('ll_tools_get_wordset_title_language_role')
+        ? ll_tools_get_wordset_title_language_role($wordset_ids, true)
+        : sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
+    $store_in_title = function_exists('ll_tools_should_store_word_in_title') && $word_id > 0
+        ? (bool) ll_tools_should_store_word_in_title($word_id, $wordset_ids)
+        : ($title_role !== 'translation');
     $answer_text = '';
     $translation_text = '';
+    $raw_post_title = '';
+    $raw_word_translation = '';
+    $raw_legacy_translation = '';
 
-    if ($word_id > 0 && function_exists('ll_tools_word_grid_resolve_display_text')) {
-        $display_values = ll_tools_word_grid_resolve_display_text($word_id);
-        $answer_text = trim(html_entity_decode((string) ($display_values['word_text'] ?? ''), ENT_QUOTES, 'UTF-8'));
-        $translation_text = trim(html_entity_decode((string) ($display_values['translation_text'] ?? ''), ENT_QUOTES, 'UTF-8'));
+    if ($word_id > 0) {
+        $raw_post_title = html_entity_decode((string) get_post_field('post_title', $word_id), ENT_QUOTES, 'UTF-8');
+        $raw_word_translation = html_entity_decode((string) get_post_meta($word_id, 'word_translation', true), ENT_QUOTES, 'UTF-8');
+        $raw_legacy_translation = html_entity_decode((string) get_post_meta($word_id, 'word_english_meaning', true), ENT_QUOTES, 'UTF-8');
     }
 
-    if ($answer_text === '') {
-        $answer_text = trim((string) ($word['title'] ?? ''));
-    }
-    if ($translation_text === '') {
-        $translation_text = trim((string) ($word['translation'] ?? ''));
-    }
+    $title_matches_legacy_translation = (
+        $raw_post_title !== ''
+        && $raw_legacy_translation !== ''
+        && ll_tools_wordset_games_unscramble_normalize_compare_text($raw_post_title) === ll_tools_wordset_games_unscramble_normalize_compare_text($raw_legacy_translation)
+    );
+    $meta_matches_legacy_translation = (
+        $raw_word_translation !== ''
+        && $raw_legacy_translation !== ''
+        && ll_tools_wordset_games_unscramble_normalize_compare_text($raw_word_translation) === ll_tools_wordset_games_unscramble_normalize_compare_text($raw_legacy_translation)
+    );
+    $meta_looks_like_target_text = (
+        $raw_word_translation !== ''
+        && ll_tools_wordset_games_unscramble_normalize_compare_text($raw_word_translation) !== ll_tools_wordset_games_unscramble_normalize_compare_text($raw_post_title)
+    );
 
-    if ($answer_text === '' && $word_id > 0) {
-        $raw_post_title = get_post_field('post_title', $word_id);
-        if (is_string($raw_post_title)) {
-            $answer_text = trim(html_entity_decode($raw_post_title, ENT_QUOTES, 'UTF-8'));
+    if ($title_matches_legacy_translation && $meta_looks_like_target_text) {
+        $answer_text = trim($raw_word_translation);
+        $translation_text = trim($raw_post_title);
+    } elseif ($meta_matches_legacy_translation && $raw_post_title !== '') {
+        $answer_text = trim($raw_post_title);
+        $translation_text = trim($raw_word_translation);
+    } elseif ($raw_legacy_translation === '' && $raw_word_translation !== '') {
+        if ($store_in_title) {
+            $answer_text = trim($raw_post_title);
+            $translation_text = trim($raw_word_translation);
+        } else {
+            $answer_text = trim($raw_word_translation);
+            $translation_text = trim($raw_post_title);
         }
+    } elseif ($title_role === 'translation') {
+        $answer_text = trim($raw_word_translation);
+        $translation_text = trim($raw_post_title);
+    } else {
+        $answer_text = trim($raw_post_title);
+        $translation_text = trim($raw_word_translation !== '' ? $raw_word_translation : $raw_legacy_translation);
     }
+
+    $answer_text = ll_tools_wordset_games_prepare_unscramble_answer_text($answer_text);
+    $translation_text = trim($translation_text);
 
     if ($answer_text !== '' && function_exists('ll_tools_protect_maqqef_for_display')) {
         $answer_text = ll_tools_protect_maqqef_for_display($answer_text);

@@ -1440,6 +1440,7 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     text-align: center;
     font-weight: 900;
     letter-spacing: -0.03em;
+    text-transform: uppercase;
     white-space: nowrap;
     word-break: keep-all;
     overflow-wrap: normal;
