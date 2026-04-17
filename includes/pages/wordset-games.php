@@ -928,26 +928,47 @@ function ll_tools_wordset_games_unscramble_normalize_compare_text(string $text):
     return strtolower($text);
 }
 
-function ll_tools_wordset_games_resolve_unscramble_answer_text(array $word): string {
+function ll_tools_wordset_games_resolve_unscramble_display_texts(array $word): array {
     $word_id = (int) ($word['id'] ?? 0);
     $answer_text = '';
+    $translation_text = '';
 
-    if ($word_id > 0) {
+    if ($word_id > 0 && function_exists('ll_tools_word_grid_resolve_display_text')) {
+        $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+        $answer_text = trim(html_entity_decode((string) ($display_values['word_text'] ?? ''), ENT_QUOTES, 'UTF-8'));
+        $translation_text = trim(html_entity_decode((string) ($display_values['translation_text'] ?? ''), ENT_QUOTES, 'UTF-8'));
+    }
+
+    if ($answer_text === '') {
+        $answer_text = trim((string) ($word['title'] ?? ''));
+    }
+    if ($translation_text === '') {
+        $translation_text = trim((string) ($word['translation'] ?? ''));
+    }
+
+    if ($answer_text === '' && $word_id > 0) {
         $raw_post_title = get_post_field('post_title', $word_id);
         if (is_string($raw_post_title)) {
             $answer_text = trim(html_entity_decode($raw_post_title, ENT_QUOTES, 'UTF-8'));
         }
     }
 
-    if ($answer_text === '') {
-        $answer_text = trim((string) ($word['title'] ?? ''));
-    }
-
     if ($answer_text !== '' && function_exists('ll_tools_protect_maqqef_for_display')) {
         $answer_text = ll_tools_protect_maqqef_for_display($answer_text);
     }
+    if ($translation_text !== '' && function_exists('ll_tools_protect_maqqef_for_display')) {
+        $translation_text = ll_tools_protect_maqqef_for_display($translation_text);
+    }
 
-    return trim($answer_text);
+    return [
+        'answer_text' => trim($answer_text),
+        'translation_text' => trim($translation_text),
+    ];
+}
+
+function ll_tools_wordset_games_resolve_unscramble_answer_text(array $word): string {
+    $texts = ll_tools_wordset_games_resolve_unscramble_display_texts($word);
+    return trim((string) ($texts['answer_text'] ?? ''));
 }
 
 function ll_tools_wordset_games_resolve_unscramble_prompt(array $word, string $answer_text = ''): array {
@@ -964,7 +985,9 @@ function ll_tools_wordset_games_resolve_unscramble_prompt(array $word, string $a
         ? $answer_text
         : ll_tools_wordset_games_resolve_unscramble_answer_text($word);
     $normalized_answer = ll_tools_wordset_games_unscramble_normalize_compare_text($answer);
+    $display_texts = ll_tools_wordset_games_resolve_unscramble_display_texts($word);
     $candidates = [
+        trim((string) ($display_texts['translation_text'] ?? '')),
         trim((string) ($word['translation'] ?? '')),
         trim((string) ($word['prompt_label'] ?? '')),
         trim((string) ($word['recording_translation'] ?? '')),

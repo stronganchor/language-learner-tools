@@ -997,6 +997,8 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
         try {
             $fixture = $this->createUnscrambleFixture(false, 'Unscramble Translation', 5, ['unscramble']);
+            update_term_meta((int) $fixture['category_id'], 'll_quiz_prompt_type', 'text_translation');
+            update_term_meta((int) $fixture['category_id'], 'll_quiz_option_type', 'text_translation');
             wp_set_current_user((int) $fixture['user_id']);
 
             $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
@@ -1007,12 +1009,13 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             $firstWord = (array) ($launch['words'][0] ?? []);
             $wordId = (int) ($firstWord['id'] ?? 0);
             $this->assertGreaterThan(0, $wordId);
+            $displayValues = ll_tools_word_grid_resolve_display_text($wordId);
             $this->assertSame(
-                (string) get_post_field('post_title', $wordId),
+                (string) ($displayValues['word_text'] ?? ''),
                 (string) ($firstWord['unscramble_answer_text'] ?? '')
             );
             $this->assertSame(
-                (string) get_post_meta($wordId, 'word_translation', true),
+                (string) ($displayValues['translation_text'] ?? ''),
                 (string) ($firstWord['unscramble_prompt_text'] ?? '')
             );
         } finally {

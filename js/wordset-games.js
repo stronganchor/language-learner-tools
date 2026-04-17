@@ -6564,6 +6564,9 @@
         if (ctx.$lineupPrompt && ctx.$lineupPrompt.length) {
             ctx.$lineupPrompt.prop('hidden', true);
         }
+        if (ctx.$lineupStage && ctx.$lineupStage.length) {
+            ctx.$lineupStage.attr('data-lineup-prompt-type', '');
+        }
         if (ctx.$lineupPromptImageWrap && ctx.$lineupPromptImageWrap.length) {
             ctx.$lineupPromptImageWrap.prop('hidden', true);
         }
@@ -6632,6 +6635,9 @@
 
         if (ctx.$lineupPrompt && ctx.$lineupPrompt.length) {
             ctx.$lineupPrompt.prop('hidden', !showPrompt);
+        }
+        if (ctx.$lineupStage && ctx.$lineupStage.length) {
+            ctx.$lineupStage.attr('data-lineup-prompt-type', showPrompt ? promptType : '');
         }
         if (ctx.$lineupPromptImageWrap && ctx.$lineupPromptImageWrap.length) {
             ctx.$lineupPromptImageWrap.prop('hidden', !(showPrompt && promptType === 'image' && promptImage !== ''));
