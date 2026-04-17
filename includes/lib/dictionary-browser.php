@@ -2100,6 +2100,340 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
 }
 
 /**
+ * Order normalized browse letters using the language-specific alphabet first.
+ *
+ * @param array<string,bool> $letters Present letters keyed by normalized value.
+ * @return string[]
+ */
+function ll_tools_dictionary_order_browse_letters(array $letters, string $language = ''): array {
+    if (empty($letters)) {
+        return [];
+    }
+
+    $alphabet = ll_tools_dictionary_get_language_browse_alphabet($language);
+    $ordered = [];
+
+    foreach ($alphabet as $letter) {
+        if ($letter === '' || !isset($letters[$letter]) || isset($ordered[$letter])) {
+            continue;
+        }
+        $ordered[$letter] = true;
+    }
+
+    $extras = array_values(array_diff(array_keys($letters), array_keys($ordered)));
+    usort($extras, static function (string $left, string $right) use ($language): int {
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left, $right, $language)
+            : strnatcasecmp($left, $right);
+    });
+
+    foreach ($extras as $letter) {
+        $ordered[$letter] = true;
+    }
+
+    return array_keys($ordered);
+}
+
+/**
+ * Query a reduced dictionary-entry candidate set for browse-style filters.
+ *
+ * @param string[] $statuses Allowed post statuses.
+ * @return int[]
+ */
+function ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+    array $statuses,
+    int $wordset_id = 0,
+    string $letter = '',
+    string $pos_slug = '',
+    string $source_id = '',
+    string $dialect = ''
+): array {
+    static $request_cache = [];
+    global $wpdb;
+
+    $statuses = array_values(array_filter(array_map('sanitize_key', $statuses)));
+    if (empty($statuses)) {
+        return [];
+    }
+
+    $wordset_id = max(0, $wordset_id);
+    $letter = ll_tools_dictionary_normalize_browse_letter($letter);
+    $pos_slug = sanitize_title($pos_slug);
+    $source_id = function_exists('ll_tools_dictionary_normalize_source_id')
+        ? ll_tools_dictionary_normalize_source_id($source_id)
+        : sanitize_title($source_id);
+    $dialect = function_exists('ll_tools_dictionary_normalize_dialect_key')
+        ? ll_tools_dictionary_normalize_dialect_key($dialect)
+        : strtolower(trim($dialect));
+
+    $cache_args = [
+        'statuses' => $statuses,
+        'wordset_id' => $wordset_id,
+        'letter' => $letter,
+        'pos_slug' => $pos_slug,
+        'source_id' => $source_id,
+        'dialect' => $dialect,
+    ];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('browse_entry_ids', $cache_args, $request_cache);
+    if (is_array($cached)) {
+        return array_values(array_filter(array_map('intval', $cached)));
+    }
+
+    $joins = [];
+    $where = ["p.post_type = 'll_dictionary_entry'"];
+    $params = [];
+
+    $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+    $where[] = "p.post_status IN ({$status_placeholders})";
+    $params = array_merge($params, $statuses);
+
+    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} scope_meta
+                   ON scope_meta.post_id = p.ID
+                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
+        ";
+        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
+        $params[] = '%|' . $wordset_id . '|%';
+    }
+
+    if ($pos_slug !== '') {
+        $joins[] = "
+            INNER JOIN {$wpdb->postmeta} pos_meta
+                    ON pos_meta.post_id = p.ID
+                   AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
+        ";
+        $where[] = 'pos_meta.meta_value = %s';
+        $params[] = $pos_slug;
+    }
+
+    if ($letter !== '') {
+        $lookup_letter = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+            ? ll_tools_dictionary_entry_normalize_lookup_value($letter)
+            : strtolower($letter);
+        if ($lookup_letter !== '') {
+            $joins[] = "
+                INNER JOIN {$wpdb->postmeta} lookup_title
+                        ON lookup_title.post_id = p.ID
+                       AND lookup_title.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY) . "'
+            ";
+            $where[] = 'lookup_title.meta_value LIKE %s';
+            $params[] = $wpdb->esc_like($lookup_letter) . '%';
+        }
+    }
+
+    if ($source_id !== '' || $dialect !== '') {
+        $joins[] = "
+            INNER JOIN {$wpdb->postmeta} search_index
+                    ON search_index.post_id = p.ID
+                   AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
+        ";
+
+        if ($source_id !== '') {
+            $where[] = 'search_index.meta_value LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($source_id) . '%';
+        }
+        if ($dialect !== '') {
+            $where[] = 'search_index.meta_value LIKE %s';
+            $params[] = '%' . $wpdb->esc_like($dialect) . '%';
+        }
+    }
+
+    $sql = "
+        SELECT " . (!empty($joins) ? 'DISTINCT ' : '') . "p.ID
+        FROM {$wpdb->posts} p
+        " . implode("\n", $joins) . "
+        WHERE " . implode(' AND ', $where) . "
+        ORDER BY p.post_title ASC
+    ";
+
+    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($sql, $params)))));
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'browse_entry_ids',
+        $cache_args,
+        $ids,
+        10 * MINUTE_IN_SECONDS,
+        $request_cache
+    );
+}
+
+/**
+ * Query dictionary-entry candidate IDs from stored lookup/search meta.
+ *
+ * @param string[] $statuses Allowed post statuses.
+ * @return int[]
+ */
+function ll_tools_dictionary_query_entry_ids_from_search_meta(
+    string $search,
+    array $statuses,
+    string $search_scope = 'all',
+    int $wordset_id = 0,
+    string $pos_slug = ''
+): array {
+    static $request_cache = [];
+    global $wpdb;
+
+    $search = trim($search);
+    $statuses = array_values(array_filter(array_map('sanitize_key', $statuses)));
+    if ($search === '' || empty($statuses)) {
+        return [];
+    }
+
+    $lookup = function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
+        ? ll_tools_dictionary_entry_normalize_lookup_value($search)
+        : strtolower($search);
+    $search_norm = ll_tools_dictionary_normalize_search_text($search);
+    if ($lookup === '' && $search_norm === '') {
+        return [];
+    }
+
+    $search_scope = ll_tools_dictionary_normalize_search_scope($search_scope);
+    $wordset_id = max(0, $wordset_id);
+    $pos_slug = sanitize_title($pos_slug);
+    $lookup_length = function_exists('mb_strlen')
+        ? max((int) mb_strlen($lookup, 'UTF-8'), (int) mb_strlen($search_norm, 'UTF-8'))
+        : max(strlen($lookup), strlen($search_norm));
+    $use_contains = ($lookup_length >= 3);
+
+    $cache_args = [
+        'search' => $search,
+        'statuses' => $statuses,
+        'search_scope' => $search_scope,
+        'wordset_id' => $wordset_id,
+        'pos_slug' => $pos_slug,
+    ];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('search_meta_entry_ids', $cache_args, $request_cache);
+    if (is_array($cached)) {
+        return array_values(array_filter(array_map('intval', $cached)));
+    }
+
+    $joins = [];
+    $where = ["p.post_type = 'll_dictionary_entry'"];
+    $params = [];
+
+    $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
+    $where[] = "p.post_status IN ({$status_placeholders})";
+    $params = array_merge($params, $statuses);
+
+    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} scope_meta
+                   ON scope_meta.post_id = p.ID
+                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
+        ";
+        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
+        $params[] = '%|' . $wordset_id . '|%';
+    }
+
+    if ($pos_slug !== '') {
+        $joins[] = "
+            INNER JOIN {$wpdb->postmeta} pos_meta
+                    ON pos_meta.post_id = p.ID
+                   AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
+        ";
+        $where[] = 'pos_meta.meta_value = %s';
+        $params[] = $pos_slug;
+    }
+
+    $search_clauses = [];
+    $case_sql = [];
+    $case_params = [];
+    $lookup_prefix = $wpdb->esc_like($lookup) . '%';
+    $lookup_contains = '%' . $wpdb->esc_like($lookup) . '%';
+    $norm_contains = '%' . $wpdb->esc_like($search_norm) . '%';
+
+    if ($search_scope === 'all' || $search_scope === 'headword') {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} lookup_title
+                   ON lookup_title.post_id = p.ID
+                  AND lookup_title.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY) . "'
+        ";
+        $search_clauses[] = 'lookup_title.meta_value = %s';
+        $params[] = $lookup;
+        $search_clauses[] = 'lookup_title.meta_value LIKE %s';
+        $params[] = $lookup_prefix;
+
+        $case_sql[] = 'WHEN lookup_title.meta_value = %s THEN 0';
+        $case_params[] = $lookup;
+        $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 2';
+        $case_params[] = $lookup_prefix;
+
+        if ($use_contains) {
+            $search_clauses[] = 'lookup_title.meta_value LIKE %s';
+            $params[] = $lookup_contains;
+            $case_sql[] = 'WHEN lookup_title.meta_value LIKE %s THEN 4';
+            $case_params[] = $lookup_contains;
+        }
+    }
+
+    if ($search_scope !== 'headword') {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} lookup_translation
+                   ON lookup_translation.post_id = p.ID
+                  AND lookup_translation.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TRANSLATION_META_KEY) . "'
+        ";
+        $search_clauses[] = 'lookup_translation.meta_value = %s';
+        $params[] = $lookup;
+        $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
+        $params[] = $lookup_prefix;
+
+        $case_sql[] = 'WHEN lookup_translation.meta_value = %s THEN 1';
+        $case_params[] = $lookup;
+        $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 3';
+        $case_params[] = $lookup_prefix;
+
+        if ($use_contains) {
+            $search_clauses[] = 'lookup_translation.meta_value LIKE %s';
+            $params[] = $lookup_contains;
+            $case_sql[] = 'WHEN lookup_translation.meta_value LIKE %s THEN 5';
+            $case_params[] = $lookup_contains;
+
+            if ($search_norm !== '') {
+                $joins[] = "
+                    LEFT JOIN {$wpdb->postmeta} search_index
+                           ON search_index.post_id = p.ID
+                          AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
+                ";
+                $search_clauses[] = 'search_index.meta_value LIKE %s';
+                $params[] = $norm_contains;
+                $case_sql[] = 'WHEN search_index.meta_value LIKE %s THEN 6';
+                $case_params[] = $norm_contains;
+            }
+        }
+    }
+
+    if (empty($search_clauses)) {
+        return [];
+    }
+
+    $where[] = '(' . implode(' OR ', $search_clauses) . ')';
+    $order_sql = empty($case_sql)
+        ? 'p.post_title ASC'
+        : "CASE\n                    " . implode("\n                    ", $case_sql) . "\n                    ELSE 7\n                END,\n                p.post_title ASC";
+
+    $sql = "
+        SELECT DISTINCT p.ID
+        FROM {$wpdb->posts} p
+        " . implode("\n", array_values(array_unique($joins))) . "
+        WHERE " . implode(' AND ', $where) . "
+        ORDER BY {$order_sql}
+    ";
+
+    $ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col(
+        $wpdb->prepare($sql, array_merge($params, $case_params))
+    ))));
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'search_meta_entry_ids',
+        $cache_args,
+        $ids,
+        10 * MINUTE_IN_SECONDS,
+        $request_cache
+    );
+}
+
+/**
  * Query dictionary entries with ranked search and pagination.
  *
  * @param array<string,mixed> $args Query arguments.
@@ -2159,10 +2493,21 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $used_published_scope_cache = false;
     $search_results_pre_ranked = false;
     if ($search === '' && $statuses === ['publish']) {
-        $used_published_scope_cache = true;
-        $candidate_ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
-        $needs_meta_cache = ($pos_slug !== '' || $source_id !== '' || $dialect !== '');
-        if ($needs_meta_cache && !empty($candidate_ids)) {
+        if ($letter !== '' || $pos_slug !== '' || $source_id !== '' || $dialect !== '' || $wordset_id > 0) {
+            $candidate_ids = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
+                $statuses,
+                $wordset_id,
+                $letter,
+                $pos_slug,
+                $source_id,
+                $dialect
+            );
+        } else {
+            $used_published_scope_cache = true;
+            $candidate_ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
+        }
+
+        if (!empty($candidate_ids)) {
             update_postmeta_cache($candidate_ids);
         }
     } elseif (
@@ -2180,105 +2525,13 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             }
         }
     } else {
-        $joins = [];
-        if ($pos_slug !== '') {
-            $joins[] = "
-                LEFT JOIN {$wpdb->postmeta} pos_meta
-                       ON pos_meta.post_id = p.ID
-                      AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
-            ";
-        }
-
-        $where = ["p.post_type = 'll_dictionary_entry'"];
-        $params = [];
-
-        $status_placeholders = implode(', ', array_fill(0, count($statuses), '%s'));
-        $where[] = "p.post_status IN ({$status_placeholders})";
-        $params = array_merge($params, $statuses);
-
-        if ($pos_slug !== '') {
-            $where[] = "pos_meta.meta_value = %s";
-            $params[] = $pos_slug;
-        }
-
-        $order_sql = 'p.post_title ASC';
-        $order_params = [];
-
-        if ($search !== '') {
-            $joins[] = "
-                LEFT JOIN {$wpdb->postmeta} translation
-                       ON translation.post_id = p.ID
-                      AND translation.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY) . "'
-                LEFT JOIN {$wpdb->postmeta} lookup_title
-                       ON lookup_title.post_id = p.ID
-                      AND lookup_title.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY) . "'
-                LEFT JOIN {$wpdb->postmeta} lookup_translation
-                       ON lookup_translation.post_id = p.ID
-                      AND lookup_translation.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TRANSLATION_META_KEY) . "'
-                LEFT JOIN {$wpdb->postmeta} search_index
-                       ON search_index.post_id = p.ID
-                      AND search_index.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_SEARCH_INDEX_META_KEY) . "'
-            ";
-
-            $lookup = ll_tools_dictionary_entry_normalize_lookup_value($search);
-            $search_norm = ll_tools_dictionary_normalize_search_text($search);
-            $contains_raw = '%' . $wpdb->esc_like($search) . '%';
-            $contains_lookup = '%' . $wpdb->esc_like($lookup) . '%';
-            $contains_norm = '%' . $wpdb->esc_like($search_norm) . '%';
-
-            $where[] = '(
-                p.post_title LIKE %s
-                OR translation.meta_value LIKE %s
-                OR p.post_content LIKE %s
-                OR lookup_title.meta_value LIKE %s
-                OR lookup_translation.meta_value LIKE %s
-                OR search_index.meta_value LIKE %s
-            )';
-            $params = array_merge($params, [
-                $contains_raw,
-                $contains_raw,
-                $contains_raw,
-                $contains_lookup,
-                $contains_lookup,
-                $contains_norm,
-            ]);
-
-            $prefix_lookup = $wpdb->esc_like($lookup) . '%';
-            $prefix_raw = $wpdb->esc_like($search) . '%';
-            $order_sql = "
-                CASE
-                    WHEN lookup_title.meta_value = %s THEN 0
-                    WHEN lookup_translation.meta_value = %s THEN 1
-                    WHEN lookup_title.meta_value LIKE %s THEN 2
-                    WHEN lookup_translation.meta_value LIKE %s THEN 3
-                    WHEN p.post_title LIKE %s THEN 4
-                    WHEN translation.meta_value LIKE %s THEN 5
-                    WHEN search_index.meta_value LIKE %s THEN 6
-                    ELSE 7
-                END,
-                p.post_title ASC
-            ";
-            $order_params = [
-                $lookup,
-                $lookup,
-                $prefix_lookup,
-                $prefix_lookup,
-                $prefix_raw,
-                $prefix_raw,
-                $contains_norm,
-            ];
-        }
-
-        $where_sql = implode(' AND ', $where);
-        $query_sql = "
-            SELECT " . (!empty($joins) ? 'DISTINCT ' : '') . "p.ID
-            FROM {$wpdb->posts} p
-            " . implode("\n", $joins) . "
-            WHERE {$where_sql}
-            ORDER BY {$order_sql}
-        ";
-        $query_params = array_merge($params, $order_params);
-        $candidate_ids = array_values(array_filter(array_map('intval', (array) $wpdb->get_col($wpdb->prepare($query_sql, $query_params)))));
+        $candidate_ids = ll_tools_dictionary_query_entry_ids_from_search_meta(
+            $search,
+            $statuses,
+            $search_scope,
+            $wordset_id,
+            $pos_slug
+        );
         if (!empty($candidate_ids)) {
             update_postmeta_cache($candidate_ids);
         }
@@ -2607,8 +2860,61 @@ function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array 
  * @return string[]
  */
 function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
-    $index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
-    return array_values(array_filter(array_map('strval', (array) ($index['letters'] ?? []))));
+    static $request_cache = [];
+    global $wpdb;
+
+    $cache_args = ['wordset_id' => $wordset_id];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('available_letters_fast', $cache_args, $request_cache);
+    if (is_array($cached)) {
+        return array_values(array_filter(array_map('strval', $cached)));
+    }
+
+    $language = ll_tools_dictionary_get_wordset_title_language_code($wordset_id);
+    $joins = [];
+    $where = [
+        "p.post_type = 'll_dictionary_entry'",
+        "p.post_status = 'publish'",
+        "TRIM(p.post_title) <> ''",
+    ];
+    $params = [];
+
+    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} scope_meta
+                   ON scope_meta.post_id = p.ID
+                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
+        ";
+        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
+        $params[] = '%|' . (int) $wordset_id . '|%';
+    }
+
+    $sql = "
+        SELECT DISTINCT LEFT(TRIM(p.post_title), 1)
+        FROM {$wpdb->posts} p
+        " . implode("\n", $joins) . "
+        WHERE " . implode(' AND ', $where) . "
+    ";
+    $raw_letters = empty($params)
+        ? (array) $wpdb->get_col($sql)
+        : (array) $wpdb->get_col($wpdb->prepare($sql, $params));
+
+    $letters = [];
+    foreach ($raw_letters as $raw_letter) {
+        $normalized = ll_tools_dictionary_normalize_browse_letter((string) $raw_letter, $language);
+        if ($normalized !== '') {
+            $letters[$normalized] = true;
+        }
+    }
+
+    $ordered_letters = ll_tools_dictionary_order_browse_letters($letters, $language);
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'available_letters_fast',
+        $cache_args,
+        $ordered_letters,
+        HOUR_IN_SECONDS,
+        $request_cache
+    );
 }
 
 /**
@@ -2617,8 +2923,83 @@ function ll_tools_dictionary_get_available_letters(int $wordset_id = 0): array {
  * @return array<int,array{slug:string,label:string}>
  */
 function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array {
-    $index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
-    return array_values(array_filter((array) ($index['pos_options'] ?? []), 'is_array'));
+    static $request_cache = [];
+    global $wpdb;
+
+    $cache_args = ['wordset_id' => $wordset_id];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('pos_filter_options_fast', $cache_args, $request_cache);
+    if (is_array($cached)) {
+        return array_values(array_filter($cached, 'is_array'));
+    }
+
+    $joins = ["
+        INNER JOIN {$wpdb->postmeta} pos_meta
+                ON pos_meta.post_id = p.ID
+               AND pos_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY) . "'
+    "];
+    $where = [
+        "p.post_type = 'll_dictionary_entry'",
+        "p.post_status = 'publish'",
+        "pos_meta.meta_value <> ''",
+    ];
+    $params = [];
+
+    if ($wordset_id > 0 && defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+        $joins[] = "
+            LEFT JOIN {$wpdb->postmeta} scope_meta
+                   ON scope_meta.post_id = p.ID
+                  AND scope_meta.meta_key = '" . esc_sql(LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY) . "'
+        ";
+        $where[] = '(scope_meta.meta_value LIKE %s OR scope_meta.post_id IS NULL)';
+        $params[] = '%|' . (int) $wordset_id . '|%';
+    }
+
+    $sql = "
+        SELECT DISTINCT pos_meta.meta_value
+        FROM {$wpdb->posts} p
+        " . implode("\n", $joins) . "
+        WHERE " . implode(' AND ', $where) . "
+    ";
+    $slugs = empty($params)
+        ? (array) $wpdb->get_col($sql)
+        : (array) $wpdb->get_col($wpdb->prepare($sql, $params));
+
+    $options = [];
+    foreach (array_unique(array_map('sanitize_title', array_map('strval', $slugs))) as $slug) {
+        if ($slug === '') {
+            continue;
+        }
+
+        $term = get_term_by('slug', $slug, 'part_of_speech');
+        $label = ($term && !is_wp_error($term))
+            ? (string) $term->name
+            : (string) $slug;
+        if ($label === '') {
+            continue;
+        }
+
+        $options[$slug] = [
+            'slug' => $slug,
+            'label' => $label,
+        ];
+    }
+
+    $options = array_values($options);
+    usort($options, static function (array $left, array $right): int {
+        $left_label = (string) ($left['label'] ?? '');
+        $right_label = (string) ($right['label'] ?? '');
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left_label, $right_label)
+            : strnatcasecmp($left_label, $right_label);
+    });
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'pos_filter_options_fast',
+        $cache_args,
+        $options,
+        HOUR_IN_SECONDS,
+        $request_cache
+    );
 }
 
 /**
@@ -2627,8 +3008,43 @@ function ll_tools_dictionary_get_pos_filter_options(int $wordset_id = 0): array 
  * @return array<int,array{id:string,label:string}>
  */
 function ll_tools_dictionary_get_source_filter_options(int $wordset_id = 0): array {
-    $index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
-    return array_values(array_filter((array) ($index['source_options'] ?? []), 'is_array'));
+    static $request_cache = [];
+
+    $cache_args = ['wordset_id' => $wordset_id];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('source_filter_options_fast', $cache_args, $request_cache);
+    if (is_array($cached)) {
+        return array_values(array_filter($cached, 'is_array'));
+    }
+
+    $options = [];
+    if (function_exists('ll_tools_get_dictionary_source_registry')) {
+        foreach (ll_tools_get_dictionary_source_registry() as $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+
+            $source_id = ll_tools_dictionary_normalize_source_id((string) ($source['id'] ?? ''));
+            $label = trim((string) ($source['label'] ?? ''));
+            if ($source_id === '' || $label === '') {
+                continue;
+            }
+
+            $options[$source_id] = [
+                'id' => $source_id,
+                'label' => $label,
+            ];
+        }
+    }
+
+    $options = array_values($options);
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'source_filter_options_fast',
+        $cache_args,
+        $options,
+        HOUR_IN_SECONDS,
+        $request_cache
+    );
 }
 
 /**
@@ -2637,8 +3053,47 @@ function ll_tools_dictionary_get_source_filter_options(int $wordset_id = 0): arr
  * @return string[]
  */
 function ll_tools_dictionary_get_dialect_filter_options(int $wordset_id = 0): array {
-    $index = ll_tools_dictionary_get_scope_filter_index($wordset_id);
-    return array_values(array_filter(array_map('strval', (array) ($index['dialect_options'] ?? []))));
+    static $request_cache = [];
+
+    $cache_args = ['wordset_id' => $wordset_id];
+    $cached = ll_tools_dictionary_browser_get_cached_payload('dialect_filter_options_fast', $cache_args, $request_cache);
+    if (is_array($cached)) {
+        return array_values(array_filter(array_map('strval', $cached)));
+    }
+
+    $dialects = [];
+    if (function_exists('ll_tools_get_dictionary_source_registry')) {
+        foreach (ll_tools_get_dictionary_source_registry() as $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+
+            foreach ((array) ($source['default_dialects'] ?? []) as $dialect) {
+                $label = trim((string) $dialect);
+                $key = ll_tools_dictionary_normalize_dialect_key($label);
+                if ($label === '' || $key === '') {
+                    continue;
+                }
+
+                $dialects[$key] = $label;
+            }
+        }
+    }
+
+    $dialect_labels = array_values($dialects);
+    usort($dialect_labels, static function (string $left, string $right): int {
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left, $right)
+            : strnatcasecmp($left, $right);
+    });
+
+    return ll_tools_dictionary_browser_store_cached_payload(
+        'dialect_filter_options_fast',
+        $cache_args,
+        $dialect_labels,
+        HOUR_IN_SECONDS,
+        $request_cache
+    );
 }
 
 /**

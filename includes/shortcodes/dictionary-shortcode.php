@@ -1539,6 +1539,35 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
             ? ll_tools_dictionary_get_dialect_filter_options($wordset_id)
             : [];
     }
+
+    if ($source_id !== '') {
+        $has_selected_source = false;
+        foreach ($source_options as $option) {
+            $option_id = function_exists('ll_tools_dictionary_normalize_source_id')
+                ? ll_tools_dictionary_normalize_source_id((string) ($option['id'] ?? ''))
+                : sanitize_title((string) ($option['id'] ?? ''));
+            if ($option_id === $source_id) {
+                $has_selected_source = true;
+                break;
+            }
+        }
+        if (!$has_selected_source) {
+            $source_options[] = [
+                'id' => $source_id,
+                'label' => $source_id,
+            ];
+        }
+    }
+
+    if ($dialect !== '' && !in_array($dialect, $dialect_options, true)) {
+        $dialect_options[] = $dialect;
+        usort($dialect_options, static function (string $left, string $right): int {
+            return function_exists('ll_tools_locale_compare_strings')
+                ? ll_tools_locale_compare_strings($left, $right)
+                : strnatcasecmp($left, $right);
+        });
+    }
+
     $reset_url = ll_tools_dictionary_build_url($base_url);
     $search_scope_options = ll_tools_dictionary_get_search_scope_options();
 

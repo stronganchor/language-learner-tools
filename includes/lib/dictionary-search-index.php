@@ -16,6 +16,9 @@ if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_HOOK')) {
 if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY')) {
     define('LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY', 'll_tools_dictionary_lookup_rebuild_lock');
 }
+if (!defined('LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION')) {
+    define('LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION', 'll_tools_dictionary_lookup_table_exists');
+}
 
 /**
  * Return the dictionary lookup table name.
@@ -37,8 +40,21 @@ function ll_tools_dictionary_lookup_table_exists(bool $refresh = false): bool {
         return $cached;
     }
 
+    if (!$refresh) {
+        $stored = get_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '');
+        if ($stored === '1') {
+            $cached = true;
+            return true;
+        }
+        if ($stored === '0') {
+            $cached = false;
+            return false;
+        }
+    }
+
     $table = ll_tools_dictionary_lookup_table_name();
     $cached = ((string) $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table))) === $table;
+    update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, $cached ? '1' : '0', false);
 
     return $cached;
 }
@@ -69,6 +85,7 @@ function ll_tools_install_dictionary_lookup_schema(): void {
 
     dbDelta($sql);
     ll_tools_dictionary_lookup_table_exists(true);
+    update_option(LL_TOOLS_DICTIONARY_LOOKUP_EXISTS_OPTION, '1', false);
     update_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION, LL_TOOLS_DICTIONARY_LOOKUP_TABLE_VERSION, false);
 }
 
