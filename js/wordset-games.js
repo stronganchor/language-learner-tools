@@ -6590,7 +6590,7 @@
             ctx.$lineupCards.css('--ll-unscramble-unit-count', '');
         }
         if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
-            ctx.$lineupShuffle.prop('disabled', true);
+            ctx.$lineupShuffle.prop('hidden', true).prop('disabled', true);
         }
         if (ctx.$lineupSkip && ctx.$lineupSkip.length) {
             ctx.$lineupSkip.prop('hidden', true).prop('disabled', true);
@@ -6600,7 +6600,7 @@
                 .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
                 .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
                 .addClass('ll-wordset-lineup-stage__action--primary')
-                .prop('hidden', false)
+                .prop('hidden', true)
                 .prop('disabled', true);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
@@ -6973,7 +6973,7 @@
         }
 
         if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
-            ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || words.length < 2);
+            ctx.$lineupShuffle.prop('hidden', false).prop('disabled', !!run.sequenceLocked || words.length < 2);
         }
         if (ctx.$lineupSkip && ctx.$lineupSkip.length) {
             ctx.$lineupSkip.prop('hidden', true).prop('disabled', true);
@@ -6982,8 +6982,8 @@
             ctx.$lineupCheck
                 .text(String(ctx.i18n.gamesLineupCheck || 'Check'))
                 .removeClass('ll-wordset-lineup-stage__action--ghost ll-wordset-lineup-stage__action--skip')
-                .addClass('ll-wordset-lineup-stage__action--primary');
-            ctx.$lineupCheck.prop('hidden', false);
+                .addClass('ll-wordset-lineup-stage__action--primary')
+                .prop('hidden', false);
             ctx.$lineupCheck.prop('disabled', !!run.sequenceLocked || words.length < 2);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
@@ -7299,7 +7299,7 @@
         }
 
         if (ctx.$lineupShuffle && ctx.$lineupShuffle.length) {
-            ctx.$lineupShuffle.prop('disabled', !!run.sequenceLocked || Math.max(0, toInt(word.unscramble_movable_unit_count)) < 2);
+            ctx.$lineupShuffle.prop('hidden', true).prop('disabled', true);
         }
         if (ctx.$lineupSkip && ctx.$lineupSkip.length) {
             ctx.$lineupSkip
@@ -7316,13 +7316,10 @@
                 .prop('disabled', true);
         }
         if (ctx.$lineupNext && ctx.$lineupNext.length) {
-            const isLastWord = (toInt(run.currentWordIndex) + 1) >= getRunTotalRounds(run);
             ctx.$lineupNext
-                .text(String(isLastWord
-                    ? (ctx.i18n.gamesLineupFinish || 'Finish')
-                    : (ctx.i18n.gamesLineupNext || 'Next')))
-                .prop('hidden', !run.sequenceLocked)
-                .prop('disabled', !run.sequenceLocked);
+                .text(String(ctx.i18n.gamesLineupNext || 'Next'))
+                .prop('hidden', true)
+                .prop('disabled', true);
         }
     }
 
@@ -7901,16 +7898,16 @@
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
         });
-        ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
-        setRunModalOpen(ctx, true);
-        activateGameInteractionGuard();
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
             secondaryLabel: ''
         });
+        ctx.$stage.prop('hidden', false);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
 
         ctx.run = {
             slug: gameSlug,
@@ -7950,8 +7947,8 @@
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
             }
-            hideOverlay(ctx);
             showUnscrambleWord(ctx, 0);
+            hideOverlay(ctx);
         });
     }
 
@@ -7967,16 +7964,16 @@
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
         });
-        ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
-        setRunModalOpen(ctx, true);
-        activateGameInteractionGuard();
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
             secondaryLabel: ''
         });
+        ctx.$stage.prop('hidden', false);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
 
         ctx.run = {
             slug: gameSlug,
@@ -8016,8 +8013,8 @@
             if (!ctx.run || ctx.run !== run || run.ended) {
                 return;
             }
-            hideOverlay(ctx);
             showLineupSequence(ctx, 0);
+            hideOverlay(ctx);
         });
     }
 
@@ -8047,16 +8044,16 @@
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
         });
-        ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = gameSlug;
         updateStageGameUi(ctx, entry);
-        setRunModalOpen(ctx, true);
-        activateGameInteractionGuard();
         showOverlay(ctx, String(ctx.i18n.gamesPreparingRun || 'Preparing game...'), '', {
             mode: 'loading',
             primaryLabel: '',
             secondaryLabel: ''
         });
+        ctx.$stage.prop('hidden', false);
+        setRunModalOpen(ctx, true);
+        activateGameInteractionGuard();
 
         const selectedTargets = selectRoundTargets(entry, getEntryRoundGoalCount(ctx, entry));
 
@@ -10735,12 +10732,12 @@
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
         });
-        ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = SPEAKING_STACK_GAME_SLUG;
         updateStageGameUi(ctx, entry);
+        hideOverlay(ctx);
+        ctx.$stage.prop('hidden', false);
         setRunModalOpen(ctx, true);
         activateGameInteractionGuard();
-        hideOverlay(ctx);
 
         ctx.run = {
             slug: SPEAKING_STACK_GAME_SLUG,
@@ -10848,12 +10845,12 @@
         resetGamesSurface(ctx, {
             keepModalOpen: keepModalOpen
         });
-        ctx.$stage.prop('hidden', false);
         ctx.activeGameSlug = SPEAKING_PRACTICE_GAME_SLUG;
         updateStageGameUi(ctx, entry);
+        hideOverlay(ctx);
+        ctx.$stage.prop('hidden', false);
         setRunModalOpen(ctx, true);
         activateGameInteractionGuard();
-        hideOverlay(ctx);
         ctx.run = {
             slug: SPEAKING_PRACTICE_GAME_SLUG,
             words: shuffledWords.slice(),
