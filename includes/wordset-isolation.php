@@ -16,6 +16,12 @@ if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TRANSIENT')) {
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TTL')) {
     define('LL_TOOLS_WORDSET_ISOLATION_HEALTH_REPORT_TTL', 15 * MINUTE_IN_SECONDS);
 }
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT', 'll_tools_wordset_isolation_vocab_lesson_auto_repair');
+}
+if (!defined('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TTL')) {
+    define('LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TTL', 5 * MINUTE_IN_SECONDS);
+}
 if (!defined('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION')) {
     define('LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION', 4);
 }
@@ -726,6 +732,74 @@ function ll_tools_repair_vocab_lesson_category_meta_for_isolation(int $lesson_id
 
     return true;
 }
+
+function ll_tools_repair_all_vocab_lesson_category_meta_for_isolation(): int {
+    if (!ll_tools_is_wordset_isolation_enabled()) {
+        return 0;
+    }
+
+    if (!defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
+        return 0;
+    }
+
+    $lesson_ids = get_posts([
+        'post_type'        => 'll_vocab_lesson',
+        'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+    ]);
+
+    $repaired = 0;
+    foreach ((array) $lesson_ids as $lesson_id) {
+        if (ll_tools_repair_vocab_lesson_category_meta_for_isolation((int) $lesson_id)) {
+            $repaired++;
+        }
+    }
+
+    return $repaired;
+}
+
+function ll_tools_maybe_auto_repair_vocab_lesson_category_meta_for_isolation(): void {
+    if (!is_admin()) {
+        return;
+    }
+    if (defined('WP_TESTS_DOMAIN')) {
+        return;
+    }
+    if (function_exists('wp_doing_ajax') && wp_doing_ajax()) {
+        return;
+    }
+    if (!ll_tools_is_wordset_isolation_enabled()) {
+        return;
+    }
+
+    $can_run_repairs = function_exists('ll_tools_current_user_can_settings_maintenance')
+        ? ll_tools_current_user_can_settings_maintenance()
+        : current_user_can('manage_options');
+    if (!$can_run_repairs) {
+        return;
+    }
+
+    if (get_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT) !== false) {
+        return;
+    }
+
+    set_transient(
+        LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT,
+        time(),
+        max(MINUTE_IN_SECONDS, (int) LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TTL)
+    );
+
+    $anomalies = ll_tools_collect_wordset_isolation_vocab_lesson_anomalies(1);
+    if ((int) ($anomalies['count'] ?? 0) <= 0) {
+        return;
+    }
+
+    ll_tools_repair_all_vocab_lesson_category_meta_for_isolation();
+}
+add_action('admin_init', 'll_tools_maybe_auto_repair_vocab_lesson_category_meta_for_isolation', 6);
 
 function ll_tools_get_existing_isolated_category_copy_id(int $source_origin_id, int $wordset_id): int {
     $source_origin_id = (int) $source_origin_id;

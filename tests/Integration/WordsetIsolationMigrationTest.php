@@ -18,6 +18,7 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
         delete_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION);
         delete_transient(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_NOTICE_TRANSIENT);
+        delete_transient(LL_TOOLS_WORDSET_ISOLATION_VOCAB_LESSON_AUTO_REPAIR_TRANSIENT);
         delete_option('ll_tools_word_option_rules');
 
         parent::tearDown();
@@ -272,6 +273,71 @@ final class WordsetIsolationMigrationTest extends LL_Tools_TestCase
         $this->assertNotSame('', $iframe_url);
         $this->assertStringContainsString('category_id=' . $isolated_category_id, $iframe_url);
         $this->assertStringContainsString('wordset_id=' . $wordset_id, $iframe_url);
+    }
+
+    public function test_vocab_lesson_creation_normalizes_category_meta_to_owned_copy_after_isolation(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Lesson Sync', 'isolation-lesson-sync');
+        $legacy_category_id = $this->ensure_term('word-category', 'Isolation Lesson Sync Category', 'isolation-lesson-sync-category');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Lesson Sync Word',
+        ]);
+        wp_set_object_terms($word_id, [$legacy_category_id], 'word-category', false);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_run_wordset_isolation_migration();
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+
+        $created = ll_tools_get_or_create_vocab_lesson_page($legacy_category_id, $wordset_id);
+        $this->assertIsArray($created);
+
+        $lesson_id = (int) ($created['post_id'] ?? 0);
+        $this->assertGreaterThan(0, $lesson_id);
+        $this->assertSame($isolated_category_id, (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true));
+    }
+
+    public function test_bulk_vocab_lesson_repair_fixes_stale_category_meta_without_rerunning_full_migration(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '0', false);
+
+        $wordset_id = $this->ensure_term('wordset', 'Isolation Lesson Repair', 'isolation-lesson-repair');
+        $legacy_category_id = $this->ensure_term('word-category', 'Isolation Lesson Repair Category', 'isolation-lesson-repair-category');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Lesson Repair Word',
+        ]);
+        wp_set_object_terms($word_id, [$legacy_category_id], 'word-category', false);
+        wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+        ll_tools_run_wordset_isolation_migration();
+        update_option(LL_TOOLS_WORDSET_ISOLATION_MIGRATION_VERSION_OPTION, LL_TOOLS_WORDSET_ISOLATION_CURRENT_MIGRATION_VERSION, false);
+
+        $isolated_category_id = ll_tools_get_existing_isolated_category_copy_id($legacy_category_id, $wordset_id);
+        $this->assertGreaterThan(0, $isolated_category_id);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Isolation Lesson Repair Target',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $legacy_category_id);
+
+        $repaired = ll_tools_repair_all_vocab_lesson_category_meta_for_isolation();
+
+        $this->assertSame(1, $repaired);
+        $this->assertSame($isolated_category_id, (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true));
     }
 
     public function test_wordset_isolation_migration_repairs_user_study_and_recommendation_category_meta(): void

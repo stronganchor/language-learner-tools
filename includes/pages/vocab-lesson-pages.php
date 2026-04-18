@@ -485,7 +485,7 @@ function ll_tools_get_vocab_lesson_min_word_count($category = null, int $wordset
     return max($lesson_min, $quiz_min);
 }
 
-function ll_tools_resolve_vocab_lesson_category_for_wordset($category, int $wordset_id): ?WP_Term {
+function ll_tools_resolve_vocab_lesson_category_for_wordset($category, int $wordset_id, bool $create_missing = false): ?WP_Term {
     if (!($category instanceof WP_Term)) {
         $category = get_term($category, 'word-category');
     }
@@ -495,7 +495,7 @@ function ll_tools_resolve_vocab_lesson_category_for_wordset($category, int $word
 
     $wordset_id = (int) $wordset_id;
     if ($wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
-        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $category->term_id, $wordset_id, false);
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $category->term_id, $wordset_id, $create_missing);
         if ($effective_category_id > 0 && $effective_category_id !== (int) $category->term_id) {
             $effective_category = get_term($effective_category_id, 'word-category');
             if ($effective_category instanceof WP_Term && !is_wp_error($effective_category)) {
@@ -753,7 +753,9 @@ function ll_tools_get_vocab_lesson_category_ids_for_wordset(int $wordset_id, boo
 }
 
 function ll_tools_get_or_create_vocab_lesson_page(int $category_id, int $wordset_id) {
-    $category = get_term($category_id, 'word-category');
+    $category = function_exists('ll_tools_resolve_vocab_lesson_category_for_wordset')
+        ? ll_tools_resolve_vocab_lesson_category_for_wordset($category_id, $wordset_id, true)
+        : get_term($category_id, 'word-category');
     $wordset  = get_term($wordset_id, 'wordset');
 
     if (!($category instanceof WP_Term) || is_wp_error($category)) {
