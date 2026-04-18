@@ -46,6 +46,7 @@
     const HARD_WORD_DIFFICULTY_THRESHOLD = Math.max(1, parseInt(cfg.hardWordDifficultyThreshold, 10) || 4);
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
+    const lazyCardsCfg = (cfg.lazyCards && typeof cfg.lazyCards === 'object') ? cfg.lazyCards : {};
 
     let wordsByCategory = {};
     let categories = normalizeCategories(cfg.categories || []);
@@ -257,6 +258,15 @@
     let categoryProgressFallbackBound = false;
     let categoryProgressVisibilityEventBound = false;
     const pendingCategoryProgressUpdates = {};
+    let lazyCardsLoadedCount = Math.max(0, parseInt(lazyCardsCfg.loaded, 10) || 0);
+    const lazyCardsTotalCount = Math.max(0, parseInt(lazyCardsCfg.total, 10) || 0);
+    const lazyCardsBatchSize = Math.max(1, parseInt(lazyCardsCfg.batchSize, 10) || 1);
+    const lazyCardsEnabled = !!lazyCardsCfg.enabled && !!ajaxUrl && lazyCardsLoadedCount > 0 && lazyCardsLoadedCount < lazyCardsTotalCount && String(lazyCardsCfg.token || '') !== '';
+    const lazyCardsNonce = String(lazyCardsCfg.nonce || '');
+    const lazyCardsToken = String(lazyCardsCfg.token || '');
+    let lazyCardsRequest = null;
+    let lazyCardsLoadAllPromise = null;
+    let lazyCardsObserver = null;
 
     function warmupFlashcardVisualizerContext() {
         try {
@@ -285,11 +295,17 @@
     const $nextCount = $root.find('[data-ll-wordset-next-count]');
     const $nextRemove = $root.find('[data-ll-wordset-next-remove]');
     const $topModeButtons = $root.find('[data-ll-wordset-start-mode]');
-    const $grid = $root.find('.ll-wordset-grid').first();
+    const $grid = $root.find('[data-ll-wordset-main-grid]').first().length
+        ? $root.find('[data-ll-wordset-main-grid]').first()
+        : $root.find('.ll-wordset-grid').not('.ll-wordset-grid--content-lessons').first();
     const $selectAllButton = $root.find('[data-ll-wordset-select-all]');
     const $mainCategorySearchInput = $root.find('[data-ll-wordset-page-search]');
     const $mainCategorySearchLoading = $root.find('[data-ll-wordset-page-search-loading]');
     const $mainCategorySearchEmpty = $root.find('[data-ll-wordset-page-search-empty]');
+    const $lazyCardsRoot = $root.find('[data-ll-wordset-lazy-root]').first();
+    const $lazyCardsButton = $root.find('[data-ll-wordset-load-more]').first();
+    const $lazyCardsStatus = $root.find('[data-ll-wordset-load-more-status]').first();
+    const $lazyCardsSentinel = $root.find('[data-ll-wordset-load-more-sentinel]').first();
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
     const $selectionText = $root.find('[data-ll-wordset-selection-text]');
     const $selectionPriorityToggle = $root.find('[data-ll-wordset-selection-priority-only]');
@@ -5601,6 +5617,240 @@
         }
     }
 
+    function hasPendingLazyCards() {
+        return lazyCardsEnabled && lazyCardsLoadedCount < lazyCardsTotalCount;
+    }
+
+    function setLazyCardsStatus(message) {
+        if (!$lazyCardsStatus.length) {
+            return;
+        }
+        $lazyCardsStatus.text(String(message || '').trim());
+    }
+
+    function syncLazyCardsUi(options) {
+        if (!$lazyCardsRoot.length) {
+            return;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const isLoading = !!opts.loading;
+        const hasError = !!opts.error;
+        const hasMore = hasPendingLazyCards();
+
+        if (!hasMore) {
+            $lazyCardsRoot.prop('hidden', true).removeClass('is-loading is-error');
+            if (lazyCardsObserver && typeof lazyCardsObserver.disconnect === 'function') {
+                lazyCardsObserver.disconnect();
+            }
+            setLazyCardsStatus('');
+            return;
+        }
+
+        $lazyCardsRoot.prop('hidden', false)
+            .toggleClass('is-loading', isLoading)
+            .toggleClass('is-error', hasError);
+
+        if ($lazyCardsButton.length) {
+            $lazyCardsButton
+                .prop('disabled', isLoading)
+                .attr('aria-disabled', isLoading ? 'true' : 'false')
+                .text(isLoading ? (i18n.loadingMoreCards || 'Loading more cards...') : (i18n.loadMoreCards || 'Load more'));
+        }
+
+        if (hasError) {
+            setLazyCardsStatus(i18n.loadMoreCardsError || 'Could not load more cards right now.');
+        } else if (isLoading) {
+            setLazyCardsStatus(i18n.loadingMoreCards || 'Loading more cards...');
+        } else {
+            setLazyCardsStatus('');
+        }
+    }
+
+    function syncLazyCardsCheckboxState($scope) {
+        const $container = ($scope && $scope.length) ? $scope : $grid;
+        if (!$container || !$container.length || !selectedCategoryIds.length) {
+            return;
+        }
+
+        const selectedLookup = {};
+        uniqueIntList(selectedCategoryIds || []).forEach(function (id) {
+            selectedLookup[id] = true;
+        });
+
+        $container.find('[data-ll-wordset-select]').each(function () {
+            const id = parseInt($(this).val(), 10) || 0;
+            if (!id || !selectedLookup[id]) {
+                return;
+            }
+            $(this).prop('checked', true);
+        });
+    }
+
+    function appendLazyCardsMarkup(html) {
+        if (!$grid.length || !html) {
+            return;
+        }
+
+        const parsedNodes = $.parseHTML(String(html), document, true) || [];
+        if (!parsedNodes.length) {
+            return;
+        }
+
+        const $nodes = $(parsedNodes);
+        $grid.append($nodes);
+        syncLazyCardsCheckboxState($nodes);
+        scheduleWordsetTextPreviewRefit(0, $grid[0]);
+        observeCategoryCardsForProgressVisibility();
+        schedulePendingCategoryProgressVisibilityCheck();
+
+        if (String(mainCategorySearchQuery || '').trim() !== '') {
+            if (lazyCardsLoadAllPromise && hasPendingLazyCards()) {
+                return;
+            }
+            renderMainCategorySearch();
+            return;
+        }
+
+        if (selectedCategoryIds.length) {
+            renderSelectionBar();
+        } else {
+            syncSelectAllButton();
+            scheduleSelectAllAlignment();
+        }
+    }
+
+    function requestLazyCardsBatch(count) {
+        if (!hasPendingLazyCards()) {
+            return $.Deferred().resolve(null).promise();
+        }
+        if (lazyCardsRequest) {
+            return lazyCardsRequest;
+        }
+
+        const deferred = $.Deferred();
+        const requestedCount = Math.max(1, parseInt(count, 10) || lazyCardsBatchSize);
+        lazyCardsRequest = deferred.promise();
+        syncLazyCardsUi({ loading: true });
+
+        $.ajax({
+            url: ajaxUrl,
+            method: 'POST',
+            dataType: 'json',
+            data: {
+                action: 'll_tools_wordset_page_lazy_cards',
+                nonce: lazyCardsNonce,
+                token: lazyCardsToken,
+                offset: lazyCardsLoadedCount,
+                count: requestedCount
+            }
+        }).done(function (response) {
+            const payload = (response && response.success && response.data && typeof response.data === 'object')
+                ? response.data
+                : null;
+            if (!payload) {
+                syncLazyCardsUi({ loading: false, error: true });
+                deferred.reject(response);
+                return;
+            }
+
+            lazyCardsLoadedCount = Math.max(
+                lazyCardsLoadedCount,
+                parseInt(payload.loaded, 10) || parseInt(payload.nextOffset, 10) || lazyCardsLoadedCount
+            );
+            if (!payload.hasMore) {
+                lazyCardsLoadedCount = Math.max(lazyCardsLoadedCount, lazyCardsTotalCount);
+            }
+            appendLazyCardsMarkup(payload.html || '');
+            syncLazyCardsUi({ loading: false });
+            deferred.resolve(payload);
+        }).fail(function (xhr) {
+            syncLazyCardsUi({ loading: false, error: true });
+            deferred.reject(xhr);
+        }).always(function () {
+            lazyCardsRequest = null;
+        });
+
+        return lazyCardsRequest;
+    }
+
+    function loadNextLazyCardsBatch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        if (!hasPendingLazyCards()) {
+            syncLazyCardsUi({ loading: false });
+            return $.Deferred().resolve(null).promise();
+        }
+        return requestLazyCardsBatch(opts.count || lazyCardsBatchSize);
+    }
+
+    function ensureAllMainCardsLoaded(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        if (!hasPendingLazyCards()) {
+            return $.Deferred().resolve(null).promise();
+        }
+        if (lazyCardsLoadAllPromise) {
+            return lazyCardsLoadAllPromise;
+        }
+
+        const deferred = $.Deferred();
+        const batchCount = Math.max(lazyCardsBatchSize, parseInt(opts.count, 10) || lazyCardsBatchSize);
+        lazyCardsLoadAllPromise = deferred.promise();
+
+        const loadRemaining = function () {
+            if (!hasPendingLazyCards()) {
+                deferred.resolve(null);
+                return;
+            }
+
+            loadNextLazyCardsBatch({ count: batchCount })
+                .done(function () {
+                    loadRemaining();
+                })
+                .fail(function (error) {
+                    deferred.reject(error);
+                });
+        };
+
+        loadRemaining();
+
+        return lazyCardsLoadAllPromise.always(function () {
+            lazyCardsLoadAllPromise = null;
+        });
+    }
+
+    function bindLazyCards() {
+        if (!lazyCardsEnabled || !$lazyCardsRoot.length) {
+            syncLazyCardsUi({ loading: false });
+            return;
+        }
+
+        syncLazyCardsUi({ loading: false });
+
+        if ($lazyCardsButton.length) {
+            $lazyCardsButton.on('click', function (event) {
+                event.preventDefault();
+                loadNextLazyCardsBatch();
+            });
+        }
+
+        if (typeof window.IntersectionObserver === 'function' && $lazyCardsSentinel.length) {
+            lazyCardsObserver = new window.IntersectionObserver(function (entries) {
+                (Array.isArray(entries) ? entries : []).forEach(function (entry) {
+                    if (!entry || !entry.isIntersecting) {
+                        return;
+                    }
+                    loadNextLazyCardsBatch();
+                });
+            }, {
+                root: null,
+                rootMargin: '560px 0px',
+                threshold: 0
+            });
+
+            lazyCardsObserver.observe($lazyCardsSentinel[0]);
+        }
+    }
+
     function renderMainCategorySearch() {
         if (!$grid.length) {
             setMainCategorySearchLoading(false);
@@ -5683,6 +5933,18 @@
 
         mainCategorySearchRenderTimer = setTimeout(function () {
             if (token !== mainCategorySearchRenderToken) { return; }
+            const query = String(mainCategorySearchQuery || '').trim();
+            if (query && hasPendingLazyCards()) {
+                ensureAllMainCardsLoaded({ count: Math.max(lazyCardsBatchSize, 24) })
+                    .always(function () {
+                        if (token !== mainCategorySearchRenderToken) { return; }
+                        renderMainCategorySearch();
+                        clearTimeout(mainCategorySearchLoadingTimer);
+                        mainCategorySearchLoadingTimer = null;
+                    });
+                return;
+            }
+
             renderMainCategorySearch();
             clearTimeout(mainCategorySearchLoadingTimer);
             mainCategorySearchLoadingTimer = null;
@@ -10920,26 +11182,40 @@
 
         $root.on('click', '[data-ll-wordset-select-all]', function (e) {
             e.preventDefault();
-            if ($(this).prop('disabled') || String($(this).attr('aria-disabled') || '') === 'true') {
+            const $button = $(this);
+            if ($button.prop('disabled') || String($button.attr('aria-disabled') || '') === 'true') {
                 return;
             }
-            const allIds = getSelectableCategoryIdsFromUI();
-            if (!allIds.length) { return; }
-            const allLookup = {};
-            allIds.forEach(function (id) {
-                allLookup[id] = true;
-            });
-            const checkedIds = getCategoryIdsFromCheckedUI().filter(function (id) {
-                return !!allLookup[id];
-            });
-            const selectAll = checkedIds.length !== allIds.length;
-            $root.find('[data-ll-wordset-select]').each(function () {
-                const id = parseInt($(this).val(), 10) || 0;
-                if (!id || !allLookup[id]) { return; }
-                $(this).prop('checked', selectAll);
-            });
-            selectedCategoryIds = selectAll ? allIds.slice() : [];
-            renderSelectionBar();
+
+            const toggleSelection = function () {
+                const allIds = getSelectableCategoryIdsFromUI();
+                if (!allIds.length) { return; }
+                const allLookup = {};
+                allIds.forEach(function (id) {
+                    allLookup[id] = true;
+                });
+                const checkedIds = getCategoryIdsFromCheckedUI().filter(function (id) {
+                    return !!allLookup[id];
+                });
+                const selectAll = checkedIds.length !== allIds.length;
+                $root.find('[data-ll-wordset-select]').each(function () {
+                    const id = parseInt($(this).val(), 10) || 0;
+                    if (!id || !allLookup[id]) { return; }
+                    $(this).prop('checked', selectAll);
+                });
+                selectedCategoryIds = selectAll ? allIds.slice() : [];
+                renderSelectionBar();
+            };
+
+            if (hasPendingLazyCards()) {
+                ensureAllMainCardsLoaded({ count: Math.max(lazyCardsBatchSize, 24) })
+                    .done(function () {
+                        toggleSelection();
+                    });
+                return;
+            }
+
+            toggleSelection();
         });
 
         $root.on('click', '[data-ll-wordset-selection-clear]', function (e) {
@@ -11424,6 +11700,7 @@
         syncAllWordsetCardProgressSegmentVisualState();
         bindSettingsControls();
         bindMainInteractions();
+        bindLazyCards();
         refreshSummaryCounts({
             animate: false,
             deferVisibleCategoryProgress: false,

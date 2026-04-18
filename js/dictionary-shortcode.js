@@ -9,6 +9,9 @@
     const loadingLabel = typeof config.loadingLabel === 'string' && config.loadingLabel
         ? config.loadingLabel
         : 'Loading dictionary results...';
+    const toolbarLoadingLabel = typeof config.toolbarLoadingLabel === 'string' && config.toolbarLoadingLabel
+        ? config.toolbarLoadingLabel
+        : 'Loading dictionary filters...';
 
     if (!ajaxUrl) {
         return;
@@ -22,6 +25,8 @@
         const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
         const scopeInput = form ? form.querySelector('select[name="ll_dictionary_scope"]') : null;
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
+        const toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
+        const toolbarDeferred = root.getAttribute('data-ll-dictionary-toolbar-deferred') === '1';
 
         if (!form || !results || !toolbar || !searchInput || !scopeInput || !letterInput) {
             return;
@@ -30,6 +35,8 @@
         let debounceTimer = 0;
         let activeController = null;
         let activeRequestId = 0;
+        let toolbarBootstrapPromise = null;
+        let toolbarReady = !toolbarDeferred;
         const responseCache = new Map();
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
@@ -86,6 +93,78 @@
             if (resetLink) {
                 resetLink.hidden = !active;
             }
+        };
+
+        const buildToolbarBootstrapPayload = () => {
+            const payload = new FormData();
+            payload.set('action', 'll_tools_dictionary_toolbar_bootstrap');
+            payload.set('nonce', nonce);
+            payload.set('wordset_id', root.dataset.wordsetId || '0');
+            payload.set('base_url', root.dataset.baseUrl || window.location.href);
+            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
+            payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
+            payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
+            payload.set('ll_dictionary_dialect', getFieldValue('ll_dictionary_dialect'));
+            return payload;
+        };
+
+        const setToolbarBootstrapState = (loading) => {
+            toolbar.classList.toggle('is-toolbar-loading', !!loading);
+            if (toolbarPanel) {
+                if (loading) {
+                    toolbarPanel.setAttribute('aria-busy', 'true');
+                } else {
+                    toolbarPanel.removeAttribute('aria-busy');
+                }
+            }
+        };
+
+        const ensureToolbarBootstrap = () => {
+            if (!toolbarDeferred || toolbarReady || !toolbarPanel) {
+                return Promise.resolve(toolbarReady);
+            }
+
+            if (toolbarBootstrapPromise) {
+                return toolbarBootstrapPromise;
+            }
+
+            setToolbarBootstrapState(true);
+            toolbarBootstrapPromise = fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: buildToolbarBootstrapPayload(),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('request_failed');
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (!payload || !payload.success || !payload.data) {
+                        throw new Error('invalid_payload');
+                    }
+
+                    toolbarPanel.outerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
+                    toolbarReady = true;
+                    root.setAttribute('data-ll-dictionary-toolbar-deferred', '0');
+                    toolbar.classList.remove('is-toolbar-loading');
+                    return true;
+                })
+                .catch((error) => {
+                    toolbar.classList.remove('is-toolbar-loading');
+                    if (toolbarPanel) {
+                        toolbarPanel.setAttribute('aria-label', toolbarLoadingLabel);
+                    }
+                    throw error;
+                })
+                .finally(() => {
+                    setToolbarBootstrapState(false);
+                    toolbarBootstrapPromise = null;
+                });
+
+            return toolbarBootstrapPromise;
         };
 
         const cancelActiveRequest = () => {
@@ -314,7 +393,19 @@
             }, debounceMs);
         };
 
+        const primeToolbarBootstrap = () => {
+            ensureToolbarBootstrap().catch(() => {});
+        };
+
+        searchInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
+        searchInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
+        if (scopeInput) {
+            scopeInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
+            scopeInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
+        }
+
         searchInput.addEventListener('input', () => {
+            primeToolbarBootstrap();
             if (String(searchInput.value || '').trim() !== '') {
                 letterInput.value = '';
             }
@@ -328,22 +419,24 @@
             scheduleLiveSearch();
         });
 
-        ['ll_dictionary_scope', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].forEach((name) => {
-            const field = form.elements.namedItem(name);
-            if (field) {
-                field.addEventListener('change', () => {
-                    if (!canRunQuery()) {
-                        clearResults();
-                        return;
-                    }
-
-                    showLoadingState();
-                    triggerLiveSearch(1);
-                });
+        form.addEventListener('change', (event) => {
+            const target = event.target;
+            const name = target && target.name ? String(target.name) : '';
+            if (['ll_dictionary_scope', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
+                return;
             }
+
+            if (!canRunQuery()) {
+                clearResults();
+                return;
+            }
+
+            showLoadingState();
+            triggerLiveSearch(1);
         });
 
         form.addEventListener('submit', (event) => {
+            primeToolbarBootstrap();
             if (!hasActiveQuery()) {
                 return;
             }

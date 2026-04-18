@@ -58,6 +58,35 @@
     gap: 12px;
 }
 
+.ll-dictionary__toolbar-panel--deferred {
+    min-height: 0;
+}
+
+.ll-dictionary__toolbar.is-toolbar-loading .ll-dictionary__toolbar-panel {
+    min-height: 108px;
+    position: relative;
+}
+
+.ll-dictionary__toolbar.is-toolbar-loading .ll-dictionary__toolbar-panel::before,
+.ll-dictionary__toolbar.is-toolbar-loading .ll-dictionary__toolbar-panel::after {
+    content: "";
+    display: block;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(226, 233, 239, 0.88) 0%, rgba(247, 250, 252, 0.96) 48%, rgba(226, 233, 239, 0.88) 100%);
+    background-size: 220% 100%;
+    animation: ll-dictionary-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-dictionary__toolbar.is-toolbar-loading .ll-dictionary__toolbar-panel::before {
+    width: min(100%, 420px);
+    height: 44px;
+}
+
+.ll-dictionary__toolbar.is-toolbar-loading .ll-dictionary__toolbar-panel::after {
+    width: min(100%, 320px);
+    height: 14px;
+}
+
 .ll-dictionary__filters {
     display: flex;
     flex-wrap: wrap;

@@ -32,6 +32,7 @@ function ll_tools_dictionary_enqueue_assets(): void {
             'loadingCards' => 3,
             'cacheSize' => 24,
             'loadingLabel' => __('Loading dictionary results...', 'll-tools-text-domain'),
+            'toolbarLoadingLabel' => __('Loading dictionary filters...', 'll-tools-text-domain'),
         ]);
         $script_localized = true;
     }
@@ -1386,6 +1387,163 @@ function ll_tools_dictionary_resolve_live_base_url(string $raw_base_url = ''): s
     return (string) remove_query_arg(ll_tools_dictionary_shortcode_query_keys(), $base_url);
 }
 
+function ll_tools_dictionary_build_toolbar_panel_context(int $wordset_id, string $source_id = '', string $dialect = ''): array {
+    $letters = function_exists('ll_tools_dictionary_get_available_letters')
+        ? ll_tools_dictionary_get_available_letters($wordset_id)
+        : [];
+    $pos_options = function_exists('ll_tools_dictionary_get_pos_filter_options')
+        ? ll_tools_dictionary_get_pos_filter_options($wordset_id)
+        : [];
+    $source_options = function_exists('ll_tools_dictionary_get_source_filter_options')
+        ? ll_tools_dictionary_get_source_filter_options($wordset_id)
+        : [];
+    $dialect_options = function_exists('ll_tools_dictionary_get_dialect_filter_options')
+        ? ll_tools_dictionary_get_dialect_filter_options($wordset_id)
+        : [];
+
+    if ($source_id !== '') {
+        $has_selected_source = false;
+        foreach ($source_options as $option) {
+            $option_id = function_exists('ll_tools_dictionary_normalize_source_id')
+                ? ll_tools_dictionary_normalize_source_id((string) ($option['id'] ?? ''))
+                : sanitize_title((string) ($option['id'] ?? ''));
+            if ($option_id === $source_id) {
+                $has_selected_source = true;
+                break;
+            }
+        }
+        if (!$has_selected_source) {
+            $source_options[] = [
+                'id' => $source_id,
+                'label' => $source_id,
+            ];
+        }
+    }
+
+    if ($dialect !== '' && !in_array($dialect, $dialect_options, true)) {
+        $dialect_options[] = $dialect;
+        usort($dialect_options, static function (string $left, string $right): int {
+            return function_exists('ll_tools_locale_compare_strings')
+                ? ll_tools_locale_compare_strings($left, $right)
+                : strnatcasecmp($left, $right);
+        });
+    }
+
+    return [
+        'letters' => $letters,
+        'pos_options' => $pos_options,
+        'source_options' => $source_options,
+        'dialect_options' => $dialect_options,
+    ];
+}
+
+function ll_tools_dictionary_render_toolbar_panel(
+    string $base_url,
+    int $wordset_id,
+    string $search_scope = 'all',
+    string $letter = '',
+    string $pos_slug = '',
+    string $source_id = '',
+    string $dialect = ''
+): string {
+    $context = ll_tools_dictionary_build_toolbar_panel_context($wordset_id, $source_id, $dialect);
+    $letters = (isset($context['letters']) && is_array($context['letters'])) ? $context['letters'] : [];
+    $pos_options = (isset($context['pos_options']) && is_array($context['pos_options'])) ? $context['pos_options'] : [];
+    $source_options = (isset($context['source_options']) && is_array($context['source_options'])) ? $context['source_options'] : [];
+    $dialect_options = (isset($context['dialect_options']) && is_array($context['dialect_options'])) ? $context['dialect_options'] : [];
+
+    ob_start();
+    ?>
+    <div class="ll-dictionary__toolbar-panel" data-ll-dictionary-toolbar-panel>
+        <?php if (!empty($pos_options) || !empty($source_options) || !empty($dialect_options)) : ?>
+            <div class="ll-dictionary__filters">
+                <?php if (!empty($pos_options)) : ?>
+                    <div class="ll-dictionary__field ll-dictionary__field--select">
+                        <label class="screen-reader-text" for="ll-dictionary-pos"><?php esc_html_e('Filter by part of speech', 'll-tools-text-domain'); ?></label>
+                        <select id="ll-dictionary-pos" class="ll-dictionary__select" name="ll_dictionary_pos">
+                            <option value=""><?php esc_html_e('All types', 'll-tools-text-domain'); ?></option>
+                            <?php foreach ($pos_options as $option) : ?>
+                                <option value="<?php echo esc_attr((string) $option['slug']); ?>" <?php selected($pos_slug, (string) $option['slug']); ?>>
+                                    <?php echo esc_html((string) $option['label']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($source_options)) : ?>
+                    <div class="ll-dictionary__field ll-dictionary__field--select">
+                        <label class="screen-reader-text" for="ll-dictionary-source"><?php esc_html_e('Filter by source dictionary', 'll-tools-text-domain'); ?></label>
+                        <select id="ll-dictionary-source" class="ll-dictionary__select" name="ll_dictionary_source">
+                            <option value=""><?php esc_html_e('All sources', 'll-tools-text-domain'); ?></option>
+                            <?php foreach ($source_options as $option) : ?>
+                                <option value="<?php echo esc_attr((string) $option['id']); ?>" <?php selected($source_id, (string) $option['id']); ?>>
+                                    <?php echo esc_html((string) $option['label']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+                <?php if (!empty($dialect_options)) : ?>
+                    <div class="ll-dictionary__field ll-dictionary__field--select">
+                        <label class="screen-reader-text" for="ll-dictionary-dialect"><?php esc_html_e('Filter by dialect', 'll-tools-text-domain'); ?></label>
+                        <select id="ll-dictionary-dialect" class="ll-dictionary__select" name="ll_dictionary_dialect">
+                            <option value=""><?php esc_html_e('All dialects', 'll-tools-text-domain'); ?></option>
+                            <?php foreach ($dialect_options as $option) : ?>
+                                <option value="<?php echo esc_attr((string) $option); ?>" <?php selected($dialect, (string) $option); ?>>
+                                    <?php echo esc_html((string) $option); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+        <p class="ll-dictionary__hint"><?php esc_html_e('Type to search, or open the alphabet below.', 'll-tools-text-domain'); ?></p>
+        <?php if (!empty($letters)) : ?>
+            <nav class="ll-dictionary__letters" aria-label="<?php echo esc_attr__('Browse dictionary by letter', 'll-tools-text-domain'); ?>">
+                <?php foreach ($letters as $browse_letter) : ?>
+                    <?php
+                    $browse_url = ll_tools_dictionary_build_url($base_url, [
+                        'll_dictionary_scope' => $search_scope,
+                        'll_dictionary_letter' => (string) $browse_letter,
+                        'll_dictionary_pos' => $pos_slug,
+                        'll_dictionary_source' => $source_id,
+                        'll_dictionary_dialect' => $dialect,
+                    ]);
+                    ?>
+                    <a class="ll-dictionary__letter<?php echo $browse_letter === $letter ? ' is-active' : ''; ?>" href="<?php echo esc_url($browse_url); ?>">
+                        <?php echo esc_html((string) $browse_letter); ?>
+                    </a>
+                <?php endforeach; ?>
+            </nav>
+        <?php endif; ?>
+    </div>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
+function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
+    check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
+
+    $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
+    $base_url = ll_tools_dictionary_resolve_live_base_url(isset($_POST['base_url']) ? (string) wp_unslash((string) $_POST['base_url']) : '');
+    $search_scope = isset($_POST['ll_dictionary_scope']) ? ll_tools_dictionary_shortcode_resolve_search_scope(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_scope']))) : 'all';
+    $letter = isset($_POST['ll_dictionary_letter']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_letter']))) : '';
+    $pos_slug = isset($_POST['ll_dictionary_pos']) ? sanitize_title(wp_unslash((string) $_POST['ll_dictionary_pos'])) : '';
+    $source_id = isset($_POST['ll_dictionary_source']) ? sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_source'])) : '';
+    if (function_exists('ll_tools_dictionary_normalize_source_id')) {
+        $source_id = ll_tools_dictionary_normalize_source_id($source_id);
+    }
+    $dialect = isset($_POST['ll_dictionary_dialect']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_dialect']))) : '';
+
+    wp_send_json_success([
+        'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scope, $letter, $pos_slug, $source_id, $dialect),
+    ]);
+}
+add_action('wp_ajax_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
+add_action('wp_ajax_nopriv_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
+
 /**
  * Handle public live-search requests for the dictionary shortcode.
  */
@@ -1536,53 +1694,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         : ($wordset_name !== '' ? $wordset_name : __('Dictionary', 'll-tools-text-domain'));
 
     $base_url = ll_tools_dictionary_get_current_base_url();
-    $letters = [];
-    $pos_options = [];
-    $source_options = [];
-    $dialect_options = [];
-    if ($requested_entry_id <= 0) {
-        $letters = function_exists('ll_tools_dictionary_get_available_letters')
-            ? ll_tools_dictionary_get_available_letters($wordset_id)
-            : [];
-        $pos_options = function_exists('ll_tools_dictionary_get_pos_filter_options')
-            ? ll_tools_dictionary_get_pos_filter_options($wordset_id)
-            : [];
-        $source_options = function_exists('ll_tools_dictionary_get_source_filter_options')
-            ? ll_tools_dictionary_get_source_filter_options($wordset_id)
-            : [];
-        $dialect_options = function_exists('ll_tools_dictionary_get_dialect_filter_options')
-            ? ll_tools_dictionary_get_dialect_filter_options($wordset_id)
-            : [];
-    }
-
-    if ($source_id !== '') {
-        $has_selected_source = false;
-        foreach ($source_options as $option) {
-            $option_id = function_exists('ll_tools_dictionary_normalize_source_id')
-                ? ll_tools_dictionary_normalize_source_id((string) ($option['id'] ?? ''))
-                : sanitize_title((string) ($option['id'] ?? ''));
-            if ($option_id === $source_id) {
-                $has_selected_source = true;
-                break;
-            }
-        }
-        if (!$has_selected_source) {
-            $source_options[] = [
-                'id' => $source_id,
-                'label' => $source_id,
-            ];
-        }
-    }
-
-    if ($dialect !== '' && !in_array($dialect, $dialect_options, true)) {
-        $dialect_options[] = $dialect;
-        usort($dialect_options, static function (string $left, string $right): int {
-            return function_exists('ll_tools_locale_compare_strings')
-                ? ll_tools_locale_compare_strings($left, $right)
-                : strnatcasecmp($left, $right);
-        });
-    }
-
+    $defer_toolbar_panel = ($requested_entry_id <= 0 && !$has_active_browse_query);
     $reset_url = ll_tools_dictionary_build_url($base_url);
     $search_scope_options = ll_tools_dictionary_get_search_scope_options();
 
@@ -1597,6 +1709,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         data-linked-word-limit="<?php echo esc_attr((string) $linked_word_limit); ?>"
         data-gloss-lang="<?php echo esc_attr((string) $atts['gloss_lang']); ?>"
         data-base-url="<?php echo esc_attr($base_url); ?>"
+        data-ll-dictionary-toolbar-deferred="<?php echo $defer_toolbar_panel ? '1' : '0'; ?>"
     >
         <?php if ($show_title) : ?>
             <header class="ll-dictionary__header">
@@ -1641,70 +1754,13 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                             <a class="ll-dictionary__button ll-dictionary__button--ghost" data-ll-dictionary-reset href="<?php echo esc_url($reset_url); ?>"<?php echo $has_active_browse_query ? '' : ' hidden'; ?>><?php esc_html_e('Reset', 'll-tools-text-domain'); ?></a>
                         </div>
                     </div>
-                    <div class="ll-dictionary__toolbar-panel">
-                        <?php if (!empty($pos_options) || !empty($source_options) || !empty($dialect_options)) : ?>
-                            <div class="ll-dictionary__filters">
-                                <?php if (!empty($pos_options)) : ?>
-                                    <div class="ll-dictionary__field ll-dictionary__field--select">
-                                        <label class="screen-reader-text" for="ll-dictionary-pos"><?php esc_html_e('Filter by part of speech', 'll-tools-text-domain'); ?></label>
-                                        <select id="ll-dictionary-pos" class="ll-dictionary__select" name="ll_dictionary_pos">
-                                            <option value=""><?php esc_html_e('All types', 'll-tools-text-domain'); ?></option>
-                                            <?php foreach ($pos_options as $option) : ?>
-                                                <option value="<?php echo esc_attr((string) $option['slug']); ?>" <?php selected($pos_slug, (string) $option['slug']); ?>>
-                                                    <?php echo esc_html((string) $option['label']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($source_options)) : ?>
-                                    <div class="ll-dictionary__field ll-dictionary__field--select">
-                                        <label class="screen-reader-text" for="ll-dictionary-source"><?php esc_html_e('Filter by source dictionary', 'll-tools-text-domain'); ?></label>
-                                        <select id="ll-dictionary-source" class="ll-dictionary__select" name="ll_dictionary_source">
-                                            <option value=""><?php esc_html_e('All sources', 'll-tools-text-domain'); ?></option>
-                                            <?php foreach ($source_options as $option) : ?>
-                                                <option value="<?php echo esc_attr((string) $option['id']); ?>" <?php selected($source_id, (string) $option['id']); ?>>
-                                                    <?php echo esc_html((string) $option['label']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                <?php endif; ?>
-                                <?php if (!empty($dialect_options)) : ?>
-                                    <div class="ll-dictionary__field ll-dictionary__field--select">
-                                        <label class="screen-reader-text" for="ll-dictionary-dialect"><?php esc_html_e('Filter by dialect', 'll-tools-text-domain'); ?></label>
-                                        <select id="ll-dictionary-dialect" class="ll-dictionary__select" name="ll_dictionary_dialect">
-                                            <option value=""><?php esc_html_e('All dialects', 'll-tools-text-domain'); ?></option>
-                                            <?php foreach ($dialect_options as $option) : ?>
-                                                <option value="<?php echo esc_attr((string) $option); ?>" <?php selected($dialect, (string) $option); ?>>
-                                                    <?php echo esc_html((string) $option); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-                        <p class="ll-dictionary__hint"><?php esc_html_e('Type to search, or open the alphabet below.', 'll-tools-text-domain'); ?></p>
-                        <?php if (!empty($letters)) : ?>
-                            <nav class="ll-dictionary__letters" aria-label="<?php echo esc_attr__('Browse dictionary by letter', 'll-tools-text-domain'); ?>">
-                                <?php foreach ($letters as $browse_letter) : ?>
-                                    <?php
-                                    $browse_url = ll_tools_dictionary_build_url($base_url, [
-                                        'll_dictionary_scope' => $search_scope,
-                                        'll_dictionary_letter' => (string) $browse_letter,
-                                        'll_dictionary_pos' => $pos_slug,
-                                        'll_dictionary_source' => $source_id,
-                                        'll_dictionary_dialect' => $dialect,
-                                    ]);
-                                    ?>
-                                    <a class="ll-dictionary__letter<?php echo $browse_letter === $letter ? ' is-active' : ''; ?>" href="<?php echo esc_url($browse_url); ?>">
-                                        <?php echo esc_html((string) $browse_letter); ?>
-                                    </a>
-                                <?php endforeach; ?>
-                            </nav>
-                        <?php endif; ?>
-                    </div>
+                    <?php
+                    if ($defer_toolbar_panel) {
+                        echo '<div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel></div>';
+                    } else {
+                        echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scope, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    }
+                    ?>
                 </form>
             </div>
 
