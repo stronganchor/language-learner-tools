@@ -265,6 +265,8 @@
     const lazyCardsEnabled = !!lazyCardsCfg.enabled && !!ajaxUrl && lazyCardsLoadedCount > 0 && lazyCardsLoadedCount < lazyCardsTotalCount && String(lazyCardsCfg.token || '') !== '';
     const lazyCardsNonce = String(lazyCardsCfg.nonce || '');
     const lazyCardsToken = String(lazyCardsCfg.token || '');
+    const lazyCardsWordsetId = Math.max(0, parseInt(lazyCardsCfg.wordsetId, 10) || wordsetId || 0);
+    const lazyCardsPreviewLimit = Math.max(1, parseInt(lazyCardsCfg.previewLimit, 10) || 2);
     let lazyCardsRequest = null;
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
@@ -5847,6 +5849,8 @@
                 action: 'll_tools_wordset_page_lazy_cards',
                 nonce: lazyCardsNonce,
                 token: lazyCardsToken,
+                wordset_id: lazyCardsWordsetId,
+                preview_limit: lazyCardsPreviewLimit,
                 offset: lazyCardsLoadedCount,
                 count: requestedCount
             }

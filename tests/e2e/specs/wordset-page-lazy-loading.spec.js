@@ -210,6 +210,8 @@ function buildConfig() {
       enabled: true,
       nonce: 'lazy-nonce',
       token: 'lazy-token',
+      wordsetId: 77,
+      previewLimit: 2,
       batchSize: 1,
       initialCount: 1,
       loaded: 1,

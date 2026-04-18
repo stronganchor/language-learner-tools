@@ -1033,6 +1033,248 @@ function ll_tools_wordset_page_get_lazy_cards_payload(string $token): ?array {
     return $payload;
 }
 
+function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id, int $preview_limit = 2): array {
+    $wordset_id = (int) $wordset_id;
+    $preview_limit = max(1, (int) $preview_limit);
+
+    if ($wordset_id <= 0) {
+        return [
+            'cards' => [],
+            'render_context' => [],
+            'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+            'user_id' => get_current_user_id(),
+        ];
+    }
+
+    $wordset_term = get_term($wordset_id, 'wordset');
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return [
+            'cards' => [],
+            'render_context' => [],
+            'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+            'user_id' => get_current_user_id(),
+        ];
+    }
+
+    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_term)) {
+        return [
+            'cards' => [],
+            'render_context' => [],
+            'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+            'user_id' => get_current_user_id(),
+        ];
+    }
+
+    $categories = ll_tools_get_wordset_page_categories($wordset_id, $preview_limit);
+    $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
+    $mode_ui = function_exists('ll_flashcards_get_mode_ui_config') ? ll_flashcards_get_mode_ui_config() : [];
+    $mode_labels = [
+        'practice' => __('Practice', 'll-tools-text-domain'),
+        'learning' => __('Learn', 'll-tools-text-domain'),
+        'listening' => __('Listen', 'll-tools-text-domain'),
+        'self-check' => __('Self check', 'll-tools-text-domain'),
+        'gender' => __('Gender', 'll-tools-text-domain'),
+    ];
+    $mode_fallback_icons = [
+        'practice' => '❓',
+        'learning' => '🎓',
+        'listening' => '🎧',
+        'self-check' => '✔✖',
+        'gender' => '⚥',
+    ];
+
+    $default_goals = function_exists('ll_tools_default_user_study_goals')
+        ? ll_tools_default_user_study_goals()
+        : [
+            'enabled_modes' => ['learning', 'practice', 'listening', 'gender', 'self-check'],
+            'ignored_category_ids' => [],
+            'preferred_wordset_ids' => [],
+            'placement_known_category_ids' => [],
+            'daily_new_word_target' => 2,
+            'priority_focus' => '',
+            'prioritize_new_words' => false,
+            'prioritize_studied_words' => false,
+            'prioritize_learned_words' => false,
+            'prefer_starred_words' => false,
+            'prefer_hard_words' => false,
+        ];
+    $goals = $default_goals;
+    $study_state = [
+        'wordset_id' => $wordset_id,
+        'category_ids' => [],
+        'starred_word_ids' => [],
+        'star_mode' => 'normal',
+        'fast_transitions' => false,
+    ];
+    $analytics = [];
+    $study_categories = [];
+    $gender_enabled = false;
+
+    $estimated_category_word_total = 0;
+    foreach ((array) $categories as $category_row) {
+        $estimated_category_word_total += max(0, (int) ($category_row['count'] ?? 0));
+    }
+
+    $should_bootstrap_analytics = (bool) apply_filters(
+        'll_tools_wordset_page_bootstrap_analytics',
+        false,
+        'main',
+        $wordset_id,
+        $estimated_category_word_total
+    );
+
+    if ($is_study_user) {
+        if (function_exists('ll_tools_get_user_study_goals')) {
+            $goals = ll_tools_get_user_study_goals(get_current_user_id());
+        }
+        if (function_exists('ll_tools_get_user_study_state')) {
+            $study_state = array_merge($study_state, ll_tools_get_user_study_state(get_current_user_id()));
+        }
+        $study_state['wordset_id'] = $wordset_id;
+        if ($should_bootstrap_analytics && function_exists('ll_tools_build_user_study_analytics_payload')) {
+            $analytics = ll_tools_build_user_study_analytics_payload(get_current_user_id(), $wordset_id, [], 14, false);
+        }
+        if (function_exists('ll_tools_user_study_categories_for_wordset')) {
+            $study_categories = ll_tools_user_study_categories_for_wordset($wordset_id);
+        }
+    }
+
+    if (function_exists('ll_tools_wordset_has_grammatical_gender')) {
+        $gender_enabled = ll_tools_wordset_has_grammatical_gender($wordset_id);
+    }
+
+    $study_by_id = [];
+    foreach ((array) $study_categories as $study_cat) {
+        $cid = isset($study_cat['id']) ? (int) $study_cat['id'] : 0;
+        if ($cid > 0) {
+            $study_by_id[$cid] = $study_cat;
+        }
+    }
+
+    $ignored_lookup = [];
+    foreach ((array) ($goals['ignored_category_ids'] ?? []) as $ignored_id) {
+        $iid = (int) $ignored_id;
+        if ($iid > 0) {
+            $ignored_lookup[$iid] = true;
+        }
+    }
+
+    $enhanced_categories = [];
+    $visible_categories = [];
+    foreach ((array) $categories as $cat) {
+        $cid = (int) ($cat['id'] ?? 0);
+        if ($cid <= 0) {
+            continue;
+        }
+
+        $study_cat = isset($study_by_id[$cid]) && is_array($study_by_id[$cid]) ? $study_by_id[$cid] : [];
+        $enhanced = $cat;
+        $enhanced['raw_name'] = isset($study_cat['name']) && (string) $study_cat['name'] !== ''
+            ? (string) $study_cat['name']
+            : (string) ($cat['raw_name'] ?? $cat['name'] ?? '');
+        $enhanced['translation'] = isset($study_cat['translation']) && (string) $study_cat['translation'] !== ''
+            ? (string) $study_cat['translation']
+            : (string) ($cat['name'] ?? '');
+        $enhanced['mode'] = isset($study_cat['mode']) && (string) $study_cat['mode'] !== ''
+            ? (string) $study_cat['mode']
+            : (string) ($cat['mode'] ?? 'image');
+        $enhanced['prompt_type'] = isset($study_cat['prompt_type']) && (string) $study_cat['prompt_type'] !== ''
+            ? (string) $study_cat['prompt_type']
+            : (string) ($cat['prompt_type'] ?? 'audio');
+        $enhanced['option_type'] = isset($study_cat['option_type']) && (string) $study_cat['option_type'] !== ''
+            ? (string) $study_cat['option_type']
+            : (string) ($cat['option_type'] ?? 'image');
+        if (array_key_exists('learning_supported', $study_cat)) {
+            $enhanced['learning_supported'] = !empty($study_cat['learning_supported']);
+        } elseif (array_key_exists('learning_supported', $cat)) {
+            $enhanced['learning_supported'] = !empty($cat['learning_supported']);
+        } else {
+            $enhanced['learning_supported'] = true;
+        }
+        $enhanced['gender_supported'] = array_key_exists('gender_supported', $study_cat)
+            ? !empty($study_cat['gender_supported'])
+            : !empty($cat['gender_supported']);
+        $enhanced['aspect_bucket'] = (isset($study_cat['aspect_bucket']) && (string) $study_cat['aspect_bucket'] !== '')
+            ? (string) $study_cat['aspect_bucket']
+            : (string) ($cat['aspect_bucket'] ?? '');
+        if ($enhanced['aspect_bucket'] === '' && function_exists('ll_tools_get_category_aspect_bucket_key')) {
+            $enhanced['aspect_bucket'] = (string) ll_tools_get_category_aspect_bucket_key($cid);
+        }
+        if ($enhanced['aspect_bucket'] === '') {
+            $enhanced['aspect_bucket'] = 'no-image';
+        }
+        $enhanced['hidden'] = !empty($ignored_lookup[$cid]);
+
+        $enhanced_categories[] = $enhanced;
+        if (empty($enhanced['hidden'])) {
+            $visible_categories[] = $enhanced;
+        }
+    }
+
+    $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
+        ? ll_tools_get_content_lessons_for_wordset($wordset_id)
+        : [];
+    $mixed_content_lessons = [];
+    foreach ((array) $wordset_content_lessons as $content_lesson) {
+        if (is_array($content_lesson) && !empty($content_lesson['show_in_mix'])) {
+            $mixed_content_lessons[] = $content_lesson;
+        }
+    }
+
+    $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
+    $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
+    $summary_counts_deferred = ($is_study_user && !$should_bootstrap_analytics);
+
+    $category_progress_lookup = [];
+    $analytics_category_rows = (isset($analytics['categories']) && is_array($analytics['categories'])) ? $analytics['categories'] : [];
+    foreach ($analytics_category_rows as $analytics_category_row) {
+        if (!is_array($analytics_category_row)) {
+            continue;
+        }
+        $cid = isset($analytics_category_row['id']) ? (int) $analytics_category_row['id'] : 0;
+        if ($cid <= 0) {
+            continue;
+        }
+        $word_total = max(0, (int) ($analytics_category_row['word_count'] ?? 0));
+        $mastered_words = max(0, (int) ($analytics_category_row['mastered_words'] ?? 0));
+        $studied_total = max(0, (int) ($analytics_category_row['studied_words'] ?? 0));
+        $studied_words = max(0, $studied_total - $mastered_words);
+        $new_words = max(0, (int) ($analytics_category_row['new_words'] ?? max(0, $word_total - $studied_total)));
+        if ($word_total <= 0) {
+            $word_total = $mastered_words + $studied_words + $new_words;
+        }
+        $category_progress_lookup[$cid] = [
+            'total' => max(0, $word_total),
+            'mastered' => $mastered_words,
+            'studied' => $studied_words,
+            'new' => $new_words,
+        ];
+    }
+
+    $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
+        $analytics,
+        $study_state,
+        $wordset_id,
+        $visible_category_ids
+    );
+
+    return [
+        'cards' => array_values($mixed_lesson_cards),
+        'render_context' => [
+            'category_progress_lookup' => $category_progress_lookup,
+            'category_starred_lookup' => $category_starred_lookup,
+            'summary_counts_deferred' => $summary_counts_deferred,
+            'is_study_user' => $is_study_user,
+            'gender_enabled' => $gender_enabled,
+            'mode_ui' => $mode_ui,
+            'mode_labels' => $mode_labels,
+            'mode_fallback_icons' => $mode_fallback_icons,
+        ],
+        'batch_size' => ll_tools_wordset_page_get_lazy_card_batch_size(),
+        'user_id' => get_current_user_id(),
+    ];
+}
+
 function ll_tools_wordset_page_render_category_card(array $cat, array $context = []): string {
     $cat_id = isset($cat['id']) ? (int) $cat['id'] : 0;
     if ($cat_id <= 0) {
@@ -7265,6 +7507,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'enabled' => false,
         'nonce' => '',
         'token' => '',
+        'wordsetId' => $wordset_id,
+        'previewLimit' => $preview_limit,
         'batchSize' => 0,
         'initialCount' => count($mixed_lesson_cards),
         'loaded' => count($mixed_lesson_cards),
@@ -7285,6 +7529,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'enabled' => ($lazy_cards_token !== ''),
             'nonce' => ($lazy_cards_token !== '') ? wp_create_nonce('ll_tools_wordset_page_lazy_cards') : '',
             'token' => $lazy_cards_token,
+            'wordsetId' => $wordset_id,
+            'previewLimit' => $preview_limit,
             'batchSize' => $lazy_batch_size,
             'initialCount' => count($initial_mixed_lesson_cards),
             'loaded' => count($initial_mixed_lesson_cards),
@@ -8744,9 +8990,16 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     check_ajax_referer('ll_tools_wordset_page_lazy_cards', 'nonce');
 
     $token = isset($_POST['token']) ? sanitize_key(wp_unslash((string) $_POST['token'])) : '';
+    $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
+    $preview_limit = isset($_POST['preview_limit']) ? max(1, (int) wp_unslash((string) $_POST['preview_limit'])) : 2;
     $offset = isset($_POST['offset']) ? max(0, (int) wp_unslash((string) $_POST['offset'])) : 0;
     $requested_count = isset($_POST['count']) ? max(1, (int) wp_unslash((string) $_POST['count'])) : 0;
     $payload = ll_tools_wordset_page_get_lazy_cards_payload($token);
+    $used_fallback_payload = false;
+    if (!is_array($payload) && $wordset_id > 0) {
+        $payload = ll_tools_wordset_page_build_lazy_cards_fallback_payload($wordset_id, $preview_limit);
+        $used_fallback_payload = true;
+    }
     if (!is_array($payload)) {
         wp_send_json_error([
             'message' => __('Could not load more cards right now.', 'll-tools-text-domain'),
@@ -8754,7 +9007,7 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     }
 
     $payload_user_id = isset($payload['user_id']) ? (int) $payload['user_id'] : 0;
-    if ($payload_user_id !== get_current_user_id()) {
+    if (!$used_fallback_payload && $payload_user_id !== get_current_user_id()) {
         wp_send_json_error([
             'message' => __('Could not load more cards right now.', 'll-tools-text-domain'),
         ], 403);
