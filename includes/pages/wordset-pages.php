@@ -1208,9 +1208,6 @@ function ll_tools_wordset_page_render_lazy_cards_controls(array $config = []): s
     ob_start();
     ?>
     <div class="ll-wordset-grid-lazy" data-ll-wordset-lazy-root>
-        <button type="button" class="ll-wordset-grid-lazy__button" data-ll-wordset-load-more>
-            <?php echo esc_html__('Load more', 'll-tools-text-domain'); ?>
-        </button>
         <span class="ll-wordset-grid-lazy__status screen-reader-text" data-ll-wordset-load-more-status aria-live="polite"></span>
         <span class="ll-wordset-grid-lazy__sentinel" data-ll-wordset-load-more-sentinel aria-hidden="true"></span>
     </div>

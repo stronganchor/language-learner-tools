@@ -269,6 +269,7 @@
     let lazyCardsLoadAllPromise = null;
     let lazyCardsObserver = null;
     let lazyCardsAutoLoadRaf = 0;
+    let lazyCardsAutoLoadPollTimer = 0;
 
     function warmupFlashcardVisualizerContext() {
         try {
@@ -5646,6 +5647,23 @@
         $lazyCardsStatus.text(String(message || '').trim());
     }
 
+    function stopLazyCardsAutoLoadPolling() {
+        if (!lazyCardsAutoLoadPollTimer) {
+            return;
+        }
+        window.clearInterval(lazyCardsAutoLoadPollTimer);
+        lazyCardsAutoLoadPollTimer = 0;
+    }
+
+    function startLazyCardsAutoLoadPolling() {
+        if (lazyCardsAutoLoadPollTimer || !lazyCardsEnabled || !hasPendingLazyCards()) {
+            return;
+        }
+        lazyCardsAutoLoadPollTimer = window.setInterval(function () {
+            scheduleLazyCardsAutoLoadCheck();
+        }, 700);
+    }
+
     function syncLazyCardsUi(options) {
         if (!$lazyCardsRoot.length) {
             return;
@@ -5663,6 +5681,7 @@
             }
             $(window).off('.llWordsetLazyCards');
             cancelLazyCardsAutoLoadCheck();
+            stopLazyCardsAutoLoadPolling();
             setLazyCardsStatus('');
             return;
         }
@@ -5670,6 +5689,12 @@
         $lazyCardsRoot.prop('hidden', false)
             .toggleClass('is-loading', isLoading)
             .toggleClass('is-error', hasError);
+
+        if (hasError) {
+            stopLazyCardsAutoLoadPolling();
+        } else {
+            startLazyCardsAutoLoadPolling();
+        }
 
         if ($lazyCardsButton.length) {
             $lazyCardsButton
@@ -5726,10 +5751,10 @@
         schedulePendingCategoryProgressVisibilityCheck();
 
         if (String(mainCategorySearchQuery || '').trim() !== '') {
-            if (lazyCardsLoadAllPromise && hasPendingLazyCards()) {
-                return;
-            }
-            renderMainCategorySearch();
+            renderMainCategorySearch({
+                keepLoading: !!(lazyCardsLoadAllPromise && hasPendingLazyCards())
+            });
+            scheduleLazyCardsAutoLoadCheck();
             return;
         }
 
@@ -5940,20 +5965,33 @@
         scheduleLazyCardsAutoLoadCheck();
     }
 
-    function renderMainCategorySearch() {
+    function renderMainCategorySearch(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         if (!$grid.length) {
-            setMainCategorySearchLoading(false);
-            return;
+            if (!opts.keepLoading) {
+                setMainCategorySearchLoading(false);
+            }
+            return {
+                query: '',
+                visibleCount: 0,
+                totalMatchingCount: 0,
+                pendingMatches: false
+            };
         }
 
         const query = String(mainCategorySearchQuery || '').trim().toLowerCase();
         const visibleLookup = {};
+        let totalMatchingCount = 0;
         categories.forEach(function (category) {
             const id = parseInt(category && category.id, 10) || 0;
             if (!id || isCategoryHidden(id)) {
                 return;
             }
-            visibleLookup[id] = mainCategoryMatchesSearch(category, query);
+            const matches = mainCategoryMatchesSearch(category, query);
+            visibleLookup[id] = matches;
+            if (matches) {
+                totalMatchingCount += 1;
+            }
         });
 
         const previousSelectedIds = uniqueIntList(selectedCategoryIds || []);
@@ -5998,6 +6036,10 @@
                 .attr('aria-hidden', shouldShow ? 'false' : 'true');
         });
 
+        const pendingMatches = !!query
+            && totalMatchingCount > visibleCount
+            && hasPendingLazyCards();
+
         if (selectedCategoryIds.length !== previousSelectedIds.length) {
             renderSelectionBar();
         } else {
@@ -6005,12 +6047,22 @@
             scheduleSelectAllAlignment();
         }
 
+        const shouldShowEmpty = !!query && visibleCount === 0 && !pendingMatches;
         if ($mainCategorySearchEmpty.length) {
-            $mainCategorySearchEmpty.prop('hidden', !(query && visibleCount === 0));
+            $mainCategorySearchEmpty.prop('hidden', !shouldShowEmpty);
         }
-        $root.toggleClass('is-category-search-empty', !!query && visibleCount === 0);
+        $root.toggleClass('is-category-search-empty', shouldShowEmpty);
 
-        setMainCategorySearchLoading(false);
+        if (!opts.keepLoading) {
+            setMainCategorySearchLoading(false);
+        }
+
+        return {
+            query: query,
+            visibleCount: visibleCount,
+            totalMatchingCount: totalMatchingCount,
+            pendingMatches: pendingMatches
+        };
     }
 
     function scheduleMainCategorySearchRender(options) {
@@ -6032,8 +6084,8 @@
 
         mainCategorySearchRenderTimer = setTimeout(function () {
             if (token !== mainCategorySearchRenderToken) { return; }
-            const query = String(mainCategorySearchQuery || '').trim();
-            if (query && hasPendingLazyCards()) {
+            const searchState = renderMainCategorySearch({ keepLoading: shouldShowLoading });
+            if (searchState.query && searchState.pendingMatches) {
                 ensureAllMainCardsLoaded({ count: Math.max(lazyCardsBatchSize, 24) })
                     .always(function () {
                         if (token !== mainCategorySearchRenderToken) { return; }
@@ -6044,9 +6096,9 @@
                 return;
             }
 
-            renderMainCategorySearch();
             clearTimeout(mainCategorySearchLoadingTimer);
             mainCategorySearchLoadingTimer = null;
+            setMainCategorySearchLoading(false);
         }, shouldShowLoading ? 95 : 0);
     }
 
