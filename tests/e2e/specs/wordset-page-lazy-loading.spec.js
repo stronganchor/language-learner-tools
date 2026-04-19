@@ -112,6 +112,7 @@ function buildMarkup() {
 
       <div class="ll-wordset-grid-lazy" data-ll-wordset-lazy-root>
         <span class="ll-wordset-grid-lazy__status screen-reader-text" data-ll-wordset-load-more-status aria-live="polite"></span>
+        <div class="ll-wordset-grid-lazy__placeholders" data-ll-wordset-load-more-placeholders aria-hidden="true"></div>
         <span class="ll-wordset-grid-lazy__sentinel" data-ll-wordset-load-more-sentinel aria-hidden="true"></span>
       </div>
 
@@ -315,6 +316,7 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
 
   await expect(page.locator('[data-ll-wordset-load-more]')).toHaveCount(0);
   await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(1);
+  await expect(page.locator('.ll-wordset-card--lazy-placeholder')).toHaveCount(1);
 
   await page.mouse.wheel(0, 2000);
 
@@ -322,6 +324,7 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
     return page.evaluate(() => document.querySelectorAll('.ll-wordset-card[data-cat-id]').length);
   }).toBe(3);
 
+  await expect(page.locator('.ll-wordset-card--lazy-placeholder')).toHaveCount(0);
   await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
 });
 

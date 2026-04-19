@@ -272,6 +272,7 @@
     let lazyCardsObserver = null;
     let lazyCardsAutoLoadRaf = 0;
     let lazyCardsAutoLoadPollTimer = 0;
+    let lazyCardsPlaceholderCount = 0;
 
     function warmupFlashcardVisualizerContext() {
         try {
@@ -310,6 +311,7 @@
     const $lazyCardsRoot = $root.find('[data-ll-wordset-lazy-root]').first();
     const $lazyCardsButton = $root.find('[data-ll-wordset-load-more]').first();
     const $lazyCardsStatus = $root.find('[data-ll-wordset-load-more-status]').first();
+    const $lazyCardsPlaceholders = $root.find('[data-ll-wordset-load-more-placeholders]').first();
     const $lazyCardsSentinel = $root.find('[data-ll-wordset-load-more-sentinel]').first();
     const $selectionBar = $root.find('[data-ll-wordset-selection-bar]');
     const $selectionText = $root.find('[data-ll-wordset-selection-text]');
@@ -5649,6 +5651,113 @@
         $lazyCardsStatus.text(String(message || '').trim());
     }
 
+    function getLazyCardsPlaceholderColumnCount() {
+        if (!$grid.length) {
+            return 1;
+        }
+
+        const visibleCards = $grid.children('.ll-wordset-card').toArray().filter(function (cardEl) {
+            if (!cardEl || cardEl.hidden) {
+                return false;
+            }
+            if (cardEl.classList && cardEl.classList.contains('is-search-filtered-out')) {
+                return false;
+            }
+            if (window.getComputedStyle && typeof window.getComputedStyle === 'function') {
+                const computed = window.getComputedStyle(cardEl);
+                if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) {
+                    return false;
+                }
+            }
+            return !!cardEl.getBoundingClientRect;
+        });
+
+        if (!visibleCards.length) {
+            return 1;
+        }
+
+        const firstRect = visibleCards[0].getBoundingClientRect();
+        if (!firstRect || firstRect.width <= 0 || firstRect.height <= 0) {
+            return 1;
+        }
+
+        const firstRowTop = firstRect.top;
+        let columnCount = 0;
+        visibleCards.forEach(function (cardEl) {
+            const rect = cardEl.getBoundingClientRect();
+            if (!rect || rect.width <= 0 || rect.height <= 0) {
+                return;
+            }
+            if (Math.abs(rect.top - firstRowTop) <= 6) {
+                columnCount += 1;
+            }
+        });
+
+        return Math.max(1, columnCount);
+    }
+
+    function buildLazyCardsPlaceholderMarkup(count) {
+        const placeholderCount = Math.max(0, parseInt(count, 10) || 0);
+        if (!placeholderCount) {
+            return '';
+        }
+
+        let html = '';
+        for (let i = 0; i < placeholderCount; i += 1) {
+            html += ''
+                + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder" aria-hidden="true">'
+                + '  <div class="ll-wordset-card__top">'
+                + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
+                + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+                + '    <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>'
+                + '  </div>'
+                + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder" aria-hidden="true">'
+                + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+                + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+                + '  </div>'
+                + '  <div class="ll-wordset-card__progress" aria-hidden="true">'
+                + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
+                + '  </div>'
+                + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
+                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+                + '  </div>'
+                + '</article>';
+        }
+
+        return html;
+    }
+
+    function syncLazyCardsPlaceholders(options) {
+        if (!$lazyCardsPlaceholders.length) {
+            return;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const hasError = !!opts.error;
+        const hasMore = hasPendingLazyCards();
+
+        if (!hasMore || hasError) {
+            lazyCardsPlaceholderCount = 0;
+            $lazyCardsPlaceholders.empty().prop('hidden', true);
+            return;
+        }
+
+        const remaining = Math.max(0, lazyCardsTotalCount - lazyCardsLoadedCount);
+        const nextCount = Math.max(1, Math.min(remaining, getLazyCardsPlaceholderColumnCount()));
+        if (nextCount !== lazyCardsPlaceholderCount) {
+            $lazyCardsPlaceholders.html(buildLazyCardsPlaceholderMarkup(nextCount));
+            lazyCardsPlaceholderCount = nextCount;
+        }
+
+        $lazyCardsPlaceholders
+            .prop('hidden', false)
+            .attr('data-placeholder-count', String(nextCount));
+    }
+
     function stopLazyCardsAutoLoadPolling() {
         if (!lazyCardsAutoLoadPollTimer) {
             return;
@@ -5685,12 +5794,14 @@
             cancelLazyCardsAutoLoadCheck();
             stopLazyCardsAutoLoadPolling();
             setLazyCardsStatus('');
+            syncLazyCardsPlaceholders({ error: hasError });
             return;
         }
 
         $lazyCardsRoot.prop('hidden', false)
             .toggleClass('is-loading', isLoading)
             .toggleClass('is-error', hasError);
+        syncLazyCardsPlaceholders({ error: hasError });
 
         if (hasError) {
             stopLazyCardsAutoLoadPolling();
@@ -5945,7 +6056,10 @@
 
         $(window)
             .off('.llWordsetLazyCards')
-            .on('scroll.llWordsetLazyCards resize.llWordsetLazyCards orientationchange.llWordsetLazyCards load.llWordsetLazyCards', function () {
+            .on('scroll.llWordsetLazyCards resize.llWordsetLazyCards orientationchange.llWordsetLazyCards load.llWordsetLazyCards', function (event) {
+                if (event && event.type !== 'scroll') {
+                    syncLazyCardsPlaceholders({ error: $lazyCardsRoot.hasClass('is-error') });
+                }
                 scheduleLazyCardsAutoLoadCheck();
             });
 
@@ -6060,6 +6174,7 @@
         if (!opts.keepLoading) {
             setMainCategorySearchLoading(false);
         }
+        syncLazyCardsPlaceholders({ error: $lazyCardsRoot.hasClass('is-error') });
 
         return {
             query: query,

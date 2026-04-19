@@ -1451,6 +1451,7 @@ function ll_tools_wordset_page_render_lazy_cards_controls(array $config = []): s
     ?>
     <div class="ll-wordset-grid-lazy" data-ll-wordset-lazy-root>
         <span class="ll-wordset-grid-lazy__status screen-reader-text" data-ll-wordset-load-more-status aria-live="polite"></span>
+        <div class="ll-wordset-grid-lazy__placeholders" data-ll-wordset-load-more-placeholders aria-hidden="true"></div>
         <span class="ll-wordset-grid-lazy__sentinel" data-ll-wordset-load-more-sentinel aria-hidden="true"></span>
     </div>
     <?php
