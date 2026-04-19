@@ -239,6 +239,7 @@ async function mountWordsetPage(page) {
   await page.evaluate(({ config, remainingCards }) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
+    window.__llLazyAjaxCalls = [];
 
     const $ = window.jQuery;
     $.post = function () {
@@ -263,6 +264,7 @@ async function mountWordsetPage(page) {
     $.ajax = function (options) {
       const deferred = $.Deferred();
       const data = (options && options.data) || {};
+      window.__llLazyAjaxCalls.push(data);
       const offset = Number.parseInt(data.offset, 10) || 0;
       const count = Math.max(1, Number.parseInt(data.count, 10) || 1);
       const startIndex = Math.max(0, offset);
@@ -328,12 +330,10 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
   await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
 });
 
-test('wordset search loads matching unloaded categories in the background', async ({ page }) => {
+test('wordset search renders matching unloaded categories without forcing lazy-load requests', async ({ page }) => {
   await mountWordsetPage(page);
 
   await page.fill('[data-ll-wordset-page-search]', 'hotel');
-
-  await expect(page.locator('[data-ll-wordset-page]')).toHaveClass(/is-category-search-loading/);
 
   await expect.poll(async () => {
     return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
@@ -341,6 +341,18 @@ test('wordset search loads matching unloaded categories in the background', asyn
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([33]);
 
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llLazyAjaxCalls.length);
+  }).toBe(0);
+
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
   await expect(page.locator('[data-ll-wordset-load-more]')).toHaveCount(0);
+
+  await page.fill('[data-ll-wordset-page-search]', '');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11]);
 });
