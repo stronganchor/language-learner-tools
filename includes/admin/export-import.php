@@ -8986,7 +8986,12 @@ function ll_tools_import_job_process(array $job) {
         $batch = array_slice($categories, $offset, $batch_size);
         $category_map = isset($job['category_map']) && is_array($job['category_map']) ? $job['category_map'] : [];
         $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : ll_tools_import_job_default_result();
-        ll_tools_import_upsert_categories_chunk($batch, $category_map, $result);
+        ll_tools_import_upsert_categories_chunk(
+            $batch,
+            $category_map,
+            $result,
+            isset($job['options']) && is_array($job['options']) ? $job['options'] : []
+        );
         $job['category_map'] = $category_map;
         $job['result'] = $result;
         $job['category_create_index'] = min(count($categories), $offset + count($batch));
@@ -9008,7 +9013,11 @@ function ll_tools_import_job_process(array $job) {
         $batch_size = max(1, (int) apply_filters('ll_tools_import_job_category_chunk_size', 50, $job));
         $batch = array_slice($categories, $offset, $batch_size);
         $category_map = isset($job['category_map']) && is_array($job['category_map']) ? $job['category_map'] : [];
-        ll_tools_import_apply_category_details_chunk($batch, $category_map);
+        ll_tools_import_apply_category_details_chunk(
+            $batch,
+            $category_map,
+            isset($job['options']) && is_array($job['options']) ? $job['options'] : []
+        );
         $job['category_apply_index'] = min(count($categories), $offset + count($batch));
         if ((int) $job['category_apply_index'] >= count($categories)) {
             $job['phase'] = 'word_images';
@@ -9038,7 +9047,8 @@ function ll_tools_import_job_process(array $job) {
             (string) ($job['extract_dir'] ?? ''),
             $category_map,
             $word_image_slug_to_id,
-            $result
+            $result,
+            isset($job['options']) && is_array($job['options']) ? $job['options'] : []
         );
 
         $job['word_image_slug_to_id'] = $word_image_slug_to_id;
@@ -11735,7 +11745,42 @@ function ll_tools_import_apply_payload_initial_warnings(array $payload, array &$
     }
 }
 
-function ll_tools_import_upsert_categories_chunk(array $categories, array &$slug_to_term_id, array &$result): void {
+function ll_tools_import_should_use_wordset_owned_import_targets(array $options): bool {
+    $mode = isset($options['wordset_mode']) ? sanitize_key((string) $options['wordset_mode']) : 'create_from_export';
+    $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+
+    return (
+        $mode === 'assign_existing'
+        && $target_wordset_id > 0
+        && function_exists('ll_tools_is_wordset_isolation_enabled')
+        && ll_tools_is_wordset_isolation_enabled()
+    );
+}
+
+function ll_tools_import_build_owned_category_slug(string $slug, int $wordset_id): string {
+    $slug = sanitize_title($slug);
+    $wordset_id = (int) $wordset_id;
+    if ($slug === '' || $wordset_id <= 0 || !function_exists('ll_tools_build_isolated_category_slug')) {
+        return $slug;
+    }
+
+    return ll_tools_build_isolated_category_slug($slug, $wordset_id);
+}
+
+function ll_tools_import_build_owned_word_image_slug(string $slug, int $wordset_id): string {
+    $slug = sanitize_title($slug);
+    $wordset_id = (int) $wordset_id;
+    if ($slug === '' || $wordset_id <= 0 || !function_exists('ll_tools_build_isolated_word_image_slug')) {
+        return $slug;
+    }
+
+    return ll_tools_build_isolated_word_image_slug($slug, $wordset_id);
+}
+
+function ll_tools_import_upsert_categories_chunk(array $categories, array &$slug_to_term_id, array &$result, array $options = []): void {
+    $use_owned_targets = ll_tools_import_should_use_wordset_owned_import_targets($options);
+    $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+
     foreach ($categories as $cat) {
         if (!is_array($cat)) {
             continue;
@@ -11743,6 +11788,38 @@ function ll_tools_import_upsert_categories_chunk(array $categories, array &$slug
 
         $slug = isset($cat['slug']) ? sanitize_title((string) $cat['slug']) : '';
         if ($slug === '') {
+            continue;
+        }
+
+        if ($use_owned_targets && $target_wordset_id > 0 && function_exists('ll_tools_create_or_get_wordset_category')) {
+            $owned_slug = ll_tools_import_build_owned_category_slug($slug, $target_wordset_id);
+            $existing_owned = get_term_by('slug', $owned_slug, 'word-category');
+            $existing_owned_id = ($existing_owned instanceof WP_Term && !is_wp_error($existing_owned))
+                ? (int) $existing_owned->term_id
+                : 0;
+
+            $created_or_existing = ll_tools_create_or_get_wordset_category(
+                isset($cat['name']) ? (string) $cat['name'] : $slug,
+                $target_wordset_id,
+                [
+                    'slug' => $slug,
+                    'description' => isset($cat['description']) ? (string) $cat['description'] : '',
+                ]
+            );
+            if (is_wp_error($created_or_existing) || (int) $created_or_existing <= 0) {
+                $message = is_wp_error($created_or_existing) ? $created_or_existing->get_error_message() : __('Unknown error', 'll-tools-text-domain');
+                $result['errors'][] = sprintf(__('Category "%s" could not be created: %s', 'll-tools-text-domain'), $slug, $message);
+                continue;
+            }
+
+            $term_id = (int) $created_or_existing;
+            $slug_to_term_id[$slug] = $term_id;
+            if ($existing_owned_id > 0 && $existing_owned_id === $term_id) {
+                $result['stats']['categories_updated']++;
+            } else {
+                $result['stats']['categories_created']++;
+                ll_tools_import_track_undo_id($result, 'category_term_ids', $term_id);
+            }
             continue;
         }
 
@@ -11769,7 +11846,10 @@ function ll_tools_import_upsert_categories_chunk(array $categories, array &$slug
     }
 }
 
-function ll_tools_import_apply_category_details_chunk(array $categories, array $slug_to_term_id): void {
+function ll_tools_import_apply_category_details_chunk(array $categories, array $slug_to_term_id, array $options = []): void {
+    $use_owned_targets = ll_tools_import_should_use_wordset_owned_import_targets($options);
+    $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+
     foreach ($categories as $cat) {
         if (!is_array($cat)) {
             continue;
@@ -11780,20 +11860,39 @@ function ll_tools_import_apply_category_details_chunk(array $categories, array $
             continue;
         }
 
+        $update_args = [
+            'name' => isset($cat['name']) ? sanitize_text_field((string) $cat['name']) : $slug,
+            'description' => isset($cat['description']) ? (string) $cat['description'] : '',
+        ];
+        if ($use_owned_targets && $target_wordset_id > 0) {
+            $owned_slug = ll_tools_import_build_owned_category_slug($slug, $target_wordset_id);
+            if ($owned_slug !== '') {
+                $update_args['slug'] = $owned_slug;
+            }
+        } else {
+            $update_args['slug'] = $slug;
+        }
+
         if (!empty($cat['parent_slug'])) {
             $parent_slug = sanitize_title((string) $cat['parent_slug']);
             if ($parent_slug !== '' && isset($slug_to_term_id[$parent_slug])) {
-                wp_update_term((int) $slug_to_term_id[$slug], 'word-category', [
-                    'parent' => (int) $slug_to_term_id[$parent_slug],
-                ]);
+                $update_args['parent'] = (int) $slug_to_term_id[$parent_slug];
             }
         }
 
-        ll_tools_import_replace_term_meta_values((int) $slug_to_term_id[$slug], isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [], 'word-category');
+        $term_id = (int) $slug_to_term_id[$slug];
+        wp_update_term($term_id, 'word-category', $update_args);
+        ll_tools_import_replace_term_meta_values($term_id, isset($cat['meta']) && is_array($cat['meta']) ? $cat['meta'] : [], 'word-category');
+        if ($use_owned_targets && $target_wordset_id > 0 && function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($term_id, $target_wordset_id, $term_id);
+        }
     }
 }
 
-function ll_tools_import_upsert_word_images_chunk(array $items, $extract_dir, array $slug_to_term_id, array &$word_image_slug_to_id, array &$result): void {
+function ll_tools_import_upsert_word_images_chunk(array $items, $extract_dir, array $slug_to_term_id, array &$word_image_slug_to_id, array &$result, array $options = []): void {
+    $use_owned_targets = ll_tools_import_should_use_wordset_owned_import_targets($options);
+    $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+
     foreach ($items as $item) {
         if (!is_array($item)) {
             continue;
@@ -11804,12 +11903,17 @@ function ll_tools_import_upsert_word_images_chunk(array $items, $extract_dir, ar
             continue;
         }
 
-        $existing = get_page_by_path($slug, OBJECT, 'word_images');
+        $image_slug = $slug;
+        if ($use_owned_targets && $target_wordset_id > 0) {
+            $image_slug = ll_tools_import_build_owned_word_image_slug($slug, $target_wordset_id);
+        }
+
+        $existing = get_page_by_path($image_slug, OBJECT, 'word_images');
         $postarr = [
             'post_title' => isset($item['title']) ? (string) $item['title'] : '',
             'post_status' => ll_tools_sanitize_import_post_status($item['status'] ?? 'publish', 'publish'),
             'post_type' => 'word_images',
-            'post_name' => $slug,
+            'post_name' => $image_slug,
         ];
 
         if ($existing) {
@@ -11849,6 +11953,9 @@ function ll_tools_import_upsert_word_images_chunk(array $items, $extract_dir, ar
 
         ll_tools_import_replace_post_meta_values((int) $post_id, isset($item['meta']) && is_array($item['meta']) ? $item['meta'] : [], 'word_images');
         ll_tools_import_apply_featured_image((int) $post_id, isset($item['featured_image']) ? (array) $item['featured_image'] : [], $extract_dir, $slug, $result, 'word_image', $is_new_word_image);
+        if ($use_owned_targets && $target_wordset_id > 0 && function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner((int) $post_id, $target_wordset_id, $is_new_word_image ? (int) $post_id : 0);
+        }
         $word_image_slug_to_id[$slug] = (int) $post_id;
     }
 }
@@ -11902,8 +12009,8 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
 
     $slug_to_term_id = [];
 
-    ll_tools_import_upsert_categories_chunk((array) $payload['categories'], $slug_to_term_id, $result);
-    ll_tools_import_apply_category_details_chunk((array) $payload['categories'], $slug_to_term_id);
+    ll_tools_import_upsert_categories_chunk((array) $payload['categories'], $slug_to_term_id, $result, $options);
+    ll_tools_import_apply_category_details_chunk((array) $payload['categories'], $slug_to_term_id, $options);
 
     $result['history_context']['categories'] = ll_tools_import_build_history_category_entries(
         isset($payload['categories']) && is_array($payload['categories']) ? $payload['categories'] : [],
@@ -11911,7 +12018,7 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
     );
 
     $word_image_slug_to_id = [];
-    ll_tools_import_upsert_word_images_chunk((array) $payload['word_images'], $extract_dir, $slug_to_term_id, $word_image_slug_to_id, $result);
+    ll_tools_import_upsert_word_images_chunk((array) $payload['word_images'], $extract_dir, $slug_to_term_id, $word_image_slug_to_id, $result, $options);
 
     if ($has_full_content) {
         $skip_audio_cb = static function ($skip) {
@@ -11968,6 +12075,13 @@ function ll_tools_import_should_replace_post_meta_key(string $key, string $post_
     $key = trim($key);
     $post_type = sanitize_key($post_type);
     if ($key === '') {
+        return false;
+    }
+
+    if (
+        $post_type === 'word_images'
+        && in_array($key, ['ll_wordset_owner_id', 'll_word_image_isolation_source_id'], true)
+    ) {
         return false;
     }
 
@@ -12028,6 +12142,13 @@ function ll_tools_import_should_replace_term_meta_key(string $key, string $taxon
     $key = trim($key);
     $taxonomy = sanitize_key($taxonomy);
     if ($key === '') {
+        return false;
+    }
+
+    if (
+        $taxonomy === 'word-category'
+        && in_array($key, ['ll_wordset_owner_id', 'll_category_isolation_source_id'], true)
+    ) {
         return false;
     }
 
