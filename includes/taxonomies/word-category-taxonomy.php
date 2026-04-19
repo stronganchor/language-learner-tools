@@ -2437,9 +2437,10 @@ function ll_tools_get_preferred_speaker_for_word($word_id): int {
  * Build speaker => recording_type lookup for a list of audio posts or IDs.
  *
  * @param array $audio_posts
+ * @param array<int,array<string>> $recording_types_by_audio
  * @return array<int,array<string,bool>>
  */
-function ll_tools_get_speaker_recording_type_map_from_audio_posts(array $audio_posts): array {
+function ll_tools_get_speaker_recording_type_map_from_audio_posts(array $audio_posts, array $recording_types_by_audio = []): array {
     $by_speaker = [];
     $audio_post_ids = [];
     $speaker_by_audio_id = [];
@@ -2475,6 +2476,29 @@ function ll_tools_get_speaker_recording_type_map_from_audio_posts(array $audio_p
         update_meta_cache('post', $audio_post_ids);
     }
 
+    if (!empty($recording_types_by_audio)) {
+        foreach ($audio_post_ids as $audio_id) {
+            if (empty($speaker_by_audio_id[$audio_id])) {
+                continue;
+            }
+
+            $recording_types = isset($recording_types_by_audio[$audio_id]) && is_array($recording_types_by_audio[$audio_id])
+                ? $recording_types_by_audio[$audio_id]
+                : [];
+            foreach ($recording_types as $type_slug) {
+                $type_slug = sanitize_key((string) $type_slug);
+                if ($type_slug === '') {
+                    continue;
+                }
+
+                $speaker = (int) $speaker_by_audio_id[$audio_id];
+                $by_speaker[$speaker][$type_slug] = true;
+            }
+        }
+
+        return $by_speaker;
+    }
+
     $term_rows = wp_get_object_terms($audio_post_ids, 'recording_type', ['fields' => 'all_with_object_id']);
     if (is_wp_error($term_rows) || empty($term_rows)) {
         return $by_speaker;
@@ -2502,15 +2526,16 @@ function ll_tools_get_speaker_recording_type_map_from_audio_posts(array $audio_p
  * Find a preferred speaker from already-loaded word_audio posts for a word.
  *
  * @param array $audio_posts
+ * @param array<int,array<string>> $recording_types_by_audio
  * @return int
  */
-function ll_tools_get_preferred_speaker_from_audio_posts(array $audio_posts): int {
+function ll_tools_get_preferred_speaker_from_audio_posts(array $audio_posts, array $recording_types_by_audio = []): int {
     if (empty($audio_posts)) {
         return 0;
     }
 
     $main = ll_tools_get_main_recording_types();
-    $by_speaker = ll_tools_get_speaker_recording_type_map_from_audio_posts($audio_posts);
+    $by_speaker = ll_tools_get_speaker_recording_type_map_from_audio_posts($audio_posts, $recording_types_by_audio);
     foreach ($by_speaker as $uid => $typeMap) {
         $has_all = !array_diff($main, array_keys((array) $typeMap));
         if ($has_all) {
@@ -3723,6 +3748,45 @@ function ll_tools_get_object_term_slugs_map(array $object_ids, string $taxonomy)
     return $map;
 }
 
+function ll_tools_get_object_term_names_map(array $object_ids, string $taxonomy): array {
+    $object_ids = array_values(array_filter(array_map('intval', $object_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+    if (empty($object_ids) || $taxonomy === '') {
+        return [];
+    }
+
+    sort($object_ids, SORT_NUMERIC);
+
+    $terms = wp_get_object_terms($object_ids, $taxonomy, [
+        'fields' => 'all_with_object_id',
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    if (is_wp_error($terms) || empty($terms)) {
+        return [];
+    }
+
+    $map = [];
+    foreach ($terms as $term) {
+        $object_id = isset($term->object_id) ? (int) $term->object_id : 0;
+        $name = isset($term->name) ? html_entity_decode((string) $term->name, ENT_QUOTES, 'UTF-8') : '';
+        if ($object_id <= 0 || $name === '') {
+            continue;
+        }
+        if (!isset($map[$object_id])) {
+            $map[$object_id] = [];
+        }
+        $map[$object_id][] = $name;
+    }
+
+    foreach ($map as $object_id => $names) {
+        $map[$object_id] = array_values(array_unique(array_map('strval', (array) $names)));
+    }
+
+    return $map;
+}
+
 function ll_tools_get_word_primary_category_option_type_map(array $word_ids): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), static function (int $id): bool {
         return $id > 0;
@@ -4416,14 +4480,14 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         'post_status'    => 'publish',
         'posts_per_page' => -1,
         'suppress_filters' => true,
-        'update_post_meta_cache' => true,
-        'update_post_term_cache' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
         'tax_query'      => [[
             'taxonomy' => 'word-category',
             'field'    => (string) ($category_context['query_field'] ?? 'name'),
             'terms'    => $category_context['query_terms'] ?? '',
         ]],
-        'fields'         => 'all',
+        'fields'         => 'ids',
         'no_found_rows'  => true,
     ];
 
@@ -4437,13 +4501,21 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
     }
 
     $query = new WP_Query($args);
-    $word_ids = array_values(array_filter(array_map(static function ($post): int {
-        return ($post instanceof WP_Post) ? (int) $post->ID : 0;
-    }, (array) $query->posts), static function (int $post_id): bool {
+    $word_ids = array_values(array_filter(array_map('intval', (array) $query->posts), static function (int $post_id): bool {
         return $post_id > 0;
     }));
 
+    if (!empty($word_ids)) {
+        update_meta_cache('post', $word_ids);
+    }
+
+    $display_text_by_word = !empty($word_ids) ? ll_tools_get_word_display_text_map($word_ids) : [];
+    $category_names_by_word = !empty($word_ids) ? ll_tools_get_object_term_names_map($word_ids, 'word-category') : [];
+    $wordset_ids_by_word = !empty($word_ids) ? ll_tools_get_object_term_ids_map($word_ids, 'wordset') : [];
+    $part_of_speech_by_word = !empty($word_ids) ? ll_tools_get_object_term_slugs_map($word_ids, 'part_of_speech') : [];
+
     $audio_posts_by_word = [];
+    $recording_types_by_audio = [];
     if (!empty($word_ids)) {
         $all_audio_posts = get_posts([
             'post_type'      => 'word_audio',
@@ -4465,7 +4537,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
 
             if (!empty($audio_ids)) {
                 update_postmeta_cache($audio_ids);
-                update_object_term_cache($audio_ids, 'word_audio');
+                $recording_types_by_audio = ll_tools_get_object_term_slugs_map($audio_ids, 'recording_type');
             }
 
             foreach ($all_audio_posts as $audio_post) {
@@ -4503,9 +4575,12 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         ? ll_tools_get_specific_wrong_answer_owner_map()
         : [];
 
-    foreach ($query->posts as $post) {
-        $word_id = $post->ID;
-        $image_id = get_post_thumbnail_id($word_id);
+    foreach ($word_ids as $word_id) {
+        $display_values = isset($display_text_by_word[$word_id]) && is_array($display_text_by_word[$word_id])
+            ? $display_text_by_word[$word_id]
+            : [];
+        $raw_post_title = trim((string) ($display_values['raw_title'] ?? ''));
+        $image_id = (int) get_post_meta($word_id, '_thumbnail_id', true);
         $image_size = apply_filters('ll_tools_quiz_image_size', 'full', $word_id, $term_id, $option_type);
         $image_size = $image_size ? sanitize_key($image_size) : 'full';
         if ($image_size === '') { $image_size = 'full'; }
@@ -4530,17 +4605,18 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             ? $audio_posts_by_word[$word_id]
             : [];
 
-        $preferred_speaker = ll_tools_get_preferred_speaker_from_audio_posts($audio_posts);
+        $preferred_speaker = ll_tools_get_preferred_speaker_from_audio_posts($audio_posts, $recording_types_by_audio);
         foreach ($audio_posts as $audio_post) {
             $audio_path = get_post_meta($audio_post->ID, 'audio_file_path', true);
             if ($audio_path) {
                 $audio_url       = ll_tools_resolve_audio_file_url($audio_path);
-                $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+                $recording_types = isset($recording_types_by_audio[$audio_post->ID]) && is_array($recording_types_by_audio[$audio_post->ID])
+                    ? $recording_types_by_audio[$audio_post->ID]
+                    : [];
                 $recording_text  = trim((string) get_post_meta($audio_post->ID, 'recording_text', true));
                 $recording_translation = trim((string) get_post_meta($audio_post->ID, 'recording_translation', true));
                 $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
                 if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
-                $recording_types = is_wp_error($recording_types) ? [] : (array) $recording_types;
                 if (empty($recording_types)) {
                     $recording_types = ['unknown'];
                 }
@@ -4595,7 +4671,7 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 : array_values($practice_recording_types);
         }
 
-        $prioritized_audio = ll_get_prioritized_audio($audio_posts, $preferred_speaker);
+        $prioritized_audio = ll_get_prioritized_audio($audio_posts, $preferred_speaker, $recording_types_by_audio);
         $primary_audio = '';
         if ($prioritized_audio) {
             $audio_path = get_post_meta($prioritized_audio->ID, 'audio_file_path', true);
@@ -4607,21 +4683,18 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
         // Require actual audio to be present for inclusion in quizzes. Do NOT fall back to legacy meta here.
         $has_audio = !empty($primary_audio) || !empty($audio_files);
 
-        $raw_post_title = html_entity_decode($post->post_title, ENT_QUOTES, 'UTF-8');
-
         // Match quiz text labels to the sitewide "word title language role" semantics used by the word grid.
         $title = $raw_post_title;
         $translation_label = '';
-        if (function_exists('ll_tools_word_grid_resolve_display_text')) {
-            $display_values = ll_tools_word_grid_resolve_display_text($word_id);
+        if (!empty($display_values)) {
             $word_text = trim((string) ($display_values['word_text'] ?? ''));
             $translation_text = trim((string) ($display_values['translation_text'] ?? ''));
 
             if ($word_text !== '') {
-                $title = html_entity_decode($word_text, ENT_QUOTES, 'UTF-8');
+                $title = $word_text;
             }
             if ($translation_text !== '') {
-                $translation_label = html_entity_decode($translation_text, ENT_QUOTES, 'UTF-8');
+                $translation_label = $translation_text;
             }
         } else {
             $wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
@@ -4660,14 +4733,15 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             $prompt_label = $title;
         }
 
-        $all_categories  = wp_get_post_terms($word_id, 'word-category', ['fields' => 'names']);
-        $wordset_ids_for_word = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
-        $wordset_ids_for_word = array_values(array_filter(array_map('intval', (array) $wordset_ids_for_word), function ($id) { return $id > 0; }));
-        $part_of_speech = wp_get_post_terms($word_id, 'part_of_speech', ['fields' => 'slugs']);
-        if (is_wp_error($part_of_speech)) {
-            $part_of_speech = [];
-        }
-        $part_of_speech = array_values(array_filter(array_map('sanitize_key', (array) $part_of_speech)));
+        $all_categories = isset($category_names_by_word[$word_id]) && is_array($category_names_by_word[$word_id])
+            ? $category_names_by_word[$word_id]
+            : [];
+        $wordset_ids_for_word = isset($wordset_ids_by_word[$word_id]) && is_array($wordset_ids_by_word[$word_id])
+            ? array_values(array_filter(array_map('intval', $wordset_ids_by_word[$word_id]), function ($id) { return $id > 0; }))
+            : [];
+        $part_of_speech = isset($part_of_speech_by_word[$word_id]) && is_array($part_of_speech_by_word[$word_id])
+            ? $part_of_speech_by_word[$word_id]
+            : [];
         $grammatical_gender = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
         $grammatical_plurality = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
         $similar_word_id = get_post_meta($word_id, '_ll_similar_word_id', true);
@@ -5060,9 +5134,10 @@ function ll_get_word_audio_url($word_id, array $args = []) {
  *
  * @param array    $audio_posts Array of word_audio post objects
  * @param int|null $preferred_speaker Preferred speaker ID (optional to avoid duplicate lookup)
+ * @param array<int,array<string>> $recording_types_by_audio Optional preloaded recording types keyed by audio post ID
  * @return WP_Post|null The highest priority audio post or null
  */
-function ll_get_prioritized_audio($audio_posts, ?int $preferred_speaker = null) {
+function ll_get_prioritized_audio($audio_posts, ?int $preferred_speaker = null, array $recording_types_by_audio = []) {
     if (empty($audio_posts)) {
         return null;
     }
@@ -5075,7 +5150,9 @@ function ll_get_prioritized_audio($audio_posts, ?int $preferred_speaker = null) 
     $speakers_by_type = [];
 
     foreach ($audio_posts as $audio_post) {
-        $recording_types = wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
+        $recording_types = isset($recording_types_by_audio[$audio_post->ID]) && is_array($recording_types_by_audio[$audio_post->ID])
+            ? $recording_types_by_audio[$audio_post->ID]
+            : wp_get_post_terms($audio_post->ID, 'recording_type', ['fields' => 'slugs']);
 
         if (is_wp_error($recording_types) || empty($recording_types)) {
             $audio_without_type[] = $audio_post;
