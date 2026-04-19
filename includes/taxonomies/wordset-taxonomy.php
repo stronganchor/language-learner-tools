@@ -2473,6 +2473,10 @@ function ll_enqueue_wordsets_script() {
     ll_enqueue_asset_by_timestamp('/js/locale-sort.js', 'll-tools-locale-sort', array(), true);
     ll_enqueue_asset_by_timestamp('/js/manage-wordsets.js', 'manage-wordsets-script', array('jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable', 'll-tools-locale-sort'), true);
 
+    if (function_exists('ll_tools_ensure_language_taxonomy_terms')) {
+        ll_tools_ensure_language_taxonomy_terms();
+    }
+
     $languages = get_terms([
         'taxonomy' => 'language',
         'hide_empty' => false,

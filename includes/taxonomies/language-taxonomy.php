@@ -23,66 +23,203 @@ function ll_register_language_taxonomy() {
     );
 
     register_taxonomy('language', array('words'), $args);
-
-    // Check if the language data has already been populated
-    $languages_populated = get_option('ll_languages_populated', false);
-
-    if (!$languages_populated) {
-        // Load language and macrolanguage data from SIL tables
-        $plugin_root_dir = LL_TOOLS_BASE_PATH;
-        $languages_table = $plugin_root_dir . 'data/iso-languages/iso-639-3_Name_Index.tab.txt';
-        $macrolanguage_mappings_table = $plugin_root_dir . 'data/iso-languages/iso-639-3-macrolanguages.tab.txt';
-
-        $languages = array();
-        $macrolanguage_mappings = array();
-
-        // Parse language and macrolanguage table
-        if (($handle = fopen($languages_table, 'r')) !== false) {
-            while (($data = fgetcsv($handle, 0, "\t")) !== false) {
-                $id = $data[0];
-                $print_name = mb_convert_encoding($data[1], 'UTF-8', 'UTF-8');
-
-                $languages[$id] = array(
-                    'name' => $print_name,
-                    'slug' => $id,
-                    'macrolanguage' => '',
-                );
-            }
-            fclose($handle);
-        }
-
-        // Parse macrolanguage mappings table
-        if (($handle = fopen($macrolanguage_mappings_table, 'r')) !== false) {
-            while (($data = fgetcsv($handle, 0, "\t")) !== false) {
-                $macrolanguage_id = $data[0];
-                $individual_language_id = $data[1];
-                $status = $data[2];
-
-                if ($status === 'A' && isset($languages[$individual_language_id])) {
-                    $languages[$individual_language_id]['macrolanguage'] = $macrolanguage_id;
-                }
-            }
-            fclose($handle);
-        }
-
-        // Insert language terms
-        foreach ($languages as $id => $language) {
-            // Check if the language term already exists
-            $existing_term = get_term_by('slug', $language['slug'], 'language');
-
-            if (!$existing_term) {
-                $term_args = array(
-                    'slug' => $language['slug'],
-                    'description' => $language['macrolanguage'],
-                );
-                $term_id = wp_insert_term($language['name'], 'language', $term_args);
-            }
-        }
-
-        update_option('ll_languages_populated', true);
-    }
 }
 add_action('init', 'll_register_language_taxonomy');
+
+/**
+ * Load the ISO language rows used to seed the language taxonomy.
+ *
+ * @return array<string, array{name:string, slug:string, macrolanguage:string}>
+ */
+function ll_tools_get_language_seed_rows() {
+    $plugin_root_dir = LL_TOOLS_BASE_PATH;
+    $languages_table = $plugin_root_dir . 'data/iso-languages/iso-639-3_Name_Index.tab.txt';
+    $macrolanguage_mappings_table = $plugin_root_dir . 'data/iso-languages/iso-639-3-macrolanguages.tab.txt';
+
+    $languages = array();
+
+    if (is_readable($languages_table) && ($handle = fopen($languages_table, 'r')) !== false) {
+        $row_index = 0;
+        while (($data = fgetcsv($handle, 0, "\t")) !== false) {
+            $row_index++;
+            if ($row_index === 1 && isset($data[0]) && $data[0] === 'Id') {
+                continue;
+            }
+
+            $id = isset($data[0]) ? trim((string) $data[0]) : '';
+            $print_name = isset($data[1]) ? trim((string) $data[1]) : '';
+            if ($id === '' || $print_name === '') {
+                continue;
+            }
+
+            $languages[$id] = array(
+                'name' => $print_name,
+                'slug' => $id,
+                'macrolanguage' => '',
+            );
+        }
+        fclose($handle);
+    }
+
+    if (is_readable($macrolanguage_mappings_table) && ($handle = fopen($macrolanguage_mappings_table, 'r')) !== false) {
+        $row_index = 0;
+        while (($data = fgetcsv($handle, 0, "\t")) !== false) {
+            $row_index++;
+            if ($row_index === 1 && isset($data[0]) && $data[0] === 'M_Id') {
+                continue;
+            }
+
+            $macrolanguage_id = isset($data[0]) ? trim((string) $data[0]) : '';
+            $individual_language_id = isset($data[1]) ? trim((string) $data[1]) : '';
+            $status = isset($data[2]) ? trim((string) $data[2]) : '';
+
+            if ($macrolanguage_id === '' || $individual_language_id === '') {
+                continue;
+            }
+
+            if ($status === 'A' && isset($languages[$individual_language_id])) {
+                $languages[$individual_language_id]['macrolanguage'] = $macrolanguage_id;
+            }
+        }
+        fclose($handle);
+    }
+
+    $languages = apply_filters('ll_tools_language_seed_rows', $languages);
+
+    return is_array($languages) ? $languages : array();
+}
+
+/**
+ * Determine whether the language taxonomy still needs to be seeded.
+ *
+ * @return bool
+ */
+function ll_tools_language_taxonomy_needs_population() {
+    if (!taxonomy_exists('language')) {
+        return true;
+    }
+
+    $languages_populated = (bool) get_option('ll_languages_populated', false);
+    $existing_terms = get_terms(array(
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+        'fields' => 'ids',
+        'number' => 1,
+    ));
+
+    if (is_wp_error($existing_terms)) {
+        return !$languages_populated;
+    }
+
+    return !$languages_populated || empty($existing_terms);
+}
+
+/**
+ * Seed the language taxonomy from the bundled ISO tables.
+ *
+ * @param bool $force When true, ignore the populated flag and repopulate missing terms.
+ * @return array{created:int, existing:int, locked:bool}
+ */
+function ll_tools_populate_language_taxonomy($force = false) {
+    if (!taxonomy_exists('language')) {
+        ll_register_language_taxonomy();
+    }
+
+    if (!$force && !ll_tools_language_taxonomy_needs_population()) {
+        return array(
+            'created' => 0,
+            'existing' => 0,
+            'locked' => false,
+        );
+    }
+
+    $lock_key = 'll_tools_language_seed_lock';
+    if (!$force && get_transient($lock_key)) {
+        return array(
+            'created' => 0,
+            'existing' => 0,
+            'locked' => true,
+        );
+    }
+
+    set_transient($lock_key, 1, 5 * MINUTE_IN_SECONDS);
+
+    $existing_terms = get_terms(array(
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+    ));
+    $existing_slugs = array();
+    if (!is_wp_error($existing_terms)) {
+        foreach ($existing_terms as $existing_term) {
+            if ($existing_term instanceof WP_Term) {
+                $existing_slugs[$existing_term->slug] = true;
+            }
+        }
+    }
+
+    $created = 0;
+    $existing = 0;
+    $previous_cache_invalidation = wp_suspend_cache_invalidation(true);
+    if (function_exists('wp_defer_term_counting')) {
+        wp_defer_term_counting(true);
+    }
+
+    try {
+        foreach (ll_tools_get_language_seed_rows() as $language) {
+            $slug = isset($language['slug']) ? trim((string) $language['slug']) : '';
+            $name = isset($language['name']) ? trim((string) $language['name']) : '';
+            $macrolanguage = isset($language['macrolanguage']) ? trim((string) $language['macrolanguage']) : '';
+
+            if ($slug === '' || $name === '') {
+                continue;
+            }
+
+            if (isset($existing_slugs[$slug])) {
+                $existing++;
+                continue;
+            }
+
+            $term = wp_insert_term($name, 'language', array(
+                'slug' => $slug,
+                'description' => $macrolanguage,
+            ));
+
+            if (!is_wp_error($term)) {
+                $existing_slugs[$slug] = true;
+                $created++;
+            }
+        }
+    } finally {
+        if (function_exists('wp_defer_term_counting')) {
+            wp_defer_term_counting(false);
+        }
+        wp_suspend_cache_invalidation($previous_cache_invalidation);
+        delete_transient($lock_key);
+    }
+
+    if ($created > 0 || $existing > 0) {
+        update_option('ll_languages_populated', true);
+    }
+
+    return array(
+        'created' => $created,
+        'existing' => $existing,
+        'locked' => false,
+    );
+}
+
+/**
+ * Populate the language taxonomy only when an admin screen explicitly needs the full list.
+ *
+ * @return void
+ */
+function ll_tools_ensure_language_taxonomy_terms() {
+    if (!ll_tools_language_taxonomy_needs_population()) {
+        return;
+    }
+
+    ll_tools_populate_language_taxonomy();
+}
 
 // Create the Languages admin page
 function ll_create_languages_admin_page() {
@@ -102,6 +239,8 @@ function ll_render_languages_admin_page() {
     if (!current_user_can('manage_options')) {
         wp_die(esc_html__('Permission denied.', 'll-tools-text-domain'));
     }
+
+    ll_tools_ensure_language_taxonomy_terms();
 
     $languages = get_terms([
         'taxonomy' => 'language',
