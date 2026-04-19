@@ -1667,6 +1667,52 @@ function ll_tools_dictionary_entry_has_review_flag(int $post_id): bool {
 }
 
 /**
+ * Persist one dictionary entry review flag across both entry meta and structured senses.
+ *
+ * @param int  $post_id       Dictionary entry post ID.
+ * @param bool $needs_review  Whether the entry should be flagged for review.
+ * @return void
+ */
+function ll_tools_dictionary_entry_set_review_flag(int $post_id, bool $needs_review): void {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || get_post_type($post_id) !== 'll_dictionary_entry') {
+        return;
+    }
+
+    $review_value = $needs_review ? 'needs_review' : '';
+    $senses = function_exists('ll_tools_get_dictionary_entry_senses')
+        ? ll_tools_get_dictionary_entry_senses($post_id)
+        : [];
+
+    if (!empty($senses)) {
+        foreach ($senses as $index => $sense) {
+            if (!is_array($sense)) {
+                continue;
+            }
+            $sense['needs_review'] = $review_value;
+            $senses[$index] = $sense;
+        }
+        update_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $senses);
+    }
+
+    if ($review_value !== '') {
+        update_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY, $review_value);
+    } else {
+        delete_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY);
+    }
+
+    if (function_exists('ll_tools_dictionary_refresh_entry_search_meta')) {
+        ll_tools_dictionary_refresh_entry_search_meta($post_id);
+    }
+
+    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+        ll_tools_dictionary_sync_lookup_rows_for_entry($post_id);
+    } elseif (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+}
+
+/**
  * Return distinct dictionary entry type values for admin filters.
  *
  * @return string[]

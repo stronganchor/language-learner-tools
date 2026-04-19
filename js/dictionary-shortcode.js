@@ -12,12 +12,222 @@
     const toolbarLoadingLabel = typeof config.toolbarLoadingLabel === 'string' && config.toolbarLoadingLabel
         ? config.toolbarLoadingLabel
         : 'Loading dictionary filters...';
+    const entryTitleRequiredLabel = typeof config.entryTitleRequiredLabel === 'string' && config.entryTitleRequiredLabel
+        ? config.entryTitleRequiredLabel
+        : 'Enter a dictionary entry title.';
+    const entrySavingLabel = typeof config.entrySavingLabel === 'string' && config.entrySavingLabel
+        ? config.entrySavingLabel
+        : 'Saving...';
+    const entrySavedLabel = typeof config.entrySavedLabel === 'string' && config.entrySavedLabel
+        ? config.entrySavedLabel
+        : 'Dictionary entry updated.';
+    const entryErrorLabel = typeof config.entryErrorLabel === 'string' && config.entryErrorLabel
+        ? config.entryErrorLabel
+        : 'Unable to save this dictionary entry right now.';
 
     if (!ajaxUrl) {
         return;
     }
 
+    const readAjaxMessage = (payload, fallback) => {
+        if (payload && payload.data && typeof payload.data.message === 'string' && payload.data.message) {
+            return payload.data.message;
+        }
+        if (payload && typeof payload.message === 'string' && payload.message) {
+            return payload.message;
+        }
+        return fallback;
+    };
+
+    const initEntryEditors = (root) => {
+        root.querySelectorAll('[data-ll-dictionary-entry-editor]').forEach((editor) => {
+            if (editor.getAttribute('data-ll-dictionary-entry-editor-ready') === '1') {
+                return;
+            }
+            editor.setAttribute('data-ll-dictionary-entry-editor-ready', '1');
+
+            const trigger = editor.querySelector('[data-ll-dictionary-entry-edit-trigger]');
+            const form = editor.querySelector('[data-ll-dictionary-entry-form]');
+            const titleInput = editor.querySelector('[data-ll-dictionary-entry-title-input]');
+            const reviewInput = editor.querySelector('[data-ll-dictionary-entry-review]');
+            const cancelButton = editor.querySelector('[data-ll-dictionary-entry-cancel]');
+            const status = editor.querySelector('[data-ll-dictionary-entry-status]');
+            const reviewPill = root.querySelector('[data-ll-dictionary-entry-review-pill]');
+            let closeTimer = 0;
+
+            if (!trigger || !form || !titleInput || !reviewInput || !status) {
+                return;
+            }
+
+            const clearCloseTimer = () => {
+                if (closeTimer) {
+                    window.clearTimeout(closeTimer);
+                    closeTimer = 0;
+                }
+            };
+
+            const setStatus = (message, type) => {
+                const hasMessage = !!message;
+                status.textContent = hasMessage ? String(message) : '';
+                status.hidden = !hasMessage;
+                status.classList.toggle('is-error', type === 'error');
+                status.classList.toggle('is-success', type === 'success');
+            };
+
+            const setSaving = (saving) => {
+                editor.classList.toggle('is-saving', !!saving);
+                form.querySelectorAll('input, button').forEach((control) => {
+                    control.disabled = !!saving;
+                });
+            };
+
+            const syncEditor = (data) => {
+                const payload = (data && typeof data === 'object') ? data : {};
+                const title = (payload.title || '').toString();
+                const needsReview = !!payload.needs_review;
+                const reviewLabel = (payload.review_label || '').toString();
+                const titleText = editor.querySelector('[data-ll-dictionary-entry-title-text]');
+
+                if (title && titleText) {
+                    titleText.textContent = title;
+                    titleInput.value = title;
+                    titleInput.defaultValue = title;
+                }
+
+                reviewInput.checked = needsReview;
+                reviewInput.defaultChecked = needsReview;
+
+                if (reviewPill) {
+                    reviewPill.textContent = reviewLabel;
+                    reviewPill.classList.toggle('is-active', needsReview);
+                }
+            };
+
+            const closeEditor = (restoreValues) => {
+                clearCloseTimer();
+                if (restoreValues) {
+                    titleInput.value = titleInput.defaultValue;
+                    reviewInput.checked = !!reviewInput.defaultChecked;
+                }
+                editor.classList.remove('is-editing');
+                form.hidden = true;
+                trigger.setAttribute('aria-expanded', 'false');
+            };
+
+            const openEditor = () => {
+                clearCloseTimer();
+                setStatus('', '');
+                editor.classList.add('is-editing');
+                form.hidden = false;
+                trigger.setAttribute('aria-expanded', 'true');
+                titleInput.focus();
+                titleInput.select();
+            };
+
+            const submitEditor = () => {
+                if (editor.classList.contains('is-saving')) {
+                    return;
+                }
+
+                const action = (editor.getAttribute('data-action') || '').toString();
+                const entryId = parseInt(editor.getAttribute('data-entry-id') || '0', 10) || 0;
+                const editorNonce = (editor.getAttribute('data-nonce') || '').toString();
+                const title = String(titleInput.value || '').trim();
+
+                clearCloseTimer();
+
+                if (!title) {
+                    setStatus(entryTitleRequiredLabel, 'error');
+                    titleInput.focus();
+                    return;
+                }
+
+                if (!action || !entryId || !editorNonce) {
+                    setStatus(entryErrorLabel, 'error');
+                    return;
+                }
+
+                const payload = new FormData();
+                payload.set('action', action);
+                payload.set('entry_id', String(entryId));
+                payload.set('nonce', editorNonce);
+                payload.set('title', title);
+                payload.set('needs_review', reviewInput.checked ? '1' : '0');
+
+                setSaving(true);
+                setStatus(entrySavingLabel, '');
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: payload,
+                }).then((response) => {
+                    if (!response.ok) {
+                        throw new Error('request_failed');
+                    }
+                    return response.json();
+                }).then((payloadResponse) => {
+                    if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
+                        throw new Error(readAjaxMessage(payloadResponse, entryErrorLabel));
+                    }
+
+                    syncEditor(payloadResponse.data);
+                    setStatus(readAjaxMessage(payloadResponse, entrySavedLabel), 'success');
+                    closeTimer = window.setTimeout(() => {
+                        closeEditor(false);
+                        setStatus('', '');
+                    }, 700);
+                }).catch((error) => {
+                    const message = error && error.message && error.message !== 'request_failed'
+                        ? error.message
+                        : entryErrorLabel;
+                    setStatus(message, 'error');
+                }).finally(() => {
+                    setSaving(false);
+                });
+            };
+
+            trigger.addEventListener('click', (event) => {
+                event.preventDefault();
+                if (editor.classList.contains('is-saving')) {
+                    return;
+                }
+                if (editor.classList.contains('is-editing')) {
+                    closeEditor(true);
+                    setStatus('', '');
+                    return;
+                }
+                openEditor();
+            });
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                submitEditor();
+            });
+
+            form.addEventListener('keydown', (event) => {
+                if (event.key !== 'Escape') {
+                    return;
+                }
+
+                event.preventDefault();
+                setStatus('', '');
+                closeEditor(true);
+            });
+
+            if (cancelButton) {
+                cancelButton.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    setStatus('', '');
+                    closeEditor(true);
+                });
+            }
+        });
+    };
+
     document.querySelectorAll('[data-ll-dictionary-root]').forEach((root) => {
+        initEntryEditors(root);
+
         const form = root.querySelector('[data-ll-dictionary-form]');
         const results = root.querySelector('[data-ll-dictionary-results]');
         const toolbar = root.querySelector('.ll-dictionary__toolbar');

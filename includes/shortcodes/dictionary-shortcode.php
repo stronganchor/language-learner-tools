@@ -33,6 +33,10 @@ function ll_tools_dictionary_enqueue_assets(): void {
             'cacheSize' => 24,
             'loadingLabel' => __('Loading dictionary results...', 'll-tools-text-domain'),
             'toolbarLoadingLabel' => __('Loading dictionary filters...', 'll-tools-text-domain'),
+            'entryTitleRequiredLabel' => __('Enter a dictionary entry title.', 'll-tools-text-domain'),
+            'entrySavingLabel' => __('Saving...', 'll-tools-text-domain'),
+            'entrySavedLabel' => __('Dictionary entry updated.', 'll-tools-text-domain'),
+            'entryErrorLabel' => __('Unable to save this dictionary entry right now.', 'll-tools-text-domain'),
         ]);
         $script_localized = true;
     }
@@ -263,6 +267,138 @@ function ll_tools_dictionary_build_detail_url(string $base_url, int $entry_id, s
         'll_dictionary_page' => (string) $page,
         'll_dictionary_entry' => (string) $entry_id,
     ]);
+}
+
+/**
+ * Determine whether the current user can edit one dictionary entry from the public dictionary UI.
+ */
+function ll_tools_dictionary_user_can_inline_edit_entry(int $entry_id): bool {
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0 || !is_user_logged_in()) {
+        return false;
+    }
+
+    if (!current_user_can('view_ll_tools')) {
+        return false;
+    }
+
+    return current_user_can('edit_post', $entry_id);
+}
+
+/**
+ * Render the admin-only inline title/review editor for a dictionary entry detail page.
+ */
+function ll_tools_dictionary_render_detail_title_editor(int $entry_id, string $title, bool $needs_review): string {
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0) {
+        return '<h3 class="ll-dictionary__detail-title">' . esc_html($title) . '</h3>';
+    }
+
+    $form_id = 'll-dictionary-entry-editor-' . $entry_id;
+    $title_input_id = 'll-dictionary-entry-title-' . $entry_id;
+    $review_input_id = 'll-dictionary-entry-review-' . $entry_id;
+    $nonce = wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id);
+
+    $html = '<div class="ll-dictionary__detail-title-edit"'
+        . ' data-ll-dictionary-entry-editor'
+        . ' data-entry-id="' . esc_attr((string) $entry_id) . '"'
+        . ' data-action="ll_tools_dictionary_update_entry"'
+        . ' data-nonce="' . esc_attr($nonce) . '">';
+    $html .= '<h3 class="ll-dictionary__detail-title">';
+    $html .= '<button'
+        . ' type="button"'
+        . ' class="ll-dictionary__detail-title-trigger"'
+        . ' data-ll-dictionary-entry-edit-trigger'
+        . ' aria-expanded="false"'
+        . ' aria-controls="' . esc_attr($form_id) . '"'
+        . ' aria-label="' . esc_attr__('Edit dictionary entry title', 'll-tools-text-domain') . '"'
+        . ' title="' . esc_attr__('Edit dictionary entry title', 'll-tools-text-domain') . '">';
+    $html .= '<span class="ll-dictionary__detail-title-text" data-ll-dictionary-entry-title-text>' . esc_html($title) . '</span>';
+    $html .= '<span class="ll-dictionary__detail-title-icon" aria-hidden="true">'
+        . '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">'
+        . '<path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '</svg>'
+        . '</span>';
+    $html .= '</button>';
+    $html .= '</h3>';
+    $html .= '<form'
+        . ' class="ll-dictionary__admin-form"'
+        . ' id="' . esc_attr($form_id) . '"'
+        . ' data-ll-dictionary-entry-form'
+        . ' hidden'
+        . ' novalidate>';
+    $html .= '<label class="screen-reader-text" for="' . esc_attr($title_input_id) . '">' . esc_html__('Dictionary entry title', 'll-tools-text-domain') . '</label>';
+    $html .= '<input'
+        . ' type="text"'
+        . ' id="' . esc_attr($title_input_id) . '"'
+        . ' class="ll-dictionary__input ll-dictionary__admin-input"'
+        . ' data-ll-dictionary-entry-title-input'
+        . ' value="' . esc_attr($title) . '"'
+        . ' autocomplete="off"'
+        . ' aria-label="' . esc_attr__('Dictionary entry title', 'll-tools-text-domain') . '">';
+    $html .= '<label class="ll-dictionary__admin-review" for="' . esc_attr($review_input_id) . '">';
+    $html .= '<input'
+        . ' type="checkbox"'
+        . ' id="' . esc_attr($review_input_id) . '"'
+        . ' data-ll-dictionary-entry-review'
+        . ($needs_review ? ' checked' : '')
+        . '>';
+    $html .= '<span>' . esc_html__('Needs review', 'll-tools-text-domain') . '</span>';
+    $html .= '</label>';
+    $html .= '<div class="ll-dictionary__admin-form-actions">';
+    $html .= '<button'
+        . ' type="submit"'
+        . ' class="ll-dictionary__admin-icon-button"'
+        . ' data-ll-dictionary-entry-save'
+        . ' aria-label="' . esc_attr__('Save dictionary entry', 'll-tools-text-domain') . '"'
+        . ' title="' . esc_attr__('Save dictionary entry', 'll-tools-text-domain') . '">'
+        . '<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">'
+        . '<path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '</svg>'
+        . '</button>';
+    $html .= '<button'
+        . ' type="button"'
+        . ' class="ll-dictionary__admin-icon-button ll-dictionary__admin-icon-button--ghost"'
+        . ' data-ll-dictionary-entry-cancel'
+        . ' aria-label="' . esc_attr__('Cancel editing', 'll-tools-text-domain') . '"'
+        . ' title="' . esc_attr__('Cancel editing', 'll-tools-text-domain') . '">'
+        . '<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">'
+        . '<path d="M4 4l8 8M12 4 4 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
+        . '</svg>'
+        . '</button>';
+    $html .= '</div>';
+    $html .= '<span class="ll-dictionary__admin-status" data-ll-dictionary-entry-status aria-live="polite" hidden></span>';
+    $html .= '</form>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+/**
+ * Render the compact admin-only entry status / admin-link row.
+ */
+function ll_tools_dictionary_render_detail_admin_meta(int $entry_id, bool $needs_review): string {
+    $edit_link = get_edit_post_link($entry_id, '');
+
+    $html = '<div class="ll-dictionary__admin-meta">';
+    $html .= '<span class="ll-dictionary__admin-review-pill' . ($needs_review ? ' is-active' : '') . '" data-ll-dictionary-entry-review-pill>'
+        . esc_html($needs_review ? __('Needs review', 'll-tools-text-domain') : __('Reviewed', 'll-tools-text-domain'))
+        . '</span>';
+    if (is_string($edit_link) && $edit_link !== '') {
+        $html .= '<a class="ll-dictionary__admin-link" href="' . esc_url($edit_link) . '">'
+            . '<span class="ll-dictionary__admin-link-icon" aria-hidden="true">'
+            . '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">'
+            . '<path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '<path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+            . '</svg>'
+            . '</span>'
+            . '<span>' . esc_html__('Open in admin', 'll-tools-text-domain') . '</span>'
+            . '</a>';
+    }
+    $html .= '</div>';
+
+    return $html;
 }
 
 /**
@@ -1003,6 +1139,10 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     $parent_notes = ll_tools_dictionary_collect_parent_notes($senses);
     $sources = function_exists('ll_tools_dictionary_collect_sources') ? ll_tools_dictionary_collect_sources($senses) : [];
     $dialects = ll_tools_dictionary_collect_entry_dialects($senses);
+    $can_inline_edit = ll_tools_dictionary_user_can_inline_edit_entry($entry_id);
+    $needs_review = function_exists('ll_tools_dictionary_entry_has_review_flag')
+        ? ll_tools_dictionary_entry_has_review_flag($entry_id)
+        : false;
     $wordset_names = array_values(array_filter(array_map('strval', (array) ($entry['wordset_names'] ?? []))));
     $word_ids = function_exists('ll_tools_get_dictionary_entry_word_ids')
         ? array_values(array_filter(array_map('intval', ll_tools_get_dictionary_entry_word_ids($entry_id, -1)), static function (int $word_id): bool {
@@ -1028,11 +1168,19 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
 
     $html .= '<header class="ll-dictionary__detail-header">';
     $html .= '<div class="ll-dictionary__detail-heading-wrap">';
-    $html .= '<h3 class="ll-dictionary__detail-title">' . esc_html($title) . '</h3>';
+    if ($can_inline_edit) {
+        $html .= ll_tools_dictionary_render_detail_title_editor($entry_id, $title, $needs_review);
+    } else {
+        $html .= '<h3 class="ll-dictionary__detail-title">' . esc_html($title) . '</h3>';
+    }
     if ($summary !== '' && empty($translation_groups)) {
         $html .= '<p class="ll-dictionary__detail-summary">' . esc_html($summary) . '</p>';
     }
     $html .= '</div>';
+    $html .= '<div class="ll-dictionary__detail-side">';
+    if ($can_inline_edit) {
+        $html .= ll_tools_dictionary_render_detail_admin_meta($entry_id, $needs_review);
+    }
     $html .= '<div class="ll-dictionary__badges">';
     if (!empty($entry['pos_label'])) {
         $html .= ll_tools_dictionary_render_badge((string) $entry['pos_label'], 'pos');
@@ -1064,6 +1212,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         }
         $html .= ll_tools_dictionary_render_badge($dialect, 'dialect');
     }
+    $html .= '</div>';
     $html .= '</div>';
     $html .= '</header>';
 
@@ -1522,6 +1671,93 @@ function ll_tools_dictionary_render_toolbar_panel(
 
     return (string) ob_get_clean();
 }
+
+/**
+ * Handle admin-only inline dictionary entry edits from the public dictionary UI.
+ */
+function ll_tools_dictionary_handle_entry_update(): void {
+    $entry_id = isset($_POST['entry_id']) ? (int) wp_unslash((string) $_POST['entry_id']) : 0;
+    $nonce = isset($_POST['nonce']) ? (string) wp_unslash((string) $_POST['nonce']) : '';
+    $submitted_title = isset($_POST['title']) ? (string) wp_unslash((string) $_POST['title']) : '';
+    $raw_needs_review = isset($_POST['needs_review']) ? strtolower(trim((string) wp_unslash((string) $_POST['needs_review']))) : '';
+    $needs_review = in_array($raw_needs_review, ['1', 'true', 'yes', 'on', 'needs_review'], true);
+
+    if ($entry_id <= 0) {
+        wp_send_json_error([
+            'message' => __('Missing dictionary entry.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    if ($nonce === '' || !wp_verify_nonce($nonce, 'll_dictionary_entry_inline_edit_' . $entry_id)) {
+        wp_send_json_error([
+            'message' => __('Invalid request.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    if (!ll_tools_dictionary_user_can_inline_edit_entry($entry_id)) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to edit this dictionary entry.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    $entry = get_post($entry_id);
+    if (!$entry instanceof WP_Post || $entry->post_type !== 'll_dictionary_entry') {
+        wp_send_json_error([
+            'message' => __('Dictionary entry not found.', 'll-tools-text-domain'),
+        ], 404);
+    }
+
+    $title = sanitize_text_field($submitted_title);
+    $title = trim((string) preg_replace('/\s+/u', ' ', $title));
+    if ($title === '') {
+        wp_send_json_error([
+            'message' => __('Enter a dictionary entry title.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $current_title = trim((string) get_the_title($entry_id));
+    if ($title !== $current_title) {
+        $updated = wp_update_post([
+            'ID' => $entry_id,
+            'post_title' => $title,
+            'post_name' => (string) $entry->post_name,
+        ], true);
+
+        if (is_wp_error($updated)) {
+            wp_send_json_error([
+                'message' => __('Unable to save this dictionary entry right now.', 'll-tools-text-domain'),
+            ], 500);
+        }
+    }
+
+    if (function_exists('ll_tools_dictionary_entry_set_review_flag')) {
+        ll_tools_dictionary_entry_set_review_flag($entry_id, $needs_review);
+    } else {
+        $review_value = $needs_review ? 'needs_review' : '';
+        if ($review_value !== '') {
+            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY, $review_value);
+        } else {
+            delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY);
+        }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
+    }
+
+    clean_post_cache($entry_id);
+
+    wp_send_json_success([
+        'message' => __('Dictionary entry updated.', 'll-tools-text-domain'),
+        'title' => (string) get_the_title($entry_id),
+        'needs_review' => function_exists('ll_tools_dictionary_entry_has_review_flag')
+            ? ll_tools_dictionary_entry_has_review_flag($entry_id)
+            : $needs_review,
+        'review_label' => function_exists('ll_tools_dictionary_entry_has_review_flag') && ll_tools_dictionary_entry_has_review_flag($entry_id)
+            ? __('Needs review', 'll-tools-text-domain')
+            : __('Reviewed', 'll-tools-text-domain'),
+    ]);
+}
+add_action('wp_ajax_ll_tools_dictionary_update_entry', 'll_tools_dictionary_handle_entry_update');
 
 function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
