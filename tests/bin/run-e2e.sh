@@ -46,18 +46,26 @@ if [[ -z "${LL_E2E_BASE_URL:-}" ]]; then
     eval "$("$SCRIPT_DIR/setup-local-http-env.sh")"
 fi
 
-if [[ -n "${LL_E2E_BASE_URL:-}" ]]; then
-    export LL_E2E_BASE_URL
-fi
-if [[ -n "${LL_E2E_LEARN_PATH:-}" ]]; then
-    export LL_E2E_LEARN_PATH
-fi
-if [[ -n "${LL_E2E_ADMIN_USER:-}" ]]; then
-    export LL_E2E_ADMIN_USER
-fi
-if [[ -n "${LL_E2E_ADMIN_PASS:-}" ]]; then
-    export LL_E2E_ADMIN_PASS
-fi
+for env_var in \
+    LL_E2E_BASE_URL \
+    LL_E2E_LEARN_PATH \
+    LL_E2E_STANDALONE_PATH \
+    LL_E2E_ADMIN_USER \
+    LL_E2E_ADMIN_PASS \
+    LL_E2E_PAGE_SPEED_PATH \
+    LL_E2E_PAGE_SPEED_SELECTOR \
+    LL_E2E_PAGE_SPEED_LATENCY_MS \
+    LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS \
+    LL_E2E_PAGE_SPEED_UPLOAD_KBPS \
+    LL_E2E_PAGE_SPEED_CPU_SLOWDOWN_RATE \
+    LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS \
+    LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS \
+    LL_E2E_PAGE_SPEED_MAX_LOAD_MS
+do
+    if [[ -n "${!env_var:-}" ]]; then
+        export "$env_var"
+    fi
+done
 
 append_wslenv_var() {
     local entry="$1"
@@ -73,10 +81,24 @@ append_wslenv_var() {
 
 # `npx` is usually a Windows process in this workspace. Mirror env vars through
 # WSLENV so Playwright receives base URL/path config.
-append_wslenv_var "LL_E2E_BASE_URL"
-append_wslenv_var "LL_E2E_LEARN_PATH"
-append_wslenv_var "LL_E2E_ADMIN_USER"
-append_wslenv_var "LL_E2E_ADMIN_PASS"
+for env_var in \
+    LL_E2E_BASE_URL \
+    LL_E2E_LEARN_PATH \
+    LL_E2E_STANDALONE_PATH \
+    LL_E2E_ADMIN_USER \
+    LL_E2E_ADMIN_PASS \
+    LL_E2E_PAGE_SPEED_PATH \
+    LL_E2E_PAGE_SPEED_SELECTOR \
+    LL_E2E_PAGE_SPEED_LATENCY_MS \
+    LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS \
+    LL_E2E_PAGE_SPEED_UPLOAD_KBPS \
+    LL_E2E_PAGE_SPEED_CPU_SLOWDOWN_RATE \
+    LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS \
+    LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS \
+    LL_E2E_PAGE_SPEED_MAX_LOAD_MS
+do
+    append_wslenv_var "$env_var"
+done
 
 if [[ ! -d "$E2E_DIR" ]]; then
     echo "E2E directory was not found: $E2E_DIR" >&2

@@ -168,7 +168,7 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
-Representative current E2E specs (`tests/e2e/specs/`, 51 files at the time of writing):
+Representative current E2E specs (`tests/e2e/specs/`, 52 files at the time of writing):
 
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
@@ -182,6 +182,8 @@ Representative current E2E specs (`tests/e2e/specs/`, 51 files at the time of wr
   - Verifies rapid practice-mode preference saves keep the latest queued study state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
+- `tests/e2e/specs/page-speed-throttled-load.spec.js`
+  - Verifies the learn page still becomes usable within a configurable budget while Chromium throttles localhost traffic to a slower network profile.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
   - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`
@@ -226,6 +228,15 @@ LL_E2E_LEARN_PATH=/learn/
 LL_E2E_STANDALONE_PATH=/english/
 LL_E2E_ADMIN_USER=codex
 LL_E2E_ADMIN_PASS=your-temp-local-password
+LL_E2E_PAGE_SPEED_PATH=/learn/
+LL_E2E_PAGE_SPEED_SELECTOR=.ll-quiz-page-trigger
+LL_E2E_PAGE_SPEED_LATENCY_MS=150
+LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS=1600
+LL_E2E_PAGE_SPEED_UPLOAD_KBPS=750
+LL_E2E_PAGE_SPEED_CPU_SLOWDOWN_RATE=1
+LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS=7000
+LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS=10000
+LL_E2E_PAGE_SPEED_MAX_LOAD_MS=15000
 ```
 
 You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
@@ -238,6 +249,30 @@ Run one E2E spec with either path style:
 tests/bin/run-e2e.sh tests/e2e/specs/wordset-pages-listening-launch.spec.js
 tests/bin/run-e2e.sh specs/wordset-pages-listening-launch.spec.js
 ```
+
+Network-throttled page-speed regression:
+
+- The throttled spec uses Chromium DevTools network emulation, so it can slow down `localhost`/Local-site requests even when the site is running on your machine.
+- Default target:
+  - `LL_E2E_PAGE_SPEED_PATH` or `LL_E2E_LEARN_PATH`
+  - waits for `LL_E2E_PAGE_SPEED_SELECTOR` (defaults to `.ll-quiz-page-trigger`)
+- Default throttle profile:
+  - 150 ms latency
+  - 1600 kbps download
+  - 750 kbps upload
+  - optional CPU slowdown via `LL_E2E_PAGE_SPEED_CPU_SLOWDOWN_RATE`
+- Default budgets:
+  - DOMContentLoaded: 7000 ms
+  - first actionable control visible: 10000 ms
+  - full load event: 15000 ms
+- The spec warms the target page once through Playwright's request client before the measured browser navigation so Local cold-start noise does not dominate the result.
+- Run it directly:
+
+```bash
+tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js
+```
+
+- If it fails on a slower machine, inspect the attached `page-speed-metrics` artifact in the Playwright report, then adjust the `LL_E2E_PAGE_SPEED_*` env vars rather than hardcoding machine-specific values into the spec.
 
 ## Notes
 

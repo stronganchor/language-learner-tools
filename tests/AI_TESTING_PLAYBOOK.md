@@ -60,6 +60,7 @@ Recommended `.env` keys to verify before debugging code:
 - `WP_CORE_DIR`
 - `LL_E2E_BASE_URL`
 - `LL_E2E_LEARN_PATH`
+- `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS` when debugging the throttled page-speed regression
 
 ## 4) Adding New PHPUnit Integration Tests
 
@@ -94,10 +95,17 @@ final class MyFlowTest extends LL_Tools_TestCase
    - Avoid assertions on translated UI text unless text itself is the subject.
 3. Use env-backed paths:
    - `process.env.LL_E2E_LEARN_PATH || '/learn/'`
+   - For page-speed coverage, prefer configurable selectors/budgets over hardcoded timing values.
 4. Keep tests data-agnostic:
    - Use first available quiz card rather than hardcoded category names.
 5. Validate cleanup:
    - If opening popups/modals, assert they can close and body classes reset.
+
+For network-sensitive regressions on Local sites:
+
+- Prefer Chromium DevTools throttling via CDP over fake `setTimeout()` delays.
+- Calibrate with env vars such as `LL_E2E_PAGE_SPEED_LATENCY_MS`, `LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS`, and the `LL_E2E_PAGE_SPEED_MAX_*` budgets.
+- Measure an actionable selector becoming visible, not just the `load` event.
 
 ## 6) Modifying Existing Tests Safely
 
@@ -149,6 +157,11 @@ Playwright cannot find `.ll-quiz-page-trigger`:
 - Confirm target page has `[quiz_pages_grid popup="yes"...]`.
 - Check `LL_E2E_LEARN_PATH`.
 
+`page-speed-throttled-load.spec.js` fails:
+- Open the Playwright HTML report and inspect the attached `page-speed-metrics` JSON.
+- If the wrong page or ready signal is being tested, set `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_SELECTOR`.
+- If the environment is slower but behavior is acceptable, tune the `LL_E2E_PAGE_SPEED_MAX_*` budgets in `tests/.env.local`.
+
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
 - This is usually a PHP shim path-conversion issue in WSL.
 - `tests/bin/php-local.sh` auto-converts args for Windows-runtime PHP.
@@ -164,6 +177,10 @@ For behavior changes touching quiz/recording flows:
 1. `tests/bin/run-tests.sh`
 2. `tests/bin/run-e2e.sh`
 3. Update `tests/README.md` if test scope or runner behavior changed.
+
+For public-page shell, asset, or template changes that could affect perceived load time:
+
+1. `tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js`
 
 Wordset-boundary changes should also include:
 
