@@ -8,6 +8,12 @@
             ajaxUrl: typeof cfg.ajaxUrl === 'string' ? cfg.ajaxUrl : '',
             exportPageUrl: typeof cfg.exportPageUrl === 'string' ? cfg.exportPageUrl : '',
             importPageUrl: typeof cfg.importPageUrl === 'string' ? cfg.importPageUrl : '',
+            importStartAction: typeof cfg.importStartAction === 'string' ? cfg.importStartAction : '',
+            importStatusAction: typeof cfg.importStatusAction === 'string' ? cfg.importStatusAction : '',
+            importProcessAction: typeof cfg.importProcessAction === 'string' ? cfg.importProcessAction : '',
+            importDiscardAction: typeof cfg.importDiscardAction === 'string' ? cfg.importDiscardAction : '',
+            importJobNonce: typeof cfg.importJobNonce === 'string' ? cfg.importJobNonce : '',
+            activeImportJob: cfg && typeof cfg.activeImportJob === 'object' ? cfg.activeImportJob : null,
             fullExportCategoriesAjaxAction: typeof cfg.fullExportCategoriesAjaxAction === 'string' ? cfg.fullExportCategoriesAjaxAction : '',
             fullExportCategoriesNonce: typeof cfg.fullExportCategoriesNonce === 'string' ? cfg.fullExportCategoriesNonce : '',
             processingTitle: typeof cfg.processingTitle === 'string' ? cfg.processingTitle : '',
@@ -16,7 +22,13 @@
             processingProgressLabel: typeof cfg.processingProgressLabel === 'string' ? cfg.processingProgressLabel : '',
             processingDone: typeof cfg.processingDone === 'string' ? cfg.processingDone : '',
             processingFailed: typeof cfg.processingFailed === 'string' ? cfg.processingFailed : '',
+            processingPaused: typeof cfg.processingPaused === 'string' ? cfg.processingPaused : 'Import paused.',
             processingReload: typeof cfg.processingReload === 'string' ? cfg.processingReload : '',
+            processingResume: typeof cfg.processingResume === 'string' ? cfg.processingResume : 'Resume import',
+            processingResuming: typeof cfg.processingResuming === 'string' ? cfg.processingResuming : 'Resuming import…',
+            processingDiscard: typeof cfg.processingDiscard === 'string' ? cfg.processingDiscard : 'Discard partial import',
+            processingDiscarding: typeof cfg.processingDiscarding === 'string' ? cfg.processingDiscarding : 'Discarding partial import…',
+            processingDiscardConfirm: typeof cfg.processingDiscardConfirm === 'string' ? cfg.processingDiscardConfirm : 'Discard this partial import and remove the content it created?',
             exportProcessingTitle: typeof cfg.exportProcessingTitle === 'string' ? cfg.exportProcessingTitle : '',
             exportProcessingMessageKeepOpen: typeof cfg.exportProcessingMessageKeepOpen === 'string' ? cfg.exportProcessingMessageKeepOpen : '',
             exportProcessingMessageBackground: typeof cfg.exportProcessingMessageBackground === 'string' ? cfg.exportProcessingMessageBackground : '',
@@ -139,7 +151,8 @@
                 progressBar: existing.querySelector('.ll-tools-import-processing-progress-bar'),
                 status: existing.querySelector('.ll-tools-import-processing-status'),
                 error: existing.querySelector('.ll-tools-import-processing-error'),
-                reloadButton: existing.querySelector('.ll-tools-import-processing-reload')
+                reloadButton: existing.querySelector('.ll-tools-import-processing-reload'),
+                discardButton: existing.querySelector('.ll-tools-import-processing-discard')
             };
         }
 
@@ -190,10 +203,25 @@
         reloadButton.textContent = config.processingReload;
         reloadButton.hidden = true;
         reloadButton.addEventListener('click', function () {
+            if (typeof reloadButton._llAction === 'function') {
+                reloadButton._llAction();
+                return;
+            }
             var target = config.pageUrl || window.location.href;
             window.location.assign(target);
         });
         card.appendChild(reloadButton);
+
+        var discardButton = document.createElement('button');
+        discardButton.type = 'button';
+        discardButton.className = 'button button-secondary ll-tools-import-processing-discard';
+        discardButton.hidden = true;
+        discardButton.addEventListener('click', function () {
+            if (typeof discardButton._llAction === 'function') {
+                discardButton._llAction();
+            }
+        });
+        card.appendChild(discardButton);
 
         root.appendChild(card);
         document.body.appendChild(root);
@@ -204,7 +232,8 @@
             progressBar: progressBar,
             status: status,
             error: error,
-            reloadButton: reloadButton
+            reloadButton: reloadButton,
+            discardButton: discardButton
         };
     }
 
@@ -234,11 +263,52 @@
         }
         if (screen.reloadButton) {
             screen.reloadButton.hidden = true;
+            screen.reloadButton.textContent = config.processingReload;
+            screen.reloadButton._llAction = null;
+        }
+        if (screen.discardButton) {
+            screen.discardButton.hidden = true;
+            screen.discardButton.textContent = '';
+            screen.discardButton._llAction = null;
         }
         if (screen.status) {
             screen.status.textContent = config.processingProgressLabel;
         }
         updateProcessingProgress(screen, NaN);
+    }
+
+    function setProcessingActionButton(screen, label, action) {
+        if (!screen || !screen.reloadButton) {
+            return;
+        }
+
+        if (!label) {
+            screen.reloadButton.hidden = true;
+            screen.reloadButton.textContent = '';
+            screen.reloadButton._llAction = null;
+            return;
+        }
+
+        screen.reloadButton.hidden = false;
+        screen.reloadButton.textContent = label;
+        screen.reloadButton._llAction = typeof action === 'function' ? action : null;
+    }
+
+    function setProcessingDiscardButton(screen, label, action) {
+        if (!screen || !screen.discardButton) {
+            return;
+        }
+
+        if (!label || typeof action !== 'function') {
+            screen.discardButton.hidden = true;
+            screen.discardButton.textContent = '';
+            screen.discardButton._llAction = null;
+            return;
+        }
+
+        screen.discardButton.hidden = false;
+        screen.discardButton.textContent = label;
+        screen.discardButton._llAction = action;
     }
 
     function readJsonResponse(response) {
@@ -258,7 +328,9 @@
                 if (payload && payload.data && typeof payload.data.message === 'string') {
                     message = payload.data.message;
                 }
-                throw new Error(message || ('request_failed_' + response.status));
+                var error = new Error(message || ('request_failed_' + response.status));
+                error.payload = payload && payload.data ? payload.data : {};
+                throw error;
             }
 
             return payload.data || {};
@@ -267,12 +339,283 @@
 
     function initImportConfirmProgressUi() {
         var forms = document.querySelectorAll('form');
-        if (!forms.length) {
+        if (!window.fetch || !window.FormData) {
             return;
         }
 
         var adminConfig = getAdminUiConfig();
         var config = getProcessingScreenConfig(adminConfig, 'import');
+        if (!adminConfig.ajaxUrl || !adminConfig.importStartAction || !adminConfig.importProcessAction || !adminConfig.importJobNonce) {
+            return;
+        }
+
+        function setIdleState(form, submitButtons) {
+            if (form) {
+                form.removeAttribute('data-ll-tools-import-submitting');
+            }
+            for (var idx = 0; idx < submitButtons.length; idx++) {
+                submitButtons[idx].disabled = false;
+            }
+        }
+
+        function applyJobSnapshot(job, screen) {
+            if (!job || !screen) {
+                return;
+            }
+
+            if (screen.status && typeof job.statusText === 'string' && job.statusText) {
+                screen.status.textContent = job.statusText;
+            }
+            updateProcessingProgress(screen, Number(job.progressRatio));
+        }
+
+        function redirectToJobTarget(job) {
+            var redirectTarget = (job && typeof job.redirectUrl === 'string' && job.redirectUrl)
+                ? job.redirectUrl
+                : (config.pageUrl || window.location.href);
+            window.setTimeout(function () {
+                window.location.assign(redirectTarget);
+            }, 250);
+        }
+
+        function setPausedState(screen, job, resumeAction, discardAction) {
+            if (!screen) {
+                return;
+            }
+
+            if (screen.error) {
+                screen.error.hidden = false;
+                screen.error.textContent = (job && typeof job.errorMessage === 'string' && job.errorMessage)
+                    ? job.errorMessage
+                    : config.processingPaused;
+            }
+            setProcessingActionButton(screen, config.processingResume, resumeAction);
+            setProcessingDiscardButton(
+                screen,
+                job && job.canDiscard ? config.processingDiscard : '',
+                job && job.canDiscard ? discardAction : null
+            );
+        }
+
+        function setFailureState(form, submitButtons, screen, message) {
+            setIdleState(form, submitButtons);
+            if (screen.error) {
+                screen.error.hidden = false;
+                screen.error.textContent = message || config.processingFailed;
+            }
+            setProcessingActionButton(screen, config.processingReload, null);
+            setProcessingDiscardButton(screen, '', null);
+            updateProcessingProgress(screen, NaN);
+        }
+
+        function discardJob(jobId, screen) {
+            var discardData = new FormData();
+            discardData.set('action', adminConfig.importDiscardAction);
+            discardData.set('job_id', jobId);
+            discardData.set('nonce', adminConfig.importJobNonce);
+
+            return fetch(adminConfig.ajaxUrl, {
+                method: 'POST',
+                body: discardData,
+                credentials: 'same-origin'
+            }).then(readJsonResponse).then(function (payload) {
+                var cleanupResult = payload && payload.cleanupResult ? payload.cleanupResult : null;
+                var redirectTarget = payload && typeof payload.redirectUrl === 'string' && payload.redirectUrl
+                    ? payload.redirectUrl
+                    : (config.pageUrl || window.location.href);
+
+                if (screen.error) {
+                    screen.error.hidden = true;
+                    screen.error.textContent = '';
+                }
+                setProcessingActionButton(screen, '', null);
+                setProcessingDiscardButton(screen, '', null);
+                if (screen.status && cleanupResult && typeof cleanupResult.message === 'string' && cleanupResult.message) {
+                    screen.status.textContent = cleanupResult.message;
+                }
+                updateProcessingProgress(screen, NaN);
+
+                window.setTimeout(function () {
+                    window.location.assign(redirectTarget);
+                }, 250);
+            });
+        }
+
+        function bindPausedActions(job, screen, form, submitButtons) {
+            if (!job || !job.id) {
+                return;
+            }
+
+            var resumeAction = function () {
+                if (screen.status) {
+                    screen.status.textContent = config.processingResuming;
+                }
+                if (screen.error) {
+                    screen.error.hidden = true;
+                    screen.error.textContent = '';
+                }
+                setProcessingDiscardButton(screen, '', null);
+                runJob(job.id, screen, form, submitButtons).catch(function (error) {
+                    var pausedJob = error && error.payload && error.payload.job ? error.payload.job : null;
+                    if (pausedJob) {
+                        applyJobSnapshot(pausedJob, screen);
+                        bindPausedActions(pausedJob, screen, form, submitButtons);
+                        return;
+                    }
+                    setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+                });
+            };
+            var discardAction = function () {
+                if (window.confirm && !window.confirm(adminConfig.processingDiscardConfirm)) {
+                    return;
+                }
+                if (screen.status) {
+                    screen.status.textContent = config.processingDiscarding;
+                }
+                if (screen.error) {
+                    screen.error.hidden = true;
+                    screen.error.textContent = '';
+                }
+                setProcessingActionButton(screen, '', null);
+                setProcessingDiscardButton(screen, '', null);
+                discardJob(job.id, screen).catch(function (error) {
+                    applyJobSnapshot(job, screen);
+                    setPausedState(screen, job, resumeAction, discardAction);
+                    if (screen.error) {
+                        screen.error.hidden = false;
+                        screen.error.textContent = error && error.message ? error.message : config.processingFailed;
+                    }
+                });
+            };
+
+            setPausedState(screen, job, resumeAction, discardAction);
+        }
+
+        function runJob(jobId, screen, form, submitButtons) {
+            var batchData = new FormData();
+            batchData.set('action', adminConfig.importProcessAction);
+            batchData.set('job_id', jobId);
+            batchData.set('nonce', adminConfig.importJobNonce);
+
+            return fetch(adminConfig.ajaxUrl, {
+                method: 'POST',
+                body: batchData,
+                credentials: 'same-origin'
+            }).then(readJsonResponse).then(function (payload) {
+                var job = payload && payload.job ? payload.job : null;
+                if (!job) {
+                    throw new Error(config.processingFailed);
+                }
+
+                applyJobSnapshot(job, screen);
+
+                if (job.status === 'completed') {
+                    if (screen.status && config.processingDone) {
+                        screen.status.textContent = config.processingDone;
+                    }
+                    updateProcessingProgress(screen, 1);
+                    redirectToJobTarget(job);
+                    return;
+                }
+
+                if (job.status === 'paused') {
+                    setIdleState(form, submitButtons);
+                    bindPausedActions(job, screen, form, submitButtons);
+                    return;
+                }
+
+                window.setTimeout(function () {
+                    runJob(jobId, screen, form, submitButtons).catch(function (error) {
+                        var pausedJob = error && error.payload && error.payload.job ? error.payload.job : null;
+                        if (pausedJob) {
+                            applyJobSnapshot(pausedJob, screen);
+                            bindPausedActions(pausedJob, screen, form, submitButtons);
+                            return;
+                        }
+                        setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+                    });
+                }, 40);
+            });
+        }
+
+        function startJob(form, submitButtons) {
+            var screen = ensureProcessingScreen(config);
+            resetProcessingScreen(screen, config);
+            document.documentElement.classList.add('ll-tools-import-processing');
+
+            var startData = new FormData(form);
+            startData.set('action', adminConfig.importStartAction);
+            startData.set('nonce', adminConfig.importJobNonce);
+
+            return fetch(adminConfig.ajaxUrl, {
+                method: 'POST',
+                body: startData,
+                credentials: 'same-origin'
+            }).then(readJsonResponse).then(function (payload) {
+                var job = payload && payload.job ? payload.job : null;
+                if (!job || !job.id) {
+                    throw new Error(config.processingFailed);
+                }
+
+                applyJobSnapshot(job, screen);
+                return runJob(job.id, screen, form, submitButtons);
+            }).catch(function (error) {
+                var activeJob = error && error.payload && error.payload.job ? error.payload.job : null;
+                if (activeJob && activeJob.id) {
+                    applyJobSnapshot(activeJob, screen);
+                    if (activeJob.status === 'completed') {
+                        redirectToJobTarget(activeJob);
+                        return;
+                    }
+                    if (activeJob.status === 'paused') {
+                        bindPausedActions(activeJob, screen, form, submitButtons);
+                        return;
+                    }
+                    runJob(activeJob.id, screen, form, submitButtons).catch(function (runError) {
+                        setFailureState(form, submitButtons, screen, runError && runError.message ? runError.message : config.processingFailed);
+                    });
+                    return;
+                }
+
+                setFailureState(form, submitButtons, screen, error && error.message ? error.message : config.processingFailed);
+            });
+        }
+
+        function maybeResumeActiveJob() {
+            var job = adminConfig.activeImportJob;
+            if (!job || !job.id) {
+                return;
+            }
+
+            var screen = ensureProcessingScreen(config);
+            resetProcessingScreen(screen, config);
+            document.documentElement.classList.add('ll-tools-import-processing');
+            applyJobSnapshot(job, screen);
+
+            if (job.status === 'completed') {
+                if (screen.status && config.processingDone) {
+                    screen.status.textContent = config.processingDone;
+                }
+                updateProcessingProgress(screen, 1);
+                redirectToJobTarget(job);
+                return;
+            }
+
+            if (job.status === 'paused') {
+                bindPausedActions(job, screen, null, []);
+                return;
+            }
+
+            runJob(job.id, screen, null, []).catch(function (error) {
+                var pausedJob = error && error.payload && error.payload.job ? error.payload.job : null;
+                if (pausedJob) {
+                    applyJobSnapshot(pausedJob, screen);
+                    bindPausedActions(pausedJob, screen, null, []);
+                    return;
+                }
+                setFailureState(null, [], screen, error && error.message ? error.message : config.processingFailed);
+            });
+        }
 
         for (var i = 0; i < forms.length; i++) {
             (function (form) {
@@ -282,10 +625,6 @@
                 }
 
                 form.addEventListener('submit', function (event) {
-                    if (!window.fetch || !window.FormData) {
-                        return;
-                    }
-
                     if (form.getAttribute('data-ll-tools-import-submitting') === '1') {
                         event.preventDefault();
                         return;
@@ -298,46 +637,12 @@
                     for (var btnIdx = 0; btnIdx < submitButtons.length; btnIdx++) {
                         submitButtons[btnIdx].disabled = true;
                     }
-
-                    var screen = ensureProcessingScreen(config);
-                    resetProcessingScreen(screen, config);
-                    document.documentElement.classList.add('ll-tools-import-processing');
-
-                    var requestUrl = form.getAttribute('action') || window.location.href;
-                    fetch(requestUrl, {
-                        method: 'POST',
-                        body: new FormData(form),
-                        credentials: 'same-origin'
-                    }).then(function (response) {
-                        if (!response.ok) {
-                            throw new Error('request_failed_' + response.status);
-                        }
-
-                        if (screen.status) {
-                            screen.status.textContent = config.processingDone;
-                        }
-                        updateProcessingProgress(screen, 1);
-
-                        var redirectTarget = response.url || config.pageUrl || window.location.href;
-                        window.setTimeout(function () {
-                            window.location.assign(redirectTarget);
-                        }, 250);
-                    }).catch(function () {
-                        form.removeAttribute('data-ll-tools-import-submitting');
-                        for (var idx = 0; idx < submitButtons.length; idx++) {
-                            submitButtons[idx].disabled = false;
-                        }
-                        if (screen.error) {
-                            screen.error.hidden = false;
-                            screen.error.textContent = config.processingFailed;
-                        }
-                        if (screen.reloadButton) {
-                            screen.reloadButton.hidden = false;
-                        }
-                    });
+                    startJob(form, submitButtons);
                 });
             })(forms[i]);
         }
+
+        maybeResumeActiveJob();
     }
 
     function initExportBatchProgressUi() {
