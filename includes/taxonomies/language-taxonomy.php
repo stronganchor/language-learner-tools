@@ -159,6 +159,7 @@ function ll_tools_populate_language_taxonomy($force = false) {
 
     $created = 0;
     $existing = 0;
+    $created_term_ids = array();
     $previous_cache_invalidation = wp_suspend_cache_invalidation(true);
     if (function_exists('wp_defer_term_counting')) {
         wp_defer_term_counting(true);
@@ -187,6 +188,9 @@ function ll_tools_populate_language_taxonomy($force = false) {
             if (!is_wp_error($term)) {
                 $existing_slugs[$slug] = true;
                 $created++;
+                if (isset($term['term_id'])) {
+                    $created_term_ids[] = (int) $term['term_id'];
+                }
             }
         }
     } finally {
@@ -200,6 +204,11 @@ function ll_tools_populate_language_taxonomy($force = false) {
     if ($created > 0 || $existing > 0) {
         update_option('ll_languages_populated', true);
     }
+
+    if (!empty($created_term_ids)) {
+        clean_term_cache($created_term_ids, 'language');
+    }
+    clean_taxonomy_cache('language');
 
     return array(
         'created' => $created,

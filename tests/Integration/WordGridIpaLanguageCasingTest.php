@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
 {
     protected function setUp(): void
@@ -20,9 +22,7 @@ final class WordGridIpaLanguageCasingTest extends LL_Tools_TestCase
         register_taxonomy_for_object_type('wordset', 'words');
     }
 
-    /**
-     * @dataProvider turkishStyleLanguageProvider
-     */
+    #[DataProvider('turkishStyleLanguageProvider')]
     public function test_wordset_ipa_letter_map_rebuild_uses_dotless_i_for_turkish_style_languages(
         string $language_code,
         string $recording_text,

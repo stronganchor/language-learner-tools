@@ -11,13 +11,27 @@ $testsDir = rtrim($argv[1], "/\\");
 
 $patches = [
     $testsDir . '/includes/abstract-testcase.php' => [
-        <<<'OLD'
+        [
+            <<<'OLD'
 			$annotations = \PHPUnit\Util\Test::parseTestMethodAnnotations(
 				static::class,
 				$this->getName( false )
 			);
 OLD,
-        <<<'NEW'
+            <<<'NEW'
+			$annotations = method_exists( \PHPUnit\Util\Test::class, 'parseTestMethodAnnotations' )
+				? \PHPUnit\Util\Test::parseTestMethodAnnotations(
+					static::class,
+					\LL_Tools_PHPUnit_Compat::getTestMethodName( $this )
+				)
+				: \LL_Tools_PHPUnit_Compat::parseTestMethodAnnotations(
+					static::class,
+					\LL_Tools_PHPUnit_Compat::getTestMethodName( $this )
+				);
+NEW,
+        ],
+        [
+            <<<'OLD'
 			$annotations = method_exists( \PHPUnit\Util\Test::class, 'parseTestMethodAnnotations' )
 				? \PHPUnit\Util\Test::parseTestMethodAnnotations(
 					static::class,
@@ -27,21 +41,35 @@ OLD,
 					static::class,
 					$this->getName( false )
 				);
+OLD,
+            <<<'NEW'
+			$annotations = method_exists( \PHPUnit\Util\Test::class, 'parseTestMethodAnnotations' )
+				? \PHPUnit\Util\Test::parseTestMethodAnnotations(
+					static::class,
+					\LL_Tools_PHPUnit_Compat::getTestMethodName( $this )
+				)
+				: \LL_Tools_PHPUnit_Compat::parseTestMethodAnnotations(
+					static::class,
+					\LL_Tools_PHPUnit_Compat::getTestMethodName( $this )
+				);
 NEW,
+        ],
     ],
     $testsDir . '/includes/phpunit6/compat.php' => [
-        <<<'OLD'
+        [
+            <<<'OLD'
 			$annotations = PHPUnit\Util\Test::parseTestMethodAnnotations( $class_name, $method_name );
 OLD,
-        <<<'NEW'
+            <<<'NEW'
 			$annotations = method_exists( PHPUnit\Util\Test::class, 'parseTestMethodAnnotations' )
 				? PHPUnit\Util\Test::parseTestMethodAnnotations( $class_name, $method_name )
 				: LL_Tools_PHPUnit_Compat::parseTestMethodAnnotations( $class_name, $method_name );
 NEW,
+        ],
     ],
 ];
 
-foreach ($patches as $path => [$old, $new]) {
+foreach ($patches as $path => $replacements) {
     if (!is_file($path)) {
         continue;
     }
@@ -52,20 +80,24 @@ foreach ($patches as $path => [$old, $new]) {
         exit(1);
     }
 
-    if (strpos($contents, $new) !== false) {
-        continue;
+    foreach ($replacements as [$old, $new]) {
+        if (strpos($contents, $new) !== false) {
+            continue;
+        }
+
+        if (strpos($contents, $old) === false) {
+            continue;
+        }
+
+        $updated = str_replace($old, $new, $contents);
+        if ($updated === $contents) {
+            continue;
+        }
+
+        $contents = $updated;
     }
 
-    if (strpos($contents, $old) === false) {
-        continue;
-    }
-
-    $updated = str_replace($old, $new, $contents);
-    if ($updated === $contents) {
-        continue;
-    }
-
-    if (file_put_contents($path, $updated) === false) {
+    if (file_put_contents($path, $contents) === false) {
         fwrite(STDERR, "Failed to patch {$path}\n");
         exit(1);
     }
