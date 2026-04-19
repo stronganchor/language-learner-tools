@@ -46,6 +46,7 @@ npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec
 - Primary runtime values come from `tests/.env` (ignored by git).
 - `tests/bin/run-tests.sh` and `tests/bin/run-e2e.sh` load `.env` automatically.
   - `tests/bin/run-tests.sh` also auto-applies `tests/bin/setup-local-env.sh` when it can detect this Local site, so stale `.env` DB ports should not win by default.
+  - `tests/bin/run-tests.sh` also patches the local `wordpress-tests-lib` bootstrap when PHPUnit 12 needs WordPress' removed annotation-parser calls shimmed.
 - For Local/WSL setups:
   - `tests/bin/setup-local-env.sh` resolves DB + PHP helpers.
     - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
@@ -60,6 +61,7 @@ Recommended `.env` keys to verify before debugging code:
 - `WP_TEST_DB_HOST`
 - `WP_TESTS_DIR`
 - `WP_CORE_DIR`
+- `PHP_BIN` when the suite needs a PHP 8.3+ runtime for PHPUnit 12
 - `LL_E2E_BASE_URL`
 - `LL_E2E_LEARN_PATH`
 - `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS` when debugging the throttled page-speed regression

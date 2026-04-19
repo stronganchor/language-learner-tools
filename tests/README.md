@@ -16,6 +16,7 @@ This directory contains the plugin test framework:
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
 - `bin/run-tests.sh`: installs test deps (if needed), repairs missing WordPress test libraries when possible, and runs PHPUnit.
   - When this repo is inside a Local site and `local-site.json` is available, it now auto-applies `bin/setup-local-env.sh` before bootstrap so stale `.env` DB ports do not keep pointing at an old Local runtime.
+  - On PHPUnit 12+, it also patches the local `wordpress-tests-lib` bootstrap to replace WordPress' removed legacy annotation-parser calls.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
 - `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
 - `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.
@@ -23,7 +24,7 @@ This directory contains the plugin test framework:
 
 ## 1) Prerequisites
 
-- PHP CLI (same major version as your site, ideally).
+- PHP CLI 8.3+.
 - Composer.
 - WordPress PHPUnit test library (`wordpress-tests-lib`) and a test database.
 
@@ -77,8 +78,7 @@ Then keep this repo's `tests/` files (do not overwrite them).
 From plugin root:
 
 ```bash
-cd tests
-vendor/bin/phpunit -c phpunit.xml.dist
+tests/bin/run-tests.sh
 ```
 
 Or:
@@ -87,6 +87,8 @@ Or:
 cd tests
 composer test
 ```
+
+`composer test` now delegates to `bin/run-tests.sh` so the WordPress test-library compatibility patch and Local env autodetection are applied consistently. Prefer the wrapper over calling `vendor/bin/phpunit` directly.
 
 If `WP_TESTS_DIR` or `WP_CORE_DIR` are missing or stale, `tests/bin/run-tests.sh` will try to repair the local WordPress test framework automatically by invoking `tests/bin/install-wp-tests.sh` before PHPUnit starts.
 If the test database itself is dirty or bootstrap shows `Duplicate entry '1' for key 'PRIMARY'` in `wptests_terms`, rerun with `LL_TOOLS_RESET_WP_TEST_DB=1` to force `install-wp-tests.sh` to drop and recreate the local test database before PHPUnit starts.

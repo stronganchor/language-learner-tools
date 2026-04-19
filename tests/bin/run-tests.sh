@@ -369,6 +369,9 @@ if [[ "$php_family" == "Windows" ]]; then
 fi
 
 ensure_wordpress_test_framework
+if [[ -f "$SCRIPT_DIR/patch-wordpress-tests-lib.php" ]]; then
+    "$PHP_LOCAL" "$SCRIPT_DIR/patch-wordpress-tests-lib.php" "$WP_TESTS_DIR"
+fi
 maybe_reset_wordpress_test_database
 
 needs_install=0
