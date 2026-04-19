@@ -789,10 +789,16 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     ];
 
     wp_localize_script('ll-tools-flashcard-audio', 'llToolsFlashcardsData', $localized_data);
+    // Keep the main handle localized as well for existing consumers/tests that
+    // inspect the bootstrap globals there, while the early handle preserves
+    // dependency-order availability for mode-config/util scripts.
+    wp_localize_script('ll-flc-main', 'llToolsFlashcardsData', $localized_data);
 
     // Localize translatable messages (must happen after scripts are enqueued)
     $messages = ll_flashcards_get_messages();
     wp_localize_script('ll-flc-util', 'llToolsFlashcardsMessages', $messages);
+    wp_localize_script('ll-flc-main', 'llToolsFlashcardsMessages', $messages);
+    wp_localize_script('ll-flc-mode-config', 'llToolsFlashcardsMessages', $messages);
 
     return $localized_data;
 }
@@ -997,16 +1003,6 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
     $gender_options = ($gender_enabled && function_exists('ll_tools_wordset_get_gender_options'))
         ? ll_tools_wordset_get_gender_options($gender_wordset_id)
         : [];
-    $gender_lookup = [];
-    foreach ($gender_options as $option) {
-        $key = strtolower(trim((string) $option));
-        if (function_exists('ll_tools_wordset_strip_variation_selectors')) {
-            $key = ll_tools_wordset_strip_variation_selectors($key);
-        }
-        if ($key !== '') {
-            $gender_lookup[$key] = true;
-        }
-    }
 
     foreach ($categories as $category) {
         if (!($category instanceof WP_Term)) {
@@ -1019,18 +1015,9 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
         $config = ll_tools_resolve_effective_category_quiz_config($category, $min_word_count, $wordset_ids);
         $learning_supported = !empty($config['learning_supported']);
         $option_type = (string) ($config['option_type'] ?? 'image');
-        $words_in_mode = [];
         $word_count = (int) ($config['word_count'] ?? 0);
         if ($word_count < $min_word_count) {
             continue;
-        }
-
-        if ($gender_enabled) {
-            $words_in_mode = ll_get_words_by_category($category, $option_type, $wordset_ids, $config);
-            $word_count = count($words_in_mode);
-            if ($word_count < $min_word_count) {
-                continue;
-            }
         }
 
         // Keep legacy name "mode" for frontend compatibility (now represents the option type)
@@ -1040,13 +1027,6 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             ? ( get_term_meta($category->term_id, 'term_translation', true) ?: $category->name )
             : $category->name;
 
-        $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
-        $requires_audio = function_exists('ll_tools_quiz_requires_audio')
-            ? ll_tools_quiz_requires_audio(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
-            : ($prompt_type === 'audio' || in_array($option_type, ['audio', 'text_audio'], true));
-        $requires_image = function_exists('ll_tools_quiz_requires_image')
-            ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
-            : (($prompt_type === 'image') || ($option_type === 'image'));
         $aspect_bucket = function_exists('ll_tools_get_category_aspect_bucket_key')
             ? (string) ll_tools_get_category_aspect_bucket_key((int) $category->term_id)
             : '';
@@ -1055,30 +1035,8 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
         }
 
         $gender_word_count = 0;
-        if ($gender_enabled && !empty($words_in_mode)) {
-            foreach ($words_in_mode as $word) {
-                if (!is_array($word)) {
-                    continue;
-                }
-                $pos = $word['part_of_speech'] ?? [];
-                $pos = is_array($pos) ? $pos : [$pos];
-                $pos = array_map('strtolower', array_map('strval', $pos));
-                if (!in_array('noun', $pos, true)) {
-                    continue;
-                }
-                $gender_raw = (string) ($word['grammatical_gender'] ?? '');
-                $gender_label = function_exists('ll_tools_wordset_normalize_gender_value_for_options')
-                    ? ll_tools_wordset_normalize_gender_value_for_options($gender_raw, $gender_options)
-                    : trim($gender_raw);
-                $gender = strtolower(trim($gender_label));
-                if ($gender === '' || (empty($gender_lookup) || !isset($gender_lookup[$gender]))) {
-                    continue;
-                }
-                if (($requires_image && empty($word['has_image'])) || ($requires_audio && empty($word['has_audio']))) {
-                    continue;
-                }
-                $gender_word_count++;
-            }
+        if ($gender_enabled && function_exists('ll_tools_count_gender_eligible_words_for_category')) {
+            $gender_word_count = ll_tools_count_gender_eligible_words_for_category($category, $wordset_ids, $config, $gender_options);
         }
 
         $processed[] = [

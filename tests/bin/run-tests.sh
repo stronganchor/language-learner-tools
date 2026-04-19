@@ -28,6 +28,40 @@ if [[ -f "$TESTS_DIR/.env" ]]; then
     source "$TESTS_DIR/.env"
 fi
 
+maybe_apply_auto_local_env() {
+    if [[ "${LL_TOOLS_SKIP_AUTO_LOCAL_ENV:-0}" == "1" ]]; then
+        return
+    fi
+
+    local setup_script="$SCRIPT_DIR/setup-local-env.sh"
+    if [[ ! -x "$setup_script" ]]; then
+        return
+    fi
+
+    local project_root site_json
+    project_root="$(cd "$TESTS_DIR/.." && pwd)"
+    site_json="${LOCAL_SITE_JSON:-}"
+    if [[ -z "$site_json" ]]; then
+        local probe_dir="$project_root"
+        while [[ "$probe_dir" != "/" ]]; do
+            if [[ -f "$probe_dir/local-site.json" ]]; then
+                site_json="$probe_dir/local-site.json"
+                break
+            fi
+            probe_dir="$(dirname "$probe_dir")"
+        done
+    fi
+
+    if [[ -z "$site_json" || ! -f "$site_json" ]]; then
+        return
+    fi
+
+    # Keep the active Local runtime authoritative when .env ports drift.
+    eval "$("$setup_script")"
+}
+
+maybe_apply_auto_local_env
+
 for key in "${preserve_env[@]}"; do
     prev_key="__LL_TOOLS_PRE_${key}"
     if [[ -n "${!prev_key+x}" ]]; then

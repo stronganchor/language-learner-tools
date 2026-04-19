@@ -169,6 +169,36 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $this->assertTrue(ll_can_category_generate_quiz(get_term($category_id, 'word-category'), 5, [$wordset_id]));
     }
 
+    public function test_count_helper_preserves_raw_title_fallback_when_translation_titles_are_empty(): void
+    {
+        $previous_title_role = get_option('ll_word_title_language_role', null);
+        update_option('ll_word_title_language_role', 'translation');
+
+        try {
+            $category_name = 'Count Helper Raw Title Fallback ' . (string) wp_rand(1000, 9999);
+            $category_id = $this->createCategory($category_name, 'audio', 'image');
+
+            $this->createWord($category_id, 'Fallback Title');
+
+            $config = [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_title',
+            ];
+
+            $rows = ll_get_words_by_category($category_name, 'text', null, $config);
+            $count = ll_get_words_by_category_count($category_name, 'text', null, $config);
+
+            $this->assertSame(1, count($rows), 'Full rows helper should still use the raw post title fallback.');
+            $this->assertSame(count($rows), $count, 'Count helper should preserve the raw post title fallback used by the full rows helper.');
+        } finally {
+            if ($previous_title_role === null) {
+                delete_option('ll_word_title_language_role');
+            } else {
+                update_option('ll_word_title_language_role', $previous_title_role);
+            }
+        }
+    }
+
     public function test_count_helper_regression_preserves_mode_and_category_quiz_fallbacks(): void
     {
         $category_name = 'Count Helper Fallback ' . (string) wp_rand(1000, 9999);

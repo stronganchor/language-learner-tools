@@ -45,13 +45,15 @@ npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec
 
 - Primary runtime values come from `tests/.env` (ignored by git).
 - `tests/bin/run-tests.sh` and `tests/bin/run-e2e.sh` load `.env` automatically.
+  - `tests/bin/run-tests.sh` also auto-applies `tests/bin/setup-local-env.sh` when it can detect this Local site, so stale `.env` DB ports should not win by default.
 - For Local/WSL setups:
   - `tests/bin/setup-local-env.sh` resolves DB + PHP helpers.
     - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
     - It keeps the live Local DB host credentials but emits an isolated `WP_TEST_DB_NAME` by default so PHPUnit does not target the main site schema.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
-- If Local changed ports recently, prefer `eval "$(tests/bin/setup-local-env.sh)"` over stale values left in `tests/.env`.
+- If Local changed ports recently, `tests/bin/run-tests.sh` should refresh them automatically; use `eval "$(tests/bin/setup-local-env.sh)"` when you want to inspect the resolved values directly.
+- Set `LL_TOOLS_SKIP_AUTO_LOCAL_ENV=1` if you intentionally need `tests/.env` to stay authoritative.
 
 Recommended `.env` keys to verify before debugging code:
 

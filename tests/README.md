@@ -15,6 +15,7 @@ This directory contains the plugin test framework:
   - Refuses to target the live Local site database unless `ALLOW_LIVE_SITE_TEST_DB=1` is set explicitly.
 - `bin/php-local.sh`: PHP wrapper that supports Linux PHP or Local Windows `php.exe` with required extensions.
 - `bin/run-tests.sh`: installs test deps (if needed), repairs missing WordPress test libraries when possible, and runs PHPUnit.
+  - When this repo is inside a Local site and `local-site.json` is available, it now auto-applies `bin/setup-local-env.sh` before bootstrap so stale `.env` DB ports do not keep pointing at an old Local runtime.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
 - `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
 - `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.
@@ -136,7 +137,8 @@ tests/bin/run-tests.sh
 ```
 
 When you run `eval "$(tests/bin/setup-local-env.sh)"` first, exported vars take precedence over `.env`.
-If `tests/.env` points at an old Local DB port, rerun `tests/bin/setup-local-env.sh` and prefer the exported values from the active Local runtime before treating PHPUnit as a plugin regression.
+`tests/bin/run-tests.sh` now also auto-refreshes Local DB/PHP helpers when it can detect this Local site, so stale `.env` DB ports should no longer block PHPUnit bootstrap by default.
+If you need to keep a custom non-Local setup, set `LL_TOOLS_SKIP_AUTO_LOCAL_ENV=1` before `tests/bin/run-tests.sh`.
 
 ## 4.3) Run a specific test file
 
