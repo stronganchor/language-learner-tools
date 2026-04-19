@@ -520,19 +520,29 @@ function ll_qp_enqueue_popup_assets(): void {
     ]);
 }
 
-/** Enqueue assets only in quiz page contexts. Popup launchers enqueue the script on demand. */
+/** Enqueue quiz page assets directly. Callers are responsible for context gating when needed. */
 function ll_qp_enqueue_assets() {
-    if (is_admin()) return;
-
-    $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') && ll_qp_is_quiz_page_context();
-    if (!$is_quiz_ctx) {
+    if (is_admin()) {
         return;
     }
 
     ll_qp_enqueue_popup_assets();
     ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
 }
-add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
+
+/** Enqueue quiz page assets only when WordPress is rendering a quiz page context. */
+function ll_qp_maybe_enqueue_assets(): void {
+    if (is_admin()) {
+        return;
+    }
+
+    if (!function_exists('ll_qp_is_quiz_page_context') || !ll_qp_is_quiz_page_context()) {
+        return;
+    }
+
+    ll_qp_enqueue_assets();
+}
+add_action('wp_enqueue_scripts', 'll_qp_maybe_enqueue_assets');
 
 /** Manual cleanup UI on the word-category admin screen */
 function ll_tools_add_manual_cleanup_button() {
