@@ -1153,7 +1153,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
 
     public function test_unscramble_excludes_words_that_are_too_wide_for_a_single_row(): void
     {
-        $fixture = $this->createUnscrambleFixture(false, 'Fit Width', 4, ['unscramble']);
+        $fixture = $this->createUnscrambleFixture(false, 'Fit Width', 5, ['unscramble']);
         $letters = array_fill(0, intdiv(ll_tools_wordset_games_unscramble_max_unit_count(), 2) + 1, 'A');
         $tooWideWordId = $this->createWordWithGameMedia(
             implode(' ', $letters),
@@ -1172,7 +1172,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertArrayHasKey('unscramble', $catalog);
         $this->assertIsArray($launch);
         $this->assertTrue((bool) ($launch['launchable'] ?? false));
-        $this->assertSame(4, (int) ($launch['available_word_count'] ?? 0));
+        $this->assertSame(5, (int) ($launch['available_word_count'] ?? 0));
 
         $launchWordIds = array_values(array_filter(array_map(static function ($word): int {
             return is_array($word) ? (int) ($word['id'] ?? 0) : 0;
@@ -2236,7 +2236,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $wordIds = [];
         for ($index = 1; $index <= $wordCount; $index++) {
             $wordIds[] = $this->createWordWithGameMedia(
-                'Unscramble Word ' . $index,
+                'Word ' . $index,
                 $translationPrefix === '' ? '' : ($translationPrefix . ' ' . $index),
                 $categoryId,
                 $wordsetId,

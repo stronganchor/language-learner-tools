@@ -951,9 +951,11 @@ function ll_tools_wordset_games_resolve_unscramble_display_texts(array $word): a
     $title_role = function_exists('ll_tools_get_wordset_title_language_role')
         ? ll_tools_get_wordset_title_language_role($wordset_ids, true)
         : sanitize_key((string) get_option('ll_word_title_language_role', 'target'));
-    $store_in_title = function_exists('ll_tools_should_store_word_in_title') && $word_id > 0
-        ? (bool) ll_tools_should_store_word_in_title($word_id, $wordset_ids)
-        : ($title_role !== 'translation');
+    // Unscramble always targets the learning-language side for the wordset.
+    // Category quiz option normalization can intentionally flip to the helper
+    // language for multiple-choice quizzes, but that should not decide the
+    // answer language in this game mode.
+    $store_in_title = ($title_role !== 'translation');
     $answer_text = '';
     $translation_text = '';
     $raw_post_title = '';
