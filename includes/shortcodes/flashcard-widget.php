@@ -719,13 +719,13 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
     $is_embed = isset($atts['embed']) && strtolower((string) $atts['embed']) === 'true';
     $preload_tuning_defaults = [
         'categoryAjaxConcurrency'    => 1,
-        'categoryAjaxSpacingMs'      => 220,
+        'categoryAjaxSpacingMs'      => 300,
         'categoryAjaxMaxRetriesOn429'=> 2,
         'categoryAjaxRetryBaseMs'    => 900,
         'categoryAjaxRetryMaxMs'     => 10000,
-        'categoryMediaChunkSize'     => 8,
-        'categoryMediaChunkDelayMs'  => 100,
-        'categoryMediaChunkConcurrency' => 2,
+        'categoryMediaChunkSize'     => 5,
+        'categoryMediaChunkDelayMs'  => 160,
+        'categoryMediaChunkConcurrency' => 1,
     ];
     $preload_tuning = apply_filters('ll_tools_flashcards_preload_tuning', $preload_tuning_defaults, $atts, $categories, $wordset_ids);
     if (!is_array($preload_tuning)) {
@@ -788,16 +788,11 @@ function ll_flashcards_enqueue_and_localize(array $atts, array $categories, bool
         'preloadTuning'        => $preload_tuning,
     ];
 
-    wp_localize_script('ll-tools-flashcard-options',         'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-flc-mode-config',                 'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-flc-main',                        'llToolsFlashcardsData', $localized_data);
-    wp_localize_script('ll-tools-category-selection-script', 'llToolsFlashcardsData', $localized_data);
+    wp_localize_script('ll-tools-flashcard-audio', 'llToolsFlashcardsData', $localized_data);
 
     // Localize translatable messages (must happen after scripts are enqueued)
     $messages = ll_flashcards_get_messages();
-    wp_localize_script('ll-flc-mode-config', 'llToolsFlashcardsMessages', $messages);
-    wp_localize_script('ll-flc-results', 'llToolsFlashcardsMessages', $messages);
-    wp_localize_script('ll-flc-main',    'llToolsFlashcardsMessages', $messages);
+    wp_localize_script('ll-flc-util', 'llToolsFlashcardsMessages', $messages);
 
     return $localized_data;
 }
@@ -871,8 +866,16 @@ function ll_tools_flashcard_widget($atts) {
     } else {
         [$categories, $preselected] = ll_flashcards_build_categories($atts['category'], $use_translations, $wordset_ids);
 
-        // 3) initial words batch so the UI isn't empty - NOW WORDSET AWARE
-        [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories, $wordset_ids, $explicit_wordset_requested);
+        // 3) Fetch the first category payload only when the page will consume it immediately.
+        if ($preselected) {
+            [$selected_category_data, $firstCategoryName, $words_data] = ll_flashcards_pick_initial_batch($categories, $wordset_ids, $explicit_wordset_requested);
+        } else {
+            $selected_category_data = (count($categories) === 1 && is_array($categories[0])) ? $categories[0] : [];
+            $firstCategoryName = !empty($selected_category_data['name'])
+                ? (string) $selected_category_data['name']
+                : '';
+            $words_data = [];
+        }
     }
 
     // 4) label shown above play button

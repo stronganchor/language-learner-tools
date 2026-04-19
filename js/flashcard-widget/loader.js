@@ -234,6 +234,39 @@
             };
         }
 
+        function shouldReduceBackgroundPreloading() {
+            const nav = (typeof navigator !== 'undefined' && navigator) ? navigator : null;
+            const connection = nav && nav.connection && typeof nav.connection === 'object'
+                ? nav.connection
+                : null;
+            const effectiveType = connection && typeof connection.effectiveType === 'string'
+                ? connection.effectiveType.toLowerCase()
+                : '';
+            const saveData = !!(connection && connection.saveData);
+            const deviceMemory = nav && typeof nav.deviceMemory === 'number'
+                ? nav.deviceMemory
+                : 0;
+
+            if (saveData) {
+                return true;
+            }
+
+            if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
+                return true;
+            }
+
+            return deviceMemory > 0 && deviceMemory <= 2;
+        }
+
+        function getNextCategoryPreloadCount(requestedCount) {
+            const parsed = parseInt(requestedCount, 10);
+            const configured = Number.isFinite(parsed) ? parsed : 1;
+            if (shouldReduceBackgroundPreloading()) {
+                return 0;
+            }
+            return Math.max(0, configured);
+        }
+
         function wait(ms) {
             return new Promise(function (resolve) {
                 setTimeout(resolve, Math.max(0, parseInt(ms, 10) || 0));
@@ -369,7 +402,7 @@
                 };
 
                 audio.crossOrigin = 'anonymous';
-                audio.preload = 'auto';
+                audio.preload = shouldReduceBackgroundPreloading() ? 'metadata' : 'auto';
 
                 audio.addEventListener('canplaythrough', onPlayable, { once: true });
                 audio.addEventListener('canplay', onPlayable, { once: true });
@@ -1066,7 +1099,11 @@
          *
          * @param {number} numberToPreload - Number of categories to preload.
          */
-        function preloadNextCategories(numberToPreload = 3) {
+        function preloadNextCategories(numberToPreload = 1) {
+            numberToPreload = getNextCategoryPreloadCount(numberToPreload);
+            if (numberToPreload <= 0) {
+                return;
+            }
             window.categoryNames.forEach(function (categoryName) {
                 const cacheKey = ensureWordsetCacheKey() + '::' + categoryName;
                 if (!loadedCategories.includes(cacheKey) && numberToPreload > 0) {

@@ -22,6 +22,11 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return '';
     }
 
+    if (function_exists('ll_tools_enqueue_public_assets')) {
+        ll_tools_enqueue_public_assets();
+    }
+    ll_enqueue_word_audio_js();
+
     $context = ll_word_audio_extract_context($atts, $content);
     $attributes = $context['attributes'];
     $original_content = $context['original_content'];
@@ -222,6 +227,12 @@ function ll_word_audio_get_host_post_id() {
  * Enqueues the JavaScript necessary for the word_audio shortcode.
  */
 function ll_enqueue_word_audio_js() {
+    static $enqueued = false;
+    if ($enqueued) {
+        return;
+    }
+    $enqueued = true;
+
     ll_enqueue_asset_by_timestamp('js/word-audio.js', 'll-word-audio', array(), true);
 
     // Pass the plugin ROOT url to JS so it can find /media/*.svg reliably
@@ -229,7 +240,6 @@ function ll_enqueue_word_audio_js() {
         'controls' => ll_word_audio_get_controls_data(),
     ));
 }
-add_action('wp_enqueue_scripts', 'll_enqueue_word_audio_js');
 
 /**
  * Caches instances of missing audio for administrator users.

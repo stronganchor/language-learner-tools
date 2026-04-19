@@ -501,16 +501,14 @@ add_filter('the_title', function ($title, $post_id) {
     return (get_post_type($post_id) === 'page' && get_post_meta($post_id, '_ll_tools_word_category_id', true)) ? '' : $title;
 }, 10, 2);
 
-/** Enqueue assets (JS always for popup safety; CSS only on quiz pages) */
-function ll_qp_enqueue_assets() {
-    if (is_admin()) return;
+function ll_qp_enqueue_popup_assets(): void {
+    static $enqueued = false;
+    if ($enqueued || is_admin()) {
+        return;
+    }
+    $enqueued = true;
 
-    $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') && ll_qp_is_quiz_page_context();
-
-    // Base JS for both grid and quiz pages
     ll_enqueue_asset_by_timestamp('/js/quiz-pages.js', 'll-quiz-pages-js', [], true);
-
-    // Localize unconditionally so llQuizPages.vh is always present
     wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
         'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
         'labels' => [
@@ -520,11 +518,19 @@ function ll_qp_enqueue_assets() {
             'closeConfirm' => __('Close this quiz? Your current progress in this popup will be lost.', 'll-tools-text-domain'),
         ],
     ]);
+}
 
-    // Only quiz pages need the iframe CSS
-    if ($is_quiz_ctx) {
-        ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
+/** Enqueue assets only in quiz page contexts. Popup launchers enqueue the script on demand. */
+function ll_qp_enqueue_assets() {
+    if (is_admin()) return;
+
+    $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') && ll_qp_is_quiz_page_context();
+    if (!$is_quiz_ctx) {
+        return;
     }
+
+    ll_qp_enqueue_popup_assets();
+    ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
 }
 add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
 

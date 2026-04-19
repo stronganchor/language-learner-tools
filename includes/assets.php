@@ -87,6 +87,76 @@ function ll_tools_public_assets_marked(): bool {
     return !empty($GLOBALS['ll_tools_public_assets_needed']);
 }
 
+function ll_tools_get_public_assets_shortcode_tags(): array {
+    $shortcodes = apply_filters('ll_tools_public_assets_shortcode_tags', [
+        'flashcard_widget',
+        'quiz_pages_grid',
+        'quiz_pages_dropdown',
+        'word_grid',
+        'word_audio',
+        'wordset_page',
+        'll_wordset_page',
+        'audio_recording_interface',
+        'editor_hub',
+        'image_copyright_grid',
+        'll_dictionary',
+        'dictionary_search',
+        'dictionary_browser',
+        'audio_upload_form',
+        'image_upload_form',
+        'll_language_switcher',
+    ]);
+
+    return array_values(array_unique(array_filter(array_map('strval', (array) $shortcodes))));
+}
+
+function ll_tools_get_public_assets_shortcode_meta_key(): string {
+    static $meta_key = null;
+    if ($meta_key !== null) {
+        return $meta_key;
+    }
+
+    $tags = ll_tools_get_public_assets_shortcode_tags();
+    $meta_key = '_ll_tools_public_assets_shortcodes_' . substr(md5(implode('|', $tags)), 0, 12);
+    return $meta_key;
+}
+
+function ll_tools_post_has_public_assets_shortcode_meta($post): ?bool {
+    if (!($post instanceof WP_Post)) {
+        return null;
+    }
+
+    $post_id = (int) $post->ID;
+    if ($post_id <= 0) {
+        return null;
+    }
+
+    $raw = get_post_meta($post_id, ll_tools_get_public_assets_shortcode_meta_key(), true);
+    if ($raw === '') {
+        return null;
+    }
+
+    return $raw === '1';
+}
+
+function ll_tools_content_has_public_assets_shortcodes(string $content): bool {
+    if ($content === '' || strpos($content, '[') === false) {
+        return false;
+    }
+
+    $shortcodes = ll_tools_get_public_assets_shortcode_tags();
+    foreach ($shortcodes as $tag) {
+        if ($tag === '') {
+            continue;
+        }
+        if (has_shortcode($content, $tag)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
  * Detect LL shortcodes in post content.
  */
@@ -106,40 +176,43 @@ function ll_tools_post_content_has_public_assets_shortcodes($post): bool {
         return (bool) $request_cache[$cache_key];
     }
 
-    $shortcodes = apply_filters('ll_tools_public_assets_shortcode_tags', [
-        'flashcard_widget',
-        'quiz_pages_grid',
-        'quiz_pages_dropdown',
-        'word_grid',
-        'word_audio',
-        'wordset_page',
-        'll_wordset_page',
-        'audio_recording_interface',
-        'editor_hub',
-        'image_copyright_grid',
-        'll_dictionary',
-        'dictionary_search',
-        'dictionary_browser',
-        'audio_upload_form',
-        'image_upload_form',
-        'll_language_switcher',
-    ]);
-    $shortcodes = array_values(array_unique(array_filter(array_map('strval', (array) $shortcodes))));
-
-    $has_match = false;
-    foreach ($shortcodes as $tag) {
-        if ($tag === '') {
-            continue;
-        }
-        if (has_shortcode($content, $tag)) {
-            $has_match = true;
-            break;
-        }
+    $meta_cached = ll_tools_post_has_public_assets_shortcode_meta($post);
+    if ($meta_cached !== null) {
+        $request_cache[$cache_key] = $meta_cached;
+        return $meta_cached;
     }
+
+    $has_match = ll_tools_content_has_public_assets_shortcodes($content);
 
     $request_cache[$cache_key] = $has_match;
     return $has_match;
 }
+
+function ll_tools_update_public_assets_shortcode_meta($post_id, $post = null): void {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return;
+    }
+
+    if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) {
+        return;
+    }
+
+    if (!($post instanceof WP_Post)) {
+        $post = get_post($post_id);
+    }
+    if (!($post instanceof WP_Post)) {
+        return;
+    }
+
+    if ($post->post_type === 'revision' || $post->post_status === 'auto-draft') {
+        return;
+    }
+
+    $has_match = ll_tools_content_has_public_assets_shortcodes((string) ($post->post_content ?? ''));
+    update_post_meta($post_id, ll_tools_get_public_assets_shortcode_meta_key(), $has_match ? '1' : '0');
+}
+add_action('save_post', 'll_tools_update_public_assets_shortcode_meta', 10, 2);
 
 /**
  * Decide whether the current front-end request needs shared LL Tools styles.

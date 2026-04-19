@@ -1031,6 +1031,9 @@ function ll_quiz_pages_grid_shortcode($atts) {
     $quiz_mode = in_array($atts['mode'], ['practice', 'learning', 'self-check'], true) ? $atts['mode'] : 'practice';
 
     if ($use_popup) {
+        if (function_exists('ll_qp_enqueue_popup_assets')) {
+            ll_qp_enqueue_popup_assets();
+        }
         ll_qpg_bootstrap_flashcards_for_grid($atts['wordset']);
     }
 

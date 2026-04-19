@@ -7917,6 +7917,28 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $games_i18n = function_exists('ll_tools_get_wordset_games_i18n_messages')
         ? ll_tools_get_wordset_games_i18n_messages()
         : [];
+    $localized_links = ($view === 'games')
+        ? [
+            'settings' => $settings_url,
+        ]
+        : [];
+    $localized_progress_reset = ($view === 'progress')
+        ? [
+            'enabled' => ($is_study_user && !empty($progress_reset_category_options) && $progress_reset_nonce !== ''),
+            'actionUrl' => $progress_url,
+            'nonce' => $progress_reset_nonce,
+            'wordsetId' => $wordset_id,
+        ]
+        : [];
+    $localized_games = ($view === 'games')
+        ? array_merge($games_frontend_config, [
+            'catalog' => $games_catalog,
+            'canManageSettings' => $can_manage_wordset_content,
+            'speakingSettingsUrl' => $speaking_settings_url,
+            'speakingHiddenNotice' => $speaking_hidden_notice,
+        ])
+        : [];
+    $localized_lazy_cards = ($view === 'main') ? $lazy_cards_config : [];
 
     ll_tools_wordset_page_enqueue_styles();
     ll_tools_wordset_page_enqueue_scripts();
@@ -7929,22 +7951,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'wordsetId' => $wordset_id,
         'wordsetSlug' => (string) $wordset_term->slug,
         'wordsetName' => (string) $wordset_term->name,
-        'links' => [
-            'base' => $wordset_url,
-            'progress' => $progress_url,
-            'games' => $games_url,
-            'hidden' => $hidden_categories_url,
-            'settings' => $settings_url,
-        ],
-        'progressReset' => [
-            'enabled' => ($view === 'progress' && $is_study_user && !empty($progress_reset_category_options) && $progress_reset_nonce !== ''),
-            'actionUrl' => $progress_url,
-            'nonce' => $progress_reset_nonce,
-            'wordsetId' => $wordset_id,
-        ],
+        'links' => $localized_links,
+        'progressReset' => $localized_progress_reset,
         'progressIncludeHidden' => ($view === 'progress'),
         'categories' => $script_categories,
-        'visibleCategoryIds' => $visible_category_ids,
+        'visibleCategoryIds' => ($view === 'games') ? $visible_category_ids : [],
         'hiddenCategoryIds' => array_values(array_map('intval', wp_list_pluck($hidden_categories, 'id'))),
         'state' => $study_state,
         'goals' => $goals,
@@ -7960,15 +7971,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'visual_config' => is_array($gender_visual_config) ? $gender_visual_config : [],
             'min_count' => (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ),
         ],
-        'games' => array_merge($games_frontend_config, [
-            'catalog' => $games_catalog,
-            'canManageSettings' => $can_manage_wordset_content,
-            'speakingSettingsUrl' => $speaking_settings_url,
-            'speakingHiddenNotice' => $speaking_hidden_notice,
-        ]),
+        'games' => $localized_games,
         'summaryCounts' => $summary_counts,
         'summaryCountsDeferred' => $summary_counts_deferred,
-        'lazyCards' => $lazy_cards_config,
+        'lazyCards' => $localized_lazy_cards,
         'learningMinChunkSize' => 8,
         'hardWordDifficultyThreshold' => function_exists('ll_tools_user_progress_hard_difficulty_threshold')
             ? ll_tools_user_progress_hard_difficulty_threshold()
