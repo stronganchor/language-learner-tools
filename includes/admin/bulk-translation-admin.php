@@ -9,29 +9,11 @@ if (!defined('ABSPATH')) exit;
  * - Migrate legacy 'word_english_meaning' → 'word_translation'
  */
 
-// Register translation language options in the DeepL settings group as well
-add_action('admin_init', function () {
-    $args = array(
-        'type' => 'string',
-        'sanitize_callback' => 'sanitize_text_field',
-        'show_in_rest' => false,
-        'default' => ''
-    );
-    // Allow saving these from this page's header form
-    register_setting('ll-deepl-api-key-group', 'll_translation_language', $args); // target
-    register_setting('ll-deepl-api-key-group', 'll_target_language', $args);      // source
-    register_setting('ll-deepl-api-key-group', 'll_word_title_language_role', array(
-        'type' => 'string',
-        'sanitize_callback' => function($v){ return in_array($v, array('target','translation'), true) ? $v : 'target'; },
-        'default' => 'target'
-    ));
-});
-
 // Add page under Tools
 add_action('admin_menu', function () {
     add_management_page(
-        'LL Bulk Translations',
-        'LL Bulk Translations',
+        __('LL Bulk Translations', 'll-tools-text-domain'),
+        __('LL Bulk Translations', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-bulk-translations',
         'll_render_bulk_translations_page'
@@ -53,14 +35,10 @@ function ll_render_bulk_translations_page() {
     $can_manage_settings = current_user_can('manage_options');
     $deepl_key   = $can_manage_settings ? get_option('ll_deepl_api_key') : '';
     $deepl_key_set = ((string) get_option('ll_deepl_api_key', '') !== '');
-    $src_lang    = get_option('ll_target_language', 'auto');       // DeepL source (auto allowed)
-    $tgt_lang    = get_option('ll_translation_language', 'EN');    // DeepL target
-
-    $title_lang_role = get_option('ll_word_title_language_role', 'target');
     $nonce = wp_create_nonce('ll-bulk-translations');
     ?>
     <div class="wrap">
-        <h1>LL Tools — Bulk Translations</h1>
+        <h1><?php esc_html_e('LL Tools - Bulk Translations', 'll-tools-text-domain'); ?></h1>
 
         <!-- Settings strip -->
         <?php if ($can_manage_settings) : ?>
@@ -68,28 +46,17 @@ function ll_render_bulk_translations_page() {
                 <?php settings_fields('ll-deepl-api-key-group'); ?>
                 <table class="form-table" style="margin-top:0">
                     <tr>
-                        <th scope="row">DeepL API Key</th>
+                        <th scope="row"><?php esc_html_e('DeepL API Key', 'll-tools-text-domain'); ?></th>
                         <td><input type="password" name="ll_deepl_api_key" value="<?php echo esc_attr($deepl_key); ?>" size="60" autocomplete="off" /></td>
                     </tr>
                     <tr>
-                        <th scope="row">Source language (DeepL <code>source_lang</code>)</th>
-                        <td><input type="text" name="ll_target_language" value="<?php echo esc_attr($src_lang); ?>" placeholder="auto" /></td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Target language (DeepL <code>target_lang</code>)</th>
-                        <td><input type="text" name="ll_translation_language" value="<?php echo esc_attr($tgt_lang); ?>" placeholder="EN" /></td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Word title language (affects dictionary)</th>
+                        <th scope="row"><?php esc_html_e('Language resolution', 'll-tools-text-domain'); ?></th>
                         <td>
-                            <select name="ll_word_title_language_role">
-                                <option value="target" <?php selected($title_lang_role, 'target'); ?>>Target (language being learned)</option>
-                                <option value="translation" <?php selected($title_lang_role, 'translation'); ?>>Translation (helper/known language)</option>
-                            </select>
+                            <p class="description"><?php esc_html_e('Source language, target language, and word-title language are resolved from each item’s assigned word set. Legacy site settings are used only as a fallback.', 'll-tools-text-domain'); ?></p>
                         </td>
                     </tr>
                 </table>
-                <?php submit_button('Save translation settings'); ?>
+                <?php submit_button(__('Save API key', 'll-tools-text-domain')); ?>
             </form>
         <?php else : ?>
             <div class="notice notice-info inline">
@@ -101,12 +68,8 @@ function ll_render_bulk_translations_page() {
                     <td><?php echo $deepl_key_set ? esc_html__('Configured', 'll-tools-text-domain') : esc_html__('Not configured', 'll-tools-text-domain'); ?></td>
                 </tr>
                 <tr>
-                    <th scope="row"><?php esc_html_e('Source language', 'll-tools-text-domain'); ?></th>
-                    <td><code><?php echo esc_html($src_lang); ?></code></td>
-                </tr>
-                <tr>
-                    <th scope="row"><?php esc_html_e('Target language', 'll-tools-text-domain'); ?></th>
-                    <td><code><?php echo esc_html($tgt_lang); ?></code></td>
+                    <th scope="row"><?php esc_html_e('Language resolution', 'll-tools-text-domain'); ?></th>
+                    <td><?php esc_html_e('Resolved from each item’s word set settings.', 'll-tools-text-domain'); ?></td>
                 </tr>
             </table>
         <?php endif; ?>
@@ -115,8 +78,8 @@ function ll_render_bulk_translations_page() {
         <form id="ll-migrate-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:10px 0 20px">
             <input type="hidden" name="action" value="ll_bulk_translations_migrate">
             <input type="hidden" name="_wpnonce" value="<?php echo esc_attr($nonce); ?>">
-            <?php submit_button('Migrate legacy meta (word_english_meaning → word_translation)', 'secondary', '', false); ?>
-            <span class="description" style="margin-left:8px">Copies legacy values where the new meta is empty.</span>
+            <?php submit_button(__('Migrate legacy meta (word_english_meaning to word_translation)', 'll-tools-text-domain'), 'secondary', '', false); ?>
+            <span class="description" style="margin-left:8px"><?php esc_html_e('Copies legacy values where the new meta is empty.', 'll-tools-text-domain'); ?></span>
         </form>
 
         <!-- Filters -->
@@ -128,56 +91,80 @@ function ll_render_bulk_translations_page() {
             $flt_orderby = isset($_GET['orderby']) ? sanitize_text_field($_GET['orderby']) : 'ID';
             $flt_order   = isset($_GET['order']) ? strtoupper(sanitize_text_field($_GET['order'])) : 'ASC';
 
-            $categories = get_terms(['taxonomy'=>'word-category','hide_empty'=>false,'parent'=>0]);
             $wordsets   = get_terms(['taxonomy'=>'wordset','hide_empty'=>false]);
+            if (is_wp_error($wordsets)) {
+                $wordsets = [];
+            }
+
+            $category_option_map = ['' => function_exists('ll_tools_get_word_category_selector_rows')
+                ? ll_tools_get_word_category_selector_rows(0, [
+                    'post_types' => ['words', 'word_images'],
+                    'post_statuses' => ['publish', 'draft', 'pending', 'future', 'private'],
+                ])
+                : []];
+            foreach ((array) $wordsets as $ws) {
+                if (!($ws instanceof WP_Term)) {
+                    continue;
+                }
+
+                $category_option_map[(string) $ws->slug] = function_exists('ll_tools_get_word_category_selector_rows')
+                    ? ll_tools_get_word_category_selector_rows((int) $ws->term_id, [
+                        'post_types' => ['words', 'word_images'],
+                        'post_statuses' => ['publish', 'draft', 'pending', 'future', 'private'],
+                    ])
+                    : [];
+            }
+            $categories = $category_option_map[$flt_wordset] ?? $category_option_map[''];
         ?>
         <form method="get" class="ll-filters" style="margin:10px 0 12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <input type="hidden" name="page" value="ll-bulk-translations" />
-            <label>Type
+            <label><?php esc_html_e('Type', 'll-tools-text-domain'); ?>
                 <select name="type">
-                    <option value="both" <?php selected($flt_type,'both'); ?>>Words + Images</option>
-                    <option value="words" <?php selected($flt_type,'words'); ?>>Words</option>
-                    <option value="word_images" <?php selected($flt_type,'word_images'); ?>>Word Images</option>
+                    <option value="both" <?php selected($flt_type,'both'); ?>><?php esc_html_e('Words + Images', 'll-tools-text-domain'); ?></option>
+                    <option value="words" <?php selected($flt_type,'words'); ?>><?php esc_html_e('Words', 'll-tools-text-domain'); ?></option>
+                    <option value="word_images" <?php selected($flt_type,'word_images'); ?>><?php esc_html_e('Word Images', 'll-tools-text-domain'); ?></option>
                 </select>
             </label>
-            <label>Category
-                <select name="cat">
-                    <option value="0">All</option>
+            <label><?php esc_html_e('Category', 'll-tools-text-domain'); ?>
+                <select name="cat" id="ll-bulk-translations-category-filter">
+                    <option value="0"><?php esc_html_e('All', 'll-tools-text-domain'); ?></option>
                     <?php foreach ($categories as $c): ?>
-                        <option value="<?php echo (int)$c->term_id; ?>" <?php selected($flt_cat,$c->term_id); ?>><?php echo esc_html($c->name); ?></option>
+                        <option value="<?php echo (int) ($c['id'] ?? 0); ?>" <?php selected($flt_cat, (int) ($c['id'] ?? 0)); ?>>
+                            <?php echo esc_html((string) ($c['label'] ?? '')); ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label>Wordset
-                <select name="wordset">
-                    <option value="">All</option>
+            <label><?php esc_html_e('Wordset', 'll-tools-text-domain'); ?>
+                <select name="wordset" id="ll-bulk-translations-wordset-filter">
+                    <option value=""><?php esc_html_e('All', 'll-tools-text-domain'); ?></option>
                     <?php foreach ($wordsets as $ws): ?>
                         <option value="<?php echo esc_attr($ws->slug); ?>" <?php selected($flt_wordset,$ws->slug); ?>><?php echo esc_html($ws->name); ?></option>
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label>Search
-                <input type="search" name="s" value="<?php echo esc_attr($flt_s); ?>" placeholder="Word title" />
+            <label><?php esc_html_e('Search', 'll-tools-text-domain'); ?>
+                <input type="search" name="s" value="<?php echo esc_attr($flt_s); ?>" placeholder="<?php echo esc_attr__('Word title', 'll-tools-text-domain'); ?>" />
             </label>
-            <label>Order
+            <label><?php esc_html_e('Order', 'll-tools-text-domain'); ?>
                 <select name="orderby">
-                    <option value="ID" <?php selected($flt_orderby,'ID'); ?>>ID</option>
-                    <option value="title" <?php selected($flt_orderby,'title'); ?>>Title</option>
+                    <option value="ID" <?php selected($flt_orderby,'ID'); ?>><?php esc_html_e('ID', 'll-tools-text-domain'); ?></option>
+                    <option value="title" <?php selected($flt_orderby,'title'); ?>><?php esc_html_e('Title', 'll-tools-text-domain'); ?></option>
                 </select>
                 <select name="order">
                     <option value="ASC" <?php selected($flt_order,'ASC'); ?>>ASC</option>
                     <option value="DESC" <?php selected($flt_order,'DESC'); ?>>DESC</option>
                 </select>
             </label>
-            <button class="button">Filter</button>
+            <button class="button"><?php esc_html_e('Filter', 'll-tools-text-domain'); ?></button>
         </form>
 
         <div class="ll-controls" style="margin:10px 0 12px">
-            <button class="button" id="ll-select-all">Select All</button>
-            <button class="button" id="ll-deselect-all">Deselect All</button>
-            <button class="button button-primary" id="ll-fetch">Get translations for selected</button>
+            <button class="button" id="ll-select-all"><?php esc_html_e('Select All', 'll-tools-text-domain'); ?></button>
+            <button class="button" id="ll-deselect-all"><?php esc_html_e('Deselect All', 'll-tools-text-domain'); ?></button>
+            <button class="button button-primary" id="ll-fetch"><?php esc_html_e('Get translations for selected', 'll-tools-text-domain'); ?></button>
             <span class="spinner" id="ll-fetch-spinner" style="float:none;margin-left:6px"></span>
-            <button class="button button-primary" id="ll-save">Save selected translations</button>
+            <button class="button button-primary" id="ll-save"><?php esc_html_e('Save selected translations', 'll-tools-text-domain'); ?></button>
         </div>
 
         <div class="ll-table-wrap">
@@ -185,18 +172,18 @@ function ll_render_bulk_translations_page() {
             <thead>
                 <tr>
                     <th class="col-select"><input type="checkbox" id="ll-master" /></th>
-                    <th class="col-id">ID</th>
-                    <th class="col-word">Word</th>
-                    <th class="col-type">Type</th>
-                    <th class="col-wordset">Wordset</th>
-                    <th class="col-current">Current translation</th>
-                    <th class="col-suggest">Suggested / Edit</th>
-                    <th class="col-status">Status</th>
+                    <th class="col-id"><?php esc_html_e('ID', 'll-tools-text-domain'); ?></th>
+                    <th class="col-word"><?php esc_html_e('Word', 'll-tools-text-domain'); ?></th>
+                    <th class="col-type"><?php esc_html_e('Type', 'll-tools-text-domain'); ?></th>
+                    <th class="col-wordset"><?php esc_html_e('Wordset', 'll-tools-text-domain'); ?></th>
+                    <th class="col-current"><?php esc_html_e('Current translation', 'll-tools-text-domain'); ?></th>
+                    <th class="col-suggest"><?php esc_html_e('Suggested / Edit', 'll-tools-text-domain'); ?></th>
+                    <th class="col-status"><?php esc_html_e('Status', 'll-tools-text-domain'); ?></th>
                 </tr>
             </thead>
             <tbody id="ll-rows">
                 <?php if (empty($rows)) : ?>
-                    <tr><td colspan="8">No posts without translations found on this page.</td></tr>
+                    <tr><td colspan="8"><?php esc_html_e('No posts without translations found on this page.', 'll-tools-text-domain'); ?></td></tr>
                 <?php else : foreach ($rows as $post) :
                     $current = get_post_meta($post->ID, 'word_translation', true);
                     if ($current === '') {
@@ -208,7 +195,7 @@ function ll_render_bulk_translations_page() {
                         <td class="col-select"><input type="checkbox" class="ll-row-check" /></td>
                         <td class="col-id"><?php echo (int)$post->ID; ?></td>
                         <td class="col-word"><a href="<?php echo esc_url(get_edit_post_link($post->ID)); ?>"><?php echo esc_html(get_the_title($post)); ?></a></td>
-                        <td class="col-type"><?php echo esc_html($post->post_type === 'word_images' ? 'Image' : 'Word'); ?></td>
+                        <td class="col-type"><?php echo esc_html($post->post_type === 'word_images' ? __('Image', 'll-tools-text-domain') : __('Word', 'll-tools-text-domain')); ?></td>
                         <td class="col-wordset">
                             <?php
                                 $wst = get_the_terms($post->ID, 'wordset');
@@ -224,9 +211,9 @@ function ll_render_bulk_translations_page() {
                             <input type="text" class="regular-text" value="<?php echo esc_attr($current); ?>" readonly />
                         </td>
                         <td class="ll-suggest col-suggest">
-                            <input type="text" class="regular-text ll-suggestion" value="" placeholder="(click Get translations)" />
-                            <a href="#" class="ll-save-one" title="Save">✓</a>
-                            <a href="#" class="ll-clear" title="Clear">×</a>
+                            <input type="text" class="regular-text ll-suggestion" value="" placeholder="<?php echo esc_attr__('(click Get translations)', 'll-tools-text-domain'); ?>" />
+                            <a href="#" class="ll-save-one" title="<?php echo esc_attr__('Save', 'll-tools-text-domain'); ?>">✓</a>
+                            <a href="#" class="ll-clear" title="<?php echo esc_attr__('Clear', 'll-tools-text-domain'); ?>">×</a>
                         </td>
                         <td class="ll-status col-status"><span class="status-badge">—</span><span class="spinner" style="float:none;margin-left:6px"></span></td>
                     </tr>
@@ -260,7 +247,13 @@ function ll_render_bulk_translations_page() {
                         'add_args'  => $add,
                     ]);
                 } else {
-                    echo '<span class="displaying-num">' . intval($total) . ' items</span>';
+                    $total_int = (int) $total;
+                    $items_label = sprintf(
+                        /* translators: %s: Item count. */
+                        _n('%s item', '%s items', $total_int, 'll-tools-text-domain'),
+                        number_format_i18n($total_int)
+                    );
+                    echo '<span class="displaying-num">' . esc_html($items_label) . '</span>';
                 }
                 ?>
             </div>
@@ -288,9 +281,31 @@ function ll_render_bulk_translations_page() {
         .ll-suggest .ll-save-one { text-decoration:none; font-weight:bold; color:#008a20; }
     </style>
 
+    <?php
+    $bulk_i18n = [
+        'nothing_to_save_row' => __('Nothing to save for this row.', 'll-tools-text-domain'),
+        'save_failed' => __('Save failed.', 'll-tools-text-domain'),
+        'save_request_failed' => __('Save request failed.', 'll-tools-text-domain'),
+        'select_at_least_one' => __('Select at least one row.', 'll-tools-text-domain'),
+        'fetch_failed' => __('No response or failed to fetch.', 'll-tools-text-domain'),
+        'request_failed' => __('Request failed.', 'll-tools-text-domain'),
+        'nothing_to_save' => __('Nothing to save.', 'll-tools-text-domain'),
+        'status_saving' => __('saving…', 'll-tools-text-domain'),
+        'status_saved' => __('saved', 'll-tools-text-domain'),
+        'status_error' => __('error', 'll-tools-text-domain'),
+        'status_fetching' => __('fetching…', 'll-tools-text-domain'),
+        'status_suggested' => __('suggested', 'll-tools-text-domain'),
+        'status_no_match' => __('no match', 'll-tools-text-domain'),
+        'all_categories' => __('All', 'll-tools-text-domain'),
+    ];
+    ?>
     <script>
     jQuery(function($){
         var nonce = <?php echo json_encode($nonce); ?>;
+        var i18n = <?php echo wp_json_encode($bulk_i18n); ?>;
+        var categoryOptionsByWordset = <?php echo wp_json_encode($category_option_map); ?> || {};
+        var $categoryFilter = $('#ll-bulk-translations-category-filter');
+        var $wordsetFilter = $('#ll-bulk-translations-wordset-filter');
 
         function getSelectedIds(){
             var ids = [];
@@ -308,6 +323,39 @@ function ll_render_bulk_translations_page() {
             var sel = $checks.filter(':checked').length;
             $('#ll-master').prop('checked', all > 0 && sel === all);
         }
+
+        function renderCategoryFilterOptions() {
+            if (!$categoryFilter.length) {
+                return;
+            }
+
+            var selectedWordset = ($wordsetFilter.val() || '').toString();
+            var currentValue = ($categoryFilter.val() || '0').toString();
+            var rows = categoryOptionsByWordset[selectedWordset];
+            if (!Array.isArray(rows)) {
+                rows = categoryOptionsByWordset[''] || [];
+            }
+
+            var html = '<option value="0">' + $('<div/>').text(i18n.all_categories || 'All').html() + '</option>';
+            rows.forEach(function(row) {
+                var id = parseInt(row && row.id ? row.id : 0, 10) || 0;
+                if (!id) {
+                    return;
+                }
+                var label = (row && row.label ? row.label : '').toString();
+                html += '<option value="' + id + '">' + $('<div/>').text(label).html() + '</option>';
+            });
+
+            $categoryFilter.html(html);
+            if ($categoryFilter.find('option[value="' + currentValue + '"]').length) {
+                $categoryFilter.val(currentValue);
+            } else {
+                $categoryFilter.val('0');
+            }
+        }
+
+        renderCategoryFilterOptions();
+        $wordsetFilter.on('change', renderCategoryFilterOptions);
 
         $('#ll-master').on('change', function(){
             $('.ll-row-check').prop('checked', $(this).prop('checked'));
@@ -338,22 +386,22 @@ function ll_render_bulk_translations_page() {
             var $tr = $(this).closest('tr');
             var id = parseInt($tr.attr('data-id'), 10);
             var txt = $tr.find('.ll-suggestion').val().trim();
-            if (!id || !txt) { alert('Nothing to save for this row.'); return; }
+            if (!id || !txt) { alert(i18n.nothing_to_save_row); return; }
             var $spinner = $tr.find('.ll-status .spinner');
             var $st = $tr.find('.status-badge');
             $spinner.addClass('is-active');
-            $st.text('saving…');
+            $st.text(i18n.status_saving);
             $.post(ajaxurl, {
                 action: 'll_bulk_translations_save',
                 nonce: nonce,
                 rows: [{ id: id, translation: txt }]
             }).done(function(resp){
-                if (!resp || !resp.success) { alert('Save failed.'); return; }
+                if (!resp || !resp.success) { alert(i18n.save_failed); return; }
                 $tr.find('.ll-current input').val(txt);
-                $st.text('saved');
+                $st.text(i18n.status_saved);
             }).fail(function(){
-                alert('Save request failed.');
-                $st.text('error');
+                alert(i18n.save_request_failed);
+                $st.text(i18n.status_error);
             }).always(function(){
                 $spinner.removeClass('is-active');
             });
@@ -362,7 +410,7 @@ function ll_render_bulk_translations_page() {
         $('#ll-fetch').on('click', function(e){
             e.preventDefault();
             var ids = getSelectedIds();
-            if (!ids.length) { alert('Select at least one row.'); return; }
+            if (!ids.length) { alert(i18n.select_at_least_one); return; }
 
             // Activate global spinner and disable button
             $('#ll-fetch-spinner').addClass('is-active');
@@ -371,7 +419,7 @@ function ll_render_bulk_translations_page() {
             // Activate row spinners for selected rows and set status text
             ids.forEach(function(id){
                 var $tr = $('#ll-rows tr[data-id="'+id+'"]');
-                $tr.find('.ll-status .status-badge').text('fetching…');
+                $tr.find('.ll-status .status-badge').text(i18n.status_fetching);
                 $tr.find('.ll-status .spinner').addClass('is-active');
             });
 
@@ -381,7 +429,7 @@ function ll_render_bulk_translations_page() {
                 ids: ids
             }).done(function(resp){
                 if (!resp || !resp.success || !resp.data || !resp.data.rows) {
-                    alert('No response or failed to fetch.');
+                    alert(i18n.fetch_failed);
                 } else {
                     resp.data.rows.forEach(function(row){
                         var $tr = $('#ll-rows tr[data-id="'+row.id+'"]');
@@ -389,14 +437,14 @@ function ll_render_bulk_translations_page() {
                         var $st = $tr.find('.status-badge');
                         if (row.suggestion && row.suggestion.length) {
                             $in.val(row.suggestion);
-                            $st.text('suggested');
+                            $st.text(i18n.status_suggested);
                         } else {
-                            $st.text('no match');
+                            $st.text(i18n.status_no_match);
                         }
                     });
                 }
             }).fail(function(){
-                alert('Request failed.');
+                alert(i18n.request_failed);
             }).always(function(){
                 // Turn off spinners for selected rows
                 ids.forEach(function(id){
@@ -419,22 +467,22 @@ function ll_render_bulk_translations_page() {
                     if (id && txt) payload.push({ id:id, translation:txt });
                 }
             });
-            if (!payload.length) { alert('Nothing to save.'); return; }
+            if (!payload.length) { alert(i18n.nothing_to_save); return; }
 
             $.post(ajaxurl, {
                 action: 'll_bulk_translations_save',
                 nonce: nonce,
                 rows: payload
             }).done(function(resp){
-                if (!resp || !resp.success) { alert('Save failed.'); return; }
+                if (!resp || !resp.success) { alert(i18n.save_failed); return; }
                 // Reflect saved values into "Current translation"
                 payload.forEach(function(row){
                     var $tr = $('#ll-rows tr[data-id="'+row.id+'"]');
                     $tr.find('.ll-current input').val(row.translation);
-                    $tr.find('.status-badge').text('saved');
+                    $tr.find('.status-badge').text(i18n.status_saved);
                 });
             }).fail(function(){
-                alert('Save request failed.');
+                alert(i18n.save_request_failed);
             });
         });
     });
@@ -470,6 +518,15 @@ function ll_bulk_translations_build_query_args($limit = null, $offset = null) {
 
     $tax = [];
     if ($flt_cat) {
+        if ($flt_wordset !== '') {
+            $wordset_term = get_term_by('slug', $flt_wordset, 'wordset');
+            if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term) && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+                $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($flt_cat, (int) $wordset_term->term_id, true);
+                if ($effective_category_id > 0) {
+                    $flt_cat = $effective_category_id;
+                }
+            }
+        }
         $tax[] = [ 'taxonomy' => 'word-category', 'field' => 'term_id', 'terms' => $flt_cat ];
     }
     if ($flt_wordset !== '') {
@@ -494,14 +551,54 @@ function ll_bulk_translation_count_posts_missing() {
     return (int) $q->found_posts;
 }
 
+/**
+ * Return editable translation-target post IDs from an incoming list.
+ *
+ * @param array $ids
+ * @return int[]
+ */
+function ll_bulk_translations_filter_editable_post_ids(array $ids): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static function ($id): bool {
+        return $id > 0;
+    })));
+    if (empty($ids)) {
+        return [];
+    }
+
+    $editable = [];
+    foreach ($ids as $post_id) {
+        $post = get_post($post_id);
+        if (!($post instanceof WP_Post)) {
+            continue;
+        }
+        if (!in_array((string) $post->post_type, ['words', 'word_images'], true)) {
+            continue;
+        }
+        if (!current_user_can('edit_post', $post_id)) {
+            continue;
+        }
+        $editable[] = (int) $post_id;
+    }
+
+    return $editable;
+}
+
 /** AJAX: fetch suggestions (DeepL → Dictionary fallback) */
 add_action('wp_ajax_ll_bulk_translations_fetch', 'll_ajax_bulk_translations_fetch');
 function ll_ajax_bulk_translations_fetch() {
-    if (!current_user_can('view_ll_tools')) wp_send_json_error(['message' => 'forbidden'], 403);
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
+    }
     check_ajax_referer('ll-bulk-translations', 'nonce');
 
-    $ids = isset($_POST['ids']) && is_array($_POST['ids']) ? array_map('intval', $_POST['ids']) : [];
-    if (empty($ids)) wp_send_json_success(['rows' => []]);
+    $requested_ids = isset($_POST['ids']) && is_array($_POST['ids']) ? (array) wp_unslash($_POST['ids']) : [];
+    $ids = ll_bulk_translations_filter_editable_post_ids($requested_ids);
+    if (empty($ids) && !empty($requested_ids)) {
+        wp_send_json_error(['message' => __('You do not have permission to edit the selected items.', 'll-tools-text-domain')], 403);
+    }
+    if (empty($ids)) {
+        wp_send_json_success(['rows' => []]);
+    }
 
     // Prefer existing DeepL wiring if present
     if (!function_exists('translate_with_deepl')) {
@@ -509,18 +606,37 @@ function ll_ajax_bulk_translations_fetch() {
         if (file_exists($deepl_file)) require_once $deepl_file;
     }
 
-    $src = get_option('ll_target_language', 'auto');        // source (target language code setting)
-    $tgt = get_option('ll_translation_language', 'EN');     // target (translation language code setting)
     $has_deepl = (string) get_option('ll_deepl_api_key') !== '';
-    $title_role = get_option('ll_word_title_language_role', 'target');
-    $reverse_dict = ($title_role === 'translation');
 
     $out = [];
     foreach ($ids as $id) {
         $title = get_the_title($id);
         $suggestion = null;
+        $wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
+            ? ll_tools_get_post_wordset_ids((int) $id)
+            : [];
+        $title_role = function_exists('ll_tools_get_wordset_title_language_role')
+            ? ll_tools_get_wordset_title_language_role($wordset_ids)
+            : 'target';
+        $source_raw = ($title_role === 'translation')
+            ? (function_exists('ll_tools_get_wordset_translation_language') ? ll_tools_get_wordset_translation_language($wordset_ids) : '')
+            : (function_exists('ll_tools_get_wordset_target_language') ? ll_tools_get_wordset_target_language($wordset_ids) : '');
+        $target_raw = ($title_role === 'translation')
+            ? (function_exists('ll_tools_get_wordset_target_language') ? ll_tools_get_wordset_target_language($wordset_ids) : '')
+            : (function_exists('ll_tools_get_wordset_translation_language') ? ll_tools_get_wordset_translation_language($wordset_ids) : '');
+        $source_code = function_exists('ll_tools_resolve_language_code_from_label')
+            ? (string) ll_tools_resolve_language_code_from_label((string) $source_raw, 'upper')
+            : '';
+        $target_code = function_exists('ll_tools_resolve_language_code_from_label')
+            ? (string) ll_tools_resolve_language_code_from_label((string) $target_raw, 'upper')
+            : '';
+        $src = ($source_code === 'AUTO')
+            ? 'auto'
+            : (($source_code !== '') ? $source_code : (((string) $source_raw !== '') ? (string) $source_raw : 'auto'));
+        $tgt = ($target_code !== '') ? $target_code : (string) $target_raw;
+        $reverse_dict = ($title_role === 'translation');
 
-        if ($has_deepl && function_exists('translate_with_deepl')) {
+        if ($has_deepl && $tgt !== '' && function_exists('translate_with_deepl')) {
             // DeepL first; if it returns null (or error), fall through to dictionary
             $try = translate_with_deepl($title, $tgt, $src);
             if ($try !== null) $suggestion = $try;
@@ -535,6 +651,13 @@ function ll_ajax_bulk_translations_fetch() {
 
 /** Dictionary fallback (uses DIB DB if present) */
 function ll_dictionary_lookup_best($word, $source_lang, $target_lang, $reverse = false) {
+    if (function_exists('ll_tools_dictionary_lookup_best')) {
+        $entry_match = ll_tools_dictionary_lookup_best($word, $source_lang, $target_lang, $reverse);
+        if ($entry_match !== null && trim((string) $entry_match) !== '') {
+            return trim((string) $entry_match);
+        }
+    }
+
     global $wpdb;
     $table = $wpdb->prefix . 'dictionary_entries';
 
@@ -758,28 +881,40 @@ function ll_dictionary_lookup_best($word, $source_lang, $target_lang, $reverse =
 /** AJAX: save selected translations */
 add_action('wp_ajax_ll_bulk_translations_save', 'll_ajax_bulk_translations_save');
 function ll_ajax_bulk_translations_save() {
-    if (!current_user_can('view_ll_tools')) wp_send_json_error(['message' => 'forbidden'], 403);
+    if (!current_user_can('view_ll_tools')) {
+        wp_send_json_error(['message' => __('You do not have permission.', 'll-tools-text-domain')], 403);
+    }
     check_ajax_referer('ll-bulk-translations', 'nonce');
 
-    $rows  = isset($_POST['rows']) && is_array($_POST['rows']) ? $_POST['rows'] : [];
+    $rows  = isset($_POST['rows']) && is_array($_POST['rows']) ? (array) wp_unslash($_POST['rows']) : [];
     $saved = 0;
+    $skipped = 0;
 
     foreach ($rows as $row) {
         $id  = intval($row['id'] ?? 0);
-        $txt = isset($row['translation']) ? wp_kses_post($row['translation']) : '';
-        if ($id && $txt !== '') {
-            update_post_meta($id, 'word_translation', $txt);
-            $saved++;
+        $txt = isset($row['translation']) ? wp_kses_post((string) $row['translation']) : '';
+        if ($id <= 0 || $txt === '') {
+            continue;
         }
+
+        if (!in_array(get_post_type($id), ['words', 'word_images'], true) || !current_user_can('edit_post', $id)) {
+            $skipped++;
+            continue;
+        }
+
+        update_post_meta($id, 'word_translation', $txt);
+        $saved++;
     }
 
-    wp_send_json_success(['saved' => $saved]);
+    wp_send_json_success(['saved' => $saved, 'skipped' => $skipped]);
 }
 
 /** Admin-post: migrate legacy meta */
 add_action('admin_post_ll_bulk_translations_migrate', 'll_handle_bulk_translations_migrate');
 function ll_handle_bulk_translations_migrate() {
-    if (!current_user_can('view_ll_tools')) wp_die('Forbidden', 403);
+    if (!current_user_can('view_ll_tools')) {
+        wp_die(__('You do not have permission.', 'll-tools-text-domain'), 403);
+    }
     check_admin_referer('ll-bulk-translations');
 
     $ids = get_posts([
@@ -800,6 +935,9 @@ function ll_handle_bulk_translations_migrate() {
 
     $migrated = 0;
     foreach ($ids as $id) {
+        if (!current_user_can('edit_post', (int) $id)) {
+            continue;
+        }
         $val = get_post_meta($id, 'word_english_meaning', true);
         if ($val !== '') {
             update_post_meta($id, 'word_translation', $val);

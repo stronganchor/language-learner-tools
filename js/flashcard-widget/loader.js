@@ -4,6 +4,7 @@
  * Handles loading of resources (audio, images) for flashcards.
  */
 (function ($) {
+    const Util = (window.LLFlashcards = window.LLFlashcards || {}).Util || {};
     /**
      * FlashcardLoader Module
      * 
@@ -26,6 +27,36 @@
         const AUDIO_LOAD_MAX_RETRIES = 1;
         const IMAGE_LOAD_TIMEOUT_MS = 3500;
         const IMAGE_LOAD_MAX_RETRIES = 1;
+
+        function normalizeCategoryLookupKey(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function findCategoryConfigFallback(name) {
+            const target = normalizeCategoryLookupKey(name);
+            const categories = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
+                ? window.llToolsFlashcardsData.categories
+                : [];
+            if (!target) {
+                return null;
+            }
+
+            for (let idx = 0; idx < categories.length; idx += 1) {
+                const category = categories[idx];
+                if (!category || typeof category !== 'object') {
+                    continue;
+                }
+
+                const categoryName = normalizeCategoryLookupKey(category.name);
+                const categorySlug = normalizeCategoryLookupKey(category.slug);
+                if ((categorySlug && categorySlug === target) || (categoryName && categoryName === target)) {
+                    return category;
+                }
+            }
+
+            return null;
+        }
+
         function getAllowedWordsetIds() {
             const ids = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.wordsetIds))
                 ? window.llToolsFlashcardsData.wordsetIds
@@ -49,22 +80,56 @@
             return count > 0 ? lookup : null;
         }
 
+        function getRuntimeMode() {
+            const data = window.llToolsFlashcardsData || {};
+            return String(data.runtimeMode || data.runtime_mode || 'wp').trim().toLowerCase();
+        }
+
+        function getOfflineCategoryData() {
+            const data = window.llToolsFlashcardsData || {};
+            if (data.offlineCategoryData && typeof data.offlineCategoryData === 'object') {
+                return data.offlineCategoryData;
+            }
+            if (window.llToolsOfflineData && window.llToolsOfflineData.categoryData && typeof window.llToolsOfflineData.categoryData === 'object') {
+                return window.llToolsOfflineData.categoryData;
+            }
+            return {};
+        }
+
+        function decorateOfflineWords(words) {
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (!tracker || typeof tracker.decorateWordsForLocalProgress !== 'function') {
+                return Array.isArray(words) ? words : [];
+            }
+            return tracker.decorateWordsForLocalProgress(Array.isArray(words) ? words : []);
+        }
+
+        function hydrateProgressWords(words) {
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (!tracker || typeof tracker.hydrateWords !== 'function') {
+                return Array.isArray(words) ? words : [];
+            }
+            return tracker.hydrateWords(Array.isArray(words) ? words : []);
+        }
+
         function getCategoryConfig(name) {
-            const cats = (window.llToolsFlashcardsData && Array.isArray(window.llToolsFlashcardsData.categories))
-                ? window.llToolsFlashcardsData.categories
-                : [];
-            const found = cats.find(c => c && c.name === name);
+            const found = (Util && typeof Util.getCategoryConfig === 'function')
+                ? (Util.getCategoryConfig(name) || findCategoryConfigFallback(name))
+                : findCategoryConfigFallback(name);
             return Object.assign({}, defaultConfig, found || {});
         }
 
         function categoryRequiresAudio(config) {
             const opt = config.option_type || config.mode;
-            return (config.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
+            return (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(config.prompt_type) : (config.prompt_type === 'audio'))
+                || opt === 'audio'
+                || opt === 'text_audio';
         }
 
         function categoryRequiresImage(config, displayMode) {
             const opt = displayMode || config.option_type || config.mode;
-            return (config.prompt_type === 'image') || opt === 'image';
+            return (Util.promptTypeHasImage ? Util.promptTypeHasImage(config.prompt_type) : (config.prompt_type === 'image'))
+                || (Util.optionTypeHasImage ? Util.optionTypeHasImage(opt) : (opt === 'image'));
         }
 
         function getWordsetKey() {
@@ -117,7 +182,14 @@
             if (!Array.isArray(inputArray)) {
                 return inputArray;
             }
-            return [...inputArray].sort(() => 0.5 - Math.random());
+            const items = inputArray.slice();
+            for (let idx = items.length - 1; idx > 0; idx -= 1) {
+                const swapIndex = Math.floor(Math.random() * (idx + 1));
+                const current = items[idx];
+                items[idx] = items[swapIndex];
+                items[swapIndex] = current;
+            }
+            return items;
         }
 
         function getRetryCount(raw, fallback) {
@@ -160,6 +232,39 @@
                 categoryMediaChunkDelayMs: getClampedInt(tuning.categoryMediaChunkDelayMs, 100, 0, 10000),
                 categoryMediaChunkConcurrency: getClampedInt(tuning.categoryMediaChunkConcurrency, 2, 1, 8)
             };
+        }
+
+        function shouldReduceBackgroundPreloading() {
+            const nav = (typeof navigator !== 'undefined' && navigator) ? navigator : null;
+            const connection = nav && nav.connection && typeof nav.connection === 'object'
+                ? nav.connection
+                : null;
+            const effectiveType = connection && typeof connection.effectiveType === 'string'
+                ? connection.effectiveType.toLowerCase()
+                : '';
+            const saveData = !!(connection && connection.saveData);
+            const deviceMemory = nav && typeof nav.deviceMemory === 'number'
+                ? nav.deviceMemory
+                : 0;
+
+            if (saveData) {
+                return true;
+            }
+
+            if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
+                return true;
+            }
+
+            return deviceMemory > 0 && deviceMemory <= 2;
+        }
+
+        function getNextCategoryPreloadCount(requestedCount) {
+            const parsed = parseInt(requestedCount, 10);
+            const configured = Number.isFinite(parsed) ? parsed : 1;
+            if (shouldReduceBackgroundPreloading()) {
+                return 0;
+            }
+            return Math.max(0, configured);
         }
 
         function wait(ms) {
@@ -297,7 +402,7 @@
                 };
 
                 audio.crossOrigin = 'anonymous';
-                audio.preload = 'auto';
+                audio.preload = shouldReduceBackgroundPreloading() ? 'metadata' : 'auto';
 
                 audio.addEventListener('canplaythrough', onPlayable, { once: true });
                 audio.addEventListener('canplay', onPlayable, { once: true });
@@ -623,6 +728,12 @@
                 }
                 return true;
             }) : [];
+            hydrateProgressWords(filteredByCategory);
+
+            const tracker = window.LLFlashcards && window.LLFlashcards.ProgressTracker;
+            if (tracker && typeof tracker.applyLocalProgressToWords === 'function') {
+                tracker.applyLocalProgressToWords(filteredByCategory);
+            }
 
             const filteredBySession = sessionWordLookup
                 ? filteredByCategory.filter(function (w) {
@@ -630,6 +741,9 @@
                     return !!wordId && !!sessionWordLookup[wordId];
                 })
                 : filteredByCategory.slice();
+
+            decorateOfflineWords(filteredByCategory);
+            decorateOfflineWords(filteredBySession);
 
             window.optionWordsByCategory[categoryName].push(...filteredByCategory);
             window.optionWordsByCategory[categoryName] = randomlySort(window.optionWordsByCategory[categoryName]);
@@ -656,6 +770,49 @@
                 return Promise.resolve({ cached: true, category: categoryName });
             }
 
+            if (getRuntimeMode() === 'offline') {
+                const offlineCategoryData = getOfflineCategoryData();
+                const offlineCategoryKey = categoryName;
+                const offlineFallbackKey = String((getCategoryConfig(categoryName) || {}).name || '').trim();
+                const words = Array.isArray(offlineCategoryData[offlineCategoryKey])
+                    ? offlineCategoryData[offlineCategoryKey]
+                    : (Array.isArray(offlineCategoryData[offlineFallbackKey]) ? offlineCategoryData[offlineFallbackKey] : null);
+                let callbackInvoked = false;
+                const invokeCallbackOnce = function () {
+                    if (callbackInvoked) {
+                        return;
+                    }
+                    callbackInvoked = true;
+                    if (typeof callback === 'function') {
+                        try { callback(); } catch (_) { /* no-op */ }
+                    }
+                };
+
+                if (!words) {
+                    console.error('Offline flashcard data missing category:', categoryName);
+                    invokeCallbackOnce();
+                    return Promise.resolve({ success: false, category: categoryName, offline: true, missing: true });
+                }
+
+                processFetchedWordData(words, categoryName);
+                if (!loadedCategories.includes(cacheKey)) {
+                    loadedCategories.push(cacheKey);
+                }
+
+                if (earlyCallback) {
+                    invokeCallbackOnce();
+                    if (!skipCategoryPreload) {
+                        preloadCategoryResources(categoryName);
+                    }
+                } else if (!skipCategoryPreload) {
+                    preloadCategoryResources(categoryName, invokeCallbackOnce);
+                } else {
+                    invokeCallbackOnce();
+                }
+
+                return Promise.resolve({ success: true, category: categoryName, offline: true });
+            }
+
             const displayMode = window.getCategoryDisplayMode(categoryName);
             const cfg = getCategoryConfig(categoryName);
             const wordset = window.llToolsFlashcardsData?.wordset || '';
@@ -664,7 +821,8 @@
 
             const payload = {
                 action: 'll_get_words_by_category',
-                category: categoryName,
+                category: String(cfg.name || categoryName || '').trim(),
+                category_slug: String(cfg.slug || '').trim(),
                 display_mode: displayMode,
                 wordset: wordset,  // This ensures wordset is always passed
                 wordset_fallback: wsFallback ? '1' : '0',
@@ -941,7 +1099,11 @@
          *
          * @param {number} numberToPreload - Number of categories to preload.
          */
-        function preloadNextCategories(numberToPreload = 3) {
+        function preloadNextCategories(numberToPreload = 1) {
+            numberToPreload = getNextCategoryPreloadCount(numberToPreload);
+            if (numberToPreload <= 0) {
+                return;
+            }
             window.categoryNames.forEach(function (categoryName) {
                 const cacheKey = ensureWordsetCacheKey() + '::' + categoryName;
                 if (!loadedCategories.includes(cacheKey) && numberToPreload > 0) {
@@ -949,6 +1111,28 @@
                     numberToPreload--;
                 }
             });
+        }
+
+        function isCategoryLoaded(categoryName) {
+            const name = String(categoryName || '').trim();
+            if (!name) {
+                return false;
+            }
+            const rows = window.wordsByCategory && window.wordsByCategory[name];
+            if (Array.isArray(rows) && rows.length > 0) {
+                return true;
+            }
+            const cacheKey = ensureWordsetCacheKey() + '::' + name;
+            return loadedCategories.includes(cacheKey) || loadedCategories.includes(name);
+        }
+
+        function isCategoryLoading(categoryName) {
+            const name = String(categoryName || '').trim();
+            if (!name) {
+                return false;
+            }
+            const cacheKey = ensureWordsetCacheKey() + '::' + name;
+            return !!inFlightRequests[cacheKey];
         }
 
         /**
@@ -1097,6 +1281,8 @@
             loadResourcesForCategory,
             preloadCategoryResources,
             preloadNextCategories,
+            isCategoryLoaded,
+            isCategoryLoading,
             loadResourcesForWord,
             processFetchedWordData,
             randomlySort,

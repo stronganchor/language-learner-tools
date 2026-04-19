@@ -54,6 +54,52 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
         $this->assertFalse(wp_script_is($handle, 'enqueued'));
     }
 
+    public function test_quiz_pages_script_localizes_close_confirmation_label(): void
+    {
+        $this->go_to('/');
+
+        ll_qp_enqueue_assets();
+
+        $this->assertTrue(wp_script_is('ll-quiz-pages-js', 'enqueued'));
+
+        $localized = wp_scripts()->get_data('ll-quiz-pages-js', 'data');
+        $this->assertIsString($localized);
+        $this->assertStringContainsString('llQuizPages', $localized);
+        $this->assertStringContainsString('closeConfirm', $localized);
+    }
+
+    public function test_quiz_pages_script_localizes_turkish_close_label(): void
+    {
+        $messages = require LL_TOOLS_BASE_PATH . 'languages/ll-tools-text-domain-tr_TR.l10n.php';
+        $this->assertIsArray($messages);
+        $this->assertArrayHasKey('messages', $messages);
+        $this->assertSame('Kapat', $messages['messages']['Close'] ?? null);
+    }
+
+    public function test_public_asset_bundle_enqueues_login_window_styles(): void
+    {
+        ll_tools_enqueue_public_assets();
+
+        $this->assertTrue(wp_style_is('ll-tools-login-window', 'registered'));
+        $this->assertTrue(wp_style_is('ll-tools-login-window', 'enqueued'));
+        $this->assertTrue(wp_script_is('ll-tools-login-window-js', 'registered'));
+        $this->assertTrue(wp_script_is('ll-tools-login-window-js', 'enqueued'));
+
+        $registered = wp_styles()->registered['ll-tools-login-window'] ?? null;
+        $this->assertNotNull($registered);
+        $this->assertSame(
+            (string) filemtime(LL_TOOLS_BASE_PATH . 'css/login-window.css'),
+            (string) $registered->ver
+        );
+
+        $registered_script = wp_scripts()->registered['ll-tools-login-window-js'] ?? null;
+        $this->assertNotNull($registered_script);
+        $this->assertSame(
+            (string) filemtime(LL_TOOLS_BASE_PATH . 'js/login-window.js'),
+            (string) $registered_script->ver
+        );
+    }
+
     public function test_request_needs_public_assets_false_for_plain_singular_page(): void
     {
         $page_id = self::factory()->post->create([
@@ -75,6 +121,20 @@ final class AssetEnqueueTest extends LL_Tools_TestCase
             'post_status' => 'publish',
             'post_title' => 'Flashcard Page',
             'post_content' => '[flashcard_widget]',
+        ]);
+
+        $this->go_to(get_permalink($page_id));
+
+        $this->assertTrue(ll_tools_request_needs_public_assets());
+    }
+
+    public function test_request_needs_public_assets_true_for_language_switcher_shortcode_page(): void
+    {
+        $page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Language Switcher Page',
+            'post_content' => '[ll_language_switcher]',
         ]);
 
         $this->go_to(get_permalink($page_id));

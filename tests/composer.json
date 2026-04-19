@@ -3,13 +3,13 @@
   "description": "Test tooling for the Language Learner Tools plugin.",
   "type": "project",
   "require-dev": {
-    "phpunit/phpunit": "^9.6",
-    "yoast/phpunit-polyfills": "^3.0"
+    "phpunit/phpunit": "^12.5.23",
+    "yoast/phpunit-polyfills": "^4.0"
   },
   "config": {
     "sort-packages": true
   },
   "scripts": {
-    "test": "phpunit -c phpunit.xml.dist"
+    "test": "bin/run-tests.sh"
   }
 }

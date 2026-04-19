@@ -117,6 +117,17 @@ final class ExternalApiWrappersTest extends LL_Tools_TestCase
         $this->assertSame($first, $cached);
     }
 
+    public function test_get_deepl_language_names_strips_parentheses_without_breaking_return_shape(): void
+    {
+        set_transient('deepl_language_json_target', [
+            ['language' => 'EN-US', 'name' => 'English (American)'],
+            ['language' => 'EN-GB', 'name' => 'English (British)'],
+            ['language' => 'TR', 'name' => 'Turkish'],
+        ], HOUR_IN_SECONDS);
+
+        $this->assertSame(['English', 'Turkish'], get_deepl_language_names(true));
+    }
+
     public function test_assemblyai_start_transcription_uploads_audio_and_requests_transcript(): void
     {
         update_option('ll_assemblyai_api_key', 'assembly-test-key');

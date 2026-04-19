@@ -11,3 +11,5 @@ Codebase-specific guidelines:
 - The audio recording shortcode is `[audio_recording_interface]` (the old `[audio_recording]` is not registered).
 - Publishing a `words` post may be blocked without published `word_audio` based on category config; follow `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Template overrides must respect the loader order in `includes/template-loader.php`.
+- After completing a code change, commit it without waiting for a separate prompt; use a clear, scoped commit message that describes the change.
+- If the change updates the plugin version, start the commit subject with the new version number (example: `6.0.1 - Fixing such and such...`).

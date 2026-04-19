@@ -146,7 +146,8 @@
             : null;
         const promptType = cfg ? cfg.prompt_type : null;
         const optionType = cfg ? (cfg.option_type || cfg.mode) : mode;
-        const isImagePromptAudio = (promptType === 'image') && (optionType === 'audio' || optionType === 'text_audio');
+        const isImagePromptAudio = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image'))
+            && (optionType === 'audio' || optionType === 'text_audio');
         if (isImagePromptAudio) {
             maxCount = Math.min(maxCount, 4);
         }
@@ -923,7 +924,7 @@
         const cfg = (Selection && typeof Selection.getCategoryConfig === 'function')
             ? Selection.getCategoryConfig(State.currentCategoryName)
             : {};
-        const introMode = (cfg && cfg.prompt_type === 'image' && (mode === 'audio' || mode === 'text_audio'))
+        const introMode = (cfg && (Util.promptTypeHasImage ? Util.promptTypeHasImage(cfg.prompt_type) : (cfg.prompt_type === 'image')) && (mode === 'audio' || mode === 'text_audio'))
             ? 'image'
             : mode;
 
@@ -958,9 +959,18 @@
 
             if ($jq) {
                 const $introCards = $jq('.flashcard-container');
-                $introCards.addClass('introducing');
-                $introCards.fadeIn(600);
-                bindIntroductionTapConfetti($jq);
+                const showIntroCards = function () {
+                    $introCards.hide().css('visibility', 'visible');
+                    $introCards.addClass('introducing');
+                    $introCards.fadeIn(600);
+                    bindIntroductionTapConfetti($jq);
+                };
+                $introCards.css({ display: '', visibility: 'hidden' });
+                if (Cards && typeof Cards.prepareTextAnswerOptionCardsForReveal === 'function') {
+                    Cards.prepareTextAnswerOptionCardsForReveal().then(showIntroCards);
+                } else {
+                    showIntroCards();
+                }
             }
 
             const timeoutId = scheduleTimeout(context, function () {
@@ -1189,10 +1199,101 @@
         return true;
     }
 
+    function normalizeRecordingType(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function selectPromptAudioEntry(word, preferredTypes) {
+        if (!word || typeof word !== 'object') {
+            return null;
+        }
+
+        const files = Array.isArray(word.audio_files) ? word.audio_files : [];
+        const orderedTypes = [];
+        const seenTypes = {};
+        preferredTypes.forEach(function (type) {
+            const key = normalizeRecordingType(type);
+            if (!key || seenTypes[key]) {
+                return;
+            }
+            seenTypes[key] = true;
+            orderedTypes.push(key);
+        });
+
+        const preferredSpeaker = parseInt(word.preferred_speaker_user_id, 10) || 0;
+        const hasUrl = function (entry) {
+            return !!(entry && typeof entry.url === 'string' && entry.url.trim() !== '');
+        };
+
+        for (let i = 0; i < orderedTypes.length; i += 1) {
+            const type = orderedTypes[i];
+
+            if (preferredSpeaker > 0) {
+                const sameSpeaker = files.find(function (entry) {
+                    return hasUrl(entry)
+                        && normalizeRecordingType(entry.recording_type) === type
+                        && (parseInt(entry.speaker_user_id, 10) || 0) === preferredSpeaker;
+                });
+                if (sameSpeaker) {
+                    return {
+                        type: type,
+                        url: String(sameSpeaker.url).trim()
+                    };
+                }
+            }
+
+            const anySpeaker = files.find(function (entry) {
+                return hasUrl(entry) && normalizeRecordingType(entry.recording_type) === type;
+            });
+            if (anySpeaker) {
+                return {
+                    type: type,
+                    url: String(anySpeaker.url).trim()
+                };
+            }
+        }
+
+        const fallback = files.find(hasUrl);
+        if (fallback) {
+            return {
+                type: normalizeRecordingType(fallback.recording_type) || (orderedTypes[0] || ''),
+                url: String(fallback.url).trim()
+            };
+        }
+
+        const directAudio = typeof word.audio === 'string' ? word.audio.trim() : '';
+        if (!directAudio) {
+            return null;
+        }
+
+        return {
+            type: orderedTypes[0] || '',
+            url: directAudio
+        };
+    }
+
     function configureTargetAudio(target) {
         if (State.isIntroducingWord || !target) return;
-        const questionAudio = FlashcardAudio.selectBestAudio(target, ['question', 'isolation', 'introduction']);
-        if (questionAudio) target.audio = questionAudio;
+        const promptType = State.currentPromptType || 'audio';
+        if (!(Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))) {
+            delete target.__promptRecordingType;
+            return;
+        }
+
+        const questionAudio = selectPromptAudioEntry(target, ['question', 'isolation', 'introduction']);
+        if (questionAudio && questionAudio.url) {
+            target.audio = questionAudio.url;
+        }
+
+        if (questionAudio && questionAudio.type) {
+            target.__promptRecordingType = questionAudio.type;
+        } else {
+            delete target.__promptRecordingType;
+        }
     }
 
     // Public API

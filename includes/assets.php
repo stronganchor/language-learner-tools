@@ -1,6 +1,10 @@
 <?php
 if (!defined('WPINC')) { die; }
 
+function ll_tools_get_locked_viewport_content(): string {
+    return 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover';
+}
+
 function ll_enqueue_asset_by_timestamp($relative_path, $handle, $deps = [], $in_footer = false) {
     static $version_cache = [];
 
@@ -16,6 +20,37 @@ function ll_enqueue_asset_by_timestamp($relative_path, $handle, $deps = [], $in_
     if ($ext === 'css') wp_enqueue_style($handle, $url, $deps, $ver);
 }
 
+function ll_tools_get_custom_font_stylesheet_url(): string {
+    $url = trim((string) get_option('ll_quiz_font_url', ''));
+    if ($url === '') {
+        return '';
+    }
+    $url = esc_url_raw($url);
+    if ($url === '') {
+        return '';
+    }
+    $scheme = wp_parse_url($url, PHP_URL_SCHEME);
+    if (!in_array(strtolower((string) $scheme), ['http', 'https'], true)) {
+        return '';
+    }
+    return $url;
+}
+
+function ll_tools_enqueue_custom_font_stylesheet(): void {
+    static $enqueued = false;
+    if ($enqueued) {
+        return;
+    }
+
+    $font_url = ll_tools_get_custom_font_stylesheet_url();
+    if ($font_url === '') {
+        return;
+    }
+
+    $enqueued = true;
+    wp_enqueue_style('ll-tools-custom-font-stylesheet', $font_url, [], null);
+}
+
 /**
  * Shared front-end base styles used across LL Tools pages/shortcodes.
  *
@@ -29,8 +64,13 @@ function ll_tools_enqueue_public_assets() {
     }
     $enqueued = true;
 
+    ll_tools_enqueue_custom_font_stylesheet();
+    ll_enqueue_asset_by_timestamp('/js/public-viewport-guard.js', 'll-tools-public-viewport-guard');
     ll_enqueue_asset_by_timestamp('/css/ipa-fonts.css', 'll-ipa-fonts');
     ll_enqueue_asset_by_timestamp('/css/language-learner-tools.css', 'll-tools-style', ['ll-ipa-fonts']);
+    if (function_exists('ll_tools_enqueue_login_window_assets')) {
+        ll_tools_enqueue_login_window_assets();
+    }
 }
 
 /**
@@ -45,6 +85,76 @@ function ll_tools_mark_public_assets_needed(): void {
 
 function ll_tools_public_assets_marked(): bool {
     return !empty($GLOBALS['ll_tools_public_assets_needed']);
+}
+
+function ll_tools_get_public_assets_shortcode_tags(): array {
+    $shortcodes = apply_filters('ll_tools_public_assets_shortcode_tags', [
+        'flashcard_widget',
+        'quiz_pages_grid',
+        'quiz_pages_dropdown',
+        'word_grid',
+        'word_audio',
+        'wordset_page',
+        'll_wordset_page',
+        'audio_recording_interface',
+        'editor_hub',
+        'image_copyright_grid',
+        'll_dictionary',
+        'dictionary_search',
+        'dictionary_browser',
+        'audio_upload_form',
+        'image_upload_form',
+        'll_language_switcher',
+    ]);
+
+    return array_values(array_unique(array_filter(array_map('strval', (array) $shortcodes))));
+}
+
+function ll_tools_get_public_assets_shortcode_meta_key(): string {
+    static $meta_key = null;
+    if ($meta_key !== null) {
+        return $meta_key;
+    }
+
+    $tags = ll_tools_get_public_assets_shortcode_tags();
+    $meta_key = '_ll_tools_public_assets_shortcodes_' . substr(md5(implode('|', $tags)), 0, 12);
+    return $meta_key;
+}
+
+function ll_tools_post_has_public_assets_shortcode_meta($post): ?bool {
+    if (!($post instanceof WP_Post)) {
+        return null;
+    }
+
+    $post_id = (int) $post->ID;
+    if ($post_id <= 0) {
+        return null;
+    }
+
+    $raw = get_post_meta($post_id, ll_tools_get_public_assets_shortcode_meta_key(), true);
+    if ($raw === '') {
+        return null;
+    }
+
+    return $raw === '1';
+}
+
+function ll_tools_content_has_public_assets_shortcodes(string $content): bool {
+    if ($content === '' || strpos($content, '[') === false) {
+        return false;
+    }
+
+    $shortcodes = ll_tools_get_public_assets_shortcode_tags();
+    foreach ($shortcodes as $tag) {
+        if ($tag === '') {
+            continue;
+        }
+        if (has_shortcode($content, $tag)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -66,38 +176,43 @@ function ll_tools_post_content_has_public_assets_shortcodes($post): bool {
         return (bool) $request_cache[$cache_key];
     }
 
-    $shortcodes = apply_filters('ll_tools_public_assets_shortcode_tags', [
-        'flashcard_widget',
-        'quiz_pages_grid',
-        'quiz_pages_dropdown',
-        'word_grid',
-        'word_audio',
-        'wordset_page',
-        'll_wordset_page',
-        'audio_recording_interface',
-        'editor_hub',
-        'user_study_dashboard',
-        'image_copyright_grid',
-        'audio_upload_form',
-        'image_upload_form',
-        'language_switcher',
-    ]);
-    $shortcodes = array_values(array_unique(array_filter(array_map('strval', (array) $shortcodes))));
-
-    $has_match = false;
-    foreach ($shortcodes as $tag) {
-        if ($tag === '') {
-            continue;
-        }
-        if (has_shortcode($content, $tag)) {
-            $has_match = true;
-            break;
-        }
+    $meta_cached = ll_tools_post_has_public_assets_shortcode_meta($post);
+    if ($meta_cached !== null) {
+        $request_cache[$cache_key] = $meta_cached;
+        return $meta_cached;
     }
+
+    $has_match = ll_tools_content_has_public_assets_shortcodes($content);
 
     $request_cache[$cache_key] = $has_match;
     return $has_match;
 }
+
+function ll_tools_update_public_assets_shortcode_meta($post_id, $post = null): void {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return;
+    }
+
+    if (wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) {
+        return;
+    }
+
+    if (!($post instanceof WP_Post)) {
+        $post = get_post($post_id);
+    }
+    if (!($post instanceof WP_Post)) {
+        return;
+    }
+
+    if ($post->post_type === 'revision' || $post->post_status === 'auto-draft') {
+        return;
+    }
+
+    $has_match = ll_tools_content_has_public_assets_shortcodes((string) ($post->post_content ?? ''));
+    update_post_meta($post_id, ll_tools_get_public_assets_shortcode_meta_key(), $has_match ? '1' : '0');
+}
+add_action('save_post', 'll_tools_update_public_assets_shortcode_meta', 10, 2);
 
 /**
  * Decide whether the current front-end request needs shared LL Tools styles.
@@ -142,6 +257,10 @@ function ll_tools_request_needs_public_assets(): bool {
         return true;
     }
 
+    if (is_singular('ll_content_lesson')) {
+        return true;
+    }
+
     if (is_singular()) {
         $post = get_post();
         if ($post instanceof WP_Post && ll_tools_post_content_has_public_assets_shortcodes($post)) {
@@ -177,6 +296,30 @@ function ll_tools_maybe_enqueue_public_assets() {
     ll_tools_enqueue_public_assets();
 }
 add_action('wp_enqueue_scripts', 'll_tools_maybe_enqueue_public_assets', 100);
+
+function ll_tools_maybe_enqueue_admin_custom_font_stylesheet($hook = ''): void {
+    if (!is_admin()) {
+        return;
+    }
+
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    $screen_base = $screen && !empty($screen->base) ? (string) $screen->base : '';
+    $screen_taxonomy = $screen && !empty($screen->taxonomy) ? (string) $screen->taxonomy : '';
+
+    $settings_page_slug = function_exists('ll_tools_get_admin_settings_page_slug')
+        ? (string) ll_tools_get_admin_settings_page_slug()
+        : (defined('LL_TOOLS_SETTINGS_SLUG') ? (string) LL_TOOLS_SETTINGS_SLUG : 'language-learning-tools-settings');
+
+    $is_ll_settings_page = ($hook === ('settings_page_' . $settings_page_slug));
+    $is_wordset_taxonomy_screen = ($screen_base === 'edit-tags' && $screen_taxonomy === 'wordset');
+
+    if (!$is_ll_settings_page && !$is_wordset_taxonomy_screen) {
+        return;
+    }
+
+    ll_tools_enqueue_custom_font_stylesheet();
+}
+add_action('admin_enqueue_scripts', 'll_tools_maybe_enqueue_admin_custom_font_stylesheet', 20);
 
 /**
  * Enqueue jQuery UI Autocomplete assets only for screens/features that use it.

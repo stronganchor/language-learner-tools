@@ -121,10 +121,11 @@
 .listening-text {
     min-height: 44px;
     margin: 6px 0 4px;
+    font-family: var(--ll-answer-option-font-family, inherit);
     font-size: 32px;
-    font-weight: 600;
+    font-weight: var(--ll-answer-option-font-weight, 600);
     text-align: center;
-    line-height: 1.25;
+    line-height: var(--ll-answer-option-line-height-ratio, 1.25);
     opacity: 0;
     transition: opacity 0.2s ease;
 }

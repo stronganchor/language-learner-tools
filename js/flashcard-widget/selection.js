@@ -1,9 +1,57 @@
 (function (root) {
     'use strict';
     const { Util, State } = root.LLFlashcards;
+    const OptionConflicts = root.LLToolsOptionConflicts || null;
     let genderFitResizeBound = false;
     const MINIMUM_QUIZ_OPTIONS = 2;
     const MINIMUM_OPTIONS_ERROR_CODE = 'LL_MINIMUM_OPTIONS_VIOLATION';
+
+    function normalizePromptType(promptType) {
+        return String(promptType || '').trim().toLowerCase() || 'audio';
+    }
+
+    function promptTypeHasText(promptType) {
+        if (Util && typeof Util.promptTypeHasText === 'function') {
+            return !!Util.promptTypeHasText(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'text_translation'
+            || normalized === 'text_title'
+            || normalized === 'audio_text_translation'
+            || normalized === 'audio_text_title'
+            || normalized === 'image_text_translation'
+            || normalized === 'image_text_title';
+    }
+
+    function promptTypeHasAudio(promptType) {
+        if (Util && typeof Util.promptTypeHasAudio === 'function') {
+            return !!Util.promptTypeHasAudio(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+    }
+
+    function promptTypeHasImage(promptType) {
+        if (Util && typeof Util.promptTypeHasImage === 'function') {
+            return !!Util.promptTypeHasImage(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+    }
+
+    function optionTypeHasImage(optionType) {
+        if (Util && typeof Util.optionTypeHasImage === 'function') {
+            return !!Util.optionTypeHasImage(optionType);
+        }
+        const normalized = String(optionType || '').trim().toLowerCase();
+        return normalized === 'image' || normalized === 'image_text_translation';
+    }
+
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
+    }
 
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
@@ -21,6 +69,35 @@
         return !!raw;
     }
 
+    function normalizeCategoryLookupKey(value) {
+        return String(value || '').trim().toLowerCase();
+    }
+
+    function findCategoryConfigFallback(name) {
+        const target = normalizeCategoryLookupKey(name);
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        if (!target) {
+            return null;
+        }
+
+        for (let idx = 0; idx < categories.length; idx += 1) {
+            const category = categories[idx];
+            if (!category || typeof category !== 'object') {
+                continue;
+            }
+
+            const categoryName = normalizeCategoryLookupKey(category.name);
+            const categorySlug = normalizeCategoryLookupKey(category.slug);
+            if ((categorySlug && categorySlug === target) || (categoryName && categoryName === target)) {
+                return category;
+            }
+        }
+
+        return null;
+    }
+
     function getRawCategoryConfig(name) {
         const base = {
             prompt_type: 'audio',
@@ -28,10 +105,9 @@
             learning_supported: true,
         };
         if (!name) return base;
-        const cats = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
-            ? root.llToolsFlashcardsData.categories
-            : [];
-        const found = cats.find(c => c && c.name === name);
+        const found = (Util && typeof Util.getCategoryConfig === 'function')
+            ? (Util.getCategoryConfig(name) || findCategoryConfigFallback(name))
+            : findCategoryConfigFallback(name);
         return Object.assign({}, base, found || {});
     }
 
@@ -337,23 +413,150 @@
         const labelHtml = showTextLabel
             ? '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
             : '';
-        const srText = '<span class="screen-reader-text">' + escapeHtml(displayLabel) + '</span>';
-
         const $label = $card.find('.quiz-text').first();
         if ($label.length) {
-            $label.html('<span class="ll-gender-option-inner">' + symbolHtml + labelHtml + srText + '</span>');
+            $label.html('<span class="ll-gender-option-inner">' + symbolHtml + labelHtml + '</span>');
         }
     }
 
-    function cardGenderLabelOverflows(cardEl) {
-        if (!cardEl || typeof cardEl.querySelector !== 'function') return false;
+    function applyGenderUnknownOptionCard($card, label) {
+        if (!$card || !$card.length) return;
+        const displayLabel = String(label || '').trim();
+        const $label = $card.find('.quiz-text').first();
+        if (!$label.length) return;
+        $label.html(
+            '<span class="ll-gender-option-inner ll-gender-option-inner--unknown">'
+            + '<span class="ll-gender-option-label" aria-hidden="true">' + escapeHtml(displayLabel) + '</span>'
+            + '</span>'
+        );
+    }
+
+    function resetGenderOptionTextSizing($card) {
+        if (!$card || !$card.length) return;
+        $card.each(function () {
+            const $label = root.jQuery(this).find('.quiz-text').first();
+            if (!$label.length || !$label[0] || !$label[0].style) return;
+            try { $label[0].style.removeProperty('font-size'); } catch (_) { /* no-op */ }
+            try { $label[0].style.removeProperty('line-height'); } catch (_) { /* no-op */ }
+            try { $label[0].style.removeProperty('white-space'); } catch (_) { /* no-op */ }
+            try { $label[0].style.removeProperty('--ll-answer-option-line-height-ratio'); } catch (_) { /* no-op */ }
+        });
+    }
+
+    function normalizeGenderSvgViewport(svgEl) {
+        if (!svgEl) return { x: 0, y: 0, width: 24, height: 24 };
+        const box = svgEl.viewBox && svgEl.viewBox.baseVal
+            ? svgEl.viewBox.baseVal
+            : null;
+        if (box && box.width > 0 && box.height > 0) {
+            return {
+                x: Number(box.x) || 0,
+                y: Number(box.y) || 0,
+                width: Number(box.width) || 24,
+                height: Number(box.height) || 24
+            };
+        }
+        const width = parseFloat(svgEl.getAttribute('width')) || svgEl.clientWidth || 24;
+        const height = parseFloat(svgEl.getAttribute('height')) || svgEl.clientHeight || width || 24;
+        return { x: 0, y: 0, width: width, height: height };
+    }
+
+    function normalizeGenderSvgSymbol(svgEl) {
+        if (!svgEl || typeof svgEl.querySelectorAll !== 'function') return;
+
+        let wrapper = null;
+        const children = Array.from(svgEl.children || []);
+        if (children.length === 1 && String(children[0].getAttribute('data-ll-gender-normalize-root') || '') === '1') {
+            wrapper = children[0];
+        } else {
+            wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            wrapper.setAttribute('data-ll-gender-normalize-root', '1');
+            while (svgEl.firstChild) {
+                wrapper.appendChild(svgEl.firstChild);
+            }
+            svgEl.appendChild(wrapper);
+        }
+
+        try { wrapper.removeAttribute('transform'); } catch (_) { /* no-op */ }
+
+        let bounds = null;
+        try {
+            bounds = wrapper.getBBox();
+        } catch (_) {
+            bounds = null;
+        }
+
+        if (!bounds || !(bounds.width > 0) || !(bounds.height > 0)) {
+            return;
+        }
+
+        const viewport = normalizeGenderSvgViewport(svgEl);
+        const inset = Math.min(viewport.width, viewport.height) * 0.08;
+        const targetWidth = Math.max(1, viewport.width - (inset * 2));
+        const targetHeight = Math.max(1, viewport.height - (inset * 2));
+        const scale = Math.min(targetWidth / bounds.width, targetHeight / bounds.height);
+        if (!(scale > 0)) {
+            return;
+        }
+
+        const targetX = viewport.x + inset;
+        const targetY = viewport.y + inset;
+        const translateX = targetX + ((targetWidth - (bounds.width * scale)) / 2) - (bounds.x * scale);
+        const translateY = targetY + ((targetHeight - (bounds.height * scale)) / 2) - (bounds.y * scale);
+
+        try {
+            wrapper.setAttribute('transform', 'translate(' + translateX + ' ' + translateY + ') scale(' + scale + ')');
+            svgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        } catch (_) { /* no-op */ }
+    }
+
+    function normalizeGenderOptionSvgSymbols($cards) {
+        const $ = root.jQuery;
+        if (!$) return;
+        const $scope = ($cards && typeof $cards.find === 'function') ? $cards : $('#ll-tools-flashcard .ll-gender-option');
+        $scope.find('.ll-gender-symbol--svg svg').each(function () {
+            normalizeGenderSvgSymbol(this);
+        });
+    }
+
+    function getGenderCardMeasureElement(cardEl) {
+        if (!cardEl || typeof cardEl.querySelector !== 'function') return null;
+        return cardEl.querySelector('.ll-gender-option-inner') || cardEl.querySelector('.quiz-text');
+    }
+
+    function getGenderCardAvailableSize(cardEl) {
+        if (!cardEl || typeof cardEl.querySelector !== 'function') return 0;
         const textEl = cardEl.querySelector('.quiz-text');
-        const innerEl = cardEl.querySelector('.ll-gender-option-inner');
-        if (!textEl || !innerEl) return false;
-        const available = Math.max(0, Math.floor(textEl.clientWidth) - 2);
-        if (!available) return false;
-        const needed = Math.ceil(innerEl.scrollWidth);
-        return needed > available;
+        if (!textEl) return { width: 0, height: 0 };
+        const horizontalSafetyInset = 28;
+        const verticalSafetyInset = 8;
+        return {
+            width: Math.max(0, Math.floor(textEl.clientWidth || 0) - horizontalSafetyInset),
+            height: Math.max(0, Math.floor(textEl.clientHeight || 0) - verticalSafetyInset)
+        };
+    }
+
+    function getGenderCardFitRatio(cardEl) {
+        const measureEl = getGenderCardMeasureElement(cardEl);
+        const availableSize = getGenderCardAvailableSize(cardEl);
+        if (!measureEl || !availableSize.width || !availableSize.height) return 1;
+        const bounds = (measureEl.getBoundingClientRect && measureEl.getBoundingClientRect()) || null;
+        const measuredWidth = Math.max(
+            Math.ceil(measureEl.scrollWidth || 0),
+            Math.ceil((bounds && bounds.width) || 0)
+        );
+        const measuredHeight = Math.max(
+            Math.ceil(measureEl.scrollHeight || 0),
+            Math.ceil((bounds && bounds.height) || 0)
+        );
+        if (!measuredWidth || !measuredHeight) return 1;
+        const widthRatio = availableSize.width / measuredWidth;
+        const heightRatio = availableSize.height / measuredHeight;
+        return Math.min(1, widthRatio, heightRatio);
+    }
+
+    function cardGenderContentOverflows(cardEl) {
+        return getGenderCardFitRatio(cardEl) < 0.995;
     }
 
     function fitGenderOptionTextScale() {
@@ -361,12 +564,8 @@
         if (!$) return;
         const $allCards = $('#ll-tools-flashcard .ll-gender-option');
         if (!$allCards.length) return;
-        const $cards = $allCards.not('.ll-gender-option--unknown');
-        const $measureCards = $cards.length ? $cards : $allCards;
-
-        const MIN_SCALE = 0.56;
-        const SCALE_STEP = 0.03;
-        const MAX_PASSES = 16;
+        const MIN_SCALE = 0.24;
+        const MAX_PASSES = 6;
 
         const applyScale = function (scale) {
             const normalized = Math.max(MIN_SCALE, Math.min(1, scale));
@@ -380,41 +579,26 @@
         };
 
         let scale = applyScale(1);
+        $allCards.each(function () {
+            scale = Math.min(scale, getGenderCardFitRatio(this));
+        });
+        scale = applyScale(scale);
         for (let pass = 0; pass < MAX_PASSES; pass++) {
+            let tightestRatio = 1;
             let hasOverflow = false;
-            $measureCards.each(function () {
-                if (cardGenderLabelOverflows(this)) {
+            $allCards.each(function () {
+                tightestRatio = Math.min(tightestRatio, getGenderCardFitRatio(this));
+                if (cardGenderContentOverflows(this)) {
                     hasOverflow = true;
-                    return false;
                 }
             });
             if (!hasOverflow || scale <= MIN_SCALE) break;
-            scale = applyScale(scale - SCALE_STEP);
-        }
-    }
-
-    function syncGenderUnknownTextSize() {
-        const $ = root.jQuery;
-        if (!$) return;
-        const $unknownText = $('#ll-tools-flashcard .ll-gender-option--unknown .quiz-text').first();
-        if (!$unknownText.length) return;
-
-        let measuredFontSize = '';
-        const labelEl = $('#ll-tools-flashcard .ll-gender-option:not(.ll-gender-option--unknown) .ll-gender-option-label').get(0);
-        if (labelEl && typeof root.getComputedStyle === 'function') {
-            measuredFontSize = String(root.getComputedStyle(labelEl).fontSize || '').trim();
-        }
-        if (!measuredFontSize) {
-            const fallbackEl = $('#ll-tools-flashcard .ll-gender-option:not(.ll-gender-option--unknown) .quiz-text').get(0);
-            if (fallbackEl && typeof root.getComputedStyle === 'function') {
-                measuredFontSize = String(root.getComputedStyle(fallbackEl).fontSize || '').trim();
+            const nextScale = Math.max(MIN_SCALE, scale * Math.min(1, tightestRatio));
+            if (Math.abs(nextScale - scale) < 0.001) {
+                break;
             }
+            scale = applyScale(nextScale);
         }
-        if (!measuredFontSize) return;
-        try {
-            $unknownText[0].style.setProperty('font-size', measuredFontSize);
-            $unknownText[0].style.setProperty('line-height', '1.06');
-        } catch (_) { /* no-op */ }
     }
 
     function getGenderSafeBottomInset() {
@@ -433,7 +617,14 @@
         }
         const rect = wrap.getBoundingClientRect();
         if (!rect || rect.top >= viewportHeight || rect.bottom <= 0) return 0;
-        return Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
+
+        // Keep the bottom safety inset bounded to the floating control's own footprint.
+        // On some mobile browsers `rect.top` can transiently report near 0 during URL-bar
+        // collapse/expand, which previously produced a viewport-sized inset and clipped
+        // gender choices out of view.
+        const overlapInset = Math.max(0, Math.ceil(viewportHeight - rect.top + 8));
+        const boundedInset = Math.max(0, Math.ceil((rect.height || 0) + 24));
+        return Math.min(overlapInset, boundedInset);
     }
 
     function fitGenderLayoutToViewport() {
@@ -463,7 +654,6 @@
 
         let layoutScale = applyLayoutScale(1);
         fitGenderOptionTextScale();
-        syncGenderUnknownTextSize();
 
         for (let pass = 0; pass < MAX_PASSES; pass++) {
             const allowedHeight = Math.max(0, contentEl.clientHeight || 0);
@@ -476,7 +666,6 @@
             if (layoutScale <= MIN_LAYOUT_SCALE) break;
             layoutScale = applyLayoutScale(layoutScale - SCALE_STEP);
             fitGenderOptionTextScale();
-            syncGenderUnknownTextSize();
         }
 
         if (contentEl.classList && typeof contentEl.classList.toggle === 'function') {
@@ -509,8 +698,8 @@
         const cfg = getRawCategoryConfig(categoryName);
         const opt = cfg.option_type || cfg.mode || State.DEFAULT_DISPLAY_MODE;
         const promptType = cfg.prompt_type || 'audio';
-        const requiresAudio = (promptType === 'audio') || opt === 'audio' || opt === 'text_audio';
-        const requiresImage = (promptType === 'image') || opt === 'image';
+        const requiresAudio = promptTypeHasAudio(promptType) || opt === 'audio' || opt === 'text_audio';
+        const requiresImage = promptTypeHasImage(promptType) || optionTypeHasImage(opt);
         return { requiresAudio, requiresImage };
     }
 
@@ -684,10 +873,70 @@
         }
         return State.currentCategoryName;
     }
+
+    function getWordsetCacheKey() {
+        const data = root.llToolsFlashcardsData || {};
+        const ws = (typeof data.wordset !== 'undefined') ? data.wordset : '';
+        const fallback = (typeof data.wordsetFallback === 'undefined') ? true : !!data.wordsetFallback;
+        const sessionRaw = Array.isArray(data.sessionWordIds)
+            ? data.sessionWordIds
+            : (Array.isArray(data.session_word_ids) ? data.session_word_ids : []);
+        const sessionKey = sessionRaw
+            .map(function (id) { return parseInt(id, 10) || 0; })
+            .filter(function (id) { return id > 0; })
+            .sort(function (a, b) { return a - b; })
+            .join(',');
+        return String(ws || '') + '|' + (fallback ? '1' : '0') + '|' + (sessionKey || 'all');
+    }
+
+    function getCategoryCacheKey(categoryName) {
+        return getWordsetCacheKey() + '::' + String(categoryName || '');
+    }
+
+    function isCategoryLoaded(categoryName) {
+        const name = String(categoryName || '').trim();
+        if (!name) {
+            return false;
+        }
+        const loader = root.FlashcardLoader;
+        if (loader && typeof loader.isCategoryLoaded === 'function') {
+            return !!loader.isCategoryLoaded(name);
+        }
+        const rows = State.wordsByCategory && State.wordsByCategory[name];
+        if (Array.isArray(rows) && rows.length > 0) {
+            return true;
+        }
+        const loaded = loader && Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
+        const cacheKey = getCategoryCacheKey(name);
+        return loaded.indexOf(cacheKey) !== -1 || loaded.indexOf(name) !== -1;
+    }
+
+    function queuePendingCategoryLoad(categoryName) {
+        const name = String(categoryName || '').trim();
+        if (!name) {
+            return false;
+        }
+
+        const practiceMode = root.LLFlashcards &&
+            root.LLFlashcards.Modes &&
+            root.LLFlashcards.Modes.Practice;
+        if (practiceMode && typeof practiceMode.queueCategoryLoad === 'function') {
+            practiceMode.queueCategoryLoad(name);
+            return true;
+        }
+
+        const loader = root.FlashcardLoader;
+        if (loader && typeof loader.loadResourcesForCategory === 'function') {
+            loader.loadResourcesForCategory(name, null, { earlyCallback: true });
+            return true;
+        }
+
+        return false;
+    }
     function categoryRequiresAudio(nameOrConfig) {
         const cfg = typeof nameOrConfig === 'object' ? (nameOrConfig || {}) : getCategoryConfig(nameOrConfig);
         const opt = cfg.option_type || cfg.mode;
-        return (cfg.prompt_type === 'audio') || opt === 'audio' || opt === 'text_audio';
+        return promptTypeHasAudio(cfg.prompt_type) || opt === 'audio' || opt === 'text_audio';
     }
 
     function normalizeTextForComparison(text) {
@@ -699,10 +948,182 @@
         return lowered.replace(/\u0307/g, '');
     }
 
-    function getNormalizedOptionText(word) {
+    function normalizeRecordingTypeKey(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function getNormalizedWordTitle(word) {
         if (!word || typeof word !== 'object') return '';
-        const val = (typeof word.label === 'string' && word.label !== '') ? word.label : word.title;
-        return normalizeTextForComparison(val);
+        return normalizeTextForComparison(word.title);
+    }
+
+    function getNormalizedWordTranslation(word) {
+        if (!word || typeof word !== 'object') return '';
+        return normalizeTextForComparison(word.translation);
+    }
+
+    function getNormalizedRecordingTextForType(word, recordingType) {
+        const typeKey = normalizeRecordingTypeKey(recordingType);
+        if (!word || typeof word !== 'object' || !typeKey) {
+            return '';
+        }
+
+        const textMap = (word.recording_texts_by_type && typeof word.recording_texts_by_type === 'object')
+            ? word.recording_texts_by_type
+            : null;
+        if (textMap) {
+            const mapKeys = Object.keys(textMap);
+            for (let i = 0; i < mapKeys.length; i += 1) {
+                if (normalizeRecordingTypeKey(mapKeys[i]) !== typeKey) {
+                    continue;
+                }
+                return normalizeTextForComparison(textMap[mapKeys[i]]);
+            }
+        }
+
+        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
+        for (let i = 0; i < audioFiles.length; i += 1) {
+            const entry = audioFiles[i] || {};
+            if (normalizeRecordingTypeKey(entry.recording_type) !== typeKey) {
+                continue;
+            }
+            const key = normalizeTextForComparison(entry.recording_text || '');
+            if (key !== '') {
+                return key;
+            }
+        }
+
+        return '';
+    }
+
+    function getRecordingTranslationForType(word, recordingType) {
+        const typeKey = normalizeRecordingTypeKey(recordingType);
+        if (!word || typeof word !== 'object' || !typeKey) {
+            return '';
+        }
+
+        if (Util && typeof Util.getRecordingTranslationForType === 'function') {
+            return String(Util.getRecordingTranslationForType(word, typeKey) || '').trim();
+        }
+
+        const translationMap = (word.recording_translations_by_type && typeof word.recording_translations_by_type === 'object')
+            ? word.recording_translations_by_type
+            : null;
+        if (translationMap) {
+            const mapKeys = Object.keys(translationMap);
+            for (let i = 0; i < mapKeys.length; i += 1) {
+                if (normalizeRecordingTypeKey(mapKeys[i]) !== typeKey) {
+                    continue;
+                }
+                const mappedValue = String(translationMap[mapKeys[i]] || '').trim();
+                if (mappedValue) {
+                    return mappedValue;
+                }
+            }
+        }
+
+        const audioFiles = Array.isArray(word.audio_files) ? word.audio_files : [];
+        for (let i = 0; i < audioFiles.length; i += 1) {
+            const entry = audioFiles[i] || {};
+            if (normalizeRecordingTypeKey(entry.recording_type) !== typeKey) {
+                continue;
+            }
+            const translatedValue = String(entry.recording_translation || '').trim();
+            if (translatedValue) {
+                return translatedValue;
+            }
+        }
+
+        return '';
+    }
+
+    function getOptionLabelText(word, optionType, promptType, promptRecordingType) {
+        if (!word || typeof word !== 'object') {
+            return '';
+        }
+
+        if (Util && typeof Util.getEffectiveOptionLabel === 'function') {
+            return String(Util.getEffectiveOptionLabel(word, optionType, promptType, {
+                promptRecordingType: promptRecordingType
+            }) || '').trim();
+        }
+
+        const normalizedOptionType = String(optionType || '').trim().toLowerCase();
+        const activeRecordingType = normalizeRecordingTypeKey(
+            promptRecordingType
+                || word.__activeOptionRecordingType
+                || word.__promptRecordingType
+                || word.__practiceRecordingType
+        );
+        if (
+            promptTypeHasAudio(promptType)
+            && (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio')
+            && activeRecordingType
+        ) {
+            const recordingTranslation = getRecordingTranslationForType(word, activeRecordingType);
+            if (recordingTranslation) {
+                return recordingTranslation;
+            }
+        }
+
+        const label = String(word.label || '').trim();
+        if (label) {
+            return label;
+        }
+
+        if (normalizedOptionType === 'text_translation' || normalizedOptionType === 'text_audio') {
+            const translation = String(word.translation || '').trim();
+            if (translation) {
+                return translation;
+            }
+        }
+
+        return String(word.title || '').trim();
+    }
+
+    function getNormalizedOptionText(word, optionType, promptType, promptRecordingType) {
+        return normalizeTextForComparison(getOptionLabelText(word, optionType, promptType, promptRecordingType));
+    }
+
+    function prepareWordForOptionRendering(word, optionType, promptType, promptRecordingType) {
+        if (!word || typeof word !== 'object') {
+            return word;
+        }
+
+        word.__activeOptionRecordingType = promptRecordingType || '';
+
+        const labelText = getOptionLabelText(word, optionType, promptType, promptRecordingType);
+        if (labelText) {
+            word.__resolvedOptionLabel = labelText;
+        } else if (Object.prototype.hasOwnProperty.call(word, '__resolvedOptionLabel')) {
+            delete word.__resolvedOptionLabel;
+        }
+
+        return word;
+    }
+
+    function getPromptRecordingTypeBlockedIds(word, recordingType) {
+        const typeKey = normalizeRecordingTypeKey(recordingType);
+        const map = (word && typeof word === 'object' && word.option_blocked_ids_by_recording_type && typeof word.option_blocked_ids_by_recording_type === 'object')
+            ? word.option_blocked_ids_by_recording_type
+            : null;
+        if (!typeKey || !map) {
+            return [];
+        }
+
+        const keys = Object.keys(map);
+        for (let i = 0; i < keys.length; i += 1) {
+            if (normalizeRecordingTypeKey(keys[i]) !== typeKey) {
+                continue;
+            }
+            return Array.isArray(map[keys[i]]) ? map[keys[i]] : [];
+        }
+
+        return [];
     }
 
     function normalizeIdList(raw) {
@@ -795,10 +1216,13 @@
     }
 
     function isTextPromptType(promptType) {
-        return promptType === 'text' || promptType === 'text_title' || promptType === 'text_translation';
+        return promptTypeHasText(promptType);
     }
 
     function isPlainTextOptionType(optionType) {
+        if (Util && typeof Util.isPlainTextOptionType === 'function') {
+            return !!Util.isPlainTextOptionType(optionType);
+        }
         return optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation';
     }
 
@@ -838,6 +1262,153 @@
         return id > 0 ? id : 0;
     }
 
+    function getPracticeReplayCategoryOrder(preferredCategoryName) {
+        const out = [];
+        const seen = {};
+        const activeWords = getActiveWordsByCategory() || {};
+        const sourceLists = [
+            preferredCategoryName ? [preferredCategoryName] : [],
+            Array.isArray(State.categoryNames) ? State.categoryNames : [],
+            Array.isArray(State.initialCategoryNames) ? State.initialCategoryNames : [],
+            Object.keys(activeWords)
+        ];
+
+        sourceLists.forEach(function (list) {
+            (Array.isArray(list) ? list : []).forEach(function (name) {
+                const key = String(name || '').trim();
+                if (!key || seen[key]) return;
+                seen[key] = true;
+                out.push(key);
+            });
+        });
+
+        return out;
+    }
+
+    function getSeenPracticeWordIdSet() {
+        const seenIds = new Set();
+        const results = (State.quizResults && State.quizResults.wordAttempts && typeof State.quizResults.wordAttempts === 'object')
+            ? State.quizResults.wordAttempts
+            : {};
+
+        Object.keys(results).forEach(function (key) {
+            const info = results[key] || {};
+            const seen = Math.max(0, parseInt(info.seen, 10) || 0);
+            const id = normalizeWordId(key);
+            if (id && seen > 0) {
+                seenIds.add(id);
+            }
+        });
+
+        (Array.isArray(State.usedWordIDs) ? State.usedWordIDs : []).forEach(function (value) {
+            const id = normalizeWordId(value);
+            if (id) {
+                seenIds.add(id);
+            }
+        });
+
+        return seenIds;
+    }
+
+    function findPracticeBridgeWord(excludedWordId, preferredCategoryName) {
+        const excludedId = normalizeWordId(excludedWordId);
+        const seenWordIds = getSeenPracticeWordIdSet();
+        if (!seenWordIds.size) {
+            return null;
+        }
+
+        const activeWords = getActiveWordsByCategory();
+        const categoryOrder = getPracticeReplayCategoryOrder(preferredCategoryName);
+
+        for (let i = 0; i < categoryOrder.length; i += 1) {
+            const categoryName = categoryOrder[i];
+            const list = Array.isArray(activeWords[categoryName]) ? activeWords[categoryName] : [];
+            const candidates = list.filter(function (word) {
+                const wordId = normalizeWordId(word && word.id);
+                if (!wordId || wordId === excludedId) return false;
+                if (!seenWordIds.has(wordId)) return false;
+                if (isWordBlockedFromPromptRounds(word)) return false;
+                return true;
+            });
+
+            if (!candidates.length) {
+                continue;
+            }
+
+            return {
+                word: candidates[Math.floor(Math.random() * candidates.length)],
+                categoryName: categoryName
+            };
+        }
+
+        return null;
+    }
+
+    function hasPracticeBridgeWordAvailable(excludedWordId, preferredCategoryName) {
+        return !!findPracticeBridgeWord(excludedWordId, preferredCategoryName);
+    }
+
+    function hasOutstandingPracticeReplay() {
+        const queues = (State && State.categoryRepetitionQueues && typeof State.categoryRepetitionQueues === 'object')
+            ? State.categoryRepetitionQueues
+            : {};
+        const categoryNames = Object.keys(queues);
+        for (let i = 0; i < categoryNames.length; i += 1) {
+            const list = queues[categoryNames[i]];
+            if (Array.isArray(list) && list.length) {
+                return true;
+            }
+        }
+
+        const forced = (State && State.practiceForcedReplays && typeof State.practiceForcedReplays === 'object')
+            ? State.practiceForcedReplays
+            : {};
+        const forcedIds = Object.keys(forced);
+        for (let i = 0; i < forcedIds.length; i += 1) {
+            if ((parseInt(forced[forcedIds[i]], 10) || 0) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    function commitSelectedTarget(target, categoryName, options) {
+        if (!target || !categoryName) {
+            return target || null;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const starredLookup = opts.starredLookup || getStarredLookup();
+        const starMode = opts.starMode || getStarMode();
+        const isForcedReplay = !!opts.isForcedReplay;
+
+        if (!opts.didRecordPlay) {
+            recordPlay(target.id, starredLookup, starMode);
+        }
+
+        try { target.__categoryName = categoryName; } catch (_) { /* no-op */ }
+        try {
+            if (isForcedReplay) {
+                target.__practiceForcedReplay = true;
+            } else {
+                delete target.__practiceForcedReplay;
+            }
+        } catch (_) { /* no-op */ }
+        State.lastWordShownId = target.id;
+
+        if (State.currentCategoryName !== categoryName) {
+            State.currentCategoryName = categoryName;
+            State.currentCategoryRoundCount = 0;
+            root.FlashcardLoader.preloadNextCategories && root.FlashcardLoader.preloadNextCategories();
+            root.LLFlashcards.Dom.updateCategoryNameDisplay(State.currentCategoryName);
+        }
+        State.currentCategory = getActiveWordsByCategory()[categoryName];
+        State.categoryRoundCount[categoryName] = (State.categoryRoundCount[categoryName] || 0) + 1;
+        State.currentCategoryRoundCount++;
+        return target;
+    }
+
     function normalizeWordIdSet(raw) {
         const out = new Set();
         (Array.isArray(raw) ? raw : []).forEach(function (value) {
@@ -872,6 +1443,9 @@
     }
 
     function getWordImageIdentity(word) {
+        if (OptionConflicts && typeof OptionConflicts.getWordImageIdentity === 'function') {
+            return OptionConflicts.getWordImageIdentity(word);
+        }
         if (!word || typeof word !== 'object' || !word.image) return '';
         const raw = String(word.image).trim();
         if (!raw) return '';
@@ -885,19 +1459,61 @@
     }
 
     function wordHasBlockedId(word, otherId) {
+        if (OptionConflicts && typeof OptionConflicts.wordHasBlockedId === 'function') {
+            return OptionConflicts.wordHasBlockedId(word, otherId);
+        }
         if (!word || !otherId || !Array.isArray(word.option_blocked_ids)) return false;
         return word.option_blocked_ids.some(function (id) {
             return normalizeWordId(id) === otherId;
         });
     }
 
-    function wordsConflictForOptions(leftWord, rightWord) {
+    function wordHasPromptRecordingTypeBlockedId(word, otherId, recordingType) {
+        if (!word || !otherId) return false;
+
+        return getPromptRecordingTypeBlockedIds(word, recordingType).some(function (id) {
+            return normalizeWordId(id) === otherId;
+        });
+    }
+
+    function wordsConflictForOptions(leftWord, rightWord, context) {
+        if (OptionConflicts && typeof OptionConflicts.wordsConflictForOptions === 'function') {
+            return OptionConflicts.wordsConflictForOptions(leftWord, rightWord, context);
+        }
         const leftId = normalizeWordId(leftWord && leftWord.id);
         const rightId = normalizeWordId(rightWord && rightWord.id);
         if (!leftId || !rightId || leftId === rightId) return false;
 
         if (wordHasBlockedId(leftWord, rightId) || wordHasBlockedId(rightWord, leftId)) {
             return true;
+        }
+
+        const leftTitle = getNormalizedWordTitle(leftWord);
+        const rightTitle = getNormalizedWordTitle(rightWord);
+        if (leftTitle && leftTitle === rightTitle) {
+            return true;
+        }
+
+        const leftTranslation = getNormalizedWordTranslation(leftWord);
+        const rightTranslation = getNormalizedWordTranslation(rightWord);
+        if (leftTranslation && leftTranslation === rightTranslation) {
+            return true;
+        }
+
+        const promptRecordingType = normalizeRecordingTypeKey(context && context.promptRecordingType);
+        if (promptRecordingType) {
+            if (
+                wordHasPromptRecordingTypeBlockedId(leftWord, rightId, promptRecordingType)
+                || wordHasPromptRecordingTypeBlockedId(rightWord, leftId, promptRecordingType)
+            ) {
+                return true;
+            }
+
+            const leftPromptText = getNormalizedRecordingTextForType(leftWord, promptRecordingType);
+            const rightPromptText = getNormalizedRecordingTextForType(rightWord, promptRecordingType);
+            if (leftPromptText && leftPromptText === rightPromptText) {
+                return true;
+            }
         }
 
         const leftImage = getWordImageIdentity(leftWord);
@@ -949,11 +1565,18 @@
         const isTextOption = (optionType === 'text' || optionType === 'text_title' || optionType === 'text_translation' || optionType === 'text_audio');
         const isTextPrompt = isTextPromptType(promptType);
         const requirements = getGenderAssetRequirements(categoryName || State.currentCategoryName);
-        const showImage = (promptType === 'image') || (isGender && optionType === 'image');
+        const showImage = promptTypeHasImage(promptType) || (isGender && optionTypeHasImage(optionType));
         const showText = isTextPrompt || (isGender && isTextOption);
-        const showAudio = isGender && requirements.requiresAudio && promptType !== 'audio';
+        const hideAudioControls = (Util && typeof Util.isTextToTextQuizPresentation === 'function')
+            ? !!Util.isTextToTextQuizPresentation(promptType, optionType)
+            : (promptTypeHasText(promptType) && !promptTypeHasImage(promptType) && isPlainTextOptionType(optionType));
+        const showAudio = isGender && requirements.requiresAudio && !promptTypeHasAudio(promptType) && !hideAudioControls;
+        const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
         const $ = root.jQuery;
         if (!$) return;
+        if (cardsApi && typeof cardsApi.applyAnswerOptionContainerCssVars === 'function') {
+            cardsApi.applyAnswerOptionContainerCssVars();
+        }
         let $prompt = $('#ll-tools-prompt');
         if (!$prompt.length) {
             $prompt = $('<div>', { id: 'll-tools-prompt', class: 'll-tools-prompt', style: 'display:none;' });
@@ -1002,17 +1625,24 @@
             $stack.append($wrap);
         }
         if (hasText) {
-            $('<div>', {
+            const $promptText = $('<div>', {
                 class: 'll-prompt-text',
                 text: labelText,
                 dir: 'auto'
-            }).appendTo($stack);
+            });
+            if (!hasImage) {
+                $promptText.addClass('ll-prompt-text--standalone');
+            }
+            if (cardsApi && typeof cardsApi.applyAnswerOptionTextStyle === 'function') {
+                cardsApi.applyAnswerOptionTextStyle($promptText, labelText);
+            }
+            $promptText.appendTo($stack);
         }
         if (hasAudio) {
             const $btn = $('<button>', {
                 type: 'button',
                 class: 'll-prompt-audio-button',
-                'aria-label': 'Play word audio'
+                'aria-label': getMessage('playWordAudio')
             });
             const $ui = $('<span>', { class: 'll-repeat-audio-ui' });
             const $iconWrap = $('<span>', { class: 'll-repeat-icon-wrap', 'aria-hidden': 'true' });
@@ -1041,6 +1671,12 @@
 
     function selectTargetWord(candidateCategory, candidateCategoryName) {
         if (!candidateCategory || !candidateCategory.length) {
+            if (candidateCategoryName && !isCategoryLoaded(candidateCategoryName)) {
+                State.completedCategories = State.completedCategories || {};
+                State.completedCategories[candidateCategoryName] = false;
+                queuePendingCategoryLoad(candidateCategoryName);
+                return null;
+            }
             State.completedCategories = State.completedCategories || {};
             State.completedCategories[candidateCategoryName] = true;
             return null;
@@ -1050,6 +1686,7 @@
         };
         let target = null;
         let didRecordPlay = false;
+        let isForcedReplayTarget = false;
         const queue = State.categoryRepetitionQueues[candidateCategoryName];
         const starredLookup = getStarredLookup();
         const starMode = getStarMode();
@@ -1073,6 +1710,7 @@
                     // Skip if this is the same word we just showed
                     if (queue[i].wordData.id !== State.lastWordShownId) {
                         target = queue[i].wordData;
+                        isForcedReplayTarget = !!queuedItem.forceReplay;
                         if (queuedItem.forceReplay && State.practiceForcedReplays) {
                             const key = String(queuedWord.id);
                             const val = State.practiceForcedReplays[key];
@@ -1142,7 +1780,7 @@
             let queueCandidate = queue.find(item => {
                 if (!item || !item.wordData) return false;
                 if (!isPromptEligibleWord(item.wordData)) return false;
-                if (item.wordData.id === State.lastWordShownId) return false;
+                if (normalizeWordId(item.wordData.id) === normalizeWordId(State.lastWordShownId)) return false;
                 return item.forceReplay || canPlayWord(item.wordData.id, starredLookup, starMode);
             });
 
@@ -1174,6 +1812,7 @@
 
             if (queueCandidate) {
                 target = queueCandidate.wordData;
+                isForcedReplayTarget = !!queueCandidate.forceReplay;
                 const qi = queue.findIndex(it => it.wordData.id === target.id);
                 if (queueCandidate.forceReplay && State.practiceForcedReplays) {
                     const key = String(target.id);
@@ -1189,23 +1828,12 @@
         }
 
         if (target) {
-            if (!didRecordPlay) {
-                recordPlay(target.id, starredLookup, starMode);
-                didRecordPlay = true;
-            }
-            try { target.__categoryName = candidateCategoryName; } catch (_) { /* no-op */ }
-            // Update last shown word ID to prevent consecutive duplicates
-            State.lastWordShownId = target.id;
-
-            if (State.currentCategoryName !== candidateCategoryName) {
-                State.currentCategoryName = candidateCategoryName;
-                State.currentCategoryRoundCount = 0;
-                root.FlashcardLoader.preloadNextCategories && root.FlashcardLoader.preloadNextCategories();
-                root.LLFlashcards.Dom.updateCategoryNameDisplay(State.currentCategoryName);
-            }
-            State.currentCategory = getActiveWordsByCategory()[candidateCategoryName];
-            State.categoryRoundCount[candidateCategoryName] = (State.categoryRoundCount[candidateCategoryName] || 0) + 1;
-            State.currentCategoryRoundCount++;
+            return commitSelectedTarget(target, candidateCategoryName, {
+                didRecordPlay: didRecordPlay,
+                starredLookup: starredLookup,
+                starMode: starMode,
+                isForcedReplay: isForcedReplayTarget
+            });
         }
         return target;
     }
@@ -1220,9 +1848,14 @@
             if (w) { found = w; break; }
         }
         if (!found && Array.isArray(State.categoryNames) && State.categoryNames.length) {
-            // Nothing left to serve; mark remaining as completed to allow results.
             State.completedCategories = State.completedCategories || {};
-            State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
+            State.categoryNames.forEach(function (name) {
+                if (isCategoryLoaded(name)) {
+                    State.completedCategories[name] = true;
+                    return;
+                }
+                State.completedCategories[name] = false;
+            });
             pruneCompletedCategories();
         } else {
             pruneCompletedCategories();
@@ -1303,9 +1936,18 @@
         pruneCompletedCategories();
         if (!target) {
             // No target anywhere; mark all remaining categories as done so results can show.
+            const isPracticeMode = !State.isLearningMode && !State.isListeningMode && !State.isGenderMode && !State.isSelfCheckMode;
+            if (isPracticeMode && hasOutstandingPracticeReplay()) {
+                const bridge = findPracticeBridgeWord(State.lastWordShownId, State.currentCategoryName);
+                if (bridge && bridge.word && bridge.categoryName) {
+                    return commitSelectedTarget(bridge.word, bridge.categoryName);
+                }
+            }
             if (Array.isArray(State.categoryNames)) {
                 State.completedCategories = State.completedCategories || {};
-                State.categoryNames.forEach(function (name) { State.completedCategories[name] = true; });
+                State.categoryNames.forEach(function (name) {
+                    State.completedCategories[name] = isCategoryLoaded(name);
+                });
             }
             pruneCompletedCategories();
             return null;
@@ -1400,6 +2042,7 @@
                 .attr('aria-label', visual.label || '')
                 .attr('title', visual.label || '');
             applyGenderVisualToOptionCard($card, visual);
+            resetGenderOptionTextSizing($card);
             root.LLFlashcards.Cards.addClickEventToCard($card, optionIndex, targetWord, 'text', promptType);
             optionIndex += 1;
         });
@@ -1414,13 +2057,75 @@
             .attr('data-ll-gender-choice', '')
             .attr('data-ll-gender-correct', '0')
             .attr('data-ll-gender-unknown', '1')
-            .attr('data-ll-gender-role', 'unknown');
+            .attr('data-ll-gender-role', 'unknown')
+            .attr('aria-label', dontKnowLabel)
+            .attr('title', dontKnowLabel);
+        applyGenderUnknownOptionCard($unknownCard, dontKnowLabel);
+        resetGenderOptionTextSizing($unknownCard);
         root.LLFlashcards.Cards.addClickEventToCard($unknownCard, optionIndex, targetWord, 'text', promptType);
 
+        let optionsReadyResolved = false;
+        let resolveOptionsReady = function () {};
+        const optionsReadyPromise = new Promise(function (resolve) {
+            resolveOptionsReady = function (status) {
+                if (optionsReadyResolved) {
+                    return;
+                }
+                optionsReadyResolved = true;
+                resolve(status);
+            };
+        });
+
+        const publishOptionsReady = function () {
+            $(document).trigger('ll-tools-options-ready');
+        };
+        const refitTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.refitTextAnswerOptionCards === 'function') {
+                root.LLFlashcards.Cards.refitTextAnswerOptionCards();
+            }
+        };
+        const prepareTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal === 'function') {
+                return root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal();
+            }
+            refitTextOptionCards();
+            return Promise.resolve();
+        };
+        const finalizeGenderOptionReveal = function ($cards) {
+            resetGenderOptionTextSizing($cards);
+            normalizeGenderOptionSvgSymbols($cards);
+            fitGenderLayoutToViewport();
+            const revealNow = function () {
+                resetGenderOptionTextSizing($cards);
+                normalizeGenderOptionSvgSymbols($cards);
+                fitGenderLayoutToViewport();
+                $cards.css('visibility', 'visible');
+                scheduleGenderOptionTextScaleFit();
+                publishOptionsReady();
+                resolveOptionsReady({ ready: true });
+            };
+            if (typeof root.requestAnimationFrame === 'function') {
+                root.requestAnimationFrame(function () {
+                    root.requestAnimationFrame(revealNow);
+                });
+                return;
+            }
+            setTimeout(revealNow, 0);
+        };
+        const revealGenderOptions = function () {
+            const $cards = $('#ll-tools-flashcard .flashcard-container');
+            $cards.css({ display: '', visibility: 'hidden' });
+            prepareTextOptionCards().then(function () {
+                syncPromptTextFontSize(promptType, 'text');
+                finalizeGenderOptionReveal($cards);
+            }).catch(function () {
+                finalizeGenderOptionReveal($cards);
+            });
+        };
+
         ensureGenderOptionFitResizeHandler();
-        scheduleGenderOptionTextScaleFit();
-        $(document).trigger('ll-tools-options-ready');
-        return true;
+        revealGenderOptions();
+        return optionsReadyPromise;
     }
 
     function fillQuizOptions(targetWord) {
@@ -1445,8 +2150,11 @@
         }
 
         const config = getCategoryConfig(targetCategoryName);
-        if (State.isGenderMode && fillGenderQuizOptions(targetWord, config, targetCategoryName)) {
-            return;
+        if (State.isGenderMode) {
+            const genderFill = fillGenderQuizOptions(targetWord, config, targetCategoryName);
+            if (genderFill) {
+                return genderFill;
+            }
         }
         const mode = config.option_type || getCategoryDisplayMode(targetCategoryName);
         const promptType = getCategoryPromptType(targetCategoryName);
@@ -1454,13 +2162,34 @@
         State.currentPromptType = promptType;
         const isTextOptionMode = (mode === 'text' || mode === 'text_title' || mode === 'text_translation' || mode === 'text_audio');
         const seenOptionTexts = isTextOptionMode ? new Set() : null;
+        const activePromptRecordingType = normalizeRecordingTypeKey(
+            targetWord && (targetWord.__promptRecordingType || targetWord.__practiceRecordingType)
+        );
         renderPrompt(targetWord, config);
 
-        const isAudioLineLayout = (promptType === 'image') && (mode === 'audio' || mode === 'text_audio');
+        const isAudioLineLayout = promptTypeHasImage(promptType) && (mode === 'audio' || mode === 'text_audio');
         const $container = jQuery('#ll-tools-flashcard');
         const $content = jQuery('#ll-tools-flashcard-content');
+        const optionRevealToken = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+        const markOptionGridPreparing = function () {
+            $container
+                .addClass('ll-options-preparing')
+                .attr('data-ll-option-reveal-token', optionRevealToken)
+                .css({ visibility: '', opacity: '' });
+        };
+        const finishOptionGridReveal = function () {
+            if ($container.attr('data-ll-option-reveal-token') !== optionRevealToken) {
+                return false;
+            }
+            $container
+                .removeClass('ll-options-preparing')
+                .removeAttr('data-ll-option-reveal-token')
+                .css({ visibility: '', opacity: '' });
+            return true;
+        };
         $container.toggleClass('audio-line-layout', isAudioLineLayout);
         $content.toggleClass('audio-line-mode', isAudioLineLayout);
+        markOptionGridPreparing();
         const optionPreloadPromises = [];
         const queueWordPreload = function (word) {
             if (!word || !root.FlashcardLoader || typeof root.FlashcardLoader.loadResourcesForWord !== 'function') {
@@ -1545,11 +2274,12 @@
         }
 
         // Add target word first
+        prepareWordForOptionRendering(targetWord, mode, promptType, activePromptRecordingType);
         queueWordPreload(targetWord);
         chosen.push(targetWord);
         root.LLFlashcards.Cards.appendWordToContainer(targetWord, mode, promptType);
         if (isTextOptionMode && targetWord) {
-            seenOptionTexts.add(getNormalizedOptionText(targetWord));
+            seenOptionTexts.add(getNormalizedOptionText(targetWord, mode, promptType, activePromptRecordingType));
         }
 
         // Determine how many options to show
@@ -1593,14 +2323,16 @@
                 if (isSim) return false;
             }
 
-            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate) : '';
+            const normalizedText = isTextOptionMode ? getNormalizedOptionText(candidate, mode, promptType, activePromptRecordingType) : '';
             if (isTextOptionMode && enforceTextUniqueness && seenOptionTexts.has(normalizedText)) {
                 return false;
             }
 
             if (enforceConflict) {
                 const hasOptionConflict = chosen.some(function (existingWord) {
-                    return wordsConflictForOptions(existingWord, candidate);
+                    return wordsConflictForOptions(existingWord, candidate, {
+                        promptRecordingType: activePromptRecordingType
+                    });
                 });
                 if (hasOptionConflict) return false;
             }
@@ -1609,6 +2341,7 @@
             if (isTextOptionMode) {
                 seenOptionTexts.add(normalizedText);
             }
+            prepareWordForOptionRendering(candidate, mode, promptType, activePromptRecordingType);
             queueWordPreload(candidate);
             root.LLFlashcards.Cards.appendWordToContainer(candidate, mode, promptType);
             return true;
@@ -1622,11 +2355,25 @@
             }
         };
 
-        const specificWrongAnswerTexts = getWordSpecificWrongAnswerTexts(targetWord);
-        const hasSpecificWrongAnswerTexts = isTextOptionMode && specificWrongAnswerTexts.length > 0;
         const specificWrongAnswerIds = getWordSpecificWrongAnswerIds(targetWord);
         const hasSpecificWrongAnswerIds = specificWrongAnswerIds.length > 0;
-        if (hasSpecificWrongAnswerTexts) {
+        const optionRequiresAudio = (mode === 'audio' || mode === 'text_audio');
+        const specificWrongAnswerTexts = getWordSpecificWrongAnswerTexts(targetWord);
+        const hasSpecificWrongAnswerTexts = isTextOptionMode && !optionRequiresAudio && specificWrongAnswerTexts.length > 0;
+        if (optionRequiresAudio && hasSpecificWrongAnswerIds) {
+            const lookup = buildWordLookupById();
+            specificWrongAnswerIds.forEach(function (wrongId) {
+                if (!root.FlashcardOptions.canAddMoreCards()) return;
+                const candidate = findWordById(wrongId, lookup);
+                if (!candidate || String(candidate.id) === String(targetWord.id)) return;
+                addCandidate(candidate, {
+                    enforceSimilarity: false,
+                    enforceTextUniqueness: true,
+                    enforceConflict: false,
+                    enforceOwnerScope: true
+                });
+            });
+        } else if (hasSpecificWrongAnswerTexts) {
             specificWrongAnswerTexts.forEach(function (wrongText, index) {
                 if (!root.FlashcardOptions.canAddMoreCards()) return;
                 const syntheticId = String(targetWord.id) + '-wrong-text-' + String(index + 1);
@@ -1712,9 +2459,23 @@
             jQuery(document).trigger('ll-tools-options-ready');
         };
 
+        const refitTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.refitTextAnswerOptionCards === 'function') {
+                root.LLFlashcards.Cards.refitTextAnswerOptionCards();
+            }
+        };
+
+        const prepareTextOptionCards = function () {
+            if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal === 'function') {
+                return root.LLFlashcards.Cards.prepareTextAnswerOptionCardsForReveal();
+            }
+            refitTextOptionCards();
+            return Promise.resolve();
+        };
+
         const alignAudioLineWidths = function () {
             const $cards = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option');
-            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$cards.length) {
+            if (!promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$cards.length) {
                 $cards.css('width', '');
                 return 0;
             }
@@ -1737,7 +2498,7 @@
 
         const shrinkAudioLineText = function () {
             const $labels = jQuery('.flashcard-container.audio-option.audio-line-option.text-audio-option .ll-audio-option-label');
-            if (State.currentPromptType !== 'image' || State.currentOptionType !== 'text_audio' || !$labels.length) {
+            if (!promptTypeHasImage(State.currentPromptType) || State.currentOptionType !== 'text_audio' || !$labels.length) {
                 $labels.css('font-size', '');
                 return;
             }
@@ -1755,21 +2516,29 @@
         };
 
         const revealOptions = function () {
-            const isAudioLineTextAudio = (State.currentPromptType === 'image' && State.currentOptionType === 'text_audio');
+            const isAudioLineTextAudio = (promptTypeHasImage(State.currentPromptType) && State.currentOptionType === 'text_audio');
             const $all = jQuery('.flashcard-container');
             if (!isAudioLineTextAudio) {
-                syncPromptTextFontSize(promptType, mode);
-                $all.hide().fadeIn(600, publishOptionsReady);
+                $all.css({ display: '', visibility: 'visible' });
+                prepareTextOptionCards().then(function () {
+                    syncPromptTextFontSize(promptType, mode);
+                    if (finishOptionGridReveal()) {
+                        publishOptionsReady();
+                    }
+                }).catch(function () {
+                    if (finishOptionGridReveal()) {
+                        publishOptionsReady();
+                    }
+                });
                 return;
             }
-            const $wrap = jQuery('#ll-tools-flashcard');
-            $wrap.css({ visibility: 'hidden', opacity: 0 });
             $all.css({ display: '', opacity: 1, visibility: 'visible' });
             alignAudioLineWidths();
             shrinkAudioLineText();
-            // Allow layout to settle before reveal
             const show = function () {
-                $wrap.css('visibility', 'visible').fadeTo(200, 1, publishOptionsReady);
+                if (finishOptionGridReveal()) {
+                    publishOptionsReady();
+                }
             };
             if (typeof requestAnimationFrame === 'function') requestAnimationFrame(show);
             else setTimeout(show, 0);
@@ -1805,7 +2574,8 @@
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt,
-        isWordBlockedFromPromptRounds, isWordAllowedAsWrongAnswerForTarget
+        isWordBlockedFromPromptRounds, isWordAllowedAsWrongAnswerForTarget,
+        findPracticeBridgeWord, hasPracticeBridgeWordAvailable
     };
 
     // legacy exports

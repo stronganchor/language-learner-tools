@@ -169,6 +169,36 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
         $this->assertTrue(ll_can_category_generate_quiz(get_term($category_id, 'word-category'), 5, [$wordset_id]));
     }
 
+    public function test_count_helper_preserves_raw_title_fallback_when_translation_titles_are_empty(): void
+    {
+        $previous_title_role = get_option('ll_word_title_language_role', null);
+        update_option('ll_word_title_language_role', 'translation');
+
+        try {
+            $category_name = 'Count Helper Raw Title Fallback ' . (string) wp_rand(1000, 9999);
+            $category_id = $this->createCategory($category_name, 'audio', 'image');
+
+            $this->createWord($category_id, 'Fallback Title');
+
+            $config = [
+                'prompt_type' => 'text_title',
+                'option_type' => 'text_title',
+            ];
+
+            $rows = ll_get_words_by_category($category_name, 'text', null, $config);
+            $count = ll_get_words_by_category_count($category_name, 'text', null, $config);
+
+            $this->assertSame(1, count($rows), 'Full rows helper should still use the raw post title fallback.');
+            $this->assertSame(count($rows), $count, 'Count helper should preserve the raw post title fallback used by the full rows helper.');
+        } finally {
+            if ($previous_title_role === null) {
+                delete_option('ll_word_title_language_role');
+            } else {
+                update_option('ll_word_title_language_role', $previous_title_role);
+            }
+        }
+    }
+
     public function test_count_helper_regression_preserves_mode_and_category_quiz_fallbacks(): void
     {
         $category_name = 'Count Helper Fallback ' . (string) wp_rand(1000, 9999);
@@ -182,5 +212,62 @@ final class WordCategoryCountHelperRegressionTest extends LL_Tools_TestCase
 
         $this->assertTrue(ll_can_category_generate_quiz($term, 1, []));
         $this->assertSame('text_translation', ll_determine_display_mode($category_name, 1, []));
+    }
+
+    public function test_display_name_and_quiz_config_cache_paths_do_not_write_transient_options(): void
+    {
+        $category_name = 'Cache DB Write Guard ' . (string) wp_rand(1000, 9999);
+        $category_id = $this->createCategory($category_name, 'audio', 'text_title');
+        $term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $use_titles_legacy = get_term_meta($category_id, 'use_word_titles_for_audio', true) === '1';
+        $stored_option_type_raw = get_term_meta($category_id, 'll_quiz_option_type', true);
+        $stored_option_type = is_string($stored_option_type_raw) ? $stored_option_type_raw : (string) $stored_option_type_raw;
+        $stored_prompt_type_raw = get_term_meta($category_id, 'll_quiz_prompt_type', true);
+        $stored_prompt_type = is_string($stored_prompt_type_raw) ? $stored_prompt_type_raw : (string) $stored_prompt_type_raw;
+        $category_version = (int) ll_tools_get_category_cache_version($category_id);
+        if ($category_version < 1) {
+            $category_version = 1;
+        }
+
+        $quiz_cache_key = 'll_wc_quiz_cfg_' . md5(wp_json_encode([
+            'term_id' => $category_id,
+            'version' => $category_version,
+            'use_titles_legacy' => $use_titles_legacy ? 1 : 0,
+            'stored_option_type' => $stored_option_type,
+            'stored_prompt_type' => $stored_prompt_type,
+            'schema' => 1,
+        ]));
+        $display_args = [
+            'enable_translation' => false,
+            'target_language' => '',
+            'site_language' => '',
+            'meta_key' => 'term_translation',
+        ];
+        $display_cache_key = 'll_wc_display_name_' . md5(wp_json_encode([
+            'term_id' => $category_id,
+            'version' => $category_version,
+            'enable_translation' => 0,
+            'target_language' => '',
+            'site_language' => '',
+            'meta_key' => 'term_translation',
+            'schema' => 1,
+        ]));
+
+        delete_option('_transient_' . $quiz_cache_key);
+        delete_option('_transient_timeout_' . $quiz_cache_key);
+        delete_option('_transient_' . $display_cache_key);
+        delete_option('_transient_timeout_' . $display_cache_key);
+
+        $quiz_config = ll_tools_get_category_quiz_config($term);
+        $display_name = ll_tools_get_category_display_name($term, $display_args);
+
+        $this->assertIsArray($quiz_config);
+        $this->assertIsString($display_name);
+        $this->assertFalse(get_option('_transient_' . $quiz_cache_key));
+        $this->assertFalse(get_option('_transient_timeout_' . $quiz_cache_key));
+        $this->assertFalse(get_option('_transient_' . $display_cache_key));
+        $this->assertFalse(get_option('_transient_timeout_' . $display_cache_key));
     }
 }

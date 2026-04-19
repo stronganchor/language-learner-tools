@@ -19,7 +19,6 @@ read_first:
   - includes/shortcodes/audio-recording-shortcode.php
   - includes/user-study.php
   - includes/user-progress.php
-  - includes/shortcodes/user-study-dashboard.php
   - includes/taxonomies/word-category-taxonomy.php
   - includes/taxonomies/wordset-taxonomy.php
   - includes/post-types/words-post-type.php
@@ -40,17 +39,18 @@ read_first:
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
-- Template override system and GitHub update checker (main/dev branch).
+- Dictionary tooling: TSV/legacy-table import into `ll_dictionary_entry`, grouped sense metadata, and a public `[ll_dictionary]` browse/search page.
+- Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
 # Entry points and runtime flow
 - `language-learner-tools.php`
   - Defines `LL_TOOLS_BASE_URL`, `LL_TOOLS_BASE_PATH`, `LL_TOOLS_MAIN_FILE`, `LL_TOOLS_MIN_WORDS_PER_QUIZ`.
-  - Registers GitHub update checker (branch from `ll_update_branch` option).
+  - Registers GitHub update checker (`main` only accepts packaged GitHub release assets; `dev` stays branch-based).
   - Activation adds `view_ll_tools`, seeds default wordset and recording page via transients.
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
-  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/user-progress.php`, and `includes/login-window.php`.
+  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/user-progress.php`, `includes/privacy.php`, and `includes/login-window.php`.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
@@ -61,14 +61,16 @@ read_first:
   - Uses `templates/quiz-page-template.php` and `js/quiz-pages.js`.
 - `includes/pages/embed-page.php`
   - Minimal page for iframes; noindex; uses `[flashcard_widget]`.
-  - Accepts `?wordset=<slug>` and `?mode=practice|learning|listening`.
+  - Accepts `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
   - Posts `ll-embed-ready` to parent when initialized.
 - `includes/pages/recording-page.php`
   - Ensures a default recording page with `[audio_recording_interface]`.
-  - Redirects `audio_recorder` users on login to recording page (or user override).
+  - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
+  - Redirects `audio_recorder` users on login to the default recording page or a per-user page override.
 - `includes/pages/editor-hub-page.php`
   - Ensures a default Editor Hub page with `[editor_hub]`.
-  - Redirects `ll_tools_editor` users on login to the Editor Hub page (or user override).
+  - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
+  - Redirects `ll_tools_editor` users on login to the default Editor Hub page.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
@@ -78,10 +80,12 @@ language-learner-tools.php    # Bootstrap, constants, updates, /embed rewrite
 includes/
   assets.php                  # Versioned enqueue helper + public assets
   bootstrap.php               # Central includes
+  privacy.php                 # Progress privacy controls, exporter/eraser hooks, policy text, retention cleanup
   template-loader.php         # Theme override resolver
   lib/
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
+    dictionary-browser.php    # Dictionary import/search helpers + legacy raw-table migration
     ll-matching.php           # Audio <-> image matching heuristics
     media-proxy.php           # Signed image proxy for quizzes
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
@@ -90,9 +94,10 @@ includes/
   pages/
     quiz-pages.php            # Auto /quiz pages + sync + assets
     embed-page.php            # /embed/<category> template
-    default-shortcode-page-helper.php # Shared ensure/find helpers for plugin-owned shortcode pages
+    default-shortcode-page-helper.php # Shared ensure/find/admin-action helpers for plugin-owned shortcode pages
     recording-page.php        # Recording page creation + login redirect
     editor-hub-page.php       # Editor Hub page creation + login redirect
+    dictionary-page.php       # Dictionary page creation + settings-row controls
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
   post-types/
@@ -117,16 +122,18 @@ includes/
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
-    user-study-dashboard.php
+    dictionary-shortcode.php  # [ll_dictionary] + legacy dictionary shortcode aliases
   admin/
     admin-dashboard-menu.php
     settings.php
+    user-progress-report.php  # Admin-only learner progress/usage report
     audio-processor-admin.php
     audio-image-matcher.php
     missing-audio-admin-page.php
     recording-types-admin.php
     bulk-translation-admin.php
     bulk-word-import-admin.php
+    dictionary-import-admin.php
     export-import.php
     example-sentence-migration.php
     ipa-keyboard-admin.php
@@ -136,7 +143,6 @@ includes/
     image-aspect-normalizer-admin.php
     image-webp-optimizer-admin.php
     word-images-fixer.php
-    manage-wordsets.php
     metabox-word-audio-parent.php
     uploads/
       audio-upload-form.php
@@ -156,7 +162,6 @@ js/
   audio-image-matcher.js
   audio-recorder.js
   quiz-pages.js
-  user-study-dashboard.js
   word-audio.js
   manage-wordsets.js
   bulk-category-edit.js
@@ -167,7 +172,6 @@ css/
   recording-interface.css
   audio-processor.css
   audio-image-matcher.css
-  user-study-dashboard.css
   flashcard/
     base.css
     mode-practice.css
@@ -198,6 +202,7 @@ vendor/
     - Bypass with `_ll_skip_audio_requirement_once` or filter `ll_tools_skip_audio_requirement`.
 - `ll_dictionary_entry` (admin-facing umbrella entries)
   - Groups related `words` posts (e.g., different learnable forms) without changing `words` as the quiz/recording unit.
+  - Imported dictionaries can store grouped structured senses in `ll_dictionary_entry_senses`, with derived summary/search meta for public browse/search and translation fallback lookup.
 - `word_images` (public, REST)
   - Featured image is the media asset.
   - Meta: `copyright_info`, plus translation fields used by grids.
@@ -230,7 +235,7 @@ vendor/
   - `ll_user_study_wordset`, `ll_user_study_categories`, `ll_user_study_starred`, `ll_user_star_mode`, `ll_user_fast_transitions`.
 - Audio recorder config (from `includes/user-roles/audio-recorder-role.php`):
   - `ll_recording_config` (wordset, category, recording type filters, allow_new_words, auto_process_recordings).
-  - `ll_recording_page_url` (custom redirect on login).
+  - `ll_recording_page_id` (custom internal page override on login; legacy same-site URLs are migrated when encountered).
 
 # Settings and options
 Core settings live in `includes/admin/settings.php`:
@@ -241,12 +246,13 @@ Core settings live in `includes/admin/settings.php`:
 - `ll_flashcard_image_size` (small/medium/large).
 - `ll_hide_recording_titles` (recording UI).
 - `ll_quiz_font` and `ll_quiz_font_url` (font selection; fonts must already be enqueued by theme/plugin).
-- `ll_update_branch` (main/dev) for GitHub update checker.
+- `ll_update_branch` (`main` stable release asset channel, `dev` branch-testing channel).
+- `ll_user_progress_events_retention_days` (retention for detailed learner activity events; summary progress stays until erasure/deletion).
 
 # Public UI surfaces and routes
 ## Shortcodes (user-facing)
 - `[flashcard_widget]` (controller: `includes/shortcodes/flashcard-widget.php`)
-  - Attributes: `category`, `mode`, `embed`, `quiz_mode` (practice|learning|listening), `wordset`, `wordset_fallback`.
+  - Attributes: `category`, `mode`, `embed`, `quiz_mode` (practice|learning|listening|gender|self-check), `wordset`, `wordset_fallback`.
 - `[quiz_pages_grid]` and `[quiz_pages_dropdown]` (`includes/shortcodes/quiz-pages-shortcodes.php`).
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
@@ -254,14 +260,13 @@ Core settings live in `includes/admin/settings.php`:
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
-- `[language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
-- `[ll_user_study_dashboard]` (`includes/shortcodes/user-study-dashboard.php`).
+- `[ll_language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
 
 ## Routes
 - `/quiz/<category>` auto pages (created/synced by `includes/pages/quiz-pages.php`).
-  - Optional params: `?mode=practice|learning|listening`.
+  - Optional params: `?mode=practice|learning|listening|gender|self-check`.
 - `/embed/<category>` embed page (handled by `includes/pages/embed-page.php`).
-  - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening`.
+  - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
 
 # Flashcard widget architecture
 ## PHP controller
@@ -311,7 +316,6 @@ Core settings live in `includes/admin/settings.php`:
 - Export + Import tools: `includes/admin/export-import.php` (separate admin pages for bundle export and bundle import; zip of categories + word_images + attachments).
 - Fix Word Images (legacy): `includes/admin/word-images-fixer.php`.
 - Languages admin: `includes/taxonomies/language-taxonomy.php`.
-- Manage Word Sets page: `includes/admin/manage-wordsets.php` (front-end page with admin iframe).
 - Word Audio Parent metabox: `includes/admin/metabox-word-audio-parent.php`.
 - Word Option Rules: `includes/admin/word-option-rules-admin.php` (option conflict/group editing).
 - Duplicate Category Words: `includes/admin/duplicate-category-words-admin.php`.
@@ -319,10 +323,6 @@ Core settings live in `includes/admin/settings.php`:
 - Image WebP Optimizer: `includes/admin/image-webp-optimizer-admin.php`.
 - IPA Keyboard admin: `includes/admin/ipa-keyboard-admin.php`.
 - Example Sentence Migration utility: `includes/admin/example-sentence-migration.php`.
-
-## Maintenance notes (current)
-- `includes/admin/manage-wordsets.php` is currently unused in normal workflows. Decide later whether to redesign it for usability or remove it.
-- `includes/shortcodes/user-study-dashboard.php` is largely superseded by newer `wordset` page flows. Decide later whether to deprecate/remove it or keep only a minimal compatibility surface.
 
 ## Audio workflow (end to end)
 - Recording UI: `[audio_recording_interface]` uses MediaRecorder and category recording type targets.
@@ -353,7 +353,9 @@ Core settings live in `includes/admin/settings.php`:
 - Word publish guard depends on `ll_tools_get_category_quiz_config()` and `ll_tools_quiz_requires_audio()`.
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.
-- Wordset scope is strict: learn/practice/listening flows (including study dashboard launches) must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
+- Wordset scope is strict: learn/practice/listening flows must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
+- Wordset-page activity launches and recommendations must enforce a hard minimum pool of 5 available words (after applying session/category filters); do not launch or suggest an activity below that threshold.
+- Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across chunks without dropping leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words).
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
 - Learning-mode bootstrap should introduce a non-conflicting initial pair when possible so the first round remains distinguishable.
 - Keep `ll_get_words_by_category()` payload fields stable (`image`, `similar_word_id`, `option_groups`, `option_blocked_ids`); option safety depends on them.
@@ -399,7 +401,7 @@ Use one shared status palette across user-facing plugin UI so progress states al
 ## Review checklist for UI color changes
 - Confirm no old conflicting shades were reintroduced.
 - Confirm new user-facing status colors map to the canonical palette above.
-- Confirm related surfaces (wordset page, flashcard modes, self-check, user-study dashboard) stay aligned.
+- Confirm related surfaces (wordset page, flashcard modes, self-check) stay aligned.
 
 # Common tasks (file pointers)
 - Register/adjust CPTs or taxonomies: `includes/post-types/*.php`, `includes/taxonomies/*.php`.
@@ -410,7 +412,7 @@ Use one shared status palette across user-facing plugin UI so progress states al
 - Tune audio/image matching: `includes/lib/ll-matching.php`, `includes/admin/audio-image-matcher.php`.
 - Adjust recording interface: `includes/shortcodes/audio-recording-shortcode.php`, `js/audio-recorder.js`, `css/recording-interface.css`.
 - Change audio processing: `includes/admin/audio-processor-admin.php`, `js/audio-processor.js`, `css/audio-processor.css`.
-- Modify user study dashboard: `includes/user-study.php`, `includes/shortcodes/user-study-dashboard.php`, `js/user-study-dashboard.js`.
+- Modify user study state/recommendations: `includes/user-study.php`, `includes/user-progress.php`, `js/wordset-pages.js`.
 - Update settings/options: `includes/admin/settings.php`.
 
 # Search hints (ripgrep)

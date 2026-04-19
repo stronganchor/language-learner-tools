@@ -79,6 +79,42 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame('Updated Translation', (string) get_post_meta($word_id, 'word_translation', true));
     }
 
+    public function test_update_new_word_text_allows_recorder_to_edit_own_published_word(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $recorder_id = self::factory()->user->create(['role' => 'audio_recorder']);
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Recorder Word',
+            'post_author' => $recorder_id,
+        ]);
+
+        wp_set_current_user($recorder_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_upload_recording'),
+            'word_id' => $word_id,
+            'word_text_target' => 'Recorder Updated',
+            'word_text_translation' => 'Recorder Translation',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_update_new_word_text_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame('Recorder Updated', (string) get_post_field('post_title', $word_id));
+        $this->assertSame('Recorder Translation', (string) get_post_meta($word_id, 'word_translation', true));
+    }
+
     public function test_public_word_fetch_redacts_speaker_ids_for_logged_out_requests(): void
     {
         $fixture = $this->create_flashcard_word_with_audio(777);
@@ -111,7 +147,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         }
     }
 
-    public function test_public_word_fetch_keeps_speaker_ids_for_logged_in_requests(): void
+    public function test_public_word_fetch_redacts_speaker_ids_for_logged_in_requests(): void
     {
         $fixture = $this->create_flashcard_word_with_audio(888);
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -138,13 +174,73 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $rows = is_array($response['data'] ?? null) ? $response['data'] : [];
         $row = $this->find_row_by_word_id($rows, $fixture['word_id']);
         $this->assertIsArray($row);
-        $this->assertArrayHasKey('preferred_speaker_user_id', $row);
+        $this->assertSame(0, (int) ($row['preferred_speaker_user_id'] ?? -1));
 
-        $speaker_ids = [];
         foreach ((array) ($row['audio_files'] ?? []) as $audio_file) {
-            $speaker_ids[] = (int) ($audio_file['speaker_user_id'] ?? 0);
+            $this->assertSame(0, (int) ($audio_file['speaker_user_id'] ?? -1));
         }
-        $this->assertContains(888, $speaker_ids);
+    }
+
+    public function test_wordset_speaking_transcribe_attempt_rejects_invalid_audio_before_external_calls(): void
+    {
+        $wordset = wp_insert_term('Speaking Upload Guard ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'hosted_api');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_text');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, 'hosted_api');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'https://example.test/transcribe');
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_text');
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        $user = get_user_by('id', $user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+        clean_user_cache($user_id);
+        wp_set_current_user($user_id);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_user_study'),
+            'wordset_id' => $wordset_id,
+        ];
+        $_REQUEST = $_POST;
+        $_FILES = [
+            'audio' => [
+                'name' => 'missing.wav',
+                'tmp_name' => wp_normalize_path(sys_get_temp_dir() . '/ll-tools-missing-upload.wav'),
+                'error' => UPLOAD_ERR_OK,
+                'size' => 12,
+            ],
+        ];
+
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'External HTTP call should not be reached for invalid uploads.');
+        };
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_wordset_games_transcribe_attempt_ajax();
+            });
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            $_FILES = [];
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('invalid_audio', (string) (($response['data']['code'] ?? '')));
+        $this->assertSame([], $http_requests);
     }
 
     public function test_image_upload_validation_accepts_real_png(): void
@@ -344,12 +440,11 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertIsArray($response['data']['remaining_types'] ?? null);
     }
 
-    public function test_manage_word_sets_shortcode_uses_ll_tools_handler(): void
+    public function test_manage_word_sets_shortcode_is_not_registered(): void
     {
         global $shortcode_tags;
         $this->assertIsArray($shortcode_tags);
-        $this->assertArrayHasKey('manage_word_sets', $shortcode_tags);
-        $this->assertSame('ll_manage_word_sets_shortcode', $shortcode_tags['manage_word_sets']);
+        $this->assertArrayNotHasKey('manage_word_sets', $shortcode_tags);
     }
 
     public function test_wordset_manager_menu_trim_uses_role_membership(): void

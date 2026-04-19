@@ -1,36 +1,49 @@
 (function (root) {
     'use strict';
+    const Util = (root.LLFlashcards && root.LLFlashcards.Util) || {};
+
+    function getMessage(key, fallback) {
+        if (Util && typeof Util.getMessage === 'function') {
+            return Util.getMessage(key, fallback);
+        }
+        return String(fallback || '').trim();
+    }
 
     const DEFAULTS = {
         practice: {
             icon: '❓',
             className: 'practice-mode',
-            switchLabel: 'Switch to Practice Mode',
-            resultsButtonText: 'Practice Mode',
+            switchLabel: getMessage('practiceSwitchLabel'),
+            resultsButtonText: getMessage('practiceModeText'),
+            modeLabel: getMessage('practiceModeShort'),
         },
         learning: {
             icon: '🎓',
             className: 'learning-mode',
-            switchLabel: 'Switch to Learning Mode',
-            resultsButtonText: 'Learning Mode',
+            switchLabel: getMessage('learningSwitchLabel'),
+            resultsButtonText: getMessage('learningModeText'),
+            modeLabel: getMessage('learningModeShort'),
         },
         'self-check': {
             icon: '',
             className: 'self-check-mode',
-            switchLabel: 'Open Self Check',
-            resultsButtonText: 'Self Check',
+            switchLabel: getMessage('selfCheckSwitchLabel'),
+            resultsButtonText: getMessage('selfCheckModeText'),
+            modeLabel: getMessage('selfCheckModeShort'),
         },
         listening: {
             icon: '🎧',
             className: 'listening-mode',
-            switchLabel: 'Switch to Listening Mode',
-            resultsButtonText: 'Listen',
+            switchLabel: getMessage('listeningSwitchLabel'),
+            resultsButtonText: getMessage('listeningModeText'),
+            modeLabel: getMessage('listeningModeShort'),
         },
         gender: {
             icon: '',
             className: 'gender-mode',
-            switchLabel: 'Switch to Gender',
-            resultsButtonText: 'Gender',
+            switchLabel: getMessage('genderSwitchLabel'),
+            resultsButtonText: getMessage('genderModeText'),
+            modeLabel: getMessage('genderModeShort'),
         },
     };
 
@@ -55,7 +68,7 @@
     const switchConfig = {};
     Object.keys(merged).forEach(mode => {
         const cfg = merged[mode] || {};
-        const derivedLabel = cfg.switchLabel || `Switch to ${cfg.resultsButtonText || (mode.charAt(0).toUpperCase() + mode.slice(1))}`;
+        const derivedLabel = cfg.switchLabel || cfg.resultsButtonText || cfg.modeLabel || '';
         const className = cfg.className || `${mode}-mode`;
 
         switchConfig[mode] = {

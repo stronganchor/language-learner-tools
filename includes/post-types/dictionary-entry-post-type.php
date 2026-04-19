@@ -8,6 +8,9 @@ if (!defined('LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY')) {
 if (!defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY')) {
     define('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY', 'll_dictionary_entry_wordset_id');
 }
+if (!defined('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY')) {
+    define('LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY', 'll_dictionary_entry_wordset_scope_index');
+}
 if (!defined('LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY')) {
     define('LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY', 'll_dictionary_entry_pos_slug');
 }
@@ -64,7 +67,186 @@ function ll_tools_get_word_primary_pos_data($word_id): array {
 }
 
 /**
- * Resolve and cache dictionary entry wordset ID.
+ * Resolve an explicitly assigned dictionary-entry scope wordset ID.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return int
+ */
+function ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id): int {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return 0;
+    }
+
+    $stored = (int) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, true);
+    if ($stored <= 0 || !term_exists($stored, 'wordset')) {
+        return 0;
+    }
+
+    return $stored;
+}
+
+/**
+ * Return unique linked wordset IDs for one dictionary entry.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return int[]
+ */
+function ll_tools_get_dictionary_entry_linked_wordset_ids($entry_id): array {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return [];
+    }
+
+    $wordset_ids = [];
+    foreach (ll_tools_get_dictionary_entry_word_ids($entry_id, -1) as $word_id) {
+        $wordset_id = ll_tools_get_word_primary_wordset_id((int) $word_id);
+        if ($wordset_id > 0) {
+            $wordset_ids[$wordset_id] = true;
+        }
+    }
+
+    $ids = array_map('intval', array_keys($wordset_ids));
+    sort($ids, SORT_NUMERIC);
+
+    return $ids;
+}
+
+/**
+ * Parse one cached dictionary-entry scope index string.
+ *
+ * @param string $scope_index Cached scope index.
+ * @return int[]
+ */
+function ll_tools_dictionary_parse_wordset_scope_index(string $scope_index): array {
+    $scope_index = trim((string) $scope_index);
+    if ($scope_index === '') {
+        return [];
+    }
+
+    $parts = array_values(array_filter(array_map('trim', explode('|', trim($scope_index, '|'))), static function (string $value): bool {
+        return $value !== '' && ctype_digit($value);
+    }));
+    if (empty($parts)) {
+        return [];
+    }
+
+    $ids = array_values(array_unique(array_filter(array_map('intval', $parts), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    sort($ids, SORT_NUMERIC);
+
+    return $ids;
+}
+
+/**
+ * Recalculate relevant wordset IDs for one dictionary entry.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return int[]
+ */
+function ll_tools_dictionary_recalculate_entry_scope_wordset_ids($entry_id): array {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return [];
+    }
+
+    $ids = [];
+    $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id);
+    if ($explicit_wordset_id > 0) {
+        $ids[$explicit_wordset_id] = true;
+    }
+
+    foreach (ll_tools_get_dictionary_entry_linked_wordset_ids($entry_id) as $wordset_id) {
+        if ($wordset_id > 0) {
+            $ids[$wordset_id] = true;
+        }
+    }
+
+    $scope_ids = array_map('intval', array_keys($ids));
+    sort($scope_ids, SORT_NUMERIC);
+
+    return $scope_ids;
+}
+
+/**
+ * Return all wordset IDs relevant to one dictionary entry.
+ *
+ * Explicit browse scope and linked learning wordsets are both included.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return int[]
+ */
+function ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id): array {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return [];
+    }
+
+    $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id);
+    $stored_scope_ids = ll_tools_dictionary_parse_wordset_scope_index(
+        (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY, true)
+    );
+
+    if (!empty($stored_scope_ids)) {
+        if ($explicit_wordset_id > 0 && !in_array($explicit_wordset_id, $stored_scope_ids, true)) {
+            $stored_scope_ids[] = $explicit_wordset_id;
+            sort($stored_scope_ids, SORT_NUMERIC);
+        }
+
+        return $stored_scope_ids;
+    }
+
+    return ll_tools_dictionary_recalculate_entry_scope_wordset_ids($entry_id);
+}
+
+/**
+ * Build one SQL-friendly scope index string from wordset IDs.
+ *
+ * @param int[] $wordset_ids Wordset IDs.
+ */
+function ll_tools_dictionary_build_wordset_scope_index(array $wordset_ids): string {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    })));
+    if (empty($ids)) {
+        return '';
+    }
+
+    sort($ids, SORT_NUMERIC);
+
+    return '|' . implode('|', $ids) . '|';
+}
+
+/**
+ * Refresh cached dictionary-entry scope metadata.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return void
+ */
+function ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id): void {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return;
+    }
+
+    $explicit_wordset_id = (int) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, true);
+    if ($explicit_wordset_id > 0 && !term_exists($explicit_wordset_id, 'wordset')) {
+        delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY);
+    }
+
+    $scope_index = ll_tools_dictionary_build_wordset_scope_index(
+        ll_tools_dictionary_recalculate_entry_scope_wordset_ids($entry_id)
+    );
+    if ($scope_index !== '') {
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY, $scope_index);
+    } else {
+        delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_SCOPE_INDEX_META_KEY);
+    }
+}
+
+/**
+ * Resolve a primary display wordset ID for one dictionary entry.
  *
  * @param int $entry_id Dictionary entry ID.
  * @return int
@@ -75,24 +257,57 @@ function ll_tools_get_dictionary_entry_wordset_id($entry_id) {
         return 0;
     }
 
-    $stored = (int) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, true);
-
-    $word_ids = ll_tools_get_dictionary_entry_word_ids($entry_id, 1);
-    if (!empty($word_ids)) {
-        $resolved = ll_tools_get_word_primary_wordset_id((int) $word_ids[0]);
-        if ($resolved > 0) {
-            if ($stored !== $resolved) {
-                update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $resolved);
-            }
-            return $resolved;
-        }
+    $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id);
+    if ($explicit_wordset_id > 0) {
+        return $explicit_wordset_id;
     }
 
-    if ($stored > 0) {
-        return $stored;
+    $scope_wordset_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id);
+    if (count($scope_wordset_ids) === 1) {
+        return (int) $scope_wordset_ids[0];
     }
 
     return 0;
+}
+
+/**
+ * Return wordset terms relevant to one dictionary entry.
+ *
+ * @param int $entry_id Dictionary entry ID.
+ * @return array<int,array{id:int,name:string,slug:string,explicit:bool}>
+ */
+function ll_tools_get_dictionary_entry_scope_wordsets($entry_id): array {
+    $entry_id = (int) $entry_id;
+    if (!ll_tools_is_dictionary_entry_id($entry_id)) {
+        return [];
+    }
+
+    $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id);
+    $items = [];
+    foreach (ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id) as $wordset_id) {
+        $term = get_term($wordset_id, 'wordset');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            continue;
+        }
+
+        $items[] = [
+            'id' => (int) $term->term_id,
+            'name' => (string) $term->name,
+            'slug' => (string) $term->slug,
+            'explicit' => ((int) $term->term_id === $explicit_wordset_id),
+        ];
+    }
+
+    usort($items, static function (array $left, array $right): int {
+        $left_name = (string) ($left['name'] ?? '');
+        $right_name = (string) ($right['name'] ?? '');
+
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left_name, $right_name)
+            : strnatcasecmp($left_name, $right_name);
+    });
+
+    return $items;
 }
 
 /**
@@ -204,7 +419,37 @@ function ll_tools_get_dictionary_entry_translation($entry_id): string {
         return '';
     }
 
-    return trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+    $translation = trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+    if ($translation !== '') {
+        $source_aliases = [];
+        if (function_exists('ll_tools_get_dictionary_entry_senses') && function_exists('ll_tools_dictionary_collect_import_source_aliases')) {
+            foreach (ll_tools_get_dictionary_entry_senses($entry_id) as $sense) {
+                if (!is_array($sense)) {
+                    continue;
+                }
+                foreach (ll_tools_dictionary_collect_import_source_aliases($sense) as $alias) {
+                    if (!in_array($alias, $source_aliases, true)) {
+                        $source_aliases[] = $alias;
+                    }
+                }
+            }
+        }
+
+        if (function_exists('ll_tools_dictionary_normalize_import_gloss_text')) {
+            $translation = ll_tools_dictionary_normalize_import_gloss_text($translation, $source_aliases);
+        }
+
+        return $translation;
+    }
+
+    if (function_exists('ll_tools_get_dictionary_entry_senses') && function_exists('ll_tools_dictionary_build_translation_summary')) {
+        $translation = ll_tools_dictionary_build_translation_summary(
+            ll_tools_get_dictionary_entry_senses($entry_id),
+            trim(wp_strip_all_tags((string) get_post_field('post_content', $entry_id)))
+        );
+    }
+
+    return trim((string) $translation);
 }
 
 /**
@@ -548,6 +793,35 @@ function ll_tools_search_dictionary_entries($search = '', $limit = 20, $wordset_
     }
     $limit = min(100, $limit);
 
+    if (function_exists('ll_tools_dictionary_query_entries')) {
+        $query = ll_tools_dictionary_query_entries([
+            'search' => $search,
+            'per_page' => $limit,
+            'page' => 1,
+            'wordset_id' => $wordset_id,
+            'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+        ]);
+
+        $entries = [];
+        foreach ((array) ($query['items'] ?? []) as $item) {
+            $id = isset($item['id']) ? (int) $item['id'] : 0;
+            $title = isset($item['title']) ? trim((string) $item['title']) : '';
+            if ($id <= 0 || $title === '') {
+                continue;
+            }
+            $entries[] = [
+                'id' => $id,
+                'label' => $title,
+            ];
+        }
+
+        if (!empty($entries) || $search !== '') {
+            return $entries;
+        }
+    }
+
     $query_limit = $limit;
     if ($wordset_id > 0) {
         $query_limit = min(200, max($limit * 4, $limit));
@@ -575,8 +849,10 @@ function ll_tools_search_dictionary_entries($search = '', $limit = 20, $wordset_
             continue;
         }
         if ($wordset_id > 0) {
-            $entry_wordset_id = ll_tools_get_dictionary_entry_wordset_id($id);
-            if ($entry_wordset_id !== $wordset_id) {
+            $matches_wordset = function_exists('ll_tools_dictionary_entry_matches_wordset_context')
+                ? ll_tools_dictionary_entry_matches_wordset_context($id, $wordset_id)
+                : in_array($wordset_id, ll_tools_get_dictionary_entry_scope_wordset_ids($id), true);
+            if (!$matches_wordset) {
                 continue;
             }
         }
@@ -616,6 +892,7 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
     $entry_id = (int) $entry_id;
     $new_title = trim((string) $new_title);
     $wordset_id = ll_tools_get_word_primary_wordset_id($word_id);
+    $previous_entry_id = ll_tools_get_word_dictionary_entry_id($word_id);
     $pos_data = ll_tools_get_word_primary_pos_data($word_id);
     $word_pos_slug = sanitize_title((string) ($pos_data['slug'] ?? ''));
 
@@ -630,26 +907,18 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
         if (!ll_tools_is_dictionary_entry_id($entry_id)) {
             return new WP_Error('invalid_dictionary_entry', __('Invalid dictionary entry.', 'll-tools-text-domain'));
         }
-
-        $entry_wordset_id = ll_tools_get_dictionary_entry_wordset_id($entry_id);
-        if ($wordset_id > 0 && $entry_wordset_id > 0 && $entry_wordset_id !== $wordset_id) {
-            $linked_count = ll_tools_count_dictionary_entry_words($entry_id);
-            if ($linked_count > 0) {
-                return new WP_Error(
-                    'dictionary_entry_wordset_mismatch',
-                    __('This dictionary entry belongs to a different word set.', 'll-tools-text-domain')
-                );
-            }
-        }
-
-        if ($wordset_id > 0) {
-            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
-        }
         if ($word_pos_slug !== '') {
             update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, $word_pos_slug);
         }
 
         update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $entry_id);
+        ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+        if ($previous_entry_id > 0 && $previous_entry_id !== $entry_id) {
+            ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
+        }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
         return [
             'entry_id'    => $entry_id,
             'entry_title' => (string) get_the_title($entry_id),
@@ -663,7 +932,9 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
             return new WP_Error('invalid_dictionary_entry_title', __('Dictionary entry title cannot be empty.', 'll-tools-text-domain'));
         }
 
-        $matching_entries = ll_tools_search_dictionary_entries($new_title, 50, $wordset_id);
+        $matching_entries = ll_tools_search_dictionary_entries($new_title, 100, 0);
+        $best_candidate_id = 0;
+        $best_candidate_score = null;
         foreach ($matching_entries as $entry) {
             $candidate_id = isset($entry['id']) ? (int) $entry['id'] : 0;
             $candidate_title = isset($entry['label']) ? (string) $entry['label'] : '';
@@ -679,17 +950,53 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
                 continue;
             }
 
-            if ($wordset_id > 0) {
-                update_post_meta($candidate_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
-            }
-            if ($word_pos_slug !== '') {
-                update_post_meta($candidate_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, $word_pos_slug);
+            $explicit_wordset_id = ll_tools_get_dictionary_entry_explicit_wordset_id($candidate_id);
+            $scope_wordset_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($candidate_id);
+            $matches_wordset_context = function_exists('ll_tools_dictionary_entry_matches_wordset_context')
+                ? ll_tools_dictionary_entry_matches_wordset_context($candidate_id, $wordset_id)
+                : in_array($wordset_id, ll_tools_get_dictionary_entry_scope_wordset_ids($candidate_id), true);
+            $is_shared_candidate = ($explicit_wordset_id <= 0);
+            if (!$matches_wordset_context && !$is_shared_candidate) {
+                continue;
             }
 
-            update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $candidate_id);
+            $candidate_score = 0;
+            if ($matches_wordset_context) {
+                $candidate_score += 40;
+            }
+            if ($is_shared_candidate) {
+                $candidate_score += 20;
+            }
+            if (in_array($wordset_id, $scope_wordset_ids, true)) {
+                $candidate_score += 10;
+            }
+            if (empty($scope_wordset_ids)) {
+                $candidate_score += 5;
+            }
+
+            if ($best_candidate_score === null || $candidate_score > $best_candidate_score) {
+                $best_candidate_id = $candidate_id;
+                $best_candidate_score = $candidate_score;
+            }
+        }
+
+        if ($best_candidate_id > 0) {
+            if ($word_pos_slug !== '') {
+                update_post_meta($best_candidate_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, $word_pos_slug);
+            }
+
+            update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $best_candidate_id);
+            ll_tools_refresh_dictionary_entry_wordset_scope_meta($best_candidate_id);
+            if ($previous_entry_id > 0 && $previous_entry_id !== $best_candidate_id) {
+                ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
+            }
+            if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+                ll_tools_bump_dictionary_browser_cache_version();
+            }
+
             return [
-                'entry_id'    => $candidate_id,
-                'entry_title' => (string) get_the_title($candidate_id),
+                'entry_id'    => $best_candidate_id,
+                'entry_title' => (string) get_the_title($best_candidate_id),
                 'created'     => false,
             ];
         }
@@ -705,14 +1012,18 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
         }
 
         $new_entry_id = (int) $new_entry_id;
-        if ($wordset_id > 0) {
-            update_post_meta($new_entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
-        }
         if ($word_pos_slug !== '') {
             update_post_meta($new_entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, $word_pos_slug);
         }
 
         update_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY, $new_entry_id);
+        ll_tools_refresh_dictionary_entry_wordset_scope_meta($new_entry_id);
+        if ($previous_entry_id > 0 && $previous_entry_id !== $new_entry_id) {
+            ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
+        }
+        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+            ll_tools_bump_dictionary_browser_cache_version();
+        }
         return [
             'entry_id'    => $new_entry_id,
             'entry_title' => (string) get_the_title($new_entry_id),
@@ -721,6 +1032,12 @@ function ll_tools_assign_dictionary_entry_to_word($word_id, $entry_id = 0, $new_
     }
 
     delete_post_meta($word_id, LL_TOOLS_WORD_DICTIONARY_ENTRY_META_KEY);
+    if ($previous_entry_id > 0) {
+        ll_tools_refresh_dictionary_entry_wordset_scope_meta($previous_entry_id);
+    }
+    if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
     return [
         'entry_id'    => 0,
         'entry_title' => '',
@@ -1301,6 +1618,150 @@ function ll_tools_words_apply_dictionary_entry_filter($query) {
 add_action('pre_get_posts', 'll_tools_words_apply_dictionary_entry_filter', 20);
 
 /**
+ * Build one admin list filter URL for dictionary entries.
+ */
+function ll_tools_dictionary_entry_get_admin_list_url(array $args = []): string {
+    $query_args = array_merge(['post_type' => 'll_dictionary_entry'], $args);
+    return (string) add_query_arg($query_args, admin_url('edit.php'));
+}
+
+/**
+ * Return source labels used by one dictionary entry.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_entry_get_source_labels(int $post_id): array {
+    $labels = [];
+    $sources = function_exists('ll_tools_dictionary_collect_sources')
+        ? ll_tools_dictionary_collect_sources(ll_tools_get_dictionary_entry_senses($post_id))
+        : [];
+    foreach ((array) $sources as $source) {
+        $label = trim((string) ($source['label'] ?? ''));
+        if ($label !== '') {
+            $labels[] = $label;
+        }
+    }
+
+    return array_values(array_unique($labels));
+}
+
+/**
+ * Return dialect labels used by one dictionary entry.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_entry_get_dialect_labels(int $post_id): array {
+    return function_exists('ll_tools_dictionary_collect_dialects')
+        ? ll_tools_dictionary_collect_dialects(ll_tools_get_dictionary_entry_senses($post_id))
+        : [];
+}
+
+function ll_tools_dictionary_entry_has_review_flag(int $post_id): bool {
+    $value = trim((string) get_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY, true));
+    if ($value === '') {
+        return false;
+    }
+
+    $normalized = strtolower($value);
+    return !in_array($normalized, ['0', 'false', 'no', 'n'], true);
+}
+
+/**
+ * Persist one dictionary entry review flag across both entry meta and structured senses.
+ *
+ * @param int  $post_id       Dictionary entry post ID.
+ * @param bool $needs_review  Whether the entry should be flagged for review.
+ * @return void
+ */
+function ll_tools_dictionary_entry_set_review_flag(int $post_id, bool $needs_review): void {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || get_post_type($post_id) !== 'll_dictionary_entry') {
+        return;
+    }
+
+    $review_value = $needs_review ? 'needs_review' : '';
+    $senses = function_exists('ll_tools_get_dictionary_entry_senses')
+        ? ll_tools_get_dictionary_entry_senses($post_id)
+        : [];
+
+    if (!empty($senses)) {
+        foreach ($senses as $index => $sense) {
+            if (!is_array($sense)) {
+                continue;
+            }
+            $sense['needs_review'] = $review_value;
+            $senses[$index] = $sense;
+        }
+        update_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $senses);
+    }
+
+    if ($review_value !== '') {
+        update_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY, $review_value);
+    } else {
+        delete_post_meta($post_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY);
+    }
+
+    if (function_exists('ll_tools_dictionary_refresh_entry_search_meta')) {
+        ll_tools_dictionary_refresh_entry_search_meta($post_id);
+    }
+
+    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+        ll_tools_dictionary_sync_lookup_rows_for_entry($post_id);
+    } elseif (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+}
+
+/**
+ * Return distinct dictionary entry type values for admin filters.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_entry_get_type_filter_options(): array {
+    global $wpdb;
+
+    $values = (array) $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT pm.meta_value
+         FROM {$wpdb->postmeta} pm
+         INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+         WHERE p.post_type = 'll_dictionary_entry'
+           AND p.post_status IN ('publish', 'future', 'draft', 'pending', 'private')
+           AND pm.meta_key = %s
+           AND pm.meta_value <> ''",
+        LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY
+    ));
+
+    $values = array_values(array_unique(array_filter(array_map('strval', $values), static function (string $value): bool {
+        return trim($value) !== '';
+    })));
+    usort($values, static function (string $left, string $right): int {
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left, $right)
+            : strnatcasecmp($left, $right);
+    });
+
+    return $values;
+}
+
+/**
+ * Return dictionary entry IDs used for admin list filters.
+ *
+ * @return int[]
+ */
+function ll_tools_dictionary_entry_get_admin_list_ids(): array {
+    return array_values(array_filter(array_map('intval', (array) get_posts([
+        'post_type' => 'll_dictionary_entry',
+        'post_status' => ['publish', 'future', 'draft', 'pending', 'private'],
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'orderby' => 'title',
+        'order' => 'ASC',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+    ]))));
+}
+
+/**
  * Add helpful columns to dictionary entries list table.
  *
  * @param array $columns Existing columns.
@@ -1311,8 +1772,15 @@ function ll_tools_dictionary_entry_columns($columns) {
     $new_columns['cb'] = $columns['cb'] ?? '';
     $new_columns['title'] = __('Dictionary Entry', 'll-tools-text-domain');
     $new_columns['translation'] = __('Translation', 'll-tools-text-domain');
+    $new_columns['sources'] = __('Sources', 'll-tools-text-domain');
+    $new_columns['dialects'] = __('Dialects', 'll-tools-text-domain');
     $new_columns['wordset'] = __('Word Set', 'll-tools-text-domain');
     $new_columns['part_of_speech'] = __('Part of Speech', 'll-tools-text-domain');
+    $new_columns['entry_type'] = __('Type', 'll-tools-text-domain');
+    $new_columns['page_number'] = __('Page', 'll-tools-text-domain');
+    $new_columns['gender_number'] = __('Gender/Number', 'll-tools-text-domain');
+    $new_columns['parent_headword'] = __('Parent', 'll-tools-text-domain');
+    $new_columns['needs_review'] = __('Review', 'll-tools-text-domain');
     $new_columns['entry_id'] = __('ID', 'll-tools-text-domain');
     $new_columns['linked_words'] = __('Linked Words', 'll-tools-text-domain');
     $new_columns['date'] = __('Date', 'll-tools-text-domain');
@@ -1346,28 +1814,73 @@ function ll_tools_dictionary_entry_column_content($column, $post_id) {
         return;
     }
 
-    if ($column === 'wordset') {
-        $wordset_id = ll_tools_get_dictionary_entry_wordset_id((int) $post_id);
-        if ($wordset_id <= 0) {
+    if ($column === 'sources') {
+        $labels = ll_tools_dictionary_entry_get_source_labels((int) $post_id);
+        if (empty($labels)) {
             echo '—';
             return;
         }
 
-        $term = get_term($wordset_id, 'wordset');
-        if (!$term || is_wp_error($term)) {
-            echo esc_html((string) $wordset_id);
+        $parts = [];
+        foreach ($labels as $label) {
+            $source_id = function_exists('ll_tools_dictionary_normalize_source_id')
+                ? ll_tools_dictionary_normalize_source_id($label)
+                : sanitize_title($label);
+            $parts[] = '<a href="' . esc_url(ll_tools_dictionary_entry_get_admin_list_url([
+                'll_dictionary_entry_source' => $source_id,
+            ])) . '">' . esc_html($label) . '</a>';
+        }
+
+        echo implode(', ', $parts);
+        return;
+    }
+
+    if ($column === 'dialects') {
+        $labels = ll_tools_dictionary_entry_get_dialect_labels((int) $post_id);
+        if (empty($labels)) {
+            echo '—';
             return;
         }
 
-        $link = add_query_arg(
-            [
-                'post_type' => 'words',
-                'wordset'   => (string) $term->slug,
-            ],
-            admin_url('edit.php')
-        );
+        $parts = [];
+        foreach ($labels as $label) {
+            $parts[] = '<a href="' . esc_url(ll_tools_dictionary_entry_get_admin_list_url([
+                'll_dictionary_entry_dialect' => $label,
+            ])) . '">' . esc_html($label) . '</a>';
+        }
 
-        echo '<a href="' . esc_url($link) . '">' . esc_html((string) $term->name) . '</a>';
+        echo implode(', ', $parts);
+        return;
+    }
+
+    if ($column === 'wordset') {
+        $wordsets = ll_tools_get_dictionary_entry_scope_wordsets((int) $post_id);
+        if (empty($wordsets)) {
+            echo '—';
+            return;
+        }
+
+        $parts = [];
+        foreach ($wordsets as $wordset) {
+            $wordset_id = isset($wordset['id']) ? (int) $wordset['id'] : 0;
+            $wordset_name = trim((string) ($wordset['name'] ?? ''));
+            $wordset_slug = trim((string) ($wordset['slug'] ?? ''));
+            if ($wordset_id <= 0 || $wordset_name === '' || $wordset_slug === '') {
+                continue;
+            }
+
+            $link = add_query_arg(
+                [
+                    'post_type' => 'words',
+                    'wordset'   => $wordset_slug,
+                ],
+                admin_url('edit.php')
+            );
+
+            $parts[] = '<a href="' . esc_url($link) . '">' . esc_html($wordset_name) . '</a>';
+        }
+
+        echo !empty($parts) ? implode(', ', $parts) : '—';
         return;
     }
 
@@ -1381,13 +1894,291 @@ function ll_tools_dictionary_entry_column_content($column, $post_id) {
         return;
     }
 
+    if ($column === 'entry_type') {
+        $value = trim((string) get_post_meta((int) $post_id, LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY, true));
+        if ($value === '') {
+            echo '—';
+            return;
+        }
+
+        echo '<a href="' . esc_url(ll_tools_dictionary_entry_get_admin_list_url([
+            'll_dictionary_entry_type' => $value,
+        ])) . '">' . esc_html($value) . '</a>';
+        return;
+    }
+
+    if ($column === 'page_number') {
+        $value = trim((string) get_post_meta((int) $post_id, LL_TOOLS_DICTIONARY_ENTRY_PAGE_META_KEY, true));
+        echo $value !== '' ? esc_html($value) : '—';
+        return;
+    }
+
+    if ($column === 'gender_number') {
+        $value = trim((string) get_post_meta((int) $post_id, LL_TOOLS_DICTIONARY_ENTRY_GENDER_META_KEY, true));
+        echo $value !== '' ? esc_html($value) : '—';
+        return;
+    }
+
+    if ($column === 'parent_headword') {
+        $value = trim((string) get_post_meta((int) $post_id, LL_TOOLS_DICTIONARY_ENTRY_PARENT_META_KEY, true));
+        echo $value !== '' ? esc_html($value) : '—';
+        return;
+    }
+
+    if ($column === 'needs_review') {
+        if (ll_tools_dictionary_entry_has_review_flag((int) $post_id)) {
+            echo '<a href="' . esc_url(ll_tools_dictionary_entry_get_admin_list_url([
+                'll_dictionary_entry_review' => 'needs_review',
+            ])) . '">' . esc_html__('Needs review', 'll-tools-text-domain') . '</a>';
+            return;
+        }
+
+        echo '<a href="' . esc_url(ll_tools_dictionary_entry_get_admin_list_url([
+            'll_dictionary_entry_review' => 'clean',
+        ])) . '">' . esc_html__('Clean', 'll-tools-text-domain') . '</a>';
+        return;
+    }
+
     if ($column !== 'linked_words') {
         return;
     }
 
+    $linked_count = ll_tools_count_dictionary_entry_words((int) $post_id);
+    if ($linked_count <= 0) {
+        echo '—';
+        return;
+    }
+
+    echo esc_html(sprintf(
+        /* translators: %d: linked word count */
+        _n('%d linked word', '%d linked words', $linked_count, 'll-tools-text-domain'),
+        $linked_count
+    ));
+    echo '<br>';
     echo ll_tools_get_dictionary_entry_linked_words_markup((int) $post_id, 6, true);
 }
 add_action('manage_ll_dictionary_entry_posts_custom_column', 'll_tools_dictionary_entry_column_content', 10, 2);
+
+function ll_tools_dictionary_entry_sortable_columns($columns) {
+    if (!is_array($columns)) {
+        return $columns;
+    }
+
+    $columns['translation'] = 'll_dictionary_translation';
+    $columns['part_of_speech'] = 'll_dictionary_pos';
+    $columns['entry_type'] = 'll_dictionary_type';
+    $columns['page_number'] = 'll_dictionary_page';
+    $columns['gender_number'] = 'll_dictionary_gender';
+    $columns['parent_headword'] = 'll_dictionary_parent';
+    $columns['needs_review'] = 'll_dictionary_review';
+    $columns['entry_id'] = 'ID';
+
+    return $columns;
+}
+add_filter('manage_edit-ll_dictionary_entry_sortable_columns', 'll_tools_dictionary_entry_sortable_columns');
+
+function ll_tools_dictionary_entry_add_admin_filters(): void {
+    global $typenow;
+
+    if ($typenow !== 'll_dictionary_entry') {
+        return;
+    }
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    $selected_wordset = isset($_GET['ll_dictionary_entry_scope_wordset']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_scope_wordset'])) : '';
+    $selected_pos = isset($_GET['ll_dictionary_entry_pos']) ? sanitize_title(wp_unslash((string) $_GET['ll_dictionary_entry_pos'])) : '';
+    $selected_source = isset($_GET['ll_dictionary_entry_source']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_source'])) : '';
+    $selected_dialect = isset($_GET['ll_dictionary_entry_dialect']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_dialect'])) : '';
+    $selected_type = isset($_GET['ll_dictionary_entry_type']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_type'])) : '';
+    $selected_review = isset($_GET['ll_dictionary_entry_review']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_review'])) : '';
+    $selected_linked = isset($_GET['ll_dictionary_entry_linked']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_linked'])) : '';
+
+    $wordsets = get_terms([
+        'taxonomy' => 'wordset',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    $wordsets = is_wp_error($wordsets) ? [] : $wordsets;
+
+    $pos_terms = get_terms([
+        'taxonomy' => 'part_of_speech',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+    $pos_terms = is_wp_error($pos_terms) ? [] : $pos_terms;
+
+    $source_options = function_exists('ll_tools_dictionary_get_source_filter_options')
+        ? ll_tools_dictionary_get_source_filter_options(0)
+        : [];
+    $dialect_options = function_exists('ll_tools_dictionary_get_dialect_filter_options')
+        ? ll_tools_dictionary_get_dialect_filter_options(0)
+        : [];
+    $type_options = ll_tools_dictionary_entry_get_type_filter_options();
+
+    echo '<select name="ll_dictionary_entry_scope_wordset">';
+    echo '<option value="">' . esc_html__('All Word Sets', 'll-tools-text-domain') . '</option>';
+    echo '<option value="__unscoped__"' . selected($selected_wordset, '__unscoped__', false) . '>' . esc_html__('Unscoped Entries', 'll-tools-text-domain') . '</option>';
+    foreach ($wordsets as $wordset) {
+        echo '<option value="' . esc_attr((string) $wordset->term_id) . '"' . selected($selected_wordset, (string) $wordset->term_id, false) . '>' . esc_html((string) $wordset->name) . '</option>';
+    }
+    echo '</select>';
+
+    echo '<select name="ll_dictionary_entry_pos">';
+    echo '<option value="">' . esc_html__('All Parts of Speech', 'll-tools-text-domain') . '</option>';
+    foreach ($pos_terms as $term) {
+        $slug = isset($term->slug) ? (string) $term->slug : '';
+        $name = isset($term->name) ? (string) $term->name : '';
+        if ($slug === '') {
+            continue;
+        }
+        echo '<option value="' . esc_attr($slug) . '"' . selected($selected_pos, $slug, false) . '>' . esc_html($name) . '</option>';
+    }
+    echo '</select>';
+
+    echo '<select name="ll_dictionary_entry_source">';
+    echo '<option value="">' . esc_html__('All Sources', 'll-tools-text-domain') . '</option>';
+    foreach ($source_options as $option) {
+        $source_id = isset($option['id']) ? (string) $option['id'] : '';
+        $label = isset($option['label']) ? (string) $option['label'] : '';
+        if ($source_id === '' || $label === '') {
+            continue;
+        }
+        echo '<option value="' . esc_attr($source_id) . '"' . selected($selected_source, $source_id, false) . '>' . esc_html($label) . '</option>';
+    }
+    echo '</select>';
+
+    echo '<select name="ll_dictionary_entry_dialect">';
+    echo '<option value="">' . esc_html__('All Dialects', 'll-tools-text-domain') . '</option>';
+    foreach ($dialect_options as $dialect) {
+        echo '<option value="' . esc_attr((string) $dialect) . '"' . selected($selected_dialect, (string) $dialect, false) . '>' . esc_html((string) $dialect) . '</option>';
+    }
+    echo '</select>';
+
+    echo '<select name="ll_dictionary_entry_type">';
+    echo '<option value="">' . esc_html__('All Types', 'll-tools-text-domain') . '</option>';
+    foreach ($type_options as $type_value) {
+        echo '<option value="' . esc_attr($type_value) . '"' . selected($selected_type, $type_value, false) . '>' . esc_html($type_value) . '</option>';
+    }
+    echo '</select>';
+
+    echo '<select name="ll_dictionary_entry_review">';
+    echo '<option value="">' . esc_html__('Any Review Status', 'll-tools-text-domain') . '</option>';
+    echo '<option value="needs_review"' . selected($selected_review, 'needs_review', false) . '>' . esc_html__('Needs Review', 'll-tools-text-domain') . '</option>';
+    echo '<option value="clean"' . selected($selected_review, 'clean', false) . '>' . esc_html__('Clean', 'll-tools-text-domain') . '</option>';
+    echo '</select>';
+
+    echo '<select name="ll_dictionary_entry_linked">';
+    echo '<option value="">' . esc_html__('Any Linked Status', 'll-tools-text-domain') . '</option>';
+    echo '<option value="linked"' . selected($selected_linked, 'linked', false) . '>' . esc_html__('With Linked Words', 'll-tools-text-domain') . '</option>';
+    echo '<option value="unlinked"' . selected($selected_linked, 'unlinked', false) . '>' . esc_html__('Without Linked Words', 'll-tools-text-domain') . '</option>';
+    echo '</select>';
+}
+add_action('restrict_manage_posts', 'll_tools_dictionary_entry_add_admin_filters');
+
+function ll_tools_dictionary_entry_apply_admin_filters($query): void {
+    if (!($query instanceof WP_Query) || !is_admin() || !$query->is_main_query()) {
+        return;
+    }
+
+    global $pagenow;
+    if ($pagenow !== 'edit.php') {
+        return;
+    }
+
+    $post_type = (string) $query->get('post_type');
+    if ($post_type !== 'll_dictionary_entry') {
+        return;
+    }
+    if (!current_user_can('view_ll_tools')) {
+        return;
+    }
+
+    $orderby = (string) $query->get('orderby');
+    $meta_sort_map = [
+        'll_dictionary_translation' => LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY,
+        'll_dictionary_pos' => LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY,
+        'll_dictionary_type' => LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY,
+        'll_dictionary_page' => LL_TOOLS_DICTIONARY_ENTRY_PAGE_META_KEY,
+        'll_dictionary_gender' => LL_TOOLS_DICTIONARY_ENTRY_GENDER_META_KEY,
+        'll_dictionary_parent' => LL_TOOLS_DICTIONARY_ENTRY_PARENT_META_KEY,
+        'll_dictionary_review' => LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY,
+    ];
+    if (isset($meta_sort_map[$orderby])) {
+        $query->set('meta_key', $meta_sort_map[$orderby]);
+        $query->set('orderby', 'meta_value');
+    }
+
+    $wordset_filter = isset($_GET['ll_dictionary_entry_scope_wordset']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_scope_wordset'])) : '';
+    $pos_filter = isset($_GET['ll_dictionary_entry_pos']) ? sanitize_title(wp_unslash((string) $_GET['ll_dictionary_entry_pos'])) : '';
+    $source_filter = isset($_GET['ll_dictionary_entry_source']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_source'])) : '';
+    $dialect_filter = isset($_GET['ll_dictionary_entry_dialect']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_dialect'])) : '';
+    $type_filter = isset($_GET['ll_dictionary_entry_type']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_type'])) : '';
+    $review_filter = isset($_GET['ll_dictionary_entry_review']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_review'])) : '';
+    $linked_filter = isset($_GET['ll_dictionary_entry_linked']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_entry_linked'])) : '';
+
+    if ($wordset_filter === '' && $pos_filter === '' && $source_filter === '' && $dialect_filter === '' && $type_filter === '' && $review_filter === '' && $linked_filter === '') {
+        return;
+    }
+
+    $existing_post_in = array_values(array_filter(array_map('intval', (array) $query->get('post__in'))));
+    $filtered_ids = [];
+    foreach (ll_tools_dictionary_entry_get_admin_list_ids() as $entry_id) {
+        if ($wordset_filter !== '') {
+            $scope_ids = ll_tools_get_dictionary_entry_scope_wordset_ids($entry_id);
+            if ($wordset_filter === '__unscoped__') {
+                if (!empty($scope_ids)) {
+                    continue;
+                }
+            } elseif (!in_array((int) $wordset_filter, $scope_ids, true)) {
+                continue;
+            }
+        }
+
+        if ($pos_filter !== '' && ll_tools_get_dictionary_entry_primary_pos_slug($entry_id) !== $pos_filter) {
+            continue;
+        }
+
+        if ($source_filter !== '' && function_exists('ll_tools_dictionary_entry_matches_source_filter') && !ll_tools_dictionary_entry_matches_source_filter($entry_id, $source_filter)) {
+            continue;
+        }
+
+        if ($dialect_filter !== '' && function_exists('ll_tools_dictionary_entry_matches_dialect_filter') && !ll_tools_dictionary_entry_matches_dialect_filter($entry_id, $dialect_filter)) {
+            continue;
+        }
+
+        if ($type_filter !== '' && trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY, true)) !== $type_filter) {
+            continue;
+        }
+
+        if ($review_filter === 'needs_review' && !ll_tools_dictionary_entry_has_review_flag($entry_id)) {
+            continue;
+        }
+        if ($review_filter === 'clean' && ll_tools_dictionary_entry_has_review_flag($entry_id)) {
+            continue;
+        }
+
+        $linked_count = ll_tools_count_dictionary_entry_words($entry_id);
+        if ($linked_filter === 'linked' && $linked_count <= 0) {
+            continue;
+        }
+        if ($linked_filter === 'unlinked' && $linked_count > 0) {
+            continue;
+        }
+
+        $filtered_ids[] = $entry_id;
+    }
+
+    if (!empty($existing_post_in)) {
+        $filtered_ids = array_values(array_intersect($existing_post_in, $filtered_ids));
+    }
+
+    $query->set('post__in', !empty($filtered_ids) ? $filtered_ids : [0]);
+}
+add_action('pre_get_posts', 'll_tools_dictionary_entry_apply_admin_filters', 25);
 
 /**
  * Read-only metabox on dictionary entries: show linked words.
@@ -1437,6 +2228,50 @@ function ll_tools_dictionary_entry_render_linked_words_metabox($post) {
 }
 
 /**
+ * Keep cached dictionary-entry wordset scope metadata in sync.
+ *
+ * @param int $post_id Dictionary entry post ID.
+ * @return void
+ */
+function ll_tools_dictionary_entry_refresh_scope_on_save($post_id): void {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || get_post_type($post_id) !== 'll_dictionary_entry' || wp_is_post_revision($post_id)) {
+        return;
+    }
+
+    ll_tools_refresh_dictionary_entry_wordset_scope_meta($post_id);
+}
+add_action('save_post_ll_dictionary_entry', 'll_tools_dictionary_entry_refresh_scope_on_save', 55);
+
+/**
+ * Refresh one linked dictionary entry when a word's wordset assignment changes.
+ *
+ * @param int|string $object_id Object ID.
+ * @param mixed      $terms     Assigned terms.
+ * @param mixed      $tt_ids    Term taxonomy IDs.
+ * @param string     $taxonomy  Taxonomy slug.
+ * @return void
+ */
+function ll_tools_dictionary_entry_refresh_scope_on_wordset_terms_change($object_id, $terms, $tt_ids, $taxonomy): void {
+    if ($taxonomy !== 'wordset') {
+        return;
+    }
+
+    $word_id = (int) $object_id;
+    if ($word_id <= 0 || get_post_type($word_id) !== 'words') {
+        return;
+    }
+
+    $entry_id = ll_tools_get_word_dictionary_entry_id($word_id);
+    if ($entry_id <= 0) {
+        return;
+    }
+
+    ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+}
+add_action('set_object_terms', 'll_tools_dictionary_entry_refresh_scope_on_wordset_terms_change', 10, 4);
+
+/**
  * Clear words->dictionary link if dictionary entry is deleted.
  *
  * @param int $post_id Deleted post ID.
@@ -1458,3 +2293,82 @@ function ll_tools_dictionary_entry_cleanup_links_on_delete($post_id) {
     }
 }
 add_action('before_delete_post', 'll_tools_dictionary_entry_cleanup_links_on_delete');
+
+/**
+ * Invalidate dictionary browser caches when linked entry content changes.
+ *
+ * @param int          $post_id Post ID.
+ * @param WP_Post|null $post    Post object when available.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_post_save($post_id, $post = null): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    $post_id = (int) $post_id;
+    if ($post_id <= 0 || wp_is_post_revision($post_id)) {
+        return;
+    }
+
+    $post_type = $post instanceof WP_Post ? (string) $post->post_type : (string) get_post_type($post_id);
+    if (!in_array($post_type, ['ll_dictionary_entry', 'words'], true)) {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('save_post_ll_dictionary_entry', 'll_tools_dictionary_browser_invalidate_on_post_save', 60, 2);
+add_action('save_post_words', 'll_tools_dictionary_browser_invalidate_on_post_save', 60, 2);
+
+/**
+ * Invalidate dictionary browser caches when linked terms change.
+ *
+ * @param int|string $object_id Object ID.
+ * @param mixed      $terms     Assigned terms.
+ * @param mixed      $tt_ids    Term taxonomy IDs.
+ * @param string     $taxonomy  Taxonomy slug.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_terms_change($object_id, $terms, $tt_ids, $taxonomy): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    if (!in_array($taxonomy, ['wordset', 'part_of_speech'], true)) {
+        return;
+    }
+
+    $post_id = (int) $object_id;
+    if ($post_id <= 0 || get_post_type($post_id) !== 'words') {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('set_object_terms', 'll_tools_dictionary_browser_invalidate_on_terms_change', 20, 4);
+
+/**
+ * Invalidate dictionary browser caches when source posts are deleted.
+ *
+ * @param int $post_id Deleted post ID.
+ * @return void
+ */
+function ll_tools_dictionary_browser_invalidate_on_post_delete($post_id): void {
+    if (!function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        return;
+    }
+
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return;
+    }
+
+    $post_type = (string) get_post_type($post_id);
+    if (!in_array($post_type, ['ll_dictionary_entry', 'words'], true)) {
+        return;
+    }
+
+    ll_tools_bump_dictionary_browser_cache_version();
+}
+add_action('before_delete_post', 'll_tools_dictionary_browser_invalidate_on_post_delete', 20);

@@ -235,7 +235,6 @@ function ll_get_all_quiz_pages_data($opts = []) {
         $filtered_wordset_id = (int) ($ws_ids[0] ?? 0);
     }
 
-    $enable_translation = (int) get_option('ll_enable_category_translation', 0);
     $items = [];
     $gender_config_cache = [];
 
@@ -244,7 +243,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
     // Build the allowed categories list using the same helper as the widget for consistency
     $allowed_category_ids = [];
     $category_meta_map = [];
-    $use_translations = $enable_translation && (strpos(strtolower(get_locale()), strtolower(get_option('ll_translation_language', 'en'))) === 0);
+    $use_translations = function_exists('ll_flashcards_should_use_translations')
+        ? ll_flashcards_should_use_translations($ws_ids)
+        : false;
     if (function_exists('ll_flashcards_build_categories')) {
         [$processed] = ll_flashcards_build_categories('', $use_translations, $ws_ids);
         foreach ($processed as $cat) {
@@ -257,17 +258,28 @@ function ll_get_all_quiz_pages_data($opts = []) {
     }
 
     foreach ($pages as $post_id) {
-        $term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
-        if ($term_id <= 0) continue;
+        $stored_term_id = (int) get_post_meta($post_id, '_ll_tools_word_category_id', true);
+        if ($stored_term_id <= 0) continue;
 
-        if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true)) {
+        $term_id = $stored_term_id;
+        if ($filtered_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_term_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_term_id, $filtered_wordset_id, false);
+            if ($effective_term_id > 0) {
+                $term_id = $effective_term_id;
+            }
+        }
+
+        if (is_array($allowed_term_ids) && !in_array($term_id, $allowed_term_ids, true) && !in_array($stored_term_id, $allowed_term_ids, true)) {
             continue;
         }
 
         $term = get_term($term_id, 'word-category');
         if (!$term || is_wp_error($term)) continue;
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($term)) {
+            continue;
+        }
 
-        if (!empty($allowed_category_ids) && !isset($allowed_category_ids[$term_id])) {
+        if (!empty($allowed_category_ids) && !isset($allowed_category_ids[$term_id]) && !isset($allowed_category_ids[$stored_term_id])) {
             continue;
         }
         // Eligibility should match flashcard widget: use provided wordset scope; otherwise consider all wordsets
@@ -283,8 +295,11 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
         $name        = html_entity_decode($term->name, ENT_QUOTES, 'UTF-8');
         $translation = '';
-        if ($enable_translation) {
+        if ($use_translations) {
             $t = get_term_meta($term_id, 'term_translation', true);
+            if (empty($t) && $stored_term_id > 0 && $stored_term_id !== $term_id) {
+                $t = get_term_meta($stored_term_id, 'term_translation', true);
+            }
             if (!empty($t)) $translation = html_entity_decode($t, ENT_QUOTES, 'UTF-8');
         }
 
@@ -365,6 +380,9 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'display_name' => ($translation !== '' ? $translation : $name),
             'wordset_slug' => $wordset_slug,  // Added key
             'wordset_id'   => $wordset_id_for_item,
+            'autoplay_text_audio_answer_options' => ($wordset_id_for_item > 0 && function_exists('ll_tools_should_autoplay_text_audio_answer_options'))
+                ? ll_tools_should_autoplay_text_audio_answer_options([$wordset_id_for_item])
+                : false,
             'display_mode' => $option_type,
             'option_type'  => $option_type,
             'prompt_type'  => $prompt_type,
@@ -388,15 +406,19 @@ function ll_get_all_quiz_pages_data($opts = []) {
 
 /**
  * Finds the wordset ID with the earliest creation date (lowest term_id) that has enough published words for a category.
- * @param string $category_name
+ * @param mixed $category
  * @param int $min_word_count Minimum words required
  * @return int Wordset ID or 0 if none found
  */
-function ll_get_default_wordset_id_for_category(string $category_name, int $min_word_count = 5): int {
+function ll_get_default_wordset_id_for_category($category, int $min_word_count = 5): int {
     global $wpdb;
-    $cat_term = get_term_by('name', $category_name, 'word-category');
-    if (!$cat_term) return 0;
-    $cat_id = (int)$cat_term->term_id;
+    $cat_term = function_exists('ll_tools_resolve_word_category_term')
+        ? ll_tools_resolve_word_category_term($category)
+        : get_term($category, 'word-category');
+    if (!($cat_term instanceof WP_Term) || is_wp_error($cat_term)) {
+        return 0;
+    }
+    $cat_id = (int) $cat_term->term_id;
 
     // Get all wordset IDs ordered by term_id (assuming lower IDs are older)
     $wordsets = get_terms([
@@ -435,17 +457,15 @@ function ll_get_default_wordset_id_for_category(string $category_name, int $min_
  * @param string $wordset_spec Optional wordset filter (slug|name|id) to align popup categories/words.
  */
 function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
-    $enable_translation = get_option('ll_enable_category_translation', 0);
-    $target_language    = strtolower(get_option('ll_translation_language', 'en'));
-    $site_language      = strtolower(get_locale());
-    $use_translations   = $enable_translation && strpos($site_language, $target_language) === 0;
-
     $wordset_spec = sanitize_text_field((string) $wordset_spec);
     $wordset_ids  = function_exists('ll_flashcards_resolve_wordset_ids')
         ? ll_flashcards_resolve_wordset_ids($wordset_spec, false)
         : [];
     $wordset_ids = array_map('intval', (array) $wordset_ids);
     $wordset_ids = array_values(array_filter(array_unique($wordset_ids), function ($id) { return $id > 0; }));
+    $use_translations = function_exists('ll_flashcards_should_use_translations')
+        ? ll_flashcards_should_use_translations($wordset_ids)
+        : false;
 
     if (function_exists('ll_flashcards_build_categories')) {
         [$categories] = ll_flashcards_build_categories('', $use_translations, $wordset_ids);
@@ -491,12 +511,14 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             var displayModeHint = a.getAttribute('data-display-mode') || '';
             var promptTypeHint = a.getAttribute('data-prompt-type') || '';
             var optionTypeHint = a.getAttribute('data-option-type') || '';
+            var autoplayTextAudioAnswerOptionsAttr = a.getAttribute('data-autoplay-text-audio-answer-options');
             var genderEnabledAttr = a.getAttribute('data-gender-enabled');
             var genderSupportedAttr = a.getAttribute('data-gender-supported');
             var genderOptionsAttr = a.getAttribute('data-gender-options') || '';
             var genderVisualConfigAttr = a.getAttribute('data-gender-visual-config') || '';
             if (!cat) return;
 
+            var autoplayTextAudioAnswerOptions = (autoplayTextAudioAnswerOptionsAttr === '1' || autoplayTextAudioAnswerOptionsAttr === 'true');
             var genderEnabled = (genderEnabledAttr === '1' || genderEnabledAttr === 'true');
             var genderSupported = (genderSupportedAttr === '1' || genderSupportedAttr === 'true');
             var genderOptions = [];
@@ -554,6 +576,7 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
                     genderSupported: genderSupported,
                     genderOptions: genderOptions,
                     genderVisualConfig: genderVisualConfig,
+                    autoplayTextAudioAnswerOptions: autoplayTextAudioAnswerOptions,
                     triggerEl: a
                 };
                 if (wordsetId) {
@@ -649,10 +672,9 @@ function ll_qpg_print_flashcard_shell_once() {
     <div id="ll-tools-flashcard-container" class="ll-tools-flashcard-container" style="display:none;">
       <div id="ll-tools-flashcard-popup" style="display:none;">
         <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
+          <button id="ll-tools-close-flashcard" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
 
           <div id="ll-tools-flashcard-header" style="display:none;">
-            <button id="ll-tools-close-flashcard" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
-
             <div id="ll-tools-learning-progress" style="display:none;"></div>
 
             <div id="ll-tools-category-stack" class="ll-tools-category-stack">
@@ -840,6 +862,10 @@ function ll_qpg_print_flashcard_shell_once() {
                 window.llToolsFlashcardsData.wordsetIds = parsedWordsetIds.length ? parsedWordsetIds : [];
                 window.llToolsFlashcardsData.launchContext = launchContext;
                 window.llToolsFlashcardsData.launch_context = launchContext;
+                if (opts && typeof opts.autoplayTextAudioAnswerOptions !== 'undefined') {
+                    window.llToolsFlashcardsData.autoplayTextAudioAnswerOptions = !!opts.autoplayTextAudioAnswerOptions;
+                    window.llToolsFlashcardsData.autoplay_text_audio_answer_options = !!opts.autoplayTextAudioAnswerOptions;
+                }
                 if (mode === 'gender') {
                     delete window.llToolsFlashcardsData.genderSessionPlan;
                     delete window.llToolsFlashcardsData.genderSessionPlanArmed;
@@ -854,7 +880,16 @@ function ll_qpg_print_flashcard_shell_once() {
             var genderVisualConfig = (opts && opts.genderVisualConfig && typeof opts.genderVisualConfig === 'object')
                 ? opts.genderVisualConfig
                 : null;
+            var autoplayTextAudioAnswerOptions = (opts && typeof opts.autoplayTextAudioAnswerOptions !== 'undefined')
+                ? !!opts.autoplayTextAudioAnswerOptions
+                : null;
             if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
+                if (autoplayTextAudioAnswerOptions === null) {
+                    var ataAttr = opts.triggerEl.getAttribute('data-autoplay-text-audio-answer-options');
+                    if (ataAttr !== null) {
+                        autoplayTextAudioAnswerOptions = (ataAttr === '1' || ataAttr === 'true');
+                    }
+                }
                 if (genderEnabled === null) {
                     var geAttr = opts.triggerEl.getAttribute('data-gender-enabled');
                     if (geAttr !== null) {
@@ -895,6 +930,10 @@ function ll_qpg_print_flashcard_shell_once() {
             }
 
             if (window.llToolsFlashcardsData) {
+                if (autoplayTextAudioAnswerOptions !== null) {
+                    window.llToolsFlashcardsData.autoplayTextAudioAnswerOptions = autoplayTextAudioAnswerOptions;
+                    window.llToolsFlashcardsData.autoplay_text_audio_answer_options = autoplayTextAudioAnswerOptions;
+                }
                 if (genderEnabled !== null) {
                     window.llToolsFlashcardsData.genderEnabled = genderEnabled;
                     window.llToolsFlashcardsData.genderWordsetId = parsedWordsetIds.length ? parsedWordsetIds[0] : 0;
@@ -992,6 +1031,9 @@ function ll_quiz_pages_grid_shortcode($atts) {
     $quiz_mode = in_array($atts['mode'], ['practice', 'learning', 'self-check'], true) ? $atts['mode'] : 'practice';
 
     if ($use_popup) {
+        if (function_exists('ll_qp_enqueue_popup_assets')) {
+            ll_qp_enqueue_popup_assets();
+        }
         ll_qpg_bootstrap_flashcards_for_grid($atts['wordset']);
     }
 
@@ -1021,6 +1063,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             // For popup, add wordset and mode data attributes if set
             $ws_attr = (!empty($it['wordset_slug'])) ? ' data-wordset="' . esc_attr($it['wordset_slug']) . '"' : '';
             $ws_id_attr = (!empty($it['wordset_id'])) ? ' data-wordset-id="' . (int) $it['wordset_id'] . '"' : '';
+            $autoplay_text_audio_attr = ' data-autoplay-text-audio-answer-options="' . (!empty($it['autoplay_text_audio_answer_options']) ? '1' : '0') . '"';
             $mode_hint = (!empty($it['display_mode'])) ? ' data-display-mode="' . esc_attr($it['display_mode']) . '"' : '';
             $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             $prompt_attr = (!empty($it['prompt_type'])) ? ' data-prompt-type="' . esc_attr($it['prompt_type']) . '"' : '';
@@ -1029,13 +1072,16 @@ function ll_quiz_pages_grid_shortcode($atts) {
             $gender_supported_attr = ' data-gender-supported="' . (!empty($it['gender_supported']) ? '1' : '0') . '"';
             $gender_options_attr = ' data-gender-options="' . esc_attr(wp_json_encode($it['gender_options'] ?? [])) . '"';
             $gender_visual_attr = ' data-gender-visual-config="' . esc_attr(wp_json_encode($it['gender_visual_config'] ?? [])) . '"';
+            /* translators: %s: quiz card title */
+            $start_label = sprintf(__('Start %s', 'll-tools-text-domain'), $title);
             echo '<a class="ll-quiz-page-card ll-quiz-page-trigger"'
             . ' href="#" role="button"'
-            . ' aria-label="Start ' . esc_attr($title) . '"'
+            . ' aria-label="' . esc_attr($start_label) . '"'
             . ' data-category="' . esc_attr($raw_name) . '"'
             . ' data-url="' . esc_url($permalink) . '"'
             . $ws_attr
             . $ws_id_attr
+            . $autoplay_text_audio_attr
             . $mode_hint
             . $mode_attr
             . $prompt_attr

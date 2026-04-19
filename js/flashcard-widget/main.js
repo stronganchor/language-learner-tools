@@ -15,8 +15,42 @@
     let __LastWordsetKey = null;
     let settingsHandlersBound = false;
     let savePrefsTimer = null;
+    let savePrefsQueued = false;
+    let savePrefsInFlightRequest = null;
+    let savePrefsRequestToken = 0;
+    let savePrefsLatestToken = 0;
     let firstRoundRecoveryAttempts = 0;
     let sessionWordFilterRecoveryAttempts = 0;
+    let practiceProgressMinDisplayRatio = 0;
+    const flashcardInteractionGuard = {
+        active: false,
+        historyActive: false,
+        historyToken: 0,
+        listenersBound: false,
+        suppressNextPopstate: false,
+        suppressResetTimer: null,
+        pinchDistance: 0
+    };
+
+    function normalizePromptType(promptType) {
+        return String(promptType || '').trim().toLowerCase() || 'audio';
+    }
+
+    function promptTypeHasAudio(promptType) {
+        if (Util && typeof Util.promptTypeHasAudio === 'function') {
+            return !!Util.promptTypeHasAudio(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+    }
+
+    function promptTypeHasImage(promptType) {
+        if (Util && typeof Util.promptTypeHasImage === 'function') {
+            return !!Util.promptTypeHasImage(promptType);
+        }
+        const normalized = normalizePromptType(promptType);
+        return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+    }
 
     // Keep the quiz popup at the top document level so theme/container transforms
     // cannot clip or scale it when opened from lesson/dashboard contexts.
@@ -27,6 +61,388 @@
         if (!popupRoot || popupRoot.parentNode === doc.body) { return; }
         try {
             doc.body.appendChild(popupRoot);
+        } catch (_) { /* no-op */ }
+    }
+
+    function setQuizGuardPageClass(enabled) {
+        const doc = root.document;
+        if (!doc) { return; }
+
+        const method = enabled ? 'add' : 'remove';
+        try {
+            if (doc.body && doc.body.classList) {
+                doc.body.classList[method]('ll-tools-quiz-guard-active');
+            }
+            if (doc.documentElement && doc.documentElement.classList) {
+                doc.documentElement.classList[method]('ll-tools-quiz-guard-active');
+            }
+        } catch (_) { /* no-op */ }
+    }
+
+    function clearFlashcardPopstateSuppression() {
+        if (flashcardInteractionGuard.suppressResetTimer) {
+            clearTimeout(flashcardInteractionGuard.suppressResetTimer);
+            flashcardInteractionGuard.suppressResetTimer = null;
+        }
+        flashcardInteractionGuard.suppressNextPopstate = false;
+    }
+
+    function scheduleFlashcardPopstateSuppressionReset() {
+        if (flashcardInteractionGuard.suppressResetTimer) {
+            clearTimeout(flashcardInteractionGuard.suppressResetTimer);
+        }
+        flashcardInteractionGuard.suppressResetTimer = setTimeout(function () {
+            flashcardInteractionGuard.suppressResetTimer = null;
+            flashcardInteractionGuard.suppressNextPopstate = false;
+        }, 600);
+    }
+
+    function isEditableEventTarget(target) {
+        if (!target || typeof target.closest !== 'function') {
+            return false;
+        }
+
+        if (target.isContentEditable) {
+            return true;
+        }
+
+        const contentEditable = target.closest('[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"], textarea');
+        if (contentEditable) {
+            return true;
+        }
+
+        const input = target.closest('input');
+        if (!input) {
+            return false;
+        }
+
+        if (input.disabled || input.readOnly) {
+            return false;
+        }
+
+        const type = String(input.type || 'text').toLowerCase();
+        return !['button', 'submit', 'reset', 'checkbox', 'radio', 'range', 'color', 'file', 'image', 'hidden'].includes(type);
+    }
+
+    function isFlashcardPopupVisible() {
+        const doc = root.document;
+        const popup = doc ? doc.getElementById('ll-tools-flashcard-quiz-popup') : null;
+        if (!popup) {
+            return false;
+        }
+
+        try {
+            const style = root.getComputedStyle ? root.getComputedStyle(popup) : null;
+            if (style) {
+                return style.display !== 'none' && style.visibility !== 'hidden';
+            }
+        } catch (_) { /* no-op */ }
+
+        return true;
+    }
+
+    function isFlashcardGuardActive() {
+        return !!flashcardInteractionGuard.active && !!State.widgetActive && isFlashcardPopupVisible();
+    }
+
+    function getFlashcardCloseConfirmMessage() {
+        const messages = (root.llToolsFlashcardsMessages && typeof root.llToolsFlashcardsMessages === 'object')
+            ? root.llToolsFlashcardsMessages
+            : {};
+        const raw = messages.closeQuizConfirm || messages.close_quiz_confirm;
+        return String(raw || 'Close this quiz? Your current progress in this popup will be lost.');
+    }
+
+    function getMessage(key, fallback) {
+        return (Util && typeof Util.getMessage === 'function')
+            ? Util.getMessage(key, fallback)
+            : String(fallback || '').trim();
+    }
+
+    function pushFlashcardHistoryState() {
+        if (!root.history || typeof root.history.pushState !== 'function') {
+            return false;
+        }
+
+        flashcardInteractionGuard.historyToken += 1;
+
+        try {
+            const currentState = (root.history.state && typeof root.history.state === 'object')
+                ? Object.assign({}, root.history.state)
+                : {};
+            currentState.llFlashcardPopupGuard = flashcardInteractionGuard.historyToken;
+            root.history.pushState(currentState, root.document ? root.document.title : '', root.location.href);
+            flashcardInteractionGuard.historyActive = true;
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function consumeFlashcardHistoryState() {
+        if (!flashcardInteractionGuard.historyActive || !root.history || typeof root.history.back !== 'function') {
+            flashcardInteractionGuard.historyActive = false;
+            clearFlashcardPopstateSuppression();
+            return false;
+        }
+
+        flashcardInteractionGuard.historyActive = false;
+        flashcardInteractionGuard.suppressNextPopstate = true;
+        scheduleFlashcardPopstateSuppressionReset();
+
+        try {
+            root.history.back();
+            return true;
+        } catch (_) {
+            clearFlashcardPopstateSuppression();
+            return false;
+        }
+    }
+
+    function confirmAndCloseFlashcardFromGuard(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        let shouldClose = true;
+
+        try {
+            shouldClose = root.confirm(getFlashcardCloseConfirmMessage());
+        } catch (_) {
+            shouldClose = true;
+        }
+
+        if (shouldClose) {
+            closeFlashcard({
+                historyAlreadyHandled: !!opts.historyAlreadyHandled
+            });
+            return true;
+        }
+
+        if (opts.rearmHistory) {
+            pushFlashcardHistoryState();
+        }
+
+        return false;
+    }
+
+    function onFlashcardGuardPopstate() {
+        if (flashcardInteractionGuard.suppressNextPopstate) {
+            clearFlashcardPopstateSuppression();
+            return;
+        }
+
+        if (!isFlashcardGuardActive()) {
+            flashcardInteractionGuard.historyActive = false;
+            return;
+        }
+
+        confirmAndCloseFlashcardFromGuard({
+            historyAlreadyHandled: true,
+            rearmHistory: true
+        });
+    }
+
+    function onFlashcardGuardKeydown(e) {
+        if (!isFlashcardGuardActive() || e.defaultPrevented || e.key !== 'Backspace') {
+            return;
+        }
+
+        if (isEditableEventTarget(e.target)) {
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+        confirmAndCloseFlashcardFromGuard();
+    }
+
+    function onFlashcardGuardContextMenu(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        const target = e.target;
+        if (!target || typeof target.closest !== 'function' || !target.closest('#ll-tools-flashcard-popup img')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardDragstart(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        const target = e.target;
+        if (!target || typeof target.closest !== 'function' || !target.closest('#ll-tools-flashcard-popup img')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function onFlashcardGuardWheel(e) {
+        if (!isFlashcardGuardActive() || !e.ctrlKey) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function getFlashcardGuardViewportScale() {
+        if (root.visualViewport && typeof root.visualViewport.scale === 'number' && isFinite(root.visualViewport.scale) && root.visualViewport.scale > 0) {
+            return root.visualViewport.scale;
+        }
+
+        return 1;
+    }
+
+    function flashcardGuardViewportIsZoomed() {
+        return getFlashcardGuardViewportScale() > 1.01;
+    }
+
+    function getFlashcardGuardTouchDistance(touches) {
+        if (!touches || touches.length < 2) {
+            return 0;
+        }
+
+        const first = touches[0];
+        const second = touches[1];
+        const dx = (Number(second.clientX) || 0) - (Number(first.clientX) || 0);
+        const dy = (Number(second.clientY) || 0) - (Number(first.clientY) || 0);
+        return Math.sqrt((dx * dx) + (dy * dy));
+    }
+
+    function resetFlashcardGuardPinchDistance() {
+        flashcardInteractionGuard.pinchDistance = 0;
+    }
+
+    function onFlashcardGuardTouchStart(e) {
+        if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            resetFlashcardGuardPinchDistance();
+            return;
+        }
+
+        flashcardInteractionGuard.pinchDistance = getFlashcardGuardTouchDistance(e.touches);
+        if (!flashcardGuardViewportIsZoomed()) {
+            e.preventDefault();
+        }
+    }
+
+    function onFlashcardGuardTouchMove(e) {
+        if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            resetFlashcardGuardPinchDistance();
+            return;
+        }
+
+        const currentDistance = getFlashcardGuardTouchDistance(e.touches);
+        const previousDistance = flashcardInteractionGuard.pinchDistance;
+        flashcardInteractionGuard.pinchDistance = currentDistance;
+
+        if (!flashcardGuardViewportIsZoomed()) {
+            e.preventDefault();
+            return;
+        }
+
+        if (previousDistance > 0 && currentDistance > (previousDistance + 4)) {
+            e.preventDefault();
+        }
+    }
+
+    function onFlashcardGuardTouchEnd(e) {
+        if (!isFlashcardGuardActive() || !e.touches || e.touches.length < 2) {
+            resetFlashcardGuardPinchDistance();
+            return;
+        }
+
+        flashcardInteractionGuard.pinchDistance = getFlashcardGuardTouchDistance(e.touches);
+    }
+
+    function onFlashcardGuardGesture(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        if (!flashcardGuardViewportIsZoomed()) {
+            e.preventDefault();
+            return;
+        }
+
+        if (e.type === 'gesturechange' && typeof e.scale === 'number' && isFinite(e.scale) && e.scale >= 1) {
+            e.preventDefault();
+        }
+    }
+
+    function onFlashcardGuardDoubleClick(e) {
+        if (!isFlashcardGuardActive()) {
+            return;
+        }
+
+        const target = e.target;
+        if (!target || typeof target.closest !== 'function' || !target.closest('#ll-tools-flashcard-popup')) {
+            return;
+        }
+
+        e.preventDefault();
+    }
+
+    function bindFlashcardInteractionGuard() {
+        if (flashcardInteractionGuard.listenersBound || !root.document) {
+            return;
+        }
+
+        flashcardInteractionGuard.listenersBound = true;
+        root.addEventListener('popstate', onFlashcardGuardPopstate);
+        root.document.addEventListener('keydown', onFlashcardGuardKeydown, true);
+        root.document.addEventListener('contextmenu', onFlashcardGuardContextMenu, true);
+        root.document.addEventListener('dragstart', onFlashcardGuardDragstart, true);
+        root.document.addEventListener('wheel', onFlashcardGuardWheel, { passive: false, capture: true });
+        root.document.addEventListener('touchstart', onFlashcardGuardTouchStart, { passive: false, capture: true });
+        root.document.addEventListener('touchmove', onFlashcardGuardTouchMove, { passive: false, capture: true });
+        root.document.addEventListener('touchend', onFlashcardGuardTouchEnd, true);
+        root.document.addEventListener('touchcancel', onFlashcardGuardTouchEnd, true);
+        root.document.addEventListener('gesturestart', onFlashcardGuardGesture, true);
+        root.document.addEventListener('gesturechange', onFlashcardGuardGesture, true);
+        root.document.addEventListener('gestureend', onFlashcardGuardGesture, true);
+        root.document.addEventListener('dblclick', onFlashcardGuardDoubleClick, true);
+    }
+
+    function activateFlashcardInteractionGuard() {
+        bindFlashcardInteractionGuard();
+        if (flashcardInteractionGuard.active) {
+            return;
+        }
+
+        flashcardInteractionGuard.active = true;
+        setQuizGuardPageClass(true);
+        if (!flashcardInteractionGuard.historyActive) {
+            pushFlashcardHistoryState();
+        }
+    }
+
+    function deactivateFlashcardInteractionGuard(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+
+        flashcardInteractionGuard.active = false;
+        resetFlashcardGuardPinchDistance();
+        setQuizGuardPageClass(false);
+
+        if (opts.historyAlreadyHandled) {
+            flashcardInteractionGuard.historyActive = false;
+            clearFlashcardPopstateSuppression();
+            return;
+        }
+
+        consumeFlashcardHistoryState();
+    }
+
+    function warmupVisualizerContext() {
+        try {
+            const viz = root.LLFlashcards && root.LLFlashcards.AudioVisualizer;
+            if (!viz || typeof viz.warmup !== 'function') { return; }
+            const p = viz.warmup();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { return false; });
+            }
         } catch (_) { /* no-op */ }
     }
 
@@ -153,8 +569,10 @@
         __LLTimers.clear();
         firstRoundRecoveryAttempts = 0;
         sessionWordFilterRecoveryAttempts = 0;
+        practiceProgressMinDisplayRatio = 0;
         clearPrompt();
         try { Dom.clearRepeatButtonBinding && Dom.clearRepeatButtonBinding(); } catch (_) { /* no-op */ }
+        try { Dom.setSoundGateRequired && Dom.setSoundGateRequired(false); } catch (_) { /* no-op */ }
         setStarModeOverride(null);
         try { State.modeSessionCompleteTracked = false; } catch (_) { /* no-op */ }
 
@@ -173,6 +591,7 @@
     // used/completed markers from the prior session.
     function resetRoundStateForLaunch() {
         State.clearActiveTimeouts();
+        practiceProgressMinDisplayRatio = 0;
 
         State.usedWordIDs = [];
         State.categoryRoundCount = {};
@@ -193,6 +612,8 @@
         State.modeSessionCompleteTracked = false;
         State.hadWrongAnswerThisTurn = false;
         State.lastWordShownId = null;
+        State.soundGateRequired = false;
+        State.soundGateActive = false;
 
         State.wordsLinear = [];
         State.listenIndex = 0;
@@ -215,6 +636,37 @@
         State.learningWordSetIndex = 0;
         State.learningWordSetSignature = '';
         State.roundMediaFailureCounts = {};
+    }
+
+    function roundRequiresAudio(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const promptType = String(opts.promptType || State.currentPromptType || '');
+        const optionType = String(opts.optionType || State.currentOptionType || '');
+
+        if (State.isSelfCheckMode) {
+            return false;
+        }
+        if (State.isListeningMode || State.isLearningMode || State.isGenderMode) {
+            return true;
+        }
+        return promptTypeHasAudio(promptType) || optionType === 'audio' || optionType === 'text_audio';
+    }
+
+    function applyRoundSoundRequirement(required) {
+        const needsAudio = !!required;
+        State.soundGateRequired = needsAudio;
+        if (!needsAudio) {
+            State.soundGateActive = false;
+        }
+        if (Dom && typeof Dom.setSoundGateRequired === 'function') {
+            Dom.setSoundGateRequired(needsAudio);
+        }
+        if (Dom && typeof Dom.isSoundGateActive === 'function') {
+            State.soundGateActive = !!Dom.isSoundGateActive();
+        }
+        if (!needsAudio && Dom && typeof Dom.hideAutoplayBlockedOverlay === 'function') {
+            Dom.hideAutoplayBlockedOverlay();
+        }
     }
 
     // Restore the full category list for a fresh session (e.g., after completion)
@@ -365,12 +817,22 @@
 
     function shouldAutoplayOptionAudio() {
         if (!State || State.isListeningMode) return false;
+        if (State.soundGateActive) return false;
         const opt = State.currentOptionType;
         const prompt = State.currentPromptType;
         if (prompt !== 'image') return false;
-        if (opt !== 'audio' && opt !== 'text_audio') return false;
         if (typeof State.is === 'function' && !State.is(State.STATES.SHOWING_QUESTION)) return false;
-        return $('#ll-tools-flashcard .flashcard-container.audio-option').length > 0;
+
+        const hasAudioOptions = $('#ll-tools-flashcard .flashcard-container.audio-option').length > 0;
+        if (!hasAudioOptions) return false;
+        if (opt === 'audio') return true;
+        if (opt !== 'text_audio') return false;
+
+        const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
+            ? root.llToolsFlashcardsData
+            : {};
+
+        return !!(flashData.autoplayTextAudioAnswerOptions || flashData.autoplay_text_audio_answer_options);
     }
 
     function autoplayOptionAudioSequence(initialDelayMs = 700, gapMs = 200) {
@@ -425,14 +887,14 @@
 
     function hideLoadingThenPlayPromptAudio(promptType, isStaleRound) {
         const audioApi = root.FlashcardAudio;
-        const expectedAudio = (promptType === 'audio' && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
+        const expectedAudio = (promptTypeHasAudio(promptType) && audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
             ? audioApi.getCurrentTargetAudio()
             : null;
         const hidePromise = (Dom && typeof Dom.hideLoading === 'function')
             ? Promise.resolve(Dom.hideLoading()).catch(function () { return; })
             : Promise.resolve();
 
-        if (promptType !== 'audio') {
+        if (!promptTypeHasAudio(promptType)) {
             return hidePromise;
         }
 
@@ -507,9 +969,211 @@
         return !!parseBool(data.isUserLoggedIn);
     }
 
+    function isOfflineRuntime() {
+        const data = root.llToolsFlashcardsData || {};
+        return String(data.runtimeMode || data.runtime_mode || 'wp').trim().toLowerCase() === 'offline';
+    }
+
+    function canUseStudyPrefsRuntime() {
+        return isUserLoggedIn() || isOfflineRuntime();
+    }
+
+    function normalizeStudyPrefIds(list) {
+        const seen = {};
+        const ids = Array.isArray(list) ? list : [];
+        return ids.map(function (id) {
+            return parseInt(id, 10) || 0;
+        }).filter(function (id) {
+            return id > 0 && !seen[id] && (seen[id] = true);
+        });
+    }
+
+    function getOfflineStudyPrefsStorageKey() {
+        const data = root.llToolsFlashcardsData || {};
+        const userState = (data.userStudyState && typeof data.userStudyState === 'object') ? data.userStudyState : {};
+        const wordsetId = parseInt(
+            userState.wordset_id || data.genderWordsetId || (Array.isArray(data.wordsetIds) ? data.wordsetIds[0] : 0),
+            10
+        ) || 0;
+        if (wordsetId > 0) {
+            return 'lltools_offline_study_prefs_v1::wordset:' + String(wordsetId);
+        }
+        const slug = String(data.wordset || '').trim().toLowerCase();
+        return slug ? ('lltools_offline_study_prefs_v1::slug:' + slug) : 'lltools_offline_study_prefs_v1::default';
+    }
+
+    function parseTimestampMs(raw, fallbackMs) {
+        if (typeof raw === 'number' && isFinite(raw) && raw > 0) {
+            return raw;
+        }
+        if (typeof raw === 'string') {
+            const text = raw.trim();
+            if (text !== '') {
+                if (/^\d+$/.test(text)) {
+                    const numeric = parseInt(text, 10);
+                    if (numeric > 0) {
+                        return numeric;
+                    }
+                }
+                const parsed = Date.parse(text);
+                if (isFinite(parsed) && parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        return Math.max(1, parseInt(fallbackMs, 10) || Date.now());
+    }
+
+    function getOfflineStudyPrefsStoreSnapshot() {
+        if (!isOfflineRuntime() || !root.localStorage) {
+            return null;
+        }
+        try {
+            const raw = root.localStorage.getItem(getOfflineStudyPrefsStorageKey());
+            if (!raw) {
+                return null;
+            }
+            const decoded = JSON.parse(raw);
+            return decoded && typeof decoded === 'object' ? decoded : null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function loadOfflineStudyPrefsState() {
+        if (!isOfflineRuntime() || !root.localStorage) {
+            return null;
+        }
+        try {
+            const decoded = getOfflineStudyPrefsStoreSnapshot();
+            const tracker = root.LLFlashcards && root.LLFlashcards.ProgressTracker;
+            const trackerState = (tracker && typeof tracker.getStoredStudyState === 'function')
+                ? tracker.getStoredStudyState()
+                : null;
+            if (!decoded && !trackerState) {
+                return null;
+            }
+            const merged = Object.assign({}, decoded || {});
+            if (trackerState && typeof trackerState === 'object') {
+                if (typeof trackerState.wordset_id !== 'undefined') {
+                    merged.wordset_id = trackerState.wordset_id;
+                }
+                if (Array.isArray(trackerState.category_ids)) {
+                    merged.category_ids = trackerState.category_ids.slice();
+                }
+                if (Array.isArray(trackerState.starred_word_ids)) {
+                    merged.starred_word_ids = trackerState.starred_word_ids.slice();
+                }
+                if (typeof trackerState.star_mode !== 'undefined') {
+                    merged.star_mode = trackerState.star_mode;
+                }
+                if (typeof trackerState.fast_transitions !== 'undefined') {
+                    merged.fast_transitions = trackerState.fast_transitions;
+                }
+            }
+            return {
+                wordset_id: parseInt(merged.wordset_id, 10) || 0,
+                category_ids: normalizeStudyPrefIds(merged.category_ids || []),
+                starred_word_ids: normalizeStudyPrefIds(merged.starred_word_ids || merged.starredWordIds || []),
+                star_mode: normalizeStarMode(merged.star_mode || merged.starMode || 'normal'),
+                fast_transitions: parseBool(merged.fast_transitions ?? merged.fastTransitions)
+            };
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function saveOfflineStudyPrefsState(rawState, options) {
+        if (!isOfflineRuntime() || !root.localStorage) {
+            return false;
+        }
+        const state = (rawState && typeof rawState === 'object') ? rawState : {};
+        const opts = (options && typeof options === 'object') ? options : {};
+        const existing = getOfflineStudyPrefsStoreSnapshot() || {};
+        const normalized = {
+            starred_word_ids: normalizeStudyPrefIds(state.starred_word_ids || state.starredWordIds || []),
+            star_mode: normalizeStarMode(state.star_mode || state.starMode || 'normal'),
+            fast_transitions: parseBool(state.fast_transitions ?? state.fastTransitions)
+        };
+        const snapshot = Object.assign({}, existing, normalized, {
+            updated_at: parseTimestampMs(opts.updatedAt, Date.now()),
+            sync_pending: typeof opts.syncPending === 'undefined'
+                ? true
+                : !!opts.syncPending,
+            last_synced_at: (typeof opts.lastSyncedAt !== 'undefined')
+                ? String(opts.lastSyncedAt || '')
+                : String(existing.last_synced_at || ''),
+            last_sync_error: (typeof opts.lastSyncError !== 'undefined')
+                ? String(opts.lastSyncError || '')
+                : String(existing.last_sync_error || '')
+        });
+        try {
+            root.localStorage.setItem(getOfflineStudyPrefsStorageKey(), JSON.stringify(snapshot));
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function hasMeaningfulOfflineStudyPrefs(rawState) {
+        const state = (rawState && typeof rawState === 'object') ? rawState : {};
+        const starred = normalizeStudyPrefIds(state.starred_word_ids || state.starredWordIds || []);
+        const starMode = normalizeStarMode(state.star_mode || state.starMode || 'normal');
+        const fastTransitions = parseBool(state.fast_transitions ?? state.fastTransitions, false);
+        return starred.length > 0 || starMode !== 'normal' || fastTransitions;
+    }
+
+    function markOfflineStudyPrefsSynced(savedState) {
+        if (!isOfflineRuntime()) {
+            return;
+        }
+        saveOfflineStudyPrefsState(savedState || buildStudyPrefsPayload(), {
+            syncPending: false,
+            updatedAt: Date.now(),
+            lastSyncedAt: new Date().toISOString(),
+            lastSyncError: ''
+        });
+    }
+
+    function markOfflineStudyPrefsSyncFailed() {
+        if (!isOfflineRuntime()) {
+            return;
+        }
+        const snapshot = getOfflineStudyPrefsStoreSnapshot() || {};
+        saveOfflineStudyPrefsState(snapshot, {
+            syncPending: true,
+            updatedAt: Date.now(),
+            lastSyncError: 'request_failed'
+        });
+    }
+
+    function getStudyPrefsAjaxContext() {
+        const ajaxUrl = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.ajaxurl) || '';
+        const nonce = root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyNonce;
+        if (!ajaxUrl || !nonce || !isUserLoggedIn() || !$ || typeof $.post !== 'function') {
+            return null;
+        }
+        return {
+            ajaxUrl: ajaxUrl,
+            nonce: nonce
+        };
+    }
+
     function ensureStudyPrefs() {
         const payloadState = (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) || null;
         const flashState = root.llToolsFlashcardsData || {};
+        const offlineState = loadOfflineStudyPrefsState();
+
+        if (!root.llToolsStudyPrefs && offlineState) {
+            root.llToolsStudyPrefs = {
+                starredWordIds: offlineState.starred_word_ids.slice(),
+                starred_word_ids: offlineState.starred_word_ids.slice(),
+                starMode: offlineState.star_mode,
+                star_mode: offlineState.star_mode,
+                fastTransitions: parseBool(offlineState.fast_transitions),
+                fast_transitions: parseBool(offlineState.fast_transitions)
+            };
+        }
 
         if (!root.llToolsStudyPrefs && payloadState) {
             root.llToolsStudyPrefs = {
@@ -737,16 +1401,136 @@
         return true;
     }
 
-    function getPracticeProgressTotalCount() {
+    function getPracticeProgressCategoryNames() {
         const sourceNames = (Array.isArray(State.initialCategoryNames) && State.initialCategoryNames.length)
             ? State.initialCategoryNames
             : (Array.isArray(State.categoryNames) ? State.categoryNames : []);
-        const names = sourceNames.filter(Boolean);
+        const seen = {};
+        return sourceNames.filter(function (name) {
+            const key = String(name || '').trim();
+            if (!key || seen[key]) {
+                return false;
+            }
+            seen[key] = true;
+            return true;
+        });
+    }
+
+    function findPracticeProgressCategoryConfig(categoryName) {
+        const target = String(categoryName || '').trim().toLowerCase();
+        if (!target) {
+            return null;
+        }
+
+        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
+            ? root.llToolsFlashcardsData.categories
+            : [];
+        const matched = categories.find(function (category) {
+            if (!category || typeof category !== 'object') {
+                return false;
+            }
+            const name = String(category.name || '').trim().toLowerCase();
+            const slug = String(category.slug || '').trim().toLowerCase();
+            return (name && name === target) || (slug && slug === target);
+        });
+
+        return matched && typeof matched === 'object' ? matched : null;
+    }
+
+    function getPracticeProgressSessionWordIds() {
+        const data = root.llToolsFlashcardsData || {};
+        const direct = getSessionWordIdsFromData(data);
+        if (direct.length) {
+            return direct;
+        }
+        return getSessionWordIdsFromData(getLastLaunchPlan());
+    }
+
+    function getPracticeProgressSessionTotalCount(answeredUniqueCount) {
+        const sessionWordIds = getPracticeProgressSessionWordIds();
+        if (!sessionWordIds.length) {
+            return 0;
+        }
+
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
+        const starMode = getPracticeProgressStarMode();
+        if (starMode !== 'only') {
+            return Math.max(answeredUnique, sessionWordIds.length);
+        }
+
+        const starredLookup = getPracticeProgressStarredLookup();
+        const starredCount = sessionWordIds.filter(function (wordId) {
+            return !!starredLookup[wordId];
+        }).length;
+        return Math.max(answeredUnique, starredCount);
+    }
+
+    function getPracticeProgressConfiguredCategoryTotalCount(categoryNames, answeredUniqueCount) {
+        const names = Array.isArray(categoryNames) ? categoryNames.filter(Boolean) : [];
+        if (!names.length || getPracticeProgressStarMode() === 'only') {
+            return 0;
+        }
+
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
+        let matchedCount = 0;
+        let total = 0;
+
+        names.forEach(function (name) {
+            const category = findPracticeProgressCategoryConfig(name);
+            const count = parseInt(category && category.word_count, 10);
+            if (!Number.isFinite(count) || count < 0) {
+                return;
+            }
+            matchedCount += 1;
+            total += count;
+        });
+
+        if (matchedCount !== names.length || total <= 0) {
+            return 0;
+        }
+
+        return Math.max(answeredUnique, total);
+    }
+
+    function areAllPracticeProgressCategoriesLoaded(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames.filter(Boolean) : [];
+        if (!names.length) {
+            return false;
+        }
+
+        const loader = root.FlashcardLoader || {};
+        const loadedCategories = Array.isArray(loader.loadedCategories) ? loader.loadedCategories : [];
+        if (!loadedCategories.length) {
+            return false;
+        }
+
+        const cachePrefix = getCurrentWordsetKey() + '::';
+        const loadedLookup = {};
+        loadedCategories.forEach(function (entry) {
+            const key = String(entry || '').trim();
+            if (!key) {
+                return;
+            }
+            if (key.indexOf(cachePrefix) === 0) {
+                loadedLookup[key.slice(cachePrefix.length)] = true;
+                return;
+            }
+            loadedLookup[key] = true;
+        });
+
+        return names.every(function (name) {
+            return !!loadedLookup[String(name || '').trim()];
+        });
+    }
+
+    function getPracticeProgressLoadedTotalCount(categoryNames, answeredUniqueCount) {
+        const names = Array.isArray(categoryNames) ? categoryNames.filter(Boolean) : [];
         if (!names.length) return 0;
 
         const starMode = getPracticeProgressStarMode();
         const starredLookup = getPracticeProgressStarredLookup();
         const seenWordIds = {};
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
         let total = 0;
 
         names.forEach(function (name) {
@@ -763,7 +1547,32 @@
             });
         });
 
-        return total;
+        return Math.max(answeredUnique, total);
+    }
+
+    function getPracticeProgressTotalCount(answeredUniqueCount) {
+        const categoryNames = getPracticeProgressCategoryNames();
+        if (!categoryNames.length) {
+            return 0;
+        }
+
+        const answeredUnique = Math.max(0, parseInt(answeredUniqueCount, 10) || 0);
+        const sessionTotal = getPracticeProgressSessionTotalCount(answeredUnique);
+        if (sessionTotal > 0) {
+            return sessionTotal;
+        }
+
+        const loadedTotal = getPracticeProgressLoadedTotalCount(categoryNames, answeredUnique);
+        if (loadedTotal > 0 && areAllPracticeProgressCategoriesLoaded(categoryNames)) {
+            return loadedTotal;
+        }
+
+        const configuredTotal = getPracticeProgressConfiguredCategoryTotalCount(categoryNames, answeredUnique);
+        if (configuredTotal > 0) {
+            return configuredTotal;
+        }
+
+        return loadedTotal;
     }
 
     function getPracticeProgressAnsweredUniqueCount() {
@@ -785,16 +1594,23 @@
         if (!isPracticeMode) return;
         if (!Dom || typeof Dom.updateSimpleProgress !== 'function') return;
 
-        const total = getPracticeProgressTotalCount();
+        const answeredUnique = getPracticeProgressAnsweredUniqueCount();
+        const total = getPracticeProgressTotalCount(answeredUnique);
         if (total <= 0) return;
 
-        const answeredUnique = getPracticeProgressAnsweredUniqueCount();
+        const safeTotal = Math.max(1, total);
+        const rawRatio = Math.max(0, Math.min(1, answeredUnique / safeTotal));
+        // Categories load asynchronously in practice mode; keep display monotonic
+        // so late category loads cannot make progress appear to move backwards.
+        practiceProgressMinDisplayRatio = Math.max(practiceProgressMinDisplayRatio, rawRatio);
         try {
-            Dom.updateSimpleProgress(answeredUnique, total);
+            Dom.updateSimpleProgress(answeredUnique, total, {
+                minDisplayRatio: practiceProgressMinDisplayRatio
+            });
         } catch (_) { /* no-op */ }
     }
 
-    // --- Study star helpers (user study dashboard only) ---
+    // --- Study star helpers (shared across wordset/study surfaces) ---
     const StarManager = (function () {
         let currentWord = null;
         let $starRow = null;
@@ -847,6 +1663,7 @@
                 next = ids.filter(id => id !== targetId);
             }
             prefs.starredWordIds = normalizeIds(next);
+            prefs.starred_word_ids = prefs.starredWordIds.slice();
             if (root.llToolsFlashcardsData) {
                 const synced = prefs.starredWordIds.slice();
                 root.llToolsFlashcardsData.starredWordIds = synced;
@@ -854,6 +1671,9 @@
                 if (root.llToolsFlashcardsData.userStudyState) {
                     root.llToolsFlashcardsData.userStudyState.starred_word_ids = synced;
                 }
+            }
+            if (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
+                root.llToolsStudyData.payload.state.starred_word_ids = prefs.starredWordIds.slice();
             }
             return shouldStar;
         }
@@ -871,7 +1691,7 @@
                 type: 'button',
                 class: 'll-word-star ll-quiz-star-btn ll-tools-star-button',
                 'aria-pressed': 'false',
-                'aria-label': 'Star word'
+                'aria-label': getMessage('starWord')
             }).text('☆');
             return $starButton;
         }
@@ -1187,7 +2007,7 @@
         }
 
         function applyStarChange(word, desiredState) {
-            if (!isUserLoggedIn()) return;
+            if (!canUseStudyPrefsRuntime()) return;
             const wordId = word && word.id ? parseInt(word.id, 10) : 0;
             if (!wordId) return;
             currentWord = word;
@@ -1225,13 +2045,13 @@
                 adjustLearning(wordId, starredNow, starMode);
             }
             broadcastStarChange(wordId, starredNow);
-            persistStudyPrefsDebounced();
+            persistStudyPrefsDebounced({ immediate: true });
             updateForWord(currentWord, { variant: State.isListeningMode ? 'listening' : 'content' });
         }
 
         function updateForWord(word, options) {
             currentWord = word || null;
-            if (!isUserLoggedIn()) {
+            if (!canUseStudyPrefsRuntime()) {
                 hide();
                 return;
             }
@@ -1270,7 +2090,7 @@
                 const promptType = State && State.currentPromptType ? State.currentPromptType : (root.LLFlashcards && root.LLFlashcards.Selection && typeof root.LLFlashcards.Selection.getCategoryPromptType === 'function'
                     ? root.LLFlashcards.Selection.getCategoryPromptType(State.currentCategoryName)
                     : 'audio');
-                if (promptType === 'image') {
+                if (promptTypeHasImage(promptType)) {
                     $container = ensureImageInlineRow() || getStarRow();
                     if ($container && !$container.hasClass('ll-quiz-star-inline')) {
                         $container = ensureImageInlineRow();
@@ -1390,18 +2210,11 @@
 
     function categoryNamesToIds(categoryNames) {
         const names = Array.isArray(categoryNames) ? categoryNames : [];
-        const categories = (root.llToolsFlashcardsData && Array.isArray(root.llToolsFlashcardsData.categories))
-            ? root.llToolsFlashcardsData.categories
-            : [];
-        const byName = {};
-        categories.forEach(function (cat) {
-            if (!cat || !cat.name) { return; }
-            byName[String(cat.name)] = parseInt(cat.id, 10) || 0;
-        });
         const seen = {};
         const out = [];
         names.forEach(function (name) {
-            const id = parseInt(byName[String(name)] || 0, 10) || 0;
+            const cfg = findCategoryConfigByName(name);
+            const id = cfg ? (parseInt(cfg.id, 10) || 0) : 0;
             if (!id || seen[id]) { return; }
             seen[id] = true;
             out.push(id);
@@ -1424,6 +2237,35 @@
             out.push(normalized);
         });
         return out;
+    }
+
+    function getLastLaunchPlan() {
+        const data = root.llToolsFlashcardsData || {};
+        if (data.lastLaunchPlan && typeof data.lastLaunchPlan === 'object') {
+            return data.lastLaunchPlan;
+        }
+        if (data.last_launch_plan && typeof data.last_launch_plan === 'object') {
+            return data.last_launch_plan;
+        }
+        return {};
+    }
+
+    // Wordset multi-select practice launches can intentionally mix image/text categories
+    // because each round keeps its answer pool inside the active category.
+    function shouldPreserveMixedPresentationForLaunch() {
+        const lastPlan = getLastLaunchPlan();
+        const details = (lastPlan.details && typeof lastPlan.details === 'object')
+            ? lastPlan.details
+            : {};
+        const raw = details.preserve_mixed_presentation;
+        if (raw === true || raw === 1) {
+            return true;
+        }
+        if (typeof raw === 'string') {
+            const normalized = raw.trim().toLowerCase();
+            return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+        }
+        return false;
     }
 
     function findCategoryConfigByName(categoryName) {
@@ -1531,9 +2373,10 @@
         const categoryName = (Selection && typeof Selection.getTargetCategoryName === 'function')
             ? (Selection.getTargetCategoryName(word) || fallbackCategoryName || State.currentCategoryName || '')
             : (fallbackCategoryName || State.currentCategoryName || '');
+        const config = findCategoryConfigByName(categoryName);
         return {
             category_id: resolveCategoryIdByName(categoryName),
-            category_name: categoryName
+            category_name: config ? String(config.name || categoryName || '') : categoryName
         };
     }
 
@@ -1552,19 +2395,89 @@
         });
     }
 
+    function incrementLocalPracticeExposureCount(targetWord) {
+        if ((!isUserLoggedIn() && !isOfflineRuntime()) || getCurrentModeKey() !== 'practice' || !targetWord || typeof targetWord !== 'object') {
+            return;
+        }
+
+        const raw = parseInt(targetWord.practice_exposure_count, 10);
+        const current = Number.isFinite(raw) && raw > 0 ? raw : 0;
+        targetWord.practice_exposure_count = current + 1;
+    }
+
     function trackWordExposureForProgress(targetWord, fallbackCategoryName) {
+        if (!targetWord || !targetWord.id) {
+            return;
+        }
+
+        incrementLocalPracticeExposureCount(targetWord);
+
         const tracker = getProgressTracker();
-        if (!tracker || typeof tracker.trackWordExposure !== 'function' || !targetWord || !targetWord.id) {
+        if (!tracker || typeof tracker.trackWordExposure !== 'function') {
             return;
         }
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
         tracker.trackWordExposure({
             mode: getCurrentModeKey(),
+            word: targetWord,
             wordId: targetWord.id,
             categoryId: cat.category_id,
             categoryName: cat.category_name,
             wordsetId: resolveWordsetIdForProgress()
         });
+        if (typeof tracker.hydrateWords === 'function') {
+            tracker.hydrateWords([targetWord]);
+        }
+    }
+
+    function normalizePracticeRecordingTypeForProgress(value) {
+        return String(value || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[\s_]+/g, '-')
+            .replace(/[^a-z0-9-]/g, '');
+    }
+
+    function getPracticeRecordingTypesForProgress(targetWord) {
+        const types = Array.isArray(targetWord && targetWord.practice_recording_types)
+            ? targetWord.practice_recording_types
+            : [];
+        const seen = {};
+        return types.map(function (type) {
+            return normalizePracticeRecordingTypeForProgress(type);
+        }).filter(function (type) {
+            if (!type || seen[type]) {
+                return false;
+            }
+            seen[type] = true;
+            return true;
+        });
+    }
+
+    function getPracticeAudioTimingForProgress() {
+        const audioApi = root.FlashcardAudio;
+        if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') {
+            return {};
+        }
+
+        const audio = audioApi.getCurrentTargetAudio();
+        if (!audio) {
+            return {};
+        }
+
+        const duration = (typeof audio.duration === 'number' && isFinite(audio.duration) && audio.duration > 0)
+            ? audio.duration
+            : 0;
+        const currentTime = Math.max(0, (typeof audio.currentTime === 'number' && isFinite(audio.currentTime)) ? audio.currentTime : 0);
+        const ratio = (duration > 0)
+            ? Math.max(0, Math.min(1, currentTime / duration))
+            : (audio.ended ? 1 : 0);
+        const answeredBeforeAudioEnd = !audio.ended && (duration <= 0 || currentTime < (duration - 0.02));
+
+        return {
+            audio_progress_ratio: Number(ratio.toFixed(3)),
+            answered_before_audio_end: answeredBeforeAudioEnd
+        };
     }
 
     function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName, payload) {
@@ -1573,16 +2486,32 @@
             return;
         }
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        const nextPayload = (payload && typeof payload === 'object') ? Object.assign({}, payload) : {};
+        if (getCurrentModeKey() === 'practice') {
+            const recordingType = normalizePracticeRecordingTypeForProgress(targetWord.__practiceRecordingType);
+            const availableRecordingTypes = getPracticeRecordingTypesForProgress(targetWord);
+            if (recordingType) {
+                nextPayload.recording_type = recordingType;
+            }
+            if (availableRecordingTypes.length) {
+                nextPayload.available_recording_types = availableRecordingTypes.slice();
+            }
+            Object.assign(nextPayload, getPracticeAudioTimingForProgress());
+        }
         tracker.trackWordOutcome({
             mode: getCurrentModeKey(),
+            word: targetWord,
             wordId: targetWord.id,
             categoryId: cat.category_id,
             categoryName: cat.category_name,
             wordsetId: resolveWordsetIdForProgress(),
             isCorrect: !!isCorrect,
             hadWrongBefore: !!hadWrongBefore,
-            payload: (payload && typeof payload === 'object') ? payload : {}
+            payload: nextPayload
         });
+        if (typeof tracker.hydrateWords === 'function') {
+            tracker.hydrateWords([targetWord]);
+        }
     }
 
     function triggerSelfCheckFlowFromFlashcard() {
@@ -1608,27 +2537,37 @@
     const MODE_SWITCH_CONFIG = (ModeConfig && typeof ModeConfig.getSwitchConfig === 'function') ?
         ModeConfig.getSwitchConfig() : {
             practice: {
-                label: 'Switch to Practice Mode',
+                label: getMessage('practiceSwitchLabel'),
+                resultsButtonText: getMessage('practiceModeText'),
+                modeLabel: getMessage('practiceModeShort'),
                 icon: '❓',
                 className: 'practice-mode'
             },
             learning: {
-                label: 'Switch to Learning Mode',
+                label: getMessage('learningSwitchLabel'),
+                resultsButtonText: getMessage('learningModeText'),
+                modeLabel: getMessage('learningModeShort'),
                 icon: '🎓',
                 className: 'learning-mode'
             },
             'self-check': {
-                label: 'Open Self Check',
+                label: getMessage('selfCheckSwitchLabel'),
+                resultsButtonText: getMessage('selfCheckModeText'),
+                modeLabel: getMessage('selfCheckModeShort'),
                 icon: '',
                 className: 'self-check-mode'
             },
             listening: {
-                label: 'Switch to Listening Mode',
+                label: getMessage('listeningSwitchLabel'),
+                resultsButtonText: getMessage('listeningModeText'),
+                modeLabel: getMessage('listeningModeShort'),
                 icon: '🎧',
                 className: 'listening-mode'
             },
             gender: {
-                label: 'Switch to Gender',
+                label: getMessage('genderSwitchLabel'),
+                resultsButtonText: getMessage('genderModeText'),
+                modeLabel: getMessage('genderModeShort'),
                 icon: '',
                 className: 'gender-mode'
             }
@@ -1763,6 +2702,16 @@
                 }
             }
         }
+        if (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
+            const state = root.llToolsStudyData.payload.state;
+            state.star_mode = prefs.starMode || state.star_mode;
+            state.fast_transitions = typeof prefs.fastTransitions !== 'undefined'
+                ? !!prefs.fastTransitions
+                : state.fast_transitions;
+            if (Array.isArray(prefs.starredWordIds)) {
+                state.starred_word_ids = prefs.starredWordIds.slice();
+            }
+        }
         return prefs;
     }
 
@@ -1788,30 +2737,201 @@
         };
     }
 
-    function persistStudyPrefs() {
-        if (!isUserLoggedIn()) return;
-        const ajaxUrl = (root.llToolsFlashcardsData && root.llToolsFlashcardsData.ajaxurl) || '';
-        const nonce = root.llToolsFlashcardsData && root.llToolsFlashcardsData.userStudyNonce;
-        if (!ajaxUrl || !nonce) return;
+    function applySavedStudyState(savedState) {
+        if (!savedState || typeof savedState !== 'object') {
+            return;
+        }
+
+        const prefs = ensureStudyPrefs();
+        const seenIds = {};
+        const normalizedIds = (Array.isArray(savedState.starred_word_ids) ? savedState.starred_word_ids : [])
+            .map(function (val) { return parseInt(val, 10) || 0; })
+            .filter(function (id) { return id > 0 && !seenIds[id] && (seenIds[id] = true); });
+
+        prefs.starredWordIds = normalizedIds;
+        prefs.starred_word_ids = normalizedIds.slice();
+        prefs.starMode = normalizeStarMode(savedState.star_mode || prefs.starMode || prefs.star_mode || 'normal');
+        prefs.star_mode = prefs.starMode;
+        prefs.fastTransitions = parseBool(savedState.fast_transitions);
+        prefs.fast_transitions = prefs.fastTransitions;
+        root.llToolsStudyPrefs = prefs;
+
+        if (root.llToolsFlashcardsData) {
+            root.llToolsFlashcardsData.userStudyState = savedState;
+            root.llToolsFlashcardsData.starredWordIds = normalizedIds.slice();
+            root.llToolsFlashcardsData.starred_word_ids = normalizedIds.slice();
+            root.llToolsFlashcardsData.starMode = prefs.starMode;
+            root.llToolsFlashcardsData.star_mode = prefs.starMode;
+            root.llToolsFlashcardsData.fastTransitions = !!prefs.fastTransitions;
+            root.llToolsFlashcardsData.fast_transitions = !!prefs.fastTransitions;
+        }
+        if (root.llToolsStudyData && root.llToolsStudyData.payload) {
+            root.llToolsStudyData.payload.state = Object.assign(
+                {},
+                root.llToolsStudyData.payload.state || {},
+                savedState
+            );
+        }
+    }
+
+    function mergeOfflineStudyPrefsFromRemoteState(remoteState) {
+        if (!isOfflineRuntime() || !remoteState || typeof remoteState !== 'object') {
+            return false;
+        }
+        const existing = getOfflineStudyPrefsStoreSnapshot();
+        if (existing && (parseBool(existing.sync_pending, false) || hasMeaningfulOfflineStudyPrefs(existing))) {
+            return false;
+        }
+
+        const mergedPrefs = {
+            starred_word_ids: normalizeStudyPrefIds(remoteState.starred_word_ids || []),
+            star_mode: normalizeStarMode(remoteState.star_mode || 'normal'),
+            fast_transitions: parseBool(remoteState.fast_transitions, false)
+        };
+        saveOfflineStudyPrefsState(mergedPrefs, {
+            syncPending: false,
+            updatedAt: parseTimestampMs(remoteState.updated_at, Date.now()),
+            lastSyncedAt: new Date().toISOString(),
+            lastSyncError: ''
+        });
+
+        const currentPayload = buildStudyPrefsPayload();
+        applySavedStudyState(Object.assign({}, currentPayload, mergedPrefs));
+        return true;
+    }
+
+    function flushOfflineStudyPrefsSync(force) {
+        if (!isOfflineRuntime()) {
+            return Promise.resolve({ skipped: true });
+        }
+        const snapshot = getOfflineStudyPrefsStoreSnapshot();
+        if (!snapshot) {
+            return Promise.resolve({ skipped: true });
+        }
+        if (!force && !parseBool(snapshot.sync_pending, false)) {
+            return Promise.resolve({ skipped: true });
+        }
+        if (savePrefsInFlightRequest) {
+            savePrefsQueued = true;
+            return Promise.resolve({ in_flight: true });
+        }
+
+        const ajaxContext = getStudyPrefsAjaxContext();
+        if (!ajaxContext) {
+            return Promise.resolve({ deferred: true });
+        }
 
         const payload = buildStudyPrefsPayload();
-        $.post(ajaxUrl, Object.assign({
+        savePrefsQueued = false;
+        const requestToken = ++savePrefsRequestToken;
+        savePrefsLatestToken = requestToken;
+
+        savePrefsInFlightRequest = $.post(ajaxContext.ajaxUrl, Object.assign({
             action: 'll_user_study_save',
-            nonce: nonce
+            nonce: ajaxContext.nonce
         }, payload)).done(function (res) {
-            if (res && res.success && res.data && res.data.state && root.llToolsFlashcardsData) {
-                root.llToolsFlashcardsData.userStudyState = res.data.state;
+            if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
+                return;
+            }
+            if (res && res.success && res.data && res.data.state) {
+                applySavedStudyState(res.data.state);
+                markOfflineStudyPrefsSynced(res.data.state);
+            } else {
+                markOfflineStudyPrefsSynced(payload);
             }
         }).fail(function (err) {
-            console.warn('LL Tools: failed to save study prefs', err);
+            console.warn('LL Tools: failed to sync offline study prefs', err);
+            markOfflineStudyPrefsSyncFailed();
+        }).always(function () {
+            savePrefsInFlightRequest = null;
+            if (savePrefsQueued) {
+                queueStudyPrefsSave();
+            }
+        });
+
+        return Promise.resolve(savePrefsInFlightRequest).then(function () {
+            return { synced: true };
+        }, function () {
+            return { failed: true };
         });
     }
 
-    function persistStudyPrefsDebounced() {
+    function queueStudyPrefsSave() {
+        if (isOfflineRuntime()) {
+            const payload = buildStudyPrefsPayload();
+            saveOfflineStudyPrefsState(payload, {
+                syncPending: true,
+                updatedAt: Date.now(),
+                lastSyncError: ''
+            });
+            applySavedStudyState(payload);
+            const tracker = getProgressTracker();
+            if (tracker && typeof tracker.saveStudyState === 'function') {
+                tracker.saveStudyState(payload);
+            }
+            if (!getStudyPrefsAjaxContext()) {
+                return;
+            }
+        } else if (!getStudyPrefsAjaxContext()) {
+            return;
+        }
+
+        savePrefsQueued = true;
+        if (savePrefsInFlightRequest) {
+            return;
+        }
+
+        savePrefsQueued = false;
+        const requestToken = ++savePrefsRequestToken;
+        savePrefsLatestToken = requestToken;
+        const payload = buildStudyPrefsPayload();
+        const ajaxContext = getStudyPrefsAjaxContext();
+        if (!ajaxContext) {
+            return;
+        }
+
+        // Serialize preference saves so an older request cannot overwrite a
+        // newer star change when users toggle several items in one session.
+        savePrefsInFlightRequest = $.post(ajaxContext.ajaxUrl, Object.assign({
+            action: 'll_user_study_save',
+            nonce: ajaxContext.nonce
+        }, payload)).done(function (res) {
+            if (savePrefsQueued || requestToken !== savePrefsLatestToken) {
+                return;
+            }
+            if (res && res.success && res.data && res.data.state) {
+                applySavedStudyState(res.data.state);
+                if (isOfflineRuntime()) {
+                    markOfflineStudyPrefsSynced(res.data.state);
+                }
+            }
+        }).fail(function (err) {
+            console.warn('LL Tools: failed to save study prefs', err);
+            if (isOfflineRuntime()) {
+                markOfflineStudyPrefsSyncFailed();
+            }
+        }).always(function () {
+            savePrefsInFlightRequest = null;
+            if (savePrefsQueued) {
+                queueStudyPrefsSave();
+            }
+        });
+    }
+
+    function persistStudyPrefsDebounced(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
         if (savePrefsTimer) {
             clearTimeout(savePrefsTimer);
+            savePrefsTimer = null;
         }
-        savePrefsTimer = setTimeout(persistStudyPrefs, 250);
+        if (opts.immediate) {
+            queueStudyPrefsSave();
+            return;
+        }
+        savePrefsTimer = setTimeout(function () {
+            savePrefsTimer = null;
+            queueStudyPrefsSave();
+        }, 250);
     }
 
     function applyStudyPrefsFromUI(updates) {
@@ -1829,7 +2949,7 @@
         const { $wrap, $panel, $button } = getSettingsElements();
         if (!$wrap.length || !$button.length || !$panel.length) return;
 
-        if (!isUserLoggedIn()) {
+        if (!canUseStudyPrefsRuntime()) {
             $button.hide();
             $panel.hide();
             $(document).off('.llSettings');
@@ -1990,6 +3110,10 @@
             return;
         }
 
+        // Mode changes happen from user interaction; use that gesture window to
+        // unlock the analyser AudioContext for listen-mode visualizer updates.
+        warmupVisualizerContext();
+
         if (newMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
             console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
@@ -2047,7 +3171,10 @@
             const targetMode = newMode || (State.isLearningMode ? 'practice' : 'learning');
 
             // Full reset for a clean session
+            practiceProgressMinDisplayRatio = 0;
             State.reset();
+            // Reset clears widgetActive, but mode switches keep the popup session alive.
+            State.widgetActive = true;
 
             // IMPORTANT: allow operations again before we start the next round
             State.abortAllOperations = false;
@@ -2191,6 +3318,7 @@
         const useFastTransitions = prefersFastTransitions() && (isPracticeMode || State.isLearningMode);
         const recordResultForWord = function () {
             recordWordResult(targetWord.id, State.hadWrongAnswerThisTurn);
+            updatePracticeModeProgress();
         };
 
         if (!State.hadWrongAnswerThisTurn) {
@@ -2287,7 +3415,7 @@
         const hadWrongAlready = !!State.hadWrongAnswerThisTurn;
         State.hadWrongAnswerThisTurn = true;
         root.FlashcardAudio.playFeedback(false, targetWord.audio, null);
-        const isAudioLineLayout = (State.currentPromptType === 'image') &&
+        const isAudioLineLayout = promptTypeHasImage(State.currentPromptType) &&
             (State.currentOptionType === 'audio' || State.currentOptionType === 'text_audio');
         const removeWrongCard = function () {
             let removed = false;
@@ -2332,7 +3460,15 @@
                 }
             }
 
-            let initialCategories = State.categoryNames.slice(0, 3).filter(Boolean);
+            const activeSessionWordIds = getSessionWordIdsFromData(root.llToolsFlashcardsData || {});
+            const isSessionFilteredPracticeBootstrap = activeSessionWordIds.length > 0 &&
+                !State.isLearningMode &&
+                !State.isListeningMode &&
+                !State.isGenderMode &&
+                !State.isSelfCheckMode;
+            const initialCategoryLimit = isSessionFilteredPracticeBootstrap ? 5 : 3;
+
+            let initialCategories = State.categoryNames.slice(0, initialCategoryLimit).filter(Boolean);
             if (!initialCategories.length) {
                 const flashData = root.llToolsFlashcardsData || {};
                 const fallbackFromData = Array.isArray(flashData.categories)
@@ -2346,7 +3482,7 @@
                         return '';
                     }).filter(Boolean)
                     : [];
-                const fallbackCategories = fallbackFromData.slice(0, 3);
+                const fallbackCategories = fallbackFromData.slice(0, initialCategoryLimit);
                 if (fallbackCategories.length) {
                     State.categoryNames = fallbackCategories.slice();
                     State.initialCategoryNames = fallbackCategories.slice();
@@ -2383,7 +3519,6 @@
                 ? { earlyCallback: true, skipCategoryPreload: true }
                 : { earlyCallback: true };
 
-            const activeSessionWordIds = getSessionWordIdsFromData(root.llToolsFlashcardsData || {});
             const shouldLoadAllCategoriesBeforeBootstrap = State.isGenderMode || (
                 State.isLearningMode &&
                 activeSessionWordIds.length > 0 &&
@@ -2625,11 +3760,21 @@
     }
 
     function waitForTargetAudioReady(promptType, timeoutMs) {
-        if (promptType !== 'audio') return Promise.resolve(true);
+        if (!promptTypeHasAudio(promptType)) return Promise.resolve(true);
         const audioApi = root.FlashcardAudio;
         if (!audioApi || typeof audioApi.getCurrentTargetAudio !== 'function') return Promise.resolve(false);
         const audio = audioApi.getCurrentTargetAudio();
         if (!audio) return Promise.resolve(false);
+        if (audioApi && typeof audioApi.waitForAudioPlayable === 'function') {
+            return Promise.resolve(audioApi.waitForAudioPlayable(audio, {
+                minReadyState: 3,
+                timeoutMs: Math.max(1200, timeoutMs)
+            })).then(function (ready) {
+                return !!ready;
+            }).catch(function () {
+                return !!(audio.readyState >= 2 && !audio.error);
+            });
+        }
         if (audio.readyState >= 2 && !audio.error) return Promise.resolve(true);
 
         return new Promise(function (resolve) {
@@ -2790,6 +3935,7 @@
         const modeModule = getActiveModeModule();
 
         if (modeModule && typeof modeModule.runRound === 'function') {
+            applyRoundSoundRequirement(roundRequiresAudio());
             modeModule.runRound({
                 setGuardedTimeout,
                 startQuizRound,
@@ -2820,7 +3966,11 @@
                     Results,
                     State,
                     runQuizRound,
-                    startQuizRound
+                    startQuizRound,
+                    updatePracticeModeProgress,
+                    FlashcardLoader: root.FlashcardLoader,
+                    Dom,
+                    setGuardedTimeout
                 }))
                 : false;
 
@@ -2847,6 +3997,8 @@
                     return;
                 }
             }
+            updatePracticeModeProgress();
+            applyRoundSoundRequirement(false);
             State.transitionTo(STATES.SHOWING_RESULTS, 'Quiz complete');
             Results.showResults();
             return;
@@ -2890,10 +4042,20 @@
         const promptType = categoryConfig.prompt_type || 'audio';
         State.currentOptionType = displayMode;
         State.currentPromptType = promptType;
+        applyRoundSoundRequirement(roundRequiresAudio({
+            promptType: promptType,
+            optionType: displayMode
+        }));
         const roundSessionToken = __LLSession;
         const isStaleRound = function () {
             return roundSessionToken !== __LLSession || !State.widgetActive;
         };
+
+        if (target && typeof target === 'object') {
+            delete target.__promptRecordingType;
+            delete target.__practiceRecordingType;
+            delete target.__practiceRecordingText;
+        }
 
         if (modeModule && typeof modeModule.configureTargetAudio === 'function') {
             modeModule.configureTargetAudio(target);
@@ -2929,7 +4091,7 @@
                 StarManager.updateForWord(target, { variant: State.isListeningMode ? 'listening' : 'content' });
             } catch (_) { /* no-op */ }
 
-            if (promptType === 'audio') {
+            if (promptTypeHasAudio(promptType)) {
                 root.FlashcardAudio.setTargetAudioHasPlayed(false);
                 root.FlashcardAudio.setTargetWordAudio(target, { autoplay: false });
                 Dom.enableRepeatButton();
@@ -2966,7 +4128,7 @@
                 }
             };
 
-            const needsPromptAudio = (promptType === 'audio') && !!(target && target.audio);
+            const needsPromptAudio = promptTypeHasAudio(promptType) && !!(target && target.audio);
             Promise.all([
                 optionMediaPromise,
                 waitForRoundMediaReadiness(promptType, {
@@ -3046,6 +4208,7 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const reason = String(opts.reason || '').toLowerCase();
         const msgs = root.llToolsFlashcardsMessages || {};
+        applyRoundSoundRequirement(false);
         try { State.clearActiveTimeouts(); } catch (_) { /* no-op */ }
         try {
             if (root.FlashcardAudio && typeof root.FlashcardAudio.pauseAllAudio === 'function') {
@@ -3113,6 +4276,10 @@
     }
 
     function initFlashcardWidget(selectedCategories, mode) {
+        // Launch is user-initiated (button click). Warm up visualizer AudioContext
+        // here so listening autoplay can use analyser data instead of fallback waves.
+        warmupVisualizerContext();
+
         // Deduplicate concurrent init calls; reuse in-flight promise
         if (initInProgressPromise) {
             return initInProgressPromise;
@@ -3154,13 +4321,15 @@
 
             return root.FlashcardAudio.startNewSession().then(function () {
                 const requestedCategoriesRaw = normalizeCategoryNameList(selectedCategories);
-                const requestedCategories = filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
-                    preferCategoryName: requestedCategoriesRaw[0] || ''
-                });
                 let requestedMode = mode;
                 if (isSelfCheckMode(requestedMode)) {
                     requestedMode = 'self-check';
                 }
+                const requestedCategories = shouldPreserveMixedPresentationForLaunch()
+                    ? requestedCategoriesRaw.slice()
+                    : filterCategoryNamesByAspectBucket(requestedCategoriesRaw, {
+                        preferCategoryName: requestedCategoriesRaw[0] || ''
+                    });
                 if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
@@ -3210,7 +4379,15 @@
                 }
 
                 const cleanedCategories = requestedCategories.slice();
-                State.initialCategoryNames = Util.randomlySort(cleanedCategories);
+                const flashData = root.llToolsFlashcardsData || {};
+                const preserveCategoryOrder = parseBooleanFlag(
+                    (typeof flashData.preserveCategoryOrder !== 'undefined')
+                        ? flashData.preserveCategoryOrder
+                        : flashData.preserve_category_order
+                );
+                State.initialCategoryNames = preserveCategoryOrder
+                    ? cleanedCategories.slice()
+                    : Util.randomlySort(cleanedCategories);
                 State.categoryNames = State.initialCategoryNames.slice();
                 root.categoryNames = State.categoryNames;
                 State.firstCategoryName = State.categoryNames[0] || State.firstCategoryName;
@@ -3226,6 +4403,7 @@
                 Dom.updateCategoryNameDisplay(State.firstCategoryName);
 
                 $('body').addClass('ll-tools-flashcard-open');
+                activateFlashcardInteractionGuard();
                 try {
                     $(document).trigger('lltools:flashcard-opened', [{
                         mode: requestedMode,
@@ -3243,7 +4421,9 @@
                         Dom.setRepeatButton && Dom.setRepeatButton('play');
                     } else {
                         try { audio.currentTime = 0; } catch (_) { /* no-op */ }
-                        const playPromise = audio.play();
+                        const playPromise = (root.FlashcardAudio && typeof root.FlashcardAudio.playAudio === 'function')
+                            ? root.FlashcardAudio.playAudio(audio)
+                            : audio.play();
                         if (playPromise && typeof playPromise.catch === 'function') {
                             playPromise.catch(() => { });
                         }
@@ -3303,6 +4483,7 @@
                     .off('.llAutoplayKick')
                     .on('pointerdown.llAutoplayKick keydown.llAutoplayKick', function () {
                         const $content = $('#ll-tools-flashcard-content');
+                        warmupVisualizerContext();
                         try {
                             const audioApi = root.FlashcardAudio;
                             const audio = audioApi && typeof audioApi.getCurrentTargetAudio === 'function'
@@ -3323,7 +4504,9 @@
                             }
 
                             const done = () => $content.off('.llAutoplayKick');
-                            const playPromise = audio.play();
+                            const playPromise = (audioApi && typeof audioApi.playAudio === 'function')
+                                ? audioApi.playAudio(audio)
+                                : audio.play();
                             if (playPromise && typeof playPromise.finally === 'function') {
                                 playPromise.catch(() => { }).finally(done);
                             } else if (playPromise && typeof playPromise.then === 'function') {
@@ -3363,22 +4546,24 @@
             if (!el) return;
             try {
                 if (el.classList) {
-                    el.classList.remove('ll-tools-flashcard-open', 'll-qpg-popup-active');
+                    el.classList.remove('ll-tools-flashcard-open', 'll-qpg-popup-active', 'll-tools-quiz-guard-active');
                 }
                 el.style && (el.style.overflow = '');
             } catch (_) { /* ignore */ }
         };
         try { clear(document.body); clear(document.documentElement); } catch (_) { /* ignore */ }
         try {
-            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active').css('overflow', '');
-            $('html').css('overflow', '');
+            $('body').removeClass('ll-tools-flashcard-open ll-qpg-popup-active ll-tools-quiz-guard-active').css('overflow', '');
+            $('html').removeClass('ll-tools-quiz-guard-active').css('overflow', '');
         } catch (_) { /* ignore */ }
     }
 
-    function closeFlashcard() {
+    function closeFlashcard(options) {
         if (closingCleanupPromise) {
             return closingCleanupPromise;
         }
+
+        const closeOptions = (options && typeof options === 'object') ? options : {};
 
         try {
             const tracker = getProgressTracker();
@@ -3392,6 +4577,8 @@
                 root.FlashcardAudio.suspendPlayback();
             }
         } catch (_) { /* no-op */ }
+
+        deactivateFlashcardInteractionGuard(closeOptions);
 
         // Immediately restore scrolling (belt-and-suspenders)
         restorePageScroll();
@@ -3540,7 +4727,10 @@
         const wasListening = State.isListeningMode;
         const wasGender = State.isGenderMode;
         const wasSelfCheck = State.isSelfCheckMode;
+        practiceProgressMinDisplayRatio = 0;
         State.reset();
+        // Reset clears widgetActive, but restart stays inside the active popup session.
+        State.widgetActive = true;
         State.isLearningMode = wasLearning;
         State.isListeningMode = wasListening;
         State.isGenderMode = wasGender;
@@ -3601,7 +4791,31 @@
         root.FlashcardLoader.preloadCategoryResources(State.firstCategoryName);
     }
 
+    if ($ && typeof $.fn !== 'undefined' && typeof document !== 'undefined') {
+        $(document).on('lltools:remote-sync-snapshot', function (_event, payload) {
+            const snapshot = (payload && typeof payload === 'object') ? payload : {};
+            mergeOfflineStudyPrefsFromRemoteState(snapshot.state || {});
+            flushOfflineStudyPrefsSync(false);
+        });
+        $(document).on('lltools:offline-auth-context-updated', function () {
+            flushOfflineStudyPrefsSync(false);
+        });
+    }
+
     root.LLFlashcards = root.LLFlashcards || {};
+    root.LLFlashcards.OfflineStudyPrefsSync = {
+        flush: flushOfflineStudyPrefsSync,
+        getStatus: function () {
+            const snapshot = getOfflineStudyPrefsStoreSnapshot() || {};
+            return {
+                available: isOfflineRuntime(),
+                sync_pending: parseBool(snapshot.sync_pending, false),
+                last_synced_at: String(snapshot.last_synced_at || ''),
+                last_sync_error: String(snapshot.last_sync_error || '')
+            };
+        },
+        mergeRemoteState: mergeOfflineStudyPrefsFromRemoteState
+    };
     root.LLFlashcards.StudySettings = {
         normalizeStarMode: normalizeStarMode,
         syncStarModeButtons: syncStarModeButtons,

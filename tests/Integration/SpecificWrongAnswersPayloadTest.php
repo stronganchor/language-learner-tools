@@ -68,6 +68,18 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         return $ids;
     }
 
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $resolved = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+            if ($resolved > 0) {
+                return $resolved;
+            }
+        }
+
+        return $category_id;
+    }
+
     public function test_word_payload_marks_specific_wrong_answer_relationships(): void
     {
         $category_name = 'Specific Wrong Payload ' . (string) wp_rand(1000, 9999);
@@ -136,10 +148,11 @@ final class SpecificWrongAnswersPayloadTest extends LL_Tools_TestCase
         ll_tools_rebuild_specific_wrong_answer_owner_map();
 
         $words_by_category = ll_tools_user_study_words([$category_id], $wordset_id);
-        $this->assertArrayHasKey($category_id, $words_by_category);
-        $this->assertIsArray($words_by_category[$category_id]);
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
+        $this->assertArrayHasKey($effective_category_id, $words_by_category);
+        $this->assertIsArray($words_by_category[$effective_category_id]);
 
-        $by_id = $this->indexRowsByWordId($words_by_category[$category_id]);
+        $by_id = $this->indexRowsByWordId($words_by_category[$effective_category_id]);
         $this->assertArrayHasKey($owner_id, $by_id);
         $this->assertArrayHasKey($reserved_id, $by_id);
 

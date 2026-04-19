@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class WordPublishAudioRequirementTest extends LL_Tools_TestCase
 {
+    protected bool $enforce_audio_publish_requirement = true;
+
     public function test_publish_is_blocked_without_audio_when_category_requires_it(): void
     {
         $this->set_current_user_to_administrator();

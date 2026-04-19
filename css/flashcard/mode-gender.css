@@ -33,8 +33,8 @@
 
 .ll-gender-option {
     --ll-gender-option-scale: 1;
-    --ll-gender-option-label-size: calc(0.88em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
-    --ll-gender-option-text-size: calc(var(--ll-gender-option-label-size) * 0.8);
+    --ll-gender-option-base-font-size: var(--ll-answer-option-font-size-px, 48px);
+    --ll-gender-option-content-size: calc(var(--ll-gender-option-base-font-size) * var(--ll-gender-option-scale));
     border: 2px solid var(--ll-gender-border) !important;
     background: var(--ll-gender-bg) !important;
     color: var(--ll-gender-accent) !important;
@@ -51,9 +51,9 @@
     align-items: center;
     justify-content: center;
     text-align: center !important;
-    font-size: var(--ll-gender-option-text-size);
+    font-size: var(--ll-gender-option-content-size);
     font-weight: 700;
-    line-height: 1.06;
+    line-height: 1.02;
     letter-spacing: 0.01em;
     padding: calc(14px * var(--ll-gender-layout-scale, 1)) calc(12px * var(--ll-gender-layout-scale, 1));
 }
@@ -62,27 +62,35 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: calc(8px * var(--ll-gender-option-scale));
+    gap: 0.28em;
     max-width: 100%;
     width: max-content;
     margin: 0 auto;
-    font-size: var(--ll-gender-option-label-size);
-    line-height: 1.06;
+    font-size: 1em;
+    line-height: 1;
     white-space: nowrap;
     flex-wrap: nowrap;
 }
 
 .ll-gender-option--unknown .quiz-text {
-    font-size: var(--ll-gender-option-text-size);
-    line-height: 1.08;
-    text-wrap: balance;
+    font-size: var(--ll-gender-option-content-size);
+    line-height: 1.02;
+    white-space: nowrap;
+    text-wrap: nowrap;
+    word-break: keep-all;
+    overflow-wrap: normal;
 }
 
 .ll-gender-option .ll-gender-option-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1em;
     color: inherit;
-    font-size: 0.8em;
+    font-size: 1em;
     font-weight: 700;
     line-height: 1;
+    flex: 0 0 auto;
 }
 
 #ll-tools-flashcard.ll-gender-options-layout {
@@ -170,7 +178,23 @@
     margin-bottom: calc(8px * var(--ll-gender-layout-scale));
 }
 
-.ll-gender-option .ll-gender-symbol,
+.ll-gender-option .ll-gender-symbol {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    min-width: 1em;
+    height: 1em;
+    min-height: 1em;
+    font-size: 1em;
+    line-height: 1;
+    align-self: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+    font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif;
+    font-variant-emoji: text;
+}
+
 .ll-gender-intro-badge .ll-gender-symbol {
     display: inline-flex;
     align-items: center;
@@ -195,7 +219,13 @@
     white-space: nowrap;
 }
 
-.ll-gender-option .ll-gender-symbol--svg svg,
+.ll-gender-option .ll-gender-symbol--svg svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
 .ll-gender-intro-badge .ll-gender-symbol--svg svg {
     display: block;
     width: 1.15em;
@@ -412,7 +442,6 @@
     }
 
     .ll-gender-option {
-        --ll-gender-option-label-size: calc(0.78em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
         border-width: 1.5px !important;
     }
 
@@ -421,12 +450,7 @@
     }
 
     .ll-gender-option .ll-gender-option-inner {
-        gap: calc(6px * var(--ll-gender-option-scale));
-        line-height: 1.02;
-    }
-
-    .ll-gender-option .ll-gender-option-label {
-        font-size: 0.74em;
+        gap: 0.24em;
     }
 
     .ll-gender-option .ll-gender-symbol {
@@ -447,10 +471,6 @@
         max-width: calc(170px * var(--ll-gender-layout-scale));
         height: clamp(48px, calc(108px * var(--ll-gender-layout-scale)), 108px);
         max-height: clamp(48px, calc(108px * var(--ll-gender-layout-scale)), 108px);
-    }
-
-    .ll-gender-option {
-        --ll-gender-option-label-size: calc(0.72em * var(--ll-gender-layout-scale, 1) * var(--ll-gender-option-scale));
     }
 }
 

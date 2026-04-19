@@ -45,19 +45,26 @@ npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec
 
 - Primary runtime values come from `tests/.env` (ignored by git).
 - `tests/bin/run-tests.sh` and `tests/bin/run-e2e.sh` load `.env` automatically.
+  - `tests/bin/run-tests.sh` also auto-applies `tests/bin/setup-local-env.sh` when it can detect this Local site, so stale `.env` DB ports should not win by default.
+  - `tests/bin/run-tests.sh` also patches the local `wordpress-tests-lib` bootstrap when PHPUnit 12 needs WordPress' removed annotation-parser calls shimmed.
 - For Local/WSL setups:
   - `tests/bin/setup-local-env.sh` resolves DB + PHP helpers.
     - It prefers the active Local runtime MySQL port (from `AppData/Roaming/Local/run/*/conf/mysql/my.cnf`) when it can match this site root, which helps when `local-site.json` has stale ports.
+    - It keeps the live Local DB host credentials but emits an isolated `WP_TEST_DB_NAME` by default so PHPUnit does not target the main site schema.
   - `tests/bin/setup-local-http-env.sh` resolves the active Local HTTP port from nginx config.
 - If you override values in-shell (e.g. `WP_TEST_DB_HOST=...`), those should take precedence.
+- If Local changed ports recently, `tests/bin/run-tests.sh` should refresh them automatically; use `eval "$(tests/bin/setup-local-env.sh)"` when you want to inspect the resolved values directly.
+- Set `LL_TOOLS_SKIP_AUTO_LOCAL_ENV=1` if you intentionally need `tests/.env` to stay authoritative.
 
 Recommended `.env` keys to verify before debugging code:
 
 - `WP_TEST_DB_HOST`
 - `WP_TESTS_DIR`
 - `WP_CORE_DIR`
+- `PHP_BIN` when the suite needs a PHP 8.3+ runtime for PHPUnit 12
 - `LL_E2E_BASE_URL`
 - `LL_E2E_LEARN_PATH`
+- `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS` when debugging the throttled page-speed regression
 
 ## 4) Adding New PHPUnit Integration Tests
 
@@ -92,10 +99,17 @@ final class MyFlowTest extends LL_Tools_TestCase
    - Avoid assertions on translated UI text unless text itself is the subject.
 3. Use env-backed paths:
    - `process.env.LL_E2E_LEARN_PATH || '/learn/'`
+   - For page-speed coverage, prefer configurable selectors/budgets over hardcoded timing values.
 4. Keep tests data-agnostic:
    - Use first available quiz card rather than hardcoded category names.
 5. Validate cleanup:
    - If opening popups/modals, assert they can close and body classes reset.
+
+For network-sensitive regressions on Local sites:
+
+- Prefer Chromium DevTools throttling via CDP over fake `setTimeout()` delays.
+- Calibrate with env vars such as `LL_E2E_PAGE_SPEED_LATENCY_MS`, `LL_E2E_PAGE_SPEED_DOWNLOAD_KBPS`, and the `LL_E2E_PAGE_SPEED_MAX_*` budgets.
+- Measure an actionable selector becoming visible, not just the `load` event.
 
 ## 6) Modifying Existing Tests Safely
 
@@ -111,7 +125,13 @@ When behavior changes intentionally:
 ## 7) Common Failures and Fixes
 
 `WordPress test library not found`:
-- Fix `WP_TESTS_DIR` so it contains `includes/functions.php`.
+- `tests/bin/run-tests.sh` now tries to repair the local WordPress test framework automatically when `WP_TESTS_DIR` or `WP_CORE_DIR` are missing or incomplete.
+- On this Local/WSL setup, Windows `php.exe` should use the Windows temp bootstrap paths instead of `/tmp` because WordPress' bootstrap uses `is_readable()` checks that fail on WSL UNC paths.
+- If that still fails, fix `WP_TESTS_DIR` so it contains `includes/functions.php`.
+
+`Duplicate entry '1' for key 'PRIMARY'` during `wp_install_defaults`:
+- This usually means the test database is stale or another test runner is using the same DB.
+- Retry with `LL_TOOLS_RESET_WP_TEST_DB=1 tests/bin/run-tests.sh ...` to force a fresh local test database.
 
 Local site returns `500`:
 - Check Local DB service and `DB_HOST` in site `wp-config.php`.
@@ -127,6 +147,7 @@ tests/bin/setup-local-http-env.sh
 WP_TEST_DB_HOST=127.0.0.1:<port> tests/bin/run-tests.sh
 ```
 - `setup-local-env.sh` also exports `LOCAL_DB_PORT_SOURCE` and, when runtime detection succeeds, `LOCAL_ACTIVE_MYSQL_CONF` / `LOCAL_ACTIVE_NGINX_CONF` for quick debugging.
+- `tests/bin/install-wp-tests.sh` refuses to target the detected live Local site DB unless `ALLOW_LIVE_SITE_TEST_DB=1` is set deliberately.
 
 `Deadlock found when trying to get lock` during PHPUnit:
 - Usually caused by running multiple `tests/bin/run-tests.sh` commands in parallel against the same `wptests` DB.
@@ -139,6 +160,11 @@ Playwright shows Local router `404 Site Not Found`:
 Playwright cannot find `.ll-quiz-page-trigger`:
 - Confirm target page has `[quiz_pages_grid popup="yes"...]`.
 - Check `LL_E2E_LEARN_PATH`.
+
+`page-speed-throttled-load.spec.js` fails:
+- Open the Playwright HTML report and inspect the attached `page-speed-metrics` JSON.
+- If the wrong page or ready signal is being tested, set `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_SELECTOR`.
+- If the environment is slower but behavior is acceptable, tune the `LL_E2E_PAGE_SPEED_MAX_*` budgets in `tests/.env.local`.
 
 `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`:
 - This is usually a PHP shim path-conversion issue in WSL.
@@ -156,9 +182,19 @@ For behavior changes touching quiz/recording flows:
 2. `tests/bin/run-e2e.sh`
 3. Update `tests/README.md` if test scope or runner behavior changed.
 
+For public-page shell, asset, or template changes that could affect perceived load time:
+
+1. `tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js`
+
 Wordset-boundary changes should also include:
 
 1. `tests/bin/run-e2e.sh specs/flashcard-loader-wordset-isolation.spec.js`
+
+Dictionary import/search changes should also include:
+
+1. `tests/bin/run-tests.sh Integration/DictionaryFeatureTest.php`
+2. `tests/bin/run-e2e.sh specs/admin-import-preview-undo.spec.js` when the admin importer flow changes
+3. Add or update a dedicated Playwright spec if the public `[ll_dictionary]` interaction model changes, because current browser coverage is still weighted toward admin import plus PHPUnit integration
 
 ## 9) Known Environment-Dependent Skips
 

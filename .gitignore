@@ -8,3 +8,4 @@
 /languages/*.po~
 /languages/*.pot_
 /tests/.env.local
+/dist/

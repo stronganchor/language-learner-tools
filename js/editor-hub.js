@@ -30,8 +30,109 @@
     let categories = Array.isArray(data.categories) ? data.categories.slice() : [];
     let selectedCategory = (data.selected_category || '').toString();
     let items = Array.isArray(data.items) ? data.items.slice() : [];
+    let totalMissing = parseInt(data.total_missing, 10) || 0;
     let currentIndex = 0;
     let isBusy = false;
+    const categoryCache = new Map();
+
+    function cloneDataset(payload) {
+        if (!payload || typeof payload !== 'object') {
+            return null;
+        }
+
+        try {
+            return JSON.parse(JSON.stringify(payload));
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setCachedCategoryPayload(slug, payload) {
+        const normalizedSlug = (slug || '').toString();
+        const cloned = cloneDataset(payload);
+        if (!normalizedSlug || !cloned) {
+            return;
+        }
+
+        categoryCache.set(normalizedSlug, cloned);
+    }
+
+    function getCachedCategoryPayload(slug) {
+        const normalizedSlug = (slug || '').toString();
+        if (!normalizedSlug || !categoryCache.has(normalizedSlug)) {
+            return null;
+        }
+
+        return cloneDataset(categoryCache.get(normalizedSlug));
+    }
+
+    function syncCachedCatalogState() {
+        categoryCache.forEach(function (payload, slug) {
+            const nextPayload = cloneDataset(payload) || {};
+            nextPayload.categories = cloneDataset(categories) || [];
+            nextPayload.total_missing = totalMissing;
+            categoryCache.set(slug, nextPayload);
+        });
+    }
+
+    function getCategoryCount(slug) {
+        const normalizedSlug = (slug || '').toString();
+        const row = (Array.isArray(categories) ? categories : []).find(function (candidate) {
+            return (candidate && candidate.slug ? candidate.slug : '').toString() === normalizedSlug;
+        });
+        return parseInt(row && row.count ? row.count : 0, 10) || 0;
+    }
+
+    function updateCategoryCount(slug, nextCount) {
+        const normalizedSlug = (slug || '').toString();
+        const normalizedCount = Math.max(0, parseInt(nextCount, 10) || 0);
+        categories = (Array.isArray(categories) ? categories : []).map(function (row) {
+            const rowSlug = (row && row.slug ? row.slug : '').toString();
+            if (rowSlug !== normalizedSlug) {
+                return row;
+            }
+
+            return Object.assign({}, row, { count: normalizedCount });
+        });
+    }
+
+    function mergeDatasetPayload(payload, fallbackSlug, afterSaveState) {
+        const hasTotalMissing = !!(payload && Object.prototype.hasOwnProperty.call(payload, 'total_missing'));
+        const merged = {
+            wordset_id: parseInt(payload && payload.wordset_id ? payload.wordset_id : wordsetId, 10) || wordsetId,
+            wordset_name: payload && typeof payload.wordset_name === 'string' ? payload.wordset_name : (data.wordset_name || ''),
+            ui_options: payload && payload.ui_options && typeof payload.ui_options === 'object' ? payload.ui_options : uiOptions,
+            categories: Array.isArray(payload && payload.categories) ? payload.categories.slice() : (cloneDataset(categories) || []),
+            selected_category: (payload && payload.selected_category ? payload.selected_category : fallbackSlug || selectedCategory || '').toString(),
+            items: Array.isArray(payload && payload.items) ? payload.items.slice() : [],
+            total_missing: hasTotalMissing ? (parseInt(payload.total_missing, 10) || 0) : totalMissing
+        };
+
+        if (!Array.isArray(payload && payload.categories) && afterSaveState && typeof afterSaveState === 'object') {
+            const previousCategoryCount = Math.max(0, parseInt(afterSaveState.previousCategoryCount, 10) || 0);
+            const nextCategoryCount = merged.items.length;
+            updateCategoryCount(merged.selected_category, nextCategoryCount);
+            merged.categories = cloneDataset(categories) || [];
+
+            if (!hasTotalMissing) {
+                merged.total_missing = Math.max(0, totalMissing - Math.max(0, previousCategoryCount - nextCategoryCount));
+            }
+        }
+
+        return merged;
+    }
+
+    if (selectedCategory) {
+        setCachedCategoryPayload(selectedCategory, {
+            wordset_id: wordsetId,
+            wordset_name: data.wordset_name || '',
+            ui_options: uiOptions,
+            categories: categories,
+            selected_category: selectedCategory,
+            items: items,
+            total_missing: data.total_missing || 0
+        });
+    }
 
     function normalizeHostContainers() {
         const hostSelector = [
@@ -250,7 +351,7 @@
             html += '</div>';
 
             html += '<div class="ll-editor-hub-field' + ipaMissingClass + '">';
-            html += '<label>' + escapeHtml(t('recording_ipa', 'IPA')) + '</label>';
+            html += '<label>' + escapeHtml(t('recording_ipa', 'Pronunciation')) + '</label>';
             html += '<input type="text" data-recording-field="ipa" value="' + escapeHtml(ipaValue) + '" />';
             html += '</div>';
 
@@ -579,7 +680,12 @@
 
     function applyDataset(payload, preferredIndex) {
         wordsetId = parseInt(payload && payload.wordset_id ? payload.wordset_id : wordsetId, 10) || wordsetId;
-        categories = Array.isArray(payload && payload.categories) ? payload.categories.slice() : [];
+        if (Array.isArray(payload && payload.categories)) {
+            categories = payload.categories.slice();
+        }
+        if (payload && Object.prototype.hasOwnProperty.call(payload, 'total_missing')) {
+            totalMissing = parseInt(payload.total_missing, 10) || 0;
+        }
 
         if (!categories.length) {
             selectedCategory = '';
@@ -645,8 +751,30 @@
         return 0;
     }
 
-    function loadCategory(categorySlug, preferredIndex, afterSaveState) {
+    function loadCategory(categorySlug, preferredIndex, afterSaveState, forceRefresh) {
         const slug = (categorySlug || '').toString();
+        const useCache = !forceRefresh;
+        const cachedPayload = useCache ? getCachedCategoryPayload(slug) : null;
+
+        if (cachedPayload) {
+            let resolvedPreferredIndex = preferredIndex;
+            if (afterSaveState && typeof afterSaveState === 'object') {
+                resolvedPreferredIndex = resolvePreferredIndexAfterSave(
+                    cachedPayload.items,
+                    afterSaveState.savedWordId,
+                    afterSaveState.previousIndex
+                );
+            }
+
+            applyDataset(cachedPayload, resolvedPreferredIndex);
+            if (!Array.isArray(items) || !items.length) {
+                setStatus(t('no_items', 'No missing items in this category.'), 'info');
+            } else {
+                setStatus('', '');
+            }
+            return;
+        }
+
         setBusy(true);
         setStatus(t('loading', 'Loading…'), 'info');
 
@@ -654,23 +782,28 @@
             action: 'll_get_editor_hub_items',
             nonce: nonce,
             wordset_id: wordsetId,
-            category: slug
+            category: slug,
+            include_catalog: '0'
         }).done(function (res) {
             if (!res || res.success !== true || !res.data) {
                 setStatus(t('load_error', 'Unable to load missing items.'), 'error');
                 return;
             }
 
-            selectedCategory = (res.data.selected_category || slug || '').toString();
+            const responseSlug = (res.data.selected_category || slug || '').toString();
+            const mergedPayload = mergeDatasetPayload(res.data, responseSlug, afterSaveState);
+            setCachedCategoryPayload(responseSlug, mergedPayload);
+            selectedCategory = (mergedPayload.selected_category || slug || '').toString();
             let resolvedPreferredIndex = preferredIndex;
             if (afterSaveState && typeof afterSaveState === 'object') {
                 resolvedPreferredIndex = resolvePreferredIndexAfterSave(
-                    res.data.items,
+                    mergedPayload.items,
                     afterSaveState.savedWordId,
                     afterSaveState.previousIndex
                 );
             }
-            applyDataset(res.data, resolvedPreferredIndex);
+            applyDataset(mergedPayload, resolvedPreferredIndex);
+            syncCachedCatalogState();
 
             if (!Array.isArray(items) || !items.length) {
                 setStatus(t('no_items', 'No missing items in this category.'), 'info');
@@ -694,6 +827,7 @@
         const payload = collectPayload(item);
         const previousIndex = currentIndex;
         const savedWordId = parseInt(item && item.word_id ? item.word_id : 0, 10) || 0;
+        const previousCategoryCount = getCategoryCount(selectedCategory);
 
         setBusy(true);
         setStatus(t('saving', 'Saving…'), 'info');
@@ -706,10 +840,12 @@
             }
 
             setStatus(t('saved', 'Saved.'), 'success');
+            categoryCache.delete(selectedCategory);
             loadCategory(selectedCategory, previousIndex, {
                 savedWordId: savedWordId,
-                previousIndex: previousIndex
-            });
+                previousIndex: previousIndex,
+                previousCategoryCount: previousCategoryCount
+            }, true);
         }).fail(function () {
             setStatus(t('save_error', 'Unable to save changes.'), 'error');
             setBusy(false);
@@ -763,7 +899,7 @@
         if (isBusy) {
             return;
         }
-        loadCategory(selectedCategory, currentIndex);
+        loadCategory(selectedCategory, currentIndex, null, true);
     });
 
     normalizeHostContainers();
@@ -771,7 +907,7 @@
     renderCurrentItem();
 
     if (!items.length && selectedCategory) {
-        loadCategory(selectedCategory, 0);
+        loadCategory(selectedCategory, 0, null, true);
     } else if (!items.length) {
         setStatus(t('all_done', 'All missing items are complete.'), 'success');
     }

@@ -1,5 +1,11 @@
 /* /js/audio-image-matcher.js */
 (function ($) {
+    const i18n = (window.llAimData && window.llAimData.i18n) || {};
+    const initialWordsetId = parseInt((window.llAimData && window.llAimData.initialWordsetId) || '0', 10) || 0;
+    const initialCategoryId = parseInt((window.llAimData && window.llAimData.initialCategoryId) || '0', 10) || 0;
+    const initialCategoryRows = Array.isArray(window.llAimData && window.llAimData.initialCategoryRows)
+        ? window.llAimData.initialCategoryRows
+        : [];
     const $start = $('#ll-aim-start');
     const $skip = $('#ll-aim-skip');
     const $stage = $('#ll-aim-stage');
@@ -21,6 +27,15 @@
     let excludeIds = [];
     let cachedImages = [];
     let currentWord = null;
+    const categoryOptionsCache = {};
+    const pendingCategoryOptionsRequests = {};
+
+    categoryOptionsCache[String(initialWordsetId)] = initialCategoryRows.slice();
+
+    function t(key, fallback) {
+        const value = i18n[key];
+        return (typeof value === 'string' && value.length) ? value : fallback;
+    }
 
     function getAjaxBase() {
         if (window.llAimData && typeof window.llAimData.ajaxurl === 'string' && window.llAimData.ajaxurl.length) {
@@ -33,16 +48,87 @@
     }
 
     function uiIdle() { $skip.prop('disabled', true); $stage.hide(); $status.text(''); currentWord = null; }
-    function uiLoading(m) { $status.text(m || 'Loading…'); }
+    function uiLoading(m) { $status.text(m || t('loadingDefault', 'Loading…')); }
     function uiReady() { $stage.show(); $skip.prop('disabled', false); $status.text(''); }
+
+    async function fetchCategoryOptions(wordsetIdValue) {
+        const wordsetKey = String(parseInt(wordsetIdValue || '0', 10) || 0);
+        if (Array.isArray(categoryOptionsCache[wordsetKey])) {
+            return categoryOptionsCache[wordsetKey];
+        }
+
+        if (pendingCategoryOptionsRequests[wordsetKey]) {
+            return pendingCategoryOptionsRequests[wordsetKey];
+        }
+
+        const request = (async () => {
+            const u = new URL(getAjaxBase());
+            u.searchParams.set('action', 'll_aim_get_category_options');
+            u.searchParams.set('wordset_id', wordsetKey);
+            if (window.llAimData && window.llAimData.nonce) {
+                u.searchParams.set('nonce', window.llAimData.nonce);
+            }
+
+            try {
+                const res = await fetch(u.toString(), { credentials: 'same-origin' });
+                const json = await res.json();
+                const rows = (json && json.data && Array.isArray(json.data.rows)) ? json.data.rows : [];
+                categoryOptionsCache[wordsetKey] = rows;
+                return rows;
+            } catch (e) {
+                const fallback = Array.isArray(categoryOptionsCache['0']) ? categoryOptionsCache['0'] : [];
+                categoryOptionsCache[wordsetKey] = fallback;
+                return fallback;
+            } finally {
+                delete pendingCategoryOptionsRequests[wordsetKey];
+            }
+        })();
+
+        pendingCategoryOptionsRequests[wordsetKey] = request;
+        return request;
+    }
+
+    async function renderCategoryOptions(preferredValue) {
+        if (!$catSel.length) {
+            return;
+        }
+
+        const selectedWordsetId = parseInt(($wsSel.val() || '0'), 10) || 0;
+        const rows = await fetchCategoryOptions(selectedWordsetId);
+        const currentValue = (preferredValue !== undefined && preferredValue !== null)
+            ? String(preferredValue)
+            : String($catSel.val() || '');
+
+        let html = '<option value="">' + $('<div/>').text(t('selectOption', '— Select —')).html() + '</option>';
+        rows.forEach(function (row) {
+            const id = parseInt(row && row.id ? row.id : 0, 10) || 0;
+            if (!id) {
+                return;
+            }
+
+            const label = (row && row.label ? row.label : '').toString();
+            const slug = (row && row.slug ? row.slug : '').toString();
+            html += '<option value="' + id + '" data-slug="' + $('<div/>').text(slug).html() + '">' +
+                $('<div/>').text(label).html() +
+                '</option>';
+        });
+
+        $catSel.html(html);
+        if (currentValue && $catSel.find('option[value="' + currentValue + '"]').length) {
+            $catSel.val(currentValue);
+        } else {
+            $catSel.val('');
+        }
+    }
 
     async function fetchImagesOnce() {
         if (cachedImages.length) return;
-        uiLoading('Loading images…');
+        uiLoading(t('loadingImages', 'Loading images…'));
         const u = new URL(getAjaxBase());
         u.searchParams.set('action', 'll_aim_get_images');
         u.searchParams.set('term_id', termId);
         u.searchParams.set('hide_used', $hideUsed.is(':checked') ? '1' : '0');
+        if (wordsetId > 0) u.searchParams.set('wordset_id', String(wordsetId));
         if (window.llAimData && window.llAimData.nonce) {
             u.searchParams.set('nonce', window.llAimData.nonce);
         }
@@ -52,7 +138,7 @@
     }
 
     async function fetchNext() {
-        uiLoading('Loading next audio…');
+        uiLoading(t('loadingNextAudio', 'Loading next audio…'));
         const u = new URL(getAjaxBase());
         u.searchParams.set('action', 'll_aim_get_next');
         u.searchParams.set('term_id', termId);
@@ -68,7 +154,7 @@
         currentWord = (json && json.data) ? json.data.item : null;
 
         if (!currentWord) {
-            $title.text('All done in this category 🎉');
+            $title.text(t('allDoneCategory', 'All done in this category.'));
             $audio.removeAttr('src').hide();
             $extra.text('');
             $images.empty();
@@ -85,11 +171,16 @@
         } else {
             $audio.removeAttr('src').hide();
         }
-        $extra.text(currentWord.translation ? ('Translation: ' + currentWord.translation) : '');
+        if (currentWord.translation) {
+            const translationPrefix = t('translationPrefix', 'Translation:');
+            $extra.text(translationPrefix ? `${translationPrefix} ${currentWord.translation}` : currentWord.translation);
+        } else {
+            $extra.text('');
+        }
 
         if (currentWord.current_thumb) {
             $currentImg.attr('src', currentWord.current_thumb);
-            $currentCap.text('Current image (will be replaced if you pick a new one)');
+            $currentCap.text(t('currentImageCaption', 'Current image (will be replaced if you pick a new one)'));
             $currentWrap.show();
         } else {
             $currentWrap.hide();
@@ -102,7 +193,7 @@
     function buildImageGrid() {
         $images.empty();
         if (!cachedImages.length) {
-            $images.append($('<div/>', { text: 'No images found in this category.' }));
+            $images.append($('<div/>', { text: t('noImagesFound', 'No images found in this category.') }));
             return;
         }
 
@@ -124,16 +215,17 @@
             const i = $('<img/>', { src: img.thumb || '', alt: img.title, class: 'quiz-image' });
             imageWrapper.append(i);
 
-            const t = $('<div/>', { 'class': 'll-aim-title', text: img.title });
-            const s = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
+            const titleEl = $('<div/>', { 'class': 'll-aim-title', text: img.title });
+            const smallEl = $('<div/>', { 'class': 'll-aim-small', text: '#' + img.id });
 
             if (img.used_count && img.used_count > 0) {
                 card.addClass('is-picked');
-                const badge = $('<div/>', { 'class': 'll-aim-badge', text: `Picked${img.used_count > 1 ? ` ×${img.used_count}` : ''}` });
+                const badgeLabel = t('pickedBadge', 'Picked');
+                const badge = $('<div/>', { 'class': 'll-aim-badge', text: `${badgeLabel}${img.used_count > 1 ? ` ×${img.used_count}` : ''}` });
                 imageWrapper.append(badge);
             }
 
-            card.append(imageWrapper, t, s);
+            card.append(imageWrapper, titleEl, smallEl);
             card.on('click', () => assign(img.id, card));
             $images.append(card);
         });
@@ -151,7 +243,7 @@
         } else {
             if (!$card.hasClass('is-picked')) {
                 $card.addClass('is-picked');
-                addedBadge = $('<div/>', { 'class': 'll-aim-badge', text: 'Picked' });
+                addedBadge = $('<div/>', { 'class': 'll-aim-badge', text: t('pickedBadge', 'Picked') });
                 $card.append(addedBadge);
             }
         }
@@ -160,7 +252,7 @@
             img.id === imageId ? { ...img, used_count: (img.used_count || 0) + 1 } : img
         );
 
-        uiLoading('Saving match…');
+        uiLoading(t('savingMatch', 'Saving match…'));
 
         const body = new URLSearchParams();
         body.set('action', 'll_aim_assign');
@@ -192,7 +284,7 @@
                 cachedImages = cachedImages.map(img =>
                     img.id === imageId ? { ...img, used_count: Math.max(0, (img.used_count || 1) - 1) } : img
                 );
-                $status.text('Error saving match.');
+                $status.text(t('saveError', 'Error saving match.'));
                 uiReady();
             }
         } catch (e) {
@@ -205,13 +297,14 @@
             cachedImages = cachedImages.map(img =>
                 img.id === imageId ? { ...img, used_count: Math.max(0, (img.used_count || 1) - 1) } : img
             );
-            $status.text('Error saving match.');
+            $status.text(t('saveError', 'Error saving match.'));
             uiReady();
         }
     }
 
     // Start button wiring — captures both category and wordset, (re)loads data
     $start.on('click', async () => {
+        await renderCategoryOptions();
         termId = parseInt(($catSel.val() || '0'), 10) || 0;
         wordsetId = parseInt((($wsSel.val() || '0')), 10) || 0;
 
@@ -220,7 +313,7 @@
         uiIdle();
 
         if (!termId) {
-            $status.text('Please select a category.');
+            $status.text(t('selectCategoryPrompt', 'Please select a category.'));
             return;
         }
 
@@ -241,6 +334,13 @@
         uiIdle();
     });
 
+    $wsSel.on('change', () => {
+        renderCategoryOptions().catch(() => {});
+        cachedImages = [];
+        excludeIds = [];
+        uiIdle();
+    });
+
     // When rematch is checked, uncheck and disable "hide used"
     $rematch.on('change', function () {
         if ($(this).is(':checked')) {
@@ -256,10 +356,11 @@
         buildImageGrid();
     });
 
-    (function preselectFromURL() {
+    (async function preselectFromURL() {
         const q = new URLSearchParams(location.search);
         const id = q.get('term_id') || q.get('category') || q.get('cat') || q.get('word_category');
         const slug = q.get('category_slug') || q.get('slug');
+        await renderCategoryOptions(initialCategoryId);
         if (!id && !slug) return;
 
         let val = null;
@@ -282,6 +383,6 @@
         if (!val) return;
         $catSel.val(val).trigger('change');
         // Autostart disabled; user must click "Start Matching."
-    })();
+    })().catch(() => {});
 
 })(jQuery);

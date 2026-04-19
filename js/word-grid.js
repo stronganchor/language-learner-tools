@@ -17,9 +17,22 @@
     const transcribePollIntervalMs = Number.isFinite(transcribePollIntervalRaw) && transcribePollIntervalRaw >= 250
         ? transcribePollIntervalRaw
         : 1200;
+    const transcribeProvider = String(cfg.transcribeProvider || '').trim();
+    const transcribeTargetField = String(cfg.transcribeTargetField || 'recording_text').trim() === 'recording_ipa'
+        ? 'recording_ipa'
+        : 'recording_text';
+    const transcribeLocalEndpoint = String(cfg.transcribeLocalEndpoint || '').trim();
+    const transcribeUsesLocalBrowser = !!cfg.transcribeUsesLocalBrowser && transcribeProvider === 'local_browser' && !!transcribeLocalEndpoint;
+    const secondaryTextMode = ['ipa', 'transliteration', 'transcription'].indexOf(String(cfg.secondaryTextMode || '').trim()) >= 0
+        ? String(cfg.secondaryTextMode || '').trim()
+        : 'ipa';
+    const secondaryTextDisplayFormat = String(cfg.secondaryTextDisplayFormat || (secondaryTextMode === 'ipa' ? 'brackets' : 'plain')).trim();
+    const secondaryTextCommonChars = Array.isArray(cfg.secondaryTextCommonChars) ? cfg.secondaryTextCommonChars.slice() : [];
+    const secondaryTextUsesIpaFont = !!cfg.secondaryTextUsesIpaFont;
+    const secondaryTextSupportsSuperscript = !!cfg.secondaryTextSupportsSuperscript && secondaryTextMode === 'ipa';
     const ipaSpecialChars = Array.isArray(cfg.ipaSpecialChars) ? cfg.ipaSpecialChars.slice() : [];
     const ipaLetterMap = (cfg.ipaLetterMap && typeof cfg.ipaLetterMap === 'object') ? cfg.ipaLetterMap : {};
-    const ipaCommonChars = ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'];
+    const ipaTextLanguageCode = String(cfg.ipaTextLanguageCode || '').trim().toLowerCase();
     const isLoggedIn = !!cfg.isLoggedIn;
     const canEdit = !!cfg.canEdit;
     const editNonce = cfg.editNonce || '';
@@ -126,6 +139,11 @@
     let vizButton = null;
     let vizAudio = null;
     let vizSource = null;
+
+    function syncEditModalBodyLock() {
+        const hasOpenPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').length > 0;
+        $('body').toggleClass('ll-word-edit-modal-open', hasOpenPanel);
+    }
 
     function protectMaqafNoBreak(value) {
         const text = (value === null || value === undefined) ? '' : String(value);
@@ -517,11 +535,12 @@
 
                 const rowStyle = window.getComputedStyle(row);
                 const rowGap = parseGapValue(rowStyle.columnGap || rowStyle.gap || '0');
+                const rowPaddingX = parseGapValue(rowStyle.paddingLeft) + parseGapValue(rowStyle.paddingRight);
                 const textStyle = window.getComputedStyle(textWrap);
                 const textGap = parseGapValue(textStyle.columnGap || textStyle.gap || '0');
                 const btnEl = row.querySelector('.ll-study-recording-btn');
                 const btnWidth = btnEl ? btnEl.getBoundingClientRect().width : 0;
-                const availableTextWidth = Math.max(0, contentWidth - btnWidth - rowGap);
+                const availableTextWidth = Math.max(0, contentWidth - btnWidth - rowGap - rowPaddingX);
 
                 let mainWidth = 0;
                 if (mainText) {
@@ -549,7 +568,7 @@
                     lineWidth = Math.min(lineWidth, availableTextWidth);
                 }
 
-                let targetWidth = btnWidth + rowGap + lineWidth;
+                let targetWidth = btnWidth + rowGap + lineWidth + rowPaddingX;
                 if (contentWidth > 0) {
                     targetWidth = Math.min(contentWidth, targetWidth);
                 }
@@ -576,6 +595,21 @@
     updateGridLayouts();
     $(window).on('resize.llWordTitleWrap', scheduleTitleWrapUpdate);
 
+    $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+        const info = (detail && typeof detail === 'object') ? detail : {};
+        const $scope = info.scope && info.scope.jquery
+            ? info.scope
+            : $(info.scope || []);
+        if ($scope.length) {
+            $scope.each(function () {
+                if (this && this.nodeType === 1) {
+                    scanWordGridImages(this);
+                }
+            });
+        }
+        updateGridLayouts();
+    });
+
     if (!isLoggedIn) { return; }
 
     let starredIds = normalizeIds(state.starred_word_ids);
@@ -585,6 +619,7 @@
     const $starModeButtons = $('.ll-vocab-lesson-star-mode');
     const $lessonSettings = $('.ll-vocab-lesson-settings');
     const $bulkEditors = $('[data-ll-word-grid-bulk]');
+    let initRenderedGridItems = null;
 
     function getStudySettings() {
         return (window.LLFlashcards && window.LLFlashcards.StudySettings)
@@ -752,6 +787,22 @@
         });
     }
 
+    $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+        const info = (detail && typeof detail === 'object') ? detail : {};
+        const $scope = info.scope && info.scope.jquery
+            ? info.scope
+            : $(info.scope || []);
+        if (typeof initRenderedGridItems === 'function' && $scope.length) {
+            try {
+                initRenderedGridItems($scope);
+            } catch (error) {
+                console.error('LL Tools: failed to initialize rendered word grid items.', error);
+            }
+        }
+        updateAllStarToggles();
+        updateStarModeButtons();
+    });
+
     function applyStarModeSelection(mode) {
         const normalized = normalizeStarMode(mode);
         if (!normalized) { return false; }
@@ -770,6 +821,66 @@
         return false;
     }
 
+    function resetSettingsPanelPosition($panel) {
+        if (!$panel || !$panel.length) { return; }
+        $panel.each(function () {
+            if (!this || !this.style) { return; }
+            this.style.removeProperty('left');
+            this.style.removeProperty('right');
+        });
+    }
+
+    function clampSettingsPanelToViewport($panel) {
+        if (!$panel || !$panel.length) { return; }
+        const panel = $panel.get(0);
+        if (!panel || !panel.style || typeof panel.getBoundingClientRect !== 'function') { return; }
+
+        panel.style.setProperty('left', 'auto', 'important');
+        panel.style.setProperty('right', '0px', 'important');
+
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        if (viewportWidth <= 0) { return; }
+
+        const safePadding = 8;
+        const rect = panel.getBoundingClientRect();
+        if (!rect || rect.width <= 0) { return; }
+
+        const maxRight = viewportWidth - safePadding;
+        let rightOffset = 0;
+
+        if (rect.left < safePadding) {
+            rightOffset -= (safePadding - rect.left);
+        }
+        if (rect.right > maxRight) {
+            rightOffset += (rect.right - maxRight);
+        }
+
+        if (Math.abs(rightOffset) > 0.5) {
+            panel.style.setProperty('right', String(rightOffset) + 'px', 'important');
+        }
+    }
+
+    function queueSettingsPanelViewportClamp($panel) {
+        if (!$panel || !$panel.length) { return; }
+        const run = function () {
+            clampSettingsPanelToViewport($panel);
+        };
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(function () {
+                run();
+                window.requestAnimationFrame(run);
+            });
+            return;
+        }
+        setTimeout(run, 0);
+    }
+
+    function repositionOpenSettingsPanels() {
+        $('.ll-vocab-lesson-settings-panel[aria-hidden="false"], .ll-vocab-lesson-bulk-panel[aria-hidden="false"]').each(function () {
+            clampSettingsPanelToViewport($(this));
+        });
+    }
+
     function setLessonSettingsOpen($wrap, shouldOpen) {
         if (!$wrap || !$wrap.length) { return; }
         const $panel = $wrap.find('.ll-vocab-lesson-settings-panel');
@@ -780,7 +891,10 @@
         $button.attr('aria-expanded', open ? 'true' : 'false');
         $wrap.toggleClass('is-open', open);
         if (open) {
+            queueSettingsPanelViewportClamp($panel);
             updateStarModeButtons();
+        } else {
+            resetSettingsPanelPosition($panel);
         }
     }
 
@@ -802,6 +916,11 @@
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         $button.attr('aria-expanded', open ? 'true' : 'false');
         $wrap.toggleClass('is-open', open);
+        if (open) {
+            queueSettingsPanelViewportClamp($panel);
+        } else {
+            resetSettingsPanelPosition($panel);
+        }
     }
 
     function closeBulkEditors(except) {
@@ -980,6 +1099,10 @@
         });
     }
 
+    $(window).on('resize.llLessonPanelBounds orientationchange.llLessonPanelBounds', function () {
+        repositionOpenSettingsPanels();
+    });
+
     if ($starModeButtons.length) {
         $starModeButtons.on('click', function (e) {
             e.preventDefault();
@@ -1046,11 +1169,16 @@
 
     const editMessages = {
         saving: editI18n.saving || 'Saving...',
+        savingBackground: editI18n.savingBackground || 'Saving in background...',
         saved: editI18n.saved || 'Saved.',
         error: editI18n.error || 'Unable to save changes.'
     };
     const bulkMessages = {
         saving: bulkI18n.saving || 'Updating...',
+        saved: bulkI18n.saved || 'Saved.',
+        undoLabel: bulkI18n.undoLabel || 'Undo last bulk change',
+        undoSuccess: bulkI18n.undoSuccess || 'Bulk changes undone.',
+        undoError: bulkI18n.undoError || 'Unable to undo bulk changes.',
         posSuccess: bulkI18n.posSuccess || 'Updated %d words.',
         genderSuccess: bulkI18n.genderSuccess || 'Updated %d nouns.',
         pluralitySuccess: bulkI18n.pluralitySuccess || 'Updated %d nouns.',
@@ -1069,9 +1197,17 @@
         error: prereqI18n.error || 'Unable to save prerequisites.',
         empty: prereqI18n.empty || 'No prerequisites selected.',
         remove: prereqI18n.remove || 'Remove %s',
+        optionAdd: prereqI18n.optionAdd || 'Add %s',
+        optionRemove: prereqI18n.optionRemove || prereqI18n.remove || 'Remove %s',
+        optionBlocked: prereqI18n.optionBlocked || 'Cannot add %s because it would create a loop.',
+        blockedHint: prereqI18n.blockedHint || 'Would create a prerequisite loop.',
+        noMatches: prereqI18n.noMatches || 'No matching categories.',
         levelCycle: prereqI18n.levelCycle || 'Cycle',
         levelUnknown: prereqI18n.levelUnknown || '-'
     };
+    const prereqSaveDelayMs = 0;
+    const bulkStatusHideDelayMs = 1400;
+    const prereqStatusHideDelayMs = 1400;
     const dictionaryEntryCache = {};
 
     function syncDictionaryEntrySelectionState($item) {
@@ -1198,23 +1334,46 @@
     function setEditPanelOpen($item, shouldOpen) {
         const $panel = $item.find('[data-ll-word-edit-panel]').first();
         const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
+        const $backdrop = $item.find('[data-ll-word-edit-backdrop]').first();
         if (!$panel.length || !$toggle.length) { return; }
         const open = !!shouldOpen;
+        if (open) {
+            $grids.find('[data-ll-inline-word-editor].is-editing').each(function () {
+                const $inlineEditor = $(this);
+                const fieldName = ($inlineEditor.attr('data-ll-inline-word-editor') || '').toString();
+                closeInlineWordEditor($inlineEditor.closest('.word-item'), fieldName, true, false);
+            });
+            $grids.find('.word-item').not($item).each(function () {
+                const $otherItem = $(this);
+                const $otherPanel = $otherItem.find('[data-ll-word-edit-panel]').first();
+                if ($otherPanel.length && $otherPanel.attr('aria-hidden') === 'false') {
+                    setEditPanelOpen($otherItem, false);
+                }
+            });
+        }
         $panel.attr('aria-hidden', open ? 'false' : 'true');
+        if ($backdrop.length) {
+            $backdrop.attr('aria-hidden', open ? 'false' : 'true').prop('hidden', !open);
+        }
         $toggle.attr('aria-expanded', open ? 'true' : 'false');
         $item.toggleClass('ll-word-edit-open', open);
         if (open) {
-            const scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-            $item.data('llEditScrollY', scrollY);
+            window.requestAnimationFrame(function () {
+                const $firstFocusable = $panel
+                    .find('input, textarea, select, button')
+                    .filter(':enabled:visible')
+                    .first();
+                if ($firstFocusable.length) {
+                    $firstFocusable.trigger('focus');
+                }
+            });
         } else {
-            const scrollY = $item.data('llEditScrollY');
-            if (typeof scrollY === 'number') {
-                $item.removeData('llEditScrollY');
-                window.requestAnimationFrame(function () {
-                    window.scrollTo(0, scrollY);
-                });
+            if ($panel.find(document.activeElement).length) {
+                $toggle.trigger('focus');
             }
+            hideIpaKeyboards();
         }
+        syncEditModalBodyLock();
     }
 
     function setRecordingsPanelOpen($item, shouldOpen) {
@@ -1232,6 +1391,7 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
+        cacheOriginalImageState($item);
         syncDictionaryEntrySelectionState($item);
     }
 
@@ -1243,8 +1403,86 @@
                 $input.val(original);
             }
         });
+        restoreOriginalImageState($item);
         setMetaFieldState($item);
         syncDictionaryEntrySelectionState($item);
+    }
+
+    function normalizeWordImageData(imageData) {
+        const data = (imageData && typeof imageData === 'object') ? imageData : {};
+        return {
+            id: parseInt(data.id, 10) || 0,
+            url: (data.url || '').toString(),
+            alt: (data.alt || '').toString(),
+            width: parseInt(data.width, 10) || 0,
+            height: parseInt(data.height, 10) || 0,
+            word_image_id: parseInt(data.word_image_id, 10) || 0
+        };
+    }
+
+    function revokePendingImagePreviewUrl($item) {
+        const previewUrl = ($item.data('llWordImagePreviewUrl') || '').toString();
+        if (previewUrl && window.URL && typeof window.URL.revokeObjectURL === 'function') {
+            window.URL.revokeObjectURL(previewUrl);
+        }
+        $item.removeData('llWordImagePreviewUrl');
+    }
+
+    function getCurrentWordImageState($item) {
+        const $preview = $item.find('[data-ll-word-image-preview]').first();
+        if ($preview.length) {
+            return normalizeWordImageData({
+                url: ($preview.attr('src') || '').toString(),
+                alt: ($preview.attr('alt') || '').toString()
+            });
+        }
+        return normalizeWordImageData({});
+    }
+
+    function setWordEditImagePreview($item, imageData) {
+        const data = normalizeWordImageData(imageData);
+        const $frame = $item.find('[data-ll-word-image-frame]').first();
+        if (!$frame.length) { return; }
+
+        let $preview = $frame.find('[data-ll-word-image-preview]').first();
+        let $empty = $frame.find('[data-ll-word-image-empty]').first();
+        const emptyLabel = ($frame.attr('data-ll-empty-label') || '').toString();
+
+        if (data.url) {
+            if (!$preview.length) {
+                $preview = $('<img class="ll-word-edit-image-preview" data-ll-word-image-preview loading="lazy" decoding="async" />');
+                $frame.append($preview);
+            }
+            $preview.attr('src', data.url);
+            $preview.attr('alt', data.alt || '');
+            if ($empty.length) {
+                $empty.remove();
+            }
+        } else {
+            if ($preview.length) {
+                $preview.remove();
+            }
+            if (!$empty.length) {
+                $empty = $('<div class="ll-word-edit-image-empty" data-ll-word-image-empty></div>');
+                $frame.append($empty);
+            }
+            $empty.text(emptyLabel);
+        }
+    }
+
+    function cacheOriginalImageState($item) {
+        $item.data('llWordImageState', getCurrentWordImageState($item));
+    }
+
+    function restoreOriginalImageState($item) {
+        revokePendingImagePreviewUrl($item);
+        const originalState = normalizeWordImageData($item.data('llWordImageState') || {});
+        setWordEditImagePreview($item, originalState);
+        const $fileInput = $item.find('[data-ll-word-image-input]').first();
+        if ($fileInput.length) {
+            $fileInput.val('');
+        }
+        $item.find('[data-ll-word-image-selected]').first().text('');
     }
 
     function setEditStatus($item, message, isError) {
@@ -1252,6 +1490,170 @@
         if (!$status.length) { return; }
         $status.text(message || '');
         $status.toggleClass('is-error', !!isError);
+    }
+
+    function clearWordSaveStatusTimer($item) {
+        const timer = parseInt($item.data('llWordSaveStatusTimer'), 10) || 0;
+        if (timer > 0) {
+            window.clearTimeout(timer);
+        }
+        $item.removeData('llWordSaveStatusTimer');
+    }
+
+    function setWordSaveStatus($item, message, state) {
+        const $status = $item.find('[data-ll-word-save-status]').first();
+        if (!$status.length) { return; }
+        clearWordSaveStatusTimer($item);
+        const normalizedState = (state || '').toString();
+        $status
+            .text(message || '')
+            .removeClass('is-pending is-success is-error')
+            .toggleClass('is-pending', normalizedState === 'pending')
+            .toggleClass('is-success', normalizedState === 'success')
+            .toggleClass('is-error', normalizedState === 'error');
+    }
+
+    function scheduleWordSaveStatusClear($item, delayMs) {
+        const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+        if (delay <= 0) {
+            setWordSaveStatus($item, '', '');
+            return;
+        }
+        clearWordSaveStatusTimer($item);
+        const timer = window.setTimeout(function () {
+            setWordSaveStatus($item, '', '');
+        }, delay);
+        $item.data('llWordSaveStatusTimer', timer);
+    }
+
+    function setWordSaveBusy($item, isBusy) {
+        const busy = !!isBusy;
+        const $toggle = $item.find('[data-ll-word-edit-toggle]').first();
+        const $inlineTriggers = $item.find('[data-ll-inline-word-trigger]');
+        $item.toggleClass('ll-word-save-pending', busy);
+        if (busy) {
+            $item.attr('aria-busy', 'true');
+        } else {
+            $item.removeAttr('aria-busy');
+        }
+        if ($toggle.length) {
+            $toggle.prop('disabled', busy);
+        }
+        if ($inlineTriggers.length) {
+            $inlineTriggers.prop('disabled', busy);
+        }
+    }
+
+    function getInlineWordEditor($item, fieldName) {
+        if (!$item || !$item.length || !fieldName) { return $(); }
+        return $item.find('[data-ll-inline-word-editor="' + fieldName + '"]').first();
+    }
+
+    function getInlineWordSavedValue($item, fieldName) {
+        const $editor = getInlineWordEditor($item, fieldName);
+        if ($editor.length) {
+            const $input = $editor.find('[data-ll-inline-word-input]').first();
+            if ($input.length) {
+                return ($input.attr('value') || '').toString();
+            }
+        }
+
+        const selector = fieldName === 'translation' ? '[data-ll-word-translation]' : '[data-ll-word-text]';
+        const $display = $item.find(selector).first();
+        return ($display.text() || '').toString();
+    }
+
+    function syncInlineWordEditorValue($item, fieldName, value) {
+        const $editor = getInlineWordEditor($item, fieldName);
+        if (!$editor.length) { return; }
+
+        const safeValue = (value === null || value === undefined) ? '' : String(value);
+        const hasValue = safeValue.trim() !== '';
+        const displaySelector = fieldName === 'translation' ? '[data-ll-word-translation]' : '[data-ll-word-text]';
+        const $display = $editor.find(displaySelector).first();
+        const $placeholder = $editor.find('[data-ll-inline-word-placeholder]').first();
+        const $input = $editor.find('[data-ll-inline-word-input]').first();
+
+        if ($display.length) {
+            $display
+                .attr('dir', 'auto')
+                .text(protectMaqafNoBreak(safeValue))
+                .prop('hidden', !hasValue);
+        }
+
+        if ($placeholder.length) {
+            $placeholder.prop('hidden', hasValue);
+        }
+
+        if ($input.length) {
+            $input.val(safeValue);
+            $input.attr('value', safeValue);
+            if ($input.get(0)) {
+                $input.get(0).defaultValue = safeValue;
+            }
+        }
+    }
+
+    function setInlineWordEditorSaving($item, fieldName, isSaving) {
+        const $editor = getInlineWordEditor($item, fieldName);
+        if (!$editor.length) { return; }
+
+        const saving = !!isSaving;
+        $editor.toggleClass('is-saving', saving);
+        $editor
+            .find('[data-ll-inline-word-input], [data-ll-inline-word-save], [data-ll-inline-word-cancel]')
+            .prop('disabled', saving);
+    }
+
+    function closeInlineWordEditor($item, fieldName, restoreValue, shouldFocusTrigger) {
+        const $editor = getInlineWordEditor($item, fieldName);
+        if (!$editor.length) { return; }
+
+        if (restoreValue) {
+            const $input = $editor.find('[data-ll-inline-word-input]').first();
+            if ($input.length) {
+                $input.val(($input.attr('value') || '').toString());
+            }
+        }
+
+        $editor.removeClass('is-editing is-saving');
+        $editor.find('[data-ll-inline-word-form]').first().prop('hidden', true);
+        $editor.find('[data-ll-inline-word-trigger]').first().prop('hidden', false).attr('aria-expanded', 'false');
+
+        if (shouldFocusTrigger) {
+            const $trigger = $editor.find('[data-ll-inline-word-trigger]').first();
+            if ($trigger.length) {
+                window.requestAnimationFrame(function () {
+                    $trigger.trigger('focus');
+                });
+            }
+        }
+    }
+
+    function openInlineWordEditor($item, fieldName) {
+        const $editor = getInlineWordEditor($item, fieldName);
+        if (!$editor.length || $item.hasClass('ll-word-save-pending') || $editor.hasClass('is-saving')) {
+            return;
+        }
+
+        $grids.find('[data-ll-inline-word-editor].is-editing').each(function () {
+            const $openEditor = $(this);
+            if ($openEditor.is($editor)) { return; }
+            const openField = ($openEditor.attr('data-ll-inline-word-editor') || '').toString();
+            closeInlineWordEditor($openEditor.closest('.word-item'), openField, true, false);
+        });
+
+        setWordSaveStatus($item, '', '');
+        $editor.addClass('is-editing');
+        $editor.find('[data-ll-inline-word-trigger]').first().prop('hidden', true).attr('aria-expanded', 'true');
+        $editor.find('[data-ll-inline-word-form]').first().prop('hidden', false);
+
+        const $input = $editor.find('[data-ll-inline-word-input]').first();
+        if ($input.length) {
+            window.requestAnimationFrame(function () {
+                $input.trigger('focus').trigger('select');
+            });
+        }
     }
 
     function formatBulkMessage(template, count) {
@@ -1271,6 +1673,76 @@
         $status.toggleClass('is-error', !!isError);
     }
 
+    function getWordBulkFieldValue($item, fieldName) {
+        if (!$item || !$item.length || !fieldName) { return ''; }
+        return ($item.find('[data-ll-word-input="' + fieldName + '"]').val() || '').toString();
+    }
+
+    function getWordBulkFieldLabel($item, fieldName, fallbackSelector) {
+        if (!$item || !$item.length || !fieldName) { return ''; }
+        const $input = $item.find('[data-ll-word-input="' + fieldName + '"]').first();
+        const selectedLabel = $input.length
+            ? (($input.find('option:selected').text() || '').toString().trim())
+            : '';
+        if (selectedLabel) {
+            return selectedLabel;
+        }
+        if (!fallbackSelector) {
+            return '';
+        }
+        const $fallback = $item.find(fallbackSelector).first();
+        if (!$fallback.length) {
+            return '';
+        }
+        return (($fallback.attr('aria-label') || $fallback.text() || '').toString().trim());
+    }
+
+    function captureCurrentBulkWordSnapshot($item) {
+        const wordId = parseInt($item && $item.data('word-id'), 10) || 0;
+        if (!wordId) { return null; }
+
+        const posValue = getWordBulkFieldValue($item, 'part_of_speech');
+        const genderValue = getWordBulkFieldValue($item, 'gender');
+        const pluralityValue = getWordBulkFieldValue($item, 'plurality');
+        const verbTenseValue = getWordBulkFieldValue($item, 'verb_tense');
+        const verbMoodValue = getWordBulkFieldValue($item, 'verb_mood');
+        const $genderMeta = $item.find('[data-ll-word-gender]').first();
+
+        return {
+            word_id: wordId,
+            raw: {
+                part_of_speech: posValue,
+                grammatical_gender: genderValue,
+                grammatical_plurality: pluralityValue,
+                verb_tense: verbTenseValue,
+                verb_mood: verbMoodValue
+            },
+            part_of_speech: {
+                slug: posValue,
+                label: getWordBulkFieldLabel($item, 'part_of_speech', '[data-ll-word-pos]')
+            },
+            grammatical_gender: {
+                value: genderValue,
+                label: getWordBulkFieldLabel($item, 'gender', '[data-ll-word-gender]'),
+                role: ($genderMeta.attr('data-ll-gender-role') || '').toString(),
+                style: ($genderMeta.attr('style') || '').toString(),
+                html: genderValue ? ($genderMeta.html() || '').toString() : ''
+            },
+            grammatical_plurality: {
+                value: pluralityValue,
+                label: getWordBulkFieldLabel($item, 'plurality', '[data-ll-word-plurality]')
+            },
+            verb_tense: {
+                value: verbTenseValue,
+                label: getWordBulkFieldLabel($item, 'verb_tense', '[data-ll-word-verb-tense]')
+            },
+            verb_mood: {
+                value: verbMoodValue,
+                label: getWordBulkFieldLabel($item, 'verb_mood', '[data-ll-word-verb-mood]')
+            }
+        };
+    }
+
     function parseJsonArrayAttr($el, attrName) {
         if (!$el || !$el.length) { return []; }
         const raw = ($el.attr(attrName) || '').toString();
@@ -1281,6 +1753,23 @@
         } catch (_) {
             return [];
         }
+    }
+
+    function normalizeIntegerIdList(ids) {
+        const list = Array.isArray(ids) ? ids : [];
+        const seen = {};
+        const out = [];
+
+        list.forEach(function (id) {
+            const numericId = parseInt(id, 10) || 0;
+            if (!numericId || seen[numericId]) {
+                return;
+            }
+            seen[numericId] = true;
+            out.push(numericId);
+        });
+
+        return out;
     }
 
     function normalizePrereqOptionRows(rows) {
@@ -1330,13 +1819,30 @@
         return fallback;
     }
 
+    function readResponseErrorMessage(response, fallbackMessage) {
+        const fallback = (fallbackMessage || '').toString();
+        if (!response || typeof response !== 'object') {
+            return fallback;
+        }
+        if (typeof response.data === 'string' && response.data) {
+            return response.data;
+        }
+        if (response.data && typeof response.data.message === 'string' && response.data.message) {
+            return response.data.message;
+        }
+        if (typeof response.message === 'string' && response.message) {
+            return response.message;
+        }
+        return fallback;
+    }
+
     function formatPrereqLevelText(level, hasCycle) {
         if (hasCycle) {
             return prereqMessages.levelCycle;
         }
         const numeric = parseInt(level, 10);
         if (Number.isFinite(numeric) && numeric >= 0) {
-            return String(numeric);
+            return 'L' + String(numeric);
         }
         return prereqMessages.levelUnknown;
     }
@@ -1490,8 +1996,74 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
+        cacheOriginalImageState($item);
+        const $fileInput = $item.find('[data-ll-word-image-input]').first();
+        if ($fileInput.length) {
+            $fileInput.val('');
+        }
+        revokePendingImagePreviewUrl($item);
+        $item.find('[data-ll-word-image-selected]').first().text('');
         syncDictionaryEntrySelectionState($item);
     }
+
+    function applyWordImageData($item, imageData) {
+        const data = normalizeWordImageData(imageData);
+        const $grid = $item.closest('[data-ll-word-grid]');
+        const isTextGrid = $grid.hasClass('ll-word-grid--text');
+        const wordText = ($item.find('[data-ll-word-text]').text() || '').toString().trim();
+        const altText = data.alt || wordText;
+
+        setWordEditImagePreview($item, Object.assign({}, data, { alt: altText }));
+
+        if (isTextGrid) {
+            return;
+        }
+
+        let $container = $item.children('.word-image-container').first();
+        if (!data.url) {
+            if ($container.length) {
+                $container.remove();
+            }
+            return;
+        }
+
+        if (!$container.length) {
+            $container = $('<div class="word-image-container"></div>');
+            $item.prepend($container);
+        }
+
+        let $img = $container.find('img.word-image').first();
+        if (!$img.length) {
+            $img = $('<img class="word-image" loading="lazy" decoding="async" fetchpriority="low" />');
+            $container.empty().append($img);
+        }
+
+        $img.attr('src', data.url);
+        $img.attr('alt', altText);
+        $img.removeAttr('srcset');
+        $img.removeAttr('sizes');
+        const imgEl = $img.get(0);
+        if (imgEl && imgEl.dataset) {
+            delete imgEl.dataset.llImgLoadBound;
+        }
+        setWordGridImagePending(imgEl);
+        bindWordGridImageLoadState(imgEl);
+    }
+
+    initRenderedGridItems = function ($scope) {
+        const $root = ($scope && $scope.jquery) ? $scope : $($scope || []);
+        if (!$root.length) { return; }
+
+        $root.find('.word-item').each(function () {
+            const $item = $(this);
+            cacheOriginalInputs($item);
+            setMetaFieldState($item);
+        });
+        $root.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
+            initDictionaryEntryAutocomplete($(this));
+        });
+        syncEditModalBodyLock();
+    };
 
     function collectRecordingInputs($item) {
         const recordings = [];
@@ -1526,7 +2098,7 @@
     function getRecordingCaptionParts(text, translation, ipa) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
-        const cleanIpa = (ipa || '').toString().trim();
+        const cleanIpa = normalizeIpaOutput(ipa);
         return {
             text: cleanText,
             translation: cleanTranslation,
@@ -1536,11 +2108,18 @@
     }
 
     function normalizeIpaOutput(value) {
-        return (value || '').toString().replace(/\u1D2E/g, '\u{10784}');
+        const raw = (value || '').toString();
+        if (secondaryTextMode !== 'ipa') {
+            return raw.replace(/[\r\n\t\u00A0]+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        return raw.replace(/\u1D2E/g, '\u{10784}').trim();
     }
 
     function normalizeIpaForStorage(value) {
-        const raw = (value || '').toString();
+        const raw = sanitizeIpaValue(value);
+        if (secondaryTextMode !== 'ipa') {
+            return raw;
+        }
         if (supportsIpaExtended) {
             return raw;
         }
@@ -1585,8 +2164,9 @@
         let $ipa = $textWrap.find('.ll-word-recording-ipa').first();
         if (parts.ipa) {
             if (!$ipa.length) {
-                $ipa = $('<span>', { class: 'll-word-recording-ipa ll-ipa' }).appendTo($textWrap);
+                $ipa = $('<span>', { class: 'll-word-recording-ipa' }).appendTo($textWrap);
             }
+            $ipa.toggleClass('ll-ipa', secondaryTextUsesIpaFont);
             $ipa.text(normalizeIpaOutput(parts.ipa));
         } else {
             $ipa.remove();
@@ -1597,7 +2177,107 @@
         }
     }
 
+    const recordingEditTriggerIconMarkup = '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">'
+        + '<path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '<path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        + '</svg>';
+
+    function syncRecordingRowEditTrigger($row) {
+        if (!$row || !$row.length) { return; }
+
+        const $button = $row.find('.ll-word-grid-recording-btn').first();
+        const recId = parseInt($row.attr('data-recording-id'), 10)
+            || parseInt($button.attr('data-recording-id'), 10)
+            || 0;
+        const editLabel = ($button.attr('data-ll-recording-edit-label') || '').toString();
+        let $trigger = $row.find('[data-ll-recording-edit-trigger]').first();
+
+        if (!recId || editLabel === '') {
+            $row.removeClass('ll-word-recording-row--editable is-edit-trigger-visible');
+            if ($trigger.length) {
+                $trigger.remove();
+            }
+            return;
+        }
+
+        $row.attr('data-recording-id', String(recId));
+        $row.addClass('ll-word-recording-row--editable');
+
+        if (!$trigger.length) {
+            $trigger = $('<button>', {
+                type: 'button',
+                class: 'll-word-recording-edit-trigger',
+                'data-ll-recording-edit-trigger': '1'
+            });
+            $trigger.append(recordingEditTriggerIconMarkup);
+            $row.append($trigger);
+        }
+
+        $trigger.attr({
+            'data-recording-id': String(recId),
+            'aria-label': editLabel,
+            title: editLabel
+        });
+    }
+
+    function clearVisibleRecordingRowEditTriggers($scope) {
+        const $context = ($scope && $scope.length) ? $scope : $grids;
+        $context.find('.ll-word-recording-row.is-edit-trigger-visible').removeClass('is-edit-trigger-visible');
+    }
+
+    function revealRecordingRowEditTrigger($row) {
+        if (!$row || !$row.length || !$row.hasClass('ll-word-recording-row--editable')) {
+            return;
+        }
+
+        clearVisibleRecordingRowEditTriggers($row.closest('.word-item'));
+        $row.addClass('is-edit-trigger-visible');
+    }
+
+    function openRecordingEditor($item, recordingId) {
+        if (!$item || !$item.length || $item.hasClass('ll-word-save-pending')) {
+            return;
+        }
+
+        const recId = parseInt(recordingId, 10) || 0;
+        if (!recId) {
+            return;
+        }
+
+        const $recording = $item.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]').first();
+        if (!$recording.length) {
+            return;
+        }
+
+        setWordSaveStatus($item, '', '');
+        setEditStatus($item, '');
+        setEditPanelOpen($item, true);
+        setRecordingsPanelOpen($item, true);
+        clearVisibleRecordingRowEditTriggers($item);
+
+        window.requestAnimationFrame(function () {
+            const recordingEl = $recording.get(0);
+            if (recordingEl && typeof recordingEl.scrollIntoView === 'function') {
+                recordingEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+
+            const $firstInput = $recording
+                .find('[data-ll-recording-input="text"], [data-ll-recording-input="translation"], [data-ll-recording-input="ipa"], input, textarea, select')
+                .filter(':enabled:visible')
+                .first();
+
+            if ($firstInput.length) {
+                $firstInput.trigger('focus');
+                const inputEl = $firstInput.get(0);
+                if (inputEl && typeof inputEl.select === 'function' && ($firstInput.is('input[type="text"]') || $firstInput.is('textarea'))) {
+                    inputEl.select();
+                }
+            }
+        });
+    }
+
     const ipaAllowedChar = /[a-z\u00C0-\u02FF\u0300-\u036F\u0370-\u03FF\u1D00-\u1DFF\u{10784}\. ]/u;
+    const nonIpaAllowedChar = /[\p{L}\p{M}\p{N}\u02B0-\u02FF.\-'’\s]/u;
     const ipaCombiningMark = /[\u0300-\u036F]/u;
     const ipaPostModifier = /[\u02B0-\u02B8\u02D0\u02D1\u02E0-\u02E4\u1D2C-\u1D6A\u1D9B-\u1DBF\u2070-\u209F\u{10784}]/u;
     const ipaStressMarker = /[\u02C8\u02CC]/u;
@@ -1697,6 +2377,128 @@
         '\u0263': 'g',
         '\u028b': 'v'
     };
+    const transcriptionMatchMap = {
+        'ā': 'a',
+        'ă': 'a',
+        'â': 'a',
+        'á': 'a',
+        'à': 'a',
+        'ä': 'a',
+        'ã': 'a',
+        'ē': 'e',
+        'ĕ': 'e',
+        'ê': 'e',
+        'é': 'e',
+        'è': 'e',
+        'ë': 'e',
+        'ī': 'i',
+        'ĭ': 'i',
+        'î': 'i',
+        'í': 'i',
+        'ì': 'i',
+        'ï': 'i',
+        'ō': 'o',
+        'ŏ': 'o',
+        'ô': 'o',
+        'ó': 'o',
+        'ò': 'o',
+        'ö': 'o',
+        'õ': 'o',
+        'ū': 'u',
+        'ŭ': 'u',
+        'û': 'u',
+        'ú': 'u',
+        'ù': 'u',
+        'ü': 'u',
+        'ḥ': 'h',
+        'ḫ': 'h',
+        'ṭ': 't',
+        'ṣ': 's',
+        'š': 'sh',
+        'ś': 's',
+        'ḏ': 'd',
+        'ḇ': 'v',
+        'ʾ': 'a',
+        'ʿ': 'a',
+        "'": 'a',
+        '’': 'a',
+        'ʻ': 'a',
+        'א': 'a',
+        'ע': 'a',
+        'ב': 'b',
+        'ג': 'g',
+        'ד': 'd',
+        'ה': 'h',
+        'ו': 'w',
+        'ז': 'z',
+        'ח': 'h',
+        'ט': 't',
+        'י': 'y',
+        'כ': 'k',
+        'ך': 'k',
+        'ל': 'l',
+        'מ': 'm',
+        'ם': 'm',
+        'נ': 'n',
+        'ן': 'n',
+        'ס': 's',
+        'פ': 'p',
+        'ף': 'p',
+        'צ': 's',
+        'ץ': 's',
+        'ק': 'q',
+        'ר': 'r',
+        'ש': 'sh',
+        'ת': 't'
+    };
+    const secondaryTextSortBaseMap = secondaryTextMode === 'ipa'
+        ? Object.assign({}, ipaMatchMap, {
+            'β': 'v',
+            'ɱ': 'm',
+            'ɳ': 'n',
+            'ɴ': 'n',
+            'ɫ': 'l',
+            'ɭ': 'l',
+            'ʎ': 'l',
+            'ʟ': 'l',
+            'ɬ': 'l',
+            'ɮ': 'l',
+            'ɕ': 'sh',
+            'ʑ': 'zh',
+            'ʂ': 'sh',
+            'ʐ': 'zh',
+            'ɟ': 'j',
+            'ʝ': 'j',
+            'ç': 'h',
+            'χ': 'x',
+            'ħ': 'h',
+            'ʔ': 'q',
+            'ʕ': 'h'
+        })
+        : Object.assign({}, transcriptionMatchMap);
+    const secondaryTextSortModifierMap = {
+        'ˈ': '00stress',
+        'ˌ': '01stress',
+        'ʰ': '10h',
+        'ʱ': '11h',
+        'ʲ': '12y',
+        'ʷ': '13w',
+        'ʳ': '14r',
+        'ʴ': '15r',
+        'ʵ': '16e',
+        'ˠ': '17v',
+        'ˤ': '18p',
+        '˞': '19r',
+        'ː': '20long',
+        'ˑ': '21half',
+        'ˀ': '22glot',
+        'ʼ': '23ej',
+        'ⁿ': '24n',
+        'ˡ': '25l',
+        '̃': '30nasal',
+        '̩': '31syll',
+        '̯': '32off'
+    };
     let activeIpaInput = null;
     let activeIpaSelection = null;
     let lastIpaEdit = { input: null, type: null, time: 0 };
@@ -1704,7 +2506,88 @@
     const waveformCache = new Map();
     const waveformPending = new Map();
 
+    function applyTranscriptionMatchMap(segment) {
+        const value = (segment || '').toString();
+        if (!value) { return ''; }
+        let out = '';
+        for (const ch of value) {
+            out += transcriptionMatchMap[ch] || ch;
+        }
+        return out;
+    }
+
+    function getSecondaryTextSymbolSortMeta(symbol) {
+        const raw = sanitizeIpaValue(symbol);
+        if (!raw) {
+            return { family: '', modifier: '', modifierRank: 0, plainRank: 1, raw: '' };
+        }
+
+        let family = '';
+        let modifier = '';
+        Array.from(raw.toLowerCase()).forEach(function (ch) {
+            if (!ch || /[\s.]/u.test(ch)) { return; }
+
+            if (secondaryTextMode === 'ipa') {
+                if (isTieBar(ch)) { return; }
+                if (isCombiningMark(ch) || isPostModifier(ch) || isIpaStressMarker(ch)) {
+                    modifier += secondaryTextSortModifierMap[ch] || ('zz' + encodeURIComponent(ch).replace(/%/g, '').toLowerCase());
+                    return;
+                }
+            } else if (isCombiningMark(ch)) {
+                modifier += secondaryTextSortModifierMap[ch] || ('zz' + encodeURIComponent(ch).replace(/%/g, '').toLowerCase());
+                return;
+            }
+
+            let mapped = secondaryTextSortBaseMap[ch] || '';
+            if (!mapped && /^[a-z0-9]$/u.test(ch)) {
+                mapped = ch;
+            }
+            if (!mapped) {
+                mapped = applyTranscriptionMatchMap(ch).toLowerCase().replace(/[^a-z0-9]+/g, '');
+            }
+            if (!mapped) {
+                mapped = 'zz' + encodeURIComponent(ch).replace(/%/g, '').toLowerCase();
+            }
+            family += mapped;
+        });
+
+        return {
+            family: family || '0',
+            modifier: modifier,
+            modifierRank: modifier ? 1 : 0,
+            plainRank: /^[a-z]+$/u.test(raw.toLowerCase()) ? 0 : 1,
+            raw: raw
+        };
+    }
+
+    function compareSecondaryTextSymbols(left, right) {
+        const leftMeta = getSecondaryTextSymbolSortMeta(left);
+        const rightMeta = getSecondaryTextSymbolSortMeta(right);
+
+        if (leftMeta.family !== rightMeta.family) {
+            return leftMeta.family < rightMeta.family ? -1 : 1;
+        }
+        if (leftMeta.modifierRank !== rightMeta.modifierRank) {
+            return leftMeta.modifierRank - rightMeta.modifierRank;
+        }
+        if (leftMeta.modifier !== rightMeta.modifier) {
+            return leftMeta.modifier < rightMeta.modifier ? -1 : 1;
+        }
+        if (leftMeta.plainRank !== rightMeta.plainRank) {
+            return leftMeta.plainRank - rightMeta.plainRank;
+        }
+        return leftMeta.raw.localeCompare(rightMeta.raw);
+    }
+
+    function sortSecondaryTextSymbols(symbols) {
+        if (!Array.isArray(symbols) || !symbols.length) { return []; }
+        return symbols.slice().sort(compareSecondaryTextSymbols);
+    }
+
     function normalizeIpaChar(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return ch;
+        }
         if (ch === '\u1D2E') {
             return '\u{10784}';
         }
@@ -1723,7 +2606,8 @@
         let out = '';
         chars.forEach(function (ch) {
             const normalized = normalizeIpaChar(ch);
-            if (ipaAllowedChar.test(normalized)) {
+            const allowed = secondaryTextMode === 'ipa' ? ipaAllowedChar : nonIpaAllowedChar;
+            if (allowed.test(normalized)) {
                 out += normalized;
             }
         });
@@ -1902,6 +2786,9 @@
     }
 
     function isIpaSeparator(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return ch === '.' || ch === '-' || /\s/.test(ch);
+        }
         return ch === '.' || /\s/.test(ch);
     }
 
@@ -1910,19 +2797,28 @@
     }
 
     function isPostModifier(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return false;
+        }
         return ipaPostModifier.test(ch);
     }
 
     function isIpaStressMarker(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return false;
+        }
         return ipaStressMarker.test(ch);
     }
 
     function isTieBar(ch) {
+        if (secondaryTextMode !== 'ipa') {
+            return false;
+        }
         return ch === '\u0361' || ch === '\u035C';
     }
 
     function stripStressMarkersFromToken(token) {
-        if (!token) { return ''; }
+        if (secondaryTextMode !== 'ipa' || !token) { return token || ''; }
         return token.replace(/\u02C8|\u02CC/g, '');
     }
 
@@ -1943,6 +2839,42 @@
         const sanitized = sanitizeIpaValue(value);
         if (!sanitized) { return []; }
         const chars = Array.from(sanitized);
+
+        if (secondaryTextMode !== 'ipa') {
+            const tokens = [];
+            let buffer = '';
+
+            chars.forEach(function (ch) {
+                if (isIpaSeparator(ch)) {
+                    if (buffer) {
+                        tokens.push(buffer);
+                        buffer = '';
+                    }
+                    return;
+                }
+
+                if (isCombiningMark(ch)) {
+                    if (!buffer) {
+                        buffer = ch;
+                    } else {
+                        buffer += ch;
+                    }
+                    return;
+                }
+
+                if (buffer) {
+                    tokens.push(buffer);
+                }
+                buffer = ch;
+            });
+
+            if (buffer) {
+                tokens.push(buffer);
+            }
+
+            return tokens;
+        }
+
         const tokens = [];
         let buffer = '';
         let pending = '';
@@ -2175,12 +3107,36 @@
         }).catch(function () {});
     }
 
+    function languageUsesTurkishCasing(code) {
+        return ['tr', 'tur', 'zza', 'diq', 'kiu'].indexOf(String(code || '').trim().toLowerCase()) !== -1;
+    }
+
+    function lowercaseIpaWordText(value) {
+        let text = String(value || '');
+        if (!text) { return ''; }
+        if (languageUsesTurkishCasing(ipaTextLanguageCode)) {
+            text = text.replace(/I/g, '\u0131').replace(/\u0130/g, 'i');
+            try {
+                return text.toLocaleLowerCase('tr');
+            } catch (_) {
+                return text.toLowerCase();
+            }
+        }
+        try {
+            return text.toLocaleLowerCase();
+        } catch (_) {
+            return text.toLowerCase();
+        }
+    }
+
     function normalizeTextSegment(segment) {
         if (!segment) { return ''; }
-        let text = segment.toString().toLocaleLowerCase();
+        let text = lowercaseIpaWordText(segment);
         if (text.normalize) {
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         }
+        text = text.replace(/\u0131/g, 'i');
+        text = applyTranscriptionMatchMap(text);
         text = text.replace(/[^a-z]/g, '');
         return text;
     }
@@ -2190,6 +3146,10 @@
         let text = segment.toString().toLocaleLowerCase().replace(/[\s\.]+/g, '');
         if (text.normalize) {
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        if (secondaryTextMode !== 'ipa') {
+            text = applyTranscriptionMatchMap(text);
+            return text.replace(/[^a-z]/g, '');
         }
         let out = '';
         for (const ch of text) {
@@ -2209,6 +3169,10 @@
         let text = segment.toString().toLocaleLowerCase().replace(/[\s\.]+/g, '');
         if (text.normalize) {
             text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        if (secondaryTextMode !== 'ipa') {
+            text = applyTranscriptionMatchMap(text);
+            return text.replace(/[^a-z]/g, '');
         }
         let out = '';
         let last = '';
@@ -2423,7 +3387,7 @@
         const letters = [];
         for (const ch of raw) {
             if (/\p{L}/u.test(ch)) {
-                letters.push(ch.toLocaleLowerCase());
+                letters.push(lowercaseIpaWordText(ch));
             }
         }
         return letters;
@@ -2657,7 +3621,7 @@
             return 0;
         }
 
-        merged.forEach(function (ch) {
+        sortSecondaryTextSymbols(merged).forEach(function (ch) {
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',
@@ -2683,7 +3647,7 @@
             merged.push(ch);
         };
 
-        ipaCommonChars.forEach(pushUnique);
+        secondaryTextCommonChars.forEach(pushUnique);
         if (Array.isArray(chars)) {
             chars.forEach(pushUnique);
         }
@@ -2692,7 +3656,7 @@
             return 0;
         }
 
-        merged.forEach(function (ch) {
+        sortSecondaryTextSymbols(merged).forEach(function (ch) {
             $('<button>', {
                 type: 'button',
                 class: 'll-word-ipa-key',
@@ -2715,7 +3679,38 @@
         $('[data-ll-ipa-waveform]').attr('aria-hidden', 'true');
     }
 
-    function showIpaKeyboard($input) {
+    function centerIpaInputInEditBody(input) {
+        if (!input || !document.body.contains(input) || typeof input.closest !== 'function') { return; }
+        const container = input.closest('[data-ll-word-edit-body]');
+        if (!container) {
+            if (typeof input.scrollIntoView === 'function') {
+                input.scrollIntoView({ block: 'center', inline: 'nearest' });
+            }
+            return;
+        }
+        const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        if (maxScrollTop <= 0) { return; }
+
+        const containerRect = container.getBoundingClientRect();
+        const inputRect = input.getBoundingClientRect();
+        const containerContentTop = containerRect.top + container.clientTop;
+        const relativeTop = (inputRect.top - containerContentTop) + container.scrollTop;
+        const desiredScrollTop = relativeTop - ((container.clientHeight - inputRect.height) / 2);
+        const nextScrollTop = Math.max(0, Math.min(maxScrollTop, desiredScrollTop));
+
+        if (Math.abs(nextScrollTop - container.scrollTop) <= 1) { return; }
+        container.scrollTop = nextScrollTop;
+    }
+
+    function queueIpaInputCentering(input) {
+        if (!input) { return; }
+        window.requestAnimationFrame(function () {
+            centerIpaInputInEditBody(input);
+        });
+    }
+
+    function showIpaKeyboard($input, options) {
+        const settings = (options && typeof options === 'object') ? options : {};
         if (!$input || !$input.length) { return; }
         const $recording = $input.closest('.ll-word-edit-recording');
         const $keyboard = $recording.find('[data-ll-ipa-keyboard]').first();
@@ -2727,8 +3722,6 @@
         $('[data-ll-ipa-target]').attr('aria-hidden', 'true');
         $('[data-ll-ipa-superscript]').attr('aria-hidden', 'true');
         const $audio = $recording.find('[data-ll-ipa-audio]').first();
-        const shouldAdjustScroll = $audio.length && $audio.attr('aria-hidden') !== 'false';
-        const initialTop = (shouldAdjustScroll && inputEl) ? inputEl.getBoundingClientRect().top : null;
         $('[data-ll-ipa-audio]').not($audio).attr('aria-hidden', 'true').each(function () {
             const audio = $(this).find('audio').get(0);
             if (audio && !audio.paused) {
@@ -2748,8 +3741,10 @@
             $suggestions.attr('aria-hidden', suggestionCount > 0 ? 'false' : 'true');
         }
         if (keyCount > 0 || suggestionCount > 0) {
-            $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
             activeIpaInput = $input.get(0);
+            if (secondaryTextSupportsSuperscript) {
+                $recording.find('[data-ll-ipa-superscript]').attr('aria-hidden', 'false');
+            }
         } else {
             activeIpaInput = null;
         }
@@ -2758,14 +3753,10 @@
             $recording.find('[data-ll-ipa-waveform]').attr('aria-hidden', 'false');
             requestAnimationFrame(function () {
                 renderIpaWaveform($recording);
-                if (shouldAdjustScroll && inputEl && typeof initialTop === 'number') {
-                    const newTop = inputEl.getBoundingClientRect().top;
-                    const delta = newTop - initialTop;
-                    if (Math.abs(delta) > 0.5) {
-                        window.scrollBy(0, delta);
-                    }
-                }
             });
+        }
+        if (settings.centerInput && inputEl) {
+            queueIpaInputCentering(inputEl);
         }
     }
 
@@ -2828,32 +3819,28 @@
         });
 
         const $buttons = $wrap.find('.ll-word-grid-recording-btn');
-        if (hasCaption) {
-            if (!$wrap.hasClass('ll-word-recordings--with-text')) {
-                $wrap.empty().addClass('ll-word-recordings--with-text');
-                $buttons.each(function () {
-                    const $btn = $(this);
-                    const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
-                    const caption = recId ? (captionMap[recId] || null) : null;
-                    const $row = $('<div>', { class: 'll-word-recording-row' });
-                    if (recId) {
-                        $row.attr('data-recording-id', recId);
-                    }
-                    $row.append($btn);
-                    renderRecordingCaption($row, caption);
-                    $wrap.append($row);
-                });
-            } else {
-                $wrap.find('.ll-word-recording-row').each(function () {
-                    const $row = $(this);
-                    const recId = parseInt($row.attr('data-recording-id'), 10)
-                        || parseInt($row.find('.ll-word-grid-recording-btn').attr('data-recording-id'), 10)
-                        || 0;
-                    if (!recId) { return; }
-                    const caption = captionMap[recId] || null;
-                    renderRecordingCaption($row, caption);
-                });
-            }
+        const keepRowLayout = $buttons.filter(function () {
+            return (($(this).attr('data-ll-recording-edit-label') || '').toString() !== '');
+        }).length > 0;
+
+        if (hasCaption || keepRowLayout) {
+            $wrap
+                .toggleClass('ll-word-recordings--with-text', hasCaption)
+                .empty();
+
+            $buttons.each(function () {
+                const $btn = $(this);
+                const recId = parseInt($btn.attr('data-recording-id'), 10) || 0;
+                const caption = recId ? (captionMap[recId] || null) : null;
+                const $row = $('<div>', { class: 'll-word-recording-row' });
+                if (recId) {
+                    $row.attr('data-recording-id', recId);
+                }
+                $row.append($btn);
+                renderRecordingCaption($row, caption);
+                syncRecordingRowEditTrigger($row);
+                $wrap.append($row);
+            });
         } else if ($wrap.hasClass('ll-word-recordings--with-text')) {
             $wrap.removeClass('ll-word-recordings--with-text').empty();
             $buttons.each(function () {
@@ -2863,6 +3850,7 @@
     }
 
     if (canEdit && ajaxUrl && editNonce) {
+        syncEditModalBodyLock();
         $grids.find('.word-item').each(function () {
             cacheOriginalInputs($(this));
         });
@@ -2881,9 +3869,137 @@
         }
 
         function setBulkBusy($wrap, isBusy) {
-            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-pos-apply], [data-ll-bulk-gender-apply], [data-ll-bulk-plurality-apply], [data-ll-bulk-verb-tense-apply], [data-ll-bulk-verb-mood-apply], [data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove]')
-                .prop('disabled', isBusy);
-            $wrap.attr('aria-busy', isBusy ? 'true' : 'false');
+            const busy = !!isBusy;
+            $wrap.toggleClass('ll-vocab-lesson-bulk--busy', busy);
+            $wrap.attr('aria-busy', busy ? 'true' : 'false');
+            $wrap.find('[data-ll-bulk-control-undo]').prop('disabled', busy);
+        }
+
+        function getBulkControlStatusElement($wrap, controlKey) {
+            if (!$wrap || !$wrap.length || !controlKey) { return $(); }
+            return $wrap.find('[data-ll-bulk-control-status="' + controlKey + '"]').first();
+        }
+
+        function clearBulkControlStatusTimer($wrap, controlKey) {
+            const $status = getBulkControlStatusElement($wrap, controlKey);
+            if (!$status.length) { return; }
+            const timerId = parseInt($status.data('llBulkStatusTimerId'), 10) || 0;
+            if (timerId > 0) {
+                window.clearTimeout(timerId);
+            }
+            $status.removeData('llBulkStatusTimerId');
+        }
+
+        function setBulkControlStatus($wrap, controlKey, statusState, message) {
+            const $status = getBulkControlStatusElement($wrap, controlKey);
+            if (!$status.length) { return; }
+
+            clearBulkControlStatusTimer($wrap, controlKey);
+
+            const nextState = ['saving', 'saved', 'error'].indexOf((statusState || '').toString()) !== -1
+                ? statusState.toString()
+                : 'idle';
+            const text = (message || '').toString();
+            const $message = $status.find('[data-ll-bulk-control-status-message]').first();
+
+            $status.attr('data-state', nextState);
+            if (nextState === 'idle') {
+                $status.attr('hidden', 'hidden');
+            } else {
+                $status.removeAttr('hidden');
+            }
+
+            if (text) {
+                $status.attr('aria-label', text);
+                $status.attr('title', text);
+            } else {
+                $status.removeAttr('aria-label');
+                $status.removeAttr('title');
+            }
+
+            if ($message.length) {
+                $message.text('');
+                $message.attr('hidden', 'hidden');
+            }
+        }
+
+        function scheduleBulkControlStatusReset($wrap, controlKey, delayMs) {
+            const $status = getBulkControlStatusElement($wrap, controlKey);
+            if (!$status.length) { return; }
+
+            clearBulkControlStatusTimer($wrap, controlKey);
+
+            const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+            if (delay <= 0) {
+                setBulkControlStatus($wrap, controlKey, 'idle', '');
+                return;
+            }
+
+            const timerId = window.setTimeout(function () {
+                $status.removeData('llBulkStatusTimerId');
+                setBulkControlStatus($wrap, controlKey, 'idle', '');
+            }, delay);
+            $status.data('llBulkStatusTimerId', timerId);
+        }
+
+        function getBulkAutoState($wrap) {
+            if (!$wrap || !$wrap.length) { return null; }
+
+            let state = $wrap.data('llBulkAutoState');
+            if (state && typeof state === 'object') {
+                return state;
+            }
+
+            state = {
+                activeKey: '',
+                activeValue: '',
+                queueOrder: [],
+                queueValues: {},
+                undoSnapshots: {}
+            };
+            $wrap.data('llBulkAutoState', state);
+            return state;
+        }
+
+        function getBulkControlUndoButton($wrap, controlKey) {
+            if (!$wrap || !$wrap.length || !controlKey) { return $(); }
+            return $wrap.find('[data-ll-bulk-control-undo="' + controlKey + '"]').first();
+        }
+
+        function setBulkControlsDisabled($wrap, isDisabled) {
+            const disabled = !!isDisabled;
+            $wrap.find('[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood], [data-ll-bulk-control-undo]')
+                .prop('disabled', disabled);
+        }
+
+        function setBulkControlUndoSnapshot($wrap, controlKey, snapshot) {
+            const state = getBulkAutoState($wrap);
+            const $button = getBulkControlUndoButton($wrap, controlKey);
+            if (!state || !$button.length || !controlKey) { return; }
+
+            if (!snapshot || !Array.isArray(snapshot.rows) || !snapshot.rows.length) {
+                delete state.undoSnapshots[controlKey];
+                $button.attr('hidden', 'hidden');
+                return;
+            }
+
+            state.undoSnapshots[controlKey] = snapshot;
+            $button.removeAttr('hidden');
+        }
+
+        function clearAllBulkControlUndoSnapshots($wrap, exceptKey) {
+            const state = getBulkAutoState($wrap);
+            if (!state) { return; }
+
+            const keepKey = (exceptKey || '').toString();
+            Object.keys(state.undoSnapshots || {}).forEach(function (controlKey) {
+                if (keepKey && controlKey === keepKey) {
+                    return;
+                }
+                delete state.undoSnapshots[controlKey];
+                getBulkControlUndoButton($wrap, controlKey).attr('hidden', 'hidden');
+                setBulkControlStatus($wrap, controlKey, 'idle', '');
+            });
         }
 
         function getPrereqEditorState($editor) {
@@ -2916,6 +4032,7 @@
                     selectedIds.push(row.id);
                 }
             });
+            const blockedIds = normalizeIntegerIdList(parseJsonArrayAttr($editor, 'data-ll-prereq-blocked'));
 
             const currentLevelRaw = ($editor.attr('data-ll-prereq-current-level') || '').toString();
             const currentLevel = currentLevelRaw === '' ? null : (parseInt(currentLevelRaw, 10) || 0);
@@ -2925,24 +4042,150 @@
                 options: options,
                 optionsById: optionsById,
                 selectedIds: selectedIds,
+                blockedIds: blockedIds,
                 currentLevel: currentLevel,
-                hasCycle: hasCycle
+                hasCycle: hasCycle,
+                isSaving: false,
+                needsResave: false,
+                saveTimerId: 0,
+                statusTimerId: 0,
+                lastSavedSelectionKey: '',
+                lastRequestSelectionKey: '',
+                lastSavedSelectedIds: selectedIds.slice(),
+                lastSavedBlockedIds: blockedIds.slice(),
+                lastSavedLevel: currentLevel,
+                lastSavedHasCycle: hasCycle
             };
+            state.lastSavedSelectionKey = serializePrereqSelectedIds(state.selectedIds);
 
             $editor.data('llPrereqState', state);
             return state;
         }
 
-        function setPrereqEditorStatus($editor, message, isError) {
+        function serializePrereqSelectedIds(ids) {
+            return JSON.stringify(normalizeIntegerIdList(ids));
+        }
+
+        function setPrereqEditorBlockedIds($editor, blockedIds) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+
+            state.blockedIds = normalizeIntegerIdList(blockedIds);
+            $editor.attr('data-ll-prereq-blocked', JSON.stringify(state.blockedIds));
+        }
+
+        function applyPrereqEditorSavedState($editor, payload) {
+            const state = getPrereqEditorState($editor);
+            if (!state || !payload || typeof payload !== 'object') { return; }
+
+            const selectedRows = normalizePrereqOptionRows(Array.isArray(payload.selected) ? payload.selected : []);
+            const nextSelectedIds = normalizeIntegerIdList(
+                Array.isArray(payload.selected_ids) && payload.selected_ids.length
+                    ? payload.selected_ids
+                    : selectedRows.map(function (row) { return row.id; })
+            );
+
+            selectedRows.forEach(function (row) {
+                upsertPrereqOption(state, row);
+            });
+
+            state.selectedIds = sortPrereqSelectedIds(state, nextSelectedIds);
+            setPrereqEditorBlockedIds($editor, payload.blocked_ids);
+            setPrereqEditorLevel(
+                $editor,
+                Object.prototype.hasOwnProperty.call(payload, 'level') ? payload.level : null,
+                payload.has_cycle === true
+            );
+
+            state.lastSavedSelectedIds = state.selectedIds.slice();
+            state.lastSavedBlockedIds = state.blockedIds.slice();
+            state.lastSavedLevel = state.currentLevel;
+            state.lastSavedHasCycle = state.hasCycle;
+            state.lastSavedSelectionKey = serializePrereqSelectedIds(state.selectedIds);
+
+            renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
+        }
+
+        function restoreLastSavedPrereqEditorState($editor) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+
+            applyPrereqEditorSavedState($editor, {
+                selected_ids: state.lastSavedSelectedIds,
+                blocked_ids: state.lastSavedBlockedIds,
+                level: state.lastSavedLevel,
+                has_cycle: state.lastSavedHasCycle
+            });
+        }
+
+        function isPrereqOptionBlocked(state, prereqId) {
+            if (!state) { return false; }
+            const numericId = parseInt(prereqId, 10) || 0;
+            if (!numericId) { return false; }
+            return normalizeIntegerIdList(state.blockedIds).indexOf(numericId) !== -1;
+        }
+
+        function clearPrereqEditorTimer(state, timerKey) {
+            if (!state || !timerKey) { return; }
+            const timerId = parseInt(state[timerKey], 10) || 0;
+            if (!timerId) { return; }
+            window.clearTimeout(timerId);
+            state[timerKey] = 0;
+        }
+
+        function setPrereqEditorStatus($editor, statusState, message) {
             const $status = $editor.find('[data-ll-prereq-status]').first();
             if (!$status.length) { return; }
-            $status.text(message || '');
-            $status.toggleClass('is-error', !!isError);
+
+            const nextState = ['saving', 'saved', 'error'].indexOf((statusState || '').toString()) !== -1
+                ? statusState.toString()
+                : 'idle';
+            const text = (message || '').toString();
+            const $message = $status.find('[data-ll-prereq-status-message]').first();
+
+            $status.attr('data-state', nextState);
+            $status.attr('aria-label', text);
+
+            if (nextState === 'idle') {
+                $status.attr('hidden', 'hidden');
+            } else {
+                $status.removeAttr('hidden');
+            }
+
+            if ($message.length) {
+                if (nextState === 'error' && text) {
+                    $message.text(text);
+                    $message.removeAttr('hidden');
+                } else {
+                    $message.text('');
+                    $message.attr('hidden', 'hidden');
+                }
+            }
         }
 
         function setPrereqEditorBusy($editor, isBusy) {
-            $editor.find('[data-ll-prereq-input], [data-ll-prereq-apply], [data-ll-prereq-remove]').prop('disabled', !!isBusy);
-            $editor.attr('aria-busy', isBusy ? 'true' : 'false');
+            const busy = !!isBusy;
+            $editor.attr('aria-busy', busy ? 'true' : 'false');
+            $editor.find('[data-ll-prereq-input], [data-ll-prereq-search-clear], [data-ll-prereq-remove], [data-ll-prereq-option]')
+                .prop('disabled', busy);
+        }
+
+        function schedulePrereqEditorStatusReset($editor, delayMs) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
+            clearPrereqEditorTimer(state, 'statusTimerId');
+
+            const delay = parseInt(delayMs, 10) || 0;
+            if (delay <= 0) {
+                setPrereqEditorStatus($editor, 'idle', '');
+                return;
+            }
+
+            state.statusTimerId = window.setTimeout(function () {
+                state.statusTimerId = 0;
+                setPrereqEditorStatus($editor, 'idle', '');
+            }, delay);
         }
 
         function setPrereqEditorLevel($editor, level, hasCycle) {
@@ -2970,6 +4213,37 @@
             }
         }
 
+        function sortPrereqSelectedIds(state, ids) {
+            if (!state || !Array.isArray(ids)) { return []; }
+
+            const selectedLookup = {};
+            ids.forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (numericId) {
+                    selectedLookup[numericId] = true;
+                }
+            });
+
+            const orderedIds = [];
+            (Array.isArray(state.options) ? state.options : []).forEach(function (option) {
+                const optionId = parseInt(option && option.id, 10) || 0;
+                if (!optionId || !selectedLookup[optionId]) {
+                    return;
+                }
+                orderedIds.push(optionId);
+                delete selectedLookup[optionId];
+            });
+
+            Object.keys(selectedLookup).forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (numericId) {
+                    orderedIds.push(numericId);
+                }
+            });
+
+            return orderedIds;
+        }
+
         function renderPrereqEditorChips($editor) {
             const state = getPrereqEditorState($editor);
             const $chips = $editor.find('[data-ll-prereq-chips]').first();
@@ -2978,12 +4252,11 @@
             $chips.empty();
 
             if (!state.selectedIds.length) {
-                $chips.append($('<span>', {
-                    class: 'll-vocab-lesson-prereq-empty',
-                    text: prereqMessages.empty
-                }));
+                $chips.attr('hidden', 'hidden');
                 return;
             }
+
+            $chips.removeAttr('hidden');
 
             state.selectedIds.forEach(function (id) {
                 const numericId = parseInt(id, 10) || 0;
@@ -3017,6 +4290,132 @@
                 }));
 
                 $chips.append($chip);
+            });
+        }
+
+        function renderPrereqEditorSearchControls($editor) {
+            const $input = $editor.find('[data-ll-prereq-input]').first();
+            const $clear = $editor.find('[data-ll-prereq-search-clear]').first();
+            if (!$input.length || !$clear.length) { return; }
+
+            if (($input.val() || '').toString().trim()) {
+                $clear.removeAttr('hidden');
+            } else {
+                $clear.attr('hidden', 'hidden');
+            }
+        }
+
+        function renderPrereqEditorOptions($editor) {
+            const state = getPrereqEditorState($editor);
+            const $list = $editor.find('[data-ll-prereq-options-list]').first();
+            const $input = $editor.find('[data-ll-prereq-input]').first();
+            if (!state || !$list.length) { return; }
+
+            renderPrereqEditorSearchControls($editor);
+            $list.empty();
+
+            const term = $input.length
+                ? ($input.val() || '').toString().trim().toLowerCase()
+                : '';
+            const selectedLookup = {};
+            state.selectedIds.forEach(function (id) {
+                const numericId = parseInt(id, 10) || 0;
+                if (numericId) {
+                    selectedLookup[numericId] = true;
+                }
+            });
+            const blockedLookup = {};
+            normalizeIntegerIdList(state.blockedIds).forEach(function (id) {
+                blockedLookup[id] = true;
+            });
+
+            const selectedRows = [];
+            const availableRows = [];
+            const blockedRows = [];
+
+            (Array.isArray(state.options) ? state.options : []).forEach(function (option) {
+                const numericId = parseInt(option && option.id, 10) || 0;
+                if (!numericId) { return; }
+
+                const label = (option && option.label) ? option.label.toString() : String(numericId);
+                const haystack = label.toLowerCase();
+                const idText = String(numericId);
+                if (term && haystack.indexOf(term) === -1 && idText.indexOf(term) === -1) {
+                    return;
+                }
+
+                const isSelected = !!selectedLookup[numericId];
+                const isBlocked = !!blockedLookup[numericId] && !isSelected;
+
+                if (!term && isBlocked) {
+                    return;
+                }
+
+                if (isSelected) {
+                    selectedRows.push(option);
+                } else if (isBlocked) {
+                    blockedRows.push(option);
+                } else {
+                    availableRows.push(option);
+                }
+            });
+
+            const rows = selectedRows.concat(availableRows, blockedRows);
+            if (!rows.length) {
+                $list.append($('<div>', {
+                    class: 'll-vocab-lesson-prereq-options-empty',
+                    text: prereqMessages.noMatches
+                }));
+                return;
+            }
+
+            rows.forEach(function (option) {
+                const numericId = parseInt(option && option.id, 10) || 0;
+                if (!numericId) { return; }
+
+                const label = (option && option.label) ? option.label.toString() : String(numericId);
+                const isSelected = !!selectedLookup[numericId];
+                const isBlocked = !!blockedLookup[numericId] && !isSelected;
+                const $button = $('<button>', {
+                    type: 'button',
+                    class: 'll-vocab-lesson-prereq-option'
+                        + (isSelected ? ' is-selected' : '')
+                        + (isBlocked ? ' is-blocked' : ''),
+                    'data-ll-prereq-option': String(numericId),
+                    'aria-pressed': isSelected ? 'true' : 'false',
+                    'aria-label': formatStringMessage(
+                        isBlocked
+                            ? prereqMessages.optionBlocked
+                            : (isSelected ? prereqMessages.optionRemove : prereqMessages.optionAdd),
+                        label
+                    ),
+                    disabled: state.isSaving || isBlocked
+                });
+                if (isBlocked) {
+                    $button.attr('aria-disabled', 'true');
+                    $button.attr('title', prereqMessages.blockedHint);
+                }
+                const $main = $('<span>', { class: 'll-vocab-lesson-prereq-option-main' });
+                $main.append($('<span>', {
+                    class: 'll-vocab-lesson-prereq-option-toggle',
+                    'aria-hidden': 'true'
+                }));
+                $main.append($('<span>', {
+                    class: 'll-vocab-lesson-prereq-option-label',
+                    text: label
+                }));
+                $button.append($main);
+
+                const levelRaw = parseInt(option && option.level, 10);
+                if (Number.isFinite(levelRaw) && !state.hasCycle) {
+                    $button.append($('<span>', {
+                        class: 'll-vocab-lesson-prereq-option-level',
+                        text: 'L' + String(levelRaw),
+                        'aria-hidden': 'true'
+                    }));
+                }
+
+                $list.append($button);
             });
         }
 
@@ -3055,8 +4454,9 @@
             if (state.selectedIds.indexOf(option.id) !== -1) {
                 return false;
             }
-            state.selectedIds.push(option.id);
+            state.selectedIds = sortPrereqSelectedIds(state, state.selectedIds.concat([option.id]));
             renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
             return true;
         }
 
@@ -3070,102 +4470,140 @@
             if (nextIds.length === state.selectedIds.length) {
                 return false;
             }
-            state.selectedIds = nextIds;
+            state.selectedIds = sortPrereqSelectedIds(state, nextIds);
             renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
             return true;
         }
 
-        function ensurePrereqEditorAutocomplete($editor) {
-            const $input = $editor.find('[data-ll-prereq-input]').first();
-            if (!$input.length || typeof $input.autocomplete !== 'function') { return; }
-            if ($input.data('llPrereqAutocompleteReady')) { return; }
-            $input.data('llPrereqAutocompleteReady', true);
+        function togglePrereqSelection($editor, prereqId) {
+            const state = getPrereqEditorState($editor);
+            const numericId = parseInt(prereqId, 10) || 0;
+            if (!state || !numericId) { return false; }
+            if (isPrereqOptionBlocked(state, numericId)) {
+                return false;
+            }
 
-            const $panel = $editor.closest('.ll-vocab-lesson-bulk-panel');
-            $input.autocomplete({
-                minLength: 0,
-                delay: 100,
-                appendTo: $panel.length ? $panel : $editor,
-                classes: {
-                    'ui-autocomplete': 'll-vocab-lesson-prereq-autocomplete'
-                },
-                source: function (request, response) {
-                    const state = getPrereqEditorState($editor);
-                    const selectedLookup = {};
-                    (state && Array.isArray(state.selectedIds) ? state.selectedIds : []).forEach(function (id) {
-                        const numericId = parseInt(id, 10) || 0;
-                        if (numericId) {
-                            selectedLookup[numericId] = true;
-                        }
-                    });
+            if (state.selectedIds.indexOf(numericId) !== -1) {
+                return removePrereqSelection($editor, numericId);
+            }
 
-                    const term = ((request && request.term) ? request.term : '').toString().trim().toLowerCase();
-                    const results = [];
-                    (state && Array.isArray(state.options) ? state.options : []).forEach(function (option) {
-                        const id = parseInt(option && option.id, 10) || 0;
-                        if (!id || selectedLookup[id]) { return; }
-                        const label = (option && option.label) ? option.label.toString() : String(id);
-                        const haystack = label.toLowerCase();
-                        const idText = String(id);
-                        if (term && haystack.indexOf(term) === -1 && idText.indexOf(term) === -1) {
-                            return;
-                        }
-                        results.push({
-                            id: id,
-                            label: label,
-                            value: label,
-                            level: Object.prototype.hasOwnProperty.call(option || {}, 'level') ? option.level : undefined
-                        });
-                    });
+            const option = state.optionsById[numericId] || { id: numericId, label: String(numericId) };
+            return addPrereqSelection($editor, option);
+        }
 
-                    results.sort(function (left, right) {
-                        const leftLabel = (left && left.label) ? left.label.toString() : '';
-                        const rightLabel = (right && right.label) ? right.label.toString() : '';
-                        return leftLabel.localeCompare(rightLabel, undefined, { sensitivity: 'base' });
-                    });
+        function persistPrereqEditorSelection($editor) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
 
-                    response(results.slice(0, 20));
-                },
-                focus: function (event, ui) {
-                    event.preventDefault();
-                    $input.val((ui.item && ui.item.label) ? ui.item.label : '');
-                },
-                select: function (event, ui) {
-                    event.preventDefault();
-                    if (addPrereqSelection($editor, ui.item || {})) {
-                        setPrereqEditorStatus($editor, '', false);
+            clearPrereqEditorTimer(state, 'saveTimerId');
+
+            const selectedKey = serializePrereqSelectedIds(state.selectedIds);
+            if (state.isSaving) {
+                state.needsResave = true;
+                return;
+            }
+
+            if (selectedKey === state.lastSavedSelectionKey) {
+                schedulePrereqEditorStatusReset($editor, 0);
+                return;
+            }
+
+            const $wrap = $editor.closest('[data-ll-word-grid-bulk]');
+            const context = getBulkContext($wrap);
+            if (!context) {
+                setPrereqEditorStatus($editor, 'error', prereqMessages.error);
+                return;
+            }
+
+            state.isSaving = true;
+            state.needsResave = false;
+            state.lastRequestSelectionKey = selectedKey;
+            let saveSucceeded = false;
+
+            clearPrereqEditorTimer(state, 'statusTimerId');
+            setPrereqEditorBusy($editor, true);
+            setPrereqEditorStatus($editor, 'saving', prereqMessages.saving);
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_update_category_prereqs',
+                nonce: editNonce,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId,
+                prereq_ids: state.selectedIds.slice()
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const responseMessage = response && response.data && typeof response.data.message === 'string'
+                        ? response.data.message
+                        : prereqMessages.error;
+                    if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
+                        restoreLastSavedPrereqEditorState($editor);
                     }
-                    $input.val('');
+                    setPrereqEditorStatus($editor, 'error', responseMessage);
+                    return;
+                }
+
+                const data = response.data || {};
+                saveSucceeded = true;
+                applyPrereqEditorSavedState($editor, data);
+
+                if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
+                    setPrereqEditorStatus($editor, 'saved', (typeof data.message === 'string' && data.message) ? data.message : prereqMessages.saved);
+                    schedulePrereqEditorStatusReset($editor, prereqStatusHideDelayMs);
+                }
+            }).fail(function (jqXHR) {
+                const response = jqXHR && jqXHR.responseJSON && jqXHR.responseJSON.data && typeof jqXHR.responseJSON.data === 'object'
+                    ? jqXHR.responseJSON.data
+                    : null;
+                if (serializePrereqSelectedIds(state.selectedIds) === state.lastRequestSelectionKey) {
+                    if (response) {
+                        applyPrereqEditorSavedState($editor, response);
+                    } else {
+                        restoreLastSavedPrereqEditorState($editor);
+                    }
+                } else if (response && Object.prototype.hasOwnProperty.call(response, 'blocked_ids')) {
+                    setPrereqEditorBlockedIds($editor, response.blocked_ids);
+                    renderPrereqEditorOptions($editor);
+                }
+                setPrereqEditorStatus($editor, 'error', readAjaxErrorMessage(jqXHR, prereqMessages.error));
+            }).always(function () {
+                state.isSaving = false;
+                setPrereqEditorBusy($editor, false);
+
+                if (state.needsResave || (saveSucceeded && serializePrereqSelectedIds(state.selectedIds) !== state.lastSavedSelectionKey)) {
+                    schedulePrereqEditorSave($editor, 0);
                 }
             });
+        }
 
-            const instance = $input.autocomplete('instance');
-            if (instance) {
-                instance._renderItem = function (ul, item) {
-                    const $line = $('<div>', { class: 'll-vocab-lesson-prereq-menu-item' });
-                    $line.append($('<span>', {
-                        class: 'll-vocab-lesson-prereq-menu-label',
-                        text: (item && item.label) ? item.label : ''
-                    }));
+        function schedulePrereqEditorSave($editor, delayMs) {
+            const state = getPrereqEditorState($editor);
+            if (!state) { return; }
 
-                    const levelRaw = parseInt(item && item.level, 10);
-                    if (Number.isFinite(levelRaw)) {
-                        $line.append($('<span>', {
-                            class: 'll-vocab-lesson-prereq-menu-level',
-                            text: 'L' + String(levelRaw),
-                            'aria-hidden': 'true'
-                        }));
-                    }
+            clearPrereqEditorTimer(state, 'saveTimerId');
+            clearPrereqEditorTimer(state, 'statusTimerId');
 
-                    return $('<li>').append($line).appendTo(ul);
-                };
+            if (!state.isSaving && serializePrereqSelectedIds(state.selectedIds) === state.lastSavedSelectionKey) {
+                setPrereqEditorStatus($editor, 'idle', '');
+                return;
             }
+
+            const delay = Math.max(0, parseInt(delayMs, 10) || 0);
+            if (delay <= 0) {
+                persistPrereqEditorSelection($editor);
+                return;
+            }
+            state.saveTimerId = window.setTimeout(function () {
+                state.saveTimerId = 0;
+                persistPrereqEditorSelection($editor);
+            }, delay);
         }
 
         function initPrereqEditor($editor) {
             if (!$editor || !$editor.length) { return; }
             getPrereqEditorState($editor);
             renderPrereqEditorChips($editor);
+            renderPrereqEditorOptions($editor);
 
             const state = getPrereqEditorState($editor);
             if (state) {
@@ -3173,33 +4611,602 @@
             }
         }
 
+        function forEachBulkWordItem(context, ids, applyUpdate) {
+            const wordIds = Array.isArray(ids) ? ids : [];
+            wordIds.forEach(function (id) {
+                const wordId = parseInt(id, 10) || 0;
+                if (!wordId) { return; }
+                const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                if (!$item.length) { return; }
+                applyUpdate($item, wordId);
+                updateOriginalInputs($item);
+            });
+        }
+
+        const bulkControlConfigs = {
+            pos: {
+                statusKey: 'pos',
+                selector: '[data-ll-bulk-pos]',
+                mode: 'pos',
+                defaultField: 'part_of_speech',
+                scope: 'all',
+                requestField: 'part_of_speech',
+                successTemplate: bulkMessages.posSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const posData = data.part_of_speech || {};
+                    const clearGender = data.gender_cleared === true;
+                    const clearPlurality = data.plurality_cleared === true;
+                    const clearVerbTense = data.verb_tense_cleared === true;
+                    const clearVerbMood = data.verb_mood_cleared === true;
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        const genderData = clearGender ? { value: '', label: '' } : null;
+                        const pluralityData = clearPlurality ? { value: '', label: '' } : null;
+                        const verbTenseData = clearVerbTense ? { value: '', label: '' } : null;
+                        const verbMoodData = clearVerbMood ? { value: '', label: '' } : null;
+                        applyPosMetaUpdate($item, posData, genderData, pluralityData, verbTenseData, verbMoodData);
+                    });
+
+                    return ids.length;
+                }
+            },
+            gender: {
+                statusKey: 'gender',
+                selector: '[data-ll-bulk-gender]',
+                mode: 'gender',
+                defaultField: 'grammatical_gender',
+                scope: 'noun',
+                requestField: 'grammatical_gender',
+                successTemplate: bulkMessages.genderSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const genderData = data.grammatical_gender || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, genderData, null, null, null);
+                    });
+
+                    return ids.length;
+                }
+            },
+            plurality: {
+                statusKey: 'plurality',
+                selector: '[data-ll-bulk-plurality]',
+                mode: 'plurality',
+                defaultField: 'grammatical_plurality',
+                scope: 'noun',
+                requestField: 'grammatical_plurality',
+                successTemplate: bulkMessages.pluralitySuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const pluralityData = data.grammatical_plurality || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, null, pluralityData, null, null);
+                    });
+
+                    return ids.length;
+                }
+            },
+            'verb-tense': {
+                statusKey: 'verb-tense',
+                selector: '[data-ll-bulk-verb-tense]',
+                mode: 'verb_tense',
+                defaultField: 'verb_tense',
+                scope: 'verb',
+                requestField: 'verb_tense',
+                successTemplate: bulkMessages.verbTenseSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const verbTenseData = data.verb_tense || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, null, null, verbTenseData, null);
+                    });
+
+                    return ids.length;
+                }
+            },
+            'verb-mood': {
+                statusKey: 'verb-mood',
+                selector: '[data-ll-bulk-verb-mood]',
+                mode: 'verb_mood',
+                defaultField: 'verb_mood',
+                scope: 'verb',
+                requestField: 'verb_mood',
+                successTemplate: bulkMessages.verbMoodSuccess,
+                applyResponse: function (context, data) {
+                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
+                    const verbMoodData = data.verb_mood || {};
+
+                    forEachBulkWordItem(context, ids, function ($item) {
+                        applyPosMetaUpdate($item, null, null, null, null, verbMoodData);
+                    });
+
+                    return ids.length;
+                }
+            }
+        };
+
+        function getBulkControlWordItems(context, controlKey) {
+            const config = bulkControlConfigs[controlKey] || null;
+            if (!context || !context.$grid || !config) { return $(); }
+
+            const $items = context.$grid.find('.word-item');
+            if (!$items.length) {
+                return $items;
+            }
+
+            if (config.scope === 'noun') {
+                return $items.filter(function () {
+                    return getWordBulkFieldValue($(this), 'part_of_speech') === 'noun';
+                });
+            }
+            if (config.scope === 'verb') {
+                return $items.filter(function () {
+                    return getWordBulkFieldValue($(this), 'part_of_speech') === 'verb';
+                });
+            }
+
+            return $items;
+        }
+
+        function collectBulkUndoSnapshot(context, controlKey) {
+            const $items = getBulkControlWordItems(context, controlKey);
+            const rows = [];
+
+            $items.each(function () {
+                const snapshot = captureCurrentBulkWordSnapshot($(this));
+                if (snapshot) {
+                    rows.push(snapshot);
+                }
+            });
+
+            return {
+                controlKey: controlKey,
+                rows: rows
+            };
+        }
+
+        function summarizeBulkDefaultValues(values) {
+            const list = Array.isArray(values) ? values : [];
+            if (!list.length) {
+                return '';
+            }
+
+            const first = (list[0] || '').toString().trim();
+            if (!first) {
+                return '';
+            }
+
+            for (let index = 1; index < list.length; index += 1) {
+                if ((list[index] || '').toString().trim() !== first) {
+                    return '';
+                }
+            }
+
+            return first;
+        }
+
+        function computeBulkControlDefaultsFromGrid($wrap) {
+            const defaults = {
+                part_of_speech: '',
+                grammatical_gender: '',
+                grammatical_plurality: '',
+                verb_tense: '',
+                verb_mood: ''
+            };
+            const context = getBulkContext($wrap);
+            if (!context || !context.$grid || !context.$grid.length) {
+                return null;
+            }
+
+            const $items = context.$grid.find('.word-item');
+            if (!$items.length) {
+                return null;
+            }
+
+            const posValues = [];
+            const genderValues = [];
+            const pluralityValues = [];
+            const verbTenseValues = [];
+            const verbMoodValues = [];
+
+            $items.each(function () {
+                const $item = $(this);
+                const posValue = getWordBulkFieldValue($item, 'part_of_speech');
+                posValues.push(posValue);
+
+                if (posValue === 'noun') {
+                    genderValues.push(getWordBulkFieldValue($item, 'gender'));
+                    pluralityValues.push(getWordBulkFieldValue($item, 'plurality'));
+                }
+                if (posValue === 'verb') {
+                    verbTenseValues.push(getWordBulkFieldValue($item, 'verb_tense'));
+                    verbMoodValues.push(getWordBulkFieldValue($item, 'verb_mood'));
+                }
+            });
+
+            defaults.part_of_speech = summarizeBulkDefaultValues(posValues);
+            defaults.grammatical_gender = summarizeBulkDefaultValues(genderValues);
+            defaults.grammatical_plurality = summarizeBulkDefaultValues(pluralityValues);
+            defaults.verb_tense = summarizeBulkDefaultValues(verbTenseValues);
+            defaults.verb_mood = summarizeBulkDefaultValues(verbMoodValues);
+
+            return defaults;
+        }
+
+        function syncBulkControlSelectDefaults($wrap, providedDefaults, options) {
+            const syncOptions = (options && typeof options === 'object') ? options : {};
+            const defaults = (providedDefaults && typeof providedDefaults === 'object')
+                ? providedDefaults
+                : computeBulkControlDefaultsFromGrid($wrap);
+            if (!defaults || typeof defaults !== 'object') {
+                return;
+            }
+
+            Object.keys(bulkControlConfigs).forEach(function (controlKey) {
+                const config = bulkControlConfigs[controlKey];
+                const $select = getBulkControlSelect($wrap, controlKey);
+                if (!$select.length || !config || !config.defaultField) {
+                    return;
+                }
+
+                const currentValue = (($select.val() || '') + '').trim();
+                let nextValue = ((defaults[config.defaultField] || '') + '').trim();
+                if (!nextValue && syncOptions.preserveExistingOnEmpty && currentValue) {
+                    nextValue = currentValue;
+                }
+                $select.find('option[data-ll-bulk-temp-option]').remove();
+
+                if (nextValue && !$select.find('option').filter(function () {
+                    return (($(this).val() || '').toString() === nextValue);
+                }).length) {
+                    $select.append($('<option>', {
+                        value: nextValue,
+                        text: nextValue,
+                        'data-ll-bulk-temp-option': '1'
+                    }));
+                }
+
+                $select.val(nextValue);
+            });
+        }
+
+        $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+            const info = (detail && typeof detail === 'object') ? detail : {};
+            const $scope = info.scope && info.scope.jquery
+                ? info.scope
+                : $(info.scope || []);
+            if (!$scope.length || !$bulkEditors.length) {
+                return;
+            }
+
+            try {
+                $scope.each(function () {
+                    const $bulkWrap = $(this)
+                        .closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page')
+                        .find('[data-ll-word-grid-bulk]')
+                        .first();
+                    if ($bulkWrap.length) {
+                        syncBulkControlSelectDefaults($bulkWrap);
+                    }
+                });
+            } catch (error) {
+                console.error('LL Tools: failed to sync bulk defaults for rendered word grid.', error);
+            }
+        });
+
+        function applyBulkUndoWords(context, words) {
+            if (!context || !context.$grid || !Array.isArray(words)) { return; }
+
+            words.forEach(function (word) {
+                const wordId = parseInt(word && word.word_id, 10) || 0;
+                if (!wordId) { return; }
+                const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
+                if (!$item.length) { return; }
+
+                applyPosMetaUpdate(
+                    $item,
+                    word.part_of_speech || {},
+                    word.grammatical_gender || {},
+                    word.grammatical_plurality || {},
+                    word.verb_tense || {},
+                    word.verb_mood || {}
+                );
+                updateOriginalInputs($item);
+            });
+        }
+
+        function getBulkControlConfigForSelect($select) {
+            if (!$select || !$select.length) { return null; }
+
+            const keys = Object.keys(bulkControlConfigs);
+            for (let index = 0; index < keys.length; index += 1) {
+                const key = keys[index];
+                const config = bulkControlConfigs[key];
+                if (config && config.selector && $select.is(config.selector)) {
+                    return config;
+                }
+            }
+
+            return null;
+        }
+
+        function getBulkControlSelect($wrap, controlKey) {
+            const config = bulkControlConfigs[controlKey] || null;
+            if (!$wrap || !$wrap.length || !config || !config.selector) { return $(); }
+            return $wrap.find(config.selector).first();
+        }
+
+        function queueBulkControlValue(state, controlKey, value) {
+            if (!state || !controlKey) { return; }
+            const normalizedValue = (value || '').toString();
+            if (!normalizedValue) {
+                delete state.queueValues[controlKey];
+                state.queueOrder = state.queueOrder.filter(function (queuedKey) {
+                    return queuedKey !== controlKey;
+                });
+                return;
+            }
+            state.queueValues[controlKey] = normalizedValue;
+            if (state.queueOrder.indexOf(controlKey) === -1) {
+                state.queueOrder.push(controlKey);
+            }
+        }
+
+        function flushBulkControlQueue($wrap) {
+            const state = getBulkAutoState($wrap);
+            if (!state) { return; }
+            if (state.activeKey) {
+                setBulkBusy($wrap, true);
+                return;
+            }
+
+            while (state.queueOrder.length) {
+                const controlKey = state.queueOrder.shift();
+                const nextValue = (state.queueValues[controlKey] || '').toString();
+                delete state.queueValues[controlKey];
+                if (!nextValue || !bulkControlConfigs[controlKey]) {
+                    continue;
+                }
+                persistBulkControlUpdate($wrap, controlKey, nextValue);
+                return;
+            }
+
+            setBulkBusy($wrap, false);
+        }
+
+        function persistBulkControlUpdate($wrap, controlKey, value) {
+            const state = getBulkAutoState($wrap);
+            const config = bulkControlConfigs[controlKey] || null;
+            const context = getBulkContext($wrap);
+            const requestValue = (value || '').toString();
+
+            if (!state || !config || !requestValue) { return; }
+            if (!context) {
+                setBulkControlStatus($wrap, controlKey, 'error', bulkMessages.error);
+                setBulkStatus($wrap, bulkMessages.error, true);
+                flushBulkControlQueue($wrap);
+                return;
+            }
+
+            const undoSnapshot = collectBulkUndoSnapshot(context, controlKey);
+            state.activeKey = controlKey;
+            state.activeValue = requestValue;
+            setBulkBusy($wrap, true);
+            setBulkStatus($wrap, '', false);
+            setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
+
+            const payload = {
+                action: 'll_tools_word_grid_bulk_update',
+                nonce: editNonce,
+                mode: config.mode,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId
+            };
+            payload[config.requestField] = requestValue;
+
+            $.post(ajaxUrl, payload).done(function (response) {
+                if (!response || response.success !== true) {
+                    const responseMessage = response && typeof response.data === 'string'
+                        ? response.data
+                        : (response && response.data && typeof response.data.message === 'string'
+                            ? response.data.message
+                            : bulkMessages.error);
+                    setBulkControlStatus($wrap, controlKey, 'error', responseMessage);
+                    setBulkStatus($wrap, responseMessage, true);
+                    return;
+                }
+
+                const data = response.data || {};
+                const updatedCount = typeof config.applyResponse === 'function'
+                    ? (parseInt(config.applyResponse(context, data), 10) || 0)
+                    : (Array.isArray(data.word_ids) ? data.word_ids.length : 0);
+                const hasUndoSnapshot = !!(undoSnapshot && Array.isArray(undoSnapshot.rows) && undoSnapshot.rows.length && updatedCount > 0);
+
+                updateGridLayouts();
+                syncBulkControlSelectDefaults($wrap);
+                clearAllBulkControlUndoSnapshots($wrap, controlKey);
+                setBulkControlUndoSnapshot($wrap, controlKey, hasUndoSnapshot ? undoSnapshot : null);
+                setBulkStatus($wrap, '', false);
+                setBulkControlStatus(
+                    $wrap,
+                    controlKey,
+                    'saved',
+                    config.successTemplate ? formatBulkMessage(config.successTemplate, updatedCount) : bulkMessages.saved
+                );
+                if (!hasUndoSnapshot) {
+                    scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+                }
+            }).fail(function (jqXHR) {
+                const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.error);
+                setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
+                setBulkStatus($wrap, errorMessage, true);
+            }).always(function () {
+                const currentState = getBulkAutoState($wrap);
+                const $select = getBulkControlSelect($wrap, controlKey);
+                const currentValue = $select.length ? ($select.val() || '').toString() : '';
+
+                if (currentState) {
+                    currentState.activeKey = '';
+                    currentState.activeValue = '';
+                    if (currentValue) {
+                        if (currentValue !== requestValue) {
+                            queueBulkControlValue(currentState, controlKey, currentValue);
+                        }
+                    } else {
+                        setBulkControlStatus($wrap, controlKey, 'idle', '');
+                    }
+                }
+
+                flushBulkControlQueue($wrap);
+            });
+        }
+
+        function undoBulkControlUpdate($wrap, controlKey) {
+            const state = getBulkAutoState($wrap);
+            const config = bulkControlConfigs[controlKey] || null;
+            const context = getBulkContext($wrap);
+            const snapshot = state && state.undoSnapshots ? state.undoSnapshots[controlKey] : null;
+
+            if (!state || !config || !context || !snapshot || !Array.isArray(snapshot.rows) || !snapshot.rows.length || state.activeKey) {
+                return;
+            }
+
+            state.activeKey = controlKey;
+            state.activeValue = '';
+            setBulkControlsDisabled($wrap, true);
+            setBulkBusy($wrap, true);
+            setBulkStatus($wrap, '', false);
+            setBulkControlStatus($wrap, controlKey, 'saving', bulkMessages.saving);
+
+            const payloadRows = snapshot.rows.map(function (row) {
+                const raw = row && row.raw && typeof row.raw === 'object' ? row.raw : {};
+                return {
+                    word_id: parseInt(row && row.word_id, 10) || 0,
+                    part_of_speech: (raw.part_of_speech || '').toString(),
+                    grammatical_gender: (raw.grammatical_gender || '').toString(),
+                    grammatical_plurality: (raw.grammatical_plurality || '').toString(),
+                    verb_tense: (raw.verb_tense || '').toString(),
+                    verb_mood: (raw.verb_mood || '').toString()
+                };
+            }).filter(function (row) {
+                return row.word_id > 0;
+            });
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_bulk_undo',
+                nonce: editNonce,
+                mode: config.mode,
+                wordset_id: context.wordsetId,
+                category_id: context.categoryId,
+                snapshot: JSON.stringify(payloadRows)
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const responseMessage = response && typeof response.data === 'string'
+                        ? response.data
+                        : (response && response.data && typeof response.data.message === 'string'
+                            ? response.data.message
+                            : bulkMessages.undoError);
+                    setBulkControlStatus($wrap, controlKey, 'error', responseMessage);
+                    setBulkStatus($wrap, responseMessage, true);
+                    return;
+                }
+
+                const data = response.data || {};
+                applyBulkUndoWords(context, Array.isArray(data.words) ? data.words : []);
+                updateGridLayouts();
+                syncBulkControlSelectDefaults($wrap);
+                clearAllBulkControlUndoSnapshots($wrap);
+                setBulkStatus($wrap, '', false);
+                setBulkControlStatus($wrap, controlKey, 'saved', (typeof data.message === 'string' && data.message) ? data.message : bulkMessages.undoSuccess);
+                scheduleBulkControlStatusReset($wrap, controlKey, bulkStatusHideDelayMs);
+            }).fail(function (jqXHR) {
+                const errorMessage = readAjaxErrorMessage(jqXHR, bulkMessages.undoError);
+                setBulkControlStatus($wrap, controlKey, 'error', errorMessage);
+                setBulkStatus($wrap, errorMessage, true);
+            }).always(function () {
+                const currentState = getBulkAutoState($wrap);
+                if (currentState) {
+                    currentState.activeKey = '';
+                    currentState.activeValue = '';
+                }
+                setBulkControlsDisabled($wrap, false);
+                setBulkBusy($wrap, false);
+            });
+        }
+
         if ($bulkEditors.length) {
             $bulkEditors.find('[data-ll-prereq-editor]').each(function () {
                 initPrereqEditor($(this));
             });
-
-            $bulkEditors.on('focus', '[data-ll-prereq-input]', function () {
-                const $input = $(this);
-                const $editor = $input.closest('[data-ll-prereq-editor]');
-                if (!$editor.length) { return; }
-                ensurePrereqEditorAutocomplete($editor);
-            });
-
-            $bulkEditors.on('click', '[data-ll-prereq-input]', function (e) {
-                e.stopPropagation();
-                const $input = $(this);
-                const $editor = $input.closest('[data-ll-prereq-editor]');
-                if (!$editor.length) { return; }
-                ensurePrereqEditorAutocomplete($editor);
-                if (typeof $input.autocomplete === 'function') {
-                    $input.autocomplete('search', ($input.val() || '').toString());
-                }
+            $bulkEditors.each(function () {
+                syncBulkControlSelectDefaults($(this), null, { preserveExistingOnEmpty: true });
             });
 
             $bulkEditors.on('input', '[data-ll-prereq-input]', function () {
                 const $editor = $(this).closest('[data-ll-prereq-editor]');
                 if (!$editor.length) { return; }
-                setPrereqEditorStatus($editor, '', false);
+                renderPrereqEditorOptions($editor);
+                setPrereqEditorStatus($editor, 'idle', '');
+            });
+
+            $bulkEditors.on('keydown', '[data-ll-prereq-input]', function (e) {
+                const $input = $(this);
+                const $editor = $input.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+
+                if (e.key === 'Enter') {
+                    const $firstOption = $editor.find('[data-ll-prereq-option]').filter(function () {
+                        return !$(this).prop('disabled');
+                    }).first();
+                    if ($firstOption.length) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (togglePrereqSelection($editor, $firstOption.attr('data-ll-prereq-option'))) {
+                            setPrereqEditorStatus($editor, 'idle', '');
+                            schedulePrereqEditorSave($editor, prereqSaveDelayMs);
+                        }
+                    }
+                    return;
+                }
+
+                if (e.key === 'Escape' && ($input.val() || '').toString()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    $input.val('');
+                    renderPrereqEditorOptions($editor);
+                    setPrereqEditorStatus($editor, 'idle', '');
+                }
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-search-clear]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $editor = $btn.closest('[data-ll-prereq-editor]');
+                const $input = $editor.find('[data-ll-prereq-input]').first();
+                if (!$editor.length || !$input.length) { return; }
+                $input.val('');
+                renderPrereqEditorOptions($editor);
+                setPrereqEditorStatus($editor, 'idle', '');
+                $input.trigger('focus');
+            });
+
+            $bulkEditors.on('click', '[data-ll-prereq-option]', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
+                const $editor = $btn.closest('[data-ll-prereq-editor]');
+                if (!$editor.length) { return; }
+                if (togglePrereqSelection($editor, $btn.attr('data-ll-prereq-option'))) {
+                    setPrereqEditorStatus($editor, 'idle', '');
+                    schedulePrereqEditorSave($editor, prereqSaveDelayMs);
+                }
             });
 
             $bulkEditors.on('click', '[data-ll-prereq-remove]', function (e) {
@@ -3212,323 +5219,45 @@
                 const prereqId = parseInt($btn.attr('data-ll-prereq-remove'), 10) || 0;
                 if (!prereqId) { return; }
                 if (removePrereqSelection($editor, prereqId)) {
-                    setPrereqEditorStatus($editor, '', false);
+                    setPrereqEditorStatus($editor, 'idle', '');
+                    schedulePrereqEditorSave($editor, prereqSaveDelayMs);
                 }
             });
 
-            $bulkEditors.on('click', '[data-ll-prereq-apply]', function (e) {
+            $bulkEditors.on('click', '[data-ll-bulk-control-undo]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 const $btn = $(this);
+                if ($btn.prop('disabled')) { return; }
                 const $wrap = $btn.closest('[data-ll-word-grid-bulk]');
-                const $editor = $btn.closest('[data-ll-prereq-editor]');
-                if (!$wrap.length || !$editor.length) {
-                    return;
-                }
-
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setPrereqEditorStatus($editor, prereqMessages.error, true);
-                    return;
-                }
-
-                const state = getPrereqEditorState($editor);
-                if (!state) {
-                    setPrereqEditorStatus($editor, prereqMessages.error, true);
-                    return;
-                }
-
-                setPrereqEditorBusy($editor, true);
-                setPrereqEditorStatus($editor, prereqMessages.saving, false);
-
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_update_category_prereqs',
-                    nonce: editNonce,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId,
-                    prereq_ids: state.selectedIds
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        const responseMessage = response && response.data && typeof response.data.message === 'string'
-                            ? response.data.message
-                            : prereqMessages.error;
-                        setPrereqEditorStatus($editor, responseMessage, true);
-                        return;
-                    }
-
-                    const data = response.data || {};
-                    const selectedRows = normalizePrereqOptionRows(Array.isArray(data.selected) ? data.selected : []);
-                    const nextSelectedIds = [];
-                    selectedRows.forEach(function (row) {
-                        const option = upsertPrereqOption(state, row);
-                        if (!option) { return; }
-                        if (nextSelectedIds.indexOf(option.id) === -1) {
-                            nextSelectedIds.push(option.id);
-                        }
-                    });
-                    state.selectedIds = nextSelectedIds;
-
-                    renderPrereqEditorChips($editor);
-                    setPrereqEditorLevel($editor, Object.prototype.hasOwnProperty.call(data, 'level') ? data.level : null, data.has_cycle === true);
-                    $editor.find('[data-ll-prereq-input]').val('');
-
-                    const successMessage = (typeof data.message === 'string' && data.message)
-                        ? data.message
-                        : prereqMessages.saved;
-                    setPrereqEditorStatus($editor, successMessage, false);
-                }).fail(function (jqXHR) {
-                    setPrereqEditorStatus($editor, readAjaxErrorMessage(jqXHR, prereqMessages.error), true);
-                }).always(function () {
-                    setPrereqEditorBusy($editor, false);
-                });
+                const controlKey = ($btn.attr('data-ll-bulk-control-undo') || '').toString();
+                if (!$wrap.length || !controlKey) { return; }
+                undoBulkControlUpdate($wrap, controlKey);
             });
 
-            $bulkEditors.on('click', '[data-ll-bulk-pos-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const posSlug = ($wrap.find('[data-ll-bulk-pos]').val() || '').toString();
-                if (!posSlug) {
-                    setBulkStatus($wrap, bulkMessages.posMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'pos',
-                    part_of_speech: posSlug,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const posData = data.part_of_speech || {};
-                    const clearGender = data.gender_cleared === true;
-                    const clearPlurality = data.plurality_cleared === true;
-                    const clearVerbTense = data.verb_tense_cleared === true;
-                    const clearVerbMood = data.verb_mood_cleared === true;
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        const genderData = clearGender ? { value: '', label: '' } : null;
-                        const pluralityData = clearPlurality ? { value: '', label: '' } : null;
-                        const verbTenseData = clearVerbTense ? { value: '', label: '' } : null;
-                        const verbMoodData = clearVerbMood ? { value: '', label: '' } : null;
-                        applyPosMetaUpdate($item, posData, genderData, pluralityData, verbTenseData, verbMoodData);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.posSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
+            $bulkEditors.on('change', '[data-ll-bulk-pos], [data-ll-bulk-gender], [data-ll-bulk-plurality], [data-ll-bulk-verb-tense], [data-ll-bulk-verb-mood]', function () {
+                const $select = $(this);
+                const $wrap = $select.closest('[data-ll-word-grid-bulk]');
+                const config = getBulkControlConfigForSelect($select);
+                const state = getBulkAutoState($wrap);
+                const selectedValue = ($select.val() || '').toString();
 
-            $bulkEditors.on('click', '[data-ll-bulk-gender-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const genderValue = ($wrap.find('[data-ll-bulk-gender]').val() || '').toString();
-                if (!genderValue) {
-                    setBulkStatus($wrap, bulkMessages.genderMissing, true);
+                if (!$wrap.length || !config || !state) {
                     return;
                 }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'gender',
-                    grammatical_gender: genderValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const genderData = data.grammatical_gender || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, genderData, null);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.genderSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
 
-            $bulkEditors.on('click', '[data-ll-bulk-plurality-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const pluralityValue = ($wrap.find('[data-ll-bulk-plurality]').val() || '').toString();
-                if (!pluralityValue) {
-                    setBulkStatus($wrap, bulkMessages.pluralityMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'plurality',
-                    grammatical_plurality: pluralityValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const pluralityData = data.grammatical_plurality || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, null, pluralityData);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.pluralitySuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
+                setBulkStatus($wrap, '', false);
 
-            $bulkEditors.on('click', '[data-ll-bulk-verb-tense-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const verbTenseValue = ($wrap.find('[data-ll-bulk-verb-tense]').val() || '').toString();
-                if (!verbTenseValue) {
-                    setBulkStatus($wrap, bulkMessages.verbTenseMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'verb_tense',
-                    verb_tense: verbTenseValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
+                if (!selectedValue) {
+                    queueBulkControlValue(state, config.statusKey, '');
+                    if (state.activeKey !== config.statusKey) {
+                        setBulkControlStatus($wrap, config.statusKey, 'idle', '');
                     }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const verbTenseData = data.verb_tense || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, null, null, verbTenseData, null);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.verbTenseSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
-            });
+                    return;
+                }
 
-            $bulkEditors.on('click', '[data-ll-bulk-verb-mood-apply]', function (e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const $wrap = $(this).closest('[data-ll-word-grid-bulk]');
-                const verbMoodValue = ($wrap.find('[data-ll-bulk-verb-mood]').val() || '').toString();
-                if (!verbMoodValue) {
-                    setBulkStatus($wrap, bulkMessages.verbMoodMissing, true);
-                    return;
-                }
-                const context = getBulkContext($wrap);
-                if (!context) {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                    return;
-                }
-                setBulkBusy($wrap, true);
-                setBulkStatus($wrap, bulkMessages.saving, false);
-                $.post(ajaxUrl, {
-                    action: 'll_tools_word_grid_bulk_update',
-                    nonce: editNonce,
-                    mode: 'verb_mood',
-                    verb_mood: verbMoodValue,
-                    wordset_id: context.wordsetId,
-                    category_id: context.categoryId
-                }).done(function (response) {
-                    if (!response || response.success !== true) {
-                        setBulkStatus($wrap, bulkMessages.error, true);
-                        return;
-                    }
-                    const data = response.data || {};
-                    const ids = Array.isArray(data.word_ids) ? data.word_ids : [];
-                    const verbMoodData = data.verb_mood || {};
-                    ids.forEach(function (id) {
-                        const wordId = parseInt(id, 10) || 0;
-                        if (!wordId) { return; }
-                        const $item = context.$grid.find('.word-item[data-word-id="' + wordId + '"]').first();
-                        if (!$item.length) { return; }
-                        applyPosMetaUpdate($item, null, null, null, null, verbMoodData);
-                        updateOriginalInputs($item);
-                    });
-                    updateGridLayouts();
-                    setBulkStatus($wrap, formatBulkMessage(bulkMessages.verbMoodSuccess, ids.length), false);
-                }).fail(function () {
-                    setBulkStatus($wrap, bulkMessages.error, true);
-                }).always(function () {
-                    setBulkBusy($wrap, false);
-                });
+                queueBulkControlValue(state, config.statusKey, selectedValue);
+                flushBulkControlQueue($wrap);
             });
         }
 
@@ -3545,6 +5274,16 @@
             }
         });
 
+        $grids.on('click', '[data-ll-word-edit-backdrop]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            restoreOriginalInputs($item);
+            setEditStatus($item, '');
+            setWordSaveStatus($item, '', '');
+            setEditPanelOpen($item, false);
+        });
+
         $grids.on('click', '[data-ll-word-recordings-toggle]', function (e) {
             e.preventDefault();
             e.stopPropagation();
@@ -3555,10 +5294,183 @@
             setRecordingsPanelOpen($item, !isOpen);
         });
 
+        $grids.on('click', '.ll-word-recording-row', function (e) {
+            const $row = $(this);
+            if (!$row.hasClass('ll-word-recording-row--editable')) {
+                return;
+            }
+            if ($(e.target).closest('[data-ll-recording-edit-trigger]').length) {
+                return;
+            }
+            if ($(e.target).closest('.ll-study-recording-btn, .ll-word-recording-text').length) {
+                revealRecordingRowEditTrigger($row);
+            }
+        });
+
+        $grids.on('click', '[data-ll-recording-edit-trigger]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $row = $(this).closest('.ll-word-recording-row');
+            const $item = $row.closest('.word-item');
+            const recId = parseInt($(this).attr('data-recording-id'), 10)
+                || parseInt($row.attr('data-recording-id'), 10)
+                || 0;
+
+            openRecordingEditor($item, recId);
+        });
+
+        $(document).on('click.llWordGridRecordingEdit', function (event) {
+            if ($(event.target).closest('.ll-word-recording-row--editable, .ll-word-edit-panel').length) {
+                return;
+            }
+            clearVisibleRecordingRowEditTriggers();
+        });
+
+        $grids.on('click', '[data-ll-inline-word-trigger]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            const fieldName = ($(this).attr('data-ll-inline-word-trigger') || '').toString();
+            if (!fieldName) { return; }
+            openInlineWordEditor($item, fieldName);
+        });
+
+        $grids.on('click', '[data-ll-inline-word-cancel]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $editor = $(this).closest('[data-ll-inline-word-editor]');
+            const fieldName = ($editor.attr('data-ll-inline-word-editor') || '').toString();
+            if (!fieldName) { return; }
+            const $item = $editor.closest('.word-item');
+            setWordSaveStatus($item, '', '');
+            closeInlineWordEditor($item, fieldName, true, true);
+        });
+
+        $grids.on('keydown', '[data-ll-inline-word-input]', function (event) {
+            const $editor = $(this).closest('[data-ll-inline-word-editor]');
+            const fieldName = ($editor.attr('data-ll-inline-word-editor') || '').toString();
+            if (!fieldName) { return; }
+            const $item = $editor.closest('.word-item');
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setWordSaveStatus($item, '', '');
+                closeInlineWordEditor($item, fieldName, true, true);
+                return;
+            }
+
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                $editor.find('[data-ll-inline-word-save]').first().trigger('click');
+            }
+        });
+
+        $grids.on('click', '[data-ll-inline-word-save]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $editor = $(this).closest('[data-ll-inline-word-editor]');
+            const fieldName = ($editor.attr('data-ll-inline-word-editor') || '').toString();
+            if (!fieldName || $editor.hasClass('is-saving')) { return; }
+
+            const $item = $editor.closest('.word-item');
+            const wordId = parseInt($item.data('word-id'), 10) || 0;
+            const $grid = $item.closest('[data-ll-word-grid]');
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            if (!wordId || !ajaxUrl || !editNonce) {
+                setWordSaveStatus($item, editMessages.error, 'error');
+                return;
+            }
+
+            const editedValue = ($editor.find('[data-ll-inline-word-input]').first().val() || '').toString();
+            let wordText = getInlineWordSavedValue($item, 'word');
+            let wordTranslation = getInlineWordSavedValue($item, 'translation');
+
+            if (fieldName === 'translation') {
+                wordTranslation = editedValue;
+            } else {
+                wordText = editedValue;
+            }
+
+            setInlineWordEditorSaving($item, fieldName, true);
+            setWordSaveBusy($item, true);
+            setWordSaveStatus($item, editMessages.saving, 'pending');
+
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'll_tools_word_grid_update_word',
+                    nonce: editNonce,
+                    word_id: String(wordId),
+                    word_text: wordText,
+                    word_translation: wordTranslation,
+                    wordset_id: String(wordsetId)
+                }
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const message = readResponseErrorMessage(response, editMessages.error);
+                    setWordSaveStatus($item, message, 'error');
+                    return;
+                }
+
+                const data = (response.data && typeof response.data === 'object') ? response.data : {};
+                if (typeof data.word_text === 'string') {
+                    $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
+                    $item.find('[data-ll-word-input="word"]').val(data.word_text);
+                    syncInlineWordEditorValue($item, 'word', data.word_text);
+                }
+                if (typeof data.word_translation === 'string') {
+                    $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
+                    $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
+                    syncInlineWordEditorValue($item, 'translation', data.word_translation);
+                }
+                updateGridLayouts();
+                updateOriginalInputs($item);
+                closeInlineWordEditor($item, fieldName, false, true);
+                setWordSaveStatus($item, editMessages.saved, 'success');
+                scheduleWordSaveStatusClear($item, 1800);
+            }).fail(function (jqXHR) {
+                const message = readAjaxErrorMessage(jqXHR, editMessages.error);
+                setWordSaveStatus($item, message, 'error');
+            }).always(function () {
+                setInlineWordEditorSaving($item, fieldName, false);
+                setWordSaveBusy($item, false);
+            });
+        });
+
         $grids.on('change', '[data-ll-word-input="part_of_speech"]', function () {
             const $item = $(this).closest('.word-item');
             const posSlug = ($(this).val() || '').toString();
             setMetaFieldState($item, posSlug);
+        });
+
+        $grids.on('change', '[data-ll-word-image-input]', function () {
+            const $input = $(this);
+            const $item = $input.closest('.word-item');
+            const inputEl = $input.get(0);
+            const file = inputEl && inputEl.files && inputEl.files[0] ? inputEl.files[0] : null;
+
+            revokePendingImagePreviewUrl($item);
+            if (!file) {
+                const originalState = normalizeWordImageData($item.data('llWordImageState') || {});
+                setWordEditImagePreview($item, originalState);
+                $item.find('[data-ll-word-image-selected]').first().text('');
+                return;
+            }
+
+            if (window.URL && typeof window.URL.createObjectURL === 'function') {
+                const previewUrl = window.URL.createObjectURL(file);
+                $item.data('llWordImagePreviewUrl', previewUrl);
+                setWordEditImagePreview($item, {
+                    url: previewUrl,
+                    alt: (file.name || '').toString()
+                });
+            }
+
+            $item.find('[data-ll-word-image-selected]').first().text((file.name || '').toString());
         });
 
         $grids.on('focus', '[data-ll-word-input="dictionary_entry_lookup"]', function () {
@@ -3586,7 +5498,7 @@
         });
 
         $grids.on('focus', '.ll-word-edit-input--ipa', function () {
-            showIpaKeyboard($(this));
+            showIpaKeyboard($(this), { centerInput: true });
             updateIpaSelection(this);
         });
 
@@ -3698,12 +5610,26 @@
             hideIpaKeyboards();
         });
 
+        $(document).on('keydown.llWordEditModal', function (event) {
+            if (!event || event.key !== 'Escape') { return; }
+            if ($('.ui-autocomplete:visible').length) { return; }
+            const $openPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').first();
+            if (!$openPanel.length) { return; }
+            event.preventDefault();
+            const $item = $openPanel.closest('.word-item');
+            restoreOriginalInputs($item);
+            setEditStatus($item, '');
+            setWordSaveStatus($item, '', '');
+            setEditPanelOpen($item, false);
+        });
+
         $grids.on('click', '[data-ll-word-edit-cancel]', function (e) {
             e.preventDefault();
             e.stopPropagation();
             const $item = $(this).closest('.word-item');
             restoreOriginalInputs($item);
             setEditStatus($item, '');
+            setWordSaveStatus($item, '', '');
             setEditPanelOpen($item, false);
         });
 
@@ -3712,21 +5638,38 @@
             e.stopPropagation();
             const $item = $(this).closest('.word-item');
             const wordId = parseInt($item.data('word-id'), 10) || 0;
-            if (!wordId) { return; }
+            if (!wordId || $item.hasClass('ll-word-save-pending')) { return; }
 
             const wordText = ($item.find('[data-ll-word-input="word"]').val() || '').toString();
             const wordTranslation = ($item.find('[data-ll-word-input="translation"]').val() || '').toString();
             const wordNote = ($item.find('[data-ll-word-input="note"]').val() || '').toString();
             const partOfSpeech = ($item.find('[data-ll-word-input="part_of_speech"]').val() || '').toString();
+            const partOfSpeechLabel = partOfSpeech
+                ? (($item.find('[data-ll-word-input="part_of_speech"] option:selected').text() || '').toString().trim())
+                : '';
             const gender = ($item.find('[data-ll-word-input="gender"]').val() || '').toString();
+            const genderLabel = gender
+                ? (($item.find('[data-ll-word-input="gender"] option:selected').text() || '').toString().trim())
+                : '';
             const plurality = ($item.find('[data-ll-word-input="plurality"]').val() || '').toString();
+            const pluralityLabel = plurality
+                ? (($item.find('[data-ll-word-input="plurality"] option:selected').text() || '').toString().trim())
+                : '';
             const verbTense = ($item.find('[data-ll-word-input="verb_tense"]').val() || '').toString();
+            const verbTenseLabel = verbTense
+                ? (($item.find('[data-ll-word-input="verb_tense"] option:selected').text() || '').toString().trim())
+                : '';
             const verbMood = ($item.find('[data-ll-word-input="verb_mood"]').val() || '').toString();
+            const verbMoodLabel = verbMood
+                ? (($item.find('[data-ll-word-input="verb_mood"] option:selected').text() || '').toString().trim())
+                : '';
             const dictionaryEntryId = parseInt($item.find('[data-ll-word-input="dictionary_entry_id"]').val(), 10) || 0;
             const dictionaryEntryTitle = ($item.find('[data-ll-word-input="dictionary_entry_lookup"]').val() || '').toString();
             const $wrongAnswerTextsInput = $item.find('[data-ll-word-input="specific_wrong_answer_texts"]').first();
             const $grid = $item.closest('[data-ll-word-grid]');
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            const imageInputEl = $item.find('[data-ll-word-image-input]').get(0);
+            const imageFile = imageInputEl && imageInputEl.files && imageInputEl.files[0] ? imageInputEl.files[0] : null;
             const recordings = [];
 
             $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
@@ -3743,43 +5686,92 @@
             const $cancelBtn = $item.find('[data-ll-word-edit-cancel]');
             $saveBtn.prop('disabled', true);
             $cancelBtn.prop('disabled', true);
-            $item.attr('aria-busy', 'true');
             setEditStatus($item, editMessages.saving, false);
 
-            const requestData = {
-                action: 'll_tools_word_grid_update_word',
-                nonce: editNonce,
-                word_id: wordId,
-                word_text: wordText,
-                word_translation: wordTranslation,
-                word_note: wordNote,
-                part_of_speech: partOfSpeech,
-                grammatical_gender: gender,
-                grammatical_plurality: plurality,
-                verb_tense: verbTense,
-                verb_mood: verbMood,
-                dictionary_entry_id: dictionaryEntryId,
-                dictionary_entry_title: dictionaryEntryTitle,
-                wordset_id: wordsetId,
-                recordings: recordings
-            };
+            if (typeof wordText === 'string') {
+                $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(wordText));
+            }
+            if (typeof wordTranslation === 'string') {
+                $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(wordTranslation));
+            }
+            setWordNote($item, wordNote);
+            applyDictionaryEntryData($item, {
+                id: dictionaryEntryId,
+                title: dictionaryEntryTitle
+            });
+            applyPosMetaUpdate(
+                $item,
+                { slug: partOfSpeech, label: partOfSpeechLabel },
+                { value: gender, label: genderLabel },
+                { value: plurality, label: pluralityLabel },
+                { value: verbTense, label: verbTenseLabel },
+                { value: verbMood, label: verbMoodLabel }
+            );
+            if (recordings.length) {
+                applyRecordingCaptions($item, recordings.map(function (entry) {
+                    return {
+                        id: entry.id,
+                        recording_text: entry.text,
+                        recording_translation: entry.translation,
+                        recording_ipa: normalizeIpaOutput(entry.ipa)
+                    };
+                }));
+            }
+            updateGridLayouts();
+            setRecordingsPanelOpen($item, false);
+            setEditPanelOpen($item, false);
+            setEditStatus($item, '', false);
+            setWordSaveBusy($item, true);
+            setWordSaveStatus($item, editMessages.savingBackground, 'pending');
+
+            const requestData = new window.FormData();
+            requestData.append('action', 'll_tools_word_grid_update_word');
+            requestData.append('nonce', editNonce);
+            requestData.append('word_id', String(wordId));
+            requestData.append('word_text', wordText);
+            requestData.append('word_translation', wordTranslation);
+            requestData.append('word_note', wordNote);
+            requestData.append('part_of_speech', partOfSpeech);
+            requestData.append('grammatical_gender', gender);
+            requestData.append('grammatical_plurality', plurality);
+            requestData.append('verb_tense', verbTense);
+            requestData.append('verb_mood', verbMood);
+            requestData.append('dictionary_entry_id', String(dictionaryEntryId));
+            requestData.append('dictionary_entry_title', dictionaryEntryTitle);
+            requestData.append('wordset_id', String(wordsetId));
+            requestData.append('recordings', JSON.stringify(recordings));
             if ($wrongAnswerTextsInput.length) {
-                requestData.specific_wrong_answer_texts = ($wrongAnswerTextsInput.val() || '').toString();
+                requestData.append('specific_wrong_answer_texts', ($wrongAnswerTextsInput.val() || '').toString());
+            }
+            if (imageFile) {
+                requestData.append('word_image_file', imageFile, (imageFile.name || 'image').toString());
             }
 
-            $.post(ajaxUrl, requestData).done(function (response) {
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                data: requestData,
+                processData: false,
+                contentType: false,
+                dataType: 'json'
+            }).done(function (response) {
                 if (!response || response.success !== true) {
-                    setEditStatus($item, editMessages.error, true);
+                    const message = readResponseErrorMessage(response, editMessages.error);
+                    setWordSaveStatus($item, message, 'error');
+                    setEditStatus($item, message, true);
+                    setEditPanelOpen($item, true);
                     return;
                 }
                 const data = response.data || {};
                 if (typeof data.word_text === 'string') {
                     $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_text));
                     $item.find('[data-ll-word-input="word"]').val(data.word_text);
+                    syncInlineWordEditorValue($item, 'word', data.word_text);
                 }
                 if (typeof data.word_translation === 'string') {
                     $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(data.word_translation));
                     $item.find('[data-ll-word-input="translation"]').val(data.word_translation);
+                    syncInlineWordEditorValue($item, 'translation', data.word_translation);
                 }
                 if (typeof data.word_note === 'string') {
                     $item.find('[data-ll-word-input="note"]').val(data.word_note);
@@ -3787,6 +5779,9 @@
                 }
                 if (Array.isArray(data.specific_wrong_answer_texts) && $wrongAnswerTextsInput.length) {
                     $wrongAnswerTextsInput.val(data.specific_wrong_answer_texts.join('\n'));
+                }
+                if (data.image && typeof data.image === 'object') {
+                    applyWordImageData($item, data.image);
                 }
                 if (data.dictionary_entry) {
                     applyDictionaryEntryData($item, data.dictionary_entry);
@@ -3814,15 +5809,25 @@
                 }
                 updateGridLayouts();
                 updateOriginalInputs($item);
+                const $bulkWrap = $item.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page').find('[data-ll-word-grid-bulk]').first();
+                if ($bulkWrap.length) {
+                    clearAllBulkControlUndoSnapshots($bulkWrap);
+                    syncBulkControlSelectDefaults($bulkWrap);
+                }
                 setEditStatus($item, '');
                 setRecordingsPanelOpen($item, false);
                 setEditPanelOpen($item, false);
-            }).fail(function () {
-                setEditStatus($item, editMessages.error, true);
+                setWordSaveStatus($item, editMessages.saved, 'success');
+                scheduleWordSaveStatusClear($item, 1800);
+            }).fail(function (jqXHR) {
+                const message = readAjaxErrorMessage(jqXHR, editMessages.error);
+                setWordSaveStatus($item, message, 'error');
+                setEditStatus($item, message, true);
+                setEditPanelOpen($item, true);
             }).always(function () {
                 $saveBtn.prop('disabled', false);
                 $cancelBtn.prop('disabled', false);
-                $item.removeAttr('aria-busy');
+                setWordSaveBusy($item, false);
             });
         });
     }
@@ -3835,11 +5840,13 @@
             working: 'Transcribing...',
             progress: 'Transcribing %1$d of %2$d...',
             done: 'Transcription complete.',
-            none: 'No recordings need text.',
-            clearing: 'Clearing captions...',
-            cleared: 'Captions cleared.',
+            none: 'No recordings need transcription.',
+            clearing: 'Clearing transcription...',
+            cleared: 'Transcription cleared.',
             cancelled: 'Transcription cancelled.',
-            error: 'Unable to transcribe recordings.'
+            error: 'Unable to transcribe recordings.',
+            localServiceError: 'Unable to reach the local transcription service.',
+            localAudioError: 'Unable to fetch the recording audio in this browser.'
         }, transcribeI18n || {});
 
         function applyRecordingUpdate(rec) {
@@ -3882,10 +5889,12 @@
             if (typeof word.word_text === 'string') {
                 $item.find('[data-ll-word-text]').attr('dir', 'auto').text(protectMaqafNoBreak(word.word_text));
                 $item.find('[data-ll-word-input="word"]').val(word.word_text);
+                syncInlineWordEditorValue($item, 'word', word.word_text);
             }
             if (typeof word.word_translation === 'string') {
                 $item.find('[data-ll-word-translation]').attr('dir', 'auto').text(protectMaqafNoBreak(word.word_translation));
                 $item.find('[data-ll-word-input="translation"]').val(word.word_translation);
+                syncInlineWordEditorValue($item, 'translation', word.word_translation);
             }
             if (word.dictionary_entry) {
                 applyDictionaryEntryData($item, word.dictionary_entry);
@@ -3905,6 +5914,7 @@
                     cancelled: false,
                     request: null,
                     pollTimer: null,
+                    localAbortController: null,
                     queue: [],
                     total: 0,
                     completed: 0,
@@ -3931,6 +5941,10 @@
                 window.clearTimeout(state.pollTimer);
                 state.pollTimer = null;
             }
+            if (state.localAbortController) {
+                state.localAbortController.abort();
+                state.localAbortController = null;
+            }
             state.request = null;
             state.queue = [];
             state.total = 0;
@@ -3948,8 +5962,12 @@
             const $rec = $grids.find('.ll-word-edit-recording[data-recording-id="' + recId + '"]');
             if ($rec.length) {
                 const $item = $rec.closest('.word-item');
-                $rec.find('[data-ll-recording-input="text"]').val('');
-                $rec.find('[data-ll-recording-input="translation"]').val('');
+                if (transcribeTargetField === 'recording_ipa') {
+                    $rec.find('[data-ll-recording-input="ipa"]').val('');
+                } else {
+                    $rec.find('[data-ll-recording-input="text"]').val('');
+                    $rec.find('[data-ll-recording-input="translation"]').val('');
+                }
                 const recordings = collectRecordingInputs($item);
                 applyRecordingCaptions($item, recordings);
                 updateOriginalInputs($item);
@@ -3958,8 +5976,17 @@
             }
             const $row = $grids.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
             if ($row.length) {
+                const text = $row.find('.ll-word-recording-text-main').text() || '';
+                const translation = $row.find('.ll-word-recording-text-translation').text() || '';
                 const ipa = $row.find('.ll-word-recording-ipa').text() || '';
-                renderRecordingCaption($row, getRecordingCaptionParts('', '', ipa));
+                renderRecordingCaption(
+                    $row,
+                    getRecordingCaptionParts(
+                        transcribeTargetField === 'recording_text' ? '' : text,
+                        transcribeTargetField === 'recording_text' ? '' : translation,
+                        transcribeTargetField === 'recording_ipa' ? '' : ipa
+                    )
+                );
                 updateRecordingRowWidths();
             }
         }
@@ -3971,6 +5998,167 @@
                 if (!id) { return; }
                 clearRecordingMetaById(id);
             });
+        }
+
+        function extractLocalTranscriptValue(payload) {
+            if (!payload || typeof payload !== 'object') {
+                return '';
+            }
+
+            const targetKeys = transcribeTargetField === 'recording_ipa'
+                ? ['predicted_ipa', 'recording_ipa', 'ipa', 'secondary_text', 'transcript', 'text']
+                : ['transcript', 'text', 'recording_text', 'predicted_text', 'prediction'];
+
+            for (let i = 0; i < targetKeys.length; i += 1) {
+                const key = targetKeys[i];
+                if (typeof payload[key] === 'string' && payload[key].trim()) {
+                    return payload[key].trim();
+                }
+            }
+
+            return '';
+        }
+
+        async function transcribeRecordingWithLocalService(queueItem, signal) {
+            const audioUrl = typeof queueItem.audio_url === 'string' ? queueItem.audio_url : '';
+            if (!audioUrl || !transcribeLocalEndpoint) {
+                throw new Error('local_audio_missing');
+            }
+
+            let audioResponse;
+            try {
+                audioResponse = await window.fetch(audioUrl, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal
+                });
+            } catch (err) {
+                throw new Error('local_audio_fetch');
+            }
+
+            if (!audioResponse || !audioResponse.ok) {
+                throw new Error('local_audio_fetch');
+            }
+
+            const audioBlob = await audioResponse.blob();
+            const fileName = (typeof queueItem.audio_filename === 'string' && queueItem.audio_filename)
+                ? queueItem.audio_filename
+                : ('recording-' + (parseInt(queueItem.recording_id, 10) || 0) + '.wav');
+
+            const formData = new window.FormData();
+            formData.append('audio', audioBlob, fileName);
+            formData.append('target_field', transcribeTargetField);
+            if (queueItem.recording_id) {
+                formData.append('recording_id', String(queueItem.recording_id));
+            }
+            if (queueItem.word_id) {
+                formData.append('word_id', String(queueItem.word_id));
+            }
+            if (queueItem.word_title) {
+                formData.append('word_title', String(queueItem.word_title));
+            }
+            if (queueItem.recording_type) {
+                formData.append('recording_type', String(queueItem.recording_type));
+            }
+
+            let localResponse;
+            try {
+                localResponse = await window.fetch(transcribeLocalEndpoint, {
+                    method: 'POST',
+                    mode: 'cors',
+                    body: formData,
+                    signal
+                });
+            } catch (err) {
+                throw new Error('local_service');
+            }
+
+            if (!localResponse || !localResponse.ok) {
+                throw new Error('local_service');
+            }
+
+            const contentType = String(localResponse.headers.get('content-type') || '').toLowerCase();
+            let payload;
+            if (contentType.indexOf('application/json') >= 0) {
+                payload = await localResponse.json();
+            } else {
+                payload = {
+                    text: await localResponse.text()
+                };
+            }
+
+            const transcript = extractLocalTranscriptValue(payload);
+            if (!transcript) {
+                throw new Error('local_empty');
+            }
+
+            return transcript;
+        }
+
+        function processLocalTranscription($wrap, lessonId, state, next, recordingId, processNext) {
+            state.localAbortController = new window.AbortController();
+            transcribeRecordingWithLocalService(next, state.localAbortController.signal)
+                .then(function (localTranscript) {
+                    if (state.cancelled) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                        return;
+                    }
+
+                    state.request = $.post(ajaxUrl, {
+                        action: 'll_tools_transcribe_recording_by_id',
+                        nonce: editNonce,
+                        lesson_id: lessonId,
+                        recording_id: recordingId,
+                        force: state.force ? 1 : 0,
+                        local_transcript: localTranscript
+                    }).done(function (res) {
+                        if (state.cancelled) {
+                            finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                            return;
+                        }
+                        if (!res || res.success !== true) {
+                            state.hadError = true;
+                            processNext();
+                            return;
+                        }
+
+                        const data = res.data || {};
+                        const rec = data.recording ? data.recording : null;
+                        if (rec) {
+                            applyRecordingUpdate(rec);
+                        }
+                        const word = data.word ? data.word : null;
+                        if (word) {
+                            applyWordUpdate(word);
+                        }
+                        processNext();
+                    }).fail(function () {
+                        if (state.cancelled) {
+                            finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                            return;
+                        }
+                        state.hadError = true;
+                        processNext();
+                    }).always(function () {
+                        state.request = null;
+                    });
+                })
+                .catch(function (err) {
+                    if (state.cancelled || (err && err.name === 'AbortError')) {
+                        finishTranscribe($wrap, transcribeMessages.cancelled, false);
+                        return;
+                    }
+                    state.hadError = true;
+                    const message = (err && err.message === 'local_audio_fetch')
+                        ? transcribeMessages.localAudioError
+                        : transcribeMessages.localServiceError;
+                    setTranscribeStatus($wrap, message, true);
+                    processNext();
+                })
+                .finally(function () {
+                    state.localAbortController = null;
+                });
         }
 
         function runLessonTranscription($wrap, lessonId, options) {
@@ -4109,6 +6297,11 @@
                         });
                     };
 
+                    if (transcribeUsesLocalBrowser) {
+                        processLocalTranscription($wrap, lessonId, state, next, recordingId, processNext);
+                        return;
+                    }
+
                     requestTranscription('', 0);
                 };
 
@@ -4170,6 +6363,9 @@
             const state = getTranscribeState($wrap);
             if (!state.active) { return; }
             state.cancelled = true;
+            if (state.localAbortController) {
+                state.localAbortController.abort();
+            }
             if (state.request && typeof state.request.abort === 'function') {
                 state.request.abort();
             } else {

@@ -477,6 +477,38 @@
         listeningCategoryOrder = [];
     }
 
+    function mergeListeningHistoryWithSequence(sequence) {
+        const seq = Array.isArray(sequence) ? sequence.slice() : [];
+        const history = getListeningHistory().slice();
+        if (!history.length) {
+            return seq;
+        }
+        if (!seq.length) {
+            return history;
+        }
+
+        // Preserve already-heard words at the front when rebuilding so new category
+        // arrivals cannot push early words back into the future queue.
+        const pendingHistoryCounts = {};
+        history.forEach(function (word) {
+            const wordId = parseInt(word && word.id, 10);
+            if (!wordId) { return; }
+            pendingHistoryCounts[wordId] = (pendingHistoryCounts[wordId] || 0) + 1;
+        });
+
+        const remaining = [];
+        seq.forEach(function (word) {
+            const wordId = parseInt(word && word.id, 10);
+            if (wordId && pendingHistoryCounts[wordId] > 0) {
+                pendingHistoryCounts[wordId] -= 1;
+                return;
+            }
+            remaining.push(word);
+        });
+
+        return history.concat(remaining);
+    }
+
     function rebuildWordsLinear() {
         const seq = [];
         if (State.categoryNames && State.wordsByCategory) {
@@ -516,7 +548,15 @@
             }
         }
 
-        State.wordsLinear = seq;
+        State.wordsLinear = mergeListeningHistoryWithSequence(seq);
+        const clampedListenIndex = Math.max(
+            0,
+            Math.min(
+                parseInt(State.listenIndex, 10) || 0,
+                (State.wordsLinear || []).length
+            )
+        );
+        State.listenIndex = clampedListenIndex;
         State.totalWordCount = (State.wordsLinear || []).length || 0;
         return State.totalWordCount;
     }
@@ -757,7 +797,7 @@
                 const categoryConfig = getListeningCategoryConfig(categoryName);
                 const optionType = String(categoryConfig.option_type || 'image');
                 const promptType = String(categoryConfig.prompt_type || 'audio');
-                const skipImagePreload = (promptType === 'audio');
+                const skipImagePreload = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
 
                 return Promise.resolve(
                     loader.loadResourcesForWord(word, optionType, categoryName, categoryConfig, {
@@ -929,23 +969,22 @@
         const historyLen = Array.isArray(State.listeningHistory) ? State.listeningHistory.length : 0;
         const wordsTotal = Array.isArray(State.wordsLinear) ? State.wordsLinear.length : 0;
         let total = Math.max(historyLen, wordsTotal);
+        const categoryCount = getSelectedCategoryNames().length;
+        let pendingLoads = false;
+
+        try {
+            pendingLoads = hasPendingCategoryLoads(loader || FlashcardLoader);
+        } catch (_) {
+            pendingLoads = false;
+        }
 
         // Fast-start listening may only have a subset of categories loaded at first.
         // Use the launch estimate as a temporary denominator so the bar doesn't jump
         // ahead and then move backwards when more categories finish loading.
-        const categoryCount = getSelectedCategoryNames().length;
-        if (categoryCount > 1) {
-            let pendingLoads = false;
-            try {
-                pendingLoads = hasPendingCategoryLoads(loader || FlashcardLoader);
-            } catch (_) {
-                pendingLoads = false;
-            }
-            if (pendingLoads) {
-                const estimatedTotal = getListeningLaunchEstimatedTotal();
-                if (estimatedTotal > total) {
-                    total = estimatedTotal;
-                }
+        if (categoryCount > 1 && pendingLoads) {
+            const estimatedTotal = getListeningLaunchEstimatedTotal();
+            if (estimatedTotal > total) {
+                total = estimatedTotal;
             }
         }
 
@@ -955,7 +994,8 @@
             total: total,
             index: cur,
             historyLen: historyLen,
-            wordsTotal: wordsTotal
+            wordsTotal: wordsTotal,
+            deferProgressUi: categoryCount > 1 && pendingLoads
         };
     }
 
@@ -972,9 +1012,17 @@
         const historyLen = Math.max(0, parseInt(progress.historyLen, 10) || 0);
         const total = Math.max(0, parseInt(progress.total, 10) || 0);
         const cur = Math.max(0, parseInt(progress.index, 10) || 0);
-        if (State && State.isListeningMode && Dom && typeof Dom.updateSimpleProgress === 'function') {
+        const deferProgressUi = !!(progress && progress.deferProgressUi);
+        if (State && State.isListeningMode) {
             try {
-                Dom.updateSimpleProgress(Math.max(0, parseInt(progress.current, 10) || 0), total);
+                if (deferProgressUi) {
+                    const $progress = $jq('#ll-tools-learning-progress');
+                    if ($progress && $progress.length) {
+                        $progress.hide();
+                    }
+                } else if (Dom && typeof Dom.updateSimpleProgress === 'function') {
+                    Dom.updateSimpleProgress(Math.max(0, parseInt(progress.current, 10) || 0), total);
+                }
             } catch (_) { /* no-op */ }
         }
         const canBack = cur > 0 && historyLen > 0; // never go before first
@@ -1163,6 +1211,9 @@
         const $jq = getJQuery();
         if (!$jq || !$ph || !$ph.length) return null;
         const $label = $jq('<div>', { text: labelText || '', class: 'quiz-text', dir: 'auto' });
+        if (Cards && typeof Cards.applyAnswerOptionTextStyle === 'function') {
+            Cards.applyAnswerOptionTextStyle($label, labelText || '');
+        }
 
         // Measure text to fit within the placeholder box using the same aspect ratio
         // as practice mode's text card, but scaled slightly larger for listening.
@@ -1393,11 +1444,15 @@
             $jq('#ll-tools-flashcard').empty();
         }
         const hasImage = !!(target && target.image);
-        const promptIsImage = (promptType === 'image' && hasImage);
-        const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || promptType === 'audio');
+        const promptIsImage = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image')) && hasImage;
+        const optionHasAudio = (optionType === 'audio' || optionType === 'text_audio' || (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
         const showAnswerText = (/^text/.test(String(optionType || '')));
         const shouldUseVisualizerText = (!optionHasAudio && promptIsImage && showAnswerText);
-        const answerLabel = target.label || target.title || '';
+        const answerLabel = (Util && typeof Util.getEffectiveOptionLabel === 'function')
+            ? Util.getEffectiveOptionLabel(target, optionType, promptType, {
+                promptRecordingType: target && (target.__promptRecordingType || target.__practiceRecordingType)
+            })
+            : (target.label || target.title || '');
         const placeholderAspect = hasImage ? getFallbackAspectRatio(true) : null;
         // Build a wrapper so placeholder and visualizer act as a single flex item
         let $stack = null;
@@ -1425,6 +1480,9 @@
                     class: 'listening-text',
                     text: answerLabel
                 });
+                if (Cards && typeof Cards.applyAnswerOptionTextStyle === 'function') {
+                    Cards.applyAnswerOptionTextStyle($text, answerLabel || '');
+                }
                 $text.css('opacity', 0);
                 ($stack || $container || $jq('#ll-tools-flashcard')).append($text);
             }
@@ -1477,9 +1535,9 @@
             }
         } catch (_) { /* no-op */ }
 
-        const deferImagePreload = (promptType === 'audio');
+        const deferImagePreload = Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio');
         const isFirstListeningWord = (State.listenIndex || 0) <= 1;
-        const skipCurrentWordAudioPreload = isFirstListeningWord && promptType === 'audio';
+        const skipCurrentWordAudioPreload = isFirstListeningWord && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'));
         const prefetchRoundSerial = (listeningPrefetchRoundSerial += 1);
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
             skipImagePreload: deferImagePreload,
@@ -1519,7 +1577,7 @@
                         });
                         $ph.prepend($img);
                     } else {
-                        renderTextIntoPlaceholder($ph, target.label || target.title || '');
+                        renderTextIntoPlaceholder($ph, answerLabel);
                         schedulePlaceholderMetrics($ph);
                     }
                 }
@@ -1544,7 +1602,7 @@
 
             let sequence = [];
             const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
-            const isAudioPromptFlow = (!promptIsImage && promptType === 'audio');
+            const isAudioPromptFlow = (!promptIsImage && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
             if (isAudioPromptFlow) {
                 const isolationClip = isoUrl || introUrl || ((audioApi && typeof audioApi.selectBestAudio === 'function')
                     ? audioApi.selectBestAudio(target, ['question'])
@@ -1586,6 +1644,9 @@
             const followCurrentTarget = function () {
                 const a = (audioApi && typeof audioApi.getCurrentTargetAudio === 'function')
                     ? audioApi.getCurrentTargetAudio() : null;
+                if (a && Dom && typeof Dom.bindRepeatButtonAudio === 'function') {
+                    Dom.bindRepeatButtonAudio(a);
+                }
                 if (a && audioVisualizer && typeof audioVisualizer.followAudio === 'function') {
                     audioVisualizer.followAudio(a);
                 }

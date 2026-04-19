@@ -22,7 +22,7 @@
         },
         recordingTypes: [],
         recordingTypeIcons: {},
-        titleSavingWordIds: new Set()
+        wordSavingWordIds: new Set()
     };
 
     const TARGET_LUFS = -18.0;
@@ -150,25 +150,46 @@
         }
     }
 
-    function getWordTitleBlocks(parentWordId) {
+    function getWordBlocks(parentWordId) {
         if (!Number.isInteger(parentWordId) || parentWordId <= 0) {
             return [];
         }
         return Array.from(document.querySelectorAll(`.ll-word-title-block[data-parent-word-id="${parentWordId}"]`));
     }
 
-    function resetWordTitleEditor(block) {
+    function getWordBlockValues(block) {
+        if (!block) {
+            return {
+                wordText: '',
+                translationText: '',
+                storeInTitle: true
+            };
+        }
+
+        return {
+            wordText: String(block.dataset.wordText || '').trim(),
+            translationText: String(block.dataset.translationText || '').trim(),
+            storeInTitle: block.dataset.storeInTitle !== '0'
+        };
+    }
+
+    function resetWordEditor(block) {
         if (!block) {
             return;
         }
-        const titleEl = block.querySelector('.ll-recording-title-text');
-        const inputEl = block.querySelector('.ll-word-title-input');
-        if (titleEl && inputEl) {
-            inputEl.value = titleEl.textContent.trim();
+        const values = getWordBlockValues(block);
+        const wordInput = block.querySelector('.ll-word-title-input');
+        const translationInput = block.querySelector('.ll-word-translation-input');
+
+        if (wordInput) {
+            wordInput.value = values.wordText;
+        }
+        if (translationInput) {
+            translationInput.value = values.translationText;
         }
     }
 
-    function openWordTitleEditor(block) {
+    function openWordEditor(block) {
         if (!block || state.saving) {
             return;
         }
@@ -176,7 +197,7 @@
         if (!editor) {
             return;
         }
-        resetWordTitleEditor(block);
+        resetWordEditor(block);
         block.classList.add('is-editing');
         editor.hidden = false;
         const inputEl = block.querySelector('.ll-word-title-input');
@@ -186,7 +207,7 @@
         }
     }
 
-    function closeWordTitleEditor(block) {
+    function closeWordEditor(block) {
         if (!block) {
             return;
         }
@@ -194,21 +215,25 @@
         if (!editor) {
             return;
         }
-        resetWordTitleEditor(block);
+        resetWordEditor(block);
         editor.hidden = true;
         block.classList.remove('is-editing');
     }
 
-    function setWordTitleControlsDisabled(parentWordId, disabled) {
-        const blocks = getWordTitleBlocks(parentWordId);
+    function setWordControlsDisabled(parentWordId, disabled) {
+        const blocks = getWordBlocks(parentWordId);
         blocks.forEach(block => {
-            const input = block.querySelector('.ll-word-title-input');
+            const wordInput = block.querySelector('.ll-word-title-input');
+            const translationInput = block.querySelector('.ll-word-translation-input');
             const saveBtn = block.querySelector('.ll-save-word-title-btn');
             const cancelBtn = block.querySelector('.ll-cancel-word-title-btn');
             const editBtn = block.querySelector('.ll-edit-word-title-btn');
 
-            if (input) {
-                input.disabled = !!disabled;
+            if (wordInput) {
+                wordInput.disabled = !!disabled;
+            }
+            if (translationInput) {
+                translationInput.disabled = !!disabled;
             }
             if (cancelBtn) {
                 cancelBtn.disabled = !!disabled;
@@ -221,7 +246,7 @@
                     if (!saveBtn.dataset.originalText) {
                         saveBtn.dataset.originalText = saveBtn.textContent;
                     }
-                    saveBtn.textContent = t('titleSaving', 'Saving...');
+                    saveBtn.textContent = t('wordSaving', 'Saving...');
                 } else if (saveBtn.dataset.originalText) {
                     saveBtn.textContent = saveBtn.dataset.originalText;
                 }
@@ -230,126 +255,164 @@
         });
     }
 
-    function applyWordTitleToDom(parentWordId, nextTitle) {
+    function applyWordDetailsToDom(parentWordId, nextWordText, nextTranslationText, storeInTitle = true) {
         if (!Number.isInteger(parentWordId) || parentWordId <= 0) {
             return;
         }
-        const safeTitle = String(nextTitle || '').trim();
-        if (!safeTitle) {
+        const safeWordText = String(nextWordText || '').trim();
+        if (!safeWordText) {
             return;
         }
+        const safeTranslationText = String(nextTranslationText || '').trim();
 
-        document
-            .querySelectorAll(`.ll-recording-item[data-parent-word-id="${parentWordId}"] .ll-recording-title-text`)
-            .forEach(el => {
-                el.textContent = safeTitle;
+        getWordBlocks(parentWordId).forEach(block => {
+            block.dataset.wordText = safeWordText;
+            block.dataset.translationText = safeTranslationText;
+            block.dataset.storeInTitle = storeInTitle ? '1' : '0';
+
+            const titleEls = block.querySelectorAll('.ll-recording-title-text');
+            titleEls.forEach(el => {
+                el.textContent = safeWordText;
             });
 
-        document
-            .querySelectorAll(`.ll-review-file[data-parent-word-id="${parentWordId}"] .ll-recording-title-text`)
-            .forEach(el => {
-                el.textContent = safeTitle;
+            const translationEls = block.querySelectorAll('.ll-recording-translation-text');
+            translationEls.forEach(el => {
+                el.textContent = safeTranslationText;
+                el.hidden = safeTranslationText === '';
             });
 
-        document
-            .querySelectorAll(`.ll-word-title-block[data-parent-word-id="${parentWordId}"] .ll-word-title-input`)
-            .forEach(el => {
-                el.value = safeTitle;
-            });
+            const wordInput = block.querySelector('.ll-word-title-input');
+            if (wordInput) {
+                wordInput.value = safeWordText;
+            }
+
+            const translationInput = block.querySelector('.ll-word-translation-input');
+            if (translationInput) {
+                translationInput.value = safeTranslationText;
+            }
+        });
     }
 
-    function syncWordTitleAcrossState(parentWordId, nextTitle) {
+    function syncWordDetailsAcrossState(parentWordId, nextWordText, nextTranslationText, storeInTitle = true) {
         if (!Number.isInteger(parentWordId) || parentWordId <= 0) {
             return;
         }
-        const safeTitle = String(nextTitle || '').trim();
-        if (!safeTitle) {
+        const safeWordText = String(nextWordText || '').trim();
+        if (!safeWordText) {
             return;
         }
+        const safeTranslationText = String(nextTranslationText || '').trim();
 
         state.recordings.forEach(recording => {
             if (parseInt(recording.parentWordId, 10) === parentWordId) {
-                recording.title = safeTitle;
+                recording.title = safeWordText;
+                recording.wordText = safeWordText;
+                recording.translationText = safeTranslationText;
+                recording.storeInTitle = !!storeInTitle;
             }
         });
 
         state.reviewData.forEach(data => {
             if (data && data.recording && parseInt(data.recording.parentWordId, 10) === parentWordId) {
-                data.recording.title = safeTitle;
+                data.recording.title = safeWordText;
+                data.recording.wordText = safeWordText;
+                data.recording.translationText = safeTranslationText;
+                data.recording.storeInTitle = !!storeInTitle;
             }
         });
     }
 
-    async function saveWordTitle(parentWordId, title) {
+    async function saveWordDetails(parentWordId, wordText, translationText) {
         const response = await fetch(window.llAudioProcessor.ajaxUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
-                action: 'll_audio_processor_update_word_title',
+                action: 'll_audio_processor_update_word_text',
                 nonce: window.llAudioProcessor.nonce,
                 word_id: parentWordId,
-                title
+                word_text: wordText,
+                translation_text: translationText
             })
         });
 
         const result = await response.json();
         if (!result.success) {
-            const fallback = t('titleSaveFailed', 'Could not update title.');
+            const fallback = t('wordSaveFailed', 'Could not update word details.');
             const detail = typeof result.data === 'string'
                 ? result.data
                 : (result.data && typeof result.data.message === 'string' ? result.data.message : fallback);
             throw new Error(detail || fallback);
         }
 
-        if (!result.data || typeof result.data.title !== 'string') {
-            return { title };
+        if (!result.data || typeof result.data.wordText !== 'string') {
+            return {
+                wordText,
+                translationText,
+                storeInTitle: true
+            };
         }
 
         return result.data;
     }
 
-    async function saveWordTitleFromBlock(block) {
+    async function saveWordDetailsFromBlock(block) {
         if (!block || state.saving) {
             return;
         }
 
         const parentWordId = parseInt(block.dataset.parentWordId, 10);
-        const input = block.querySelector('.ll-word-title-input');
-        if (!Number.isInteger(parentWordId) || parentWordId <= 0 || !input) {
+        const wordInput = block.querySelector('.ll-word-title-input');
+        const translationInput = block.querySelector('.ll-word-translation-input');
+        if (!Number.isInteger(parentWordId) || parentWordId <= 0 || !wordInput || !translationInput) {
             return;
         }
 
-        const title = input.value.trim();
-        if (!title) {
-            alert(t('titleRequired', 'Title cannot be empty.'));
-            input.focus();
+        const wordText = wordInput.value.trim();
+        const translationText = translationInput.value.trim();
+        const storeInTitle = block.dataset.storeInTitle !== '0';
+
+        if (!wordText) {
+            alert(t('wordRequired', 'Word cannot be empty.'));
+            wordInput.focus();
             return;
         }
 
-        if (state.titleSavingWordIds.has(parentWordId)) {
+        if (!storeInTitle && !translationText) {
+            alert(t('translationRequired', 'Translation cannot be empty for this word.'));
+            translationInput.focus();
             return;
         }
 
-        state.titleSavingWordIds.add(parentWordId);
-        setWordTitleControlsDisabled(parentWordId, true);
+        if (state.wordSavingWordIds.has(parentWordId)) {
+            return;
+        }
+
+        state.wordSavingWordIds.add(parentWordId);
+        setWordControlsDisabled(parentWordId, true);
 
         try {
-            const payload = await saveWordTitle(parentWordId, title);
-            const nextTitle = (payload && typeof payload.title === 'string' && payload.title.trim() !== '')
-                ? payload.title.trim()
-                : title;
+            const payload = await saveWordDetails(parentWordId, wordText, translationText);
+            const nextWordText = (payload && typeof payload.wordText === 'string' && payload.wordText.trim() !== '')
+                ? payload.wordText.trim()
+                : wordText;
+            const nextTranslationText = (payload && typeof payload.translationText === 'string')
+                ? payload.translationText.trim()
+                : translationText;
+            const nextStoreInTitle = payload && typeof payload.storeInTitle === 'boolean'
+                ? payload.storeInTitle
+                : storeInTitle;
 
-            syncWordTitleAcrossState(parentWordId, nextTitle);
-            applyWordTitleToDom(parentWordId, nextTitle);
+            syncWordDetailsAcrossState(parentWordId, nextWordText, nextTranslationText, nextStoreInTitle);
+            applyWordDetailsToDom(parentWordId, nextWordText, nextTranslationText, nextStoreInTitle);
 
-            getWordTitleBlocks(parentWordId).forEach(closeWordTitleEditor);
+            getWordBlocks(parentWordId).forEach(closeWordEditor);
         } catch (error) {
-            alert(error && error.message ? error.message : t('titleSaveFailed', 'Could not update title.'));
+            alert(error && error.message ? error.message : t('wordSaveFailed', 'Could not update word details.'));
         } finally {
-            state.titleSavingWordIds.delete(parentWordId);
-            setWordTitleControlsDisabled(parentWordId, false);
+            state.wordSavingWordIds.delete(parentWordId);
+            setWordControlsDisabled(parentWordId, false);
         }
     }
 
@@ -362,10 +425,223 @@
         state.recordingTypeIcons = (window.llAudioProcessor.recordingTypeIcons && typeof window.llAudioProcessor.recordingTypeIcons === 'object')
             ? window.llAudioProcessor.recordingTypeIcons
             : {};
+        localizeRecordingDates();
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         initTabs();
+        enhanceSplitWordLinks();
         wireEventListeners();
+        restoreReturnedRecordingFocus();
         updateSelectedCount();
+    }
+
+    function getRecordingDateFormatter(includeTimeZoneName = false) {
+        if (typeof Intl !== 'object' || typeof Intl.DateTimeFormat !== 'function') {
+            return null;
+        }
+
+        try {
+            return new Intl.DateTimeFormat(undefined, includeTimeZoneName
+                ? { dateStyle: 'medium', timeStyle: 'short', timeZoneName: 'short' }
+                : { dateStyle: 'medium', timeStyle: 'short' });
+        } catch (error) {
+            try {
+                return new Intl.DateTimeFormat(undefined, includeTimeZoneName
+                    ? {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        timeZoneName: 'short'
+                    }
+                    : {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit'
+                    });
+            } catch (innerError) {
+                return null;
+            }
+        }
+    }
+
+    function formatRecordingDate(timestampMs, includeTimeZoneName = false) {
+        if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
+            return '';
+        }
+
+        const formatter = getRecordingDateFormatter(includeTimeZoneName);
+        if (!formatter) {
+            return '';
+        }
+
+        try {
+            return formatter.format(timestampMs);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function formatRelativeRecordingDate(timestampMs) {
+        if (
+            !Number.isFinite(timestampMs) ||
+            timestampMs <= 0 ||
+            typeof Intl !== 'object' ||
+            typeof Intl.RelativeTimeFormat !== 'function'
+        ) {
+            return '';
+        }
+
+        const deltaSeconds = Math.round((timestampMs - Date.now()) / 1000);
+        const absSeconds = Math.abs(deltaSeconds);
+        let value = deltaSeconds;
+        let unit = 'second';
+
+        if (absSeconds >= 604800) {
+            value = Math.round(deltaSeconds / 604800);
+            unit = 'week';
+        } else if (absSeconds >= 86400) {
+            value = Math.round(deltaSeconds / 86400);
+            unit = 'day';
+        } else if (absSeconds >= 3600) {
+            value = Math.round(deltaSeconds / 3600);
+            unit = 'hour';
+        } else if (absSeconds >= 60) {
+            value = Math.round(deltaSeconds / 60);
+            unit = 'minute';
+        }
+
+        try {
+            return new Intl.RelativeTimeFormat(undefined, {
+                numeric: 'auto',
+                style: 'short'
+            }).format(value, unit);
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function localizeRecordingDates() {
+        document.querySelectorAll('.ll-recording-date[data-upload-timestamp]').forEach((element) => {
+            const timestampSeconds = parseInt(element.dataset.uploadTimestamp, 10);
+            if (!Number.isInteger(timestampSeconds) || timestampSeconds <= 0) {
+                return;
+            }
+
+            const timestampMs = timestampSeconds * 1000;
+            const localLabel = formatRecordingDate(timestampMs);
+            const localTitle = formatRecordingDate(timestampMs, true);
+            const relativeLabel = formatRelativeRecordingDate(timestampMs);
+            const titleParts = [];
+
+            if (localLabel) {
+                element.textContent = localLabel;
+            } else if (relativeLabel) {
+                element.textContent = relativeLabel;
+            }
+
+            if (localTitle) {
+                titleParts.push(localTitle);
+            } else if (localLabel) {
+                titleParts.push(localLabel);
+            }
+
+            if (relativeLabel) {
+                titleParts.push(relativeLabel);
+            }
+
+            if (titleParts.length > 0) {
+                const titleText = titleParts.join(' | ');
+                element.title = titleText;
+                element.setAttribute('aria-label', titleText);
+            }
+        });
+    }
+
+    function getSplitWordLinkTab(link) {
+        if (!link) {
+            return state.activeTab;
+        }
+
+        const list = link.closest('.ll-recordings-list');
+        if (list && typeof list.dataset.tab === 'string' && list.dataset.tab !== '') {
+            return list.dataset.tab;
+        }
+
+        return state.activeTab;
+    }
+
+    function enhanceSplitWordLinks() {
+        document.querySelectorAll('.ll-split-word-link[data-split-word-url][data-return-base-url]').forEach(link => {
+            link.addEventListener('click', () => {
+                const splitWordUrl = String(link.dataset.splitWordUrl || '').trim();
+                const returnBaseUrl = String(link.dataset.returnBaseUrl || '').trim();
+
+                if (!splitWordUrl || !returnBaseUrl) {
+                    return;
+                }
+
+                try {
+                    const tab = getSplitWordLinkTab(link);
+                    const item = link.closest('.ll-recording-item');
+                    const recordingId = item ? parseInt(item.dataset.id, 10) : 0;
+                    const returnUrl = new URL(returnBaseUrl, window.location.origin);
+                    const splitUrl = new URL(splitWordUrl, window.location.origin);
+
+                    if (tab) {
+                        returnUrl.searchParams.set('ll_ap_tab', tab);
+                    }
+
+                    if (Number.isInteger(recordingId) && recordingId > 0) {
+                        returnUrl.searchParams.set('ll_ap_focus_recording', String(recordingId));
+                    }
+
+                    splitUrl.searchParams.set('ll_return_to', returnUrl.toString());
+                    link.href = splitUrl.toString();
+                } catch (error) {
+                    // Keep the server-rendered href as the fallback navigation target.
+                }
+            });
+        });
+    }
+
+    function restoreReturnedRecordingFocus() {
+        let url;
+        try {
+            url = new URL(window.location.href);
+        } catch (error) {
+            return;
+        }
+
+        const focusRecordingId = parseInt(url.searchParams.get('ll_ap_focus_recording'), 10);
+        if (!Number.isInteger(focusRecordingId) || focusRecordingId <= 0) {
+            return;
+        }
+
+        const target = document.querySelector(`.ll-recording-item[data-id="${focusRecordingId}"]`);
+
+        if (window.history && typeof window.history.replaceState === 'function') {
+            url.searchParams.delete('ll_ap_focus_recording');
+            window.history.replaceState({}, document.title, url.toString());
+        }
+
+        if (!target) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            target.classList.add('is-return-focus');
+            target.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+
+            window.setTimeout(() => {
+                target.classList.remove('is-return-focus');
+            }, 3200);
+        });
     }
 
     function initTabs() {
@@ -563,15 +839,15 @@
             } else if (e.target.classList.contains('ll-edit-word-title-btn') || e.target.closest('.ll-edit-word-title-btn')) {
                 const btn = e.target.classList.contains('ll-edit-word-title-btn') ? e.target : e.target.closest('.ll-edit-word-title-btn');
                 const block = btn.closest('.ll-word-title-block');
-                openWordTitleEditor(block);
+                openWordEditor(block);
             } else if (e.target.classList.contains('ll-cancel-word-title-btn') || e.target.closest('.ll-cancel-word-title-btn')) {
                 const btn = e.target.classList.contains('ll-cancel-word-title-btn') ? e.target : e.target.closest('.ll-cancel-word-title-btn');
                 const block = btn.closest('.ll-word-title-block');
-                closeWordTitleEditor(block);
+                closeWordEditor(block);
             } else if (e.target.classList.contains('ll-save-word-title-btn') || e.target.closest('.ll-save-word-title-btn')) {
                 const btn = e.target.classList.contains('ll-save-word-title-btn') ? e.target : e.target.closest('.ll-save-word-title-btn');
                 const block = btn.closest('.ll-word-title-block');
-                saveWordTitleFromBlock(block);
+                saveWordDetailsFromBlock(block);
             }
         });
 
@@ -597,18 +873,22 @@
         });
 
         document.addEventListener('keydown', (e) => {
-            if (!e.target || !e.target.classList || !e.target.classList.contains('ll-word-title-input')) {
+            if (!e.target || !e.target.classList) {
+                return;
+            }
+
+            if (!e.target.classList.contains('ll-word-title-input') && !e.target.classList.contains('ll-word-translation-input')) {
                 return;
             }
 
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const block = e.target.closest('.ll-word-title-block');
-                saveWordTitleFromBlock(block);
+                saveWordDetailsFromBlock(block);
             } else if (e.key === 'Escape') {
                 e.preventDefault();
                 const block = e.target.closest('.ll-word-title-block');
-                closeWordTitleEditor(block);
+                closeWordEditor(block);
             }
         });
     }
@@ -651,7 +931,10 @@
         for (const recording of selectedRecordings) {
             try {
                 if (statusText) {
-                    statusText.textContent = `Processing: ${recording.title} (${completed + 1}/${selectedRecordings.length})`;
+                    statusText.textContent = formatText(
+                        t('processingStatusTemplate', 'Processing: %1$s (%2$d/%3$d)'),
+                        [recording.title, completed + 1, selectedRecordings.length]
+                    );
                 }
 
                 const processedData = await processAudioFile(recording.audioUrl, state.globalOptions);
@@ -673,14 +956,17 @@
             } catch (error) {
                 console.error(`Failed to process ${recording.title}:`, error);
                 if (statusText) {
-                    statusText.textContent = `Error processing ${recording.title}: ${error.message}`;
+                    statusText.textContent = formatText(
+                        t('processingErrorTemplate', 'Error processing %1$s: %2$s'),
+                        [recording.title, error && error.message ? error.message : '']
+                    );
                 }
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
 
         if (statusText) {
-            statusText.textContent = `Processing complete! Review the results below.`;
+            statusText.textContent = t('processingComplete', 'Processing complete! Review the results below.');
         }
 
         state.processing = false;
@@ -924,34 +1210,65 @@
             ? `<span class="ll-review-category"><strong>Category:</strong> ${escapeHtml(recording.categories.join(', '))}</span>`
             : '';
 
-        const titleInputLabel = t('titleInputLabel', 'Word title');
-        const titleInputPlaceholder = t('titleInputPlaceholder', 'Enter word title');
-        const editTitleButtonLabel = t('editTitleButton', 'Edit title');
-        const saveTitleButtonLabel = t('saveTitleButton', 'Save title');
-        const cancelTitleButtonLabel = t('cancelTitleButton', 'Cancel');
+        const wordInputLabel = t('wordInputLabel', 'Word');
+        const wordInputPlaceholder = t('wordInputPlaceholder', 'Enter word');
+        const translationInputLabel = t('translationInputLabel', 'Translation');
+        const translationInputPlaceholder = t('translationInputPlaceholder', 'Enter translation');
+        const editWordButtonLabel = t('editWordButton', 'Edit word');
+        const saveWordButtonLabel = t('saveWordButton', 'Save changes');
+        const cancelWordButtonLabel = t('cancelWordButton', 'Cancel');
+        const wordText = String(recording.wordText || recording.title || '').trim();
+        const translationText = String(recording.translationText || '').trim();
+        const storeInTitle = typeof recording.storeInTitle === 'boolean' ? recording.storeInTitle : true;
+        const translationHidden = translationText === '' ? ' hidden' : '';
 
         div.innerHTML = `
             <div class="ll-review-header">
                 <div class="ll-review-title-section">
                     ${imageHtml}
                     <div class="ll-review-title-info">
-                        <div class="ll-word-title-block" data-parent-word-id="${parseInt(recording.parentWordId, 10) || ''}">
+                        <div
+                            class="ll-word-title-block"
+                            data-parent-word-id="${parseInt(recording.parentWordId, 10) || ''}"
+                            data-word-text="${escapeHtml(wordText)}"
+                            data-translation-text="${escapeHtml(translationText)}"
+                            data-store-in-title="${storeInTitle ? '1' : '0'}"
+                        >
                             <div class="ll-word-title-display-row">
-                                <h3 class="ll-review-title ll-recording-title-text">${escapeHtml(recording.title)}</h3>
-                                <button type="button" class="ll-edit-word-title-btn button-link">${escapeHtml(editTitleButtonLabel)}</button>
+                                <span class="ll-word-title-display-text">
+                                    <h3 class="ll-review-title ll-recording-title-text" dir="auto">${escapeHtml(wordText)}</h3>
+                                    <span class="ll-recording-translation-text" dir="auto"${translationHidden}>${escapeHtml(translationText)}</span>
+                                </span>
+                                <button type="button" class="ll-edit-word-title-btn button-link">${escapeHtml(editWordButtonLabel)}</button>
                             </div>
                             <div class="ll-word-title-editor" hidden>
-                                <label class="screen-reader-text" for="ll-review-word-title-input-${postId}">${escapeHtml(titleInputLabel)}</label>
-                                <input
-                                    id="ll-review-word-title-input-${postId}"
-                                    type="text"
-                                    class="ll-word-title-input"
-                                    value="${escapeHtml(recording.title)}"
-                                    placeholder="${escapeHtml(titleInputPlaceholder)}"
-                                    maxlength="200"
-                                >
-                                <button type="button" class="button button-small ll-save-word-title-btn">${escapeHtml(saveTitleButtonLabel)}</button>
-                                <button type="button" class="button button-small ll-cancel-word-title-btn">${escapeHtml(cancelTitleButtonLabel)}</button>
+                                <div class="ll-word-editor-field">
+                                    <label for="ll-review-word-title-input-${postId}">${escapeHtml(wordInputLabel)}</label>
+                                    <input
+                                        id="ll-review-word-title-input-${postId}"
+                                        type="text"
+                                        class="ll-word-title-input"
+                                        value="${escapeHtml(wordText)}"
+                                        placeholder="${escapeHtml(wordInputPlaceholder)}"
+                                        maxlength="200"
+                                        dir="auto"
+                                    >
+                                </div>
+                                <div class="ll-word-editor-field">
+                                    <label for="ll-review-word-translation-input-${postId}">${escapeHtml(translationInputLabel)}</label>
+                                    <input
+                                        id="ll-review-word-translation-input-${postId}"
+                                        type="text"
+                                        class="ll-word-translation-input"
+                                        value="${escapeHtml(translationText)}"
+                                        placeholder="${escapeHtml(translationInputPlaceholder)}"
+                                        dir="auto"
+                                    >
+                                </div>
+                                <div class="ll-word-editor-actions">
+                                    <button type="button" class="button button-small ll-save-word-title-btn">${escapeHtml(saveWordButtonLabel)}</button>
+                                    <button type="button" class="button button-small ll-cancel-word-title-btn">${escapeHtml(cancelWordButtonLabel)}</button>
+                                </div>
                             </div>
                         </div>
                         <div class="ll-review-metadata">
@@ -1613,9 +1930,12 @@
     }
 
     function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     function getRecordingTypeIcon(slug) {
@@ -1641,9 +1961,9 @@
         const options = [];
 
         if (state.recordingTypes.length === 0) {
-            options.push('<option value="">No recording types found</option>');
+            options.push(`<option value="">${escapeHtml(t('recordingTypeNoneFound', 'No recording types found'))}</option>`);
         } else {
-            options.push('<option value="">Select type</option>');
+            options.push(`<option value="">${escapeHtml(t('recordingTypeSelectPlaceholder', 'Select type'))}</option>`);
             state.recordingTypes.forEach(type => {
                 const isSelected = type.slug === selectedType;
                 const display = getRecordingTypeDisplay(type);
@@ -1663,7 +1983,7 @@
 
         return `
             <label class="ll-recording-type-label">
-                <span>Recording Type</span>
+                <span>${escapeHtml(t('recordingTypeLabel', 'Recording Type'))}</span>
                 <select class="ll-recording-type-select" data-post-id="${postId}">
                     ${options.join('')}
                 </select>

@@ -1007,13 +1007,112 @@ function ll_make_words_columns_sortable($columns) {
     return $columns;
 }
 
+/**
+ * Value used by the words admin list filter for words with no quizzable category.
+ */
+function ll_tools_get_words_no_quizzable_category_filter_value(): string {
+    return 'no_quizzable';
+}
+
+/**
+ * Return the post statuses shown on the default admin "All" view for words.
+ *
+ * @return string[]
+ */
+function ll_tools_get_words_admin_list_statuses(): array {
+    $statuses = get_post_stati(['show_in_admin_all_list' => true], 'names');
+    if (!is_array($statuses) || empty($statuses)) {
+        return ['publish', 'future', 'draft', 'pending', 'private'];
+    }
+
+    $statuses = array_values(array_filter(array_map('sanitize_key', $statuses), static function (string $status): bool {
+        return $status !== '';
+    }));
+
+    return !empty($statuses) ? $statuses : ['publish', 'future', 'draft', 'pending', 'private'];
+}
+
+/**
+ * Build the taxonomy clause that keeps only words outside all currently quizzable categories.
+ *
+ * @return array<string,mixed>|null
+ */
+function ll_tools_get_words_without_quizzable_categories_tax_clause(): ?array {
+    if (!function_exists('ll_tools_get_quizzable_category_ids')) {
+        return null;
+    }
+
+    $quizzable_category_ids = ll_tools_get_quizzable_category_ids([]);
+    if (empty($quizzable_category_ids)) {
+        return null;
+    }
+
+    return [
+        'taxonomy' => 'word-category',
+        'field'    => 'term_id',
+        'terms'    => array_map('intval', $quizzable_category_ids),
+        'operator' => 'NOT IN',
+    ];
+}
+
+/**
+ * Build query args for words that are not assigned to any currently quizzable category.
+ *
+ * @param array<string,mixed> $overrides
+ * @return array<string,mixed>
+ */
+function ll_tools_get_words_without_quizzable_categories_query_args(array $overrides = []): array {
+    $args = [
+        'post_type'      => 'words',
+        'post_status'    => ll_tools_get_words_admin_list_statuses(),
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'no_found_rows'  => false,
+        'suppress_filters' => true,
+    ];
+
+    $tax_clause = ll_tools_get_words_without_quizzable_categories_tax_clause();
+    if (is_array($tax_clause) && !empty($tax_clause)) {
+        $args['tax_query'] = [$tax_clause];
+    }
+
+    return ll_tools_exclude_waiting_audio_drafts_from_no_quizzable_categories_query_args(array_merge($args, $overrides));
+}
+
+/**
+ * Count words that are not assigned to any currently quizzable category.
+ */
+function ll_tools_get_words_without_quizzable_categories_count(): int {
+    $query = new WP_Query(ll_tools_get_words_without_quizzable_categories_query_args());
+    $count = (int) $query->found_posts;
+    wp_reset_postdata();
+
+    return max(0, $count);
+}
+
+/**
+ * Build the admin URL for the filtered words list showing words with no quizzable category.
+ *
+ * @param array<string,string|int> $args
+ */
+function ll_tools_get_words_without_quizzable_categories_admin_url(array $args = []): string {
+    $base_args = [
+        'post_type' => 'words',
+        'll_quiz_category_status' => ll_tools_get_words_no_quizzable_category_filter_value(),
+    ];
+
+    return add_query_arg(array_merge($base_args, $args), admin_url('edit.php'));
+}
+
 // Add dropdown filters for categories and featured image
 function ll_add_words_filters() {
     global $typenow;
     if ($typenow === 'words') {
         $selected_category = isset($_GET['word_category']) ? (string) $_GET['word_category'] : '';
+        $selected_quiz_category_status = isset($_GET['ll_quiz_category_status']) ? sanitize_key((string) $_GET['ll_quiz_category_status']) : '';
         $selected_image = isset($_GET['has_image']) ? $_GET['has_image'] : '';
         $uncategorized_value = 'll_uncategorized';
+        $no_quizzable_value = ll_tools_get_words_no_quizzable_category_filter_value();
 
         // Category filter with accurate counts
         echo '<select name="word_category">';
@@ -1027,6 +1126,17 @@ function ll_add_words_filters() {
             intval($uncategorized_count)
         );
         ll_render_category_dropdown_with_counts('word-category', 'words', $selected_category);
+        echo '</select>';
+
+        echo '<select name="ll_quiz_category_status">';
+        echo '<option value="">' . esc_html__('All Quiz Category Statuses', 'll-tools-text-domain') . '</option>';
+        printf(
+            '<option value="%s"%s>%s (%d)</option>',
+            esc_attr($no_quizzable_value),
+            selected($selected_quiz_category_status, $no_quizzable_value, false),
+            esc_html__('No Quizzable Category', 'll-tools-text-domain'),
+            ll_tools_get_words_without_quizzable_categories_count()
+        );
         echo '</select>';
 
         // Word set filter
@@ -1171,6 +1281,23 @@ function ll_apply_words_filters($query) {
         );
     }
 
+    if (
+        !empty($_GET['ll_quiz_category_status'])
+        && sanitize_key((string) $_GET['ll_quiz_category_status']) === ll_tools_get_words_no_quizzable_category_filter_value()
+    ) {
+        $tax_clause = ll_tools_get_words_without_quizzable_categories_tax_clause();
+        if (is_array($tax_clause) && !empty($tax_clause)) {
+            $tax_query[] = $tax_clause;
+        }
+
+        $query->set(
+            'post__not_in',
+            ll_tools_exclude_waiting_audio_drafts_from_no_quizzable_categories_query_args([
+                'post__not_in' => (array) $query->get('post__not_in'),
+            ])['post__not_in']
+        );
+    }
+
     if (!empty($tax_query)) {
         $query->set('tax_query', $tax_query);
     }
@@ -1302,10 +1429,188 @@ function ll_words_bulk_reprocess_admin_notice() {
 add_action('admin_notices', 'll_words_bulk_reprocess_admin_notice');
 
 /**
+ * Build quick-edit category visibility IDs keyed by word set ID.
+ *
+ * Categories are grouped by their isolation origin so each word set prefers its
+ * isolated copy while still falling back to the shared source term if isolation
+ * is incomplete. Ancestors are included so the checklist tree keeps context.
+ *
+ * @return array<string,array<int,int>>
+ */
+function ll_words_get_quick_edit_category_ids_by_wordset(): array {
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($wordsets) || empty($wordsets)) {
+        return [];
+    }
+
+    $categories = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($categories) || empty($categories)) {
+        return [];
+    }
+
+    $source_by_origin = [];
+    $isolated_by_origin = [];
+
+    foreach ($categories as $category) {
+        if (!($category instanceof WP_Term) || $category->taxonomy !== 'word-category') {
+            continue;
+        }
+
+        $term_id = (int) $category->term_id;
+        if ($term_id <= 0) {
+            continue;
+        }
+
+        $origin_id = function_exists('ll_tools_get_category_isolation_source_id')
+            ? (int) ll_tools_get_category_isolation_source_id($category)
+            : 0;
+        if ($origin_id <= 0) {
+            $origin_id = $term_id;
+        }
+
+        $owner_wordset_id = function_exists('ll_tools_get_category_wordset_owner_id')
+            ? (int) ll_tools_get_category_wordset_owner_id($category)
+            : 0;
+
+        if ($owner_wordset_id > 0) {
+            if (!isset($isolated_by_origin[$origin_id])) {
+                $isolated_by_origin[$origin_id] = [];
+            }
+
+            if (
+                !isset($isolated_by_origin[$origin_id][$owner_wordset_id])
+                || $term_id < (int) $isolated_by_origin[$origin_id][$owner_wordset_id]
+            ) {
+                $isolated_by_origin[$origin_id][$owner_wordset_id] = $term_id;
+            }
+            continue;
+        }
+
+        if (!isset($source_by_origin[$origin_id]) || $term_id < (int) $source_by_origin[$origin_id]) {
+            $source_by_origin[$origin_id] = $term_id;
+        }
+    }
+
+    $origin_ids = array_values(array_unique(array_merge(
+        array_map('intval', array_keys($source_by_origin)),
+        array_map('intval', array_keys($isolated_by_origin))
+    )));
+    sort($origin_ids, SORT_NUMERIC);
+
+    $category_ids_by_wordset = [];
+    foreach ($wordsets as $wordset) {
+        if (!($wordset instanceof WP_Term) || $wordset->taxonomy !== 'wordset') {
+            continue;
+        }
+
+        $wordset_id = (int) $wordset->term_id;
+        if ($wordset_id <= 0) {
+            continue;
+        }
+
+        $visible_ids = [];
+        foreach ($origin_ids as $origin_id) {
+            $effective_id = isset($isolated_by_origin[$origin_id][$wordset_id])
+                ? (int) $isolated_by_origin[$origin_id][$wordset_id]
+                : (int) ($source_by_origin[$origin_id] ?? 0);
+            if ($effective_id <= 0) {
+                continue;
+            }
+
+            $visible_ids[$effective_id] = $effective_id;
+            foreach ((array) get_ancestors($effective_id, 'word-category', 'taxonomy') as $ancestor_id) {
+                $ancestor_id = (int) $ancestor_id;
+                if ($ancestor_id > 0) {
+                    $visible_ids[$ancestor_id] = $ancestor_id;
+                }
+            }
+        }
+
+        $ids = array_values(array_map('intval', array_keys($visible_ids)));
+        sort($ids, SORT_NUMERIC);
+        $category_ids_by_wordset[(string) $wordset_id] = $ids;
+    }
+
+    return $category_ids_by_wordset;
+}
+
+/**
+ * Build quick-edit word set term rows for client-side scope resolution.
+ *
+ * @return array<int,array{id:int,name:string,slug:string}>
+ */
+function ll_words_get_quick_edit_wordset_rows(): array {
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+    ]);
+    if (is_wp_error($wordsets) || empty($wordsets)) {
+        return [];
+    }
+
+    usort($wordsets, static function (WP_Term $left, WP_Term $right): int {
+        $left_name = (string) $left->name;
+        $right_name = (string) $right->name;
+
+        if (function_exists('ll_tools_locale_compare_strings')) {
+            $cmp = ll_tools_locale_compare_strings($left_name, $right_name);
+        } else {
+            $cmp = strnatcasecmp($left_name, $right_name);
+        }
+
+        return ($cmp !== 0) ? $cmp : (((int) $left->term_id) <=> ((int) $right->term_id));
+    });
+
+    $rows = [];
+    foreach ($wordsets as $wordset) {
+        if (!($wordset instanceof WP_Term) || $wordset->taxonomy !== 'wordset') {
+            continue;
+        }
+
+        $rows[] = [
+            'id' => (int) $wordset->term_id,
+            'name' => (string) $wordset->name,
+            'slug' => (string) $wordset->slug,
+        ];
+    }
+
+    return $rows;
+}
+
+/**
+ * Build the localized quick-edit scope configuration for words list tables.
+ *
+ * @return array<string,mixed>
+ */
+function ll_words_get_quick_edit_scope_config(): array {
+    return [
+        'wordsets' => ll_words_get_quick_edit_wordset_rows(),
+        'categoryIdsByWordset' => ll_words_get_quick_edit_category_ids_by_wordset(),
+        'strings' => [
+            'selectWordsetNotice' => __('Select a word set to edit categories.', 'll-tools-text-domain'),
+            'outOfScopeCategoryTitle' => __('This category is currently assigned but does not belong to the selected word set.', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+/**
  * Enqueue admin script for bulk edit category handling
  */
 function ll_words_enqueue_bulk_edit_script($hook) {
     ll_enqueue_bulk_category_edit_script('words', 'll-words-bulk-edit', 'js/bulk-category-edit.js', 'll_words_get_common_categories');
+
+    global $pagenow, $typenow;
+    if ($pagenow !== 'edit.php' || $typenow !== 'words') {
+        return;
+    }
+
+    wp_localize_script('ll-words-bulk-edit', 'llWordsQuickEditData', ll_words_get_quick_edit_scope_config());
 }
 add_action('admin_enqueue_scripts', 'll_words_enqueue_bulk_edit_script');
 
@@ -1463,16 +1768,7 @@ function ll_enforce_word_audio_publish_requirement($post_id, $post, $update) {
         return false;
     }
 
-    // Check if there's at least one published word_audio
-    $published_audio = get_posts([
-        'post_type' => 'word_audio',
-        'post_parent' => $post_id,
-        'post_status' => 'publish',
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-    ]);
-
-    if (!empty($published_audio)) {
+    if (ll_tools_word_has_published_audio($post_id)) {
         return false;
     }
 
@@ -1533,6 +1829,108 @@ function ll_word_requires_audio_to_publish($post_id) {
 }
 
 /**
+ * Whether a word currently has at least one published audio child.
+ *
+ * @param int $word_id Word post ID.
+ * @return bool
+ */
+function ll_tools_word_has_published_audio($word_id): bool {
+    $published_audio = get_posts([
+        'post_type'        => 'word_audio',
+        'post_parent'      => (int) $word_id,
+        'post_status'      => 'publish',
+        'posts_per_page'   => 1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+    ]);
+
+    return !empty($published_audio);
+}
+
+/**
+ * Whether the word is a draft only because it is still waiting on published audio.
+ *
+ * @param int $word_id Word post ID.
+ * @return bool
+ */
+function ll_tools_is_word_waiting_for_published_audio($word_id): bool {
+    $word = get_post((int) $word_id);
+    if (!($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'draft') {
+        return false;
+    }
+
+    $category_ids = wp_get_post_terms($word->ID, 'word-category', ['fields' => 'ids']);
+    if (is_wp_error($category_ids) || empty($category_ids)) {
+        return false;
+    }
+
+    if (!ll_word_requires_audio_to_publish($word->ID)) {
+        return false;
+    }
+
+    return !ll_tools_word_has_published_audio($word->ID);
+}
+
+/**
+ * Exclude draft words that are only waiting on audio from the no-quizzable-category task.
+ *
+ * @return int[]
+ */
+function ll_tools_get_no_quizzable_categories_audio_waiting_word_ids(): array {
+    $query_args = [
+        'post_type'              => 'words',
+        'post_status'            => ['draft'],
+        'posts_per_page'         => -1,
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'suppress_filters'       => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+    ];
+
+    $tax_clause = ll_tools_get_words_without_quizzable_categories_tax_clause();
+    if (is_array($tax_clause) && !empty($tax_clause)) {
+        $query_args['tax_query'] = [$tax_clause];
+    }
+
+    $candidate_ids = get_posts($query_args);
+    $excluded_ids = [];
+
+    foreach ((array) $candidate_ids as $candidate_id) {
+        $candidate_id = (int) $candidate_id;
+        if ($candidate_id <= 0 || !ll_tools_is_word_waiting_for_published_audio($candidate_id)) {
+            continue;
+        }
+
+        $excluded_ids[] = $candidate_id;
+    }
+
+    return array_values(array_unique(array_map('intval', $excluded_ids)));
+}
+
+/**
+ * Apply exclusions for draft words that are waiting on audio.
+ *
+ * @param array<string,mixed> $query_args
+ * @return array<string,mixed>
+ */
+function ll_tools_exclude_waiting_audio_drafts_from_no_quizzable_categories_query_args(array $query_args): array {
+    $excluded_ids = ll_tools_get_no_quizzable_categories_audio_waiting_word_ids();
+    if (empty($excluded_ids)) {
+        return $query_args;
+    }
+
+    $existing_ids = array_values(array_filter(array_map('intval', (array) ($query_args['post__not_in'] ?? [])), static function (int $post_id): bool {
+        return $post_id > 0;
+    }));
+
+    $query_args['post__not_in'] = array_values(array_unique(array_merge($existing_ids, $excluded_ids)));
+
+    return $query_args;
+}
+
+/**
  * Show admin notice when word publishing is blocked
  */
 add_action('admin_notices', 'll_show_word_publish_blocked_notice');
@@ -1546,12 +1944,16 @@ function ll_show_word_publish_blocked_notice() {
 
     $edit_url = get_edit_post_link($post_id);
     $title = get_the_title($post_id);
-
-    printf(
-        '<div class="notice notice-warning is-dismissible"><p><strong>Publishing Blocked:</strong> "%s" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href="%s">Edit post</a></p></div>',
+    $message = sprintf(
+        /* translators: 1: blocked word title, 2: edit post URL */
+        __('"%1$s" cannot be published until it has at least one approved audio recording. The post has been saved as a draft. <a href="%2$s">Edit post</a>', 'll-tools-text-domain'),
         esc_html($title),
         esc_url($edit_url)
     );
+
+    echo '<div class="notice notice-warning is-dismissible"><p><strong>' .
+        esc_html__('Publishing Blocked:', 'll-tools-text-domain') .
+        '</strong> ' . wp_kses_post($message) . '</p></div>';
 }
 
 /**

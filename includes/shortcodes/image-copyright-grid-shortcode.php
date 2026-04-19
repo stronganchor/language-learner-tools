@@ -57,11 +57,11 @@ function ll_image_copyright_grid_shortcode($atts) {
                         the_post_thumbnail(array(150, 150)); // or 'thumbnail'
                     echo '</div>';
                 } else {
-                    echo '<div class="ll-image-wrapper no-image">No Image</div>';
+                    echo '<div class="ll-image-wrapper no-image">' . esc_html__('No Image', 'll-tools-text-domain') . '</div>';
                 }
 
                 // Optional title
-                echo '<h4 class="ll-word-image-title">' . get_the_title() . '</h4>';
+                echo '<h4 class="ll-word-image-title">' . esc_html(get_the_title()) . '</h4>';
 
                 // Copyright info
                 if (!empty($copyright)) {

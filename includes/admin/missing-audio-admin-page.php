@@ -56,7 +56,7 @@ function ll_render_missing_audio_admin_page() {
             case 'clear_cache':
                 update_option('ll_missing_audio_instances', array());
                 $missing_audio_instances = array();
-                echo '<div class="notice notice-success"><p>Missing audio instances cache has been cleared.</p></div>';
+                echo '<div class="notice notice-success"><p>' . esc_html__('Missing audio instances cache has been cleared.', 'll-tools-text-domain') . '</p></div>';
                 break;
 
             case 'scan_missing_audio':
@@ -66,11 +66,18 @@ function ll_render_missing_audio_admin_page() {
                 $missing_count = intval($scan_result['missing_count']);
                 $posts_scanned = intval($scan_result['posts_scanned']);
                 printf(
-                    '<div class="notice notice-success"><p>Scan complete. Found %1$d missing audio entr%2$s across %3$d post%4$s.</p></div>',
-                    $missing_count,
-                    $missing_count === 1 ? 'y' : 'ies',
-                    $posts_scanned,
-                    $posts_scanned === 1 ? '' : 's'
+                    '<div class="notice notice-success"><p>' . esc_html(
+                        sprintf(
+                            _n(
+                                'Scan complete. Found %1$d missing audio entry across %2$d post.',
+                                'Scan complete. Found %1$d missing audio entries across %2$d posts.',
+                                $missing_count,
+                                'll-tools-text-domain'
+                            ),
+                            $missing_count,
+                            $posts_scanned
+                        )
+                    ) . '</p></div>'
                 );
                 break;
 
@@ -80,13 +87,13 @@ function ll_render_missing_audio_admin_page() {
                 $pattern_id = isset($_POST['pattern_id']) ? sanitize_text_field(wp_unslash($_POST['pattern_id'])) : '';
 
                 if ($label === '' || $pattern === '') {
-                    echo '<div class="notice notice-error"><p>Please provide both a label and a regex pattern.</p></div>';
+                    echo '<div class="notice notice-error"><p>' . esc_html__('Please provide both a label and a regex pattern.', 'll-tools-text-domain') . '</p></div>';
                 } else {
                     if (!ll_missing_audio_is_valid_regex($pattern)) {
-                        echo '<div class="notice notice-error"><p>The regex pattern is invalid. Please fix it and try again.</p></div>';
+                        echo '<div class="notice notice-error"><p>' . esc_html__('The regex pattern is invalid. Please fix it and try again.', 'll-tools-text-domain') . '</p></div>';
                     } else {
                         $regex_patterns = ll_missing_audio_upsert_regex_pattern($label, $pattern, $pattern_id);
-                        echo '<div class="notice notice-success"><p>Regex pattern saved.</p></div>';
+                        echo '<div class="notice notice-success"><p>' . esc_html__('Regex pattern saved.', 'll-tools-text-domain') . '</p></div>';
                     }
                 }
                 break;
@@ -95,7 +102,7 @@ function ll_render_missing_audio_admin_page() {
                 $pattern_id = isset($_POST['pattern_id']) ? sanitize_text_field(wp_unslash($_POST['pattern_id'])) : '';
                 if ($pattern_id !== '') {
                     $regex_patterns = ll_missing_audio_delete_regex_pattern($pattern_id);
-                    echo '<div class="notice notice-success"><p>Regex pattern removed.</p></div>';
+                    echo '<div class="notice notice-success"><p>' . esc_html__('Regex pattern removed.', 'll-tools-text-domain') . '</p></div>';
                 }
                 break;
 
@@ -107,12 +114,12 @@ function ll_render_missing_audio_admin_page() {
                 $last_saved_pattern_id = $resolved['pattern_id'];
 
                 if ($pattern_to_use === '') {
-                    echo '<div class="notice notice-error"><p>Please choose a saved regex or enter one to run.</p></div>';
+                    echo '<div class="notice notice-error"><p>' . esc_html__('Please choose a saved regex or enter one to run.', 'll-tools-text-domain') . '</p></div>';
                     break;
                 }
 
                 if (!ll_missing_audio_is_valid_regex($pattern_to_use)) {
-                    echo '<div class="notice notice-error"><p>The regex pattern is invalid. Please fix it and try again.</p></div>';
+                    echo '<div class="notice notice-error"><p>' . esc_html__('The regex pattern is invalid. Please fix it and try again.', 'll-tools-text-domain') . '</p></div>';
                     break;
                 }
 
@@ -126,11 +133,19 @@ function ll_render_missing_audio_admin_page() {
                         $scroll_target = '#ll-regex-preview-results';
                         $match_total = isset($regex_preview['match_total']) ? intval($regex_preview['match_total']) : 0;
                         printf(
-                            '<div class="notice notice-info"><p>Preview only. Found %1$d match%2$s across %3$d post%4$s.</p></div>',
-                            $match_total,
-                            $match_total === 1 ? '' : 'es',
-                            intval($regex_preview['posts_with_matches']),
-                            intval($regex_preview['posts_with_matches']) === 1 ? '' : 's'
+                            '<div class="notice notice-info"><p>%s</p></div>',
+                            esc_html(
+                                sprintf(
+                                    _n(
+                                        'Preview only. Found %1$d match across %2$d post.',
+                                        'Preview only. Found %1$d matches across %2$d posts.',
+                                        $match_total,
+                                        'll-tools-text-domain'
+                                    ),
+                                    $match_total,
+                                    intval($regex_preview['posts_with_matches'])
+                                )
+                            )
                         );
                     }
                 } else {
@@ -148,11 +163,19 @@ function ll_render_missing_audio_admin_page() {
                     $updated_posts = isset($apply_summary['posts_updated']) ? intval($apply_summary['posts_updated']) : 0;
                     $scroll_target = '#ll-regex-summary';
                     printf(
-                        '<div class="notice notice-success"><p>Inserted %1$d shortcode%2$s across %3$d post%4$s.</p></div>',
-                        $inserted,
-                        $inserted === 1 ? '' : 's',
-                        $updated_posts,
-                        $updated_posts === 1 ? '' : 's'
+                        '<div class="notice notice-success"><p>%s</p></div>',
+                        esc_html(
+                            sprintf(
+                                _n(
+                                    'Inserted %1$d shortcode across %2$d post.',
+                                    'Inserted %1$d shortcodes across %2$d posts.',
+                                    $inserted,
+                                    'll-tools-text-domain'
+                                ),
+                                $inserted,
+                                $updated_posts
+                            )
+                        )
                     );
                 }
                 break;
@@ -163,7 +186,7 @@ function ll_render_missing_audio_admin_page() {
                 $last_selected_headers = $selected_table_headers;
 
                 if (empty($selected_table_headers)) {
-                    echo '<div class="notice notice-error"><p>Please choose at least one header to target.</p></div>';
+                    echo '<div class="notice notice-error"><p>' . esc_html__('Please choose at least one header to target.', 'll-tools-text-domain') . '</p></div>';
                     break;
                 }
 
@@ -177,11 +200,19 @@ function ll_render_missing_audio_admin_page() {
                         $scroll_target = '#ll-table-preview-results';
                         $match_total = isset($table_preview['cell_count']) ? intval($table_preview['cell_count']) : 0;
                         printf(
-                            '<div class="notice notice-info"><p>Preview only. Found %1$d cell%2$s across %3$d post%4$s.</p></div>',
-                            $match_total,
-                            $match_total === 1 ? '' : 's',
-                            intval($table_preview['posts_with_matches']),
-                            intval($table_preview['posts_with_matches']) === 1 ? '' : 's'
+                            '<div class="notice notice-info"><p>%s</p></div>',
+                            esc_html(
+                                sprintf(
+                                    _n(
+                                        'Preview only. Found %1$d cell across %2$d post.',
+                                        'Preview only. Found %1$d cells across %2$d posts.',
+                                        $match_total,
+                                        'll-tools-text-domain'
+                                    ),
+                                    $match_total,
+                                    intval($table_preview['posts_with_matches'])
+                                )
+                            )
                         );
                     }
                 } else {
@@ -199,11 +230,19 @@ function ll_render_missing_audio_admin_page() {
                     $updated_posts = isset($table_apply_summary['posts_updated']) ? intval($table_apply_summary['posts_updated']) : 0;
                     $scroll_target = '#ll-table-summary';
                     printf(
-                        '<div class="notice notice-success"><p>Inserted %1$d shortcode%2$s across %3$d post%4$s.</p></div>',
-                        $inserted,
-                        $inserted === 1 ? '' : 's',
-                        $updated_posts,
-                        $updated_posts === 1 ? '' : 's'
+                        '<div class="notice notice-success"><p>%s</p></div>',
+                        esc_html(
+                            sprintf(
+                                _n(
+                                    'Inserted %1$d shortcode across %2$d post.',
+                                    'Inserted %1$d shortcodes across %2$d posts.',
+                                    $inserted,
+                                    'll-tools-text-domain'
+                                ),
+                                $inserted,
+                                $updated_posts
+                            )
+                        )
                     );
                 }
                 break;
@@ -214,7 +253,7 @@ function ll_render_missing_audio_admin_page() {
                 $clean_key = ll_missing_audio_sanitize_word_text($raw_word);
 
                 if ($clean_key === '') {
-                    echo '<div class="notice notice-error"><p>Invalid word provided.</p></div>';
+                    echo '<div class="notice notice-error"><p>' . esc_html__('Invalid word provided.', 'll-tools-text-domain') . '</p></div>';
                     break;
                 }
 
@@ -246,13 +285,13 @@ function ll_render_missing_audio_admin_page() {
                 }
 
                 if ($removed_from_cache || $removed_shortcode) {
-                    $msg = 'Removed word from missing audio list';
+                    $msg = __('Removed word from missing audio list', 'll-tools-text-domain');
                     if ($removed_shortcode) {
-                        $msg .= ' and stripped [word_audio] shortcode';
+                        $msg .= __(' and stripped [word_audio] shortcode', 'll-tools-text-domain');
                     }
                     echo '<div class="notice notice-success"><p>' . esc_html($msg) . '.</p></div>';
                 } else {
-                    echo '<div class="notice notice-info"><p>No changes made. The word may have already been removed.</p></div>';
+                    echo '<div class="notice notice-info"><p>' . esc_html__('No changes made. The word may have already been removed.', 'll-tools-text-domain') . '</p></div>';
                 }
 
                 // Refresh the local copy
@@ -266,32 +305,32 @@ function ll_render_missing_audio_admin_page() {
     $available_table_headers = ll_missing_audio_collect_table_headers();
     ?>
     <div class="wrap">
-        <h1>Language Learner Tools - Missing Audio</h1>
+        <h1><?php echo esc_html__('Language Learner Tools - Missing Audio', 'll-tools-text-domain'); ?></h1>
         <form method="post">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
             <p>
-                <input type="submit" name="scan_missing_audio" class="button button-primary" value="Scan All Posts for Missing Audio">
-                <input type="submit" name="clear_cache" class="button button-secondary" value="Clear Cache">
+                <input type="submit" name="scan_missing_audio" class="button button-primary" value="<?php echo esc_attr__('Scan All Posts for Missing Audio', 'll-tools-text-domain'); ?>">
+                <input type="submit" name="clear_cache" class="button button-secondary" value="<?php echo esc_attr__('Clear Cache', 'll-tools-text-domain'); ?>">
             </p>
         </form>
         <hr>
-        <h2>Regex → Insert [word_audio]</h2>
-        <p>Find text via regex and wrap it with the <code>[word_audio]</code> shortcode. Patterns are stored for re-use and tagged with a comment label.</p>
+        <h2><?php echo esc_html__('Regex → Insert [word_audio]', 'll-tools-text-domain'); ?></h2>
+        <p><?php echo wp_kses_post(sprintf(esc_html__('Find text via regex and wrap it with the %s shortcode. Patterns are stored for re-use and tagged with a comment label.', 'll-tools-text-domain'), '<code>[word_audio]</code>')); ?></p>
 
-        <h3>Saved Regex Patterns</h3>
+        <h3><?php echo esc_html__('Saved Regex Patterns', 'll-tools-text-domain'); ?></h3>
         <form method="post" style="margin-bottom:16px;">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
             <input type="hidden" name="pattern_id" value="">
             <p>
-                <label for="regex_label"><strong>Label / comment</strong></label><br>
-                <input type="text" id="regex_label" name="regex_label" class="regular-text" placeholder="e.g., Words in bold tags" />
+                <label for="regex_label"><strong><?php echo esc_html__('Label / comment', 'll-tools-text-domain'); ?></strong></label><br>
+                <input type="text" id="regex_label" name="regex_label" class="regular-text" placeholder="<?php echo esc_attr__('e.g., Words in bold tags', 'll-tools-text-domain'); ?>" />
             </p>
             <p>
-                <label for="regex_pattern"><strong>Regex (PHP delimiters required)</strong></label><br>
-                <input type="text" id="regex_pattern" name="regex_pattern" class="large-text code" placeholder="#<strong>([^<]+)</strong>#i" />
+                <label for="regex_pattern"><strong><?php echo esc_html__('Regex (PHP delimiters required)', 'll-tools-text-domain'); ?></strong></label><br>
+                <input type="text" id="regex_pattern" name="regex_pattern" class="large-text code" placeholder="<?php echo esc_attr__('#<strong>([^<]+)</strong>#i', 'll-tools-text-domain'); ?>" />
             </p>
             <p>
-                <input type="submit" name="save_regex_pattern" class="button button-secondary" value="Save Pattern">
+                <input type="submit" name="save_regex_pattern" class="button button-secondary" value="<?php echo esc_attr__('Save Pattern', 'll-tools-text-domain'); ?>">
             </p>
         </form>
 
@@ -299,9 +338,9 @@ function ll_render_missing_audio_admin_page() {
             <table class="wp-list-table widefat striped" style="margin-bottom:20px;">
                 <thead>
                     <tr>
-                        <th style="width:20%;">Label</th>
-                        <th>Regex</th>
-                        <th style="width:20%;">Actions</th>
+                        <th style="width:20%;"><?php echo esc_html__('Label', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html__('Regex', 'll-tools-text-domain'); ?></th>
+                        <th style="width:20%;"><?php echo esc_html__('Actions', 'll-tools-text-domain'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -315,12 +354,12 @@ function ll_render_missing_audio_admin_page() {
                                 <input type="hidden" name="pattern_id" value="<?php echo esc_attr($pattern_row['id']); ?>">
                                 <input type="text" name="regex_label" value="<?php echo esc_attr($pattern_row['label']); ?>" class="regular-text" style="max-width:140px;">
                                 <input type="text" name="regex_pattern" value="<?php echo esc_attr($pattern_row['pattern']); ?>" class="regular-text code" style="max-width:220px;">
-                                <input type="submit" name="save_regex_pattern" class="button button-small" value="Save">
+                                <input type="submit" name="save_regex_pattern" class="button button-small" value="<?php echo esc_attr__('Save', 'll-tools-text-domain'); ?>">
                             </form>
                             <form method="post" style="display:inline;margin-left:6px;">
                                 <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
                                 <input type="hidden" name="pattern_id" value="<?php echo esc_attr($pattern_row['id']); ?>">
-                                <input type="submit" name="delete_regex_pattern" class="button button-small button-link-delete" value="Delete">
+                                <input type="submit" name="delete_regex_pattern" class="button button-small button-link-delete" value="<?php echo esc_attr__('Delete', 'll-tools-text-domain'); ?>">
                             </form>
                         </td>
                     </tr>
@@ -328,16 +367,16 @@ function ll_render_missing_audio_admin_page() {
                 </tbody>
             </table>
         <?php else : ?>
-            <p>No saved patterns yet.</p>
+            <p><?php echo esc_html__('No saved patterns yet.', 'll-tools-text-domain'); ?></p>
         <?php endif; ?>
 
-        <h3>Find Matches & Insert Shortcodes</h3>
+        <h3><?php echo esc_html__('Find Matches & Insert Shortcodes', 'll-tools-text-domain'); ?></h3>
         <form method="post">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
             <p>
-                <label for="saved_pattern_id"><strong>Saved pattern</strong></label><br>
+                <label for="saved_pattern_id"><strong><?php echo esc_html__('Saved pattern', 'll-tools-text-domain'); ?></strong></label><br>
                 <select id="saved_pattern_id" name="saved_pattern_id">
-                    <option value="">— Select a saved pattern —</option>
+                    <option value=""><?php echo esc_html__('— Select a saved pattern —', 'll-tools-text-domain'); ?></option>
                     <?php foreach ($regex_patterns as $pattern_row) : ?>
                         <option value="<?php echo esc_attr($pattern_row['id']); ?>" <?php selected($last_saved_pattern_id, $pattern_row['id']); ?>>
                             <?php echo esc_html($pattern_row['label']); ?>
@@ -346,24 +385,35 @@ function ll_render_missing_audio_admin_page() {
                 </select>
             </p>
             <p>
-                <label for="run_regex_pattern"><strong>Or paste regex to run</strong></label><br>
-                <input type="text" id="run_regex_pattern" name="regex_pattern" class="large-text code" value="<?php echo esc_attr($last_regex_pattern); ?>" placeholder="#\\b[A-Za-z]+\\b#u">
+                <label for="run_regex_pattern"><strong><?php echo esc_html__('Or paste regex to run', 'll-tools-text-domain'); ?></strong></label><br>
+                <input type="text" id="run_regex_pattern" name="regex_pattern" class="large-text code" value="<?php echo esc_attr($last_regex_pattern); ?>" placeholder="<?php echo esc_attr__('#\\b[A-Za-z]+\\b#u', 'll-tools-text-domain'); ?>">
             </p>
-            <p class="description">Uses PHP regex with delimiters. Matches are wrapped as <code>[word_audio]match[/word_audio]</code>.</p>
+            <p class="description"><?php echo wp_kses_post(sprintf(esc_html__('Uses PHP regex with delimiters. Matches are wrapped as %s.', 'll-tools-text-domain'), '<code>[word_audio]match[/word_audio]</code>')); ?></p>
             <p>
-                <input type="submit" name="preview_regex_matches" class="button button-primary" value="Preview Matches">
-                <input type="submit" name="apply_regex_insertions" class="button button-secondary" value="Insert Shortcodes Now">
+                <input type="submit" name="preview_regex_matches" class="button button-primary" value="<?php echo esc_attr__('Preview Matches', 'll-tools-text-domain'); ?>">
+                <input type="submit" name="apply_regex_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes Now', 'll-tools-text-domain'); ?>">
             </p>
         </form>
 
         <?php if (!empty($regex_preview) && empty($apply_summary)) : ?>
             <div id="ll-regex-preview-results"></div>
             <?php if (!empty($regex_preview['matches'])) : ?>
-                <h3>Preview Results</h3>
+                <h3><?php echo esc_html__('Preview Results', 'll-tools-text-domain'); ?></h3>
                 <p>
-                    Found <?php echo intval($regex_preview['match_total']); ?> match<?php echo intval($regex_preview['match_total']) === 1 ? '' : 'es'; ?>
-                    across <?php echo intval($regex_preview['posts_with_matches']); ?> post<?php echo intval($regex_preview['posts_with_matches']) === 1 ? '' : 's'; ?>.
-                    No content has been changed yet. Uncheck items you want to exclude before applying.
+                    <?php
+                    echo esc_html(
+                        sprintf(
+                            _n(
+                                'Found %1$d match across %2$d post. No content has been changed yet. Uncheck items you want to exclude before applying.',
+                                'Found %1$d matches across %2$d posts. No content has been changed yet. Uncheck items you want to exclude before applying.',
+                                intval($regex_preview['match_total']),
+                                'll-tools-text-domain'
+                            ),
+                            intval($regex_preview['match_total']),
+                            intval($regex_preview['posts_with_matches'])
+                        )
+                    );
+                    ?>
                 </p>
                 <form method="post">
                     <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
@@ -381,7 +431,7 @@ function ll_render_missing_audio_admin_page() {
                                     <li>
                                         <label style="display:inline-block;">
                                             <input type="checkbox" name="exclude_regex_matches[<?php echo esc_attr($post_id); ?>][]" value="<?php echo esc_attr($match['id']); ?>">
-                                            Exclude
+                                            <?php echo esc_html__('Exclude', 'll-tools-text-domain'); ?>
                                         </label>
                                         <?php echo $match['context_html']; ?>
                                     </li>
@@ -394,16 +444,28 @@ function ll_render_missing_audio_admin_page() {
                     </p>
                 </form>
             <?php else : ?>
-                <p><em>No matches found for that regex.</em></p>
+                <p><em><?php echo esc_html__('No matches found for that regex.', 'll-tools-text-domain'); ?></em></p>
             <?php endif; ?>
         <?php endif; ?>
 
         <?php if (!empty($apply_summary)) : ?>
             <div id="ll-regex-summary"></div>
-            <h3>Insertion Summary</h3>
+            <h3><?php echo esc_html__('Insertion Summary', 'll-tools-text-domain'); ?></h3>
             <p>
-                Updated <?php echo intval($apply_summary['posts_updated']); ?> post<?php echo intval($apply_summary['posts_updated']) === 1 ? '' : 's'; ?>,
-                inserted <?php echo intval($apply_summary['shortcodes_inserted']); ?> shortcode<?php echo intval($apply_summary['shortcodes_inserted']) === 1 ? '' : 's'; ?>.
+                <?php
+                echo esc_html(
+                    sprintf(
+                        _n(
+                            'Updated %1$d post, inserted %2$d shortcode.',
+                            'Updated %1$d posts, inserted %2$d shortcodes.',
+                            intval($apply_summary['posts_updated']),
+                            'll-tools-text-domain'
+                        ),
+                        intval($apply_summary['posts_updated']),
+                        intval($apply_summary['shortcodes_inserted'])
+                    )
+                );
+                ?>
             </p>
             <?php if (!empty($apply_summary['log'])) : ?>
                 <?php foreach ($apply_summary['log'] as $log_row) : ?>
@@ -424,12 +486,12 @@ function ll_render_missing_audio_admin_page() {
         <?php endif; ?>
 
         <hr>
-        <h2>Table Column → Insert [word_audio]</h2>
-        <p>Find HTML tables, choose header(s), and wrap every cell in those columns with <code>[word_audio]</code>. Existing shortcodes are skipped.</p>
+        <h2><?php echo esc_html__('Table Column → Insert [word_audio]', 'll-tools-text-domain'); ?></h2>
+        <p><?php echo wp_kses_post(sprintf(esc_html__('Find HTML tables, choose header(s), and wrap every cell in those columns with %s. Existing shortcodes are skipped.', 'll-tools-text-domain'), '<code>[word_audio]</code>')); ?></p>
         <form method="post">
             <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
             <div>
-                <label for="table_headers"><strong>Select column headers to target</strong></label><br>
+                <label for="table_headers"><strong><?php echo esc_html__('Select column headers to target', 'll-tools-text-domain'); ?></strong></label><br>
                 <?php if (!empty($available_table_headers)) : ?>
                     <?php $header_select_size = min(15, max(6, count($available_table_headers))); ?>
                     <select id="table_headers" name="table_headers[]" multiple size="<?php echo esc_attr($header_select_size); ?>" class="widefat" style="max-height:320px;">
@@ -445,27 +507,49 @@ function ll_render_missing_audio_admin_page() {
                         <?php endforeach; ?>
                     </select>
                     <p class="description" style="margin-top:6px;">
-                        <?php echo intval(count($available_table_headers)); ?> unique header<?php echo count($available_table_headers) === 1 ? '' : 's'; ?> found.
-                        Use Ctrl/Cmd-click or Shift-click to select multiple.
+                        <?php
+                        echo esc_html(
+                            sprintf(
+                                _n(
+                                    '%1$d unique header found. Use Ctrl/Cmd-click or Shift-click to select multiple.',
+                                    '%1$d unique headers found. Use Ctrl/Cmd-click or Shift-click to select multiple.',
+                                    intval(count($available_table_headers)),
+                                    'll-tools-text-domain'
+                                ),
+                                intval(count($available_table_headers))
+                            )
+                        );
+                        ?>
                     </p>
                 <?php else : ?>
-                    <p class="description" style="margin-top:6px;"><em>No table headers found in the scanned post types.</em></p>
+                    <p class="description" style="margin-top:6px;"><em><?php echo esc_html__('No table headers found in the scanned post types.', 'll-tools-text-domain'); ?></em></p>
                 <?php endif; ?>
             </div>
             <p>
-                <input type="submit" name="preview_table_matches" class="button button-primary" value="Preview Table Matches">
-                <input type="submit" name="apply_table_insertions" class="button button-secondary" value="Insert Shortcodes in Column Now">
+                <input type="submit" name="preview_table_matches" class="button button-primary" value="<?php echo esc_attr__('Preview Table Matches', 'll-tools-text-domain'); ?>">
+                <input type="submit" name="apply_table_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes in Column Now', 'll-tools-text-domain'); ?>">
             </p>
         </form>
 
         <?php if (!empty($table_preview) && empty($table_apply_summary)) : ?>
             <div id="ll-table-preview-results"></div>
             <?php if (!empty($table_preview['matches'])) : ?>
-                <h3>Table Preview Results</h3>
+                <h3><?php echo esc_html__('Table Preview Results', 'll-tools-text-domain'); ?></h3>
                 <p>
-                    Found <?php echo intval($table_preview['cell_count']); ?> cell<?php echo intval($table_preview['cell_count']) === 1 ? '' : 's'; ?>
-                    across <?php echo intval($table_preview['posts_with_matches']); ?> post<?php echo intval($table_preview['posts_with_matches']) === 1 ? '' : 's'; ?>.
-                    No content has been changed yet. Uncheck items you want to exclude before applying.
+                    <?php
+                    echo esc_html(
+                        sprintf(
+                            _n(
+                                'Found %1$d cell across %2$d post. No content has been changed yet. Uncheck items you want to exclude before applying.',
+                                'Found %1$d cells across %2$d posts. No content has been changed yet. Uncheck items you want to exclude before applying.',
+                                intval($table_preview['cell_count']),
+                                'll-tools-text-domain'
+                            ),
+                            intval($table_preview['cell_count']),
+                            intval($table_preview['posts_with_matches'])
+                        )
+                    );
+                    ?>
                 </p>
                 <form method="post">
                     <?php wp_nonce_field('ll_missing_audio_actions', 'll_missing_audio_nonce'); ?>
@@ -486,7 +570,7 @@ function ll_render_missing_audio_admin_page() {
                                     <li>
                                         <label style="display:inline-block;">
                                             <input type="checkbox" name="exclude_table_cells[<?php echo esc_attr($post_id); ?>][]" value="<?php echo esc_attr($cell['id']); ?>">
-                                            Exclude
+                                            <?php echo esc_html__('Exclude', 'll-tools-text-domain'); ?>
                                         </label>
                                         <?php echo $cell['context_html']; ?>
                                     </li>
@@ -499,16 +583,28 @@ function ll_render_missing_audio_admin_page() {
                     </p>
                 </form>
             <?php else : ?>
-                <p><em>No matching tables or cells found for the selected headers.</em></p>
+                <p><em><?php echo esc_html__('No matching tables or cells found for the selected headers.', 'll-tools-text-domain'); ?></em></p>
             <?php endif; ?>
         <?php endif; ?>
 
         <?php if (!empty($table_apply_summary)) : ?>
             <div id="ll-table-summary"></div>
-            <h3>Table Insertion Summary</h3>
+            <h3><?php echo esc_html__('Table Insertion Summary', 'll-tools-text-domain'); ?></h3>
             <p>
-                Updated <?php echo intval($table_apply_summary['posts_updated']); ?> post<?php echo intval($table_apply_summary['posts_updated']) === 1 ? '' : 's'; ?>,
-                inserted <?php echo intval($table_apply_summary['shortcodes_inserted']); ?> shortcode<?php echo intval($table_apply_summary['shortcodes_inserted']) === 1 ? '' : 's'; ?>.
+                <?php
+                echo esc_html(
+                    sprintf(
+                        _n(
+                            'Updated %1$d post, inserted %2$d shortcode.',
+                            'Updated %1$d posts, inserted %2$d shortcodes.',
+                            intval($table_apply_summary['posts_updated']),
+                            'll-tools-text-domain'
+                        ),
+                        intval($table_apply_summary['posts_updated']),
+                        intval($table_apply_summary['shortcodes_inserted'])
+                    )
+                );
+                ?>
             </p>
             <?php if (!empty($table_apply_summary['log'])) : ?>
                 <?php foreach ($table_apply_summary['log'] as $log_row) : ?>
@@ -529,14 +625,14 @@ function ll_render_missing_audio_admin_page() {
         <?php endif; ?>
 
         <hr>
-        <h2 id="ll-missing-audio-list">Current Missing Audio</h2>
+        <h2 id="ll-missing-audio-list"><?php echo esc_html__('Current Missing Audio', 'll-tools-text-domain'); ?></h2>
         <?php if (!empty($missing_audio_instances)) : ?>
             <table class="wp-list-table widefat striped">
                 <thead>
                     <tr>
-                        <th>Word</th>
-                        <th>Post</th>
-                        <th>Actions</th>
+                        <th><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html__('Post', 'll-tools-text-domain'); ?></th>
+                        <th><?php echo esc_html__('Actions', 'll-tools-text-domain'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -549,7 +645,7 @@ function ll_render_missing_audio_admin_page() {
                                 if ($post) {
                                     echo '<a href="' . esc_url(get_edit_post_link($post->ID)) . '" target="_blank">' . esc_html($post->post_title) . '</a>';
                                 } else {
-                                    echo 'N/A';
+                                    echo esc_html__('N/A', 'll-tools-text-domain');
                                 }
                                 ?>
                             </td>
@@ -559,7 +655,7 @@ function ll_render_missing_audio_admin_page() {
                                     <input type="hidden" name="remove_word" value="<?php echo esc_attr($word); ?>">
                                     <input type="hidden" name="remove_post_id" value="<?php echo esc_attr(intval($post_id)); ?>">
                                     <button type="submit" name="remove_missing_audio" class="button button-small button-link-delete" style="padding-left:0;">
-                                        Remove &amp; strip shortcode
+                                        <?php echo esc_html__('Remove & strip shortcode', 'll-tools-text-domain'); ?>
                                     </button>
                                 </form>
                             </td>
@@ -568,7 +664,7 @@ function ll_render_missing_audio_admin_page() {
                 </tbody>
             </table>
         <?php else : ?>
-            <p>No missing audio instances found.</p>
+            <p><?php echo esc_html__('No missing audio instances found.', 'll-tools-text-domain'); ?></p>
         <?php endif; ?>
     </div>
     <?php if (!empty($scroll_target)) : ?>

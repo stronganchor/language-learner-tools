@@ -61,6 +61,22 @@
   min-height: 220px;
 }
 
+.ll-tools-export-import .ll-tools-import-csv-reference-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference-card-header h4 {
+  margin: 0;
+}
+
+.ll-tools-export-import .ll-tools-copy-reference-button {
+  flex: 0 0 auto;
+}
+
 .ll-tools-export-import .ll-tools-action-button {
   border: 1px solid #1d4ed8;
   background: #1d4ed8;
@@ -257,6 +273,13 @@
   color: #92400e;
   letter-spacing: 0;
   text-transform: none;
+}
+
+@media (max-width: 782px) {
+  .ll-tools-export-import .ll-tools-import-csv-reference-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .ll-tools-export-import .ll-tools-import-sample-grid .ll-word-recordings {
@@ -474,6 +497,16 @@
   max-width: 100%;
 }
 
+.ll-tools-export-import .ll-tools-metadata-preview-value {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ll-tools-export-import .ll-tools-metadata-preview-empty {
+  color: #6b7280;
+  font-style: italic;
+}
+
 .ll-tools-export-import .ll-tools-recent-imports {
   margin: 0 0 18px;
   padding: 14px 14px 10px;
@@ -491,6 +524,44 @@
   vertical-align: top;
 }
 
+.ll-tools-export-import .ll-tools-recent-imports-created-summary {
+  margin-bottom: 6px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-categories {
+  margin: 8px 0 0;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-categories summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-list {
+  margin: 8px 0 0 18px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-list li {
+  margin: 0 0 8px;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-name {
+  font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-links-label {
+  display: block;
+  margin-top: 4px;
+  color: #4b5563;
+}
+
+.ll-tools-export-import .ll-tools-recent-imports-category-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 4px;
+}
+
 .ll-tools-export-import .ll-tools-undo-import-button {
   white-space: nowrap;
 }
@@ -498,6 +569,51 @@
 .ll-tools-export-import .ll-tools-import-undone-label {
   color: #4b5563;
   font-weight: 600;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference {
+  margin: 22px 0 0;
+  padding: 16px;
+  max-width: 980px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference h3 {
+  margin-top: 0;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference-card h4 {
+  margin: 0 0 6px;
+  color: #111827;
+}
+
+.ll-tools-export-import .ll-tools-import-csv-reference-text {
+  width: 100%;
+  min-height: 88px;
+  margin-top: 8px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  resize: vertical;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .ll-tools-import-processing .wrap.ll-tools-export-import {
@@ -560,6 +676,13 @@
   background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 50%, #14b8a6 100%);
   box-shadow: 0 0 14px rgba(14, 165, 233, 0.45);
   animation: ll-tools-import-progress-slide 1.4s ease-in-out infinite;
+}
+
+.ll-tools-import-processing-progress.is-determinate .ll-tools-import-processing-progress-bar {
+  inset: 0 auto 0 0;
+  width: 0;
+  animation: none;
+  transition: width 0.18s ease-out;
 }
 
 .ll-tools-import-processing-status {

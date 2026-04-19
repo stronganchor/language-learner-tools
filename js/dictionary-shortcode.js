@@ -1,0 +1,719 @@
+(function () {
+    const config = window.llToolsDictionary || {};
+    const ajaxUrl = typeof config.ajaxUrl === 'string' ? config.ajaxUrl : '';
+    const nonce = typeof config.nonce === 'string' ? config.nonce : '';
+    const minChars = Number.isFinite(Number(config.minChars)) ? Math.max(1, Number(config.minChars)) : 2;
+    const debounceMs = Number.isFinite(Number(config.debounceMs)) ? Math.max(80, Number(config.debounceMs)) : 160;
+    const loadingCards = Number.isFinite(Number(config.loadingCards)) ? Math.max(1, Math.min(4, Number(config.loadingCards))) : 3;
+    const cacheSize = Number.isFinite(Number(config.cacheSize)) ? Math.max(0, Math.min(64, Number(config.cacheSize))) : 24;
+    const loadingLabel = typeof config.loadingLabel === 'string' && config.loadingLabel
+        ? config.loadingLabel
+        : 'Loading dictionary results...';
+    const toolbarLoadingLabel = typeof config.toolbarLoadingLabel === 'string' && config.toolbarLoadingLabel
+        ? config.toolbarLoadingLabel
+        : 'Loading dictionary filters...';
+    const entryTitleRequiredLabel = typeof config.entryTitleRequiredLabel === 'string' && config.entryTitleRequiredLabel
+        ? config.entryTitleRequiredLabel
+        : 'Enter a dictionary entry title.';
+    const entrySavingLabel = typeof config.entrySavingLabel === 'string' && config.entrySavingLabel
+        ? config.entrySavingLabel
+        : 'Saving...';
+    const entrySavedLabel = typeof config.entrySavedLabel === 'string' && config.entrySavedLabel
+        ? config.entrySavedLabel
+        : 'Dictionary entry updated.';
+    const entryErrorLabel = typeof config.entryErrorLabel === 'string' && config.entryErrorLabel
+        ? config.entryErrorLabel
+        : 'Unable to save this dictionary entry right now.';
+
+    if (!ajaxUrl) {
+        return;
+    }
+
+    const readAjaxMessage = (payload, fallback) => {
+        if (payload && payload.data && typeof payload.data.message === 'string' && payload.data.message) {
+            return payload.data.message;
+        }
+        if (payload && typeof payload.message === 'string' && payload.message) {
+            return payload.message;
+        }
+        return fallback;
+    };
+
+    const initEntryEditors = (root) => {
+        root.querySelectorAll('[data-ll-dictionary-entry-editor]').forEach((editor) => {
+            if (editor.getAttribute('data-ll-dictionary-entry-editor-ready') === '1') {
+                return;
+            }
+            editor.setAttribute('data-ll-dictionary-entry-editor-ready', '1');
+
+            const trigger = editor.querySelector('[data-ll-dictionary-entry-edit-trigger]');
+            const form = editor.querySelector('[data-ll-dictionary-entry-form]');
+            const titleInput = editor.querySelector('[data-ll-dictionary-entry-title-input]');
+            const reviewInput = editor.querySelector('[data-ll-dictionary-entry-review]');
+            const cancelButton = editor.querySelector('[data-ll-dictionary-entry-cancel]');
+            const status = editor.querySelector('[data-ll-dictionary-entry-status]');
+            const reviewPill = root.querySelector('[data-ll-dictionary-entry-review-pill]');
+            let closeTimer = 0;
+
+            if (!trigger || !form || !titleInput || !reviewInput || !status) {
+                return;
+            }
+
+            const clearCloseTimer = () => {
+                if (closeTimer) {
+                    window.clearTimeout(closeTimer);
+                    closeTimer = 0;
+                }
+            };
+
+            const setStatus = (message, type) => {
+                const hasMessage = !!message;
+                status.textContent = hasMessage ? String(message) : '';
+                status.hidden = !hasMessage;
+                status.classList.toggle('is-error', type === 'error');
+                status.classList.toggle('is-success', type === 'success');
+            };
+
+            const setSaving = (saving) => {
+                editor.classList.toggle('is-saving', !!saving);
+                form.querySelectorAll('input, button').forEach((control) => {
+                    control.disabled = !!saving;
+                });
+            };
+
+            const syncEditor = (data) => {
+                const payload = (data && typeof data === 'object') ? data : {};
+                const title = (payload.title || '').toString();
+                const needsReview = !!payload.needs_review;
+                const reviewLabel = (payload.review_label || '').toString();
+                const titleText = editor.querySelector('[data-ll-dictionary-entry-title-text]');
+
+                if (title && titleText) {
+                    titleText.textContent = title;
+                    titleInput.value = title;
+                    titleInput.defaultValue = title;
+                }
+
+                reviewInput.checked = needsReview;
+                reviewInput.defaultChecked = needsReview;
+
+                if (reviewPill) {
+                    reviewPill.textContent = reviewLabel;
+                    reviewPill.classList.toggle('is-active', needsReview);
+                }
+            };
+
+            const closeEditor = (restoreValues) => {
+                clearCloseTimer();
+                if (restoreValues) {
+                    titleInput.value = titleInput.defaultValue;
+                    reviewInput.checked = !!reviewInput.defaultChecked;
+                }
+                editor.classList.remove('is-editing');
+                form.hidden = true;
+                trigger.setAttribute('aria-expanded', 'false');
+            };
+
+            const openEditor = () => {
+                clearCloseTimer();
+                setStatus('', '');
+                editor.classList.add('is-editing');
+                form.hidden = false;
+                trigger.setAttribute('aria-expanded', 'true');
+                titleInput.focus();
+                titleInput.select();
+            };
+
+            const submitEditor = () => {
+                if (editor.classList.contains('is-saving')) {
+                    return;
+                }
+
+                const action = (editor.getAttribute('data-action') || '').toString();
+                const entryId = parseInt(editor.getAttribute('data-entry-id') || '0', 10) || 0;
+                const editorNonce = (editor.getAttribute('data-nonce') || '').toString();
+                const title = String(titleInput.value || '').trim();
+
+                clearCloseTimer();
+
+                if (!title) {
+                    setStatus(entryTitleRequiredLabel, 'error');
+                    titleInput.focus();
+                    return;
+                }
+
+                if (!action || !entryId || !editorNonce) {
+                    setStatus(entryErrorLabel, 'error');
+                    return;
+                }
+
+                const payload = new FormData();
+                payload.set('action', action);
+                payload.set('entry_id', String(entryId));
+                payload.set('nonce', editorNonce);
+                payload.set('title', title);
+                payload.set('needs_review', reviewInput.checked ? '1' : '0');
+
+                setSaving(true);
+                setStatus(entrySavingLabel, '');
+
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: payload,
+                }).then((response) => {
+                    if (!response.ok) {
+                        throw new Error('request_failed');
+                    }
+                    return response.json();
+                }).then((payloadResponse) => {
+                    if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
+                        throw new Error(readAjaxMessage(payloadResponse, entryErrorLabel));
+                    }
+
+                    syncEditor(payloadResponse.data);
+                    setStatus(readAjaxMessage(payloadResponse, entrySavedLabel), 'success');
+                    closeTimer = window.setTimeout(() => {
+                        closeEditor(false);
+                        setStatus('', '');
+                    }, 700);
+                }).catch((error) => {
+                    const message = error && error.message && error.message !== 'request_failed'
+                        ? error.message
+                        : entryErrorLabel;
+                    setStatus(message, 'error');
+                }).finally(() => {
+                    setSaving(false);
+                });
+            };
+
+            trigger.addEventListener('click', (event) => {
+                event.preventDefault();
+                if (editor.classList.contains('is-saving')) {
+                    return;
+                }
+                if (editor.classList.contains('is-editing')) {
+                    closeEditor(true);
+                    setStatus('', '');
+                    return;
+                }
+                openEditor();
+            });
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                submitEditor();
+            });
+
+            form.addEventListener('keydown', (event) => {
+                if (event.key !== 'Escape') {
+                    return;
+                }
+
+                event.preventDefault();
+                setStatus('', '');
+                closeEditor(true);
+            });
+
+            if (cancelButton) {
+                cancelButton.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    setStatus('', '');
+                    closeEditor(true);
+                });
+            }
+        });
+    };
+
+    document.querySelectorAll('[data-ll-dictionary-root]').forEach((root) => {
+        initEntryEditors(root);
+
+        const form = root.querySelector('[data-ll-dictionary-form]');
+        const results = root.querySelector('[data-ll-dictionary-results]');
+        const toolbar = root.querySelector('.ll-dictionary__toolbar');
+        const resetLink = root.querySelector('[data-ll-dictionary-reset]');
+        const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
+        const scopeInput = form ? form.querySelector('select[name="ll_dictionary_scope"]') : null;
+        const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
+        const toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
+        const toolbarDeferred = root.getAttribute('data-ll-dictionary-toolbar-deferred') === '1';
+
+        if (!form || !results || !toolbar || !searchInput || !scopeInput || !letterInput) {
+            return;
+        }
+
+        let debounceTimer = 0;
+        let activeController = null;
+        let activeRequestId = 0;
+        let toolbarBootstrapPromise = null;
+        let toolbarReady = !toolbarDeferred;
+        const responseCache = new Map();
+
+        const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
+            switch (char) {
+            case '&':
+                return '&amp;';
+            case '<':
+                return '&lt;';
+            case '>':
+                return '&gt;';
+            case '"':
+                return '&quot;';
+            case '\'':
+                return '&#39;';
+            default:
+                return char;
+            }
+        });
+
+        const getFieldValue = (name) => {
+            const field = form.elements.namedItem(name);
+            return field && 'value' in field ? String(field.value || '').trim() : '';
+        };
+
+        const setFieldValue = (name, value) => {
+            const field = form.elements.namedItem(name);
+            if (field && 'value' in field) {
+                field.value = value;
+            }
+        };
+
+        const hasActiveQuery = () => {
+            return [
+                String(searchInput.value || '').trim(),
+                String(letterInput.value || '').trim(),
+                getFieldValue('ll_dictionary_pos'),
+                getFieldValue('ll_dictionary_source'),
+                getFieldValue('ll_dictionary_dialect'),
+            ].some((value) => value !== '');
+        };
+
+        const hasNonSearchQuery = () => {
+            return [
+                String(letterInput.value || '').trim(),
+                getFieldValue('ll_dictionary_pos'),
+                getFieldValue('ll_dictionary_source'),
+                getFieldValue('ll_dictionary_dialect'),
+            ].some((value) => value !== '');
+        };
+
+        const setActiveState = (active) => {
+            toolbar.classList.toggle('is-expanded', active);
+            toolbar.classList.toggle('is-collapsed', !active);
+            if (resetLink) {
+                resetLink.hidden = !active;
+            }
+        };
+
+        const buildToolbarBootstrapPayload = () => {
+            const payload = new FormData();
+            payload.set('action', 'll_tools_dictionary_toolbar_bootstrap');
+            payload.set('nonce', nonce);
+            payload.set('wordset_id', root.dataset.wordsetId || '0');
+            payload.set('base_url', root.dataset.baseUrl || window.location.href);
+            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
+            payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
+            payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
+            payload.set('ll_dictionary_dialect', getFieldValue('ll_dictionary_dialect'));
+            return payload;
+        };
+
+        const setToolbarBootstrapState = (loading) => {
+            toolbar.classList.toggle('is-toolbar-loading', !!loading);
+            if (toolbarPanel) {
+                if (loading) {
+                    toolbarPanel.setAttribute('aria-busy', 'true');
+                } else {
+                    toolbarPanel.removeAttribute('aria-busy');
+                }
+            }
+        };
+
+        const ensureToolbarBootstrap = () => {
+            if (!toolbarDeferred || toolbarReady || !toolbarPanel) {
+                return Promise.resolve(toolbarReady);
+            }
+
+            if (toolbarBootstrapPromise) {
+                return toolbarBootstrapPromise;
+            }
+
+            setToolbarBootstrapState(true);
+            toolbarBootstrapPromise = fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: buildToolbarBootstrapPayload(),
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('request_failed');
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (!payload || !payload.success || !payload.data) {
+                        throw new Error('invalid_payload');
+                    }
+
+                    toolbarPanel.outerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
+                    toolbarReady = true;
+                    root.setAttribute('data-ll-dictionary-toolbar-deferred', '0');
+                    toolbar.classList.remove('is-toolbar-loading');
+                    return true;
+                })
+                .catch((error) => {
+                    toolbar.classList.remove('is-toolbar-loading');
+                    if (toolbarPanel) {
+                        toolbarPanel.setAttribute('aria-label', toolbarLoadingLabel);
+                    }
+                    throw error;
+                })
+                .finally(() => {
+                    setToolbarBootstrapState(false);
+                    toolbarBootstrapPromise = null;
+                });
+
+            return toolbarBootstrapPromise;
+        };
+
+        const cancelActiveRequest = () => {
+            window.clearTimeout(debounceTimer);
+            if (activeController) {
+                activeController.abort();
+                activeController = null;
+            }
+
+            activeRequestId += 1;
+            results.removeAttribute('aria-busy');
+        };
+
+        const renderResponsePayload = (payload) => {
+            if (!payload || !payload.success || !payload.data) {
+                throw new Error('invalid_payload');
+            }
+
+            results.innerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
+            setActiveState(Boolean(payload.data.has_active_query));
+
+            if (payload.data.url && window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState(null, '', String(payload.data.url));
+            }
+        };
+
+        const buildLoadingMarkup = () => {
+            const markup = [
+                '<div class="ll-dictionary__loading" role="status" aria-live="polite" aria-label="',
+                escapeHtml(loadingLabel),
+                '">',
+                '<span class="screen-reader-text">',
+                escapeHtml(loadingLabel),
+                '</span>',
+                '<div class="ll-dictionary__loading-meta" aria-hidden="true"></div>',
+            ];
+
+            for (let index = 0; index < loadingCards; index += 1) {
+                const titleClass = index % 3 === 1
+                    ? ' ll-dictionary__loading-line--title-short'
+                    : (index % 3 === 2 ? ' ll-dictionary__loading-line--title-medium' : '');
+                const lineClass = index % 2 === 0
+                    ? ' ll-dictionary__loading-line--body-short'
+                    : '';
+                const pillClass = index % 2 === 0
+                    ? ' ll-dictionary__loading-pill--wide'
+                    : '';
+
+                markup.push(
+                    '<article class="ll-dictionary__loading-card" aria-hidden="true">',
+                    '<div class="ll-dictionary__loading-head">',
+                    '<div class="ll-dictionary__loading-stack">',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--title', titleClass, '"></span>',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body', lineClass, '"></span>',
+                    '</div>',
+                    '<div class="ll-dictionary__loading-pills">',
+                    '<span class="ll-dictionary__loading-pill', pillClass, '"></span>',
+                    '<span class="ll-dictionary__loading-pill"></span>',
+                    '</div>',
+                    '</div>',
+                    '<div class="ll-dictionary__loading-stack">',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body"></span>',
+                    '<span class="ll-dictionary__loading-line ll-dictionary__loading-line--body ll-dictionary__loading-line--body-short"></span>',
+                    '</div>',
+                    '</article>'
+                );
+            }
+
+            markup.push('</div>');
+            return markup.join('');
+        };
+
+        const showLoadingState = () => {
+            cancelActiveRequest();
+            results.innerHTML = buildLoadingMarkup();
+            results.setAttribute('aria-busy', 'true');
+            setActiveState(true);
+        };
+
+        const clearResults = () => {
+            cancelActiveRequest();
+            results.innerHTML = '';
+            setActiveState(false);
+
+            const baseUrl = root.dataset.baseUrl || window.location.href;
+            if (window.history && typeof window.history.replaceState === 'function') {
+                window.history.replaceState(null, '', baseUrl);
+            }
+        };
+
+        const canRunQuery = () => {
+            const search = String(searchInput.value || '').trim();
+            if (search !== '' && search.length < minChars && !hasNonSearchQuery()) {
+                return false;
+            }
+
+            return !(search === '' && !hasActiveQuery());
+        };
+
+        const buildRequestCacheKey = (page) => JSON.stringify({
+            wordsetId: root.dataset.wordsetId || '0',
+            perPage: root.dataset.perPage || '20',
+            senseLimit: root.dataset.senseLimit || '3',
+            linkedWordLimit: root.dataset.linkedWordLimit || '4',
+            glossLang: root.dataset.glossLang || '',
+            query: String(searchInput.value || '').trim(),
+            scope: getFieldValue('ll_dictionary_scope') || 'all',
+            letter: String(letterInput.value || '').trim(),
+            pos: getFieldValue('ll_dictionary_pos'),
+            source: getFieldValue('ll_dictionary_source'),
+            dialect: getFieldValue('ll_dictionary_dialect'),
+            page: String(Math.max(1, page || 1)),
+        });
+
+        const storeCachedResponse = (key, payload) => {
+            if (!cacheSize || !key) {
+                return;
+            }
+
+            if (responseCache.has(key)) {
+                responseCache.delete(key);
+            }
+            responseCache.set(key, payload);
+
+            while (responseCache.size > cacheSize) {
+                const oldestKey = responseCache.keys().next().value;
+                if (!oldestKey) {
+                    break;
+                }
+                responseCache.delete(oldestKey);
+            }
+        };
+
+        const buildPayload = (page) => {
+            const payload = new FormData();
+            payload.set('action', 'll_tools_dictionary_live_search');
+            payload.set('nonce', nonce);
+            payload.set('wordset_id', root.dataset.wordsetId || '0');
+            payload.set('per_page', root.dataset.perPage || '20');
+            payload.set('sense_limit', root.dataset.senseLimit || '3');
+            payload.set('linked_word_limit', root.dataset.linkedWordLimit || '4');
+            payload.set('gloss_lang', root.dataset.glossLang || '');
+            payload.set('base_url', root.dataset.baseUrl || window.location.href);
+            payload.set('ll_dictionary_q', String(searchInput.value || '').trim());
+            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
+            payload.set('ll_dictionary_page', String(Math.max(1, page || 1)));
+            payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
+            payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
+            payload.set('ll_dictionary_dialect', getFieldValue('ll_dictionary_dialect'));
+
+            return payload;
+        };
+
+        const requestResults = (page, fallbackToFullSubmit) => {
+            const requestPage = Math.max(1, page || 1);
+            const cacheKey = buildRequestCacheKey(requestPage);
+            if (cacheSize > 0 && responseCache.has(cacheKey)) {
+                renderResponsePayload(responseCache.get(cacheKey));
+                results.removeAttribute('aria-busy');
+                return;
+            }
+
+            if (activeController) {
+                activeController.abort();
+            }
+
+            const requestId = ++activeRequestId;
+            activeController = new AbortController();
+            results.setAttribute('aria-busy', 'true');
+
+            fetch(ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: buildPayload(requestPage),
+                signal: activeController.signal,
+            })
+                .then((response) => {
+                    if (!response.ok) {
+                        throw new Error('request_failed');
+                    }
+                    return response.json();
+                })
+                .then((payload) => {
+                    if (requestId !== activeRequestId) {
+                        throw new Error('invalid_payload');
+                    }
+
+                    storeCachedResponse(cacheKey, payload);
+                    renderResponsePayload(payload);
+                })
+                .catch((error) => {
+                    if (error && error.name === 'AbortError') {
+                        return;
+                    }
+
+                    if (fallbackToFullSubmit) {
+                        form.submit();
+                    }
+                })
+                .finally(() => {
+                    if (requestId === activeRequestId) {
+                        activeController = null;
+                        results.removeAttribute('aria-busy');
+                    }
+                });
+        };
+
+        const triggerLiveSearch = (page) => {
+            if (!canRunQuery()) {
+                clearResults();
+                return;
+            }
+
+            if (!results.hasAttribute('aria-busy')) {
+                showLoadingState();
+            }
+
+            requestResults(page || 1, false);
+        };
+
+        const scheduleLiveSearch = () => {
+            window.clearTimeout(debounceTimer);
+            debounceTimer = window.setTimeout(() => {
+                triggerLiveSearch(1);
+            }, debounceMs);
+        };
+
+        const primeToolbarBootstrap = () => {
+            ensureToolbarBootstrap().catch(() => {});
+        };
+
+        searchInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
+        searchInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
+        if (scopeInput) {
+            scopeInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
+            scopeInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
+        }
+
+        searchInput.addEventListener('input', () => {
+            primeToolbarBootstrap();
+            if (String(searchInput.value || '').trim() !== '') {
+                letterInput.value = '';
+            }
+
+            if (!canRunQuery()) {
+                clearResults();
+                return;
+            }
+
+            showLoadingState();
+            scheduleLiveSearch();
+        });
+
+        form.addEventListener('change', (event) => {
+            const target = event.target;
+            const name = target && target.name ? String(target.name) : '';
+            if (['ll_dictionary_scope', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
+                return;
+            }
+
+            if (!canRunQuery()) {
+                clearResults();
+                return;
+            }
+
+            showLoadingState();
+            triggerLiveSearch(1);
+        });
+
+        form.addEventListener('submit', (event) => {
+            primeToolbarBootstrap();
+            if (!hasActiveQuery()) {
+                return;
+            }
+
+            event.preventDefault();
+            showLoadingState();
+            requestResults(1, true);
+        });
+
+        if (resetLink) {
+            resetLink.addEventListener('click', (event) => {
+                event.preventDefault();
+                setFieldValue('ll_dictionary_q', '');
+                setFieldValue('ll_dictionary_scope', 'all');
+                setFieldValue('ll_dictionary_pos', '');
+                setFieldValue('ll_dictionary_source', '');
+                setFieldValue('ll_dictionary_dialect', '');
+                letterInput.value = '';
+                clearResults();
+            });
+        }
+
+        root.addEventListener('click', (event) => {
+            const textToggle = event.target.closest('[data-ll-dictionary-toggle]');
+            if (textToggle) {
+                const textBlock = textToggle.closest('[data-ll-dictionary-text-block]');
+                if (!textBlock) {
+                    return;
+                }
+
+                event.preventDefault();
+                const willExpand = textBlock.classList.contains('is-collapsed');
+                textBlock.classList.toggle('is-collapsed', !willExpand);
+                textToggle.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+                textToggle.textContent = willExpand
+                    ? (textToggle.getAttribute('data-collapse-label') || 'Show less')
+                    : (textToggle.getAttribute('data-expand-label') || 'Show more');
+                return;
+            }
+
+            const link = event.target.closest('.ll-dictionary__pagination a, .ll-dictionary__letters a');
+            if (!link || !link.href || link.getAttribute('href') === '#') {
+                return;
+            }
+
+            let url;
+            try {
+                url = new URL(link.href, window.location.href);
+            } catch (error) {
+                return;
+            }
+
+            if (!url.searchParams.has('ll_dictionary_page') && !url.searchParams.has('ll_dictionary_letter')) {
+                return;
+            }
+
+            event.preventDefault();
+
+            searchInput.value = url.searchParams.get('ll_dictionary_q') || '';
+            setFieldValue('ll_dictionary_scope', url.searchParams.get('ll_dictionary_scope') || 'all');
+            letterInput.value = url.searchParams.get('ll_dictionary_letter') || '';
+            setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
+            setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
+            setFieldValue('ll_dictionary_dialect', url.searchParams.get('ll_dictionary_dialect') || '');
+
+            showLoadingState();
+            requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
+        });
+    });
+}());

@@ -31,6 +31,18 @@
 
     syncWordsetFromDataset();
 
+    function warmupVisualizerContext() {
+        try {
+            var ll = window.LLFlashcards || {};
+            var viz = ll.AudioVisualizer;
+            if (!viz || typeof viz.warmup !== 'function') { return; }
+            var p = viz.warmup();
+            if (p && typeof p.catch === 'function') {
+                p.catch(function () { return false; });
+            }
+        } catch (_) { /* no-op */ }
+    }
+
     // ---- tiny shim: safely call init no matter load order ----
     function startWidget(selectedCategories, mode) {  // ADD mode parameter
         // wait until either the namespaced or legacy global init is available
@@ -80,63 +92,26 @@
         }
     }
 
-    function getSortLocales() {
+    function getSortLocale() {
         var data = window.llToolsFlashcardsData || {};
-        var rawLocale = String(data.sortLocale || document.documentElement.lang || '').trim().replace('_', '-');
-        var locales = [];
-        function pushLocale(value) {
-            var normalized = String(value || '').trim();
-            if (!normalized || locales.indexOf(normalized) !== -1) { return; }
-            locales.push(normalized);
-        }
-        if (rawLocale) {
-            pushLocale(rawLocale);
-            var primary = rawLocale.split('-')[0];
-            if (primary) {
-                pushLocale(primary);
-                if (primary.toLowerCase() === 'tr') {
-                    pushLocale('tr-TR');
-                }
-            }
-        }
-        pushLocale('en-US');
-        return locales;
+        return String(data.sortLocale || document.documentElement.lang || '').trim();
     }
 
-    function withTurkishSortLocales(baseLocales) {
-        var combined = [];
-        var pushLocale = function (value) {
-            var normalized = String(value || '').trim();
-            if (!normalized || combined.indexOf(normalized) !== -1) { return; }
-            combined.push(normalized);
-        };
-        pushLocale('tr-TR');
-        pushLocale('tr');
-        (Array.isArray(baseLocales) ? baseLocales : []).forEach(pushLocale);
-        return combined;
-    }
-
-    function textHasTurkishCharacters(value) {
-        return /[çğıöşüÇĞİÖŞÜıİ]/.test(String(value || ''));
-    }
+    var localeSort = (window.LLToolsLocaleSort && typeof window.LLToolsLocaleSort.compareText === 'function')
+        ? window.LLToolsLocaleSort
+        : null;
 
     function localeTextCompare(left, right) {
+        if (localeSort) {
+            return localeSort.compareText(left, right, getSortLocale());
+        }
         var a = String(left || '');
         var b = String(right || '');
         if (a === b) { return 0; }
-        var baseLocales = getSortLocales();
-        var locales = (textHasTurkishCharacters(a) || textHasTurkishCharacters(b))
-            ? withTurkishSortLocales(baseLocales)
-            : baseLocales;
-        var opts = { numeric: true, sensitivity: 'base' };
         try {
-            return a.localeCompare(b, locales, opts);
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
         } catch (_) {
-            try {
-                return a.localeCompare(b, undefined, opts);
-            } catch (_) {
-                return a < b ? -1 : (a > b ? 1 : 0);
-            }
+            return a < b ? -1 : (a > b ? 1 : 0);
         }
     }
 
@@ -149,8 +124,12 @@
         $('#ll-tools-start-flashcard, #ll-tools-close-flashcard').remove();
         $('#ll-tools-flashcard-popup, #ll-tools-flashcard-quiz-popup').show();
 
+        var util = (window.LLFlashcards && window.LLFlashcards.Util) || {};
         var categories = data.categories.map(function (category) {
-            return category.name;
+            if (util && typeof util.getCategorySelectionValue === 'function') {
+                return util.getCategorySelectionValue(category);
+            }
+            return category.slug || category.name;
         }).filter(Boolean);
         if (!categories.length) return;
 
@@ -181,12 +160,15 @@
         categories.forEach(function (category, index) {
             var displayName = category.translation || category.name;
             var checkboxId = 'category-' + category.slug;
+            var checkboxValue = (window.LLFlashcards && window.LLFlashcards.Util && typeof window.LLFlashcards.Util.getCategorySelectionValue === 'function')
+                ? window.LLFlashcards.Util.getCategorySelectionValue(category)
+                : (category.slug || category.name);
 
             var checkbox = $('<div>').append(
                 $('<input>', {
                     type: 'checkbox',
                     id: checkboxId,
-                    value: category.name,
+                    value: checkboxValue,
                     checked: false,
                     'data-preloaded': index === 0 // Preload only the first category
                 }),
@@ -215,6 +197,7 @@
 
     // Event handler for the "Start Quiz" button
     $('#ll-tools-start-selected-quiz').on('click', function () {
+        warmupVisualizerContext();
         var selectedCategories = $('#ll-tools-category-checkboxes input[type="checkbox"]:checked').map(function () {
             return $(this).val();
         }).get();
@@ -228,13 +211,17 @@
 
     // Event handler to start the widget
     $('#ll-tools-start-flashcard').on('click', function () {
+        warmupVisualizerContext();
         syncWordsetFromDataset(this);
         $('body').addClass('ll-tools-flashcard-open');
         $('#ll-tools-flashcard-popup').show();
 
-        // Prepare categoriesPreselected with untranslated names
+        // Prepare categoriesPreselected with stable category identifiers
         var preselectedCategories = llToolsFlashcardsData.categories.map(function (category) {
-            return category.name; // Always use the untranslated name
+            if (window.LLFlashcards && window.LLFlashcards.Util && typeof window.LLFlashcards.Util.getCategorySelectionValue === 'function') {
+                return window.LLFlashcards.Util.getCategorySelectionValue(category);
+            }
+            return category.slug || category.name;
         });
 
         if (llToolsFlashcardsData.categoriesPreselected || llToolsFlashcardsData.categories.length === 1) {

@@ -175,7 +175,14 @@ final class WordsetProgressResetActionTest extends LL_Tools_TestCase
             $this->assertFalse(is_wp_error($term));
             $this->assertIsArray($term);
 
-            $categoryId = (int) $term['term_id'];
+            $sourceCategoryId = (int) $term['term_id'];
+            $categoryId = $sourceCategoryId;
+            if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+                $effectiveCategoryId = (int) ll_tools_get_effective_category_id_for_wordset($sourceCategoryId, $wordsetId, true);
+                if ($effectiveCategoryId > 0) {
+                    $categoryId = $effectiveCategoryId;
+                }
+            }
             $categoryIds[] = $categoryId;
 
             update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');

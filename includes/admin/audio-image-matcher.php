@@ -9,8 +9,8 @@ if (!defined('WPINC')) { die; }
 function ll_register_audio_image_matcher_admin_page() {
     add_submenu_page(
         'tools.php',
-        'Language Learner Tools - Audio/Image Matcher',
-        'LL Tools Audio/Image Matcher',
+        __('Language Learner Tools - Audio/Image Matcher', 'll-tools-text-domain'),
+        __('LL Tools Audio/Image Matcher', 'll-tools-text-domain'),
         'view_ll_tools',
         'll-audio-image-matcher',
         'll_render_audio_image_matcher_page'
@@ -66,28 +66,82 @@ function ll_aim_enqueue_admin_assets($hook) {
         'before'
     );
 
+    $preselected_wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    $active_wordset_id = function_exists('ll_tools_get_active_wordset_id')
+        ? ll_tools_get_active_wordset_id($preselected_wordset_id)
+        : ( $preselected_wordset_id ?: 0 );
+    $initial_category_rows = ll_aim_get_category_options_for_wordset($active_wordset_id);
+
     wp_localize_script('ll-audio-image-matcher', 'llAimData', [
         'ajaxurl' => admin_url('admin-ajax.php'),
         'nonce'   => wp_create_nonce('ll_aim_admin'),
+        'initialWordsetId' => $active_wordset_id,
+        'initialCategoryId' => isset($_GET['term_id']) ? intval($_GET['term_id']) : 0,
+        'initialCategoryRows' => $initial_category_rows,
+        'i18n'    => [
+            'loadingDefault' => __('Loading…', 'll-tools-text-domain'),
+            'loadingImages' => __('Loading images…', 'll-tools-text-domain'),
+            'loadingNextAudio' => __('Loading next audio…', 'll-tools-text-domain'),
+            'allDoneCategory' => __('All done in this category.', 'll-tools-text-domain'),
+            'translationPrefix' => __('Translation:', 'll-tools-text-domain'),
+            'currentImageCaption' => __('Current image (will be replaced if you pick a new one)', 'll-tools-text-domain'),
+            'noImagesFound' => __('No images found in this category.', 'll-tools-text-domain'),
+            'pickedBadge' => __('Picked', 'll-tools-text-domain'),
+            'savingMatch' => __('Saving match…', 'll-tools-text-domain'),
+            'saveError' => __('Error saving match.', 'll-tools-text-domain'),
+            'selectCategoryPrompt' => __('Please select a category.', 'll-tools-text-domain'),
+            'selectOption' => __('— Select —', 'll-tools-text-domain'),
+        ],
     ]);
 }
 add_action('admin_enqueue_scripts', 'll_aim_enqueue_admin_assets');
+
+function ll_aim_get_category_options_for_wordset(int $wordset_id): array {
+    static $cache = [];
+
+    $wordset_id = max(0, (int) $wordset_id);
+    $cache_key = (string) $wordset_id;
+
+    if (array_key_exists($cache_key, $cache)) {
+        return $cache[$cache_key];
+    }
+
+    $cache[$cache_key] = function_exists('ll_tools_get_word_category_selector_rows')
+        ? ll_tools_get_word_category_selector_rows($wordset_id, [
+            'post_types' => ['words'],
+            'post_statuses' => ['publish'],
+        ])
+        : [];
+
+    return $cache[$cache_key];
+}
+
+function ll_aim_get_category_options_handler() {
+    ll_aim_verify_ajax_request();
+
+    $wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
+    if (function_exists('ll_tools_get_active_wordset_id')) {
+        $wordset_id = ll_tools_get_active_wordset_id($wordset_id);
+    }
+
+    wp_send_json_success([
+        'wordset_id' => (int) $wordset_id,
+        'rows' => ll_aim_get_category_options_for_wordset((int) $wordset_id),
+    ]);
+}
 
 /**
  * Render UI
  */
 function ll_render_audio_image_matcher_page() {
-    // Categories for the Category select
-    $cats = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-    ]);
-
     // Wordsets for the new Word Set select
     $wordsets = get_terms([
         'taxonomy'   => 'wordset',
         'hide_empty' => false,
     ]);
+    if (is_wp_error($wordsets)) {
+        $wordsets = [];
+    }
 
     // Preselects (allow URL override for auto-launch use cases)
     $pre_term_id      = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
@@ -96,6 +150,18 @@ function ll_render_audio_image_matcher_page() {
         ? ll_tools_get_active_wordset_id($explicit_ws_id)
         : ( $explicit_ws_id ?: 0 );
 
+    if ($pre_term_id > 0 && $pre_wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($pre_term_id, $pre_wordset_id, true);
+        if ($effective_category_id > 0) {
+            $pre_term_id = $effective_category_id;
+        }
+    }
+
+    $cats = ll_aim_get_category_options_for_wordset($pre_wordset_id);
+    if (empty($cats)) {
+        $cats = ll_aim_get_category_options_for_wordset(0);
+    }
+
     $pre_rematch = isset($_GET['rematch']) ? (intval($_GET['rematch']) === 1) : false;
 
     // Include template (now expects $wordsets and $pre_wordset_id as well)
@@ -103,7 +169,13 @@ function ll_render_audio_image_matcher_page() {
     if (file_exists($template)) {
         include $template; // expects $cats, $wordsets, $pre_term_id, $pre_wordset_id, $pre_rematch
     } else {
-        echo '<div class="notice notice-error"><p>Template not found: <code>' . esc_html($template) . '</code></p></div>';
+        echo '<div class="notice notice-error"><p>'
+            . sprintf(
+                /* translators: %s: absolute template path */
+                esc_html__('Template not found: %s', 'll-tools-text-domain'),
+                '<code>' . esc_html($template) . '</code>'
+            )
+            . '</p></div>';
     }
 }
 
@@ -119,7 +191,14 @@ function ll_aim_get_images_handler() {
     ll_aim_verify_ajax_request();
 
     $term_id = isset($_GET['term_id']) ? intval($_GET['term_id']) : 0;
+    $wordset_id = isset($_GET['wordset_id']) ? intval($_GET['wordset_id']) : 0;
     $hide_used = isset($_GET['hide_used']) ? (intval($_GET['hide_used']) === 1) : false;
+    if ($term_id > 0 && $wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true);
+        if ($effective_category_id > 0) {
+            $term_id = $effective_category_id;
+        }
+    }
     if (!$term_id) {
         wp_send_json_success(['images' => []]);
     }
@@ -195,6 +274,7 @@ function ll_aim_get_images_handler() {
     wp_send_json_success(['images' => $out]);
 }
 add_action('wp_ajax_ll_aim_get_images', 'll_aim_get_images_handler');
+add_action('wp_ajax_ll_aim_get_category_options', 'll_aim_get_category_options_handler');
 
 /**
  * AJAX: Next "words" post with audio; include/skip existing thumbnails based on rematch flag
@@ -210,6 +290,12 @@ function ll_aim_get_next_handler() {
     $wordset_id = function_exists('ll_tools_get_active_wordset_id')
         ? ll_tools_get_active_wordset_id($explicit_ws_id) // uses default if 0, else respects explicit
         : ( $explicit_ws_id ?: 0 );
+    if ($term_id > 0 && $wordset_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($term_id, $wordset_id, true);
+        if ($effective_category_id > 0) {
+            $term_id = $effective_category_id;
+        }
+    }
 
     $exclude = [];
     if (isset($_GET['exclude'])) {

@@ -5,43 +5,47 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 ## Key Features
 
 - **Post types & taxonomies**
-  - `words`, `word_images`, and `word_audio` post types.
+  - `words`, `word_images`, `word_audio`, `ll_dictionary_entry`, and `ll_vocab_lesson` post types.
   - Taxonomies: `word-category`, `wordset`, `language`, `part-of-speech`, `recording_type`.
 
 - **Flashcard quiz modes**
   - **Practice Mode**: Traditional quiz with adaptive difficulty based on performance.
   - **Learning Mode**: Guided learning with word introduction, audio repetition, and progress tracking. Words are introduced gradually, and the system ensures mastery before moving forward.
+  - **Listening / Gender / Self-check Modes**: Additional mode variants for audio-first review, gender-aware drilling, and image-grouped confidence checks.
 
 - **Flashcard quiz shortcode**
   - `[flashcard_widget]` renders an interactive quiz. Attributes:
-    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning`), `wordset` (filter by wordset).
+    - `category` (slug or CSV), `mode` (`random` | `image` | `text`), `embed` (`true|false`), `quiz_mode` (`practice` | `learning` | `listening` | `gender` | `self-check`), `wordset` (filter by wordset).
 
 - **Auto quiz pages & embed pages**
   - Auto-generated quiz pages under `/quiz/<category>`.
   - Embeddable pages under `/embed/<category>` render a minimal page that includes `[flashcard_widget embed="true"]`.
   - Both support wordset filtering and mode selection via URL parameters.
+  - `/embed/<category>` supports `?wordset=<slug>` and `?mode=<practice|learning|listening|gender|self-check>`.
 
 - **Audio recording & processing**
   - **Audio Recorder Role**: Dedicated user role for contributors to record audio.
   - **Recording Interface**: `[audio_recording_interface]` shortcode provides a browser-based recording interface.
   - **Audio Processor**: Admin tool to batch-process uploaded audio files and attach them to words.
-  - **Audio Review**: Admin page to review and manage audio quality.
+  - **Audio-Image Matcher**: Admin tool to quickly match audio and images where needed.
   - **Recording Types**: Categorize audio as introduction, isolation, question, or sentence for contextual playback.
 
 - **Other shortcodes**
   - `[word_grid]` – grid of words with audio/text toggles, supports wordset filtering.
   - `[word_audio]` – simple audio + (optional) text/translation for a single word.
+  - `[editor_hub]` – editor-facing workflow for filling missing word metadata and recording details.
+  - `[wordset_page]` / `[ll_wordset_page]` – front-end wordset hub with study, progress, and manager views.
+  - `[ll_language_switcher]` – front-end locale switcher for the plugin’s available translations.
   - `[image_copyright_grid posts_per_page="12"]` – paginated grid of `word_images`.
   - Quiz listings: `[quiz_pages_grid]` and `[quiz_pages_dropdown]`, both support wordset filtering and popup mode.
-  - `[audio_recording_interface]` – browser-based audio recording interface.
 
 - **Admin UX**
   - Bulk **audio** and **image** uploaders that can create/update posts and try to match media to posts by name.
   - **Audio Processor**: Batch-process uploaded audio files and attach them to words.
-  - **Audio Review**: Review and manage audio quality and associations.
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
-  - "Manage Word Sets" admin surface.
-  - Settings page (translations, DeepL API key, image size, font, option caps, etc.).
+  - **Offline App Export**: Build a single-wordset offline quiz bundle with media, optional local STT games, and local-first progress sync back to the site.
+  - Wordset manager workflows via the plugin’s custom wordset pages.
+  - Settings page (translations, browser-language auto-switch, DeepL API key, image size, font, option caps, etc.).
 
 - **DeepL integration**
   - Optional: store a DeepL API key and enable category term translations in the UI.
@@ -55,7 +59,9 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - `audio_recorder` – Dedicated role for audio recording contributors with limited admin access.
 
 - **Update checker**
-  - Uses Yahnis Elsts' Plugin Update Checker, tracking the GitHub repo.
+  - Uses Yahnis Elsts' Plugin Update Checker.
+  - `Main` pulls packaged GitHub release assets for production updates.
+  - `Dev` remains a GitHub branch-based testing channel.
 
 ---
 
@@ -69,14 +75,15 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 ## Quick Start
 
 1. Create terms in **Word Category**, **Word Set**, **Language** and **Part of Speech**.
-2. Add **Words**: set the title, featured image (optional), attach audio (optional), and assign **Word Category** terms.
+2. Add **Words**: set the title, featured image (optional), attach audio as needed, and assign **Word Category** terms.
+   - Audio may be required before publish or quiz use when the assigned category configuration requires approved recordings.
 3. Drop a flashcard quiz anywhere:
    ```text
    [flashcard_widget category="animals" quiz_mode="learning"]
    ```
    - `quiz_mode="practice"` for traditional adaptive quizzing (default)
    - `quiz_mode="learning"` for guided learning with word introduction
-   - To embed a minimal page for a category, link to `/embed/animals` or `/embed/animals?mode=learning`.
+   - To embed a minimal page for a category, link to `/embed/animals`, `/embed/animals?mode=<practice|learning|listening|gender|self-check>`, or `/embed/animals?wordset=<slug>&mode=<practice|learning|listening|gender|self-check>`.
 
 4. Make a grid of words:
    ```text
@@ -104,6 +111,16 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
    [audio_recording_interface]
    ```
 
+9. Editor-facing missing-content workflow:
+   ```text
+   [editor_hub]
+   ```
+
+10. Optional front-end locale switcher:
+   ```text
+   [ll_language_switcher]
+   ```
+
 ---
 
 ## Shortcodes (details)
@@ -124,10 +141,24 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 - **Attributes**:
   - `id`: the Word post ID.
   - `translate`: `yes|no` (show the translation next to the audio button).
+  - `recording_type`: specific `recording_type` slug to play, such as `introduction`.
+  - `word_audio_id`: exact `word_audio` post ID to play.
 
 ### `[image_copyright_grid]`
 - **Attributes**:
   - `posts_per_page`: default `12`.
+
+### `[editor_hub]`
+- Editor-facing review flow for missing word fields, dictionary entry links, images, and recording metadata.
+
+### `[wordset_page]` / `[ll_wordset_page]`
+- Front-end wordset hub that renders the current wordset context, including study/progress/settings views.
+
+### `[ll_language_switcher]`
+- **Attributes**:
+  - `show_flags`: `1|0` to show or hide locale flags.
+  - `style`: `native`, `english`, or `code`.
+  - `class`: extra CSS class for wrapper styling.
 
 ### `[quiz_pages_grid]` / `[quiz_pages_dropdown]`
 - **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`practice`, `learning`, or `self-check`).
@@ -175,19 +206,33 @@ Or link to: `/quiz/animals?mode=learning`
    - Assign recording types (introduction, isolation, question, sentence).
    - Create `word_audio` posts and attach to words.
 
-2. **Audio Review** (`Tools → Audio Review`):
-   - Review audio quality and associations.
-   - Listen to audio and verify word matches.
-   - Edit or remove incorrect associations.
-
-3. **Audio-Image Matcher** (`Tools → Audio-Image Matcher`):
+2. **Audio-Image Matcher** (`Tools → Audio-Image Matcher`):
    - Match audio files to images.
    - Uses fuzzy matching and scoring.
    - Tracks image usage to promote variety.
 
-4. **Recording Types Admin** (`Tools → Recording Types`):
+3. **Recording Types Admin** (`Tools → Recording Types`):
    - Manage the recording type taxonomy.
    - Categorize audio for contextual use.
+
+---
+
+## Offline App Export & Sync
+
+- **Offline bundle export** (`Tools → Offline App Export`)
+  - Exports exactly one word set per bundle.
+  - Stages the standalone offline shell, quiz/game runtime assets, and bundled media needed for supported modes.
+  - Can include local STT-backed game content when the selected word set has an offline model bundle configured.
+
+- **Local-first progress**
+  - Learners can keep using the exported app while fully offline.
+  - Progress is stored locally in the app until the learner reconnects.
+  - The app can later sign in against the source site and sync saved progress back through the plugin’s offline sync endpoint.
+
+- **What to verify after export**
+  - The selected word set has enough usable media for the intended quiz/game modes.
+  - The generated zip includes the offline shell plus plugin media assets, not the full repository.
+  - If sync is intended, the source site remains reachable and the learner has an account with access to the same word set.
 
 ---
 
@@ -209,6 +254,7 @@ The flashcard widget intelligently selects the appropriate recording type based 
 - **Translations**
   - Enable category term translations (optional).
   - If enabled, you can store a **DeepL API** key and have UI strings/terms translated automatically.
+  - Optional browser-language auto-switch uses the visitor locale until they pick a different plugin language.
 
 - **Flashcards**
   - **Image size** used in quizzes.
@@ -262,7 +308,11 @@ The admin menu is trimmed for these roles to focus on LL Tools–related items.
 
 ## Update Checker
 
-The plugin includes the **Plugin Update Checker** library and points at this GitHub repository's `main` branch.
+The plugin includes the **Plugin Update Checker** library.
+
+- `Main` stable updates come from a packaged GitHub release asset zip, not the raw source archive.
+- `Dev` remains branch-based for testing and can include development-only repository files.
+- Maintainers should follow the release steps in [RELEASING.md](RELEASING.md).
 
 ---
 

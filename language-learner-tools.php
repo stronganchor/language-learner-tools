@@ -3,7 +3,11 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-Version: 5.5.1
+<<<<<<< HEAD
+Version: 6.0.0
+=======
+Version: 5.11.20
+>>>>>>> 862f8f6c604b812462f2718619b3529e97e15bf5
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
@@ -18,8 +22,17 @@ if (!defined('WPINC')) {
 define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__)); 
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
+<<<<<<< HEAD
+define('LL_TOOLS_VERSION', '6.0.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
+define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
+=======
+define('LL_TOOLS_VERSION', '5.11.20');
+define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
+define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
+define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
+>>>>>>> 862f8f6c604b812462f2718619b3529e97e15bf5
 
 function ll_tools_normalize_update_branch($branch) {
     return ($branch === 'dev') ? 'dev' : 'main';
@@ -28,6 +41,70 @@ function ll_tools_normalize_update_branch($branch) {
 function ll_tools_get_update_branch() {
     $branch = get_option('ll_update_branch', 'main');
     return ll_tools_normalize_update_branch($branch);
+}
+
+function ll_tools_get_release_asset_name_regex() {
+    return '/^language-learner-tools(?:-[0-9][0-9A-Za-z._-]*)?\.zip$/i';
+}
+
+/**
+ * Configure the GitHub update checker for the selected channel.
+ *
+ * Main/stable intentionally uses packaged release assets only so production
+ * sites never fall back to raw repository archives.
+ *
+ * @param object|null $update_checker Plugin Update Checker instance.
+ * @param string      $branch         Selected update branch.
+ * @return void
+ */
+function ll_tools_configure_update_checker($update_checker, $branch) {
+    if (!is_object($update_checker) || !method_exists($update_checker, 'setBranch')) {
+        return;
+    }
+
+    $update_checker->setBranch(ll_tools_normalize_update_branch($branch));
+
+    if (!method_exists($update_checker, 'getVcsApi')) {
+        return;
+    }
+
+    $vcs_api = $update_checker->getVcsApi();
+    if (!is_object($vcs_api) || !method_exists($vcs_api, 'enableReleaseAssets')) {
+        return;
+    }
+
+    $vcs_api->enableReleaseAssets(
+        ll_tools_get_release_asset_name_regex(),
+        \YahnisElsts\PluginUpdateChecker\v5p4\Vcs\Api::REQUIRE_RELEASE_ASSETS
+    );
+}
+
+/**
+ * Keep stable updates on GitHub release assets only.
+ *
+ * Dev remains branch-based for testing; main fails closed if a release asset
+ * is missing so live sites don't ingest repository source archives.
+ *
+ * @param array $strategies PUC strategy map.
+ * @return array
+ */
+function ll_tools_filter_update_detection_strategies($strategies) {
+    if (ll_tools_get_update_branch() !== 'main') {
+        return $strategies;
+    }
+
+    if (!is_array($strategies)) {
+        return [];
+    }
+
+    $release_strategy = \YahnisElsts\PluginUpdateChecker\v5p4\Vcs\Api::STRATEGY_LATEST_RELEASE;
+    if (empty($strategies[$release_strategy]) || !is_callable($strategies[$release_strategy])) {
+        return [];
+    }
+
+    return [
+        $release_strategy => $strategies[$release_strategy],
+    ];
 }
 
 /**
@@ -54,6 +131,9 @@ function ll_tools_should_boot_update_checker() {
 require_once LL_TOOLS_BASE_PATH . 'includes/bootstrap.php';
 
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+add_filter('puc_vcs_update_detection_strategies-language-learner-tools', 'll_tools_filter_update_detection_strategies');
+
 $ll_tools_update_checker = null;
 if (ll_tools_should_boot_update_checker()) {
     $ll_tools_update_branch = ll_tools_get_update_branch();
@@ -62,7 +142,7 @@ if (ll_tools_should_boot_update_checker()) {
         __FILE__,
         'language-learner-tools'
     );
-    $ll_tools_update_checker->setBranch($ll_tools_update_branch);
+    ll_tools_configure_update_checker($ll_tools_update_checker, $ll_tools_update_branch);
 }
 
 add_action('update_option_ll_update_branch', function ($old_value, $value, $option_name) {
@@ -71,7 +151,7 @@ add_action('update_option_ll_update_branch', function ($old_value, $value, $opti
         return;
     }
     $branch = ll_tools_normalize_update_branch($value);
-    $ll_tools_update_checker->setBranch($branch);
+    ll_tools_configure_update_checker($ll_tools_update_checker, $branch);
     $ll_tools_update_checker->resetUpdateState();
     $ll_tools_update_checker->checkForUpdates();
 }, 10, 3);
@@ -92,6 +172,68 @@ function ll_tools_user_can_manage_plugin_updates() {
         || current_user_can('manage_options')
         || current_user_can('manage_network_plugins');
 }
+
+/**
+ * Treat administrators as LL Tools viewers even if the stored role cap drifts.
+ *
+ * Some production environments lose the persisted custom role capability during
+ * updates or syncs. All administrators already have stricter capabilities than
+ * `view_ll_tools`, so mirroring that cap for those users keeps the plugin's
+ * admin pages routable without weakening access.
+ *
+ * @param array<string,bool> $allcaps
+ * @param array<int,string>  $caps
+ * @param array<int,mixed>   $args
+ * @param WP_User            $user
+ * @return array<string,bool>
+ */
+function ll_tools_grant_view_cap_to_administrators($allcaps, $caps, $args, $user) {
+    if (!$user instanceof WP_User || !is_array($allcaps) || !is_array($caps)) {
+        return $allcaps;
+    }
+
+    if (!in_array('view_ll_tools', $caps, true)) {
+        return $allcaps;
+    }
+
+    $has_admin_cap = !empty($allcaps['manage_options'])
+        || !empty($allcaps['manage_network'])
+        || !empty($allcaps['manage_network_options'])
+        || !empty($allcaps['manage_network_plugins']);
+
+    if ($has_admin_cap) {
+        $allcaps['view_ll_tools'] = true;
+    }
+
+    return $allcaps;
+}
+add_filter('user_has_cap', 'll_tools_grant_view_cap_to_administrators', 10, 4);
+
+/**
+ * Queue one-time post-update tasks that depend on runtime-registered routes.
+ */
+function ll_tools_schedule_post_update_maintenance(): void {
+    set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 10 * MINUTE_IN_SECONDS);
+}
+
+/**
+ * Detect deployed version changes even when WordPress update hooks were skipped.
+ */
+function ll_tools_maybe_run_version_maintenance(): void {
+    $current_version = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
+    if ($current_version === '') {
+        return;
+    }
+
+    $stored_version = (string) get_option(LL_TOOLS_VERSION_OPTION, '');
+    if ($stored_version === $current_version) {
+        return;
+    }
+
+    ll_tools_schedule_post_update_maintenance();
+    update_option(LL_TOOLS_VERSION_OPTION, $current_version, false);
+}
+add_action('init', 'll_tools_maybe_run_version_maintenance', 5);
 
 /**
  * Returns plugin update status for this plugin from WordPress/PUC caches.
@@ -383,6 +525,7 @@ function ll_tools_maybe_render_plugin_update_dashboard_notice() {
             <?php
             echo esc_html(
                 sprintf(
+                    /* translators: %s: available plugin version */
                     __('Language Learner Tools update available: version %s.', 'll-tools-text-domain'),
                     $version
                 )
@@ -392,6 +535,7 @@ function ll_tools_maybe_render_plugin_update_dashboard_notice() {
                 <?php
                 echo esc_html(
                     sprintf(
+                        /* translators: %s: available plugin version */
                         __('Update to %s', 'll-tools-text-domain'),
                         $version
                     )
@@ -466,6 +610,12 @@ add_action('upgrader_process_complete', function ($upgrader, $options) {
 
     if (in_array(plugin_basename(LL_TOOLS_MAIN_FILE), $plugins, true)) {
         set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
+        ll_tools_schedule_post_update_maintenance();
+        if (function_exists('ll_tools_mark_vocab_lesson_recent_update')) {
+            ll_tools_mark_vocab_lesson_recent_update();
+        } else {
+            set_transient('ll_tools_vocab_lesson_recent_update', time(), 30 * MINUTE_IN_SECONDS);
+        }
     }
 }, 10, 2);
 
@@ -478,12 +628,19 @@ register_activation_hook(__FILE__, function () {
     }
     // Flag post-activation tasks to run on the next init (after taxonomies are available).
     set_transient('ll_tools_seed_default_wordset', 1, 10 * MINUTE_IN_SECONDS);
+    ll_tools_schedule_post_update_maintenance();
     set_transient('ll_tools_create_recording_page', 1, 10 * MINUTE_IN_SECONDS);
     // Safeguard to skip quiz page sync until seeding completes
     set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
 
     if (function_exists('ll_tools_install_user_progress_schema')) {
         ll_tools_install_user_progress_schema();
+    }
+    if (function_exists('ll_tools_install_dictionary_lookup_schema')) {
+        ll_tools_install_dictionary_lookup_schema();
+    }
+    if (function_exists('ll_tools_schedule_dictionary_lookup_rebuild')) {
+        ll_tools_schedule_dictionary_lookup_rebuild(true);
     }
 });
 
@@ -506,6 +663,10 @@ register_deactivation_hook(__FILE__, function () {
     $role = get_role('administrator');
     if ($role) {
         $role->remove_cap('view_ll_tools');
+    }
+
+    if (function_exists('ll_tools_clear_user_progress_retention_schedule')) {
+        ll_tools_clear_user_progress_retention_schedule();
     }
 });
 

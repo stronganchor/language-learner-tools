@@ -5,12 +5,16 @@ if (!defined('WPINC')) { die; }
 require_once(__DIR__ . '/assets.php');
 require_once __DIR__ . '/lib/sort.php';
 require_once __DIR__ . '/lib/text-display.php';
+require_once __DIR__ . '/lib/wordset-language-settings.php';
+require_once __DIR__ . '/lib/custom-stt-endpoint.php';
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';
+require_once __DIR__ . '/teacher-classes.php';
 require_once __DIR__ . '/login-window.php';
 require_once __DIR__ . '/lib/media-proxy.php';
 require_once __DIR__ . '/lib/image-aspect.php';
+require_once __DIR__ . '/lib/image-animation.php';
 require_once __DIR__ . '/lib/word-option-rules.php';
 require_once __DIR__ . '/lib/image-hash.php';
 
@@ -20,6 +24,11 @@ require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
+require_once(__DIR__ . '/post-types/content-lesson-post-type.php');
+require_once(__DIR__ . '/lib/dictionary-sources.php');
+require_once(__DIR__ . '/lib/dictionary-search-index.php');
+require_once(__DIR__ . '/lib/dictionary-browser.php');
+require_once(__DIR__ . '/lib/dictionary-snapshot.php');
 
 // Include taxonomies
 require_once(__DIR__ . '/taxonomies/word-category-taxonomy.php');
@@ -27,12 +36,15 @@ require_once(__DIR__ . '/taxonomies/wordset-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/language-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/part-of-speech-taxonomy.php');
 require_once(__DIR__ . '/taxonomies/recording-type-taxonomy.php');
+require_once(__DIR__ . '/wordset-isolation.php');
+require_once(__DIR__ . '/wordset-templates.php');
 
 // Include user roles
 require_once(__DIR__ . '/user-roles/wordset-manager.php');
 require_once(__DIR__ . '/user-roles/ll-tools-editor.php');
 require_once(__DIR__ . '/user-roles/learner-role.php');
 require_once(__DIR__ . '/user-roles/audio-recorder-role.php');
+require_once(__DIR__ . '/user-roles/teacher-role.php');
 
 // Include shortcode-providing/admin-shared modules.
 // These live under /admin for historical reasons but can be used on public pages.
@@ -40,10 +52,14 @@ require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/user-study.php');
+require_once(__DIR__ . '/offline-app-sync.php');
+require_once(__DIR__ . '/privacy.php');
 
 // Include API integrations (used by recorder flows on public pages)
 require_once(__DIR__ . '/admin/api/deepl-api.php');
 require_once(__DIR__ . '/admin/api/assemblyai-api.php');
+// Word option rules now power a lesson-side modal as well as the admin screen.
+require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 
 // Load admin-only tools and screens only for admin/WP-CLI requests.
 if (!function_exists('ll_tools_should_load_admin_modules')) {
@@ -64,7 +80,6 @@ if (!function_exists('ll_tools_should_load_admin_modules')) {
 
 if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/admin-dashboard-menu.php');
-    require_once(__DIR__ . '/admin/manage-wordsets.php');
     require_once(__DIR__ . '/admin/missing-audio-admin-page.php');
     require_once(__DIR__ . '/admin/audio-image-matcher.php');
     require_once(__DIR__ . '/admin/settings.php');
@@ -73,11 +88,15 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/metabox-word-audio-parent.php');
     require_once(__DIR__ . '/admin/bulk-translation-admin.php');
     require_once(__DIR__ . '/admin/bulk-word-import-admin.php');
+    require_once(__DIR__ . '/admin/dictionary-import-admin.php');
+    require_once(__DIR__ . '/admin/dictionary-sources-admin.php');
     require_once(__DIR__ . '/admin/export-import.php');
+    require_once(__DIR__ . '/admin/offline-app-export.php');
+    require_once(__DIR__ . '/admin/user-progress-report.php');
+    require_once(__DIR__ . '/admin/teacher-classes-page.php');
     require_once(__DIR__ . '/admin/word-images-fixer.php');
     require_once(__DIR__ . '/admin/example-sentence-migration.php');
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
-    require_once(__DIR__ . '/admin/word-option-rules-admin.php');
     require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
     require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');
     require_once(__DIR__ . '/admin/split-word-admin.php');
@@ -90,10 +109,13 @@ if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOL
     ll_tools_register_autopage_activation(LL_TOOLS_MAIN_FILE);
 }
 require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
+require_once(__DIR__ . '/pages/content-lesson-pages.php');
+require_once(__DIR__ . '/pages/wordset-games.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
 require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');
 require_once(__DIR__ . '/pages/recording-page.php');
 require_once(__DIR__ . '/pages/editor-hub-page.php');
+require_once(__DIR__ . '/pages/dictionary-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
@@ -105,8 +127,8 @@ require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
-require_once(__DIR__ . '/shortcodes/user-study-dashboard.php');
 require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
+require_once(__DIR__ . '/shortcodes/dictionary-shortcode.php');
 
 // Include the plugin update checker only on admin/cron/CLI requests.
 if (!function_exists('ll_tools_should_boot_update_checker') || ll_tools_should_boot_update_checker()) {

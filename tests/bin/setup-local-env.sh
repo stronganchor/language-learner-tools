@@ -11,6 +11,20 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
+get_windows_temp_dir() {
+    if ! command -v cmd.exe >/dev/null 2>&1 || ! command -v wslpath >/dev/null 2>&1; then
+        return 1
+    fi
+
+    local win_temp
+    win_temp="$(cmd.exe /d /c echo %TEMP% 2>/dev/null | tr -d '\r' | tail -n 1)"
+    if [[ -z "$win_temp" ]]; then
+        return 1
+    fi
+
+    wslpath -u "$win_temp"
+}
+
 find_up() {
     local target="$1"
     local dir="$2"
@@ -55,7 +69,7 @@ print(port if port else '3306')
 PY
 )
 
-db_name="${parsed[0]:-local_test}"
+site_db_name="${parsed[0]:-local}"
 db_user="${parsed[1]:-root}"
 db_pass="${parsed[2]:-root}"
 db_port="${parsed[3]:-3306}"
@@ -132,9 +146,18 @@ if [[ "$active_db_port" =~ ^[0-9]+$ ]]; then
     db_port_source="local_runtime"
 fi
 
+default_test_db_name="${site_db_name}_test"
+if [[ "$site_db_name" == "local" ]]; then
+    default_test_db_name="local_test"
+elif [[ "$site_db_name" == *_test || "$site_db_name" == *_tests || "$site_db_name" == *_testing || "$site_db_name" == *_suite ]]; then
+    default_test_db_name="${site_db_name}_suite"
+fi
+
+db_name="${WP_TEST_DB_NAME:-$default_test_db_name}"
 host_value="127.0.0.1:${db_port}"
 tests_dir_default="${WP_TESTS_DIR:-/tmp/wordpress-tests-lib}"
 core_dir_default="${WP_CORE_DIR:-/tmp/wordpress}"
+prefer_windows_temp_bootstrap="${LL_TOOLS_USE_WINDOWS_TEMP_WP_BOOTSTRAP:-1}"
 
 php_candidate=""
 mysql_candidate=""
@@ -151,17 +174,14 @@ do
     fi
 done
 
-if [[ -n "$php_candidate" && "$php_candidate" == *.exe ]]; then
-    if [[ "$php_candidate" =~ ^/mnt/c/Users/([^/]+)/ ]]; then
-        local_user="${BASH_REMATCH[1]}"
-        win_temp="/mnt/c/Users/${local_user}/AppData/Local/Temp"
-        if [[ -d "$win_temp" ]]; then
-            if [[ -z "${WP_TESTS_DIR:-}" ]]; then
-                tests_dir_default="${win_temp}/wordpress-tests-lib"
-            fi
-            if [[ -z "${WP_CORE_DIR:-}" ]]; then
-                core_dir_default="${win_temp}/wordpress"
-            fi
+if [[ "$prefer_windows_temp_bootstrap" == "1" && -n "$php_candidate" && "$php_candidate" == *.exe ]]; then
+    win_temp="$(get_windows_temp_dir || true)"
+    if [[ -d "$win_temp" ]]; then
+        if [[ -z "${WP_TESTS_DIR:-}" ]]; then
+            tests_dir_default="${win_temp}/wordpress-tests-lib"
+        fi
+        if [[ -z "${WP_CORE_DIR:-}" ]]; then
+            core_dir_default="${win_temp}/wordpress"
         fi
     fi
 fi
@@ -181,6 +201,8 @@ if [[ -n "$mysql_candidate" ]]; then
 fi
 
 echo "export LOCAL_DB_PORT_SOURCE='${db_port_source//\'/\'\\\'\'}'"
+echo "export LOCAL_LIVE_DB_NAME='${site_db_name//\'/\'\\\'\'}'"
+echo "export LOCAL_LIVE_DB_HOST='${host_value//\'/\'\\\'\'}'"
 if [[ -n "$active_mysql_conf" ]]; then
     echo "export LOCAL_ACTIVE_MYSQL_CONF='${active_mysql_conf//\'/\'\\\'\'}'"
 fi

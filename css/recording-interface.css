@@ -1,25 +1,30 @@
 .ll-recording-interface {
-    max-width: 700px;
+    --ll-recorder-space: clamp(0.45rem, 1.2vw, 0.9rem);
+    --ll-recorder-card-pad: clamp(0.75rem, 1.8vw, 1.25rem);
+    --ll-recorder-main-gap: clamp(0.75rem, 1.6vw, 1.25rem);
+    --ll-recorder-image-size: clamp(112px, 21vh, 160px);
+    --ll-recorder-image-column-width: clamp(196px, 28vw, 260px);
+    --ll-recorder-record-size: clamp(58px, 9.2vh, 76px);
+    --ll-recorder-record-icon: clamp(24px, 3.8vh, 31px);
+    max-width: min(980px, calc(100vw - 1rem));
     margin: 0 auto;
-    padding: 1rem;
+    padding: var(--ll-recorder-space);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    justify-content: center;
 }
 
 /* Compact header - all info in one row */
 .ll-recording-header {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: clamp(0.45rem, 1vw, 0.85rem);
     flex-wrap: wrap;
-    padding: 0.75rem 1rem;
+    padding: clamp(0.45rem, 1vw, 0.7rem) clamp(0.55rem, 1.1vw, 0.9rem);
     background: #f0f0f1;
     border-radius: 8px;
-    margin-bottom: 1.5rem;
-    font-size: 0.9rem;
+    margin-bottom: clamp(0.5rem, 1.4vw, 1rem);
+    font-size: 0.85rem;
 }
 
 .ll-recording-progress {
@@ -35,7 +40,8 @@
 
 .ll-category-selector {
     flex: 1;
-    min-width: 180px;
+    min-width: 150px;
+    position: relative;
 }
 
 .ll-category-selector label {
@@ -44,11 +50,20 @@
 
 .ll-category-selector select {
     width: 100%;
-    padding: 0.5rem 0.75rem;
+    max-width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
     border: 2px solid #ddd;
     border-radius: 6px;
+    box-sizing: border-box;
+    min-height: 2.35rem;
+    height: auto;
     font-size: 0.9rem;
+    line-height: 1.25;
     transition: border-color 0.2s;
+}
+
+.ll-category-selector select option {
+    font-size: inherit;
 }
 
 .ll-category-selector select:focus {
@@ -56,13 +71,128 @@
     border-color: #2271b1;
 }
 
+.ll-category-selector-mobile {
+    display: none;
+    width: 100%;
+    position: relative;
+}
+
+.ll-category-selector-mobile__trigger {
+    width: 100%;
+    min-height: 2.35rem;
+    padding: 0.5rem 0.7rem;
+    border: 2px solid #ddd !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    color: #1d2327 !important;
+    box-sizing: border-box;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    text-align: left;
+    font-size: 0.9rem !important;
+    line-height: 1.25 !important;
+    font-weight: 500 !important;
+    box-shadow: none !important;
+}
+
+.ll-category-selector-mobile__trigger:hover:not(:disabled),
+.ll-category-selector-mobile__trigger:focus-visible {
+    border-color: #2271b1 !important;
+    outline: none;
+}
+
+.ll-category-selector-mobile__trigger:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+
+.ll-category-selector-mobile__label {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.ll-category-selector-mobile__icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #4b5563;
+}
+
+.ll-category-selector-mobile__icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+}
+
+.ll-category-selector-mobile.is-open .ll-category-selector-mobile__trigger {
+    border-color: #2271b1 !important;
+}
+
+.ll-category-selector-mobile__panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    z-index: 30;
+    background: #ffffff;
+    border: 1px solid #ccd0d4;
+    border-radius: 10px;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.16);
+    overflow: hidden;
+}
+
+.ll-category-selector-mobile__options {
+    max-height: min(52vh, 320px);
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.ll-category-selector-mobile__option {
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 0 !important;
+    border-bottom: 1px solid #eef2f6 !important;
+    background: #ffffff !important;
+    color: #1d2327 !important;
+    box-sizing: border-box;
+    text-align: left;
+    display: block !important;
+    font-size: 0.9rem !important;
+    line-height: 1.25 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ll-category-selector-mobile__option:last-child {
+    border-bottom: 0 !important;
+}
+
+.ll-category-selector-mobile__option:hover,
+.ll-category-selector-mobile__option:focus-visible {
+    background: #f6f9fc !important;
+    outline: none;
+}
+
+.ll-category-selector-mobile__option.is-selected {
+    background: #e9f2fb !important;
+    color: #135e96 !important;
+    font-weight: 600 !important;
+}
+
 .ll-wordset-display {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     color: #50575e;
-    font-size: 0.85rem;
-    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
     background: white;
     border-radius: 6px;
     border: 1px solid #ddd;
@@ -75,7 +205,7 @@
 .ll-recorder-info {
     margin-left: auto;
     color: #50575e;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     white-space: nowrap;
 }
 
@@ -130,12 +260,39 @@
     text-align: center;
 }
 
+.ll-hidden-words-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.ll-hidden-words-overlay[hidden] {
+    display: none !important;
+}
+
+.ll-hidden-words-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.42);
+}
+
 .ll-hidden-words-panel {
-    margin: -0.75rem 0 1.25rem;
-    padding: 0.9rem;
+    position: relative;
+    margin: 0;
+    padding: 0.85rem;
+    width: min(700px, calc(100vw - 1.2rem));
+    max-height: min(82dvh, 620px);
     border: 1px solid #dcdcde;
     border-radius: 10px;
     background: #ffffff;
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.25);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .ll-hidden-words-panel[hidden] {
@@ -184,6 +341,10 @@
     display: flex;
     flex-direction: column;
     gap: 0.55rem;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding-right: 0.1rem;
 }
 
 .ll-hidden-word-item {
@@ -246,19 +407,83 @@
     font-size: 0.85rem;
 }
 
+.ll-new-word-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100060;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.ll-new-word-overlay[hidden] {
+    display: none !important;
+}
+
+.ll-new-word-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.46);
+}
+
 .ll-new-word-panel {
+    position: relative;
     background: #fff;
     border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
+    padding: clamp(0.85rem, 2vw, 1.25rem);
+    margin: 0;
     border: 1px solid #e2e4e7;
+    width: min(900px, calc(100vw - 1rem));
+    max-height: min(94dvh, 760px);
+    overflow: auto;
+    box-sizing: border-box;
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.26);
+}
+
+.ll-new-word-card,
+.ll-new-word-shell {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(0.65rem, 1.7vw, 1rem);
+}
+
+.ll-new-word-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.ll-new-word-header-actions {
+    display: inline-flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    margin-left: auto;
 }
 
 .ll-new-word-card h3 {
-    margin-top: 0;
-    margin-bottom: 0.75rem;
+    margin: 0;
     font-size: 1.1rem;
     color: #1a1a1a;
+}
+
+.ll-new-word-layout {
+    display: grid;
+    gap: clamp(0.75rem, 1.8vw, 1.2rem);
+    align-items: start;
+}
+
+.ll-new-word-form,
+.ll-new-word-sidebar {
+    min-width: 0;
+}
+
+.ll-new-word-form-grid {
+    display: grid;
+    gap: 0.75rem;
 }
 
 .ll-new-word-auto-status {
@@ -266,12 +491,34 @@
     align-items: center;
     gap: 0.45rem;
     padding: 0.3rem 0.6rem;
-    margin: 0 0 0.75rem;
+    margin: 0;
     border: 1px solid #ccd0d4;
     border-radius: 999px;
     background: #f6f7f7;
     color: #1d2327;
     box-sizing: border-box;
+    max-width: 100%;
+}
+
+.ll-recording-interface .ll-new-word-close {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    border: 1px solid #ccd0d4 !important;
+    background: #ffffff !important;
+    color: #3c434a !important;
+    font-size: 1.45rem !important;
+    font-weight: 400 !important;
+    line-height: 1 !important;
+}
+
+.ll-recording-interface .ll-new-word-close:hover:not(:disabled) {
+    background: #f6f7f7 !important;
+    border-color: #8c8f94 !important;
+    color: #1d2327 !important;
 }
 
 .ll-new-word-auto-status.is-loading {
@@ -335,25 +582,37 @@
 }
 
 .ll-new-word-status {
-    margin: 0 0 0.75rem;
-    font-size: 0.9rem;
-    color: #50575e;
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid #dcdcde;
+    background: #f6f7f7;
+    color: #1d2327;
+    font-size: 0.88rem;
+    font-weight: 500;
+    line-height: 1.35;
 }
 
 .ll-new-word-status.error {
-    color: #b32d2e;
+    border-color: #f0b8bd;
+    background: #fbeaea;
+    color: #8a2424;
 }
 
 .ll-new-word-status.info {
-    color: #2271b1;
+    border-color: #b9d8ef;
+    background: #eef5fb;
+    color: #155d8b;
 }
 
 .ll-new-word-status.success {
-    color: #008a20;
+    border-color: #b6dec0;
+    background: #e6f6ea;
+    color: #0f6b28;
 }
 
 .ll-new-word-row {
-    margin-bottom: 0.9rem;
+    margin: 0;
 }
 
 .ll-new-word-row label {
@@ -371,6 +630,8 @@
     border: 2px solid #ddd;
     border-radius: 6px;
     font-size: 0.95rem;
+    box-sizing: border-box;
+    min-height: 2.45rem;
 }
 
 .ll-new-word-row input[type="text"][disabled],
@@ -391,13 +652,22 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    margin-bottom: 0;
+}
+
+.ll-new-word-row--toggle {
+    align-self: end;
+}
+
+.ll-new-word-create-fields > .ll-new-word-row:not(:first-child) {
+    margin-top: 0.75rem;
 }
 
 .ll-new-word-types {
     border: 1px solid #ccd0d4;
     border-radius: 6px;
     padding: 0.6rem;
-    max-height: 160px;
+    max-height: 140px;
     overflow: auto;
     background: #f8f9fa;
 }
@@ -434,39 +704,91 @@
     line-height: 1.2;
 }
 
-.ll-new-word-actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
 .ll-new-word-review-slot {
-    margin: 0.75rem 0 0.5rem;
+    margin: 0;
 }
 
 .ll-new-word-panel .ll-recording-review {
     margin-top: 0;
 }
 
-.ll-new-word-panel #ll-review-submit {
-    display: none !important;
+.ll-new-word-panel.ll-new-word-panel--processing-review .ll-new-word-recording {
+    display: none;
+}
+
+.ll-new-word-panel.ll-new-word-panel--processing-review .ll-new-word-sidebar {
+    gap: 0.55rem;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel > h2 {
+    margin: 0 0 0.65rem;
+    font-size: clamp(1.1rem, 1.9vw, 1.55rem);
+    line-height: 1.08;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-file {
+    padding: 0.9rem;
+    margin-bottom: 0.85rem;
+    border-radius: 10px;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-header {
+    margin-bottom: 0.65rem;
+    gap: 0.55rem;
+    align-items: flex-start;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-title {
+    font-size: 1.02rem;
+    line-height: 1.15;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-metadata {
+    font-size: 0.86rem;
+    line-height: 1.3;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-waveform-container {
+    height: 100px;
+    margin: 0.65rem 0;
+    border-radius: 8px;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-playback-controls {
+    gap: 0.65rem;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play {
+    width: 48px;
+    height: 48px;
+}
+
+.ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play svg {
+    width: 18px;
+    height: 18px;
 }
 
 .ll-new-word-recording {
-    margin: 1rem 0 0.75rem;
-    padding: 0.9rem;
+    margin: 0;
+    padding: clamp(0.75rem, 1.8vw, 0.95rem);
     border: 1px solid #e2e4e7;
     border-radius: 10px;
     background: #f8f9fa;
 }
 
+.ll-new-word-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
 .ll-new-word-recording-controls {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1rem;
-    flex-wrap: wrap;
+    gap: 0.75rem;
+    width: 100%;
 }
 
 .ll-new-word-recording-type {
@@ -513,6 +835,119 @@
     gap: 0.75rem;
     justify-content: center;
     width: 100%;
+    flex-wrap: wrap;
+}
+
+.ll-recording-interface .ll-new-word-submit-btn {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    min-height: 48px !important;
+    padding: 0 !important;
+    border-radius: 10px !important;
+}
+
+@media (min-width: 860px) {
+    .ll-new-word-layout {
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.92fr);
+    }
+
+    .ll-new-word-form-grid {
+        grid-template-columns: minmax(0, 1.1fr) minmax(220px, 0.9fr);
+        align-items: start;
+    }
+
+    .ll-new-word-row--category,
+    .ll-new-word-row--toggle,
+    .ll-new-word-create-fields {
+        grid-column: 1 / -1;
+    }
+
+    .ll-new-word-row--toggle label {
+        min-height: 100%;
+        padding: 0.68rem 0.8rem;
+        border: 1px solid #ccd0d4;
+        border-radius: 8px;
+        background: #f6f7f7;
+        box-sizing: border-box;
+    }
+
+    .ll-new-word-types {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 0.8rem;
+        row-gap: 0.35rem;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .ll-new-word-types label,
+    .ll-new-word-types .ll-recording-type-option {
+        margin: 0;
+    }
+}
+
+@media (max-height: 820px) and (min-width: 860px) {
+    .ll-new-word-panel {
+        padding: 0.8rem;
+    }
+
+    .ll-new-word-card,
+    .ll-new-word-shell {
+        gap: 0.65rem;
+    }
+
+    .ll-new-word-card h3 {
+        font-size: 1.02rem;
+    }
+
+    .ll-new-word-row label {
+        margin-bottom: 0.3rem;
+        font-size: 0.85rem;
+    }
+
+    .ll-new-word-row input[type="text"],
+    .ll-new-word-row select {
+        min-height: 2.3rem;
+        padding: 0.5rem 0.65rem;
+        font-size: 0.9rem;
+    }
+
+    .ll-new-word-auto-status {
+        padding: 0.25rem 0.55rem;
+    }
+
+    .ll-recording-interface .ll-new-word-close {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        min-height: 32px !important;
+    }
+
+    .ll-new-word-row--toggle label {
+        padding: 0.55rem 0.7rem;
+    }
+
+    .ll-new-word-types {
+        padding: 0.5rem;
+        column-gap: 0.6rem;
+        row-gap: 0.25rem;
+    }
+
+    .ll-new-word-recording {
+        padding: 0.75rem;
+    }
+
+    .ll-new-word-recording-controls,
+    .ll-new-word-playback-actions {
+        gap: 0.6rem;
+    }
+
+    .ll-new-word-playback-controls {
+        gap: 0.6rem;
+        margin-top: 0.6rem;
+    }
+
 }
 
 @keyframes ll-spin {
@@ -523,23 +958,44 @@
 /* Main content - horizontal layout */
 .ll-recording-main {
     display: flex;
-    gap: 1.5rem;
+    gap: var(--ll-recorder-main-gap);
     align-items: flex-start;
     background: #fff;
     border-radius: 12px;
-    padding: 1.5rem;
-    min-height: 400px;
+    padding: var(--ll-recorder-card-pad);
+    overflow: hidden;
 }
 
 .ll-recording-image-container {
-    flex: 0 0 auto;
+    flex: 0 0 var(--ll-recorder-image-column-width);
+    width: var(--ll-recorder-image-column-width);
+    min-width: var(--ll-recorder-image-column-width);
+    max-width: var(--ll-recorder-image-column-width);
     display: flex;
     flex-direction: column;
     align-items: center;
+    position: relative;
 }
 
 .ll-recording-image-container .flashcard-container {
     margin: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.ll-recording-interface .flashcard-container.flashcard-size-small,
+.ll-recording-interface .flashcard-container.flashcard-size-medium,
+.ll-recording-interface .flashcard-container.flashcard-size-large {
+    width: var(--ll-recorder-image-size);
+    height: var(--ll-recorder-image-size);
+    max-width: var(--ll-recorder-image-size);
+    max-height: var(--ll-recorder-image-size);
+}
+
+.ll-recording-interface .flashcard-container.text-based {
+    width: min(100%, clamp(180px, 34vw, 260px));
+    max-width: min(100%, clamp(180px, 34vw, 260px));
+    height: clamp(110px, 18vh, 150px);
 }
 
 .ll-recording-image-container .ll-text-display {
@@ -547,21 +1003,84 @@
     box-sizing: border-box;
 }
 
+.ll-recording-image-container.is-loading .flashcard-container img,
+.ll-recording-image-container.is-loading .flashcard-container .ll-text-display {
+    opacity: 0;
+}
+
+.ll-recording-image-container.is-loading .flashcard-container::after,
+.ll-recording-image-container.is-loading .ll-image-title::after,
+.ll-recording-image-container.is-loading .ll-image-category::after {
+    content: "";
+    display: block;
+    background: linear-gradient(100deg, #ecf1f6 16%, #f6f9fc 34%, #ecf1f6 52%);
+    background-size: 220% 100%;
+    animation: ll-recorder-skeleton-shimmer 1.15s linear infinite;
+}
+
+.ll-recording-image-container.is-loading .flashcard-container::after {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px rgba(206, 216, 227, 0.78);
+}
+
 .ll-image-title {
-    font-size: 1.2rem;
+    font-size: clamp(1rem, 2.2vw, 1.15rem);
     font-weight: 600;
-    margin: 1rem 0 0.25rem;
+    margin: 0.7rem 0 0.2rem;
     color: #1a1a1a;
     text-align: center;
     min-height: 1.5rem;
+    width: 100%;
+    max-width: 100%;
+    position: relative;
+    box-sizing: border-box;
 }
 
 .ll-image-category {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     color: #666;
     margin: 0.25rem 0;
     font-weight: 500;
     text-align: center;
+    min-height: 1rem;
+    width: 100%;
+    max-width: 100%;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.ll-recording-image-container.is-loading .ll-image-title,
+.ll-recording-image-container.is-loading .ll-image-category {
+    color: transparent !important;
+}
+
+.ll-recording-image-container.is-loading .ll-image-title::after {
+    width: min(100%, clamp(118px, 18vw, 196px));
+    height: 0.95rem;
+    margin: 0.22rem auto 0;
+    border-radius: 999px;
+}
+
+.ll-recording-image-container.is-loading .ll-image-category::after {
+    width: min(100%, clamp(136px, 22vw, 236px));
+    height: 0.72rem;
+    margin: 0.18rem auto 0;
+    border-radius: 999px;
+}
+
+@keyframes ll-recorder-skeleton-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ll-recording-image-container.is-loading .flashcard-container::after,
+    .ll-recording-image-container.is-loading .ll-image-title::after,
+    .ll-recording-image-container.is-loading .ll-image-category::after {
+        animation: none;
+    }
 }
 
 /* Controls column - compact vertical stack */
@@ -569,9 +1088,9 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.875rem;
+    gap: clamp(0.5rem, 1.2vh, 0.85rem);
     min-width: 200px;
-    max-width: 320px;
+    max-width: min(100%, 620px);
     align-items: center;
     justify-content: flex-start;
     position: relative;
@@ -579,28 +1098,28 @@
 
 .ll-recording-type-selector {
     width: 100%;
-    max-width: 350px;
+    max-width: none;
 }
 
 .ll-recording-type-selector label {
     display: block;
     font-weight: 600;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
     color: #1a1a1a;
-    font-size: 0.9rem;
+    font-size: 0.83rem;
     text-align: center;
 }
 
 .ll-recording-type-selector select {
     width: 100%;
     /* Override theme select sizing that can clip emoji + translated labels. */
-    padding: 0.625rem 0.875rem !important;
+    padding: 0.45rem 0.7rem !important;
     border: 2px solid #ddd;
     border-radius: 6px;
     box-sizing: border-box;
-    min-height: 2.75rem;
+    min-height: 2.35rem;
     height: auto !important;
-    font-size: 0.95rem;
+    font-size: 0.88rem;
     line-height: 1.3 !important;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
     transition: border-color 0.2s;
@@ -610,6 +1129,159 @@
 .ll-recording-type-selector select:focus {
     outline: none;
     border-color: #2271b1;
+}
+
+.ll-recording-type-selector--enhanced select {
+    display: none !important;
+}
+
+.ll-recording-type-choices {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.4rem;
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    padding-top: 0.16rem;
+    padding-bottom: 0.16rem;
+}
+
+.ll-recording-type-choice {
+    appearance: none;
+    border: 1px solid #64748b;
+    background: #eceff3;
+    color: #64748b;
+    border-radius: 999px;
+    padding: 0.34rem 0.66rem;
+    font-size: 0.82rem;
+    line-height: 1.1;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 2.02rem;
+    min-width: 2.02rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.34rem;
+    position: relative;
+    box-sizing: border-box;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.ll-recording-type-choice-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    font-family: "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji", system-ui, sans-serif;
+}
+
+.ll-recording-type-choice-icon::before {
+    display: block;
+    font-size: 16px;
+    line-height: 1;
+    content: "\1F50A";
+}
+
+.ll-recording-type-choice.ll-study-recording-btn--question .ll-recording-type-choice-icon::before {
+    content: "\2753";
+}
+
+.ll-recording-type-choice.ll-study-recording-btn--isolation .ll-recording-type-choice-icon::before {
+    content: "\1F50D";
+}
+
+.ll-recording-type-choice.ll-study-recording-btn--introduction .ll-recording-type-choice-icon::before {
+    content: "\1F4AC";
+}
+
+.ll-recording-type-choice.ll-study-recording-btn--sentence .ll-recording-type-choice-icon::before {
+    content: "\1F4DD";
+}
+
+.ll-recording-type-choice-icon.has-custom-icon::before {
+    content: none;
+}
+
+.ll-recording-type-choice-label {
+    line-height: 1.1;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.ll-recording-type-choice-check {
+    display: none;
+    position: absolute;
+    top: 0.12rem;
+    right: 0.12rem;
+    width: 0.86rem;
+    height: 0.86rem;
+    border-radius: 999px;
+    background: #15803d;
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 700;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 1px #ffffff;
+}
+
+.ll-recording-type-choice.is-collapsed {
+    width: auto;
+    padding: 0.24rem 0.46rem;
+}
+
+.ll-recording-type-choice.is-collapsed .ll-recording-type-choice-label {
+    display: none;
+}
+
+.ll-recording-type-choice.is-recorded-by-me {
+    border-color: #15803d;
+    background: #d7f8dd;
+    color: #15803d;
+}
+
+.ll-recording-type-choice.is-recorded-by-me .ll-recording-type-choice-check {
+    display: inline-flex;
+}
+
+.ll-recording-type-choice.is-needed {
+    border-color: #64748b;
+    background: #eceff3;
+    color: #64748b;
+}
+
+.ll-recording-type-choice.is-optional {
+    border-color: #ccd5de;
+    background: #f6f7f7;
+    color: #6b7280;
+}
+
+.ll-recording-type-choice:hover,
+.ll-recording-type-choice:focus-visible {
+    border-color: #1d4d99;
+    color: #1d4d99;
+    box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.18);
+    outline: none;
+}
+
+.ll-recording-type-choice.is-active {
+    border-color: #1d4d99;
+    background: #d8e8ff;
+    color: #1d4d99;
+    padding: 0.34rem 0.74rem;
+    box-shadow: 0 0 0 2px rgba(29, 77, 153, 0.14);
+}
+
+.ll-recording-type-choice:disabled {
+    opacity: 0.58;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 .ll-recording-controls {
@@ -622,7 +1294,7 @@
 
 .ll-recording-buttons {
     display: flex;
-    gap: 1rem;
+    gap: clamp(0.5rem, 1vw, 0.85rem);
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
@@ -657,10 +1329,10 @@
 
 .ll-recording-interface .ll-btn-record {
     background: #e74c3c !important;
-    width: 80px !important;
-    height: 80px !important;
-    min-width: 80px !important;
-    min-height: 80px !important;
+    width: var(--ll-recorder-record-size) !important;
+    height: var(--ll-recorder-record-size) !important;
+    min-width: var(--ll-recorder-record-size) !important;
+    min-height: var(--ll-recorder-record-size) !important;
     border-radius: 50% !important;
     box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
     padding: 0 !important;
@@ -676,11 +1348,29 @@
     animation: pulse 1.5s infinite;
 }
 
+.ll-recording-interface .ll-btn-record.starting {
+    background: linear-gradient(135deg, #2271b1 0%, #135e96 100%) !important;
+    cursor: wait !important;
+}
+
+.ll-recording-interface .ll-btn-record.starting:disabled {
+    opacity: 1 !important;
+}
+
+.ll-recording-interface .ll-btn-record.starting svg {
+    animation: ll-recorder-spin 0.8s linear infinite;
+}
+
+.ll-recording-interface .ll-btn-record.stopping:disabled {
+    opacity: 1 !important;
+    cursor: wait !important;
+}
+
 .ll-recording-interface .ll-btn-record svg {
-    width: 32px !important;
-    height: 32px !important;
-    min-width: 32px !important;
-    min-height: 32px !important;
+    width: var(--ll-recorder-record-icon) !important;
+    height: var(--ll-recorder-record-icon) !important;
+    min-width: var(--ll-recorder-record-icon) !important;
+    min-height: var(--ll-recorder-record-icon) !important;
     fill: white !important;
     flex-shrink: 0;
 }
@@ -700,9 +1390,9 @@
 .ll-recording-interface .ll-btn-skip {
     background: #95a5a6 !important;
     color: white !important;
-    padding: 0.75rem 1.25rem !important;
+    padding: 0.58rem 0.95rem !important;
     border-radius: 8px !important;
-    font-size: 0.9rem !important;
+    font-size: 0.82rem !important;
 }
 
 .ll-recording-interface .ll-btn-skip svg {
@@ -718,9 +1408,9 @@
 .ll-recording-interface .ll-btn-hide {
     background: #3c4b5c !important;
     color: #ffffff !important;
-    padding: 0.75rem !important;
-    min-width: 46px !important;
-    min-height: 46px !important;
+    padding: 0.55rem !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
     border-radius: 8px !important;
 }
 
@@ -737,7 +1427,7 @@
 .ll-recording-interface .ll-btn-primary {
     background: #27ae60 !important;
     color: white !important;
-    padding: 0.75rem 1.5rem !important;
+    padding: 0.58rem 1.1rem !important;
     border-radius: 8px !important;
 }
 
@@ -754,7 +1444,7 @@
 .ll-recording-interface .ll-btn-secondary {
     background: #f39c12 !important;
     color: white !important;
-    padding: 0.75rem 1.5rem !important;
+    padding: 0.58rem 1.1rem !important;
     border-radius: 8px !important;
 }
 
@@ -785,21 +1475,93 @@
 }
 
 .ll-recording-indicator {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
-    font-size: 1.2rem;
+    width: fit-content;
+    max-width: 100%;
+    padding: 0.4rem 0.72rem;
+    border: 1px solid #f2c8c3;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffffff 0%, #fff3f1 100%);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    font-size: 0.95rem;
     font-weight: 600;
-    color: #e74c3c;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    white-space: nowrap;
+    color: #b42318;
+}
+
+.ll-recording-indicator.is-starting {
+    color: #2271b1;
+    border-color: #c7dbf2;
+    background: linear-gradient(180deg, #ffffff 0%, #eff6fc 100%);
+}
+
+.ll-recording-indicator.is-live {
+    box-shadow: 0 10px 22px rgba(180, 35, 24, calc(0.08 + (var(--ll-recorder-activity, 0) * 0.12)));
+}
+
+.ll-recording-indicator.is-starting .ll-recording-dot {
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    background: transparent;
+    box-shadow: 0 0 0 4px rgba(34, 113, 177, 0.12);
+    animation: ll-recorder-spin 0.8s linear infinite;
 }
 
 .ll-recording-dot {
     display: inline-block;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     background: #e74c3c;
     border-radius: 50%;
+    flex: 0 0 10px;
+    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.14);
     animation: blink 1s infinite;
+}
+
+.ll-recording-meter {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 3px;
+    flex: 0 0 auto;
+    min-height: 24px;
+    min-width: 53px;
+}
+
+.ll-recording-meter-bar {
+    --level: 0;
+    --base: 8px;
+    width: 4px;
+    height: calc(var(--base) + 18px * var(--level));
+    border-radius: 999px;
+    background: linear-gradient(180deg, #fb7185 0%, #ef4444 66%, #b91c1c 100%);
+    opacity: calc(0.34 + (var(--level) * 0.66));
+    transform-origin: center bottom;
+    transition: height 0.1s linear, opacity 0.16s ease;
+}
+
+.ll-recording-meter-bar:nth-child(2) { --base: 11px; }
+.ll-recording-meter-bar:nth-child(3) { --base: 9px; }
+.ll-recording-meter-bar:nth-child(4) { --base: 13px; }
+.ll-recording-meter-bar:nth-child(5) { --base: 10px; }
+.ll-recording-meter-bar:nth-child(6) { --base: 12px; }
+.ll-recording-meter-bar:nth-child(7) { --base: 9px; }
+.ll-recording-meter-bar:nth-child(8) { --base: 11px; }
+
+.ll-recording-indicator.is-starting .ll-recording-meter-bar {
+    background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 66%, #2271b1 100%);
+    opacity: 0.5;
+}
+
+#ll-recording-timer,
+#ll-new-word-recording-timer {
+    min-width: 3ch;
 }
 
 @keyframes blink {
@@ -814,10 +1576,16 @@
     }
 }
 
+@keyframes ll-recorder-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 .ll-playback-controls {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
     width: 100%;
     max-width: 400px;
 }
@@ -828,23 +1596,102 @@
 
 .ll-playback-actions {
     display: flex;
-    gap: 1.25rem;
+    gap: 0.75rem;
     justify-content: center;
 }
 
+.ll-upload-feedback {
+    position: fixed;
+    left: 50%;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - 1rem));
+    padding: 0.7rem 0.8rem;
+    border: 1px solid #c3d9ea;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+    backdrop-filter: blur(6px);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    z-index: 100070;
+    pointer-events: none;
+}
+
+.ll-upload-feedback[hidden] {
+    display: none !important;
+}
+
+.ll-upload-feedback-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.ll-upload-feedback-label {
+    color: #0c5460;
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.ll-upload-feedback-value {
+    color: #0c5460;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1.1;
+    min-width: 3ch;
+    text-align: right;
+}
+
+.ll-upload-progress-bar {
+    position: relative;
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #d9eaf2;
+    overflow: hidden;
+}
+
+.ll-upload-progress-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2271b1 0%, #58a7d9 100%);
+    transition: width 0.2s ease;
+}
+
+.ll-upload-feedback.is-indeterminate .ll-upload-progress-fill {
+    width: 38%;
+    animation: ll-upload-progress-indeterminate 1.15s ease-in-out infinite;
+}
+
+@keyframes ll-upload-progress-indeterminate {
+    0% {
+        transform: translateX(-130%);
+    }
+
+    100% {
+        transform: translateX(290%);
+    }
+}
+
 .ll-upload-status {
-    padding: 0.875rem;
+    padding: 0.55rem 0.75rem;
     border-radius: 6px;
     font-weight: 500;
-    font-size: 0.95rem;
+    font-size: 0.86rem;
     text-align: center;
     width: 100%;
     max-width: 400px;
-    min-height: 48px;
+    min-height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: auto;
     transition: opacity 0.3s ease;
 }
 
@@ -872,6 +1719,46 @@
 .ll-upload-status.info {
     background: #d1ecf1;
     color: #0c5460;
+}
+
+.ll-recording-review-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100055;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.ll-recording-review-overlay[hidden] {
+    display: none !important;
+}
+
+.ll-recording-review-overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.48);
+}
+
+.ll-recording-review-shell {
+    position: relative;
+    width: min(880px, calc(100vw - 1rem));
+    max-height: min(92dvh, 760px);
+    overflow: auto;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-radius: 12px;
+    box-shadow: 0 24px 56px rgba(15, 23, 42, 0.28);
+    padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.ll-recording-review-shell .ll-recording-review-slot {
+    margin: 0;
+}
+
+.ll-recording-review-shell .ll-recording-review {
+    margin-top: 0;
 }
 
 .ll-recording-complete {
@@ -977,84 +1864,132 @@
     transition: transform 0.2s ease;
 }
 
+@media (max-height: 720px) {
+    .ll-recording-interface {
+        --ll-recorder-image-size: clamp(94px, 17vh, 124px);
+        --ll-recorder-record-size: clamp(50px, 7.8vh, 62px);
+        --ll-recorder-record-icon: clamp(20px, 3.4vh, 27px);
+    }
+
+    .ll-recording-header {
+        margin-bottom: 0.45rem;
+    }
+
+    .ll-wordset-display span,
+    .ll-recorder-info {
+        display: none;
+    }
+
+    .ll-recording-type-selector label {
+        margin-bottom: 0.2rem;
+    }
+
+    .ll-hidden-words-panel,
+    .ll-new-word-panel,
+    .ll-recording-review-shell {
+        max-height: min(88dvh, 640px);
+    }
+}
+
 /* Tablet responsiveness */
 @media (max-width: 900px) {
     .ll-recording-interface {
-        padding: 0.5rem;
+        max-width: min(920px, calc(100vw - 0.75rem));
     }
 
     .ll-recording-main {
-        gap: 1.25rem;
-        padding: 1.25rem;
-        min-height: 380px;
-    }
-
-    .ll-recording-image-container {
-        max-width: 240px;
+        padding: clamp(0.65rem, 1.6vw, 1rem);
     }
 
     .ll-recording-controls-column {
-        gap: 0.75rem;
-        max-width: 300px;
+        max-width: min(100%, 520px);
     }
 }
 
 /* Mobile responsiveness - stack vertically */
 @media (max-width: 768px) {
-    .ll-recording-header {
-        font-size: 0.85rem;
-        gap: 0.75rem;
-        padding: 0.625rem 0.875rem;
-    }
-
-    .ll-category-selector {
-        min-width: 150px;
+    .ll-recording-interface {
+        --ll-recorder-image-size: clamp(96px, 18vh, 130px);
+        --ll-recorder-image-column-width: min(100%, clamp(196px, 72vw, 260px));
+        --ll-recorder-record-size: clamp(52px, 8vh, 64px);
+        --ll-recorder-record-icon: clamp(21px, 3.4vh, 27px);
+        max-width: calc(100vw - 0.6rem);
+        padding: 0.35rem;
     }
 
     .ll-recording-main {
         flex-direction: column;
         align-items: center;
-        padding: 1.25rem 0.875rem;
-        min-height: auto;
-        gap: 1rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 260px;
+        padding: 0.75rem;
+        gap: 0.6rem;
     }
 
     .ll-recording-controls-column {
         width: 100%;
         max-width: 100%;
-        gap: 0.75rem;
+    }
+
+    .ll-category-selector {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .ll-category-selector select {
+        font-size: clamp(0.82rem, 2.8vw, 0.88rem);
+        padding: 0.46rem 1.85rem 0.46rem 0.65rem;
+    }
+
+    .ll-category-selector select {
+        display: none;
+    }
+
+    .ll-category-selector-mobile {
+        display: block;
+    }
+
+    .ll-category-selector-mobile__trigger {
+        font-size: clamp(0.82rem, 2.8vw, 0.88rem) !important;
+        padding: 0.46rem 0.65rem !important;
+    }
+
+    .ll-category-selector-mobile__option {
+        font-size: clamp(0.82rem, 2.8vw, 0.88rem) !important;
+        padding: 0.58rem 0.65rem !important;
+    }
+
+    .ll-recording-image-container {
+        width: 100%;
+        min-width: 0;
+        max-width: var(--ll-recorder-image-column-width);
+        flex-basis: auto;
+    }
+
+    .ll-recording-type-selector {
+        max-width: 100%;
+    }
+
+    .ll-recording-type-choices {
+        flex-wrap: wrap;
+        justify-content: center;
+        overflow: visible;
+        padding-bottom: 0;
     }
 
     .ll-playback-actions {
-        gap: 1rem;
-    }
-
-    .ll-recording-interface .ll-btn-primary,
-    .ll-recording-interface .ll-btn-secondary {
-        padding: 0.625rem 1.25rem !important;
+        width: 100%;
     }
 
     .ll-hidden-word-item {
-        padding: 0.5rem 0.55rem;
+        padding: 0.45rem 0.5rem;
     }
 }
 
 /* Very small mobile - full vertical stack */
 @media (max-width: 480px) {
-    .ll-recording-interface {
-        margin: 0.5rem auto;
-        padding: 0.5rem;
-    }
-
     .ll-recording-header {
         flex-direction: column;
         align-items: stretch;
-        gap: 0.5rem;
-        padding: 0.625rem;
+        gap: 0.45rem;
     }
 
     .ll-recording-progress {
@@ -1062,18 +1997,25 @@
     }
 
     .ll-category-selector,
-    .ll-wordset-display {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .ll-recorder-info {
-        margin-left: 0;
-        text-align: center;
-    }
-
+    .ll-wordset-display,
     .ll-hidden-words-toggle {
         width: 100%;
+        min-width: 0;
+    }
+
+    .ll-category-selector select {
+        font-size: clamp(0.78rem, 3.4vw, 0.84rem);
+        padding: 0.42rem 1.7rem 0.42rem 0.58rem;
+    }
+
+    .ll-category-selector-mobile__trigger {
+        font-size: clamp(0.78rem, 3.4vw, 0.84rem) !important;
+        padding: 0.42rem 0.58rem !important;
+    }
+
+    .ll-category-selector-mobile__option {
+        font-size: clamp(0.78rem, 3.4vw, 0.84rem) !important;
+        padding: 0.54rem 0.58rem !important;
     }
 
     .ll-recording-interface .ll-hidden-words-toggle-btn {
@@ -1081,153 +2023,274 @@
         justify-content: center;
     }
 
-    .ll-recording-main {
-        padding: 1rem 0.625rem;
-        gap: 0.875rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 220px;
-    }
-
-    .ll-image-title {
-        font-size: 1.05rem;
-    }
-
-    .ll-recording-interface .ll-btn-record {
-        width: 65px !important;
-        height: 65px !important;
-        min-width: 65px !important;
-        min-height: 65px !important;
-    }
-
-    .ll-recording-interface .ll-btn-record svg {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
-    }
-
-    .ll-playback-actions {
-        gap: 0.875rem;
-        width: 100%;
-    }
-
-    .ll-recording-interface .ll-btn-primary,
-    .ll-recording-interface .ll-btn-secondary {
-        flex: 1;
-        padding: 0.625rem 1rem !important;
-        font-size: 0.9rem !important;
-    }
-}
-
-/* Mobile responsiveness - stack vertically */
-@media (max-width: 768px) {
-    .ll-recording-header {
-        font-size: 0.85rem;
-        gap: 0.75rem;
-        padding: 0.625rem 0.875rem;
-    }
-
-    .ll-category-selector {
-        min-width: 150px;
-    }
-
-    .ll-recording-main {
-        flex-direction: column;
-        align-items: center;
-        padding: 1.25rem 0.875rem;
-        min-height: auto;
-        gap: 1rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 260px;
-    }
-
     .ll-recording-controls-column {
-        width: 100%;
-        max-width: 100%;
-        gap: 0.75rem;
-    }
-
-    .ll-playback-actions {
-        gap: 1rem;
-    }
-
-    .ll-recording-interface .ll-btn-primary,
-    .ll-recording-interface .ll-btn-secondary {
-        padding: 0.625rem 1.25rem !important;
-    }
-}
-
-/* Very small mobile - full vertical stack */
-@media (max-width: 480px) {
-    .ll-recording-interface {
-        margin: 0.5rem auto;
-        padding: 0.5rem;
-    }
-
-    .ll-recording-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.5rem;
-        padding: 0.625rem;
-    }
-
-    .ll-recording-progress {
-        text-align: center;
-    }
-
-    .ll-category-selector,
-    .ll-wordset-display {
-        min-width: 0;
-        width: 100%;
-    }
-
-    .ll-recorder-info {
-        margin-left: 0;
-        text-align: center;
-    }
-
-    .ll-recording-main {
-        padding: 1rem 0.625rem;
-        gap: 0.875rem;
-    }
-
-    .ll-recording-image-container {
-        max-width: 220px;
-    }
-
-    .ll-image-title {
-        font-size: 1.05rem;
-    }
-
-    .ll-recording-interface .ll-btn-record {
-        width: 65px !important;
-        height: 65px !important;
-        min-width: 65px !important;
-        min-height: 65px !important;
-    }
-
-    .ll-recording-interface .ll-btn-record svg {
-        width: 28px !important;
-        height: 28px !important;
-        min-width: 28px !important;
-        min-height: 28px !important;
-    }
-
-    .ll-playback-actions {
-        gap: 0.875rem;
-        width: 100%;
+        gap: 0.55rem;
     }
 
     .ll-recording-interface .ll-btn-primary,
     .ll-recording-interface .ll-btn-secondary {
         flex: 1;
-        padding: 0.625rem 1rem !important;
-        font-size: 0.9rem !important;
     }
+}
+
+@media (max-height: 560px) {
+    .ll-new-word-overlay {
+        padding: 0;
+    }
+
+    .ll-new-word-panel {
+        width: 100vw;
+        max-width: none;
+        height: 100dvh;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        overflow: hidden;
+        padding: 0.5rem;
+        padding-top: max(0.45rem, env(safe-area-inset-top));
+        padding-right: max(0.55rem, env(safe-area-inset-right));
+        padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
+        padding-left: max(0.55rem, env(safe-area-inset-left));
+    }
+
+    .ll-new-word-card,
+    .ll-new-word-shell {
+        min-height: 100%;
+        gap: 0.45rem;
+    }
+
+    .ll-new-word-shell {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .ll-new-word-header {
+        gap: 0.4rem;
+        align-items: center;
+    }
+
+    .ll-new-word-header-actions {
+        gap: 0.4rem;
+    }
+
+    .ll-new-word-card h3 {
+        display: none;
+    }
+
+    .ll-new-word-status {
+        padding: 0.4rem 0.55rem;
+        font-size: 0.8rem;
+    }
+
+    .ll-new-word-auto-status {
+        padding: 0.22rem 0.45rem;
+        font-size: 0.78rem;
+    }
+
+    .ll-recording-interface .ll-new-word-close {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+        min-height: 30px !important;
+        font-size: 1.2rem !important;
+    }
+
+    .ll-new-word-auto-icon {
+        font-size: 0.92rem;
+    }
+
+    .ll-new-word-auto-spinner {
+        width: 12px;
+        height: 12px;
+    }
+
+    .ll-new-word-layout {
+        min-height: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        gap: 0.55rem;
+        padding-right: 0.1rem;
+    }
+
+    .ll-new-word-form-grid {
+        gap: 0.55rem;
+    }
+
+    .ll-new-word-row label {
+        margin-bottom: 0.2rem;
+        font-size: 0.82rem;
+    }
+
+    .ll-new-word-row input[type="text"],
+    .ll-new-word-row select {
+        min-height: 2.12rem;
+        padding: 0.42rem 0.58rem;
+        font-size: 0.88rem;
+    }
+
+    .ll-new-word-row--target label,
+    .ll-new-word-row--translation label,
+    .ll-new-word-create-fields label[for="ll-new-word-category-name"] {
+        position: absolute !important;
+        width: 1px !important;
+        height: 1px !important;
+        padding: 0 !important;
+        margin: -1px !important;
+        overflow: hidden !important;
+        clip: rect(0, 0, 0, 0) !important;
+        white-space: nowrap !important;
+        border: 0 !important;
+    }
+
+    .ll-new-word-row--toggle label {
+        gap: 0.4rem;
+        font-size: 0.82rem;
+        line-height: 1.2;
+    }
+
+    .ll-new-word-create-fields > .ll-new-word-row:not(:first-child) {
+        margin-top: 0.55rem;
+    }
+
+    .ll-new-word-types {
+        padding: 0.45rem;
+        max-height: 96px;
+    }
+
+    .ll-new-word-types .ll-recording-type-option {
+        font-size: 0.82rem;
+        line-height: 1.1;
+    }
+
+    .ll-new-word-sidebar {
+        gap: 0.55rem;
+    }
+
+    .ll-new-word-recording {
+        padding: 0.65rem;
+    }
+
+    .ll-new-word-recording-controls {
+        gap: 0.55rem;
+    }
+
+    .ll-new-word-recording-type {
+        margin-top: 0.45rem;
+        padding: 0.2rem 0.55rem;
+        font-size: 0.78rem;
+    }
+
+    .ll-new-word-playback-controls {
+        margin-top: 0.55rem;
+        gap: 0.5rem;
+    }
+
+    .ll-new-word-playback-actions {
+        gap: 0.5rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel > h2 {
+        margin-bottom: 0.45rem;
+        font-size: 0.98rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-file {
+        padding: 0.7rem;
+        margin-bottom: 0.55rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-header {
+        margin-bottom: 0.45rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-title {
+        font-size: 0.92rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-metadata {
+        font-size: 0.78rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-waveform-container {
+        height: 82px;
+        margin: 0.45rem 0;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-playback-controls {
+        gap: 0.45rem;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play {
+        width: 42px;
+        height: 42px;
+    }
+
+    .ll-new-word-panel .ll-recording-review--new-word-panel .ll-review-play svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+@media (max-height: 560px) and (min-width: 640px) {
+    .ll-new-word-layout {
+        grid-template-columns: minmax(0, 1.08fr) minmax(240px, 0.92fr);
+        align-items: start;
+    }
+
+    .ll-new-word-form-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 0.55rem 0.65rem;
+        align-items: start;
+    }
+
+    .ll-new-word-row--toggle {
+        align-self: stretch;
+    }
+
+    .ll-new-word-row--category,
+    .ll-new-word-row--toggle,
+    .ll-new-word-create-fields {
+        grid-column: 1 / -1;
+    }
+
+    .ll-new-word-row--toggle label {
+        min-height: 100%;
+        padding: 0.45rem 0.6rem;
+        border: 1px solid #ccd0d4;
+        border-radius: 8px;
+        background: #f6f7f7;
+        box-sizing: border-box;
+    }
+
+    .ll-new-word-panel.ll-new-word-panel--processing-review .ll-new-word-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 1.02fr);
+    }
+
+    .ll-new-word-types {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 0.65rem;
+        row-gap: 0.3rem;
+        max-height: none;
+        overflow: visible;
+    }
+
+    .ll-new-word-types label,
+    .ll-new-word-types .ll-recording-type-option {
+        margin: 0;
+    }
+}
+
+@media (max-height: 560px) and (max-width: 639px) {
+    .ll-new-word-recording-controls {
+        justify-content: space-evenly;
+    }
+}
+
+html.ll-recorder-overlay-open,
+body.ll-recorder-overlay-open {
+    overflow: hidden !important;
 }
 
 .ll-diagnostic-message {

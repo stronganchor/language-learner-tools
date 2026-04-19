@@ -22,6 +22,11 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
         return '';
     }
 
+    if (function_exists('ll_tools_enqueue_public_assets')) {
+        ll_tools_enqueue_public_assets();
+    }
+    ll_enqueue_word_audio_js();
+
     $context = ll_word_audio_extract_context($atts, $content);
     $attributes = $context['attributes'];
     $original_content = $context['original_content'];
@@ -32,8 +37,8 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
 
     $is_missing_audio = empty($word_post) || empty($audio_file);
 
-    // Keep track of instances of word_audio with no matching audio file
-    if (current_user_can('administrator')) {
+    // Keep track of instances of word_audio with no matching audio file for site admins.
+    if (current_user_can('manage_options')) {
         if ($is_missing_audio) {
             // Cache the missing audio instance
             ll_cache_missing_audio_instance($normalized_content, $host_post_id);
@@ -55,16 +60,26 @@ function ll_word_audio_shortcode($atts = [], $content = null) {
     	$english_meaning = get_post_meta($word_post->ID, 'word_english_meaning', true);
 	}
 	
+    $controls = ll_word_audio_get_controls_data();
+
     // Generate unique ID for the audio element
     $audio_id = uniqid('audio_');
-
-    $play_icon = '<img src="' . LL_TOOLS_BASE_URL . 'media/play-symbol.svg" width="10" height="10" alt="Play" data-no-lazy="1"/>';
 
     // Construct the output with an interactive audio player icon
     $output = '<span class="ll-word-audio">';
     if (!empty($audio_file)) {
-        $output .= "<div id='{$audio_id}_icon' class='ll-audio-icon' style='width: 20px; display: inline-flex; cursor: pointer;' onclick='ll_toggleAudio(\"{$audio_id}\")'>". $play_icon . "</div>";
-        $output .= "<audio id='{$audio_id}' onplay='ll_audioPlaying(\"{$audio_id}\")' onended='ll_audioEnded(\"{$audio_id}\")' style='display:none;'><source src='" . esc_url($audio_file) . "' type='audio/mpeg'></audio>";
+        $output .= sprintf(
+            '<button type="button" id="%1$s_button" class="ll-word-audio__button" aria-controls="%1$s" aria-label="%2$s" data-audio-id="%1$s"><span class="ll-word-audio__icon" aria-hidden="true"><img id="%1$s_icon" class="ll-word-audio__icon-image" src="%3$s" width="10" height="10" alt="" data-no-lazy="1" /></span><span id="%1$s_label" class="screen-reader-text ll-word-audio__label">%4$s</span></button>',
+            esc_attr($audio_id),
+            esc_attr($controls['playLabel']),
+            esc_url($controls['playIconUrl']),
+            esc_html($controls['playLabel'])
+        );
+        $output .= sprintf(
+            '<audio id="%1$s" class="ll-word-audio__audio" preload="none" hidden><source src="%2$s" type="audio/mpeg"></audio>',
+            esc_attr($audio_id),
+            esc_url($audio_file)
+        );
     }
     $output .= do_shortcode($original_content);
     if (!empty($english_meaning)) {
@@ -94,7 +109,13 @@ function ll_word_audio_extract_context($atts, $content) {
     $attributes = shortcode_atts(array(
         'translate' => 'yes', // Default is to provide a translation in parentheses
         'id' => null, // If set, it will look up the word post by ID
+        'recording_type' => '', // Optional recording type slug to use
+        'word_audio_id' => null, // Optional exact word_audio post ID to use
     ), $atts);
+
+    $attributes['translate'] = sanitize_key((string) $attributes['translate']);
+    $attributes['recording_type'] = sanitize_title((string) $attributes['recording_type']);
+    $attributes['word_audio_id'] = !empty($attributes['word_audio_id']) ? (int) $attributes['word_audio_id'] : 0;
 
     // Store the unmodified content for later
     $original_content = $content;
@@ -116,10 +137,34 @@ function ll_word_audio_extract_context($atts, $content) {
         $word_post = ll_find_post_by_exact_title($normalized_content, 'words');
     }
 
+    if (
+        !$word_post
+        && $attributes['word_audio_id'] > 0
+        && function_exists('ll_get_word_audio_post')
+    ) {
+        $selected_audio_post = ll_get_word_audio_post(0, [
+            'word_audio_id' => $attributes['word_audio_id'],
+        ]);
+
+        if ($selected_audio_post instanceof WP_Post && (int) $selected_audio_post->post_parent > 0) {
+            $parent_word_post = get_post((int) $selected_audio_post->post_parent);
+            if ($parent_word_post instanceof WP_Post && $parent_word_post->post_type === 'words') {
+                $word_post = $parent_word_post;
+            }
+        }
+    }
+
     // Retrieve the audio file for this word (prefer processed word_audio posts).
     $audio_file = '';
     if (!empty($word_post) && function_exists('ll_get_word_audio_url')) {
-        $audio_file = ll_get_word_audio_url($word_post->ID);
+        $audio_file = ll_get_word_audio_url($word_post->ID, array(
+            'recording_type' => $attributes['recording_type'],
+            'word_audio_id' => $attributes['word_audio_id'],
+        ));
+    } elseif ($attributes['word_audio_id'] > 0 && function_exists('ll_get_word_audio_url')) {
+        $audio_file = ll_get_word_audio_url(0, array(
+            'word_audio_id' => $attributes['word_audio_id'],
+        ));
     }
 
     return array(
@@ -129,6 +174,20 @@ function ll_word_audio_extract_context($atts, $content) {
         'normalized_content' => $normalized_content,
         'word_post' => $word_post,
         'audio_file' => $audio_file,
+    );
+}
+
+/**
+ * Returns the localized labels and assets used by the word audio controls.
+ *
+ * @return array<string, string>
+ */
+function ll_word_audio_get_controls_data() {
+    return array(
+        'playLabel' => __('Play audio', 'll-tools-text-domain'),
+        'pauseLabel' => __('Pause audio', 'll-tools-text-domain'),
+        'playIconUrl' => LL_TOOLS_BASE_URL . 'media/play-symbol.svg',
+        'pauseIconUrl' => LL_TOOLS_BASE_URL . 'media/stop-symbol.svg',
     );
 }
 
@@ -168,14 +227,19 @@ function ll_word_audio_get_host_post_id() {
  * Enqueues the JavaScript necessary for the word_audio shortcode.
  */
 function ll_enqueue_word_audio_js() {
+    static $enqueued = false;
+    if ($enqueued) {
+        return;
+    }
+    $enqueued = true;
+
     ll_enqueue_asset_by_timestamp('js/word-audio.js', 'll-word-audio', array(), true);
 
     // Pass the plugin ROOT url to JS so it can find /media/*.svg reliably
     wp_localize_script('ll-word-audio', 'll_word_audio_data', array(
-        'plugin_dir_url' => LL_TOOLS_BASE_URL,
+        'controls' => ll_word_audio_get_controls_data(),
     ));
 }
-add_action('wp_enqueue_scripts', 'll_enqueue_word_audio_js');
 
 /**
  * Caches instances of missing audio for administrator users.
@@ -289,18 +353,28 @@ function ll_find_post_by_exact_title($title, $post_type = 'words') {
 }
 
 /**
- * Normalizes the case of a string based on target language settings.
+ * Normalizes the case of a string based on the effective word-title language.
  *
  * @param string $text The text to normalize.
+ * @param array  $wordset_ids Optional word set context.
  * @return string The normalized text.
  */
-function ll_normalize_case($text) {
-    $target_language = get_option('ll_target_language');
-	if ($target_language === 'TR' && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+function ll_normalize_case($text, array $wordset_ids = []) {
+    $title_language_raw = function_exists('ll_tools_get_wordset_title_language_label')
+        ? (string) ll_tools_get_wordset_title_language_label($wordset_ids)
+        : '';
+    if ($title_language_raw === '') {
+        $title_language_raw = (string) get_option('ll_target_language', '');
+    }
+    $uses_turkish_casing = function_exists('ll_tools_language_uses_turkish_casing')
+        ? ll_tools_language_uses_turkish_casing($title_language_raw)
+        : false;
+
+	if ($uses_turkish_casing && function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
         // Normalize the encoding to UTF-8 if not already
         $text = mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
-		 
-		// Special handling for Turkish dotless I and dotted İ
+
+		// Preserve Turkish-style dotted/dotless I casing for Turkish and Zazaki wordsets.
         $firstChar = mb_substr($text, 0, 1, 'UTF-8');
         if ($firstChar === 'i' || $firstChar === "\xC4\xB0" || $firstChar == 'İ') {
 			return 'İ' . mb_substr($text, 1, null, 'UTF-8');
@@ -334,18 +408,15 @@ function ll_tools_normalize_transcript_case($text, array $wordset_ids = []) {
     if (!empty($wordset_ids) && function_exists('ll_tools_get_wordset_language_label')) {
         $language_raw = ll_tools_get_wordset_language_label($wordset_ids);
     }
-    if ($language_raw === '') {
-        $language_raw = (string) get_option('ll_target_language', '');
-    }
-    $language_code = function_exists('ll_tools_resolve_language_code_from_label')
-        ? ll_tools_resolve_language_code_from_label($language_raw, 'lower')
-        : '';
-    $is_turkish = ($language_code === 'tr');
+    $uses_turkish_casing = function_exists('ll_tools_language_uses_turkish_casing')
+        ? ll_tools_language_uses_turkish_casing($language_raw)
+        : false;
 
     if (function_exists('mb_strtolower') && function_exists('mb_substr') && function_exists('mb_strtoupper')) {
-        if ($is_turkish) {
-            $lower = str_replace(['I', 'İ'], ['ı', 'i'], $text);
-            $lower = mb_strtolower($lower, 'UTF-8');
+        if ($uses_turkish_casing) {
+            $lower = function_exists('ll_tools_lowercase_for_language')
+                ? ll_tools_lowercase_for_language($text, $language_raw)
+                : mb_strtolower(str_replace(['I', 'İ'], ['ı', 'i'], $text), 'UTF-8');
             $first = mb_substr($lower, 0, 1, 'UTF-8');
             $rest = mb_substr($lower, 1, null, 'UTF-8');
             if ($first === 'i') {

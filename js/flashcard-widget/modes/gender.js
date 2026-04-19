@@ -66,7 +66,7 @@
                 beforeIntroCorrect: 0,
                 afterIntroCorrect: 0
             },
-            progressMaxPassedCount: 0,
+            progressMaxAnsweredCount: 0,
             resultsActions: null
         };
     }
@@ -110,12 +110,44 @@
         return Date.now();
     }
 
+    function currentIsoTimestamp() {
+        try {
+            return new Date(nowTs()).toISOString();
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function parseProgressTimestamp(raw) {
+        if (typeof raw === 'number' && Number.isFinite(raw)) {
+            return raw > 0 ? raw : 0;
+        }
+        if (typeof raw === 'string') {
+            const text = raw.trim();
+            if (!text) return 0;
+            if (/^\d+$/.test(text)) {
+                const numeric = parseInt(text, 10);
+                return numeric > 0 ? numeric : 0;
+            }
+            const parsed = Date.parse(text);
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+        }
+        return 0;
+    }
+
     function shuffle(list) {
         if (!Array.isArray(list)) return [];
         if (Util && typeof Util.randomlySort === 'function') {
             return Util.randomlySort(list);
         }
-        return list.slice().sort(function () { return Math.random() - 0.5; });
+        const items = list.slice();
+        for (let idx = items.length - 1; idx > 0; idx -= 1) {
+            const swapIndex = Math.floor(Math.random() * (idx + 1));
+            const current = items[idx];
+            items[idx] = items[swapIndex];
+            items[swapIndex] = current;
+        }
+        return items;
     }
 
     function clamp(num, min, max) {
@@ -176,6 +208,11 @@
 
     function normalizeWordProgress(raw) {
         const src = (raw && typeof raw === 'object') ? raw : {};
+        const updatedAt = Math.max(
+            parseProgressTimestamp(src.updated_at),
+            parseProgressTimestamp(src.last_seen_at),
+            nowTs()
+        );
         return {
             level: normalizeLevel(src.level),
             confidence: clamp(parseInt(src.confidence, 10) || 0, -8, 12),
@@ -190,7 +227,8 @@
             dont_know_count: Math.max(0, parseInt(src.dont_know_count, 10) || 0),
             seen_total: Math.max(0, parseInt(src.seen_total, 10) || 0),
             category_name: String(src.category_name || ''),
-            updated_at: Number(src.updated_at || nowTs())
+            last_seen_at: String(src.last_seen_at || ''),
+            updated_at: updatedAt
         };
     }
 
@@ -212,10 +250,130 @@
         if (!id) return normalizeWordProgress({});
         const store = loadStore();
         const key = String(id);
+        const timestamp = nowTs();
         store.words[key] = normalizeWordProgress(nextEntry);
-        store.words[key].updated_at = nowTs();
+        store.words[key].updated_at = timestamp;
+        store.words[key].last_seen_at = currentIsoTimestamp();
         saveStore();
         return store.words[key];
+    }
+
+    function hasAnsweredProgress(entry) {
+        const progress = normalizeWordProgress(entry);
+        return (
+            progress.level > LEVEL_ONE ||
+            progress.confidence !== 0 ||
+            progress.quick_correct_streak > 0 ||
+            progress.level1_passes > 0 ||
+            progress.level1_failures > 0 ||
+            progress.level2_correct > 0 ||
+            progress.level2_wrong > 0 ||
+            progress.level3_correct > 0 ||
+            progress.level3_wrong > 0 ||
+            progress.dont_know_count > 0
+        );
+    }
+
+    function progressEntriesEqual(left, right) {
+        const a = normalizeWordProgress(left);
+        const b = normalizeWordProgress(right);
+        const keys = [
+            'level',
+            'confidence',
+            'intro_seen',
+            'quick_correct_streak',
+            'level1_passes',
+            'level1_failures',
+            'level2_correct',
+            'level2_wrong',
+            'level3_correct',
+            'level3_wrong',
+            'dont_know_count',
+            'seen_total',
+            'category_name',
+            'last_seen_at',
+            'updated_at'
+        ];
+        return keys.every(function (key) {
+            return a[key] === b[key];
+        });
+    }
+
+    function getServerWordProgress(word) {
+        if (!word || typeof word !== 'object' || !word.gender_progress || typeof word.gender_progress !== 'object') {
+            return null;
+        }
+        const raw = word.gender_progress;
+        if (Array.isArray(raw) && !raw.length) {
+            return null;
+        }
+        if (!Array.isArray(raw) && !Object.keys(raw).length) {
+            return null;
+        }
+        return normalizeWordProgress(raw);
+    }
+
+    function mergeServerProgressIntoStore(words) {
+        const list = Array.isArray(words) ? words : [];
+        if (!list.length) {
+            return false;
+        }
+
+        const store = loadStore();
+        let changed = false;
+
+        list.forEach(function (word) {
+            const wordId = toInt(word && word.id);
+            if (!wordId) return;
+
+            const serverEntry = getServerWordProgress(word);
+            if (!serverEntry) return;
+
+            const key = String(wordId);
+            const localEntry = store.words[key] ? normalizeWordProgress(store.words[key]) : null;
+            if (!localEntry) {
+                store.words[key] = serverEntry;
+                changed = true;
+                return;
+            }
+
+            const localAnswered = hasAnsweredProgress(localEntry);
+            const serverAnswered = hasAnsweredProgress(serverEntry);
+            const localTs = parseProgressTimestamp(localEntry.updated_at || localEntry.last_seen_at);
+            const serverTs = parseProgressTimestamp(serverEntry.updated_at || serverEntry.last_seen_at);
+
+            let nextEntry = localEntry;
+            if (serverAnswered && !localAnswered) {
+                nextEntry = serverEntry;
+            } else if ((serverAnswered && localAnswered) || (!serverAnswered && !localAnswered)) {
+                nextEntry = serverTs >= localTs ? serverEntry : localEntry;
+            } else if (!serverAnswered && localAnswered) {
+                nextEntry = localEntry;
+            }
+
+            if (nextEntry === localEntry) {
+                const merged = normalizeWordProgress(Object.assign({}, serverEntry, localEntry, {
+                    category_name: localEntry.category_name || serverEntry.category_name,
+                    last_seen_at: localEntry.last_seen_at || serverEntry.last_seen_at,
+                    updated_at: Math.max(localTs, serverTs)
+                }));
+                if (!progressEntriesEqual(localEntry, merged)) {
+                    store.words[key] = merged;
+                    changed = true;
+                }
+                return;
+            }
+
+            if (!progressEntriesEqual(localEntry, nextEntry)) {
+                store.words[key] = nextEntry;
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            saveStore();
+        }
+        return changed;
     }
 
     function getCategoryNameForWord(word) {
@@ -366,8 +524,11 @@
         const cfg = getCategoryConfig(categoryName);
         const optionType = cfg.option_type || cfg.mode || 'image';
         const promptType = cfg.prompt_type || 'audio';
-        const requiresAudio = (promptType === 'audio') || optionType === 'audio' || optionType === 'text_audio';
-        const requiresImage = (promptType === 'image') || optionType === 'image';
+        const requiresAudio = (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))
+            || optionType === 'audio'
+            || optionType === 'text_audio';
+        const requiresImage = (Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image'))
+            || (Util.optionTypeHasImage ? Util.optionTypeHasImage(optionType) : (optionType === 'image'));
         return { requiresAudio, requiresImage };
     }
 
@@ -394,7 +555,10 @@
         if (requirements.requiresAudio && !(word.audio || word.has_audio)) return false;
         if (requirements.requiresImage && !(word.image || word.has_image)) return false;
 
-        const normalizedGender = normalizeGenderValue(word.grammatical_gender, genderOptions);
+        const normalizedGender = normalizeGenderValue(
+            word.normalized_grammatical_gender || word.__gender_label || word.grammatical_gender,
+            genderOptions
+        );
         if (!normalizedGender) return false;
         try { word.__gender_label = normalizedGender; } catch (_) { /* no-op */ }
         return true;
@@ -463,27 +627,32 @@
     }
 
     function sortWordsForLevel(words, level) {
-        const list = Array.isArray(words) ? words.slice() : [];
+        const seeded = shuffle(Array.isArray(words) ? words : []).map(function (word, index) {
+            return {
+                word: word,
+                tieBreak: index
+            };
+        });
         if (level === LEVEL_ONE) {
-            list.sort(function (left, right) {
-                const a = getWordProgress(left.id);
-                const b = getWordProgress(right.id);
+            seeded.sort(function (left, right) {
+                const a = getWordProgress(left.word.id);
+                const b = getWordProgress(right.word.id);
                 if (a.seen_total !== b.seen_total) return a.seen_total - b.seen_total;
-                return Math.random() - 0.5;
+                return left.tieBreak - right.tieBreak;
             });
-            return list;
+            return seeded.map(function (entry) { return entry.word; });
         }
 
-        list.sort(function (left, right) {
-            const a = getWordProgress(left.id);
-            const b = getWordProgress(right.id);
+        seeded.sort(function (left, right) {
+            const a = getWordProgress(left.word.id);
+            const b = getWordProgress(right.word.id);
             if (a.confidence !== b.confidence) return a.confidence - b.confidence;
             const aWrong = (level === LEVEL_TWO) ? a.level2_wrong : a.level3_wrong;
             const bWrong = (level === LEVEL_TWO) ? b.level2_wrong : b.level3_wrong;
             if (aWrong !== bWrong) return bWrong - aWrong;
-            return Math.random() - 0.5;
+            return left.tieBreak - right.tieBreak;
         });
-        return list;
+        return seeded.map(function (entry) { return entry.word; });
     }
 
     function pickChunkWordIds(words, chunkSize, mixCategories) {
@@ -723,6 +892,7 @@
         if (!eligible.length) {
             return false;
         }
+        mergeServerProgressIntoStore(eligible);
         const pending = session.pendingPlan || consumePendingPlan();
         const plan = pending || buildDefaultPlan(eligible);
         if (!plan) return false;
@@ -781,7 +951,7 @@
     function waitRound(delay, token) {
         return new Promise(function (resolve) {
             scheduleRoundTimeout(function () {
-                if (token !== round.sequenceToken) {
+                if (token !== round.sequenceToken || State.abortAllOperations) {
                     resolve(false);
                     return;
                 }
@@ -934,7 +1104,7 @@
             notifyPlaybackStart();
             return Promise.resolve(false);
         }
-        if (token !== round.sequenceToken) {
+        if (token !== round.sequenceToken || State.abortAllOperations) {
             notifyPlaybackStart();
             return Promise.resolve(false);
         }
@@ -1039,7 +1209,9 @@
 
     function startCountdown(token) {
         const $ = root.jQuery;
-        if (!$ || token !== round.sequenceToken) return Promise.resolve(token === round.sequenceToken);
+        if (!$ || token !== round.sequenceToken || State.abortAllOperations) {
+            return Promise.resolve(token === round.sequenceToken && !State.abortAllOperations);
+        }
         let $host = $();
         const $promptAudio = $('#ll-tools-prompt .ll-prompt-audio-button:visible').first();
         if ($promptAudio.length) {
@@ -1082,7 +1254,7 @@
         return new Promise(function (resolve) {
             let current = 3;
             const tick = function () {
-                if (token !== round.sequenceToken) {
+                if (token !== round.sequenceToken || State.abortAllOperations) {
                     resolve(false);
                     return;
                 }
@@ -1094,6 +1266,10 @@
                 current -= 1;
                 if (current <= 0) {
                     scheduleRoundTimeout(function () {
+                        if (token !== round.sequenceToken || State.abortAllOperations) {
+                            resolve(false);
+                            return;
+                        }
                         if (round.countdownEl && round.countdownEl.length) {
                             round.countdownEl.remove();
                         }
@@ -1316,6 +1492,22 @@
         $card.addClass('ll-gender-intro-card--active');
     }
 
+    function resetGenderOptionLayoutState($container, $content) {
+        if ($container && $container.length) {
+            $container.removeClass('audio-line-layout ll-gender-options-layout').empty();
+            if ($container[0] && $container[0].style) {
+                try { $container[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
+            }
+        }
+        if ($content && $content.length) {
+            $content.removeClass('audio-line-mode ll-gender-options-mode ll-gender-layout-compact');
+            if ($content[0] && $content[0].style) {
+                try { $content[0].style.removeProperty('--ll-gender-layout-scale'); } catch (_) { /* no-op */ }
+                try { $content[0].style.removeProperty('--ll-gender-safe-bottom'); } catch (_) { /* no-op */ }
+            }
+        }
+    }
+
     async function runIntroductionSequence(words, context) {
         const $ = root.jQuery;
         if (!$ || !Array.isArray(words) || !words.length) {
@@ -1346,8 +1538,7 @@
         const showCategoryOverlay = mixedCategoryBatch;
         const showTopCategoryForIntro = !mixedCategoryBatch;
 
-        $container.removeClass('audio-line-layout').empty();
-        $content.removeClass('audio-line-mode');
+        resetGenderOptionLayoutState($container, $content);
         setIntroCategoryLabelHidden(true);
         if (showTopCategoryForIntro) {
             const firstCategory = uniqueCategories[0] || '';
@@ -1613,6 +1804,20 @@
         });
     }
 
+    function countAnsweredWords() {
+        if (!Array.isArray(session.activeWordIds) || !session.activeWordIds.length) {
+            return 0;
+        }
+        let count = 0;
+        session.activeWordIds.forEach(function (wordId) {
+            const state = getWordState(wordId);
+            if (Math.max(0, parseInt(state && state.answers, 10) || 0) > 0) {
+                count += 1;
+            }
+        });
+        return count;
+    }
+
     function countPassedWords() {
         if (!Array.isArray(session.activeWordIds) || !session.activeWordIds.length) {
             return 0;
@@ -1629,15 +1834,17 @@
     function updateSessionProgressBar() {
         const total = Array.isArray(session.activeWordIds) ? session.activeWordIds.length : 0;
         if (!total) return;
+        const answeredCount = countAnsweredWords();
         const passedCount = countPassedWords();
-        session.progressMaxPassedCount = Math.max(
+        session.progressMaxAnsweredCount = Math.max(
             0,
-            parseInt(session.progressMaxPassedCount, 10) || 0,
+            parseInt(session.progressMaxAnsweredCount, 10) || 0,
+            answeredCount,
             passedCount
         );
         if (Dom && typeof Dom.updateSimpleProgress === 'function') {
             try {
-                Dom.updateSimpleProgress(session.progressMaxPassedCount, total);
+                Dom.updateSimpleProgress(session.progressMaxAnsweredCount, total);
             } catch (_) { /* no-op */ }
         }
     }
@@ -2152,12 +2359,18 @@
         if (!intro) {
             return;
         }
-        await waitRound(INTRO_REPLAY_GAP_MS, token);
-        await playManagedAudio(intro, token, {
+        const canReplay = await waitRound(INTRO_REPLAY_GAP_MS, token);
+        if (!canReplay || token !== round.sequenceToken || State.abortAllOperations) {
+            return;
+        }
+        const replayed = await playManagedAudio(intro, token, {
             onStart: function () {
                 round.introStartedAt = round.introStartedAt || nowTs();
             }
         });
+        if (!replayed || token !== round.sequenceToken || State.abortAllOperations) {
+            return;
+        }
         round.introEndedAt = nowTs();
     }
 
@@ -2171,6 +2384,37 @@
             names.push(name);
         });
         return names;
+    }
+
+    function getResultsProgressSummary() {
+        const wordIds = Array.isArray(session.activeWordIds) ? session.activeWordIds : [];
+        if (!wordIds.length) {
+            return null;
+        }
+
+        const summary = {
+            total_words: 0,
+            level_1_words: 0,
+            level_2_words: 0,
+            level_3_words: 0
+        };
+
+        wordIds.forEach(function (wordId) {
+            const id = toInt(wordId);
+            if (!id) return;
+            const progress = getWordProgress(id);
+            const level = normalizeLevel(progress.level);
+            summary.total_words += 1;
+            if (level === LEVEL_ONE) {
+                summary.level_1_words += 1;
+            } else if (level === LEVEL_TWO) {
+                summary.level_2_words += 1;
+            } else {
+                summary.level_3_words += 1;
+            }
+        });
+
+        return summary.total_words > 0 ? summary : null;
     }
 
     function buildDashboardSecondaryPlan(primaryLevel) {
@@ -2604,12 +2848,7 @@
             isCorrect: isCorrect,
             hadWrongThisTurn: !isCorrect,
             progressPayload: {
-                gender: {
-                    level: normalizeLevel(updatedProgress.level),
-                    confidence: clamp(updatedProgress.confidence, -8, 12),
-                    quick_correct_streak: Math.max(0, parseInt(updatedProgress.quick_correct_streak, 10) || 0),
-                    seen_total: Math.max(0, parseInt(updatedProgress.seen_total, 10) || 0)
-                },
+                gender: normalizeWordProgress(updatedProgress),
                 gender_answer_timing: timing,
                 gender_dont_know: isDontKnow
             },
@@ -2634,6 +2873,7 @@
         handleAnswer,
         getResultsActions,
         getResultsCategoryNames,
+        getResultsProgressSummary,
         queueResultsAction
     };
 })(window);

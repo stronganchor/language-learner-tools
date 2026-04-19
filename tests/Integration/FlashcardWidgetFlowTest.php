@@ -39,6 +39,11 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
 
             $this->assertStringContainsString('id="ll-tools-flashcard-container"', $output);
             $this->assertTrue(wp_script_is('ll-flc-main', 'enqueued'));
+            $close_pos = strpos($output, 'id="ll-tools-close-flashcard"');
+            $header_pos = strpos($output, 'id="ll-tools-flashcard-header"');
+            $this->assertNotFalse($close_pos);
+            $this->assertNotFalse($header_pos);
+            $this->assertLessThan($header_pos, $close_pos, 'Close button should render before the popup header so results do not depend on header visibility.');
 
             $localized_main = wp_scripts()->get_data('ll-flc-main', 'data');
             $this->assertIsString($localized_main);
@@ -46,9 +51,26 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $this->assertStringContainsString('Primary Flow Category', $localized_main);
             $this->assertStringContainsString('Flow Word', $localized_main);
             $this->assertStringContainsString('Flow Translation', $localized_main);
+
+            $localized_messages = wp_scripts()->get_data('ll-flc-main', 'data');
+            $this->assertIsString($localized_messages);
+            $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_messages);
+            $this->assertStringContainsString('closeQuizConfirm', $localized_messages);
+            $this->assertStringContainsString('playAudio', $localized_messages);
+            $this->assertStringContainsString('playWordAudio', $localized_messages);
+            $this->assertStringContainsString('playOptionAudio', $localized_messages);
+            $this->assertStringContainsString('pauseAudio', $localized_messages);
+            $this->assertStringContainsString('starWord', $localized_messages);
+            $this->assertStringContainsString('practiceSwitchLabel', $localized_messages);
+            $this->assertStringContainsString('learningModeText', $localized_messages);
+            $this->assertStringContainsString('practiceModeShort', $localized_messages);
+
+            $localized_mode_config = wp_scripts()->get_data('ll-flc-mode-config', 'data');
+            $this->assertIsString($localized_mode_config);
+            $this->assertStringContainsString('llToolsFlashcardsMessages', $localized_mode_config);
+            $this->assertStringContainsString('selfCheckSwitchLabel', $localized_mode_config);
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
     }
 }
-

@@ -73,17 +73,19 @@ final class EditorHubTest extends LL_Tools_TestCase
         delete_post_meta($word_id, 'll_word_usage_note');
 
         $dataset = ll_tools_editor_hub_get_dataset($wordset_id, 'editor-hub-category');
+        $expected_category_term = get_term((int) ($dataset['categories'][0]['id'] ?? 0), 'word-category');
+        $expected_category_slug = $expected_category_term instanceof WP_Term ? (string) $expected_category_term->slug : '';
 
         $this->assertSame($wordset_id, (int) ($dataset['wordset_id'] ?? 0));
         $this->assertNotEmpty($dataset['categories']);
-        $this->assertSame('editor-hub-category', (string) ($dataset['selected_category'] ?? ''));
+        $this->assertSame($expected_category_slug, (string) ($dataset['selected_category'] ?? ''));
 
         $items = is_array($dataset['items'] ?? null) ? $dataset['items'] : [];
         $this->assertCount(1, $items);
 
         $item = $items[0];
         $this->assertSame($word_id, (int) ($item['word_id'] ?? 0));
-        $this->assertSame('editor-hub-category', (string) ($item['category']['slug'] ?? ''));
+        $this->assertSame($expected_category_slug, (string) ($item['category']['slug'] ?? ''));
         $this->assertIsArray($item['image'] ?? null);
         $this->assertSame('', (string) ($item['image']['url'] ?? ''));
 
@@ -96,6 +98,56 @@ final class EditorHubTest extends LL_Tools_TestCase
 
         $this->assertSame([], (array) ($item['recordings'] ?? []));
         $this->assertTrue((bool) ($item['has_missing'] ?? false));
+    }
+
+    public function test_category_items_payload_returns_only_selected_category_items_without_catalog(): void
+    {
+        $wordset_term = wp_insert_term('Editor Hub Slim Payload Set', 'wordset', ['slug' => 'editor-hub-slim-payload-set']);
+        $this->assertFalse(is_wp_error($wordset_term));
+        $this->assertIsArray($wordset_term);
+        $wordset_id = (int) $wordset_term['term_id'];
+
+        $alpha_category = wp_insert_term('Editor Hub Alpha', 'word-category', ['slug' => 'editor-hub-alpha']);
+        $this->assertFalse(is_wp_error($alpha_category));
+        $this->assertIsArray($alpha_category);
+        $alpha_category_id = (int) $alpha_category['term_id'];
+
+        $beta_category = wp_insert_term('Editor Hub Beta', 'word-category', ['slug' => 'editor-hub-beta']);
+        $this->assertFalse(is_wp_error($beta_category));
+        $this->assertIsArray($beta_category);
+        $beta_category_id = (int) $beta_category['term_id'];
+
+        $alpha_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Alpha Word',
+        ]);
+        wp_set_post_terms($alpha_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($alpha_word_id, [$alpha_category_id], 'word-category', false);
+        delete_post_meta($alpha_word_id, 'word_translation');
+
+        $beta_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Beta Word',
+        ]);
+        wp_set_post_terms($beta_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($beta_word_id, [$beta_category_id], 'word-category', false);
+        delete_post_meta($beta_word_id, 'word_translation');
+
+        $payload = ll_tools_editor_hub_get_category_items_payload($wordset_id, 'editor-hub-beta');
+        $expected_category_slug = (string) ($payload['selected_category'] ?? '');
+
+        $this->assertSame($wordset_id, (int) ($payload['wordset_id'] ?? 0));
+        $this->assertNotSame('', $expected_category_slug);
+        $this->assertSame($expected_category_slug, (string) ($payload['selected_category'] ?? ''));
+        $this->assertArrayNotHasKey('categories', $payload);
+        $this->assertArrayNotHasKey('ui_options', $payload);
+
+        $items = is_array($payload['items'] ?? null) ? $payload['items'] : [];
+        $this->assertCount(1, $items);
+        $this->assertSame($beta_word_id, (int) ($items[0]['word_id'] ?? 0));
+        $this->assertSame($expected_category_slug, (string) ($items[0]['category']['slug'] ?? ''));
     }
 
     public function test_admin_like_user_with_manage_options_can_access_editor_hub(): void

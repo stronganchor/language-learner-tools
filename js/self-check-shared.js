@@ -3,6 +3,7 @@
 
     const $ = root.jQuery;
     if (!$) { return; }
+    const OptionConflicts = root.LLToolsOptionConflicts || null;
     const RECORDING_ICONS = {
         isolation: '\ud83d\udd0d',
         introduction: '\ud83d\udcac'
@@ -22,9 +23,35 @@
         return normalized === 'text' || normalized === 'text_title' || normalized === 'text_translation' || normalized === 'text_audio';
     }
 
+    function isImageOptionType(mode) {
+        const normalized = String(mode || '').toLowerCase();
+        return normalized === 'image' || normalized === 'image_text_translation';
+    }
+
     function isAudioOptionType(mode) {
         const normalized = String(mode || '').toLowerCase();
         return normalized === 'audio' || normalized === 'text_audio';
+    }
+
+    function getImageOptionCaption(word, mode) {
+        const util = root.LLFlashcards && root.LLFlashcards.Util ? root.LLFlashcards.Util : null;
+        if (util && typeof util.getImageOptionCaption === 'function') {
+            return String(util.getImageOptionCaption(word, mode) || '').trim();
+        }
+        if (String(mode || '').toLowerCase() !== 'image_text_translation') {
+            return '';
+        }
+        return String((word && word.translation) || '').trim();
+    }
+
+    function getWordImageIdentity(word) {
+        if (OptionConflicts && typeof OptionConflicts.getWordImageIdentity === 'function') {
+            return OptionConflicts.getWordImageIdentity(word);
+        }
+        if (!word || typeof word !== 'object' || !word.image) {
+            return '';
+        }
+        return String(word.image || '').trim();
     }
 
     function getWordAudioUrl(word) {
@@ -49,6 +76,14 @@
             }
         }
         return '';
+    }
+
+    function applyAnswerOptionTextStyle($label, text) {
+        const cardsApi = root.LLFlashcards && root.LLFlashcards.Cards ? root.LLFlashcards.Cards : null;
+        if (!cardsApi || typeof cardsApi.applyAnswerOptionTextStyle !== 'function') {
+            return;
+        }
+        cardsApi.applyAnswerOptionTextStyle($label, text);
     }
 
     function normalizeRecordingType(value) {
@@ -143,6 +178,17 @@
         return String(fallbackPlayAudioLabel || msgs.selfCheckPlayAudio || 'Play audio') + ' ' + label;
     }
 
+    function formatCountTemplate(template, count) {
+        const normalizedCount = Math.max(0, parseInt(count, 10) || 0);
+        return String(template || '').replace('%d', String(normalizedCount));
+    }
+
+    function getMultipleAnswersLabel(messages, count) {
+        const msgs = (messages && typeof messages === 'object') ? messages : {};
+        const template = String(msgs.selfCheckMultipleAnswers || '%d answers').trim();
+        return formatCountTemplate(template, count);
+    }
+
     function getSelfCheckRecordingEntries(word, options) {
         const opts = options || {};
         const recordingTypes = normalizeRecordingTypes(opts.recordingTypes && opts.recordingTypes.length ? opts.recordingTypes : ['isolation', 'introduction']);
@@ -179,6 +225,37 @@
         });
 
         return entries;
+    }
+
+    function appendAnswerCountBadge($container, count, options) {
+        if (!$container || !$container.length) {
+            return '';
+        }
+
+        const total = Math.max(0, parseInt(count, 10) || 0);
+        const $inner = $container.find('.ll-study-check-prompt-inner').first();
+        if (!$inner.length) {
+            return '';
+        }
+
+        $inner.find('.ll-study-check-answer-count').remove();
+        if (total <= 1) {
+            return '';
+        }
+
+        const opts = options || {};
+        const messages = (opts.messages && typeof opts.messages === 'object') ? opts.messages : {};
+        const label = getMultipleAnswersLabel(messages, total);
+        if (!label) {
+            return '';
+        }
+
+        $('<div>', {
+            class: 'll-study-check-answer-count',
+            text: label
+        }).appendTo($inner);
+
+        return label;
     }
 
     function buildAudioButton(options) {
@@ -277,6 +354,64 @@
         return entries;
     }
 
+    function buildSelfCheckAnswerItem(word, options) {
+        if (!word || typeof word !== 'object') {
+            return null;
+        }
+
+        const opts = options || {};
+        const messages = (opts.messages && typeof opts.messages === 'object') ? opts.messages : {};
+        const playAudioLabel = (typeof opts.playAudioLabel === 'string' && opts.playAudioLabel)
+            ? opts.playAudioLabel
+            : (messages.selfCheckPlayAudio || 'Play audio');
+        const recordingsLabel = (typeof opts.recordingsLabel === 'string' && opts.recordingsLabel)
+            ? opts.recordingsLabel
+            : (messages.recordingsLabel || 'Recordings');
+        const onPlayAudio = (typeof opts.onPlayAudio === 'function') ? opts.onPlayAudio : null;
+        const entries = getSelfCheckRecordingEntries(word, opts);
+        const text = getWordText(word);
+
+        if (!text && !entries.length) {
+            return null;
+        }
+
+        const $item = $('<div>', {
+            class: 'll-study-check-answer-item'
+        });
+
+        if (text) {
+            $('<div>', {
+                class: 'll-study-check-answer-word',
+                text: text,
+                dir: 'auto'
+            }).appendTo($item);
+        }
+
+        if (entries.length) {
+            const $recordings = $('<div>', {
+                class: 'll-study-check-recordings',
+                'aria-label': recordingsLabel
+            });
+
+            entries.forEach(function (entry) {
+                const label = formatRecordingLabel(messages, entry.type, playAudioLabel);
+                $recordings.append(buildAudioButton({
+                    audioUrl: entry.audioUrl,
+                    label: label,
+                    icon: getRecordingIcon(entry.type),
+                    recordingType: entry.type,
+                    onActivate: onPlayAudio
+                }));
+            });
+
+            if ($recordings.children().length) {
+                $item.append($recordings);
+            }
+        }
+
+        return $item.children().length ? $item : null;
+    }
+
     function renderPromptDisplay($container, displayType, word, options) {
         if (!$container || !$container.length) { return false; }
 
@@ -291,11 +426,12 @@
         $container.empty();
 
         const mode = String(displayType || '');
-        const showImage = mode === 'image';
+        const showImage = isImageOptionType(mode);
         const showText = isTextOptionType(mode);
         const showAudio = isAudioOptionType(mode);
         const text = getWordText(word);
         const audioUrl = showAudio ? getWordAudioUrl(word) : '';
+        const imageCaption = getImageOptionCaption(word, mode);
 
         const $inner = $('<div>', { class: 'll-study-check-prompt-inner' });
         let hasContent = false;
@@ -310,10 +446,18 @@
             }).appendTo($imgWrap);
             $inner.append($imgWrap);
             hasContent = true;
+
+            if (imageCaption) {
+                const $caption = $('<div>', { class: 'll-study-check-text ll-study-check-image-caption', text: imageCaption, dir: 'auto' });
+                applyAnswerOptionTextStyle($caption, imageCaption);
+                $inner.append($caption);
+            }
         }
 
         if (showText && text) {
-            $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+            const $text = $('<div>', { class: 'll-study-check-text', text: text });
+            applyAnswerOptionTextStyle($text, text);
+            $text.appendTo($inner);
             hasContent = true;
         }
 
@@ -328,7 +472,9 @@
 
         if (!$inner.children().length) {
             if (text) {
-                $('<div>', { class: 'll-study-check-text', text: text }).appendTo($inner);
+                const $text = $('<div>', { class: 'll-study-check-text', text: text });
+                applyAnswerOptionTextStyle($text, text);
+                $text.appendTo($inner);
                 hasContent = true;
             } else {
                 $('<div>', { class: 'll-study-check-empty', text: emptyLabel }).appendTo($inner);
@@ -342,38 +488,82 @@
     function renderSelfCheckPromptDisplay($container, word, options) {
         const opts = options || {};
         const mode = String(opts.displayType || 'image');
-        return renderPromptDisplay($container, mode, word, {
+        const didRender = renderPromptDisplay($container, mode, word, {
             emptyLabel: opts.emptyLabel,
             playAudioLabel: opts.playAudioLabel,
             onPlayAudio: opts.onPlayAudio
         });
+        $container.removeClass('ll-study-check-prompt--grouped');
+        const $inner = $container.find('.ll-study-check-prompt-inner').first();
+        $inner.removeClass('ll-study-check-prompt-inner--grouped');
+        $inner.find('.ll-study-check-answer-list').remove();
+        appendAnswerCountBadge($container, opts.answerCount, opts);
+        return didRender;
     }
 
     function renderSelfCheckAnswerDisplay($container, word, options) {
         const opts = options || {};
         const mode = String(opts.displayType || 'image');
-        renderPromptDisplay($container, mode, word, {
+        const answerWords = (Array.isArray(opts.answerWords) ? opts.answerWords : []).filter(function (entry) {
+            return !!entry;
+        });
+        const promptWord = word || answerWords[0] || null;
+
+        renderPromptDisplay($container, mode, promptWord, {
             emptyLabel: opts.emptyLabel,
             playAudioLabel: opts.playAudioLabel,
             onPlayAudio: opts.onPlayAudio
         });
-        return appendRecordingButtons($container, word, opts);
+
+        const $inner = $container.find('.ll-study-check-prompt-inner').first();
+        $inner.find('.ll-study-check-answer-list').remove();
+
+        const isGrouped = answerWords.length > 1;
+        $container.toggleClass('ll-study-check-prompt--grouped', isGrouped);
+        $inner.toggleClass('ll-study-check-prompt-inner--grouped', isGrouped);
+        const groupLabel = appendAnswerCountBadge($container, answerWords.length, opts);
+
+        if (isGrouped) {
+            const $list = $('<div>', {
+                class: 'll-study-check-answer-list'
+            });
+            if (groupLabel) {
+                $list.attr('aria-label', groupLabel);
+            }
+
+            answerWords.forEach(function (answerWord) {
+                const $item = buildSelfCheckAnswerItem(answerWord, opts);
+                if ($item && $item.length) {
+                    $list.append($item);
+                }
+            });
+
+            if ($list.children().length) {
+                $inner.append($list);
+                return answerWords;
+            }
+        }
+
+        return appendRecordingButtons($container, promptWord, opts);
     }
 
     root.LLToolsSelfCheckShared = Object.assign({}, root.LLToolsSelfCheckShared || {}, {
         getWordText: getWordText,
         isTextOptionType: isTextOptionType,
         isAudioOptionType: isAudioOptionType,
+        getWordImageIdentity: getWordImageIdentity,
         normalizeRecordingType: normalizeRecordingType,
         selectRecordingUrl: selectRecordingUrl,
         getIsolationAudioUrl: getIsolationAudioUrl,
         getIntroductionAudioUrl: getIntroductionAudioUrl,
         getRecordingLabel: getRecordingLabel,
         formatRecordingLabel: formatRecordingLabel,
+        getMultipleAnswersLabel: getMultipleAnswersLabel,
         getRecordingIcon: getRecordingIcon,
         getSelfCheckRecordingEntries: getSelfCheckRecordingEntries,
         getWordAudioUrl: getWordAudioUrl,
         buildAudioButton: buildAudioButton,
+        buildSelfCheckAnswerItem: buildSelfCheckAnswerItem,
         appendRecordingButtons: appendRecordingButtons,
         renderPromptDisplay: renderPromptDisplay,
         renderSelfCheckPromptDisplay: renderSelfCheckPromptDisplay,

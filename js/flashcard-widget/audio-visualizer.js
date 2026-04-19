@@ -7,6 +7,7 @@
     const CLASS_ACTIVE = 'll-tools-loading-animation--active';
     const CLASS_JS = 'll-tools-loading-animation--js';
     const CLASS_FALLBACK = 'll-tools-loading-animation--fallback';
+    const CLASS_PAUSED = 'll-tools-loading-animation--paused';
     const BAR_COUNT = 12;
 
     let container = null;
@@ -20,7 +21,11 @@
     let currentAudio = null;
     let barLevels = [];
     let zeroEnergyFrames = 0;
-    const ZERO_ENERGY_FALLBACK_FRAMES = 90;
+    let noiseGateOpen = false;
+    let noiseGateHoldFrames = 0;
+    const NOISE_GATE_OPEN_THRESHOLD = 0.2;
+    const NOISE_GATE_CLOSE_THRESHOLD = 0.12;
+    const NOISE_GATE_HOLD_FRAMES = 5;
 
     function getContainer() {
         // Use only the dedicated listening-mode visualizer container.
@@ -81,6 +86,18 @@
         return audioContext;
     }
 
+    function warmupAudioContext() {
+        const ctx = ensureAudioContext();
+        if (!ctx) return Promise.resolve(false);
+        if (ctx.state === 'running') return Promise.resolve(true);
+        if (typeof ctx.resume !== 'function') return Promise.resolve(false);
+        return Promise.resolve(ctx.resume()).then(function () {
+            return ctx.state === 'running';
+        }).catch(function () {
+            return false;
+        });
+    }
+
     function ensureAnalyser() {
         if (!audioContext) return null;
         if (!analyser) {
@@ -115,6 +132,23 @@
             barLevels[i] = 0;
         }
         zeroEnergyFrames = 0;
+        noiseGateOpen = false;
+        noiseGateHoldFrames = 0;
+    }
+
+    function revealVisualizer() {
+        const el = getContainer();
+        if (!el) return;
+        try {
+            el.style.display = 'flex';
+            el.style.visibility = 'visible';
+        } catch (_) {}
+        for (let i = 0; i < bars.length; i++) {
+            try {
+                bars[i].style.removeProperty('display');
+                bars[i].style.removeProperty('opacity');
+            } catch (_) {}
+        }
     }
 
     function activateFallback() {
@@ -137,6 +171,37 @@
         return !!(audioContext && audioContext.state === 'running');
     }
 
+    function renderTimelineLevels(audio) {
+        if (!bars.length || !audio) return;
+
+        const duration = (typeof audio.duration === 'number' && isFinite(audio.duration) && audio.duration > 0)
+            ? audio.duration
+            : 0;
+        const currentTime = Math.max(0, (typeof audio.currentTime === 'number' && isFinite(audio.currentTime)) ? audio.currentTime : 0);
+        const progress = duration > 0 ? Math.max(0, Math.min(1, currentTime / duration)) : 0;
+        const barSpan = Math.max(1, bars.length - 1);
+
+        for (let i = 0; i < bars.length; i++) {
+            const x = i / barSpan;
+            const dist = Math.abs(x - progress);
+            const sweep = Math.max(0, 1 - (dist * 2.2));
+            const sweepSoft = Math.pow(sweep, 1.25);
+
+            // Blend a progress sweep with time-varying ripples so bars remain
+            // motion-coupled to playback when analyser data is unavailable.
+            const rippleA = Math.abs(Math.sin((currentTime * 7.4) + (i * 0.62)));
+            const rippleB = Math.abs(Math.sin((currentTime * 4.1) + (i * 0.37)));
+            const ripple = (rippleA * 0.62) + (rippleB * 0.38);
+
+            // Keep fallback motion subtle; reserve near-max heights for real analyser peaks.
+            const target = Math.max(0.04, Math.min(0.64, (sweepSoft * 0.38) + (ripple * 0.18) + 0.04));
+            const previous = barLevels[i] || 0;
+            const level = previous + (target - previous) * 0.42;
+            barLevels[i] = level;
+            bars[i].style.setProperty('--level', level.toFixed(3));
+        }
+    }
+
     function loop() {
         if (!analyser || !bars.length || !analyserData || !timeDomainData) {
             rafId = null;
@@ -144,7 +209,12 @@
         }
 
         if (!isContextRunning()) {
-            activateFallback();
+            if (currentAudio && !currentAudio.paused && !currentAudio.ended) {
+                activateJS();
+                renderTimelineLevels(currentAudio);
+            } else {
+                activateFallback();
+            }
             rafId = root.requestAnimationFrame(loop);
             return;
         }
@@ -161,24 +231,59 @@
             const deviation = timeDomainData[i] - 128;
             sumSquares += deviation * deviation;
         }
-        const rms = Math.min(1, Math.sqrt(sumSquares / timeDomainData.length) / 64); // boost factor
+        const rms = Math.min(1, Math.sqrt(sumSquares / timeDomainData.length) / 66);
+        let spectrumSum = 0;
+        for (let i = 0; i < analyserData.length; i++) {
+            spectrumSum += analyserData[i];
+        }
+        const spectrumAvg = spectrumSum / analyserData.length;
+        const rmsSignal = Math.max(0, Math.min(1, (rms - 0.035) / 0.1));
+        const spectrumSignal = Math.max(0, Math.min(1, (spectrumAvg - 28) / 80));
+        // De-emphasize spectrum-only activity so static/hiss does not open the gate too easily.
+        const frameSignal = Math.max(rmsSignal, spectrumSignal * 0.55);
+
+        if (frameSignal >= NOISE_GATE_OPEN_THRESHOLD) {
+            noiseGateOpen = true;
+            noiseGateHoldFrames = NOISE_GATE_HOLD_FRAMES;
+        } else if (noiseGateOpen) {
+            if (frameSignal >= NOISE_GATE_CLOSE_THRESHOLD) {
+                noiseGateHoldFrames = NOISE_GATE_HOLD_FRAMES;
+            } else if (noiseGateHoldFrames > 0) {
+                noiseGateHoldFrames -= 1;
+            } else {
+                noiseGateOpen = false;
+            }
+        }
+
+        const loudFrame = noiseGateOpen && rms > 0.55;
 
         for (let i = 0; i < bars.length; i++) {
+            const previous = barLevels[i] || 0;
+
+            if (!noiseGateOpen) {
+                const level = previous * 0.7;
+                barLevels[i] = level;
+                bars[i].style.setProperty('--level', level.toFixed(3));
+                continue;
+            }
+
             let sum = 0;
             for (let j = 0; j < slice; j++) {
                 sum += analyserData[(i * slice) + j] || 0;
             }
 
             const avg = sum / slice;
-            const normalized = Math.max(0, (avg - 40) / 215); // ignore very low noise floor
-            const combined = Math.min(1, (normalized * 0.7) + (rms * 0.9));
-            const eased = Math.pow(combined, 1.35);
+            const normalized = Math.max(0, (avg - 40) / 220);
+            const combined = Math.min(1, (normalized * 0.64) + (rms * 0.72));
+            const boosted = Math.min(1, combined * 1.22);
+            const shaped = Math.pow(boosted, 1.22);
+            const gateBoost = 0.18 + (frameSignal * 0.82);
+            const eased = Math.min(loudFrame ? 1 : 0.84, shaped * gateBoost);
 
-            const previous = barLevels[i] || 0;
-            const level = previous + (eased - previous) * 0.35;
+            const level = previous + (eased - previous) * 0.38;
             barLevels[i] = level;
 
-            if (level > 0.05) {
+            if (level > 0.03) {
                 hasEnergy = true;
             }
 
@@ -187,13 +292,18 @@
 
         if (hasEnergy) {
             zeroEnergyFrames = 0;
-            activateJS();
         } else {
             zeroEnergyFrames++;
-            if (zeroEnergyFrames > ZERO_ENERGY_FALLBACK_FRAMES) {
-                activateFallback();
+            if (
+                currentAudio && !currentAudio.paused && !currentAudio.ended &&
+                noiseGateOpen && frameSignal >= NOISE_GATE_CLOSE_THRESHOLD &&
+                zeroEnergyFrames > 10
+            ) {
+                renderTimelineLevels(currentAudio);
             }
         }
+        // While audio is actively playing, keep bars JS-driven (not fixed-rate fallback).
+        activateJS();
 
         rafId = root.requestAnimationFrame(loop);
     }
@@ -206,16 +316,21 @@
 
     function detachAudioEvents() {
         if (!currentAudio) return;
+        currentAudio.removeEventListener('play', handlePlaying);
         currentAudio.removeEventListener('pause', handlePause);
         currentAudio.removeEventListener('ended', handleEnded);
         currentAudio.removeEventListener('playing', handlePlaying);
-        currentAudio.removeEventListener('emptied', handleEnded);
+        currentAudio.removeEventListener('timeupdate', handleTimeUpdate);
         currentAudio = null;
     }
 
     function handlePlaying() {
+        revealVisualizer();
         const el = getContainer();
-        if (el) el.classList.add(CLASS_ACTIVE);
+        if (el) {
+            el.classList.add(CLASS_ACTIVE);
+            el.classList.remove(CLASS_PAUSED);
+        }
 
         if (!audioContext) {
             activateFallback();
@@ -247,6 +362,8 @@
             return;
         }
         cancelLoop();
+        const el = getContainer();
+        if (el) el.classList.add(CLASS_PAUSED);
         activateFallback();
     }
 
@@ -255,15 +372,37 @@
         resetBars();
         detachAudioEvents();
         const el = getContainer();
-        if (el) el.classList.remove(CLASS_ACTIVE);
+        if (el) {
+            el.classList.remove(CLASS_ACTIVE);
+            el.classList.remove(CLASS_PAUSED);
+        }
+    }
+
+    function handleTimeUpdate() {
+        if (!currentAudio) return;
+        if (currentAudio.currentTime <= 0 && !currentAudio.ended) return;
+
+        // Backup trigger: if play/playing was missed in some browsers/races,
+        // start JS visual updates once timeline movement is observed.
+        const el = getContainer();
+        if (el && !el.classList.contains(CLASS_JS) && !currentAudio.paused) {
+            handlePlaying();
+            return;
+        }
+
+        if (!isContextRunning() && !currentAudio.paused && !currentAudio.ended) {
+            activateJS();
+            renderTimelineLevels(currentAudio);
+        }
     }
 
     function prepareForListening() {
         const el = ensureBars();
         if (!el) return;
         activateFallback();
-        try { el.style.display = 'flex'; } catch (_) {}
+        revealVisualizer();
         el.classList.remove(CLASS_ACTIVE);
+        el.classList.remove(CLASS_PAUSED);
         resetBars();
     }
 
@@ -274,7 +413,7 @@
         const ctx = ensureAudioContext();
         if (!ctx) {
             activateFallback();
-            try { el.style.display = 'flex'; } catch (_) {}
+            revealVisualizer();
             el.classList.add(CLASS_ACTIVE);
             return;
         }
@@ -288,22 +427,30 @@
         detachAudioEvents();
         currentAudio = audio;
 
-        let source = audio.__llVisualizerSource;
+        let source = audio.__llVisualizerSource || audio.__llMiniVisualizerSource;
         if (!source) {
             try {
                 source = ctx.createMediaElementSource(audio);
+                // Keep a single source node alias so mini + listening visualizers
+                // can attach in any order without createMediaElementSource conflicts.
                 audio.__llVisualizerSource = source;
+                audio.__llMiniVisualizerSource = source;
             } catch (err) {
                 console.warn('AudioVisualizer: media source failed', err);
                 activateFallback();
                 return;
             }
+        } else {
+            // If one visualizer created the source first, mirror aliases so
+            // the other visualizer can always discover and reuse it.
+            audio.__llVisualizerSource = source;
+            audio.__llMiniVisualizerSource = source;
         }
 
         try {
-            source.disconnect();
+            source.disconnect(analyser);
         } catch (_) {
-            // Ignore disconnect errors from nodes without existing connections
+            // Ignore disconnect errors from nodes without an existing analyser connection
         }
 
         try {
@@ -314,17 +461,19 @@
             return;
         }
 
-        if (isContextRunning()) {
+        if (isContextRunning() && !currentAudio.paused) {
             activateJS();
         } else {
             activateFallback();
         }
-        try { el.style.display = 'flex'; } catch (_) {}
+        revealVisualizer();
+        el.classList.remove(CLASS_PAUSED);
 
+        currentAudio.addEventListener('play', handlePlaying, { passive: true });
         currentAudio.addEventListener('pause', handlePause, { passive: true });
         currentAudio.addEventListener('ended', handleEnded, { passive: true });
         currentAudio.addEventListener('playing', handlePlaying, { passive: true });
-        currentAudio.addEventListener('emptied', handleEnded, { passive: true });
+        currentAudio.addEventListener('timeupdate', handleTimeUpdate, { passive: true });
 
         if (!currentAudio.paused) {
             handlePlaying();
@@ -340,6 +489,7 @@
         const el = getContainer();
         if (!el) return;
         el.classList.remove(CLASS_ACTIVE);
+        el.classList.remove(CLASS_PAUSED);
         activateFallback();
     }
 
@@ -350,6 +500,7 @@
         el.classList.remove(CLASS_JS);
         el.classList.remove(CLASS_BASE);
         el.classList.remove(CLASS_FALLBACK);
+        el.classList.remove(CLASS_PAUSED);
     }
 
     function createMiniVisualizer(options) {
@@ -528,9 +679,13 @@
                 try {
                     source = ctx.createMediaElementSource(audio);
                     audio.__llMiniVisualizerSource = source;
+                    audio.__llVisualizerSource = source;
                 } catch (_) {
                     return;
                 }
+            } else {
+                audio.__llMiniVisualizerSource = source;
+                audio.__llVisualizerSource = source;
             }
 
             miniSource = source;
@@ -590,6 +745,7 @@
         followAudio: followAudio,
         stop: stopVisualizer,
         reset: resetVisualizer,
+        warmup: warmupAudioContext,
         createMiniVisualizer: createMiniVisualizer
     };
 })(window);

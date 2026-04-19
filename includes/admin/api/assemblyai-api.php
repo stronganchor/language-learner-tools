@@ -85,16 +85,16 @@ function ll_get_assemblyai_api_key() {
 function ll_tools_assemblyai_upload_audio($file_path) {
     $api_key = ll_get_assemblyai_api_key();
     if ($api_key === '') {
-        return new WP_Error('missing_key', 'AssemblyAI API key not configured.');
+        return new WP_Error('missing_key', __('AssemblyAI API key not configured.', 'll-tools-text-domain'));
     }
 
     if (!is_readable($file_path)) {
-        return new WP_Error('file_missing', 'Audio file is missing or unreadable.');
+        return new WP_Error('file_missing', __('Audio file is missing or unreadable.', 'll-tools-text-domain'));
     }
 
     $audio_data = file_get_contents($file_path);
     if ($audio_data === false) {
-        return new WP_Error('file_read', 'Failed to read audio data.');
+        return new WP_Error('file_read', __('Failed to read audio data.', 'll-tools-text-domain'));
     }
 
     $response = wp_remote_post('https://api.assemblyai.com/v2/upload', [
@@ -114,7 +114,7 @@ function ll_tools_assemblyai_upload_audio($file_path) {
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if ($code < 200 || $code >= 300 || !is_array($body) || empty($body['upload_url'])) {
-        return new WP_Error('upload_failed', 'AssemblyAI upload failed.');
+        return new WP_Error('upload_failed', __('AssemblyAI upload failed.', 'll-tools-text-domain'));
     }
 
     return $body['upload_url'];
@@ -125,12 +125,20 @@ function ll_tools_assemblyai_upload_audio($file_path) {
  *
  * @param string $upload_url
  * @param string $language_code
+ * @param array  $options
  * @return string|WP_Error
  */
-function ll_tools_assemblyai_request_transcript($upload_url, $language_code = '') {
+function ll_tools_assemblyai_request_transcript($upload_url, $language_code = '', array $options = []) {
     $api_key = ll_get_assemblyai_api_key();
     if ($api_key === '') {
-        return new WP_Error('missing_key', 'AssemblyAI API key not configured.');
+        return new WP_Error('missing_key', __('AssemblyAI API key not configured.', 'll-tools-text-domain'));
+    }
+
+    $language_code = function_exists('ll_tools_normalize_language_code')
+        ? (string) ll_tools_normalize_language_code($language_code, 'lower')
+        : strtolower(trim((string) $language_code));
+    if ($language_code === 'auto') {
+        $language_code = '';
     }
 
     $payload = [
@@ -141,6 +149,26 @@ function ll_tools_assemblyai_request_transcript($upload_url, $language_code = ''
 
     if ($language_code !== '') {
         $payload['language_code'] = $language_code;
+    }
+
+    $speech_models = [];
+    foreach ((array) ($options['speech_models'] ?? []) as $speech_model) {
+        $speech_model = sanitize_key((string) $speech_model);
+        if ($speech_model !== '') {
+            $speech_models[$speech_model] = $speech_model;
+        }
+    }
+    $speech_models = array_values($speech_models);
+    if (!empty($speech_models)) {
+        $payload['speech_models'] = $speech_models;
+    }
+
+    if (!empty($options['language_detection']) && $language_code === '') {
+        $payload['language_detection'] = true;
+    }
+
+    if (!empty($payload['language_detection']) && !empty($options['language_detection_options']) && is_array($options['language_detection_options'])) {
+        $payload['language_detection_options'] = $options['language_detection_options'];
     }
 
     $response = wp_remote_post('https://api.assemblyai.com/v2/transcript', [
@@ -160,7 +188,7 @@ function ll_tools_assemblyai_request_transcript($upload_url, $language_code = ''
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if ($code < 200 || $code >= 300 || !is_array($body) || empty($body['id'])) {
-        return new WP_Error('transcript_failed', 'AssemblyAI transcript request failed.');
+        return new WP_Error('transcript_failed', __('AssemblyAI transcript request failed.', 'll-tools-text-domain'));
     }
 
     return (string) $body['id'];
@@ -175,7 +203,7 @@ function ll_tools_assemblyai_request_transcript($upload_url, $language_code = ''
 function ll_tools_assemblyai_get_transcript($transcript_id) {
     $api_key = ll_get_assemblyai_api_key();
     if ($api_key === '') {
-        return new WP_Error('missing_key', 'AssemblyAI API key not configured.');
+        return new WP_Error('missing_key', __('AssemblyAI API key not configured.', 'll-tools-text-domain'));
     }
 
     $response = wp_remote_get('https://api.assemblyai.com/v2/transcript/' . rawurlencode($transcript_id), [
@@ -193,7 +221,7 @@ function ll_tools_assemblyai_get_transcript($transcript_id) {
     $body = json_decode(wp_remote_retrieve_body($response), true);
 
     if ($code < 200 || $code >= 300 || !is_array($body)) {
-        return new WP_Error('transcript_status_failed', 'AssemblyAI transcript status check failed.');
+        return new WP_Error('transcript_status_failed', __('AssemblyAI transcript status check failed.', 'll-tools-text-domain'));
     }
 
     return $body;
@@ -204,15 +232,16 @@ function ll_tools_assemblyai_get_transcript($transcript_id) {
  *
  * @param string $file_path
  * @param string $language_code
+ * @param array  $options
  * @return string|WP_Error Transcript ID
  */
-function ll_tools_assemblyai_start_transcription($file_path, $language_code = '') {
+function ll_tools_assemblyai_start_transcription($file_path, $language_code = '', array $options = []) {
     $upload_url = ll_tools_assemblyai_upload_audio($file_path);
     if (is_wp_error($upload_url)) {
         return $upload_url;
     }
 
-    return ll_tools_assemblyai_request_transcript($upload_url, $language_code);
+    return ll_tools_assemblyai_request_transcript($upload_url, $language_code, $options);
 }
 
 /**
@@ -220,10 +249,11 @@ function ll_tools_assemblyai_start_transcription($file_path, $language_code = ''
  *
  * @param string $file_path
  * @param string $language_code
+ * @param array  $options
  * @return array|WP_Error
  */
-function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = '') {
-    $transcript_id = ll_tools_assemblyai_start_transcription($file_path, $language_code);
+function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = '', array $options = []) {
+    $transcript_id = ll_tools_assemblyai_start_transcription($file_path, $language_code, $options);
     if (is_wp_error($transcript_id)) {
         return $transcript_id;
     }
@@ -242,14 +272,16 @@ function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = 
         $state = isset($status['status']) ? $status['status'] : '';
         if ($state === 'completed') {
             return [
-                'id'     => $transcript_id,
+                'id' => $transcript_id,
                 'status' => 'completed',
-                'text'   => isset($status['text']) ? (string) $status['text'] : '',
+                'text' => isset($status['text']) ? (string) $status['text'] : '',
+                'language_code' => isset($status['language_code']) ? (string) $status['language_code'] : (string) $language_code,
+                'speech_model_used' => isset($status['speech_model_used']) ? (string) $status['speech_model_used'] : '',
             ];
         }
 
         if ($state === 'error') {
-            $msg = isset($status['error']) ? $status['error'] : 'AssemblyAI transcription failed.';
+            $msg = isset($status['error']) ? $status['error'] : __('AssemblyAI transcription failed.', 'll-tools-text-domain');
             return new WP_Error('transcript_error', $msg);
         }
 
@@ -258,5 +290,5 @@ function ll_tools_assemblyai_transcribe_audio_file($file_path, $language_code = 
         }
     }
 
-    return new WP_Error('transcript_timeout', 'AssemblyAI transcription is still processing.');
+    return new WP_Error('transcript_timeout', __('AssemblyAI transcription is still processing.', 'll-tools-text-domain'));
 }

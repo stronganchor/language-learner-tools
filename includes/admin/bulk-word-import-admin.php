@@ -8,18 +8,256 @@ if (!defined('ABSPATH')) {
  *
  * Allows privileged users to paste a list of vocabulary words and quickly
  * generate draft "words" posts. Titles are normalized so the first
- * character is capitalized, respecting Turkish dotted/dotless I rules
- * when the plugin target language is set to TR.
+ * character is capitalized, respecting Turkish-style dotted/dotless I
+ * rules for Turkish and Zazaki wordsets.
  */
 
 /**
  * Register the admin page under Tools.
  */
+function ll_tools_get_bulk_word_import_capability(): string {
+    return (string) apply_filters('ll_tools_bulk_word_import_capability', 'manage_options');
+}
+
+function ll_tools_current_user_can_bulk_word_import(): bool {
+    return current_user_can(ll_tools_get_bulk_word_import_capability());
+}
+
+function ll_tools_bulk_word_import_normalize_category_ids(array $category_ids): array {
+    $normalized = [];
+
+    foreach ($category_ids as $category_id) {
+        $category_id = (int) $category_id;
+        if ($category_id > 0) {
+            $normalized[$category_id] = true;
+        }
+    }
+
+    return array_values(array_map('intval', array_keys($normalized)));
+}
+
+function ll_tools_bulk_word_import_prepare_selectable_category_terms(array $categories, int $wordset_id = 0): array {
+    if (function_exists('ll_tools_filter_category_terms_for_user')) {
+        $categories = ll_tools_filter_category_terms_for_user((array) $categories);
+    }
+
+    $categories = array_values(array_filter((array) $categories, static function ($term): bool {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+            return false;
+        }
+
+        return (string) $term->slug !== 'uncategorized';
+    }));
+
+    if (empty($categories)) {
+        return [];
+    }
+
+    if ($wordset_id > 0) {
+        usort($categories, static function (WP_Term $left, WP_Term $right) use ($wordset_id): int {
+            $left_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($left, ['wordset_ids' => [$wordset_id]])
+                : (string) $left->name;
+            $right_label = function_exists('ll_tools_get_category_display_name')
+                ? (string) ll_tools_get_category_display_name($right, ['wordset_ids' => [$wordset_id]])
+                : (string) $right->name;
+
+            if (function_exists('ll_tools_locale_compare_strings')) {
+                $cmp = ll_tools_locale_compare_strings($left_label, $right_label);
+            } else {
+                $cmp = strnatcasecmp($left_label, $right_label);
+            }
+
+            return ($cmp !== 0) ? $cmp : (((int) $left->term_id) <=> ((int) $right->term_id));
+        });
+    } elseif (function_exists('ll_tools_sort_category_terms_for_admin_selection')) {
+        $categories = ll_tools_sort_category_terms_for_admin_selection($categories);
+    } else {
+        usort($categories, static function (WP_Term $left, WP_Term $right): int {
+            return strnatcasecmp((string) $left->name, (string) $right->name);
+        });
+    }
+
+    return $categories;
+}
+
+function ll_tools_bulk_word_import_get_selectable_categories(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    $owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY')
+        ? (string) LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY
+        : 'll_wordset_owner_id';
+    $isolation_enabled = function_exists('ll_tools_is_wordset_isolation_enabled') && ll_tools_is_wordset_isolation_enabled();
+
+    if ($wordset_id > 0 && $isolation_enabled) {
+        global $wpdb;
+
+        $category_ids = [];
+
+        $owned_category_ids = get_terms([
+            'taxonomy'   => 'word-category',
+            'hide_empty' => false,
+            'fields'     => 'ids',
+            'meta_query' => [
+                [
+                    'key'     => $owner_meta_key,
+                    'value'   => $wordset_id,
+                    'compare' => '=',
+                    'type'    => 'NUMERIC',
+                ],
+            ],
+        ]);
+        if (!is_wp_error($owned_category_ids)) {
+            $category_ids = array_merge($category_ids, array_map('intval', (array) $owned_category_ids));
+        }
+
+        $used_word_category_ids = $wpdb->get_col($wpdb->prepare("
+            SELECT DISTINCT tt_cat.term_id
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
+            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+            WHERE p.post_type = %s
+              AND p.post_status IN (%s, %s, %s, %s, %s)
+              AND tt_ws.taxonomy = %s
+              AND tt_ws.term_id = %d
+              AND tt_cat.taxonomy = %s
+        ", 'words', 'publish', 'draft', 'pending', 'future', 'private', 'wordset', $wordset_id, 'word-category'));
+        $category_ids = array_merge($category_ids, array_map('intval', (array) $used_word_category_ids));
+
+        if (defined('LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY')) {
+            $used_image_category_ids = $wpdb->get_col($wpdb->prepare("
+                SELECT DISTINCT tt_cat.term_id
+                FROM {$wpdb->posts} p
+                INNER JOIN {$wpdb->postmeta} pm_owner
+                    ON pm_owner.post_id = p.ID
+                   AND pm_owner.meta_key = %s
+                   AND CAST(pm_owner.meta_value AS UNSIGNED) = %d
+                INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
+                INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
+                WHERE p.post_type = %s
+                  AND p.post_status IN (%s, %s, %s, %s, %s)
+                  AND tt_cat.taxonomy = %s
+            ", LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY, $wordset_id, 'word_images', 'publish', 'draft', 'pending', 'future', 'private', 'word-category'));
+            $category_ids = array_merge($category_ids, array_map('intval', (array) $used_image_category_ids));
+        }
+
+        $category_ids = ll_tools_bulk_word_import_normalize_category_ids($category_ids);
+        if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_ids = [];
+            foreach ($category_ids as $category_id) {
+                $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, false);
+                if ($effective_category_id <= 0) {
+                    $effective_category_id = $category_id;
+                }
+                if ($effective_category_id > 0) {
+                    $effective_category_ids[$effective_category_id] = true;
+                }
+            }
+
+            $category_ids = array_values(array_map('intval', array_keys($effective_category_ids)));
+        }
+
+        if (empty($category_ids)) {
+            return [];
+        }
+
+        $categories = get_terms([
+            'taxonomy'   => 'word-category',
+            'hide_empty' => false,
+            'include'    => $category_ids,
+            'orderby'    => 'name',
+            'order'      => 'ASC',
+        ]);
+
+        return is_wp_error($categories)
+            ? []
+            : ll_tools_bulk_word_import_prepare_selectable_category_terms((array) $categories, $wordset_id);
+    }
+
+    $categories = get_terms([
+        'taxonomy'   => 'word-category',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+        'meta_query' => [
+            'relation' => 'OR',
+            [
+                'key'     => $owner_meta_key,
+                'compare' => 'NOT EXISTS',
+            ],
+            [
+                'key'     => $owner_meta_key,
+                'value'   => 0,
+                'compare' => '=',
+                'type'    => 'NUMERIC',
+            ],
+        ],
+    ]);
+
+    return is_wp_error($categories)
+        ? []
+        : ll_tools_bulk_word_import_prepare_selectable_category_terms((array) $categories);
+}
+
+function ll_tools_bulk_word_import_get_selectable_category_rows(int $wordset_id): array {
+    $rows = [];
+
+    foreach (ll_tools_bulk_word_import_get_selectable_categories($wordset_id) as $term) {
+        $label = $wordset_id > 0 && function_exists('ll_tools_get_category_display_name')
+            ? (string) ll_tools_get_category_display_name($term, ['wordset_ids' => [$wordset_id]])
+            : (function_exists('ll_tools_get_category_admin_selection_label')
+                ? (string) ll_tools_get_category_admin_selection_label($term)
+                : (string) $term->name);
+
+        $rows[] = [
+            'id' => (int) $term->term_id,
+            'label' => $label !== '' ? $label : (string) $term->name,
+        ];
+    }
+
+    return $rows;
+}
+
+function ll_tools_bulk_word_import_enqueue_admin_assets(string $hook_suffix): void {
+    if ($hook_suffix !== 'tools_page_ll-bulk-word-import' || !ll_tools_current_user_can_bulk_word_import()) {
+        return;
+    }
+
+    ll_enqueue_asset_by_timestamp('/js/bulk-word-import-admin.js', 'll-tools-bulk-word-import-admin', [], true);
+
+    $category_rows_by_wordset = [
+        '0' => ll_tools_bulk_word_import_get_selectable_category_rows(0),
+    ];
+
+    $wordsets = get_terms([
+        'taxonomy'   => 'wordset',
+        'hide_empty' => false,
+        'orderby'    => 'name',
+        'order'      => 'ASC',
+    ]);
+    if (!is_wp_error($wordsets)) {
+        foreach ((array) $wordsets as $wordset) {
+            if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
+                continue;
+            }
+
+            $category_rows_by_wordset[(string) ((int) $wordset->term_id)] = ll_tools_bulk_word_import_get_selectable_category_rows((int) $wordset->term_id);
+        }
+    }
+
+    wp_localize_script('ll-tools-bulk-word-import-admin', 'llBulkWordImportData', [
+        'categoryRowsByWordset' => $category_rows_by_wordset,
+        'uncategorizedLabel' => __('Leave uncategorized', 'll-tools-text-domain'),
+    ]);
+}
+add_action('admin_enqueue_scripts', 'll_tools_bulk_word_import_enqueue_admin_assets');
+
 function ll_tools_register_bulk_word_import_page() {
     add_management_page(
-        'LL Bulk Word Import',
-        'LL Bulk Word Import',
-        'view_ll_tools',
+        __('LL Bulk Word Import', 'll-tools-text-domain'),
+        __('LL Bulk Word Import', 'll-tools-text-domain'),
+        ll_tools_get_bulk_word_import_capability(),
         'll-bulk-word-import',
         'll_tools_render_bulk_word_import_page'
     );
@@ -27,12 +265,13 @@ function ll_tools_register_bulk_word_import_page() {
 add_action('admin_menu', 'll_tools_register_bulk_word_import_page');
 
 /**
- * Capitalize the first character of a word, respecting Turkish casing rules.
+ * Capitalize the first character of a word, respecting Turkish-style casing rules.
  *
  * @param string $word Raw word from the import list.
+ * @param int    $wordset_id Word set context for title-language casing rules.
  * @return string Normalized word title.
  */
-function ll_tools_import_capitalize_word($word) {
+function ll_tools_import_capitalize_word($word, int $wordset_id = 0) {
     $word = trim((string) $word);
     if ($word === '') {
         return '';
@@ -42,16 +281,21 @@ function ll_tools_import_capitalize_word($word) {
         $first = mb_substr($word, 0, 1, 'UTF-8');
         $rest  = mb_substr($word, 1, null, 'UTF-8');
 
-        $target_language = strtoupper((string) get_option('ll_target_language', ''));
-        if ($target_language === 'TR') {
-            // Handle dotted/dotless I specifically for Turkish.
-            if ($first === 'i') {
-                $first = 'İ';
-            } elseif ($first === 'ı') {
-                $first = 'I';
-            } else {
-                $first = mb_strtoupper($first, 'UTF-8');
-            }
+        $wordset_ids = $wordset_id > 0 ? [$wordset_id] : [];
+        $title_language_raw = function_exists('ll_tools_get_wordset_title_language_label')
+            ? (string) ll_tools_get_wordset_title_language_label($wordset_ids)
+            : '';
+        if ($title_language_raw === '') {
+            $title_language_raw = (string) get_option('ll_target_language', '');
+        }
+        $uses_turkish_casing = function_exists('ll_tools_language_uses_turkish_casing')
+            ? ll_tools_language_uses_turkish_casing($title_language_raw)
+            : false;
+
+        if ($uses_turkish_casing) {
+            $first = function_exists('ll_tools_uppercase_first_char_for_language')
+                ? ll_tools_uppercase_first_char_for_language($first, $title_language_raw)
+                : mb_strtoupper($first, 'UTF-8');
         } else {
             $first = mb_strtoupper($first, 'UTF-8');
         }
@@ -64,15 +308,75 @@ function ll_tools_import_capitalize_word($word) {
 }
 
 /**
+ * Parse a pasted bulk-import row into word/translation columns.
+ *
+ * Supported formats:
+ * - `word`
+ * - `word<TAB>translation`
+ * - `word,translation` (CSV-style, quoted values supported)
+ *
+ * @param string $raw_line Raw pasted line.
+ * @return array{title:string,translation:string,extra_columns:int}
+ */
+function ll_tools_bulk_word_import_parse_line($raw_line): array {
+    $line = trim((string) $raw_line);
+    if ($line === '') {
+        return [
+            'title'         => '',
+            'translation'   => '',
+            'extra_columns' => 0,
+        ];
+    }
+
+    $delimiter = '';
+    if (strpos($line, "\t") !== false) {
+        $delimiter = "\t";
+    } elseif (strpos($line, ',') !== false) {
+        $delimiter = ',';
+    }
+
+    if ($delimiter === '') {
+        return [
+            'title'         => $line,
+            'translation'   => '',
+            'extra_columns' => 0,
+        ];
+    }
+
+    if (function_exists('str_getcsv')) {
+        $columns = str_getcsv($line, $delimiter, '"', '\\');
+    } else {
+        $columns = explode($delimiter, $line);
+    }
+
+    if (!is_array($columns) || empty($columns)) {
+        $columns = [$line];
+    }
+
+    $columns = array_map(
+        static function ($value): string {
+            return trim((string) $value);
+        },
+        $columns
+    );
+
+    return [
+        'title'         => (string) ($columns[0] ?? ''),
+        'translation'   => (string) ($columns[1] ?? ''),
+        'extra_columns' => max(0, count($columns) - 2),
+    ];
+}
+
+/**
  * Render the Bulk Word Import page.
  */
 function ll_tools_render_bulk_word_import_page() {
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_bulk_word_import()) {
         return;
     }
 
     $messages = [];
-    $created = $skipped_existing = $skipped_empty = 0;
+    $created = $created_with_translation = $skipped_existing = $skipped_empty = $rows_with_ignored_extra_columns = 0;
     $skipped_existing_words = [];
     $errors  = [];
 
@@ -80,38 +384,48 @@ function ll_tools_render_bulk_word_import_page() {
         check_admin_referer('ll_bulk_word_import', 'll_bulk_word_import_nonce');
 
         $raw_list = isset($_POST['ll_word_list']) ? wp_unslash($_POST['ll_word_list']) : '';
-        $words = array_filter(array_map('trim', preg_split('/\r\n|\n|\r/', (string) $raw_list)));
+        $raw_lines = preg_split('/\r\n|\n|\r/', (string) $raw_list);
+        $parsed_rows = is_array($raw_lines)
+            ? array_map('ll_tools_bulk_word_import_parse_line', $raw_lines)
+            : [];
 
         $selected_category = isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0;
         $selected_wordset  = isset($_POST['ll_existing_wordset']) ? (int) wp_unslash($_POST['ll_existing_wordset']) : 0;
         $new_category_name = isset($_POST['ll_new_category']) ? sanitize_text_field(wp_unslash($_POST['ll_new_category'])) : '';
         $category_id = 0;
 
+        if ($selected_wordset > 0 && $selected_category > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($selected_category, $selected_wordset, true);
+            if ($effective_category_id > 0) {
+                $selected_category = $effective_category_id;
+            }
+        }
+
         if ($new_category_name !== '') {
-            $existing = term_exists($new_category_name, 'word-category');
-            if ($existing) {
-                $category_id = (int) (is_array($existing) ? $existing['term_id'] : $existing);
-                $messages[] = [
-                    'type' => 'info',
-                    'text' => sprintf(
-                        __('Category "%s" already exists and will be used.', 'll-tools-text-domain'),
-                        esc_html($new_category_name)
-                    ),
-                ];
+            if (function_exists('ll_tools_create_or_get_wordset_category')) {
+                $result = ll_tools_create_or_get_wordset_category($new_category_name, $selected_wordset);
             } else {
-                $result = wp_insert_term($new_category_name, 'word-category');
-                if (is_wp_error($result)) {
-                    $errors[] = sprintf(
-                        __('Could not create the "%1$s" category: %2$s', 'll-tools-text-domain'),
-                        esc_html($new_category_name),
-                        esc_html($result->get_error_message())
-                    );
+                $existing = term_exists($new_category_name, 'word-category');
+                if ($existing) {
+                    $result = (int) (is_array($existing) ? $existing['term_id'] : $existing);
                 } else {
-                    $category_id = (int) $result['term_id'];
+                    $result = wp_insert_term($new_category_name, 'word-category');
+                }
+            }
+
+            if (is_wp_error($result)) {
+                $errors[] = sprintf(
+                    __('Could not create the "%1$s" category: %2$s', 'll-tools-text-domain'),
+                    esc_html($new_category_name),
+                    esc_html($result->get_error_message())
+                );
+            } else {
+                $category_id = (int) (is_array($result) ? ($result['term_id'] ?? 0) : $result);
+                if ($category_id > 0) {
                     $messages[] = [
                         'type' => 'success',
                         'text' => sprintf(
-                            __('Created new category "%s".', 'll-tools-text-domain'),
+                            __('Created or reused category "%s".', 'll-tools-text-domain'),
                             esc_html($new_category_name)
                         ),
                     ];
@@ -121,13 +435,21 @@ function ll_tools_render_bulk_word_import_page() {
             $category_id = $selected_category;
         }
 
-        if (empty($words)) {
+        if (trim((string) $raw_list) === '') {
             $errors[] = __('Please provide at least one word to import.', 'll-tools-text-domain');
         }
 
         if (empty($errors)) {
-            foreach ($words as $word) {
-                $normalized = ll_tools_import_capitalize_word($word);
+            foreach ($parsed_rows as $row) {
+                $word = (string) ($row['title'] ?? '');
+                $translation = sanitize_text_field((string) ($row['translation'] ?? ''));
+                $extra_columns = isset($row['extra_columns']) ? (int) $row['extra_columns'] : 0;
+
+                if ($extra_columns > 0) {
+                    $rows_with_ignored_extra_columns++;
+                }
+
+                $normalized = ll_tools_import_capitalize_word($word, $selected_wordset);
                 if ($normalized === '') {
                     $skipped_empty++;
                     continue;
@@ -180,6 +502,11 @@ function ll_tools_render_bulk_word_import_page() {
                     }
                 }
 
+                if ($translation !== '') {
+                    update_post_meta($post_id, 'word_translation', $translation);
+                    $created_with_translation++;
+                }
+
                 $created++;
             }
 
@@ -189,6 +516,21 @@ function ll_tools_render_bulk_word_import_page() {
                     'text' => sprintf(
                         _n('%d word was imported as a draft.', '%d words were imported as drafts.', $created, 'll-tools-text-domain'),
                         $created
+                    ),
+                ];
+            }
+
+            if ($created_with_translation > 0) {
+                $messages[] = [
+                    'type' => 'success',
+                    'text' => sprintf(
+                        _n(
+                            '%d imported word included a translation.',
+                            '%d imported words included translations.',
+                            $created_with_translation,
+                            'll-tools-text-domain'
+                        ),
+                        $created_with_translation
                     ),
                 ];
             }
@@ -220,17 +562,22 @@ function ll_tools_render_bulk_word_import_page() {
                     ),
                 ];
             }
-        }
-    }
 
-    $categories = get_terms([
-        'taxonomy'   => 'word-category',
-        'hide_empty' => false,
-        'orderby'    => 'name',
-        'order'      => 'ASC',
-    ]);
-    if (is_wp_error($categories)) {
-        $categories = [];
+            if ($rows_with_ignored_extra_columns > 0) {
+                $messages[] = [
+                    'type' => 'info',
+                    'text' => sprintf(
+                        _n(
+                            'Ignored extra columns on %d row. Only the first two columns were imported.',
+                            'Ignored extra columns on %d rows. Only the first two columns were imported.',
+                            $rows_with_ignored_extra_columns,
+                            'll-tools-text-domain'
+                        ),
+                        $rows_with_ignored_extra_columns
+                    ),
+                ];
+            }
+        }
     }
 
     // Fetch existing word sets for assignment
@@ -251,6 +598,14 @@ function ll_tools_render_bulk_word_import_page() {
     $has_posted_wordset = isset($_POST['ll_existing_wordset']);
     $posted_wordset = $has_posted_wordset ? (int) wp_unslash($_POST['ll_existing_wordset']) : 0;
     $selected_wordset_effective = $has_posted_wordset ? $posted_wordset : $default_wordset_id;
+    $selected_category_effective = isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0;
+    if ($selected_wordset_effective > 0 && $selected_category_effective > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($selected_category_effective, $selected_wordset_effective, true);
+        if ($effective_category_id > 0) {
+            $selected_category_effective = $effective_category_id;
+        }
+    }
+    $category_rows = ll_tools_bulk_word_import_get_selectable_category_rows($selected_wordset_effective);
     ?>
     <div class="wrap">
         <h1><?php esc_html_e('LL Tools — Bulk Word Import', 'll-tools-text-domain'); ?></h1>
@@ -276,14 +631,18 @@ function ll_tools_render_bulk_word_import_page() {
                     <tr>
                         <th scope="row"><label for="ll-word-list"><?php esc_html_e('Words to import', 'll-tools-text-domain'); ?></label></th>
                         <td>
-                            <textarea id="ll-word-list" name="ll_word_list" rows="12" cols="60" class="large-text code" placeholder="<?php esc_attr_e('Enter one word per line', 'll-tools-text-domain'); ?>"><?php echo isset($_POST['ll_word_list']) ? esc_textarea(wp_unslash($_POST['ll_word_list'])) : ''; ?></textarea>
-                            <p class="description"><?php esc_html_e('Each line will become a new draft word post with the title automatically capitalized.', 'll-tools-text-domain'); ?></p>
+                            <textarea id="ll-word-list" name="ll_word_list" rows="12" cols="60" class="large-text code" placeholder="<?php esc_attr_e('Enter one word per line, or word + translation separated by a tab or comma', 'll-tools-text-domain'); ?>"><?php echo isset($_POST['ll_word_list']) ? esc_textarea(wp_unslash($_POST['ll_word_list'])) : ''; ?></textarea>
+                            <p class="description"><?php esc_html_e('Each row creates a new draft word post with the title automatically capitalized.', 'll-tools-text-domain'); ?></p>
+                            <p class="description"><?php echo wp_kses_post(sprintf(__('Word only: %s', 'll-tools-text-domain'), '<code>bonjour</code>')); ?></p>
+                            <p class="description"><?php echo wp_kses_post(sprintf(__('Word + translation with a tab: %s', 'll-tools-text-domain'), '<code>bonjour[TAB]hello</code>')); ?></p>
+                            <p class="description"><?php echo wp_kses_post(sprintf(__('Word + translation with a comma: %s', 'll-tools-text-domain'), '<code>bonjour,hello</code>')); ?></p>
+                            <p class="description"><?php esc_html_e('Copying two spreadsheet columns from Excel or Google Sheets usually produces tab-separated rows and works as-is. If a word or translation contains a comma, wrap that value in double quotes.', 'll-tools-text-domain'); ?></p>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row"><?php esc_html_e('Assign to word set', 'll-tools-text-domain'); ?></th>
                         <td>
-                            <select name="ll_existing_wordset" class="regular-text">
+                            <select id="ll-bulk-word-import-wordset" name="ll_existing_wordset" class="regular-text">
                                 <option value="0"><?php esc_html_e('Leave unassigned', 'll-tools-text-domain'); ?></option>
                                 <?php foreach ($wordsets as $set) : ?>
                                     <option value="<?php echo (int) $set->term_id; ?>" <?php selected($selected_wordset_effective, (int) $set->term_id); ?>><?php echo esc_html($set->name); ?></option>
@@ -295,10 +654,10 @@ function ll_tools_render_bulk_word_import_page() {
                     <tr>
                         <th scope="row"><?php esc_html_e('Assign to existing category', 'll-tools-text-domain'); ?></th>
                         <td>
-                            <select name="ll_existing_category" class="regular-text">
+                            <select id="ll-bulk-word-import-category" name="ll_existing_category" class="regular-text">
                                 <option value="0"><?php esc_html_e('Leave uncategorized', 'll-tools-text-domain'); ?></option>
-                                <?php foreach ($categories as $cat) : ?>
-                                    <option value="<?php echo (int) $cat->term_id; ?>" <?php selected(isset($_POST['ll_existing_category']) ? (int) wp_unslash($_POST['ll_existing_category']) : 0, (int) $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
+                                <?php foreach ($category_rows as $category_row) : ?>
+                                    <option value="<?php echo (int) ($category_row['id'] ?? 0); ?>" <?php selected($selected_category_effective, (int) ($category_row['id'] ?? 0)); ?>><?php echo esc_html((string) ($category_row['label'] ?? '')); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <p class="description"><?php esc_html_e('Choose an existing word category for the imported words, or leave uncategorized.', 'll-tools-text-domain'); ?></p>
@@ -326,6 +685,10 @@ function ll_tools_render_bulk_word_import_page() {
  * Returns an array of post IDs.
  */
 function ll_tools_find_existing_word_ids_by_title_in_wordset($title, $wordset_term_id = 0) {
+    if (function_exists('ll_tools_lookup_existing_word_ids_by_title_in_wordset')) {
+        return ll_tools_lookup_existing_word_ids_by_title_in_wordset((string) $title, (int) $wordset_term_id);
+    }
+
     global $wpdb;
     $title = (string) $title;
     $wordset_term_id = (int) $wordset_term_id;

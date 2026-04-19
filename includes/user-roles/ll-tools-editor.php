@@ -90,22 +90,3 @@ function ll_trim_admin_menu_for_ll_tools_roles() {
     }
 }
 add_action('admin_menu', 'll_trim_admin_menu_for_ll_tools_roles', 999);
-
-/**
- * Improved [manage_word_sets] shortcode that also allows view_ll_tools capability.
- * If the existing shortcode lives elsewhere, you can remove the duplicate from wordset-manager.php.
- */
-function ll_manage_word_sets_shortcode() {
-    if (
-        ! current_user_can('manage_options') &&
-        ! current_user_can('manage_wordsets') &&
-        ! current_user_can('view_ll_tools')
-    ) {
-        return 'You do not have permission to view this content.';
-    }
-
-    $iframe_url = admin_url('edit-tags.php?taxonomy=wordset&post_type=words');
-    return '<div class="custom-admin-page"><iframe src="' . esc_url($iframe_url) . '" style="width:100%; height:800px; border:none;"></iframe></div>';
-}
-remove_shortcode('manage_word_sets');
-add_shortcode('manage_word_sets', 'll_manage_word_sets_shortcode');

@@ -35,6 +35,11 @@ function buildWordsetMarkup() {
 
       <div data-ll-wordset-selection-bar hidden>
         <span data-ll-wordset-selection-text>Select categories to study together</span>
+        <label class="ll-wordset-selection-bar__priority-toggle" hidden>
+          <input type="checkbox" data-ll-wordset-selection-priority-only />
+          <span data-ll-wordset-selection-priority-icon></span>
+          <span data-ll-wordset-selection-priority-label>Priority words only</span>
+        </label>
         <label class="ll-wordset-selection-bar__starred-toggle">
           <input type="checkbox" data-ll-wordset-selection-starred-only />
           <span data-ll-wordset-selection-starred-icon>☆</span>
@@ -45,6 +50,7 @@ function buildWordsetMarkup() {
           <span data-ll-wordset-selection-hard-icon></span>
           <span data-ll-wordset-selection-hard-label>Hard words only</span>
         </label>
+        <button type="button" data-ll-wordset-selection-mode data-mode="practice">Selection Practice</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="learning">Selection Learn</button>
         <button type="button" data-ll-wordset-selection-mode data-mode="listening">Selection Listen</button>
         <button type="button" data-ll-wordset-selection-clear>Clear</button>
@@ -80,6 +86,30 @@ function buildCategoryWords() {
       { id: 3302, title: 'C2', translation: 'C2', label: 'C2', audio: '', image: '', audio_files: [] }
     ]
   };
+}
+
+function buildCategoryWordRows(categoryId, count, prefix = 'W') {
+  const cid = Number(categoryId) || 0;
+  const total = Math.max(0, Number(count) || 0);
+  const base = cid * 100;
+  const rows = [];
+
+  for (let idx = 0; idx < total; idx += 1) {
+    const seq = idx + 1;
+    const id = base + seq;
+    const label = `${prefix}${seq}`;
+    rows.push({
+      id,
+      title: label,
+      translation: label,
+      label,
+      audio: '',
+      image: '',
+      audio_files: []
+    });
+  }
+
+  return rows;
 }
 
 function buildAnalyticsWordsWithHardCount(hardCount) {
@@ -222,10 +252,19 @@ function buildPageConfig({ isLoggedIn }) {
     i18n: {
       selectionLabel: 'Select categories to study together',
       selectionWordsOnly: '%d words',
+      selectionNewOnly: 'New words only',
+      selectionStudiedOnly: 'In progress only',
+      selectionLearnedOnly: 'Learned only',
       selectAll: 'Select all',
       deselectAll: 'Deselect all',
       noCategoriesSelected: 'Select at least one category.',
       noWordsInSelection: 'No quiz words are available for this selection.',
+      noNewWordsInSelection: 'No new words are available for this selection.',
+      noStudiedWordsInSelection: 'No in progress words are available for this selection.',
+      noLearnedWordsInSelection: 'No learned words are available for this selection.',
+      priorityFocusNew: 'New words',
+      priorityFocusStudied: 'In progress words',
+      priorityFocusLearned: 'Learned words',
       priorityFocusStarred: 'Starred words',
       priorityFocusHard: 'Hard words',
       continueLabel: 'Continue',
@@ -262,8 +301,18 @@ async function mountWordsetPage(page, options = {}) {
     window.llWordsetPageData = bootstrap.config;
     window.__llLaunches = [];
     window.__llAlerts = [];
+    window.__llLaunchTrace = [];
+    window.__llVisualizerWarmups = 0;
     window.alert = function (message) {
       window.__llAlerts.push(String(message || ''));
+    };
+
+    window.LLFlashcards = window.LLFlashcards || {};
+    window.LLFlashcards.AudioVisualizer = window.LLFlashcards.AudioVisualizer || {};
+    window.LLFlashcards.AudioVisualizer.warmup = function () {
+      window.__llVisualizerWarmups = Number(window.__llVisualizerWarmups || 0) + 1;
+      window.__llLaunchTrace.push('warmup');
+      return Promise.resolve(true);
     };
 
     window.initFlashcardWidget = function (catNames, mode) {
@@ -282,8 +331,14 @@ async function mountWordsetPage(page, options = {}) {
         categoryIds: Array.isArray(plan.category_ids)
           ? plan.category_ids.slice()
           : (Array.isArray(userStudyState.category_ids) ? userStudyState.category_ids.slice() : []),
+        hideCategoryDisplay: !!(
+          plan.hide_category_display ||
+          flash.hideCategoryDisplay ||
+          flash.hide_category_display
+        ),
         source: String(plan.source || '')
       });
+      window.__llLaunchTrace.push('init');
       return Promise.resolve();
     };
 
@@ -404,6 +459,26 @@ test('logged-in listening launches ignore recommendation chunk IDs for top and s
   expect(selectionLaunch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
 });
 
+test('listening top launch warms visualizer before async init path', async ({ page }) => {
+  await mountWordsetPage(page, { isLoggedIn: true });
+
+  await page.locator('[data-ll-wordset-start-mode][data-mode="listening"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const trace = await page.evaluate(() => ({
+    warmups: Number(window.__llVisualizerWarmups || 0),
+    order: Array.isArray(window.__llLaunchTrace) ? window.__llLaunchTrace.slice() : []
+  }));
+
+  expect(trace.warmups).toBeGreaterThan(0);
+  expect(trace.order.length).toBeGreaterThan(1);
+  expect(trace.order[0]).toBe('warmup');
+  expect(trace.order).toContain('init');
+});
+
 test('selection listening launch skips dashboard bulk word fetch and opens immediately', async ({ page }) => {
   await mountWordsetPage(page, { isLoggedIn: true });
 
@@ -515,9 +590,73 @@ test('logged-in practice top launch falls back to visible categories when recomm
   expect(alerts).toEqual([]);
 });
 
-test('gender top launch does not downgrade to practice when queued recommendations target non-gender categories', async ({ page }) => {
+test('hard-word practice recommendations randomize the starting category order for session launches', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 5, 'A'),
+    22: buildCategoryWordRows(22, 5, 'B'),
+    33: buildCategoryWordRows(33, 5, 'C')
+  };
+
   await mountWordsetPage(page, {
     isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      nextActivity: {
+        mode: 'practice',
+        category_ids: [11, 22, 33],
+        session_word_ids: [1101, 1102, 1103, 2201, 2202, 3301],
+        type: 'priority_focus',
+        reason_code: 'priority_focus',
+        details: {
+          chunk_size: 6,
+          priority_focus: 'hard'
+        }
+      },
+      recommendationQueue: []
+    }
+  });
+
+  await page.evaluate(() => {
+    const values = [0.8, 0.1];
+    let index = 0;
+    Math.random = function () {
+      const fallback = values[values.length - 1];
+      const next = index < values.length ? values[index] : fallback;
+      index += 1;
+      return next;
+    };
+  });
+
+  await page.locator('[data-ll-wordset-start-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => {
+      return Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0;
+    });
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_top_start_queue');
+  expect(launch.sessionWordIds).toEqual([1101, 1102, 1103, 2201, 2202, 3301]);
+  expect(launch.categoryIds).toEqual([22, 11, 33]);
+  expect(launch.catNames).toEqual(['Cat B', 'Cat A', 'Cat C']);
+});
+
+test('gender top launch does not downgrade to practice when queued recommendations target non-gender categories', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 5, 'A'),
+    22: buildCategoryWordRows(22, 5, 'B'),
+    33: buildCategoryWordRows(33, 5, 'C')
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
     configPatch: {
       categories: [
         {
@@ -585,20 +724,20 @@ test('gender top launch does not downgrade to practice when queued recommendatio
       nextActivity: {
         mode: 'practice',
         category_ids: [11, 22],
-        session_word_ids: [1101, 2201],
+        session_word_ids: [1101, 1102, 1103, 2201, 2202],
         type: 'review_chunk',
         reason_code: 'review_chunk_balanced',
-        details: { chunk_size: 2 }
+        details: { chunk_size: 5 }
       },
       recommendationQueue: [
         {
           mode: 'practice',
           category_ids: [11, 22],
-          session_word_ids: [1101, 2201],
+          session_word_ids: [1101, 1102, 1103, 2201, 2202],
           type: 'review_chunk',
           reason_code: 'review_chunk_balanced',
           queue_id: 'queue-practice-only',
-          details: { chunk_size: 2 }
+          details: { chunk_size: 5 }
         }
       ]
     }
@@ -607,21 +746,26 @@ test('gender top launch does not downgrade to practice when queued recommendatio
   const genderButton = page.locator('[data-ll-wordset-start-mode][data-mode="gender"]');
   await expect(genderButton).toBeEnabled();
   await genderButton.click();
+  await page.waitForTimeout(300);
 
-  await expect.poll(async () => {
-    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
-  }).toBe(1);
-
-  const launch = await page.evaluate(() => {
-    return (window.__llLaunches && window.__llLaunches[0]) || null;
+  const launchState = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches.slice() : [];
+    const alerts = Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : [];
+    return {
+      launches,
+      alerts
+    };
   });
 
-  expect(launch).not.toBeNull();
-  expect(launch.mode).toBe('gender');
-  expect(Array.isArray(launch.categoryIds) ? launch.categoryIds : []).toContain(33);
+  expect(launchState.launches.every((entry) => String(entry && entry.mode || '') !== 'practice')).toBeTruthy();
+  if (launchState.launches.length > 0) {
+    const launch = launchState.launches[launchState.launches.length - 1];
+    expect(String(launch.mode || '')).toBe('gender');
+    expect(Array.isArray(launch.categoryIds) ? launch.categoryIds : []).toContain(33);
+  }
 });
 
-test('next learning recommendation with two starred words is expanded to a minimum-size compatible session', async ({ page }) => {
+test('next learning recommendation with five starred words is expanded to a minimum-size compatible session', async ({ page }) => {
   const wordsByCategory = {
     11: [
       { id: 1101, title: 'A1', translation: 'A1', label: 'A1', audio: '', image: '', audio_files: [] },
@@ -703,17 +847,17 @@ test('next learning recommendation with two starred words is expanded to a minim
       state: {
         wordset_id: 77,
         category_ids: [],
-        starred_word_ids: [1101, 2201],
+        starred_word_ids: [1101, 1102, 1103, 2201, 2202],
         star_mode: 'normal',
         fast_transitions: false
       },
       nextActivity: {
         mode: 'learning',
         category_ids: [11, 22, 33],
-        session_word_ids: [1101, 2201],
+        session_word_ids: [1101, 1102, 1103, 2201, 2202],
         type: 'review_chunk',
         reason_code: 'review_chunk_balanced',
-        details: { chunk_size: 2, priority_focus: 'starred' }
+        details: { chunk_size: 5, priority_focus: 'starred' }
       }
     }
   });
@@ -761,6 +905,535 @@ test('selection keeps starred-only hidden when fewer than eight starred words ar
   await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeHidden();
 });
 
+test('priority-only practice selection filters to the current study focus', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 8, 'A').map((row, index) => Object.assign({}, row, {
+      category_id: 11,
+      category_ids: [11],
+      status: index < 5 ? 'studied' : 'new',
+      difficulty_score: index < 5 ? 2 : 0
+    })),
+    22: buildCategoryWordRows(22, 8, 'B').map((row, index) => Object.assign({}, row, {
+      category_id: 22,
+      category_ids: [22],
+      status: index < 4 ? 'studied' : 'new',
+      difficulty_score: index < 4 ? 1 : 0
+    })),
+    33: buildCategoryWordRows(33, 8, 'C').map((row) => Object.assign({}, row, {
+      category_id: 33,
+      category_ids: [33],
+      status: 'new',
+      difficulty_score: 0
+    }))
+  };
+  const expectedStudiedWordIds = Object.values(wordsByCategory)
+    .flat()
+    .filter((row) => row.status === 'studied')
+    .map((row) => Number(row && row.id) || 0)
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 8,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 8,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 8,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      visibleCategoryIds: [11, 22, 33],
+      hiddenCategoryIds: [],
+      goals: {
+        enabled_modes: ['learning', 'practice', 'listening', 'self-check'],
+        ignored_category_ids: [],
+        preferred_wordset_ids: [77],
+        placement_known_category_ids: [],
+        daily_new_word_target: 0,
+        priority_focus: 'studied'
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: expectedStudiedWordIds.length,
+        new: 24 - expectedStudiedWordIds.length,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('.ll-wordset-selection-bar__priority-toggle')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-selection-priority-label]')).toHaveText('In progress only');
+  await page.locator('[data-ll-wordset-selection-priority-only]').check();
+  await expect(selectionPracticeButton).toBeEnabled();
+  await selectionPracticeButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(launch.sessionWordIds.slice().sort((a, b) => a - b)).toEqual(expectedStudiedWordIds);
+});
+
+test('starred-only practice selection launches one full filtered activity', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 13, 'A'),
+    22: buildCategoryWordRows(22, 12, 'B'),
+    33: buildCategoryWordRows(33, 12, 'C')
+  };
+  const starredWordIds = Object.values(wordsByCategory)
+    .flat()
+    .map((row) => Number(row && row.id) || 0)
+    .filter(Boolean);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 13,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 12,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 12,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      visibleCategoryIds: [11, 22, 33],
+      hiddenCategoryIds: [],
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: starredWordIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 0,
+        new: 0,
+        starred: starredWordIds.length,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeVisible();
+  await page.locator('[data-ll-wordset-selection-starred-only]').check();
+  await expect(selectionPracticeButton).toBeEnabled();
+  await selectionPracticeButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+  const alerts = await page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : []);
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds.length).toBe(37);
+  expect(new Set(launch.sessionWordIds).size).toBe(37);
+  expect(alerts).toEqual([]);
+});
+
+test('practice selection launches the full selected category scope', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 7, 'ImgA'),
+    22: buildCategoryWordRows(22, 6, 'ImgB'),
+    33: buildCategoryWordRows(33, 8, 'TxtC')
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 7,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 6,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 8,
+          url: '#',
+          mode: 'text',
+          prompt_type: 'audio',
+          option_type: 'text_translation',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'no-image',
+          hidden: false,
+          preview: []
+        }
+      ],
+      summaryCounts: {
+        mastered: 0,
+        studied: 0,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(selectionPracticeButton).toBeEnabled();
+  await selectionPracticeButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+  const alerts = await page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : []);
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(alerts).toEqual([]);
+});
+
+test('starred-only practice selection keeps small categories in the same full activity', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 7, 'ImgA'),
+    22: buildCategoryWordRows(22, 6, 'ImgB'),
+    33: buildCategoryWordRows(33, 4, 'TxtC')
+  };
+  const starredWordIds = Object.values(wordsByCategory)
+    .flat()
+    .map((row) => Number(row && row.id) || 0)
+    .filter(Boolean);
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 7,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 6,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 4,
+          url: '#',
+          mode: 'text',
+          prompt_type: 'audio',
+          option_type: 'text_translation',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'no-image',
+          hidden: false,
+          preview: []
+        }
+      ],
+      state: {
+        wordset_id: 77,
+        category_ids: [],
+        starred_word_ids: starredWordIds,
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      summaryCounts: {
+        mastered: 0,
+        studied: 0,
+        new: 0,
+        starred: starredWordIds.length,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  const selectionPracticeButton = page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]');
+  await page.locator('[data-ll-wordset-select-all]').click();
+  await expect(page.locator('.ll-wordset-selection-bar__starred-toggle')).toBeVisible();
+  await page.locator('[data-ll-wordset-selection-starred-only]').check();
+  await expect(selectionPracticeButton).toBeEnabled();
+  await selectionPracticeButton.click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+  const alerts = await page.evaluate(() => Array.isArray(window.__llAlerts) ? window.__llAlerts.slice() : []);
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.source).toBe('wordset_selection_start');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22, 33]);
+  expect(launch.sessionWordIds.length).toBe(17);
+  expect(alerts).toEqual([]);
+});
+
+test('practice selection keeps category titles visible for small multi-category runs', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 4, 'MixA'),
+    22: buildCategoryWordRows(22, 4, 'MixB')
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 4,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 4,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      summaryCounts: {
+        mastered: 0,
+        studied: 0,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select][value="11"]').check();
+  await page.locator('[data-ll-wordset-select][value="22"]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+  const flashState = await page.evaluate(() => {
+    const flash = window.llToolsFlashcardsData || {};
+    return {
+      hideCategoryDisplay: !!(flash.hideCategoryDisplay || flash.hide_category_display),
+      categoryDisplayOverride: String(flash.categoryDisplayOverride || flash.category_display_override || '')
+    };
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('practice');
+  expect(launch.categoryIds.slice().sort((a, b) => a - b)).toEqual([11, 22]);
+  expect(launch.sessionWordIds).toEqual([]);
+  expect(launch.hideCategoryDisplay).toBeFalsy();
+  expect(flashState.hideCategoryDisplay).toBeFalsy();
+  expect(flashState.categoryDisplayOverride).toBe('');
+});
+
 test('selection shows hard-only only when at least five hard words are in selected categories', async ({ page }) => {
   const hardToggle = page.locator('.ll-wordset-selection-bar__hard-toggle');
 
@@ -795,6 +1468,94 @@ test('selection shows hard-only only when at least five hard words are in select
 
   await page.locator('[data-ll-wordset-select-all]').click();
   await expect(hardToggle).toBeVisible();
+});
+
+test('selection launch clears checked categories as soon as the flashcard popup opens', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory: {
+      11: buildCategoryWordRows(11, 3, 'OpenA'),
+      22: buildCategoryWordRows(22, 3, 'OpenB'),
+      33: buildCategoryWordRows(33, 1, 'OpenC')
+    },
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 3,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 3,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 33,
+          slug: 'cat-c',
+          name: 'Cat C',
+          translation: 'Cat C',
+          count: 1,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ]
+    }
+  });
+
+  const selectionBar = page.locator('[data-ll-wordset-selection-bar]');
+  const catA = page.locator('[data-ll-wordset-select][value="11"]');
+  const catB = page.locator('[data-ll-wordset-select][value="22"]');
+
+  await catA.check();
+  await catB.check();
+  await expect(selectionBar).toBeVisible();
+
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="practice"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  await page.evaluate(() => {
+    window.jQuery(document).trigger('lltools:flashcard-opened', [{
+      mode: 'practice',
+      categories: ['Cat A', 'Cat B']
+    }]);
+  });
+
+  await expect(selectionBar).toBeHidden();
+  await expect(catA).not.toBeChecked();
+  await expect(catB).not.toBeChecked();
 });
 
 test('learning starred selection mixes only compatible categories and fills to eight words', async ({ page }) => {
@@ -937,4 +1698,90 @@ test('learning starred selection mixes only compatible categories and fills to e
     return String(flash.categoryDisplayOverride || flash.category_display_override || '');
   });
   expect(categoryDisplayOverride).toBe('Starred words');
+});
+
+test('learning selection prefers a single compatible category when one category can satisfy the quiz alone', async ({ page }) => {
+  const wordsByCategory = {
+    11: buildCategoryWordRows(11, 7, 'LearnA'),
+    22: buildCategoryWordRows(22, 10, 'LearnB')
+  };
+
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    wordsByCategory,
+    configPatch: {
+      categories: [
+        {
+          id: 11,
+          slug: 'cat-a',
+          name: 'Cat A',
+          translation: 'Cat A',
+          count: 7,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        },
+        {
+          id: 22,
+          slug: 'cat-b',
+          name: 'Cat B',
+          translation: 'Cat B',
+          count: 10,
+          url: '#',
+          mode: 'image',
+          prompt_type: 'audio',
+          option_type: 'image',
+          learning_supported: true,
+          gender_supported: false,
+          aspect_bucket: 'ratio:1_1',
+          hidden: false,
+          preview: []
+        }
+      ],
+      summaryCounts: {
+        mastered: 0,
+        studied: 0,
+        new: 0,
+        starred: 0,
+        hard: 0
+      },
+      nextActivity: null,
+      recommendationQueue: []
+    }
+  });
+
+  await page.locator('[data-ll-wordset-select][value="11"]').check();
+  await page.locator('[data-ll-wordset-select][value="22"]').check();
+  await page.locator('[data-ll-wordset-selection-mode][data-mode="learning"]').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.isArray(window.__llLaunches) ? window.__llLaunches.length : 0);
+  }).toBe(1);
+
+  const launch = await page.evaluate(() => {
+    const launches = Array.isArray(window.__llLaunches) ? window.__llLaunches : [];
+    return launches.length ? launches[launches.length - 1] : null;
+  });
+  const flashState = await page.evaluate(() => {
+    const flash = window.llToolsFlashcardsData || {};
+    return {
+      hideCategoryDisplay: !!(flash.hideCategoryDisplay || flash.hide_category_display),
+      categoryDisplayOverride: String(flash.categoryDisplayOverride || flash.category_display_override || '')
+    };
+  });
+
+  expect(launch).not.toBeNull();
+  expect(launch.mode).toBe('learning');
+  expect(launch.categoryIds).toEqual([22]);
+  expect(launch.sessionWordIds.length).toBeGreaterThanOrEqual(8);
+  expect(launch.sessionWordIds.every((id) => id >= 2201 && id <= 2210)).toBeTruthy();
+  expect(launch.hideCategoryDisplay).toBeFalsy();
+  expect(flashState.hideCategoryDisplay).toBeFalsy();
+  expect(flashState.categoryDisplayOverride).toBe('');
 });

@@ -82,6 +82,7 @@
 
 .ll-tools-login-window__form input[type="text"],
 .ll-tools-login-window__form input[type="email"],
+.ll-tools-login-window__form input[type="number"],
 .ll-tools-login-window__form input[type="password"] {
   width: 100%;
   min-height: 2.6rem;
@@ -98,27 +99,32 @@
 
 .ll-tools-login-window__form input[type="text"]:focus,
 .ll-tools-login-window__form input[type="email"]:focus,
+.ll-tools-login-window__form input[type="number"]:focus,
 .ll-tools-login-window__form input[type="password"]:focus {
   outline: 2px solid rgba(15, 107, 77, 0.35);
   outline-offset: 1px;
   border-color: var(--ll-login-accent);
 }
 
-.ll-tools-login-window__form .login-remember {
+.ll-tools-login-window__form .login-remember,
+.ll-tools-login-window__register .login-remember {
   display: flex;
   align-items: center;
   gap: 0.45rem;
   margin-top: 0.15rem;
 }
 
-.ll-tools-login-window__form .login-remember label {
+.ll-tools-login-window__form .login-remember label,
+.ll-tools-login-window__register .login-remember label {
   margin: 0;
   font-size: 0.85rem;
   color: var(--ll-login-muted);
   font-weight: 500;
+  display: inline;
 }
 
-.ll-tools-login-window__form input[type="checkbox"] {
+.ll-tools-login-window__form input[type="checkbox"],
+.ll-tools-login-window__register input[type="checkbox"] {
   margin: 0;
   width: 1rem;
   height: 1rem;
@@ -233,6 +239,7 @@
 
 .ll-tools-login-window__register input[type="text"],
 .ll-tools-login-window__register input[type="email"],
+.ll-tools-login-window__register input[type="number"],
 .ll-tools-login-window__register input[type="password"] {
   width: 100%;
   min-height: 2.6rem;
@@ -249,10 +256,22 @@
 
 .ll-tools-login-window__register input[type="text"]:focus,
 .ll-tools-login-window__register input[type="email"]:focus,
+.ll-tools-login-window__register input[type="number"]:focus,
 .ll-tools-login-window__register input[type="password"]:focus {
   outline: 2px solid rgba(15, 107, 77, 0.35);
   outline-offset: 1px;
   border-color: var(--ll-login-accent);
+}
+
+.ll-tools-login-window__password-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.ll-tools-login-window__password-row input[type="text"],
+.ll-tools-login-window__password-row input[type="password"] {
+  flex: 1 1 auto;
 }
 
 .ll-tools-login-window__register-submit {
@@ -287,6 +306,58 @@
   color: #0f172a;
 }
 
+.ll-tools-login-window__register .ll-tools-login-window__password-toggle {
+  width: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0;
+  flex: 0 0 2.75rem;
+  border-color: #b9c0cb;
+  background: #f8fafc;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ll-tools-login-window__register .ll-tools-login-window__password-toggle:hover,
+.ll-tools-login-window__register .ll-tools-login-window__password-toggle:focus {
+  background: #eef2f7;
+  border-color: #9aa4b2;
+  color: #0f172a;
+}
+
+.ll-tools-login-window__password-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: currentColor;
+}
+
+.ll-tools-login-window__password-toggle-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ll-tools-login-window__password-toggle[data-password-visible="0"] .ll-tools-login-window__password-toggle-icon--hide,
+.ll-tools-login-window__password-toggle[data-password-visible="1"] .ll-tools-login-window__password-toggle-icon--show {
+  display: none;
+}
+
+.ll-tools-login-window__password-toggle-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .ll-tools-login-window__notice {
   border-radius: 10px;
   border: 1px solid #f5c2c7;
@@ -311,6 +382,17 @@
 .ll-tools-login-window__notice ul {
   margin: 0;
   padding-left: 1.1rem;
+}
+
+.ll-tools-login-window__honeypot {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 @media (max-width: 640px) {

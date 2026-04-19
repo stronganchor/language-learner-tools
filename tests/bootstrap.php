@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+$phpunit_util_compat = __DIR__ . '/phpunit-util-test-compat.php';
+if (file_exists($phpunit_util_compat)) {
+    require_once $phpunit_util_compat;
+}
+
 $autoload = __DIR__ . '/vendor/autoload.php';
 if (file_exists($autoload)) {
     require_once $autoload;

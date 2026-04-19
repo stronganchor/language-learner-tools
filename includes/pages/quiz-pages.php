@@ -18,6 +18,30 @@ function ll_qp_is_quiz_page_context() : bool {
     return $post ? (bool) get_post_meta($post->ID, '_ll_tools_word_category_id', true) : false;
 }
 
+function ll_tools_quiz_page_enforce_category_access(): void {
+    if (!ll_qp_is_quiz_page_context()) {
+        return;
+    }
+
+    $post = get_post();
+    $term_id = $post ? (int) get_post_meta($post->ID, '_ll_tools_word_category_id', true) : 0;
+    if ($term_id <= 0) {
+        return;
+    }
+
+    if (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term_id)) {
+        return;
+    }
+
+    global $wp_query;
+    if ($wp_query instanceof WP_Query) {
+        $wp_query->set_404();
+    }
+    status_header(404);
+    nocache_headers();
+}
+add_action('template_redirect', 'll_tools_quiz_page_enforce_category_access', 1);
+
 /**
  * Format a human-friendly quiz title for a category.
  *
@@ -112,7 +136,7 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
     $src          = home_url('/embed/' . $term->slug);
 
     if (function_exists('ll_get_default_wordset_id_for_category')) {
-        $default_ws_id = ll_get_default_wordset_id_for_category($term->name, 5);
+        $default_ws_id = ll_get_default_wordset_id_for_category($term, 5);
         if ($default_ws_id > 0) {
             $wordset_term = get_term($default_ws_id, 'wordset');
             if ($wordset_term && !is_wp_error($wordset_term)) {
@@ -477,31 +501,48 @@ add_filter('the_title', function ($title, $post_id) {
     return (get_post_type($post_id) === 'page' && get_post_meta($post_id, '_ll_tools_word_category_id', true)) ? '' : $title;
 }, 10, 2);
 
-/** Enqueue assets (JS always for popup safety; CSS only on quiz pages) */
-function ll_qp_enqueue_assets() {
-    if (is_admin()) return;
+function ll_qp_enqueue_popup_assets(): void {
+    static $enqueued = false;
+    if ($enqueued || is_admin()) {
+        return;
+    }
+    $enqueued = true;
 
-    $is_quiz_ctx = function_exists('ll_qp_is_quiz_page_context') && ll_qp_is_quiz_page_context();
-
-    // Base JS for both grid and quiz pages
     ll_enqueue_asset_by_timestamp('/js/quiz-pages.js', 'll-quiz-pages-js', [], true);
-
-    // Localize unconditionally so llQuizPages.vh is always present
     wp_localize_script('ll-quiz-pages-js', 'llQuizPages', [
         'vh' => (int) apply_filters('ll_tools_quiz_iframe_vh', 95),
         'labels' => [
             'defaultTitle' => __('Quiz', 'll-tools-text-domain'),
             'closeLabel'   => __('Close', 'll-tools-text-domain'),
             'iframeTitle'  => __('Quiz Content', 'll-tools-text-domain'),
+            'closeConfirm' => __('Close this quiz? Your current progress in this popup will be lost.', 'll-tools-text-domain'),
         ],
     ]);
-
-    // Only quiz pages need the iframe CSS
-    if ($is_quiz_ctx) {
-        ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
-    }
 }
-add_action('wp_enqueue_scripts', 'll_qp_enqueue_assets');
+
+/** Enqueue quiz page assets directly. Callers are responsible for context gating when needed. */
+function ll_qp_enqueue_assets() {
+    if (is_admin()) {
+        return;
+    }
+
+    ll_qp_enqueue_popup_assets();
+    ll_enqueue_asset_by_timestamp('/css/quiz-pages.css', 'll-quiz-pages-css');
+}
+
+/** Enqueue quiz page assets only when WordPress is rendering a quiz page context. */
+function ll_qp_maybe_enqueue_assets(): void {
+    if (is_admin()) {
+        return;
+    }
+
+    if (!function_exists('ll_qp_is_quiz_page_context') || !ll_qp_is_quiz_page_context()) {
+        return;
+    }
+
+    ll_qp_enqueue_assets();
+}
+add_action('wp_enqueue_scripts', 'll_qp_maybe_enqueue_assets');
 
 /** Manual cleanup UI on the word-category admin screen */
 function ll_tools_add_manual_cleanup_button() {

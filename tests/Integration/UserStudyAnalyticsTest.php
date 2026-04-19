@@ -9,6 +9,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_install_user_progress_schema')) {
             ll_tools_install_user_progress_schema();
         }
+        if (function_exists('ll_register_part_of_speech_taxonomy')) {
+            ll_register_part_of_speech_taxonomy();
+        }
     }
 
     public function test_build_analytics_payload_includes_summary_categories_and_words(): void
@@ -77,6 +80,7 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertCount(2, (array) ($analytics['categories'] ?? []));
         $this->assertCount(10, (array) ($analytics['words'] ?? []));
         $this->assertCount(14, (array) ($analytics['daily_activity']['days'] ?? []));
+        $this->assertGreaterThanOrEqual(1, (int) ($analytics['daily_activity']['max_rounds'] ?? 0));
         $this->assertGreaterThanOrEqual(1, (int) ($analytics['daily_activity']['max_events'] ?? 0));
 
         $words_by_id = [];
@@ -93,6 +97,117 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('mastered', (string) ($words_by_id[$word_a]['status'] ?? ''));
         $this->assertSame('studied', (string) ($words_by_id[$word_b]['status'] ?? ''));
         $this->assertSame('new', (string) ($words_by_id[$word_c]['status'] ?? ''));
+        $this->assertNotSame('', (string) ($words_by_id[$word_a]['audio_url'] ?? ''));
+        $this->assertSame('isolation', (string) ($words_by_id[$word_a]['audio_recording_type'] ?? ''));
+    }
+
+    public function test_daily_activity_counts_answered_rounds_instead_of_all_logged_events(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$word_a, $word_b] = $fixture['word_ids'];
+        $category_id = (int) $fixture['category_ids'][0];
+        $wordset_id = (int) $fixture['wordset_id'];
+
+        $stats = ll_tools_process_progress_events_batch($user_id, [
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $word_a,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_outcome',
+                'mode' => 'practice',
+                'word_id' => $word_a,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => false,
+                'had_wrong_before' => false,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_outcome',
+                'mode' => 'practice',
+                'word_id' => $word_a,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => true,
+                'had_wrong_before' => true,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_exposure',
+                'mode' => 'practice',
+                'word_id' => $word_b,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'word_outcome',
+                'mode' => 'practice',
+                'word_id' => $word_b,
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'is_correct' => true,
+                'had_wrong_before' => false,
+                'payload' => [],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'mode_session_complete',
+                'mode' => 'practice',
+                'wordset_id' => $wordset_id,
+                'payload' => [
+                    'category_ids' => [$category_id],
+                ],
+            ],
+            [
+                'event_uuid' => wp_generate_uuid4(),
+                'event_type' => 'category_study',
+                'mode' => 'listening',
+                'category_id' => $category_id,
+                'wordset_id' => $wordset_id,
+                'payload' => [
+                    'units' => 1,
+                ],
+            ],
+        ]);
+        $this->assertSame(7, (int) ($stats['processed'] ?? 0));
+
+        $analytics = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $wordset_id,
+            [$category_id],
+            14
+        );
+
+        $today = gmdate('Y-m-d');
+        $today_row = null;
+        foreach ((array) ($analytics['daily_activity']['days'] ?? []) as $row) {
+            if (is_array($row) && (($row['date'] ?? '') === $today)) {
+                $today_row = $row;
+                break;
+            }
+        }
+
+        $this->assertIsArray($today_row);
+        $this->assertSame(2, (int) ($today_row['rounds'] ?? 0));
+        $this->assertSame(2, (int) ($today_row['events'] ?? 0));
+        $this->assertSame(2, (int) ($today_row['unique_words'] ?? 0));
+        $this->assertSame(3, (int) ($today_row['outcomes'] ?? 0));
+        $this->assertSame(2, (int) ($analytics['daily_activity']['max_rounds'] ?? 0));
+        $this->assertSame(2, (int) ($analytics['daily_activity']['max_events'] ?? 0));
     }
 
     public function test_analytics_filters_out_non_quizzable_categories(): void
@@ -206,6 +321,50 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertArrayHasKey('words', $response['data']['analytics']);
     }
 
+    public function test_build_analytics_payload_includes_part_of_speech_details_when_available(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $fixture = $this->createAnalyticsFixture();
+        [$word_a, $word_b, $word_c] = $fixture['word_ids'];
+        $noun_term_id = $this->ensurePartOfSpeechTerm('noun', 'Noun');
+        $adjective_term_id = $this->ensurePartOfSpeechTerm('adjective', 'Adjective');
+
+        wp_set_post_terms($word_a, [$noun_term_id], 'part_of_speech', false);
+        wp_set_post_terms($word_b, [$adjective_term_id], 'part_of_speech', false);
+
+        $analytics = ll_tools_build_user_study_analytics_payload(
+            $user_id,
+            $fixture['wordset_id'],
+            $fixture['category_ids'],
+            14
+        );
+
+        $words_by_id = [];
+        foreach ((array) ($analytics['words'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $wid = isset($row['id']) ? (int) $row['id'] : 0;
+            if ($wid > 0) {
+                $words_by_id[$wid] = $row;
+            }
+        }
+
+        $this->assertSame('noun', (string) ($words_by_id[$word_a]['part_of_speech_slug'] ?? ''));
+        $this->assertSame('Noun', (string) ($words_by_id[$word_a]['part_of_speech_label'] ?? ''));
+        $this->assertSame('n', (string) ($words_by_id[$word_a]['part_of_speech_abbreviation'] ?? ''));
+
+        $this->assertSame('adjective', (string) ($words_by_id[$word_b]['part_of_speech_slug'] ?? ''));
+        $this->assertSame('Adjective', (string) ($words_by_id[$word_b]['part_of_speech_label'] ?? ''));
+        $this->assertSame('adj', (string) ($words_by_id[$word_b]['part_of_speech_abbreviation'] ?? ''));
+
+        $this->assertSame('', (string) ($words_by_id[$word_c]['part_of_speech_slug'] ?? ''));
+        $this->assertSame('', (string) ($words_by_id[$word_c]['part_of_speech_label'] ?? ''));
+        $this->assertSame('', (string) ($words_by_id[$word_c]['part_of_speech_abbreviation'] ?? ''));
+    }
+
     public function test_reset_user_progress_clears_scope_when_stored_row_scope_is_stale(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);
@@ -240,6 +399,8 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
                 'reset-scope-' . $index . '.mp3'
             );
         }
+        $target_category_id = $this->resolveEffectiveCategoryId($target_category_id, $wordset_id);
+        $other_category_id = $this->resolveEffectiveCategoryId($other_category_id, $wordset_id);
         $studied_word_id = (int) $word_ids[0];
 
         // Give the studied word multiple categories so analytics category membership
@@ -313,6 +474,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->createWordWithAudio('Analytics Word I', 'Analytics Translation I', $cat_b, $wordset_id, 'analytics-i.mp3');
         $this->createWordWithAudio('Analytics Word J', 'Analytics Translation J', $cat_b, $wordset_id, 'analytics-j.mp3');
 
+        $cat_a = $this->resolveEffectiveCategoryId($cat_a, $wordset_id);
+        $cat_b = $this->resolveEffectiveCategoryId($cat_b, $wordset_id);
+
         return [
             'wordset_id' => $wordset_id,
             'category_ids' => [$cat_a, $cat_b],
@@ -366,6 +530,9 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
             );
         }
 
+        $quizzable_category_id = $this->resolveEffectiveCategoryId($quizzable_category_id, $wordset_id);
+        $non_quizzable_category_id = $this->resolveEffectiveCategoryId($non_quizzable_category_id, $wordset_id);
+
         return [
             'wordset_id' => $wordset_id,
             'quizzable_category_id' => $quizzable_category_id,
@@ -393,6 +560,36 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
 
         return (int) $word_id;
+    }
+
+    private function resolveEffectiveCategoryId(int $category_id, int $wordset_id): int
+    {
+        $effective_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true)
+            : 0;
+
+        return ($effective_category_id > 0) ? $effective_category_id : $category_id;
+    }
+
+    private function ensurePartOfSpeechTerm(string $slug, string $label): int
+    {
+        $existing = term_exists($slug, 'part_of_speech');
+        if (is_array($existing) && !empty($existing['term_id'])) {
+            return (int) $existing['term_id'];
+        }
+        if (is_int($existing) && $existing > 0) {
+            return $existing;
+        }
+
+        $created = wp_insert_term($label, 'part_of_speech', ['slug' => $slug]);
+        if (is_wp_error($created)) {
+            $term = get_term_by('slug', $slug, 'part_of_speech');
+            $this->assertInstanceOf(WP_Term::class, $term);
+            return (int) $term->term_id;
+        }
+
+        $this->assertIsArray($created);
+        return (int) $created['term_id'];
     }
 
     private function seedWordProgressRow(int $user_id, int $word_id, int $category_id, int $wordset_id, array $overrides): void
