@@ -1596,7 +1596,7 @@ function ll_tools_dictionary_import_get_job_snapshot(array $job): array {
     }
 
     $advice_title = __('Keep This Window Open', 'll-tools-text-domain');
-    $advice_text = __('This import runs in short batches from your browser. If you close this tab or navigate away, the job pauses. Reopen this screen to resume it.', 'll-tools-text-domain');
+    $advice_text = __('This import runs in short batches from your browser and retries temporary connection drops automatically. If you close this tab or navigate away, the job pauses until you reopen this screen, then it resumes from the last saved batch.', 'll-tools-text-domain');
     if ($status === 'completed') {
         $advice_title = __('Safe To Close', 'll-tools-text-domain');
         $advice_text = __('The import finished successfully. You can close this window.', 'll-tools-text-domain');
