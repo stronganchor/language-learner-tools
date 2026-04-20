@@ -417,6 +417,43 @@
             return;
         }
 
+        function getPreviewTokenFromLocation() {
+            var search = (window.location && typeof window.location.search === 'string') ? window.location.search : '';
+            var match;
+
+            if (!search) {
+                return '';
+            }
+
+            if (typeof window.URLSearchParams === 'function') {
+                return window.URLSearchParams ? (new window.URLSearchParams(search)).get('ll_import_preview') || '' : '';
+            }
+
+            match = search.match(/[?&]ll_import_preview=([^&#]+)/);
+            if (!match || !match[1]) {
+                return '';
+            }
+
+            try {
+                return decodeURIComponent(String(match[1]).replace(/\+/g, '%20'));
+            } catch (error) {
+                return String(match[1]);
+            }
+        }
+
+        function getPreviewTokenForRequest(form) {
+            var previewTokenField = form ? form.querySelector('input[name="ll_import_preview_token"]') : null;
+            var previewToken = previewTokenField && typeof previewTokenField.value === 'string'
+                ? previewTokenField.value
+                : '';
+
+            if (!previewToken) {
+                previewToken = getPreviewTokenFromLocation();
+            }
+
+            return previewToken || '';
+        }
+
         function setIdleState(form, submitButtons) {
             if (form) {
                 form.removeAttribute('data-ll-tools-import-submitting');
@@ -612,8 +649,13 @@
             document.documentElement.classList.add('ll-tools-import-processing');
 
             var startData = new FormData(form);
+            var previewToken = getPreviewTokenForRequest(form);
             startData.set('action', adminConfig.importStartAction);
             startData.set('nonce', adminConfig.importJobNonce);
+            if (previewToken) {
+                startData.set('ll_import_preview_token', previewToken);
+                startData.set('ll_import_preview', previewToken);
+            }
 
             return fetch(adminConfig.ajaxUrl, {
                 method: 'POST',

@@ -355,6 +355,59 @@ function ll_tools_import_preview_transient_key($token): string {
     return 'll_tools_import_preview_' . $uid . '_' . $token;
 }
 
+function ll_tools_import_preview_ttl_seconds(): int {
+    return max(
+        5 * MINUTE_IN_SECONDS,
+        (int) apply_filters('ll_tools_import_preview_ttl_seconds', 30 * MINUTE_IN_SECONDS)
+    );
+}
+
+function ll_tools_store_import_preview_data(string $token, array $preview_data): bool {
+    $token = sanitize_text_field($token);
+    if ($token === '') {
+        return false;
+    }
+
+    return (bool) set_transient(
+        ll_tools_import_preview_transient_key($token),
+        $preview_data,
+        ll_tools_import_preview_ttl_seconds()
+    );
+}
+
+function ll_tools_get_import_preview_token_from_request(array $request): string {
+    foreach (['ll_import_preview_token', 'll_import_preview'] as $key) {
+        if (empty($request[$key])) {
+            continue;
+        }
+
+        $token = sanitize_text_field(wp_unslash((string) $request[$key]));
+        if ($token !== '') {
+            return $token;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_get_import_preview_data(string $preview_token, bool $refresh_ttl = false): ?array {
+    $preview_token = sanitize_text_field($preview_token);
+    if ($preview_token === '') {
+        return null;
+    }
+
+    $preview_data = get_transient(ll_tools_import_preview_transient_key($preview_token));
+    if (!is_array($preview_data)) {
+        return null;
+    }
+
+    if ($refresh_ttl) {
+        ll_tools_store_import_preview_data($preview_token, $preview_data);
+    }
+
+    return $preview_data;
+}
+
 function ll_tools_metadata_update_preview_transient_key($token): string {
     $uid = get_current_user_id();
     $uid = $uid > 0 ? $uid : 0;
@@ -465,7 +518,7 @@ function ll_tools_handle_import_preview_media(): void {
         wp_die(__('Preview media request failed nonce verification.', 'll-tools-text-domain'));
     }
 
-    $preview_data = get_transient(ll_tools_import_preview_transient_key($preview_token));
+    $preview_data = ll_tools_get_import_preview_data($preview_token, true);
     if (!is_array($preview_data) || empty($preview_data['zip_path'])) {
         wp_die(__('Preview media request failed because the import preview expired.', 'll-tools-text-domain'));
     }
@@ -3203,8 +3256,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
     if ($show_import) {
         $import_preview_token = isset($_GET['ll_import_preview']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_import_preview'])) : '';
         if ($import_preview_token !== '') {
-            $preview_key = ll_tools_import_preview_transient_key($import_preview_token);
-            $preview_value = get_transient($preview_key);
+            $preview_value = ll_tools_get_import_preview_data($import_preview_token, true);
             if (is_array($preview_value)) {
                 $import_preview = $preview_value;
             } else {
@@ -6523,7 +6575,7 @@ function ll_tools_prepare_import_preview_from_zip_info(array $zip_info) {
     $preview_data['created_at'] = time();
 
     $token = wp_generate_password(20, false, false);
-    set_transient(ll_tools_import_preview_transient_key($token), $preview_data, 30 * MINUTE_IN_SECONDS);
+    ll_tools_store_import_preview_data($token, $preview_data);
 
     $redirect_url = ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
         'll_import_preview' => $token,
@@ -6812,9 +6864,7 @@ function ll_tools_handle_import_bundle() {
     ];
 
     $preview_token = '';
-    if (!empty($_POST['ll_import_preview_token'])) {
-        $preview_token = sanitize_text_field(wp_unslash((string) $_POST['ll_import_preview_token']));
-    }
+    $preview_token = ll_tools_get_import_preview_token_from_request($_POST);
 
     $zip_path = '';
     $cleanup_zip = false;
@@ -6822,8 +6872,7 @@ function ll_tools_handle_import_bundle() {
     $history_source_type = 'server';
     $history_source_zip = '';
     if ($preview_token !== '') {
-        $preview_key = ll_tools_import_preview_transient_key($preview_token);
-        $preview_data = get_transient($preview_key);
+        $preview_data = ll_tools_get_import_preview_data($preview_token);
         if (!is_array($preview_data) || empty($preview_data['zip_path'])) {
             $result['message'] = __('Import failed: preview is missing or expired. Please preview the bundle again.', 'll-tools-text-domain');
             ll_tools_store_import_result_and_redirect($result);
@@ -9205,17 +9254,13 @@ function ll_tools_import_append_result_history(array $processed, string $history
 }
 
 function ll_tools_import_job_resolve_source_from_request(array $request) {
-    $preview_token = '';
-    if (!empty($request['ll_import_preview_token'])) {
-        $preview_token = sanitize_text_field(wp_unslash((string) $request['ll_import_preview_token']));
-    }
+    $preview_token = ll_tools_get_import_preview_token_from_request($request);
 
     if ($preview_token === '') {
         return new WP_Error('ll_tools_import_preview_required', __('Import failed: preview is missing or expired. Preview the bundle again before importing.', 'll-tools-text-domain'));
     }
 
-    $preview_key = ll_tools_import_preview_transient_key($preview_token);
-    $preview_data = get_transient($preview_key);
+    $preview_data = ll_tools_get_import_preview_data($preview_token);
     if (!is_array($preview_data) || empty($preview_data['zip_path'])) {
         return new WP_Error('ll_tools_import_preview_missing', __('Import failed: preview is missing or expired. Preview the bundle again before importing.', 'll-tools-text-domain'));
     }
