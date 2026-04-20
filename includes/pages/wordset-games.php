@@ -427,6 +427,13 @@ function ll_tools_wordset_games_visible_categories(int $wordset_id, int $user_id
             return $category_id > 0 && ll_tools_is_category_enabled_for_game($category_id, $game_slug);
         }));
     }
+    if (
+        $game_slug === 'unscramble'
+        && function_exists('ll_tools_wordset_hide_lesson_text_for_non_text_quiz')
+        && ll_tools_wordset_hide_lesson_text_for_non_text_quiz($wordset_id)
+    ) {
+        return [];
+    }
     if (empty($categories_payload)) {
         return [];
     }

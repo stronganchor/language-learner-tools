@@ -1219,6 +1219,30 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_unscramble_is_hidden_when_lesson_pages_hide_non_text_category_word_text(): void
+    {
+        $fixture = $this->createUnscrambleFixture(false, 'Hidden Lesson', 5, ['unscramble']);
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_hide_lesson_text_for_non_text_quiz', 1);
+        update_term_meta((int) $fixture['category_id'], 'll_quiz_prompt_type', 'audio');
+        update_term_meta((int) $fixture['category_id'], 'll_quiz_option_type', 'image');
+
+        wp_set_current_user((int) $fixture['user_id']);
+
+        $this->assertTrue(
+            ll_tools_should_hide_lesson_grid_text((int) $fixture['category_id'], (int) $fixture['wordset_id'])
+        );
+        $this->assertSame(
+            [],
+            ll_tools_wordset_games_visible_category_ids((int) $fixture['wordset_id'], (int) $fixture['user_id'], 'unscramble')
+        );
+
+        $catalog = ll_tools_wordset_games_build_catalog((int) $fixture['wordset_id'], (int) $fixture['user_id']);
+        $launch = ll_tools_wordset_games_build_launch_entry('unscramble', (int) $fixture['wordset_id'], (int) $fixture['user_id']);
+
+        $this->assertArrayNotHasKey('unscramble', $catalog);
+        $this->assertNull($launch);
+    }
+
     public function test_unscramble_shows_locked_card_when_fewer_than_minimum_words_are_ready(): void
     {
         $fixture = $this->createUnscrambleFixture(false, 'Few Clue', 3, ['unscramble']);
