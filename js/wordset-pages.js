@@ -9114,9 +9114,7 @@
             }
             const categoryMetricsChanged = applyMainCategoryMetricsFromAnalytics(analytics);
             if (categoryMetricsChanged && mainCategorySortRequiresMetrics(mainCategorySort)) {
-                refreshMainCategoryOrdering({
-                    ensureAllLoaded: (normalizeMainCategorySort(mainCategorySort) !== 'default')
-                });
+                refreshMainCategoryOrdering();
             }
             const hasCategoryProgressChanges = queueCategoryProgressUpdatesFromAnalytics(analytics, {
                 deferVisible: deferVisibleCategoryProgress,
@@ -12343,9 +12341,7 @@
             mainCategorySort = 'default';
         }
         syncMainCategorySortUi();
-        refreshMainCategoryOrdering({
-            ensureAllLoaded: (normalizeMainCategorySort(mainCategorySort) !== 'default')
-        });
+        refreshMainCategoryOrdering();
         scheduleSelectAllAlignment();
         $(window).off('resize.llWordsetSelectAllAlign').on('resize.llWordsetSelectAllAlign', function () {
             scheduleSelectAllAlignment();

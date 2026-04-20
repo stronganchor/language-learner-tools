@@ -10,8 +10,10 @@ const wordsetScriptSource = fs.readFileSync(
 
 function buildCardMarkup(category) {
   const cat = category || {};
+  const extraStyle = String(cat.extraStyle || '').trim();
+  const styleAttr = extraStyle ? ` style="${extraStyle}"` : '';
   return `
-    <article class="ll-wordset-card" role="listitem" data-cat-id="${cat.id}" data-word-count="${cat.count}">
+    <article class="ll-wordset-card" role="listitem" data-cat-id="${cat.id}" data-word-count="${cat.count}"${styleAttr}>
       <div class="ll-wordset-card__top">
         <label class="ll-wordset-card__select" aria-label="Select ${cat.name}">
           <input type="checkbox" value="${cat.id}" data-ll-wordset-select />
@@ -279,6 +281,7 @@ async function mountWordsetPage(page, options = {}) {
   const analytics = options.analytics || buildAnalytics(categories);
   const config = buildConfig(categories, options.configOverrides || {});
   const analyticsDelayMs = Number(options.analyticsDelayMs || 0);
+  const storedSort = String(options.storedSort || '').trim();
 
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
@@ -361,6 +364,27 @@ async function mountWordsetPage(page, options = {}) {
     analyticsDelayValue: analyticsDelayMs,
     remainingCardsValue: remainingCards
   });
+
+  if (storedSort) {
+    await page.evaluate((value) => {
+      const storage = new Map();
+      Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        value: {
+          getItem(key) {
+            return storage.has(key) ? storage.get(key) : null;
+          },
+          setItem(key, nextValue) {
+            storage.set(key, String(nextValue));
+          },
+          removeItem(key) {
+            storage.delete(key);
+          }
+        }
+      });
+      window.localStorage.setItem('llToolsWordsetMainSort:77', value);
+    }, storedSort);
+  }
 
   await page.addScriptTag({ content: wordsetScriptSource });
 }
@@ -652,4 +676,126 @@ test('changing sort loads all lazy cards before applying the order', async ({ pa
     return page.evaluate(() => window.__llLazyAjaxCalls.length);
   }).toBeGreaterThan(0);
   await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
+});
+
+test('saved sort preferences do not force-load all lazy cards on page init', async ({ page }) => {
+  const categories = [
+    {
+      id: 33,
+      slug: 'travel',
+      name: 'Travel',
+      translation: 'Travel',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'plane train hotel',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 11,
+      slug: 'fruit',
+      name: 'Fruit',
+      translation: 'Fruit',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'apple pear banana',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 22,
+      slug: 'animals',
+      name: 'Animals',
+      translation: 'Animals',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'cat dog bird',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    }
+  ];
+
+  const analyticsCategories = [
+    Object.assign({}, categories[0], {
+      mastered_words: 0,
+      studied_words: 2,
+      new_words: 8,
+      last_seen_at: '2026-04-19 09:00:00'
+    }),
+    Object.assign({}, categories[1], {
+      mastered_words: 6,
+      studied_words: 8,
+      new_words: 2,
+      last_seen_at: '2026-04-15 12:00:00'
+    }),
+    Object.assign({}, categories[2], {
+      mastered_words: 4,
+      studied_words: 5,
+      new_words: 5,
+      last_seen_at: ''
+    })
+  ];
+
+  await mountWordsetPage(page, {
+    categories,
+    initialCategories: [
+      Object.assign({}, categories[0], {
+        extraStyle: 'margin-top: 1600px;'
+      })
+    ],
+    remainingCards: categories,
+    analytics: buildAnalytics(analyticsCategories),
+    analyticsDelayMs: 200,
+    storedSort: 'recent-desc',
+    configOverrides: {
+      summaryCountsDeferred: true,
+      lazyCards: {
+        enabled: true,
+        nonce: 'lazy-nonce',
+        token: 'lazy-token',
+        wordsetId: 77,
+        previewLimit: 2,
+        batchSize: 1,
+        initialCount: 1,
+        loaded: 1,
+        total: 3,
+        remaining: 2
+      }
+    }
+  });
+
+  await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(1);
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llLazyAjaxCalls.length);
+  }).toBe(0);
 });
