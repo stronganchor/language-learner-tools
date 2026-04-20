@@ -1699,8 +1699,159 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-width: min(100%, 260px);
 }
 
+.ll-wordset-grid-search-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 460px;
+    min-width: min(100%, 280px);
+}
+
+.ll-wordset-grid-search-tools .ll-wordset-progress-search--wordset-page {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 0;
+}
+
 .ll-wordset-grid-tools .ll-wordset-progress-select-all {
     margin-left: auto;
+}
+
+.ll-wordset-main-sort {
+    position: relative;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-main-sort__toggle {
+    min-height: 36px !important;
+    width: 36px;
+    padding: 0 !important;
+    border: 1px solid #cdd5df !important;
+    border-radius: 10px !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.ll-wordset-main-sort__toggle:hover,
+.ll-wordset-main-sort__toggle:focus-visible,
+.ll-wordset-main-sort.is-open .ll-wordset-main-sort__toggle {
+    border-color: #647488 !important;
+    background: #f8fafc !important;
+    color: #1f2937 !important;
+    outline: none !important;
+}
+
+.ll-wordset-main-sort.has-custom-sort .ll-wordset-main-sort__toggle {
+    border-color: rgba(31, 107, 92, 0.35) !important;
+    background: rgba(31, 107, 92, 0.08) !important;
+    color: #1f6b5c !important;
+}
+
+.ll-wordset-main-sort.is-pending-metrics .ll-wordset-main-sort__toggle {
+    position: relative;
+}
+
+.ll-wordset-main-sort.is-pending-metrics .ll-wordset-main-sort__toggle::after {
+    content: "";
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: #1d4d99;
+    box-shadow: 0 0 0 2px #ffffff;
+}
+
+.ll-wordset-main-sort__toggle-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.ll-wordset-main-sort__menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 35;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 180px;
+    padding: 8px;
+    border: 1px solid var(--ll-wp-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(10px);
+}
+
+.ll-wordset-main-sort__option {
+    width: 100%;
+    min-height: 36px !important;
+    padding: 8px 10px !important;
+    border: none !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    color: #334155 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+    line-height: 1.15 !important;
+    letter-spacing: normal !important;
+    text-transform: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
+}
+
+.ll-wordset-main-sort__option:hover,
+.ll-wordset-main-sort__option:focus-visible {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    outline: none !important;
+}
+
+.ll-wordset-main-sort__option[disabled] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.ll-wordset-main-sort__option-label {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ll-wordset-main-sort__option-check {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    border-radius: 999px;
+    background: #1f6b5c;
+    opacity: 0;
+    transform: scale(0.72);
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.ll-wordset-main-sort__option.is-active,
+.ll-wordset-main-sort__option[aria-checked="true"] {
+    background: rgba(31, 107, 92, 0.1) !important;
+    color: #134e45 !important;
+}
+
+.ll-wordset-main-sort__option.is-active .ll-wordset-main-sort__option-check,
+.ll-wordset-main-sort__option[aria-checked="true"] .ll-wordset-main-sort__option-check {
+    opacity: 1;
+    transform: scale(1);
 }
 
 .ll-wordset-page.ll-wordset-page--single-category .ll-wordset-hero {
@@ -4294,8 +4445,19 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         min-width: 0;
     }
 
+    .ll-wordset-grid-search-tools {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
     .ll-wordset-grid-tools .ll-wordset-progress-select-all {
         margin-left: 0;
+    }
+
+    .ll-wordset-main-sort__menu {
+        right: auto;
+        left: 0;
+        min-width: min(100vw - 40px, 220px);
     }
 }
 

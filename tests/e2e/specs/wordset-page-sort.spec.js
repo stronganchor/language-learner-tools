@@ -1,0 +1,499 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
+const wordsetScriptSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/wordset-pages.js'),
+  'utf8'
+);
+
+function buildCardMarkup(category) {
+  const cat = category || {};
+  return `
+    <article class="ll-wordset-card" role="listitem" data-cat-id="${cat.id}" data-word-count="${cat.count}">
+      <div class="ll-wordset-card__top">
+        <label class="ll-wordset-card__select" aria-label="Select ${cat.name}">
+          <input type="checkbox" value="${cat.id}" data-ll-wordset-select />
+          <span class="ll-wordset-card__select-box" aria-hidden="true"></span>
+        </label>
+        <a class="ll-wordset-card__heading" href="#" aria-label="${cat.name}">
+          <h2 class="ll-wordset-card__title">${cat.name}</h2>
+        </a>
+        <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
+      </div>
+      <div class="ll-wordset-card__progress" aria-hidden="true">
+        <span class="ll-wordset-card__progress-track">
+          <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: 0%;"></span>
+          <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: 0%;"></span>
+          <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: 100%;"></span>
+        </span>
+      </div>
+    </article>
+  `;
+}
+
+function buildSortControls() {
+  return `
+    <div class="ll-wordset-grid-search-tools">
+      <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
+        <label class="screen-reader-text" for="ll-wordset-page-search-input">Search words or translations</label>
+        <input
+          id="ll-wordset-page-search-input"
+          class="ll-wordset-progress-search__input"
+          type="search"
+          data-ll-wordset-page-search
+          autocomplete="off"
+        />
+        <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
+      </div>
+      <div class="ll-wordset-main-sort" data-ll-wordset-main-sort-root>
+        <button
+          type="button"
+          class="ll-wordset-main-sort__toggle"
+          data-ll-wordset-main-sort-toggle
+          aria-expanded="false"
+          aria-haspopup="menu"
+          aria-controls="ll-wordset-main-sort-menu-77"
+          aria-label="Sort categories"
+          title="Sort categories">
+          <span aria-hidden="true">Sort</span>
+        </button>
+        <div
+          id="ll-wordset-main-sort-menu-77"
+          class="ll-wordset-main-sort__menu"
+          data-ll-wordset-main-sort-menu
+          role="menu"
+          hidden>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="default" role="menuitemradio" aria-checked="true">
+            <span class="ll-wordset-main-sort__option-label">Default</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="alpha-asc" role="menuitemradio" aria-checked="false">
+            <span class="ll-wordset-main-sort__option-label">A-Z</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="alpha-desc" role="menuitemradio" aria-checked="false">
+            <span class="ll-wordset-main-sort__option-label">Z-A</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-desc" role="menuitemradio" aria-checked="false">
+            <span class="ll-wordset-main-sort__option-label">High progress</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-asc" role="menuitemradio" aria-checked="false">
+            <span class="ll-wordset-main-sort__option-label">Low progress</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false">
+            <span class="ll-wordset-main-sort__option-label">Recent</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+          <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false">
+            <span class="ll-wordset-main-sort__option-label">Oldest</span>
+            <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function buildMarkup(categories) {
+  return `
+    <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="main" data-ll-wordset-id="77">
+      <div class="ll-wordset-grid-tools">
+        ${buildSortControls()}
+        <button type="button" class="ll-wordset-select-all ll-wordset-progress-select-all" data-ll-wordset-select-all aria-pressed="false">Select all</button>
+      </div>
+
+      <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
+        ${categories.map((category) => buildCardMarkup(category)).join('\n')}
+      </div>
+
+      <div class="ll-wordset-empty ll-wordset-empty--search" data-ll-wordset-page-search-empty hidden>
+        No categories match this search.
+      </div>
+
+      <div data-ll-wordset-selection-bar hidden>
+        <span data-ll-wordset-selection-text>Select categories to study together</span>
+        <label class="ll-wordset-selection-bar__starred-toggle" hidden>
+          <input type="checkbox" data-ll-wordset-selection-starred-only />
+          <span data-ll-wordset-selection-starred-icon>☆</span>
+          <span data-ll-wordset-selection-starred-label>Starred only</span>
+        </label>
+        <label class="ll-wordset-selection-bar__hard-toggle" hidden>
+          <input type="checkbox" data-ll-wordset-selection-hard-only />
+          <span data-ll-wordset-selection-hard-icon></span>
+          <span data-ll-wordset-selection-hard-label>Hard words only</span>
+        </label>
+        <button type="button" data-ll-wordset-selection-mode data-mode="practice">Selection Practice</button>
+        <button type="button" data-ll-wordset-selection-clear>Clear</button>
+      </div>
+    </div>
+
+    <div id="ll-study-results-actions" style="display:none;">
+      <button id="ll-study-results-same-chunk" type="button" style="display:none;">Repeat</button>
+      <button id="ll-study-results-different-chunk" type="button" style="display:none;">New words</button>
+      <button id="ll-study-results-next-chunk" type="button" style="display:none;">Recommended</button>
+    </div>
+    <div id="ll-gender-results-actions" style="display:none;"></div>
+    <button id="restart-quiz" type="button" style="display:none;">Restart</button>
+    <div id="quiz-mode-buttons" style="display:none;"></div>
+    <div id="ll-tools-flashcard-popup" style="display:none;"></div>
+    <div id="ll-tools-flashcard-quiz-popup" style="display:none;"></div>
+  `;
+}
+
+function buildConfig(categories, overrides = {}) {
+  return Object.assign({
+    view: 'main',
+    ajaxUrl: '/fake-admin-ajax.php',
+    nonce: 'nonce-1',
+    isLoggedIn: true,
+    wordsetId: 77,
+    wordsetSlug: 'sort-wordset',
+    wordsetName: 'Sort Wordset',
+    links: {
+      base: '/wordsets/sort-wordset/',
+      progress: '/wordsets/sort-wordset/progress/',
+      hidden: '/wordsets/sort-wordset/hidden-categories/',
+      settings: '/wordsets/sort-wordset/settings/'
+    },
+    progressIncludeHidden: false,
+    categories,
+    visibleCategoryIds: categories.map((category) => category.id),
+    hiddenCategoryIds: [],
+    state: {
+      wordset_id: 77,
+      category_ids: [],
+      starred_word_ids: [],
+      star_mode: 'normal',
+      fast_transitions: false
+    },
+    goals: {
+      enabled_modes: ['practice', 'learning', 'listening'],
+      ignored_category_ids: [],
+      preferred_wordset_ids: [77],
+      placement_known_category_ids: [],
+      daily_new_word_target: 0,
+      priority_focus: ''
+    },
+    nextActivity: null,
+    recommendationQueue: [],
+    analytics: {
+      scope: {},
+      summary: {},
+      daily_activity: { days: [], max_events: 0, window_days: 14 },
+      categories: [],
+      words: []
+    },
+    modeUi: {},
+    gender: {
+      enabled: false,
+      options: [],
+      min_count: 2
+    },
+    summaryCounts: {
+      mastered: 0,
+      studied: 0,
+      new: categories.reduce((total, category) => total + Number(category.count || 0), 0),
+      starred: 0,
+      hard: 0
+    },
+    summaryCountsDeferred: false,
+    i18n: {
+      selectionLabel: 'Select categories to study together',
+      selectionWordsOnly: '%d words',
+      selectAll: 'Select all',
+      deselectAll: 'Deselect all'
+    }
+  }, overrides || {});
+}
+
+function buildAnalytics(categories) {
+  const categoryRows = categories.map((category) => ({
+    id: category.id,
+    label: category.translation || category.name,
+    word_count: category.count,
+    mastered_words: category.mastered_words || 0,
+    studied_words: category.studied_words || 0,
+    new_words: category.new_words || Math.max(0, Number(category.count || 0) - Number(category.studied_words || 0)),
+    exposure_total: 0,
+    exposure_by_mode: {
+      learning: 0,
+      practice: 0,
+      listening: 0,
+      gender: 0,
+      'self-check': 0
+    },
+    last_mode: 'practice',
+    last_seen_at: category.last_seen_at || ''
+  }));
+
+  const totalWords = categoryRows.reduce((sum, row) => sum + Number(row.word_count || 0), 0);
+  const masteredWords = categoryRows.reduce((sum, row) => sum + Number(row.mastered_words || 0), 0);
+  const studiedWords = categoryRows.reduce((sum, row) => sum + Number(row.studied_words || 0), 0);
+  const newWords = categoryRows.reduce((sum, row) => sum + Number(row.new_words || 0), 0);
+
+  return {
+    scope: {
+      wordset_id: 77,
+      category_ids: categories.map((category) => category.id),
+      category_count: categories.length,
+      mode: 'all'
+    },
+    summary: {
+      total_words: totalWords,
+      mastered_words: masteredWords,
+      studied_words: studiedWords,
+      new_words: newWords,
+      hard_words: 0,
+      starred_words: 0
+    },
+    daily_activity: {
+      days: [],
+      max_events: 0,
+      window_days: 14
+    },
+    categories: categoryRows,
+    words: [],
+    generated_at: '2026-04-20T12:00:00Z'
+  };
+}
+
+async function mountWordsetPage(page, options = {}) {
+  const categories = options.categories || [];
+  const analytics = options.analytics || buildAnalytics(categories);
+  const config = buildConfig(categories, options.configOverrides || {});
+  const analyticsDelayMs = Number(options.analyticsDelayMs || 0);
+
+  await page.goto('about:blank');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setContent(buildMarkup(categories));
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(({ configValue, analyticsValue, analyticsDelayValue }) => {
+    window.llWordsetPageData = configValue;
+    window.alert = function () {};
+
+    const $ = window.jQuery;
+    $.post = function () {
+      const deferred = $.Deferred();
+      window.setTimeout(() => {
+        deferred.resolve({
+          success: true,
+          data: {
+            analytics: analyticsValue,
+            next_activity: null,
+            recommendation_queue: []
+          }
+        });
+      }, analyticsDelayValue);
+      return deferred.promise();
+    };
+  }, {
+    configValue: config,
+    analyticsValue: analytics,
+    analyticsDelayValue: analyticsDelayMs
+  });
+
+  await page.addScriptTag({ content: wordsetScriptSource });
+}
+
+async function getRenderedCategoryOrder(page) {
+  return page.locator('.ll-wordset-card[data-cat-id] .ll-wordset-card__title').evaluateAll((nodes) =>
+    nodes.map((node) => (node.textContent || '').trim())
+  );
+}
+
+test('wordset page sort menu reorders categories by alpha, progress, and recency', async ({ page }) => {
+  const categories = [
+    {
+      id: 33,
+      slug: 'travel',
+      name: 'Travel',
+      translation: 'Travel',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'plane train hotel',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 2,
+      new_words: 8,
+      last_seen_at: '2026-04-19 09:00:00'
+    },
+    {
+      id: 11,
+      slug: 'fruit',
+      name: 'Fruit',
+      translation: 'Fruit',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'apple pear banana',
+      preview: [],
+      mastered_words: 6,
+      studied_words: 8,
+      new_words: 2,
+      last_seen_at: '2026-04-15 12:00:00'
+    },
+    {
+      id: 22,
+      slug: 'animals',
+      name: 'Animals',
+      translation: 'Animals',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'cat dog bird',
+      preview: [],
+      mastered_words: 4,
+      studied_words: 5,
+      new_words: 5,
+      last_seen_at: ''
+    }
+  ];
+
+  await mountWordsetPage(page, { categories });
+  await expect(page.locator('[data-ll-wordset-main-sort-toggle]')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-main-sort-option="progress-desc"]')).toBeAttached();
+
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Travel', 'Fruit', 'Animals']);
+
+  await page.click('[data-ll-wordset-main-sort-toggle]');
+  await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeVisible();
+  await page.click('[data-ll-wordset-main-sort-option="alpha-asc"]');
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Animals', 'Fruit', 'Travel']);
+
+  await page.click('[data-ll-wordset-main-sort-toggle]');
+  await page.click('[data-ll-wordset-main-sort-option="progress-desc"]');
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Fruit', 'Animals', 'Travel']);
+
+  await page.click('[data-ll-wordset-main-sort-toggle]');
+  await page.click('[data-ll-wordset-main-sort-option="recent-desc"]');
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Travel', 'Fruit', 'Animals']);
+});
+
+test('deferred metrics apply an active progress sort after analytics loads', async ({ page }) => {
+  const categories = [
+    {
+      id: 33,
+      slug: 'travel',
+      name: 'Travel',
+      translation: 'Travel',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'plane train hotel',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 11,
+      slug: 'fruit',
+      name: 'Fruit',
+      translation: 'Fruit',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'apple pear banana',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    },
+    {
+      id: 22,
+      slug: 'animals',
+      name: 'Animals',
+      translation: 'Animals',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'cat dog bird',
+      preview: [],
+      mastered_words: 0,
+      studied_words: 0,
+      new_words: 10,
+      last_seen_at: ''
+    }
+  ];
+
+  const analyticsCategories = [
+    Object.assign({}, categories[0], {
+      mastered_words: 0,
+      studied_words: 2,
+      new_words: 8,
+      last_seen_at: '2026-04-19 09:00:00'
+    }),
+    Object.assign({}, categories[1], {
+      mastered_words: 6,
+      studied_words: 8,
+      new_words: 2,
+      last_seen_at: '2026-04-15 12:00:00'
+    }),
+    Object.assign({}, categories[2], {
+      mastered_words: 4,
+      studied_words: 5,
+      new_words: 5,
+      last_seen_at: ''
+    })
+  ];
+
+  await mountWordsetPage(page, {
+    categories,
+    analytics: buildAnalytics(analyticsCategories),
+    configOverrides: {
+      summaryCountsDeferred: true
+    },
+    analyticsDelayMs: 300
+  });
+
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Travel', 'Fruit', 'Animals']);
+  await page.click('[data-ll-wordset-main-sort-toggle]');
+  await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeVisible();
+  await page.click('[data-ll-wordset-main-sort-option="progress-desc"]');
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Fruit', 'Animals', 'Travel']);
+});

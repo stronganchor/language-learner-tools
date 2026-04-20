@@ -3921,6 +3921,17 @@ function ll_tools_wordset_page_render_reset_icon(string $class = 'll-wordset-pro
         . '</svg>';
 }
 
+function ll_tools_wordset_page_render_sort_icon(string $class = 'll-wordset-main-sort__toggle-icon'): string {
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+        . '<path d="M7 4v16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M4.75 6.25 7 4l2.25 2.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<path d="M17 20V4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M14.75 17.75 17 20l2.25-2.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<path d="M11.5 8.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M11.5 15.5h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
 function ll_tools_wordset_page_render_classes_icon(string $class = 'll-wordset-classes-icon'): string {
     return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
         . '<circle cx="8" cy="9" r="3.25" stroke="currentColor" stroke-width="1.8"/>'
@@ -7917,6 +7928,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $summary_counts = ll_tools_wordset_page_summary_counts($analytics);
     $summary_counts_deferred = ($is_study_user && $is_main_view && !$should_bootstrap_analytics);
     $category_progress_lookup = [];
+    $category_metrics_lookup = [];
     $analytics_category_rows = (isset($analytics['categories']) && is_array($analytics['categories'])) ? $analytics['categories'] : [];
     foreach ($analytics_category_rows as $analytics_category_row) {
         if (!is_array($analytics_category_row)) {
@@ -7939,6 +7951,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'mastered' => $mastered_words,
             'studied' => $studied_words,
             'new' => $new_words,
+        ];
+        $category_metrics_lookup[$cid] = [
+            'mastered_words' => $mastered_words,
+            'studied_words' => $studied_total,
+            'new_words' => $new_words,
+            'last_seen_at' => isset($analytics_category_row['last_seen_at'])
+                ? (string) $analytics_category_row['last_seen_at']
+                : '',
         ];
     }
     $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
@@ -8322,7 +8342,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         array_values(array_map('intval', wp_list_pluck($enhanced_categories, 'id')))
     );
 
-    $script_categories = array_map(function (array $cat) use ($category_search_index): array {
+    $script_categories = array_map(function (array $cat) use ($category_search_index, $category_metrics_lookup): array {
         $preview_items = array_values((array) ($cat['preview'] ?? []));
         $preview_items = array_slice($preview_items, 0, 2);
         $preview_payload = [];
@@ -8345,8 +8365,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             }
         }
 
+        $category_id = (int) ($cat['id'] ?? 0);
+        $metrics = isset($category_metrics_lookup[$category_id]) && is_array($category_metrics_lookup[$category_id])
+            ? $category_metrics_lookup[$category_id]
+            : [];
+
         return [
-            'id' => (int) ($cat['id'] ?? 0),
+            'id' => $category_id,
             'slug' => (string) ($cat['slug'] ?? ''),
             'name' => (string) ($cat['raw_name'] ?? $cat['name'] ?? ''),
             'translation' => (string) ($cat['translation'] ?? ($cat['name'] ?? '')),
@@ -8359,9 +8384,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gender_supported' => !empty($cat['gender_supported']),
             'aspect_bucket' => (string) ($cat['aspect_bucket'] ?? 'no-image'),
             'hidden' => !empty($cat['hidden']),
-            'preview' => $preview_payload,
             'has_images' => !empty($cat['has_images']),
-            'search_text' => (string) ($category_search_index[(int) ($cat['id'] ?? 0)]['search_text'] ?? ''),
+            'preview' => $preview_payload,
+            'search_text' => (string) ($category_search_index[$category_id]['search_text'] ?? ''),
+            'mastered_words' => (int) ($metrics['mastered_words'] ?? 0),
+            'studied_words' => (int) ($metrics['studied_words'] ?? 0),
+            'new_words' => (int) ($metrics['new_words'] ?? max(0, (int) ($cat['count'] ?? 0))),
+            'last_seen_at' => (string) ($metrics['last_seen_at'] ?? ''),
         ];
     }, $enhanced_categories);
 
@@ -9370,18 +9399,69 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             <?php else : ?>
                 <?php if ($visible_category_count > 1) : ?>
+                    <?php $sort_menu_id = 'll-wordset-main-sort-menu-' . $wordset_id; ?>
                     <div class="ll-wordset-grid-tools">
-                        <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
-                            <label class="screen-reader-text" for="ll-wordset-page-search-input"><?php echo esc_html__('Search words or translations', 'll-tools-text-domain'); ?></label>
-                            <input
-                                id="ll-wordset-page-search-input"
-                                class="ll-wordset-progress-search__input"
-                                type="search"
-                                data-ll-wordset-page-search
-                                placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
-                                autocomplete="off"
-                            />
-                            <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
+                        <div class="ll-wordset-grid-search-tools">
+                            <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
+                                <label class="screen-reader-text" for="ll-wordset-page-search-input"><?php echo esc_html__('Search words or translations', 'll-tools-text-domain'); ?></label>
+                                <input
+                                    id="ll-wordset-page-search-input"
+                                    class="ll-wordset-progress-search__input"
+                                    type="search"
+                                    data-ll-wordset-page-search
+                                    placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
+                                    autocomplete="off"
+                                />
+                                <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
+                            </div>
+                            <div class="ll-wordset-main-sort" data-ll-wordset-main-sort-root>
+                                <button
+                                    type="button"
+                                    class="ll-wordset-main-sort__toggle"
+                                    data-ll-wordset-main-sort-toggle
+                                    aria-expanded="false"
+                                    aria-haspopup="menu"
+                                    aria-controls="<?php echo esc_attr($sort_menu_id); ?>"
+                                    aria-label="<?php echo esc_attr__('Sort categories', 'll-tools-text-domain'); ?>"
+                                    title="<?php echo esc_attr__('Sort categories', 'll-tools-text-domain'); ?>">
+                                    <?php echo ll_tools_wordset_page_render_sort_icon(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                </button>
+                                <div
+                                    id="<?php echo esc_attr($sort_menu_id); ?>"
+                                    class="ll-wordset-main-sort__menu"
+                                    data-ll-wordset-main-sort-menu
+                                    role="menu"
+                                    hidden>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="default" role="menuitemradio" aria-checked="true">
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Default', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="alpha-asc" role="menuitemradio" aria-checked="false">
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('A-Z', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="alpha-desc" role="menuitemradio" aria-checked="false">
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Z-A', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('High progress', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Low progress', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Recent', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Oldest', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <button
                             type="button"
