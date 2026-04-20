@@ -158,6 +158,9 @@ jQuery(function ($) {
         formData.append('action', config.startAction);
         formData.append('nonce', config.nonce);
 
+        currentJob = null;
+        processing = false;
+        requestFailureCount = 0;
         setBusy(true);
         showRuntime();
         renderSummary(null);
@@ -168,6 +171,8 @@ jQuery(function ($) {
         $progressBar.css('width', '0%');
         $progressText.text('');
         $detailText.text('');
+        $adviceTitle.text('');
+        $adviceText.text('');
 
         ajaxRequest({}, {
             method: 'POST',
