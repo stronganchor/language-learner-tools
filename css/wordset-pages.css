@@ -686,7 +686,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-page.ll-wordset-buttons-shortcode {
-    --ll-wordset-buttons-max-width: min(100%, 820px);
+    --ll-wordset-buttons-max-width: min(100%, 980px);
     max-width: var(--ll-wordset-buttons-max-width);
     margin-left: auto;
     margin-right: auto;
@@ -705,14 +705,50 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-buttons-shortcode__item {
     display: flex;
+    width: min(100%, 380px);
 }
 
 .ll-wordset-page .ll-wordset-buttons-shortcode__button {
-    min-width: min(100%, 220px) !important;
-    width: auto !important;
-    max-width: min(100vw - 48px, 320px) !important;
-    text-align: center !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 72px !important;
+    max-width: none !important;
+    padding: 14px 18px !important;
+    gap: 14px !important;
+    justify-content: space-between !important;
+    border-radius: 16px !important;
+    font-size: 1rem !important;
+    line-height: 1.2 !important;
+    text-align: left !important;
     white-space: normal !important;
+}
+
+.ll-wordset-buttons-shortcode__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.ll-wordset-buttons-shortcode__count {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--ll-wp-pill-blue-border);
+    background: var(--ll-wp-pill-blue);
+    color: var(--ll-wp-pill-blue-text);
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+    box-shadow: none;
 }
 
 @media (max-width: 640px) {
@@ -721,12 +757,20 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-buttons-shortcode__item {
-        width: min(100%, 360px);
+        width: 100%;
     }
 
     .ll-wordset-page .ll-wordset-buttons-shortcode__button {
         width: 100% !important;
         max-width: none !important;
+        min-height: 68px !important;
+        padding: 14px 16px !important;
+    }
+
+    .ll-wordset-buttons-shortcode__count {
+        min-height: 30px;
+        padding: 6px 9px;
+        font-size: 0.78rem;
     }
 }
 
