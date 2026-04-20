@@ -1794,6 +1794,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     backdrop-filter: blur(10px);
 }
 
+.ll-wordset-main-sort__menu[hidden] {
+    display: none !important;
+}
+
 .ll-wordset-main-sort__option {
     width: 100%;
     min-height: 36px !important;

@@ -3923,12 +3923,10 @@ function ll_tools_wordset_page_render_reset_icon(string $class = 'll-wordset-pro
 
 function ll_tools_wordset_page_render_sort_icon(string $class = 'll-wordset-main-sort__toggle-icon'): string {
     return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
-        . '<path d="M7 4v16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
-        . '<path d="M4.75 6.25 7 4l2.25 2.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
-        . '<path d="M17 20V4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
-        . '<path d="M14.75 17.75 17 20l2.25-2.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
-        . '<path d="M11.5 8.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
-        . '<path d="M11.5 15.5h4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M9 5.25v13.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'
+        . '<path d="M6.75 7.5 9 5.25 11.25 7.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<path d="M14.5 18.75V5.25" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'
+        . '<path d="M12.25 16.5 14.5 18.75 16.75 16.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
         . '</svg>';
 }
 
@@ -9453,11 +9451,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
-                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Recent', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Recently studied', 'll-tools-text-domain'); ?></span>
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
-                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Oldest', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Not studied recently', 'll-tools-text-domain'); ?></span>
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                 </div>

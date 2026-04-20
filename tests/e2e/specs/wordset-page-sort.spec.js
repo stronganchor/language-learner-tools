@@ -86,11 +86,11 @@ function buildSortControls() {
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
           <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false">
-            <span class="ll-wordset-main-sort__option-label">Recent</span>
+            <span class="ll-wordset-main-sort__option-label">Recently studied</span>
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
           <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false">
-            <span class="ll-wordset-main-sort__option-label">Oldest</span>
+            <span class="ll-wordset-main-sort__option-label">Not studied recently</span>
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
         </div>
@@ -377,6 +377,7 @@ test('wordset page sort menu reorders categories by alpha, progress, and recency
   await mountWordsetPage(page, { categories });
   await expect(page.locator('[data-ll-wordset-main-sort-toggle]')).toBeVisible();
   await expect(page.locator('[data-ll-wordset-main-sort-option="progress-desc"]')).toBeAttached();
+  await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeHidden();
 
   await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Travel', 'Fruit', 'Animals']);
 
