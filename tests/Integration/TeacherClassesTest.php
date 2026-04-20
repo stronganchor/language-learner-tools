@@ -106,6 +106,57 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_removing_student_updates_class_memberships(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-remove@example.org',
+        ]);
+        $learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'learner-remove@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Removal Class');
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
+
+        $result = ll_tools_teacher_class_remove_student((int) $class_id, $learner_id);
+
+        $this->assertIsArray($result);
+        $this->assertFalse($result['already_removed']);
+        $this->assertFalse(ll_tools_teacher_class_user_is_student((int) $class_id, $learner_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
+    }
+
+    public function test_deleting_class_removes_student_memberships(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-delete@example.org',
+        ]);
+        $learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'learner-delete@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Delete Class');
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
+
+        $result = ll_tools_teacher_class_delete((int) $class_id);
+
+        $this->assertIsArray($result);
+        $this->assertFalse(ll_tools_teacher_class_exists((int) $class_id));
+        $this->assertSame([], ll_tools_teacher_class_get_ids_for_student($learner_id));
+    }
+
     public function test_class_creation_assigns_teacher_role_to_selected_user(): void
     {
         ll_tools_register_or_refresh_teacher_role();
@@ -221,10 +272,14 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertFalse(ll_tools_teacher_class_user_is_student((int) $class_id, $other_learner_id));
     }
 
-    public function test_teacher_role_overrides_limited_recorder_admin_redirect(): void
+    public function test_teacher_role_redirects_wp_admin_to_frontend_classes_page(): void
     {
         ll_tools_register_or_refresh_teacher_role();
         ll_tools_register_or_refresh_audio_recorder_role();
+
+        $wordset = wp_insert_term('Teacher Classes Redirect ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
 
         $user_id = self::factory()->user->create([
             'role' => 'audio_recorder',
@@ -239,7 +294,10 @@ final class TeacherClassesTest extends LL_Tools_TestCase
 
         $this->assertInstanceOf(WP_User::class, $user);
         $this->assertTrue(ll_tools_user_can_manage_classes($user_id));
-        $this->assertSame('', ll_tools_get_limited_role_admin_redirect_target($user, true, false));
+        $this->assertSame(
+            ll_tools_get_teacher_classes_frontend_url(),
+            ll_tools_get_limited_role_admin_redirect_target($user, true, false)
+        );
     }
 
     public function test_admin_classes_page_renders_manual_assignment_controls(): void

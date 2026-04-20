@@ -1791,7 +1791,7 @@ function ll_tools_get_wordset_page_view(): string {
 }
 
 function ll_tools_get_wordset_page_allowed_views(): array {
-    return ['progress', 'hidden-categories', 'settings', 'games'];
+    return ['progress', 'hidden-categories', 'settings', 'games', 'classes'];
 }
 
 function ll_tools_wordset_page_rewrite_rule_matches_target(string $target, array $expected_query_args): bool {
@@ -1864,6 +1864,10 @@ function ll_tools_wordset_page_has_rewrite_routes(string $slug): bool {
         '^' . $quoted . '/games/?$' => [
             'll_wordset_page' => $slug,
             'll_wordset_view' => 'games',
+        ],
+        '^' . $quoted . '/classes/?$' => [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'classes',
         ],
     ];
 
@@ -3917,10 +3921,365 @@ function ll_tools_wordset_page_render_reset_icon(string $class = 'll-wordset-pro
         . '</svg>';
 }
 
+function ll_tools_wordset_page_render_classes_icon(string $class = 'll-wordset-classes-icon'): string {
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+        . '<circle cx="8" cy="9" r="3.25" stroke="currentColor" stroke-width="1.8"/>'
+        . '<circle cx="16.25" cy="8" r="2.5" stroke="currentColor" stroke-width="1.8"/>'
+        . '<path d="M3.75 18.25c.35-2.5 2.5-4.25 5.25-4.25s4.9 1.75 5.25 4.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M13.8 17.15c.35-1.95 2.05-3.3 4.2-3.3 1.25 0 2.35.45 3.15 1.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
 function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-speaking-stage__record-icon-svg'): string {
     return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
         . '<circle cx="12" cy="12" r="8"/>'
         . '</svg>';
+}
+
+function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term, string $back_url): string {
+    $current_user_id = get_current_user_id();
+    $classes_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
+        ? ll_tools_get_teacher_classes_frontend_url([], $wordset_term)
+        : ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
+    $can_manage_classes = is_user_logged_in()
+        && current_user_can('view_ll_tools')
+        && function_exists('ll_tools_user_can_manage_classes')
+        && ll_tools_user_can_manage_classes($current_user_id);
+    $is_admin_user = current_user_can('manage_options');
+    $selected_class_id = isset($_GET['class_id'])
+        ? max(0, (int) wp_unslash((string) $_GET['class_id']))
+        : 0;
+
+    $classes = $can_manage_classes && function_exists('ll_tools_teacher_classes_for_user')
+        ? ll_tools_teacher_classes_for_user($current_user_id)
+        : [];
+    if ($selected_class_id <= 0 && !empty($classes) && ($classes[0] instanceof WP_Post)) {
+        $selected_class_id = (int) $classes[0]->ID;
+    }
+    if ($selected_class_id > 0 && function_exists('ll_tools_teacher_class_user_can_access') && !ll_tools_teacher_class_user_can_access($selected_class_id)) {
+        $selected_class_id = 0;
+    }
+
+    $selected_class = ($selected_class_id > 0 && function_exists('ll_tools_get_teacher_class'))
+        ? ll_tools_get_teacher_class($selected_class_id)
+        : null;
+    $selected_classes_url = ($selected_class instanceof WP_Post && function_exists('ll_tools_get_teacher_classes_frontend_url'))
+        ? ll_tools_get_teacher_classes_frontend_url(['class_id' => (int) $selected_class->ID], $wordset_term)
+        : $classes_url;
+    $student_ids = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_student_ids'))
+        ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
+        : [];
+    $student_rows = function_exists('ll_tools_teacher_class_student_progress_rows')
+        ? ll_tools_teacher_class_student_progress_rows($student_ids)
+        : [];
+    $summary = function_exists('ll_tools_teacher_class_progress_summary')
+        ? ll_tools_teacher_class_progress_summary($student_rows)
+        : [
+            'students' => count($student_rows),
+            'rounds_30d' => 0,
+            'studied_words' => 0,
+            'mastered_words' => 0,
+            'hard_words' => 0,
+        ];
+    $selected_teacher_user = ($selected_class instanceof WP_Post)
+        ? get_userdata((int) $selected_class->post_author)
+        : null;
+    $signup_url = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_signup_invite_url'))
+        ? ll_tools_teacher_class_get_signup_invite_url((int) $selected_class->ID)
+        : '';
+    $assignable_teachers = $is_admin_user && function_exists('ll_tools_teacher_class_get_assignable_teachers')
+        ? ll_tools_teacher_class_get_assignable_teachers()
+        : [];
+    $signup_input_id = 'll-teacher-class-signup-link-' . (int) (($selected_class instanceof WP_Post) ? $selected_class->ID : 0);
+    $redirect_to = function_exists('ll_tools_get_current_request_url')
+        ? ll_tools_get_current_request_url()
+        : $selected_classes_url;
+    $redirect_to = ($redirect_to !== '') ? $redirect_to : $selected_classes_url;
+
+    ob_start();
+    ?>
+    <header class="ll-wordset-subpage-head">
+        <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+            <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                    <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+        </a>
+        <h1 class="ll-wordset-title"><?php echo esc_html__('Classes', 'll-tools-text-domain'); ?></h1>
+    </header>
+
+    <?php if (!is_user_logged_in()) : ?>
+        <?php
+        echo ll_tools_render_login_window([
+            'container_class' => 'll-wordset-empty ll-wordset-login-window',
+            'title' => __('Sign in to manage classes', 'll-tools-text-domain'),
+            'message' => __('Use your teacher account to open classes, invite learners, and review class progress.', 'll-tools-text-domain'),
+            'submit_label' => __('Open classes', 'll-tools-text-domain'),
+            'redirect_to' => $classes_url,
+            'show_registration' => false,
+            'screen_mode' => 'login',
+        ]);
+        ?>
+    <?php elseif (!$can_manage_classes) : ?>
+        <div class="ll-wordset-empty">
+            <?php echo esc_html__('Classes are available to teacher and administrator accounts only.', 'll-tools-text-domain'); ?>
+        </div>
+    <?php else : ?>
+        <section class="ll-teacher-classes" data-ll-teacher-classes>
+            <div class="ll-teacher-classes__sidebar">
+                <section class="ll-teacher-classes__panel ll-teacher-classes__panel--create">
+                    <div class="ll-teacher-classes__panel-head">
+                        <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html__('New class', 'll-tools-text-domain'); ?></h2>
+                    </div>
+                    <form class="ll-teacher-classes__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="ll_tools_teacher_create_class" />
+                        <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($classes_url); ?>" />
+                        <?php wp_nonce_field('ll_tools_teacher_create_class'); ?>
+                        <label class="ll-teacher-classes__field">
+                            <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Class name', 'll-tools-text-domain'); ?></span>
+                            <input
+                                class="ll-teacher-classes__input"
+                                type="text"
+                                name="ll_tools_teacher_class_name"
+                                required />
+                        </label>
+                        <?php if ($is_admin_user && !empty($assignable_teachers)) : ?>
+                            <label class="ll-teacher-classes__field">
+                                <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Teacher', 'll-tools-text-domain'); ?></span>
+                                <select class="ll-teacher-classes__input" name="ll_tools_teacher_class_teacher_user_id" required>
+                                    <?php foreach ($assignable_teachers as $assignable_teacher) : ?>
+                                        <?php if (!($assignable_teacher instanceof WP_User)) { continue; } ?>
+                                        <option value="<?php echo esc_attr((string) $assignable_teacher->ID); ?>" <?php selected((int) $assignable_teacher->ID, $current_user_id); ?>>
+                                            <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_teacher)); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </label>
+                        <?php endif; ?>
+                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button">
+                            <?php echo esc_html__('Create class', 'll-tools-text-domain'); ?>
+                        </button>
+                    </form>
+                </section>
+
+                <section class="ll-teacher-classes__panel">
+                    <div class="ll-teacher-classes__panel-head">
+                        <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html($is_admin_user ? __('Classes', 'll-tools-text-domain') : __('Your classes', 'll-tools-text-domain')); ?></h2>
+                        <span class="ll-teacher-classes__panel-count"><?php echo esc_html((string) count($classes)); ?></span>
+                    </div>
+
+                    <?php if (empty($classes)) : ?>
+                        <div class="ll-teacher-classes__empty">
+                            <?php echo esc_html__('Create a class to start inviting learners.', 'll-tools-text-domain'); ?>
+                        </div>
+                    <?php else : ?>
+                        <div class="ll-teacher-classes__list">
+                            <?php foreach ($classes as $class_post) : ?>
+                                <?php if (!($class_post instanceof WP_Post)) { continue; } ?>
+                                <?php
+                                $class_id = (int) $class_post->ID;
+                                $class_teacher_user = get_userdata((int) $class_post->post_author);
+                                $class_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
+                                    ? ll_tools_get_teacher_classes_frontend_url(['class_id' => $class_id], $wordset_term)
+                                    : add_query_arg('class_id', $class_id, $classes_url);
+                                $student_total = function_exists('ll_tools_teacher_class_get_student_ids')
+                                    ? count(ll_tools_teacher_class_get_student_ids($class_id))
+                                    : 0;
+                                $is_selected = ($selected_class instanceof WP_Post) && ((int) $selected_class->ID === $class_id);
+                                ?>
+                                <article class="ll-teacher-classes__list-card<?php echo $is_selected ? ' is-selected' : ''; ?>">
+                                    <div class="ll-teacher-classes__list-copy">
+                                        <h3 class="ll-teacher-classes__list-title"><?php echo esc_html($class_post->post_title); ?></h3>
+                                        <div class="ll-teacher-classes__list-meta">
+                                            <?php if ($is_admin_user && ($class_teacher_user instanceof WP_User)) : ?>
+                                                <span><?php echo esc_html(ll_tools_teacher_class_user_label($class_teacher_user)); ?></span>
+                                            <?php endif; ?>
+                                            <span><?php echo esc_html(sprintf(_n('%d student', '%d students', $student_total, 'll-tools-text-domain'), $student_total)); ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="ll-teacher-classes__list-actions">
+                                        <a class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button ll-teacher-classes__button--small" href="<?php echo esc_url($class_url); ?>">
+                                            <?php echo esc_html__('Open', 'll-tools-text-domain'); ?>
+                                        </a>
+                                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Delete %s?', 'll-tools-text-domain'), $class_post->post_title)); ?>');">
+                                            <input type="hidden" name="action" value="ll_tools_teacher_delete_class" />
+                                            <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $class_id); ?>" />
+                                            <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
+                                            <?php wp_nonce_field('ll_tools_teacher_delete_class_' . $class_id); ?>
+                                            <button type="submit" class="ll-teacher-classes__ghost-button">
+                                                <?php echo esc_html__('Delete', 'll-tools-text-domain'); ?>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </article>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </section>
+            </div>
+
+            <div class="ll-teacher-classes__detail">
+                <?php if (!($selected_class instanceof WP_Post)) : ?>
+                    <section class="ll-teacher-classes__panel ll-teacher-classes__panel--empty">
+                        <div class="ll-teacher-classes__empty">
+                            <?php echo esc_html__('Choose a class to see invites and student progress.', 'll-tools-text-domain'); ?>
+                        </div>
+                    </section>
+                <?php else : ?>
+                    <section class="ll-teacher-classes__panel">
+                        <div class="ll-teacher-classes__panel-head">
+                            <div>
+                                <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html($selected_class->post_title); ?></h2>
+                                <?php if ($selected_teacher_user instanceof WP_User) : ?>
+                                    <p class="ll-teacher-classes__panel-subtitle"><?php echo esc_html(ll_tools_teacher_class_user_label($selected_teacher_user)); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="ll-teacher-classes__stats">
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['students'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Students', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['rounds_30d'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('30d rounds', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['studied_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Studied', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['mastered_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Mastered', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['hard_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Hard', 'll-tools-text-domain'); ?></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="ll-teacher-classes__action-grid">
+                        <section class="ll-teacher-classes__panel">
+                            <div class="ll-teacher-classes__panel-head">
+                                <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Invite learner', 'll-tools-text-domain'); ?></h3>
+                            </div>
+                            <form class="ll-teacher-classes__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                <input type="hidden" name="action" value="ll_tools_teacher_send_class_invite" />
+                                <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                                <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($selected_classes_url); ?>" />
+                                <?php wp_nonce_field('ll_tools_teacher_send_class_invite_' . (int) $selected_class->ID); ?>
+                                <label class="ll-teacher-classes__field">
+                                    <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Existing learner email', 'll-tools-text-domain'); ?></span>
+                                    <input
+                                        class="ll-teacher-classes__input"
+                                        type="email"
+                                        name="ll_tools_teacher_invite_email"
+                                        placeholder="<?php echo esc_attr__('learner@example.com', 'll-tools-text-domain'); ?>"
+                                        required />
+                                </label>
+                                <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button">
+                                    <?php echo esc_html__('Send invite', 'll-tools-text-domain'); ?>
+                                </button>
+                            </form>
+                        </section>
+
+                        <section class="ll-teacher-classes__panel">
+                            <div class="ll-teacher-classes__panel-head">
+                                <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Signup link', 'll-tools-text-domain'); ?></h3>
+                            </div>
+                            <p class="ll-teacher-classes__signup-help"><?php echo esc_html__('New learner accounts created from this link join the class automatically.', 'll-tools-text-domain'); ?></p>
+                            <div class="ll-teacher-classes__copy-row">
+                                <input
+                                    id="<?php echo esc_attr($signup_input_id); ?>"
+                                    class="ll-teacher-classes__input ll-teacher-classes__input--code"
+                                    type="url"
+                                    readonly
+                                    value="<?php echo esc_attr($signup_url); ?>" />
+                                <button
+                                    type="button"
+                                    class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button ll-teacher-classes__button--copy"
+                                    data-ll-copy-target="<?php echo esc_attr($signup_input_id); ?>"
+                                    data-ll-copy-label="<?php echo esc_attr__('Copy link', 'll-tools-text-domain'); ?>"
+                                    data-ll-copy-success="<?php echo esc_attr__('Copied', 'll-tools-text-domain'); ?>"
+                                    data-ll-copy-failure="<?php echo esc_attr__('Copy failed', 'll-tools-text-domain'); ?>">
+                                    <?php echo esc_html__('Copy link', 'll-tools-text-domain'); ?>
+                                </button>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="ll-teacher-classes__panel">
+                        <div class="ll-teacher-classes__panel-head">
+                            <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Student progress', 'll-tools-text-domain'); ?></h3>
+                        </div>
+                        <?php if (empty($student_rows)) : ?>
+                            <div class="ll-teacher-classes__empty">
+                                <?php echo esc_html__('No learners have joined this class yet.', 'll-tools-text-domain'); ?>
+                            </div>
+                        <?php else : ?>
+                            <div class="ll-teacher-classes__table-wrap">
+                                <table class="ll-teacher-classes__table">
+                                    <thead>
+                                        <tr>
+                                            <th><?php echo esc_html__('Learner', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Email', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Word set', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('30d', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Studied', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Mastered', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Hard', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Last', 'll-tools-text-domain'); ?></th>
+                                            <th><?php echo esc_html__('Remove', 'll-tools-text-domain'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($student_rows as $row) : ?>
+                                            <?php
+                                            $user = $row['user'] ?? null;
+                                            $row_stats = (array) ($row['stats'] ?? []);
+                                            if (!($user instanceof WP_User)) {
+                                                continue;
+                                            }
+                                            ?>
+                                            <tr>
+                                                <td><?php echo esc_html(ll_tools_teacher_class_user_label($user)); ?></td>
+                                                <td><a href="mailto:<?php echo esc_attr((string) $user->user_email); ?>"><?php echo esc_html((string) $user->user_email); ?></a></td>
+                                                <td><?php echo esc_html((string) ($row['current_wordset_name'] ?? '')); ?></td>
+                                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
+                                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['studied_words'] ?? 0))); ?></td>
+                                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>
+                                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['hard_words'] ?? 0))); ?></td>
+                                                <td><?php echo esc_html((string) ($row['last_activity'] ?? '')); ?></td>
+                                                <td>
+                                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Remove %s from this class?', 'll-tools-text-domain'), ll_tools_teacher_class_user_label($user))); ?>');">
+                                                        <input type="hidden" name="action" value="ll_tools_teacher_remove_class_student" />
+                                                        <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                                                        <input type="hidden" name="ll_tools_teacher_remove_user_id" value="<?php echo esc_attr((string) $user->ID); ?>" />
+                                                        <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($selected_classes_url); ?>" />
+                                                        <?php wp_nonce_field('ll_tools_teacher_remove_class_student_' . (int) $selected_class->ID); ?>
+                                                        <button type="submit" class="ll-teacher-classes__ghost-button">
+                                                            <?php echo esc_html__('Remove', 'll-tools-text-domain'); ?>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+                <?php endif; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+    <?php
+
+    return (string) ob_get_clean();
 }
 
 function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array {
@@ -4517,7 +4876,7 @@ function ll_tools_render_wordset_page_missing_content(array $extra_classes = [],
  * Shared front-end utility navigation used across wordset/recorder/editor pages.
  *
  * @param array $args {
- *     @type string       $current_area  Active area key: wordset|wordset_settings|editor_hub|recorder.
+ *     @type string       $current_area  Active area key: wordset|wordset_settings|editor_hub|recorder|classes.
  *     @type int|WP_Term  $wordset       Optional wordset context for Word Set / Manage Word Set links.
  *     @type string       $current_url   Optional current URL for login/logout redirect.
  * }
@@ -4649,6 +5008,17 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                     'label' => __('Recorder', 'll-tools-text-domain'),
                     'url' => $recording_url,
                     'is_active' => ($current_area === 'recorder'),
+                ];
+            }
+        }
+
+        if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID) && function_exists('ll_tools_get_teacher_classes_frontend_url')) {
+            $teacher_classes_url = (string) ll_tools_get_teacher_classes_frontend_url([], $current_wordset_term ?: null);
+            if ($teacher_classes_url !== '') {
+                $links[] = [
+                    'label' => __('Classes', 'll-tools-text-domain'),
+                    'url' => $teacher_classes_url,
+                    'is_active' => ($current_area === 'classes'),
                 ];
             }
         }
@@ -7045,6 +7415,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ll_tools_get_wordset_page_view_url($wordset_term, 'hidden-categories'),
         $subpage_return_url
     );
+    $classes_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
+        ? ll_tools_get_teacher_classes_frontend_url([], $wordset_term)
+        : ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
     $settings_url = ll_tools_wordset_page_with_back_url(
         ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
         $settings_navigation_back_url
@@ -7052,6 +7425,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $settings_tool = ($view === 'settings') ? ll_tools_get_wordset_settings_tool() : '';
     $back_url = ll_tools_wordset_page_resolve_back_url($wordset_term);
     $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
+    $can_manage_classes_frontend = is_user_logged_in()
+        && current_user_can('view_ll_tools')
+        && function_exists('ll_tools_user_can_manage_classes')
+        && ll_tools_user_can_manage_classes();
     $can_manage_wordset_content = function_exists('ll_tools_current_user_can_manage_wordset_content')
         ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
         : current_user_can('manage_options');
@@ -8138,6 +8515,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 $utility_current_area = 'wordset_hidden';
             } elseif ($view === 'games') {
                 $utility_current_area = 'wordset_games';
+            } elseif ($view === 'classes') {
+                $utility_current_area = 'classes';
             }
             echo ll_tools_render_frontend_user_utility_menu([
                 'current_area' => $utility_current_area,
@@ -8579,6 +8958,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'back_url' => $back_url,
             ]);
             ?>
+        <?php elseif ($view === 'classes') : ?>
+            <?php echo ll_tools_wordset_page_render_teacher_classes_view($wordset_term, $back_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php elseif ($view === 'hidden-categories') : ?>
             <header class="ll-wordset-subpage-head">
                 <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
@@ -8754,6 +9135,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 </span>
                                 <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
                             </a>
+                            <?php if ($can_manage_classes_frontend) : ?>
+                                <a
+                                    class="ll-wordset-link-chip ll-wordset-link-chip--classes"
+                                    href="<?php echo esc_url($classes_url); ?>"
+                                    aria-label="<?php echo esc_attr__('Open classes', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-wordset-link-chip__icon" aria-hidden="true">
+                                        <?php echo ll_tools_wordset_page_render_classes_icon('ll-wordset-classes-link-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </span>
+                                    <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Classes', 'll-tools-text-domain'); ?></span>
+                                </a>
+                            <?php endif; ?>
                             <?php if ($show_plugin_update_link) : ?>
                                 <a
                                     class="ll-wordset-link-chip ll-wordset-update-link"
@@ -9105,6 +9497,10 @@ function ll_tools_register_wordset_page_rewrite_rules() {
         $games_pattern = '^' . preg_quote($slug, '/') . '/games/?$';
         $games_target = 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=games';
         add_rewrite_rule($games_pattern, $games_target, 'top');
+
+        $classes_pattern = '^' . preg_quote($slug, '/') . '/classes/?$';
+        $classes_target = 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=classes';
+        add_rewrite_rule($classes_pattern, $classes_target, 'top');
     }
 
     if (get_transient('ll_tools_vocab_lesson_flush_rewrite')) {

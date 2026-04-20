@@ -74,6 +74,63 @@ if (!function_exists('ll_tools_teacher_classes_render_notice_from_request')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_classes_requested_redirect_url')) {
+    function ll_tools_teacher_classes_requested_redirect_url(string $fallback_url): string {
+        $fallback_url = trim((string) $fallback_url);
+        if ($fallback_url === '') {
+            $fallback_url = ll_tools_get_teacher_classes_page_url();
+        }
+
+        $requested = isset($_POST['ll_tools_teacher_redirect_to'])
+            ? trim((string) wp_unslash($_POST['ll_tools_teacher_redirect_to']))
+            : '';
+        if ($requested === '') {
+            return $fallback_url;
+        }
+
+        $validated = (string) wp_validate_redirect($requested, '');
+        if ($validated === '') {
+            return $fallback_url;
+        }
+
+        $home_host = (string) wp_parse_url(home_url('/'), PHP_URL_HOST);
+        $target_host = (string) wp_parse_url($validated, PHP_URL_HOST);
+        if ($home_host !== '' && $target_host !== '' && strtolower($home_host) !== strtolower($target_host)) {
+            return $fallback_url;
+        }
+
+        return $validated;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_classes_redirect_with_notice')) {
+    function ll_tools_teacher_classes_redirect_with_notice(string $fallback_url, string $type, string $message): void {
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url($fallback_url);
+        $redirect_url = remove_query_arg([
+            'll_tools_teacher_notice_type',
+            'll_tools_teacher_notice_message',
+        ], $redirect_url);
+
+        if (function_exists('ll_tools_teacher_class_strip_invite_query_args')) {
+            $redirect_url = ll_tools_teacher_class_strip_invite_query_args($redirect_url);
+        }
+
+        $admin_base = (string) admin_url();
+        $is_admin_redirect = ($admin_base !== '') && strpos($redirect_url, $admin_base) === 0;
+        if ($is_admin_redirect || !function_exists('ll_tools_teacher_class_append_notice_to_url')) {
+            $redirect_url = ll_tools_teacher_classes_build_notice_url($redirect_url, $type, $message);
+        } else {
+            $redirect_url = ll_tools_teacher_class_append_notice_to_url($redirect_url, [
+                'type' => ($type === 'success') ? 'success' : 'error',
+                'message' => $message,
+            ]);
+        }
+
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+}
+
 if (!function_exists('ll_tools_teacher_classes_require_manage_access')) {
     function ll_tools_teacher_classes_require_manage_access(): void {
         if (!current_user_can('view_ll_tools') || !function_exists('ll_tools_user_can_manage_classes') || !ll_tools_user_can_manage_classes()) {
@@ -102,27 +159,25 @@ if (!function_exists('ll_tools_handle_teacher_class_create_action')) {
             ? ll_tools_teacher_class_create($teacher_user_id, $class_name)
             : new WP_Error('missing_helper', __('Class creation is currently unavailable.', 'll-tools-text-domain'));
 
-        $redirect_url = ll_tools_get_teacher_classes_page_url();
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url(ll_tools_get_teacher_classes_page_url());
         if (is_wp_error($result)) {
-            wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+            ll_tools_teacher_classes_redirect_with_notice(
                 $redirect_url,
                 'error',
                 $result->get_error_message()
-            ));
-            exit;
+            );
         }
 
         $created_class_id = (int) $result;
-        wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
-            ll_tools_get_teacher_classes_page_url(['class_id' => $created_class_id]),
+        ll_tools_teacher_classes_redirect_with_notice(
+            add_query_arg('class_id', $created_class_id, $redirect_url),
             'success',
             sprintf(
                 /* translators: %s: class name */
                 __('Created class: %s', 'll-tools-text-domain'),
                 ll_tools_teacher_class_get_name($created_class_id)
             )
-        ));
-        exit;
+        );
     }
 }
 add_action('admin_post_ll_tools_teacher_create_class', 'll_tools_handle_teacher_class_create_action');
@@ -150,21 +205,22 @@ if (!function_exists('ll_tools_handle_teacher_class_assign_teacher_action')) {
             ? ll_tools_teacher_class_assign_teacher($class_id, $user_id)
             : new WP_Error('missing_helper', __('Teacher assignment is currently unavailable.', 'll-tools-text-domain'));
 
-        $redirect_url = ll_tools_get_teacher_classes_page_url(['class_id' => $class_id]);
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url(
+            ll_tools_get_teacher_classes_page_url(['class_id' => $class_id])
+        );
         if (is_wp_error($result)) {
-            wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+            ll_tools_teacher_classes_redirect_with_notice(
                 $redirect_url,
                 'error',
                 $result->get_error_message()
-            ));
-            exit;
+            );
         }
 
         $teacher_user = isset($result['user']) && ($result['user'] instanceof WP_User)
             ? $result['user']
             : get_userdata($user_id);
         $teacher_label = $teacher_user instanceof WP_User
-            ? ll_tools_teacher_classes_user_label($teacher_user)
+            ? ll_tools_teacher_class_user_label($teacher_user)
             : __('The selected teacher', 'll-tools-text-domain');
 
         if (!empty($result['ownership_changed']) && !empty($result['teacher_role_added'])) {
@@ -193,12 +249,11 @@ if (!function_exists('ll_tools_handle_teacher_class_assign_teacher_action')) {
             );
         }
 
-        wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+        ll_tools_teacher_classes_redirect_with_notice(
             $redirect_url,
             'success',
             $message
-        ));
-        exit;
+        );
     }
 }
 add_action('admin_post_ll_tools_teacher_assign_class_teacher', 'll_tools_handle_teacher_class_assign_teacher_action');
@@ -222,17 +277,18 @@ if (!function_exists('ll_tools_handle_teacher_class_invite_action')) {
             ? ll_tools_teacher_class_send_existing_learner_invitation($class_id, $email, get_current_user_id())
             : new WP_Error('missing_helper', __('Class invitations are currently unavailable.', 'll-tools-text-domain'));
 
-        $redirect_url = ll_tools_get_teacher_classes_page_url(['class_id' => $class_id]);
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url(
+            ll_tools_get_teacher_classes_page_url(['class_id' => $class_id])
+        );
         if (is_wp_error($result)) {
-            wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+            ll_tools_teacher_classes_redirect_with_notice(
                 $redirect_url,
                 'error',
                 $result->get_error_message()
-            ));
-            exit;
+            );
         }
 
-        wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+        ll_tools_teacher_classes_redirect_with_notice(
             $redirect_url,
             'success',
             sprintf(
@@ -240,36 +296,10 @@ if (!function_exists('ll_tools_handle_teacher_class_invite_action')) {
                 __('Sent a class invitation to %s.', 'll-tools-text-domain'),
                 $email
             )
-        ));
-        exit;
+        );
     }
 }
 add_action('admin_post_ll_tools_teacher_send_class_invite', 'll_tools_handle_teacher_class_invite_action');
-
-if (!function_exists('ll_tools_teacher_classes_user_label')) {
-    function ll_tools_teacher_classes_user_label(WP_User $user): string {
-        $label = trim((string) $user->display_name);
-        if ($label === '') {
-            $label = trim((string) $user->user_login);
-        }
-        if ($label === '') {
-            $label = trim((string) $user->user_email);
-        }
-
-        return $label;
-    }
-}
-
-if (!function_exists('ll_tools_teacher_classes_user_option_label')) {
-    function ll_tools_teacher_classes_user_option_label(WP_User $user): string {
-        $label = ll_tools_teacher_classes_user_label($user);
-        if ($user->user_email !== '') {
-            $label .= ' (' . (string) $user->user_email . ')';
-        }
-
-        return $label;
-    }
-}
 
 if (!function_exists('ll_tools_handle_teacher_class_manual_assign_action')) {
     function ll_tools_handle_teacher_class_manual_assign_action(): void {
@@ -294,21 +324,22 @@ if (!function_exists('ll_tools_handle_teacher_class_manual_assign_action')) {
             ? ll_tools_teacher_class_assign_student($class_id, $user_id)
             : new WP_Error('missing_helper', __('Manual class assignment is currently unavailable.', 'll-tools-text-domain'));
 
-        $redirect_url = ll_tools_get_teacher_classes_page_url(['class_id' => $class_id]);
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url(
+            ll_tools_get_teacher_classes_page_url(['class_id' => $class_id])
+        );
         if (is_wp_error($result)) {
-            wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+            ll_tools_teacher_classes_redirect_with_notice(
                 $redirect_url,
                 'error',
                 $result->get_error_message()
-            ));
-            exit;
+            );
         }
 
         $assigned_user = isset($result['user']) && ($result['user'] instanceof WP_User)
             ? $result['user']
             : get_userdata($user_id);
         $assigned_label = $assigned_user instanceof WP_User
-            ? ll_tools_teacher_classes_user_label($assigned_user)
+            ? ll_tools_teacher_class_user_label($assigned_user)
             : __('The selected learner', 'll-tools-text-domain');
 
         $message = !empty($result['already_member'])
@@ -323,65 +354,114 @@ if (!function_exists('ll_tools_handle_teacher_class_manual_assign_action')) {
                 $assigned_label
             );
 
-        wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+        ll_tools_teacher_classes_redirect_with_notice(
             $redirect_url,
             'success',
             $message
-        ));
-        exit;
+        );
     }
 }
 add_action('admin_post_ll_tools_teacher_assign_class_student', 'll_tools_handle_teacher_class_manual_assign_action');
 
-if (!function_exists('ll_tools_teacher_classes_student_rows')) {
-    function ll_tools_teacher_classes_student_rows(array $student_ids): array {
-        $student_ids = array_values(array_filter(array_map('intval', $student_ids), static function (int $user_id): bool {
-            return $user_id > 0;
-        }));
-        if (empty($student_ids)) {
-            return [];
+if (!function_exists('ll_tools_handle_teacher_class_remove_student_action')) {
+    function ll_tools_handle_teacher_class_remove_student_action(): void {
+        ll_tools_teacher_classes_require_manage_access();
+
+        $class_id = isset($_POST['class_id']) ? max(0, (int) wp_unslash((string) $_POST['class_id'])) : 0;
+        if ($class_id <= 0 || !function_exists('ll_tools_teacher_class_user_can_access') || !ll_tools_teacher_class_user_can_access($class_id)) {
+            wp_die(__('You do not have permission to manage that class.', 'll-tools-text-domain'));
         }
 
-        $users = get_users([
-            'include' => $student_ids,
-            'orderby' => 'display_name',
-            'order' => 'ASC',
-        ]);
+        check_admin_referer('ll_tools_teacher_remove_class_student_' . $class_id);
 
-        if (!is_array($users)) {
-            return [];
+        $user_id = isset($_POST['ll_tools_teacher_remove_user_id'])
+            ? max(0, (int) wp_unslash((string) $_POST['ll_tools_teacher_remove_user_id']))
+            : 0;
+
+        $result = function_exists('ll_tools_teacher_class_remove_student')
+            ? ll_tools_teacher_class_remove_student($class_id, $user_id)
+            : new WP_Error('missing_helper', __('Removing a learner is currently unavailable.', 'll-tools-text-domain'));
+
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url(
+            ll_tools_get_teacher_classes_page_url(['class_id' => $class_id])
+        );
+        if (is_wp_error($result)) {
+            ll_tools_teacher_classes_redirect_with_notice(
+                $redirect_url,
+                'error',
+                $result->get_error_message()
+            );
         }
 
-        $stats = function_exists('ll_tools_user_progress_report_stats_for_users')
-            ? ll_tools_user_progress_report_stats_for_users($student_ids, 0)
-            : [];
+        $removed_user = isset($result['user']) && ($result['user'] instanceof WP_User)
+            ? $result['user']
+            : get_userdata($user_id);
+        $removed_label = $removed_user instanceof WP_User
+            ? ll_tools_teacher_class_user_label($removed_user)
+            : __('The selected learner', 'll-tools-text-domain');
 
-        $rows = [];
-        foreach ($users as $user) {
-            if (!($user instanceof WP_User)) {
-                continue;
-            }
+        $message = !empty($result['already_removed'])
+            ? sprintf(
+                /* translators: %s: learner display name */
+                __('%s is no longer in this class.', 'll-tools-text-domain'),
+                $removed_label
+            )
+            : sprintf(
+                /* translators: %s: learner display name */
+                __('Removed %s from this class.', 'll-tools-text-domain'),
+                $removed_label
+            );
 
-            $user_id = (int) $user->ID;
-            $row_stats = isset($stats[$user_id]) && is_array($stats[$user_id]) ? $stats[$user_id] : [];
-            $current_wordset_id = function_exists('ll_tools_user_progress_report_user_wordset_id')
-                ? ll_tools_user_progress_report_user_wordset_id($user_id)
-                : 0;
-            $rows[] = [
-                'user' => $user,
-                'stats' => $row_stats,
-                'current_wordset_name' => function_exists('ll_tools_user_progress_report_wordset_name')
-                    ? ll_tools_user_progress_report_wordset_name($current_wordset_id)
-                    : '',
-                'last_activity' => function_exists('ll_tools_user_progress_report_last_activity')
-                    ? ll_tools_user_progress_report_last_activity($row_stats)
-                    : '',
-            ];
-        }
-
-        return $rows;
+        ll_tools_teacher_classes_redirect_with_notice(
+            $redirect_url,
+            'success',
+            $message
+        );
     }
 }
+add_action('admin_post_ll_tools_teacher_remove_class_student', 'll_tools_handle_teacher_class_remove_student_action');
+
+if (!function_exists('ll_tools_handle_teacher_class_delete_action')) {
+    function ll_tools_handle_teacher_class_delete_action(): void {
+        ll_tools_teacher_classes_require_manage_access();
+
+        $class_id = isset($_POST['class_id']) ? max(0, (int) wp_unslash((string) $_POST['class_id'])) : 0;
+        if ($class_id <= 0 || !function_exists('ll_tools_teacher_class_user_can_access') || !ll_tools_teacher_class_user_can_access($class_id)) {
+            wp_die(__('You do not have permission to manage that class.', 'll-tools-text-domain'));
+        }
+
+        check_admin_referer('ll_tools_teacher_delete_class_' . $class_id);
+
+        $result = function_exists('ll_tools_teacher_class_delete')
+            ? ll_tools_teacher_class_delete($class_id)
+            : new WP_Error('missing_helper', __('Deleting a class is currently unavailable.', 'll-tools-text-domain'));
+
+        $redirect_url = ll_tools_teacher_classes_requested_redirect_url(ll_tools_get_teacher_classes_page_url());
+        $redirect_query = [];
+        wp_parse_str((string) wp_parse_url($redirect_url, PHP_URL_QUERY), $redirect_query);
+        if ((int) ($redirect_query['class_id'] ?? 0) === $class_id) {
+            $redirect_url = remove_query_arg('class_id', $redirect_url);
+        }
+        if (is_wp_error($result)) {
+            ll_tools_teacher_classes_redirect_with_notice(
+                $redirect_url,
+                'error',
+                $result->get_error_message()
+            );
+        }
+
+        ll_tools_teacher_classes_redirect_with_notice(
+            $redirect_url,
+            'success',
+            sprintf(
+                /* translators: %s: class name */
+                __('Deleted class: %s', 'll-tools-text-domain'),
+                (string) ($result['class_name'] ?? __('Untitled class', 'll-tools-text-domain'))
+            )
+        );
+    }
+}
+add_action('admin_post_ll_tools_teacher_delete_class', 'll_tools_handle_teacher_class_delete_action');
 
 if (!function_exists('ll_tools_render_teacher_classes_page')) {
     function ll_tools_render_teacher_classes_page(): void {
@@ -408,7 +488,9 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
         $student_ids = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_student_ids'))
             ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
             : [];
-        $student_rows = ll_tools_teacher_classes_student_rows($student_ids);
+        $student_rows = function_exists('ll_tools_teacher_class_student_progress_rows')
+            ? ll_tools_teacher_class_student_progress_rows($student_ids)
+            : [];
         $selected_teacher_user = ($selected_class instanceof WP_Post)
             ? get_userdata((int) $selected_class->post_author)
             : null;
@@ -421,20 +503,15 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
             ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID)
             : [];
 
-        $summary = [
-            'students' => count($student_rows),
-            'rounds_30d' => 0,
-            'studied_words' => 0,
-            'mastered_words' => 0,
-            'hard_words' => 0,
-        ];
-        foreach ($student_rows as $row) {
-            $row_stats = (array) ($row['stats'] ?? []);
-            $summary['rounds_30d'] += max(0, (int) ($row_stats['rounds_30d'] ?? 0));
-            $summary['studied_words'] += max(0, (int) ($row_stats['studied_words'] ?? 0));
-            $summary['mastered_words'] += max(0, (int) ($row_stats['mastered_words'] ?? 0));
-            $summary['hard_words'] += max(0, (int) ($row_stats['hard_words'] ?? 0));
-        }
+        $summary = function_exists('ll_tools_teacher_class_progress_summary')
+            ? ll_tools_teacher_class_progress_summary($student_rows)
+            : [
+                'students' => count($student_rows),
+                'rounds_30d' => 0,
+                'studied_words' => 0,
+                'mastered_words' => 0,
+                'hard_words' => 0,
+            ];
 
         ?>
         <div class="wrap">
@@ -477,7 +554,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                         <?php foreach ($assignable_teachers as $assignable_teacher) : ?>
                                             <?php if (!($assignable_teacher instanceof WP_User)) { continue; } ?>
                                             <option value="<?php echo esc_attr((string) $assignable_teacher->ID); ?>" <?php selected((int) $assignable_teacher->ID, get_current_user_id()); ?>>
-                                                <?php echo esc_html(ll_tools_teacher_classes_user_option_label($assignable_teacher)); ?>
+                                                <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_teacher)); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
@@ -507,6 +584,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         <?php endif; ?>
                         <th><?php esc_html_e('Students', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Open', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Delete', 'll-tools-text-domain'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -527,6 +605,16 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                     <?php esc_html_e('Open', 'll-tools-text-domain'); ?>
                                 </a>
                             </td>
+                            <td>
+                                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Delete %s?', 'll-tools-text-domain'), $class_post->post_title)); ?>');">
+                                    <input type="hidden" name="action" value="ll_tools_teacher_delete_class" />
+                                    <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $class_id); ?>" />
+                                    <?php wp_nonce_field('ll_tools_teacher_delete_class_' . $class_id); ?>
+                                    <button type="submit" class="button button-small">
+                                        <?php esc_html_e('Delete', 'll-tools-text-domain'); ?>
+                                    </button>
+                                </form>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -543,7 +631,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <tbody>
                     <tr>
                         <th><?php esc_html_e('Teacher', 'll-tools-text-domain'); ?></th>
-                        <td><?php echo esc_html($selected_teacher_user instanceof WP_User ? ll_tools_teacher_classes_user_label($selected_teacher_user) : ''); ?></td>
+                        <td><?php echo esc_html($selected_teacher_user instanceof WP_User ? ll_tools_teacher_class_user_label($selected_teacher_user) : ''); ?></td>
                         <th><?php esc_html_e('Students', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['students']); ?></td>
                     </tr>
@@ -585,7 +673,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                     <?php foreach ($assignable_teachers as $assignable_teacher) : ?>
                                         <?php if (!($assignable_teacher instanceof WP_User)) { continue; } ?>
                                         <option value="<?php echo esc_attr((string) $assignable_teacher->ID); ?>" <?php selected((int) $assignable_teacher->ID, (int) $selected_class->post_author); ?>>
-                                            <?php echo esc_html(ll_tools_teacher_classes_user_option_label($assignable_teacher)); ?>
+                                                <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_teacher)); ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -612,7 +700,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                     <option value=""><?php esc_html_e('Select a learner account', 'll-tools-text-domain'); ?></option>
                                     <?php foreach ($assignable_students as $assignable_student) : ?>
                                         <?php if (!($assignable_student instanceof WP_User)) { continue; } ?>
-                                        <?php $assignable_label = ll_tools_teacher_classes_user_option_label($assignable_student); ?>
+                                        <?php $assignable_label = ll_tools_teacher_class_user_option_label($assignable_student); ?>
                                         <option value="<?php echo esc_attr((string) $assignable_student->ID); ?>"><?php echo esc_html($assignable_label); ?></option>
                                     <?php endforeach; ?>
                                 </select>
@@ -667,12 +755,13 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         <th><?php esc_html_e('Mastered', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Hard', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Last Activity (UTC)', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Remove', 'll-tools-text-domain'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($student_rows)) : ?>
                         <tr>
-                            <td colspan="8"><?php esc_html_e('No learners have joined this class yet.', 'll-tools-text-domain'); ?></td>
+                            <td colspan="9"><?php esc_html_e('No learners have joined this class yet.', 'll-tools-text-domain'); ?></td>
                         </tr>
                     <?php else : ?>
                         <?php foreach ($student_rows as $row) : ?>
@@ -684,7 +773,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                             }
                             ?>
                             <tr>
-                                <td><?php echo esc_html(ll_tools_teacher_classes_user_label($user)); ?></td>
+                                <td><?php echo esc_html(ll_tools_teacher_class_user_label($user)); ?></td>
                                 <td><a href="mailto:<?php echo esc_attr($user->user_email); ?>"><?php echo esc_html($user->user_email); ?></a></td>
                                 <td><?php echo esc_html((string) ($row['current_wordset_name'] ?? '')); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
@@ -692,6 +781,17 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['hard_words'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) ($row['last_activity'] ?? '')); ?></td>
+                                <td>
+                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Remove %s from this class?', 'll-tools-text-domain'), ll_tools_teacher_class_user_label($user))); ?>');">
+                                        <input type="hidden" name="action" value="ll_tools_teacher_remove_class_student" />
+                                        <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                                        <input type="hidden" name="ll_tools_teacher_remove_user_id" value="<?php echo esc_attr((string) $user->ID); ?>" />
+                                        <?php wp_nonce_field('ll_tools_teacher_remove_class_student_' . (int) $selected_class->ID); ?>
+                                        <button type="submit" class="button button-small">
+                                            <?php esc_html_e('Remove', 'll-tools-text-domain'); ?>
+                                        </button>
+                                    </form>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>

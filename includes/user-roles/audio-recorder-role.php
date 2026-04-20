@@ -476,7 +476,11 @@ function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin
         return '';
     }
     if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID)) {
-        return '';
+        if (function_exists('ll_tools_get_teacher_classes_frontend_url')) {
+            return (string) wp_validate_redirect(ll_tools_get_teacher_classes_frontend_url(), home_url('/'));
+        }
+
+        return (string) wp_validate_redirect(home_url('/'), home_url('/'));
     }
 
     $roles = (array) $user->roles;

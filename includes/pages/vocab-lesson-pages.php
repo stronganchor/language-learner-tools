@@ -1267,7 +1267,7 @@ function ll_tools_vocab_lesson_reserved_wordset_view(string $wordset_slug, strin
 
     $allowed_views = function_exists('ll_tools_get_wordset_page_allowed_views')
         ? ll_tools_get_wordset_page_allowed_views()
-        : ['progress', 'hidden-categories', 'settings', 'games'];
+        : ['progress', 'hidden-categories', 'settings', 'games', 'classes'];
     $allowed_views = array_values(array_filter(array_map('sanitize_title', (array) $allowed_views)));
     if (!in_array($category_slug, $allowed_views, true)) {
         return '';

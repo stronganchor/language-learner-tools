@@ -256,6 +256,57 @@
         });
     }
 
+    function copyTextToClipboard(text) {
+        const value = String(text || '');
+        if (!value) {
+            return Promise.reject(new Error('empty_copy_value'));
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            return navigator.clipboard.writeText(value);
+        }
+
+        return new Promise(function (resolve, reject) {
+            const probe = document.createElement('textarea');
+            probe.value = value;
+            probe.setAttribute('readonly', 'readonly');
+            probe.style.position = 'fixed';
+            probe.style.top = '-9999px';
+            probe.style.opacity = '0';
+            document.body.appendChild(probe);
+            probe.focus();
+            probe.select();
+
+            try {
+                if (document.execCommand('copy')) {
+                    resolve();
+                } else {
+                    reject(new Error('copy_failed'));
+                }
+            } catch (error) {
+                reject(error);
+            } finally {
+                document.body.removeChild(probe);
+            }
+        });
+    }
+
+    function setCopyButtonFeedback(button, text) {
+        if (!button) { return; }
+        const resetLabel = String(button.getAttribute('data-ll-copy-label') || button.textContent || '').trim();
+        const feedbackLabel = String(text || '').trim();
+        if (!feedbackLabel) { return; }
+
+        button.textContent = feedbackLabel;
+        if (button._llCopyFeedbackTimer) {
+            window.clearTimeout(button._llCopyFeedbackTimer);
+        }
+        button._llCopyFeedbackTimer = window.setTimeout(function () {
+            button.textContent = resetLabel;
+            button._llCopyFeedbackTimer = 0;
+        }, 1600);
+    }
+
     let progressMiniBurstCleanupTimer = null;
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
@@ -12247,6 +12298,25 @@
             evt.preventDefault();
             evt.stopPropagation();
             handleProgressWordAudioClick(this);
+        });
+
+        $root.on('click', '[data-ll-copy-target]', function (evt) {
+            evt.preventDefault();
+            const button = this;
+            const targetId = String(button.getAttribute('data-ll-copy-target') || '').trim();
+            if (!targetId) { return; }
+            const target = document.getElementById(targetId);
+            if (!target) { return; }
+
+            const value = ('value' in target)
+                ? String(target.value || '')
+                : String(target.textContent || '');
+
+            copyTextToClipboard(value).then(function () {
+                setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-success'));
+            }).catch(function () {
+                setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-failure'));
+            });
         });
 
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
