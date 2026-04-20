@@ -128,9 +128,13 @@ if (!function_exists('ll_tools_user_progress_report_stats_for_users')) {
                 'hard_words' => 0,
                 'last_progress_at' => '',
                 'last_event_at' => '',
+                'last_stt_api_call_at' => '',
                 'rounds_30d' => 0,
                 'outcomes_30d' => 0,
                 'sessions_30d' => 0,
+                'stt_calls_total' => 0,
+                'stt_calls_7d' => 0,
+                'stt_calls_30d' => 0,
             ];
         }
 
@@ -165,20 +169,25 @@ if (!function_exists('ll_tools_user_progress_report_stats_for_users')) {
             $events_where_sql .= ' AND wordset_id = %d';
         }
         $cutoff = gmdate('Y-m-d H:i:s', time() - (30 * DAY_IN_SECONDS));
+        $cutoff_7d = gmdate('Y-m-d H:i:s', time() - (7 * DAY_IN_SECONDS));
 
         $events_sql = "
             SELECT
                 user_id,
                 MAX(created_at) AS last_event_at,
+                MAX(CASE WHEN event_type = 'stt_api_call' THEN created_at ELSE NULL END) AS last_stt_api_call_at,
                 SUM(CASE WHEN created_at >= %s AND event_type = 'word_exposure' THEN 1 ELSE 0 END) AS rounds_30d,
                 SUM(CASE WHEN created_at >= %s AND event_type = 'word_outcome' THEN 1 ELSE 0 END) AS outcomes_30d,
-                SUM(CASE WHEN created_at >= %s AND event_type = 'mode_session_complete' THEN 1 ELSE 0 END) AS sessions_30d
+                SUM(CASE WHEN created_at >= %s AND event_type = 'mode_session_complete' THEN 1 ELSE 0 END) AS sessions_30d,
+                SUM(CASE WHEN event_type = 'stt_api_call' THEN 1 ELSE 0 END) AS stt_calls_total,
+                SUM(CASE WHEN created_at >= %s AND event_type = 'stt_api_call' THEN 1 ELSE 0 END) AS stt_calls_7d,
+                SUM(CASE WHEN created_at >= %s AND event_type = 'stt_api_call' THEN 1 ELSE 0 END) AS stt_calls_30d
             FROM {$tables['events']}
             WHERE {$events_where_sql}
             GROUP BY user_id
         ";
 
-        $events_query_params = array_merge([$cutoff, $cutoff, $cutoff], $user_ids);
+        $events_query_params = array_merge([$cutoff, $cutoff, $cutoff, $cutoff_7d, $cutoff], $user_ids);
         if ($wordset_id > 0) {
             $events_query_params[] = $wordset_id;
         }
@@ -191,9 +200,13 @@ if (!function_exists('ll_tools_user_progress_report_stats_for_users')) {
             }
 
             $stats[$user_id]['last_event_at'] = isset($row['last_event_at']) ? (string) $row['last_event_at'] : '';
+            $stats[$user_id]['last_stt_api_call_at'] = isset($row['last_stt_api_call_at']) ? (string) $row['last_stt_api_call_at'] : '';
             $stats[$user_id]['rounds_30d'] = max(0, (int) ($row['rounds_30d'] ?? 0));
             $stats[$user_id]['outcomes_30d'] = max(0, (int) ($row['outcomes_30d'] ?? 0));
             $stats[$user_id]['sessions_30d'] = max(0, (int) ($row['sessions_30d'] ?? 0));
+            $stats[$user_id]['stt_calls_total'] = max(0, (int) ($row['stt_calls_total'] ?? 0));
+            $stats[$user_id]['stt_calls_7d'] = max(0, (int) ($row['stt_calls_7d'] ?? 0));
+            $stats[$user_id]['stt_calls_30d'] = max(0, (int) ($row['stt_calls_30d'] ?? 0));
         }
 
         return $stats;
@@ -295,6 +308,20 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
         if ($detail_user instanceof WP_User && $detail_wordset_id > 0 && function_exists('ll_tools_build_user_study_analytics_payload')) {
             $detail_analytics = ll_tools_build_user_study_analytics_payload((int) $detail_user->ID, $detail_wordset_id, [], 30, true);
         }
+        $detail_stats = [];
+        if ($detail_user instanceof WP_User) {
+            $detail_stats = ll_tools_user_progress_report_stats_for_users(
+                [(int) $detail_user->ID],
+                $detail_wordset_id > 0 ? $detail_wordset_id : $wordset_id
+            );
+            $detail_stats = is_array($detail_stats) ? ($detail_stats[(int) $detail_user->ID] ?? []) : [];
+        }
+        $detail_summary = (is_array($detail_analytics) && isset($detail_analytics['summary']) && is_array($detail_analytics['summary']))
+            ? $detail_analytics['summary']
+            : [];
+        $detail_daily = (is_array($detail_analytics) && isset($detail_analytics['daily_activity']) && is_array($detail_analytics['daily_activity']))
+            ? $detail_analytics['daily_activity']
+            : [];
         ?>
         <div class="wrap">
             <h1><?php esc_html_e('Learner Progress', 'll-tools-text-domain'); ?></h1>
@@ -331,6 +358,8 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                         <th><?php esc_html_e('Current Word Set', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('30d Rounds', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('30d Outcomes', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('STT Calls', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('30d STT', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Studied', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Mastered', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Hard', 'll-tools-text-domain'); ?></th>
@@ -341,7 +370,7 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                 <tbody>
                     <?php if (empty($users)) : ?>
                         <tr>
-                            <td colspan="11"><?php esc_html_e('No learner progress data matched the current filters.', 'll-tools-text-domain'); ?></td>
+                            <td colspan="13"><?php esc_html_e('No learner progress data matched the current filters.', 'll-tools-text-domain'); ?></td>
                         </tr>
                     <?php else : ?>
                         <?php foreach ($users as $user) : ?>
@@ -375,6 +404,8 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                                 <td><?php echo esc_html(ll_tools_user_progress_report_wordset_name($current_wordset_id) ?: ''); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['outcomes_30d'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['stt_calls_total'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($row_stats['stt_calls_30d'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['studied_words'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['hard_words'] ?? 0))); ?></td>
@@ -433,30 +464,37 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                     ?>
                 </p>
 
-                <?php if (!empty($detail_analytics)) : ?>
-                    <?php $summary = (array) ($detail_analytics['summary'] ?? []); ?>
-                    <?php $daily = (array) ($detail_analytics['daily_activity'] ?? []); ?>
+                <?php if (!empty($detail_analytics) || !empty($detail_stats)) : ?>
                     <table class="widefat striped" style="max-width: 900px; margin-bottom: 24px;">
                         <tbody>
                             <tr>
                                 <th><?php esc_html_e('Total words in scope', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($summary['total_words'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['total_words'] ?? 0))); ?></td>
                                 <th><?php esc_html_e('Studied', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($summary['studied_words'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['studied_words'] ?? 0))); ?></td>
                                 <th><?php esc_html_e('Mastered', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($summary['mastered_words'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['mastered_words'] ?? 0))); ?></td>
                             </tr>
                             <tr>
                                 <th><?php esc_html_e('New', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($summary['new_words'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['new_words'] ?? 0))); ?></td>
                                 <th><?php esc_html_e('Hard', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($summary['hard_words'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_summary['hard_words'] ?? 0))); ?></td>
                                 <th><?php esc_html_e('30d rounds window', 'll-tools-text-domain'); ?></th>
-                                <td><?php echo esc_html((string) max(0, (int) ($daily['max_rounds'] ?? 0))); ?></td>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_daily['max_rounds'] ?? 0))); ?></td>
+                            </tr>
+                            <tr>
+                                <th><?php esc_html_e('STT calls', 'll-tools-text-domain'); ?></th>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_stats['stt_calls_total'] ?? 0))); ?></td>
+                                <th><?php esc_html_e('7d STT calls', 'll-tools-text-domain'); ?></th>
+                                <td><?php echo esc_html((string) max(0, (int) ($detail_stats['stt_calls_7d'] ?? 0))); ?></td>
+                                <th><?php esc_html_e('Last STT call (UTC)', 'll-tools-text-domain'); ?></th>
+                                <td><?php echo esc_html((string) ($detail_stats['last_stt_api_call_at'] ?? '')); ?></td>
                             </tr>
                         </tbody>
                     </table>
 
+                    <?php if (!empty($detail_analytics)) : ?>
                     <h3><?php esc_html_e('Categories', 'll-tools-text-domain'); ?></h3>
                     <table class="widefat striped" style="margin-bottom: 24px;">
                         <thead>
@@ -489,7 +527,9 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                             <?php endif; ?>
                         </tbody>
                     </table>
+                    <?php endif; ?>
 
+                    <?php if (!empty($detail_analytics)) : ?>
                     <h3><?php esc_html_e('Words Needing Attention', 'll-tools-text-domain'); ?></h3>
                     <table class="widefat striped">
                         <thead>
@@ -530,6 +570,7 @@ if (!function_exists('ll_tools_render_user_progress_report_page')) {
                             <?php endif; ?>
                         </tbody>
                     </table>
+                    <?php endif; ?>
                 <?php endif; ?>
             <?php endif; ?>
         </div>

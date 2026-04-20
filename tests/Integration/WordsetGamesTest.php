@@ -1851,30 +1851,47 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $userWindowFilter = static function (): int {
             return 5 * MINUTE_IN_SECONDS;
         };
+        $userDailyLimitFilter = static function (): int {
+            return 20;
+        };
+        $userWeeklyLimitFilter = static function (): int {
+            return 40;
+        };
         $ipLimitFilter = static function (): int {
             return 50;
         };
         $ipWindowFilter = static function (): int {
             return 10 * MINUTE_IN_SECONDS;
         };
+        $ipDailyLimitFilter = static function (): int {
+            return 500;
+        };
+        $ipWeeklyLimitFilter = static function (): int {
+            return 1000;
+        };
 
         add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
         add_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
         add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
         add_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
 
         try {
             ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
             ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
             $firstStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
             $this->assertFalse((bool) ($firstStatus['limited'] ?? true));
-            $this->assertSame(1, (int) ($firstStatus['user']['attempts'] ?? 0));
+            $this->assertSame(1, (int) ($firstStatus['user']['windows']['short']['attempts'] ?? 0));
 
             ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
             $limitedStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
             $this->assertTrue((bool) ($limitedStatus['limited'] ?? false));
             $this->assertSame('user', (string) ($limitedStatus['scope'] ?? ''));
-            $this->assertSame(2, (int) ($limitedStatus['user']['attempts'] ?? 0));
+            $this->assertSame('short', (string) ($limitedStatus['window_key'] ?? ''));
+            $this->assertSame(2, (int) ($limitedStatus['user']['windows']['short']['attempts'] ?? 0));
 
             wp_set_current_user($userId);
             $_SERVER['REMOTE_ADDR'] = $ip;
@@ -1914,8 +1931,12 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
             remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
             remove_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
             remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
             remove_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
         }
     }
 
@@ -1931,17 +1952,33 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $userWindowFilter = static function (): int {
             return 5 * MINUTE_IN_SECONDS;
         };
+        $userDailyLimitFilter = static function (): int {
+            return 50;
+        };
+        $userWeeklyLimitFilter = static function (): int {
+            return 100;
+        };
         $ipLimitFilter = static function (): int {
             return 2;
         };
         $ipWindowFilter = static function (): int {
             return 10 * MINUTE_IN_SECONDS;
         };
+        $ipDailyLimitFilter = static function (): int {
+            return 100;
+        };
+        $ipWeeklyLimitFilter = static function (): int {
+            return 200;
+        };
 
         add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
         add_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
         add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
         add_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
 
         try {
             ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userOneId, $ip);
@@ -1950,21 +1987,143 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             ll_tools_wordset_games_record_speaking_transcription_attempt($userOneId, $ip);
             $firstStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userOneId, $ip);
             $this->assertFalse((bool) ($firstStatus['limited'] ?? true));
-            $this->assertSame(1, (int) ($firstStatus['ip']['attempts'] ?? 0));
+            $this->assertSame(1, (int) ($firstStatus['ip']['windows']['short']['attempts'] ?? 0));
 
             ll_tools_wordset_games_record_speaking_transcription_attempt($userTwoId, $ip);
             $secondStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userTwoId, $ip);
             $this->assertTrue((bool) ($secondStatus['limited'] ?? false));
             $this->assertSame('ip', (string) ($secondStatus['scope'] ?? ''));
-            $this->assertSame(1, (int) ($secondStatus['user']['attempts'] ?? 0));
-            $this->assertSame(2, (int) ($secondStatus['ip']['attempts'] ?? 0));
+            $this->assertSame('short', (string) ($secondStatus['window_key'] ?? ''));
+            $this->assertSame(1, (int) ($secondStatus['user']['windows']['short']['attempts'] ?? 0));
+            $this->assertSame(2, (int) ($secondStatus['ip']['windows']['short']['attempts'] ?? 0));
         } finally {
             ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userOneId, $ip);
             ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userTwoId, $ip);
             remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
             remove_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
             remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
             remove_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
+        }
+    }
+
+    public function test_speaking_transcription_rate_limit_applies_daily_window_for_user(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $ip = '198.51.100.77';
+
+        $userLimitFilter = static function (): int {
+            return 20;
+        };
+        $userDailyLimitFilter = static function (): int {
+            return 2;
+        };
+        $userWeeklyLimitFilter = static function (): int {
+            return 50;
+        };
+        $ipLimitFilter = static function (): int {
+            return 100;
+        };
+        $ipDailyLimitFilter = static function (): int {
+            return 200;
+        };
+        $ipWeeklyLimitFilter = static function (): int {
+            return 500;
+        };
+
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
+
+        try {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
+            $firstStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
+            $this->assertFalse((bool) ($firstStatus['limited'] ?? true));
+            $this->assertSame(1, (int) ($firstStatus['user']['windows']['daily']['attempts'] ?? 0));
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
+            $secondStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
+            $this->assertTrue((bool) ($secondStatus['limited'] ?? false));
+            $this->assertSame('user', (string) ($secondStatus['scope'] ?? ''));
+            $this->assertSame('daily', (string) ($secondStatus['window_key'] ?? ''));
+            $this->assertSame(2, (int) ($secondStatus['user']['windows']['daily']['attempts'] ?? 0));
+            $this->assertGreaterThan(0, (int) ($secondStatus['retry_after'] ?? 0));
+        } finally {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
+        }
+    }
+
+    public function test_speaking_transcription_rate_limit_applies_weekly_window_for_shared_ip(): void
+    {
+        $userOneId = self::factory()->user->create(['role' => 'subscriber']);
+        $userTwoId = self::factory()->user->create(['role' => 'subscriber']);
+        $ip = '198.51.100.88';
+
+        $userLimitFilter = static function (): int {
+            return 100;
+        };
+        $userDailyLimitFilter = static function (): int {
+            return 100;
+        };
+        $userWeeklyLimitFilter = static function (): int {
+            return 100;
+        };
+        $ipLimitFilter = static function (): int {
+            return 100;
+        };
+        $ipDailyLimitFilter = static function (): int {
+            return 100;
+        };
+        $ipWeeklyLimitFilter = static function (): int {
+            return 2;
+        };
+
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
+
+        try {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userOneId, $ip);
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userTwoId, $ip);
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userOneId, $ip);
+            $firstStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userOneId, $ip);
+            $this->assertFalse((bool) ($firstStatus['limited'] ?? true));
+            $this->assertSame(1, (int) ($firstStatus['ip']['windows']['weekly']['attempts'] ?? 0));
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userTwoId, $ip);
+            $secondStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userTwoId, $ip);
+            $this->assertTrue((bool) ($secondStatus['limited'] ?? false));
+            $this->assertSame('ip', (string) ($secondStatus['scope'] ?? ''));
+            $this->assertSame('weekly', (string) ($secondStatus['window_key'] ?? ''));
+            $this->assertSame(2, (int) ($secondStatus['ip']['windows']['weekly']['attempts'] ?? 0));
+            $this->assertGreaterThan(0, (int) ($secondStatus['retry_after'] ?? 0));
+        } finally {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userOneId, $ip);
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userTwoId, $ip);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_daily_limit', $userDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_weekly_limit', $userWeeklyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_daily_limit', $ipDailyLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_weekly_limit', $ipWeeklyLimitFilter);
         }
     }
 
