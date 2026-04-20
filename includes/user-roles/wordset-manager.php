@@ -37,7 +37,10 @@ function customize_admin_menu_for_wordset_manager() {
         $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
             ? ll_tools_get_admin_menu_slug()
             : 'll-tools-dashboard-home';
-        $allowed_menus = ['profile.php', $dashboard_slug];
+        $tools_slug = function_exists('ll_tools_get_tools_hub_page_slug')
+            ? ll_tools_get_tools_hub_page_slug()
+            : 'll-tools-dashboard-tools';
+        $allowed_menus = ['profile.php', $dashboard_slug, $tools_slug];
 
         foreach ($menu as $menu_key => $menu_item) {
             if (!in_array($menu_item[2], $allowed_menus)) {

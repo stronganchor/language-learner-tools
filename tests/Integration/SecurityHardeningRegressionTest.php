@@ -460,10 +460,14 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
             ? ll_tools_get_admin_menu_slug()
             : 'll-tools-dashboard-home';
+        $tools_slug = function_exists('ll_tools_get_tools_hub_page_slug')
+            ? ll_tools_get_tools_hub_page_slug()
+            : 'll-tools-dashboard-tools';
 
         $menu = [
             [0 => 'Profile', 2 => 'profile.php'],
             [0 => 'Dashboard', 2 => $dashboard_slug],
+            [0 => 'LL Tools', 2 => $tools_slug],
             [0 => 'Posts', 2 => 'edit.php'],
         ];
         $submenu = [];
@@ -480,6 +484,7 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
 
         $this->assertContains('profile.php', $remaining);
         $this->assertContains($dashboard_slug, $remaining);
+        $this->assertContains($tools_slug, $remaining);
         $this->assertNotContains('edit.php', $remaining);
     }
 

@@ -75,11 +75,15 @@ function ll_trim_admin_menu_for_ll_tools_roles() {
     $dashboard_slug = function_exists('ll_tools_get_admin_menu_slug')
         ? ll_tools_get_admin_menu_slug()
         : 'll-tools-dashboard-home';
+    $tools_slug = function_exists('ll_tools_get_tools_hub_page_slug')
+        ? ll_tools_get_tools_hub_page_slug()
+        : 'll-tools-dashboard-tools';
 
     // Keep only the relevant top-level items
     $allowed = [
         'profile.php',
         $dashboard_slug,
+        $tools_slug,
         'upload.php',
     ];
 
