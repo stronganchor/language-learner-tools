@@ -9893,11 +9893,11 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
-                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('High progress', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('More learned', 'll-tools-text-domain'); ?></span>
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
-                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Low progress', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Less learned', 'll-tools-text-domain'); ?></span>
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
@@ -9905,7 +9905,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                     <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
-                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Not studied recently', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Not recently studied', 'll-tools-text-domain'); ?></span>
                                         <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
                                     </button>
                                 </div>

@@ -80,11 +80,11 @@ function buildSortControls() {
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
           <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-desc" role="menuitemradio" aria-checked="false">
-            <span class="ll-wordset-main-sort__option-label">High progress</span>
+            <span class="ll-wordset-main-sort__option-label">More learned</span>
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
           <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-asc" role="menuitemradio" aria-checked="false">
-            <span class="ll-wordset-main-sort__option-label">Low progress</span>
+            <span class="ll-wordset-main-sort__option-label">Less learned</span>
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
           <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false">
@@ -92,7 +92,7 @@ function buildSortControls() {
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
           <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false">
-            <span class="ll-wordset-main-sort__option-label">Not studied recently</span>
+            <span class="ll-wordset-main-sort__option-label">Not recently studied</span>
             <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
           </button>
         </div>
