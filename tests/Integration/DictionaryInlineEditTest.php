@@ -40,8 +40,8 @@ final class DictionaryInlineEditTest extends LL_Tools_TestCase
         ];
 
         $admin_html = do_shortcode('[ll_dictionary]');
-        $this->assertStringContainsString('data-ll-dictionary-entry-editor', $admin_html);
-        $this->assertStringContainsString('data-ll-dictionary-entry-review-pill', $admin_html);
+        $this->assertStringContainsString('data-ll-dictionary-inline-editor', $admin_html);
+        $this->assertStringContainsString('data-ll-dictionary-review-state', $admin_html);
         $this->assertStringContainsString('Open in admin', $admin_html);
 
         wp_set_current_user(0);
@@ -50,12 +50,12 @@ final class DictionaryInlineEditTest extends LL_Tools_TestCase
         ];
 
         $public_html = do_shortcode('[ll_dictionary]');
-        $this->assertStringNotContainsString('data-ll-dictionary-entry-editor', $public_html);
-        $this->assertStringNotContainsString('data-ll-dictionary-entry-review-pill', $public_html);
+        $this->assertStringNotContainsString('data-ll-dictionary-inline-editor', $public_html);
+        $this->assertStringNotContainsString('data-ll-dictionary-review-state', $public_html);
         $this->assertStringNotContainsString('Open in admin', $public_html);
     }
 
-    public function test_inline_entry_update_handler_updates_title_and_review_without_changing_slug(): void
+    public function test_inline_entry_update_handler_updates_title_without_changing_slug(): void
     {
         $admin_id = $this->createDictionaryAdminUser();
         $entry_id = $this->createDictionaryEntryFixture('Dar', 'tree');
@@ -65,8 +65,8 @@ final class DictionaryInlineEditTest extends LL_Tools_TestCase
         $_POST = [
             'entry_id' => $entry_id,
             'nonce' => wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id),
+            'update_type' => 'title',
             'title' => 'Dara',
-            'needs_review' => '1',
         ];
         $_REQUEST = $_POST;
 
@@ -77,14 +77,72 @@ final class DictionaryInlineEditTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($response['success'] ?? false));
         $this->assertSame('Dara', (string) get_the_title($entry_id));
         $this->assertSame($original_slug, (string) get_post_field('post_name', $entry_id));
-        $this->assertTrue(ll_tools_dictionary_entry_has_review_flag($entry_id));
-        $this->assertSame('needs_review', (string) (ll_tools_get_dictionary_entry_senses($entry_id)[0]['needs_review'] ?? ''));
+        $this->assertFalse(ll_tools_dictionary_entry_has_review_flag($entry_id));
         $this->assertSame('dara', (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_LOOKUP_TITLE_META_KEY, true));
 
         $data = is_array($response['data'] ?? null) ? $response['data'] : [];
         $this->assertSame('Dara', (string) ($data['title'] ?? ''));
+        $this->assertFalse((bool) ($data['needs_review'] ?? false));
+        $this->assertSame('Reviewed', (string) ($data['review_label'] ?? ''));
+    }
+
+    public function test_inline_entry_update_handler_toggles_review_flag(): void
+    {
+        $admin_id = $this->createDictionaryAdminUser();
+        $entry_id = $this->createDictionaryEntryFixture('Dar', 'tree');
+
+        wp_set_current_user($admin_id);
+        $_POST = [
+            'entry_id' => $entry_id,
+            'nonce' => wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id),
+            'update_type' => 'review',
+            'needs_review' => '1',
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_dictionary_handle_entry_update();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
         $this->assertTrue((bool) ($data['needs_review'] ?? false));
         $this->assertSame('Needs review', (string) ($data['review_label'] ?? ''));
+        $this->assertTrue(ll_tools_dictionary_entry_has_review_flag($entry_id));
+        $this->assertSame('needs_review', (string) (ll_tools_get_dictionary_entry_senses($entry_id)[0]['needs_review'] ?? ''));
+    }
+
+    public function test_inline_entry_update_handler_updates_definition_in_structured_senses(): void
+    {
+        $admin_id = $this->createDictionaryAdminUser();
+        $entry_id = $this->createDictionaryEntryFixture('Dar', 'tree');
+
+        wp_set_current_user($admin_id);
+        $_POST = [
+            'entry_id' => $entry_id,
+            'nonce' => wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id),
+            'update_type' => 'sense',
+            'sense_index' => '0',
+            'language' => 'en',
+            'value' => 'A tall tree',
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_dictionary_handle_entry_update();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertSame('A tall tree', (string) ($senses[0]['definition'] ?? ''));
+        $this->assertSame('A tall tree', (string) (($senses[0]['translations'] ?? [])['en'] ?? ''));
+        $this->assertStringContainsString('A tall tree', trim((string) get_post_field('post_content', $entry_id)));
+        $this->assertSame('A tall tree', (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $this->assertSame('A tall tree', (string) ($data['value'] ?? ''));
+        $this->assertSame('A tall tree', (string) ($data['summary'] ?? ''));
     }
 
     public function test_view_ll_tools_user_without_edit_cap_cannot_update_dictionary_entry(): void
@@ -102,8 +160,8 @@ final class DictionaryInlineEditTest extends LL_Tools_TestCase
         $_POST = [
             'entry_id' => $entry_id,
             'nonce' => wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id),
+            'update_type' => 'title',
             'title' => 'Blocked',
-            'needs_review' => '1',
         ];
         $_REQUEST = $_POST;
 

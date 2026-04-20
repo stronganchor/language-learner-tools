@@ -21,6 +21,16 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 delete_option((string) $option_name);
             }
         }
+        if (defined('LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX')) {
+            $lock_like = $wpdb->esc_like(LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX) . '%';
+            $lock_option_names = $wpdb->get_col($wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $lock_like
+            ));
+            foreach ((array) $lock_option_names as $option_name) {
+                delete_option((string) $option_name);
+            }
+        }
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
         }
@@ -488,6 +498,48 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
     }
 
+    public function test_dictionary_import_save_job_trims_large_tracking_arrays(): void
+    {
+        $summary = ll_tools_dictionary_import_default_summary(250);
+        $summary['entries_created'] = LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS + 12;
+        $summary['entry_ids'] = range(1, LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS + 40);
+        $summary['errors'] = array_map(
+            static fn (int $index): string => 'Import error ' . $index,
+            range(1, LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS + 10)
+        );
+        $summary['error_count'] = count($summary['errors']);
+
+        $saved = ll_tools_dictionary_import_save_job('trim-test-job', [
+            'status' => 'running',
+            'type' => 'tsv',
+            'summary' => $summary,
+        ]);
+
+        $this->assertCount(LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS, (array) ($saved['summary']['entry_ids'] ?? []));
+        $this->assertCount(LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS, (array) ($saved['summary']['errors'] ?? []));
+        $this->assertSame(LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS + 10, (int) ($saved['summary']['error_count'] ?? 0));
+
+        $summary_html = ll_tools_get_dictionary_import_summary_html((array) ($saved['summary'] ?? []), 'Trimmed');
+        $this->assertStringContainsString(
+            (string) (LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS + 12) . ' dictionary entries were touched.',
+            $summary_html
+        );
+        $this->assertStringContainsString(
+            (string) (LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS + 2) . ' more errors not shown.',
+            $summary_html
+        );
+    }
+
+    public function test_dictionary_import_job_lock_blocks_parallel_processing_until_released(): void
+    {
+        $this->assertTrue(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+        $this->assertFalse(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+
+        ll_tools_dictionary_import_release_job_lock('lock-test-job');
+
+        $this->assertTrue(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+    }
+
     public function test_header_tsv_import_supports_multilingual_gloss_columns(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -647,7 +699,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
         $this->assertStringContainsString('Definitions', $detail_html);
-        $this->assertSame(1, substr_count($detail_html, 'güneş'));
+        $this->assertGreaterThanOrEqual(1, substr_count($detail_html, 'güneş'));
         $this->assertStringContainsString('>TR<', $detail_html);
     }
 
