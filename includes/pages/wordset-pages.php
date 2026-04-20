@@ -107,6 +107,375 @@ function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
     return array_keys($normalized);
 }
 
+function ll_tools_wordset_page_normalize_main_sort(string $value): string {
+    $key = sanitize_key(strtolower(trim($value)));
+    if (in_array($key, ['alpha-asc', 'alpha-desc', 'progress-desc', 'progress-asc', 'recent-desc', 'recent-asc'], true)) {
+        return $key;
+    }
+
+    return 'default';
+}
+
+function ll_tools_wordset_page_main_sort_requires_metrics(string $sort_key): bool {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+
+    return in_array($sort_key, ['progress-desc', 'progress-asc', 'recent-desc', 'recent-asc'], true);
+}
+
+function ll_tools_wordset_page_get_main_sort_cookie_name(int $wordset_id): string {
+    return 'll_tools_wsp_sort_' . max(0, $wordset_id);
+}
+
+function ll_tools_wordset_page_get_saved_main_sort(int $wordset_id): string {
+    $cookie_name = ll_tools_wordset_page_get_main_sort_cookie_name($wordset_id);
+    if ($cookie_name === '' || !isset($_COOKIE[$cookie_name])) {
+        return 'default';
+    }
+
+    return ll_tools_wordset_page_normalize_main_sort((string) wp_unslash($_COOKIE[$cookie_name]));
+}
+
+function ll_tools_wordset_page_compare_main_sort_labels(string $left, string $right): int {
+    if (function_exists('ll_tools_locale_compare_strings')) {
+        return ll_tools_locale_compare_strings($left, $right);
+    }
+
+    return strnatcasecmp($left, $right);
+}
+
+function ll_tools_wordset_page_get_main_sort_label(array $category): string {
+    $label = isset($category['raw_name']) ? (string) $category['raw_name'] : '';
+    if ($label === '') {
+        $label = isset($category['name']) ? (string) $category['name'] : '';
+    }
+    if ($label === '') {
+        $label = isset($category['translation']) ? (string) $category['translation'] : '';
+    }
+
+    return trim($label);
+}
+
+function ll_tools_wordset_page_get_main_sort_progress_values(array $category): array {
+    $total_words = max(0, (int) ($category['count'] ?? 0));
+    $mastered_words = max(0, (int) ($category['mastered_words'] ?? 0));
+    $studied_total = max($mastered_words, (int) ($category['studied_words'] ?? 0));
+    $new_words = max(0, (int) ($category['new_words'] ?? max(0, $total_words - $studied_total)));
+    $studied_words = max(0, $studied_total - $mastered_words);
+    $progress_score = ($total_words > 0)
+        ? (((($mastered_words * 2) + $studied_words) / ($total_words * 2)))
+        : 0.0;
+
+    return [
+        'total_words' => $total_words,
+        'mastered_words' => $mastered_words,
+        'studied_total' => $studied_total,
+        'studied_words' => $studied_words,
+        'new_words' => $new_words,
+        'progress_score' => $progress_score,
+    ];
+}
+
+function ll_tools_wordset_page_compare_categories_for_main_sort(array $left, array $right, string $sort_key): int {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    $compare_default = static function () use ($left, $right): int {
+        $left_order = max(0, (int) ($left['default_order'] ?? 0));
+        $right_order = max(0, (int) ($right['default_order'] ?? 0));
+        if ($left_order !== $right_order) {
+            return $left_order <=> $right_order;
+        }
+
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return $label_cmp;
+        }
+
+        return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+    };
+
+    if ($sort_key === 'default') {
+        return $compare_default();
+    }
+
+    if ($sort_key === 'alpha-asc' || $sort_key === 'alpha-desc') {
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return ($sort_key === 'alpha-desc') ? (-1 * $label_cmp) : $label_cmp;
+        }
+
+        return $compare_default();
+    }
+
+    if ($sort_key === 'progress-desc' || $sort_key === 'progress-asc') {
+        $left_progress = ll_tools_wordset_page_get_main_sort_progress_values($left);
+        $right_progress = ll_tools_wordset_page_get_main_sort_progress_values($right);
+        if ($left_progress['progress_score'] !== $right_progress['progress_score']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['progress_score'] <=> $right_progress['progress_score'])
+                : ($right_progress['progress_score'] <=> $left_progress['progress_score']);
+        }
+        if ($left_progress['mastered_words'] !== $right_progress['mastered_words']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['mastered_words'] <=> $right_progress['mastered_words'])
+                : ($right_progress['mastered_words'] <=> $left_progress['mastered_words']);
+        }
+        if ($left_progress['studied_total'] !== $right_progress['studied_total']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['studied_total'] <=> $right_progress['studied_total'])
+                : ($right_progress['studied_total'] <=> $left_progress['studied_total']);
+        }
+        if ($left_progress['new_words'] !== $right_progress['new_words']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['new_words'] <=> $right_progress['new_words'])
+                : ($right_progress['new_words'] <=> $left_progress['new_words']);
+        }
+
+        $recent_compare = strcmp(
+            trim((string) ($right['last_seen_at'] ?? '')),
+            trim((string) ($left['last_seen_at'] ?? ''))
+        );
+        if ($recent_compare !== 0) {
+            return ($sort_key === 'progress-asc') ? (-1 * $recent_compare) : $recent_compare;
+        }
+
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return $label_cmp;
+        }
+
+        return $compare_default();
+    }
+
+    if ($sort_key === 'recent-desc' || $sort_key === 'recent-asc') {
+        $recent_compare = strcmp(
+            trim((string) ($right['last_seen_at'] ?? '')),
+            trim((string) ($left['last_seen_at'] ?? ''))
+        );
+        if ($recent_compare !== 0) {
+            return ($sort_key === 'recent-asc') ? (-1 * $recent_compare) : $recent_compare;
+        }
+
+        $left_progress = ll_tools_wordset_page_get_main_sort_progress_values($left);
+        $right_progress = ll_tools_wordset_page_get_main_sort_progress_values($right);
+        if ($left_progress['progress_score'] !== $right_progress['progress_score']) {
+            return ($sort_key === 'recent-asc')
+                ? ($left_progress['progress_score'] <=> $right_progress['progress_score'])
+                : ($right_progress['progress_score'] <=> $left_progress['progress_score']);
+        }
+
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return $label_cmp;
+        }
+
+        return $compare_default();
+    }
+
+    return $compare_default();
+}
+
+function ll_tools_wordset_page_sort_categories_for_main_sort(array $categories, string $sort_key): array {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    $prepared = [];
+
+    foreach (array_values($categories) as $index => $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        if (!array_key_exists('default_order', $category)) {
+            $category['default_order'] = (int) $index;
+        }
+        $prepared[] = $category;
+    }
+
+    if (count($prepared) < 2 || $sort_key === 'default') {
+        return $prepared;
+    }
+
+    usort($prepared, static function (array $left, array $right) use ($sort_key): int {
+        return ll_tools_wordset_page_compare_categories_for_main_sort($left, $right, $sort_key);
+    });
+
+    return $prepared;
+}
+
+function ll_tools_wordset_page_apply_main_sort_to_mixed_cards(array $mixed_cards, string $sort_key, array $category_metrics_lookup = []): array {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    if ($sort_key === 'default' || count($mixed_cards) < 2) {
+        return array_values($mixed_cards);
+    }
+
+    $category_cards = [];
+    $default_order = 0;
+    foreach ($mixed_cards as $card) {
+        if (!is_array($card) || ($card['type'] ?? '') !== 'category' || !isset($card['data']) || !is_array($card['data'])) {
+            continue;
+        }
+
+        $category = $card['data'];
+        $category_id = isset($category['id']) ? (int) $category['id'] : 0;
+        if ($category_id <= 0) {
+            continue;
+        }
+
+        $category['default_order'] = $default_order;
+        $default_order++;
+
+        $metrics = isset($category_metrics_lookup[$category_id]) && is_array($category_metrics_lookup[$category_id])
+            ? $category_metrics_lookup[$category_id]
+            : [];
+        if (!empty($metrics)) {
+            $category['mastered_words'] = (int) ($metrics['mastered_words'] ?? 0);
+            $category['studied_words'] = (int) ($metrics['studied_words'] ?? 0);
+            $category['new_words'] = (int) ($metrics['new_words'] ?? max(0, (int) ($category['count'] ?? 0)));
+            $category['last_seen_at'] = (string) ($metrics['last_seen_at'] ?? '');
+        }
+
+        $category_cards[] = $category;
+    }
+
+    if (count($category_cards) < 2) {
+        return array_values($mixed_cards);
+    }
+
+    $sorted_categories = ll_tools_wordset_page_sort_categories_for_main_sort($category_cards, $sort_key);
+    $sorted_index = 0;
+    $result = [];
+
+    foreach ($mixed_cards as $card) {
+        if (
+            is_array($card)
+            && ($card['type'] ?? '') === 'category'
+            && isset($card['data'])
+            && is_array($card['data'])
+            && isset($sorted_categories[$sorted_index])
+        ) {
+            $card['data'] = $sorted_categories[$sorted_index];
+            $sorted_index++;
+        }
+
+        $result[] = $card;
+    }
+
+    return array_values($result);
+}
+
+function ll_tools_wordset_page_collect_category_metrics_for_user(int $user_id, int $wordset_id, array $category_ids): array {
+    static $request_cache = [];
+
+    $user_id = max(0, $user_id);
+    $wordset_id = max(0, $wordset_id);
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    }));
+    if ($user_id <= 0 || $wordset_id <= 0 || empty($category_ids)) {
+        return [];
+    }
+
+    if (
+        !function_exists('ll_tools_user_study_words')
+        || !function_exists('ll_tools_get_user_word_progress_rows')
+        || !function_exists('ll_tools_user_progress_word_status')
+        || !function_exists('ll_tools_get_user_category_progress')
+    ) {
+        return [];
+    }
+
+    $cache_key = md5((string) wp_json_encode([
+        'user_id' => $user_id,
+        'wordset_id' => $wordset_id,
+        'category_ids' => array_values($category_ids),
+    ]));
+    if (isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $words_by_category = ll_tools_user_study_words($category_ids, $wordset_id);
+    $all_word_ids = [];
+    $category_word_ids = [];
+
+    foreach ($category_ids as $category_id) {
+        $category_word_ids[$category_id] = [];
+        $rows = isset($words_by_category[$category_id]) && is_array($words_by_category[$category_id])
+            ? $words_by_category[$category_id]
+            : [];
+        foreach ($rows as $word_row) {
+            if (!is_array($word_row)) {
+                continue;
+            }
+
+            $word_id = isset($word_row['id']) ? (int) $word_row['id'] : 0;
+            if ($word_id <= 0) {
+                continue;
+            }
+
+            $category_word_ids[$category_id][$word_id] = true;
+            $all_word_ids[$word_id] = true;
+        }
+    }
+
+    $progress_rows = ll_tools_get_user_word_progress_rows($user_id, array_values(array_map('intval', array_keys($all_word_ids))));
+    $category_progress_rows = ll_tools_get_user_category_progress($user_id);
+    $metrics = [];
+
+    foreach ($category_ids as $category_id) {
+        $word_ids = isset($category_word_ids[$category_id]) && is_array($category_word_ids[$category_id])
+            ? array_values(array_map('intval', array_keys($category_word_ids[$category_id])))
+            : [];
+        $total_words = count($word_ids);
+        $studied_words = 0;
+        $mastered_words = 0;
+        $last_seen_at = '';
+
+        $category_progress_row = isset($category_progress_rows[$category_id]) && is_array($category_progress_rows[$category_id])
+            ? $category_progress_rows[$category_id]
+            : [];
+        if (!empty($category_progress_row['last_seen_at'])) {
+            $last_seen_at = (string) $category_progress_row['last_seen_at'];
+        }
+
+        foreach ($word_ids as $word_id) {
+            $progress_row = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
+                ? $progress_rows[$word_id]
+                : [];
+            $status = ll_tools_user_progress_word_status($progress_row);
+            if ($status !== 'new') {
+                $studied_words++;
+            }
+            if ($status === 'mastered') {
+                $mastered_words++;
+            }
+
+            $word_last_seen_at = !empty($progress_row['last_seen_at']) ? (string) $progress_row['last_seen_at'] : '';
+            if ($word_last_seen_at !== '' && ($last_seen_at === '' || strcmp($word_last_seen_at, $last_seen_at) > 0)) {
+                $last_seen_at = $word_last_seen_at;
+            }
+        }
+
+        $metrics[$category_id] = [
+            'mastered_words' => $mastered_words,
+            'studied_words' => $studied_words,
+            'new_words' => max(0, $total_words - $studied_words),
+            'last_seen_at' => $last_seen_at,
+        ];
+    }
+
+    $request_cache[$cache_key] = $metrics;
+    return $metrics;
+}
+
 function ll_tools_wordset_page_build_cache_key(string $namespace, array $args = []): string {
     return 'll_wsp_' . sanitize_key($namespace) . '_' . md5((string) wp_json_encode($args));
 }
@@ -1221,11 +1590,16 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         }
     }
 
+    $saved_main_category_sort = ll_tools_wordset_page_get_saved_main_sort($wordset_id);
+    if (!$is_study_user && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)) {
+        $saved_main_category_sort = 'default';
+    }
     $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
     $summary_counts_deferred = ($is_study_user && !$should_bootstrap_analytics);
 
     $category_progress_lookup = [];
+    $category_metrics_lookup = [];
     $analytics_category_rows = (isset($analytics['categories']) && is_array($analytics['categories'])) ? $analytics['categories'] : [];
     foreach ($analytics_category_rows as $analytics_category_row) {
         if (!is_array($analytics_category_row)) {
@@ -1249,6 +1623,35 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'studied' => $studied_words,
             'new' => $new_words,
         ];
+        $category_metrics_lookup[$cid] = [
+            'mastered_words' => $mastered_words,
+            'studied_words' => $studied_total,
+            'new_words' => $new_words,
+            'last_seen_at' => isset($analytics_category_row['last_seen_at'])
+                ? (string) $analytics_category_row['last_seen_at']
+                : '',
+        ];
+    }
+
+    if (
+        $saved_main_category_sort !== 'default'
+        && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)
+        && $is_study_user
+        && empty($category_metrics_lookup)
+    ) {
+        $category_metrics_lookup = ll_tools_wordset_page_collect_category_metrics_for_user(
+            get_current_user_id(),
+            $wordset_id,
+            $visible_category_ids
+        );
+    }
+
+    if ($saved_main_category_sort !== 'default') {
+        $mixed_lesson_cards = ll_tools_wordset_page_apply_main_sort_to_mixed_cards(
+            $mixed_lesson_cards,
+            $saved_main_category_sort,
+            $category_metrics_lookup
+        );
     }
 
     $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
@@ -7838,6 +8241,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $hidden_category_count = count($hidden_categories);
+    $saved_main_category_sort = $is_main_view
+        ? ll_tools_wordset_page_get_saved_main_sort($wordset_id)
+        : 'default';
+    if (!$is_study_user && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)) {
+        $saved_main_category_sort = 'default';
+    }
     $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
         ? ll_tools_get_content_lessons_for_wordset($wordset_id)
         : [];
@@ -7958,6 +8367,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 ? (string) $analytics_category_row['last_seen_at']
                 : '',
         ];
+    }
+    if (
+        $saved_main_category_sort !== 'default'
+        && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)
+        && $is_study_user
+        && empty($category_metrics_lookup)
+    ) {
+        $category_metrics_lookup = ll_tools_wordset_page_collect_category_metrics_for_user(
+            get_current_user_id(),
+            $wordset_id,
+            $visible_category_ids
+        );
+    }
+    if ($saved_main_category_sort !== 'default') {
+        $mixed_lesson_cards = ll_tools_wordset_page_apply_main_sort_to_mixed_cards(
+            $mixed_lesson_cards,
+            $saved_main_category_sort,
+            $category_metrics_lookup
+        );
     }
     $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
         $analytics,
@@ -8340,6 +8768,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         array_values(array_map('intval', wp_list_pluck($enhanced_categories, 'id')))
     );
 
+    $script_categories_source = [];
+    foreach (array_values($enhanced_categories) as $index => $category_row) {
+        if (!is_array($category_row)) {
+            continue;
+        }
+        $category_row['default_order'] = (int) $index;
+        $category_id = isset($category_row['id']) ? (int) $category_row['id'] : 0;
+        if ($category_id > 0 && isset($category_metrics_lookup[$category_id]) && is_array($category_metrics_lookup[$category_id])) {
+            $category_row['mastered_words'] = (int) ($category_metrics_lookup[$category_id]['mastered_words'] ?? 0);
+            $category_row['studied_words'] = (int) ($category_metrics_lookup[$category_id]['studied_words'] ?? 0);
+            $category_row['new_words'] = (int) ($category_metrics_lookup[$category_id]['new_words'] ?? max(0, (int) ($category_row['count'] ?? 0)));
+            $category_row['last_seen_at'] = (string) ($category_metrics_lookup[$category_id]['last_seen_at'] ?? '');
+        }
+        $script_categories_source[] = $category_row;
+    }
+    if ($saved_main_category_sort !== 'default') {
+        $script_categories_source = ll_tools_wordset_page_sort_categories_for_main_sort($script_categories_source, $saved_main_category_sort);
+    }
+
     $script_categories = array_map(function (array $cat) use ($category_search_index, $category_metrics_lookup): array {
         $preview_items = array_values((array) ($cat['preview'] ?? []));
         $preview_items = array_slice($preview_items, 0, 2);
@@ -8370,6 +8817,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
         return [
             'id' => $category_id,
+            'default_order' => (int) ($cat['default_order'] ?? 0),
             'slug' => (string) ($cat['slug'] ?? ''),
             'name' => (string) ($cat['raw_name'] ?? $cat['name'] ?? ''),
             'translation' => (string) ($cat['translation'] ?? ($cat['name'] ?? '')),
@@ -8390,7 +8838,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'new_words' => (int) ($metrics['new_words'] ?? max(0, (int) ($cat['count'] ?? 0))),
             'last_seen_at' => (string) ($metrics['last_seen_at'] ?? ''),
         ];
-    }, $enhanced_categories);
+    }, $script_categories_source);
 
     $games_frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
         ? ll_tools_get_wordset_games_frontend_config($wordset_id)
@@ -8432,6 +8880,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'wordsetId' => $wordset_id,
         'wordsetSlug' => (string) $wordset_term->slug,
         'wordsetName' => (string) $wordset_term->name,
+        'initialMainCategorySort' => $saved_main_category_sort,
+        'mainCategorySortCookieName' => ll_tools_wordset_page_get_main_sort_cookie_name($wordset_id),
         'links' => $localized_links,
         'progressReset' => $localized_progress_reset,
         'progressIncludeHidden' => ($view === 'progress'),

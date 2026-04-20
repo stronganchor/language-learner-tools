@@ -14,6 +14,8 @@
     const isLoggedIn = !!cfg.isLoggedIn;
     const wordsetId = parseInt(cfg.wordsetId, 10) || 0;
     const wordsetSlug = String(cfg.wordsetSlug || '');
+    const initialMainCategorySort = String(cfg.initialMainCategorySort || '');
+    const mainCategorySortCookieName = String(cfg.mainCategorySortCookieName || '');
     const modeUi = (cfg.modeUi && typeof cfg.modeUi === 'object') ? cfg.modeUi : {};
     const i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
     const genderCfg = (cfg.gender && typeof cfg.gender === 'object') ? cfg.gender : {};
@@ -826,6 +828,10 @@
         return 'llToolsWordsetMainSort:' + String(wordsetId || wordsetSlug || '0');
     }
 
+    function getMainCategorySortCookieKey() {
+        return String(mainCategorySortCookieName || '').trim();
+    }
+
     function getMainCategorySortStorage() {
         try {
             return window.localStorage || null;
@@ -834,25 +840,87 @@
         }
     }
 
-    function readMainCategorySortPreference() {
+    function readMainCategorySortStorageValue() {
         const storage = getMainCategorySortStorage();
         if (!storage || typeof storage.getItem !== 'function') {
-            return 'default';
+            return '';
         }
         try {
-            return normalizeMainCategorySort(storage.getItem(getMainCategorySortStorageKey()));
+            const value = storage.getItem(getMainCategorySortStorageKey());
+            return (typeof value === 'string') ? value : '';
         } catch (_) {
-            return 'default';
+            return '';
         }
     }
 
+    function readMainCategorySortCookieValue() {
+        const cookieKey = getMainCategorySortCookieKey();
+        if (!cookieKey || typeof document === 'undefined') {
+            return '';
+        }
+
+        const rawCookie = String(document.cookie || '');
+        if (!rawCookie) {
+            return '';
+        }
+
+        const entries = rawCookie.split(';');
+        for (let index = 0; index < entries.length; index += 1) {
+            const entry = String(entries[index] || '').trim();
+            if (!entry) {
+                continue;
+            }
+
+            const separatorIndex = entry.indexOf('=');
+            const key = separatorIndex >= 0 ? entry.slice(0, separatorIndex).trim() : entry;
+            if (key !== cookieKey) {
+                continue;
+            }
+
+            const value = separatorIndex >= 0 ? entry.slice(separatorIndex + 1) : '';
+            try {
+                return decodeURIComponent(String(value || ''));
+            } catch (_) {
+                return String(value || '');
+            }
+        }
+
+        return '';
+    }
+
+    function readMainCategorySortPreference() {
+        const storageValue = readMainCategorySortStorageValue();
+        if (storageValue !== '') {
+            return normalizeMainCategorySort(storageValue);
+        }
+
+        const cookieValue = readMainCategorySortCookieValue();
+        if (cookieValue !== '') {
+            return normalizeMainCategorySort(cookieValue);
+        }
+
+        return normalizeMainCategorySort(initialMainCategorySort);
+    }
+
     function writeMainCategorySortPreference(sortKey) {
+        const normalizedSort = normalizeMainCategorySort(sortKey);
         const storage = getMainCategorySortStorage();
         if (!storage || typeof storage.setItem !== 'function') {
+            // Continue and still try cookie persistence below.
+        } else {
+            try {
+                storage.setItem(getMainCategorySortStorageKey(), normalizedSort);
+            } catch (_) { /* no-op */ }
+        }
+
+        const cookieKey = getMainCategorySortCookieKey();
+        if (!cookieKey || typeof document === 'undefined') {
             return;
         }
+
         try {
-            storage.setItem(getMainCategorySortStorageKey(), normalizeMainCategorySort(sortKey));
+            document.cookie = cookieKey + '=' + encodeURIComponent(normalizedSort)
+                + '; path=/; max-age=31536000; samesite=lax';
         } catch (_) { /* no-op */ }
     }
 
@@ -12462,6 +12530,7 @@
         if (!isLoggedIn && mainCategorySortRequiresMetrics(mainCategorySort)) {
             mainCategorySort = 'default';
         }
+        writeMainCategorySortPreference(mainCategorySort);
         syncMainCategorySortUi();
         refreshMainCategoryOrdering();
         scheduleSelectAllAlignment();
