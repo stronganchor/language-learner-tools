@@ -149,7 +149,7 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
             $this->assertFalse(file_exists(ll_tools_import_chunk_upload_session_dir($uploadId)));
         } finally {
             if ($previewToken !== '') {
-                delete_transient(ll_tools_import_preview_transient_key($previewToken));
+                ll_tools_delete_import_preview_data($previewToken);
             }
             if ($stagedZipPath !== '' && file_exists($stagedZipPath)) {
                 @unlink($stagedZipPath);
@@ -173,6 +173,7 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
 
         delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
         delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+        delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
 
         $bundle = $this->createMinimalServerImportBundleZip();
         $zipPath = (string) ($bundle['zip_path'] ?? '');
@@ -228,7 +229,80 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
                 }
             }
             if ($previewToken !== '') {
-                delete_transient(ll_tools_import_preview_transient_key($previewToken));
+                ll_tools_delete_import_preview_data($previewToken);
+            }
+            @unlink($zipPath);
+        }
+    }
+
+    public function test_ajax_import_start_restores_preview_when_transient_is_gone(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is not available in this test environment.');
+        }
+
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+        delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+        delete_user_meta($adminId, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
+
+        $bundle = $this->createMinimalServerImportBundleZip();
+        $zipPath = (string) ($bundle['zip_path'] ?? '');
+        $zipFilename = (string) ($bundle['zip_filename'] ?? '');
+        $this->assertNotSame('', $zipPath);
+        $this->assertNotSame('', $zipFilename);
+
+        $jobId = '';
+        $previewToken = '';
+
+        try {
+            $previewRedirect = $this->captureRedirect(function () use ($zipFilename): void {
+                $_SERVER['REQUEST_METHOD'] = 'POST';
+                $_GET = [];
+                $_POST = [
+                    '_wpnonce' => wp_create_nonce('ll_tools_preview_import_bundle'),
+                    'action' => 'll_tools_preview_import_bundle',
+                    'll_import_existing' => $zipFilename,
+                ];
+                $_REQUEST = $_POST;
+                ll_tools_handle_preview_import_bundle();
+            });
+
+            $previewQuery = $this->parseRedirectQuery($previewRedirect);
+            $previewToken = (string) ($previewQuery['ll_import_preview'] ?? '');
+            $this->assertNotSame('', $previewToken);
+            $this->assertIsArray(ll_tools_get_import_preview_data($previewToken));
+
+            delete_transient(ll_tools_import_preview_transient_key($previewToken));
+            $this->assertFalse(get_transient(ll_tools_import_preview_transient_key($previewToken)));
+
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_job_ajax'),
+                'action' => 'll_tools_import_start_job',
+                'll_import_preview_token' => $previewToken,
+            ];
+            $_REQUEST = $_POST;
+            $startResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_start_job();
+            });
+
+            $this->assertTrue($startResponse['success']);
+            $job = is_array($startResponse['data']['job'] ?? null) ? $startResponse['data']['job'] : [];
+            $jobId = (string) ($job['id'] ?? '');
+            $this->assertNotSame('', $jobId);
+            $this->assertSame('running', (string) ($job['status'] ?? ''));
+            $this->assertIsArray(get_transient(ll_tools_import_preview_transient_key($previewToken)));
+        } finally {
+            if ($jobId !== '') {
+                $job = ll_tools_import_job_get($jobId);
+                if (is_array($job)) {
+                    ll_tools_import_job_discard($job);
+                }
+            }
+            if ($previewToken !== '') {
+                ll_tools_delete_import_preview_data($previewToken);
             }
             @unlink($zipPath);
         }

@@ -357,22 +357,112 @@ function ll_tools_import_preview_transient_key($token): string {
 
 function ll_tools_import_preview_ttl_seconds(): int {
     return max(
-        5 * MINUTE_IN_SECONDS,
-        (int) apply_filters('ll_tools_import_preview_ttl_seconds', 30 * MINUTE_IN_SECONDS)
+        30 * MINUTE_IN_SECONDS,
+        (int) apply_filters('ll_tools_import_preview_ttl_seconds', DAY_IN_SECONDS)
     );
 }
 
-function ll_tools_store_import_preview_data(string $token, array $preview_data): bool {
+function ll_tools_import_preview_backup_ttl_seconds(): int {
+    return max(
+        ll_tools_import_preview_ttl_seconds(),
+        (int) apply_filters('ll_tools_import_preview_backup_ttl_seconds', 7 * DAY_IN_SECONDS)
+    );
+}
+
+function ll_tools_store_import_preview_backup(string $token, array $preview_data, int $user_id = 0): void {
+    $token = sanitize_text_field($token);
+    $user_id = $user_id > 0 ? $user_id : get_current_user_id();
+    if ($token === '' || $user_id <= 0) {
+        return;
+    }
+
+    update_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY, [
+        'token' => $token,
+        'stored_at' => time(),
+        'preview_data' => $preview_data,
+    ]);
+}
+
+function ll_tools_get_import_preview_backup(string $token, int $user_id = 0): ?array {
+    $token = sanitize_text_field($token);
+    $user_id = $user_id > 0 ? $user_id : get_current_user_id();
+    if ($token === '' || $user_id <= 0) {
+        return null;
+    }
+
+    $record = get_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY, true);
+    if (!is_array($record)) {
+        return null;
+    }
+
+    $stored_token = sanitize_text_field((string) ($record['token'] ?? ''));
+    if ($stored_token !== $token) {
+        return null;
+    }
+
+    $stored_at = max(0, (int) ($record['stored_at'] ?? 0));
+    if ($stored_at > 0 && $stored_at < (time() - ll_tools_import_preview_backup_ttl_seconds())) {
+        delete_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
+        return null;
+    }
+
+    $preview_data = isset($record['preview_data']) && is_array($record['preview_data'])
+        ? $record['preview_data']
+        : null;
+    if (!is_array($preview_data)) {
+        delete_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
+        return null;
+    }
+
+    $zip_path = (string) ($preview_data['zip_path'] ?? '');
+    if ($zip_path === '' || !file_exists($zip_path)) {
+        delete_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
+        return null;
+    }
+
+    return $preview_data;
+}
+
+function ll_tools_delete_import_preview_backup(string $token = '', int $user_id = 0): void {
+    $token = sanitize_text_field($token);
+    $user_id = $user_id > 0 ? $user_id : get_current_user_id();
+    if ($user_id <= 0) {
+        return;
+    }
+
+    if ($token === '') {
+        delete_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
+        return;
+    }
+
+    $record = get_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY, true);
+    if (!is_array($record)) {
+        return;
+    }
+
+    $stored_token = sanitize_text_field((string) ($record['token'] ?? ''));
+    if ($stored_token === $token) {
+        delete_user_meta($user_id, LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY);
+    }
+}
+
+function ll_tools_store_import_preview_data(string $token, array $preview_data, bool $persist_backup = true): bool {
     $token = sanitize_text_field($token);
     if ($token === '') {
         return false;
     }
 
-    return (bool) set_transient(
+    $stored = (bool) set_transient(
         ll_tools_import_preview_transient_key($token),
         $preview_data,
         ll_tools_import_preview_ttl_seconds()
     );
+
+    if ($persist_backup) {
+        ll_tools_store_import_preview_backup($token, $preview_data);
+    }
+
+    return $stored;
 }
 
 function ll_tools_get_import_preview_token_from_request(array $request): string {
@@ -398,14 +488,29 @@ function ll_tools_get_import_preview_data(string $preview_token, bool $refresh_t
 
     $preview_data = get_transient(ll_tools_import_preview_transient_key($preview_token));
     if (!is_array($preview_data)) {
-        return null;
+        $preview_data = ll_tools_get_import_preview_backup($preview_token);
+        if (!is_array($preview_data)) {
+            return null;
+        }
+
+        ll_tools_store_import_preview_data($preview_token, $preview_data, false);
     }
 
     if ($refresh_ttl) {
-        ll_tools_store_import_preview_data($preview_token, $preview_data);
+        ll_tools_store_import_preview_data($preview_token, $preview_data, false);
     }
 
     return $preview_data;
+}
+
+function ll_tools_delete_import_preview_data(string $token): void {
+    $token = sanitize_text_field($token);
+    if ($token === '') {
+        return;
+    }
+
+    delete_transient(ll_tools_import_preview_transient_key($token));
+    ll_tools_delete_import_preview_backup($token);
 }
 
 function ll_tools_metadata_update_preview_transient_key($token): string {
@@ -1058,6 +1163,10 @@ if (!defined('LL_TOOLS_IMPORT_LAST_JOB_META_KEY')) {
     define('LL_TOOLS_IMPORT_LAST_JOB_META_KEY', 'll_tools_import_last_job_id');
 }
 
+if (!defined('LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY')) {
+    define('LL_TOOLS_IMPORT_LAST_PREVIEW_META_KEY', 'll_tools_import_last_preview');
+}
+
 function ll_tools_import_job_generate_id(): string {
     return wp_generate_password(12, false, false) . '-' . time();
 }
@@ -1597,7 +1706,7 @@ function ll_tools_import_job_discard(array $job) {
 
     $preview_token = isset($job['preview_token']) ? sanitize_text_field((string) $job['preview_token']) : '';
     if ($preview_token !== '') {
-        delete_transient(ll_tools_import_preview_transient_key($preview_token));
+        ll_tools_delete_import_preview_data($preview_token);
     }
 
     if (!empty($job['cleanup_zip'])) {
@@ -6908,7 +7017,7 @@ function ll_tools_handle_import_bundle() {
         @unlink($zip_path);
     }
     if ($preview_token !== '') {
-        delete_transient(ll_tools_import_preview_transient_key($preview_token));
+        ll_tools_delete_import_preview_data($preview_token);
     }
 
     ll_tools_import_append_result_history(
@@ -9419,7 +9528,7 @@ function ll_tools_import_job_finalize_completion(array $job): array {
 
     $preview_token = isset($job['preview_token']) ? sanitize_text_field((string) $job['preview_token']) : '';
     if ($preview_token !== '') {
-        delete_transient(ll_tools_import_preview_transient_key($preview_token));
+        ll_tools_delete_import_preview_data($preview_token);
     }
 
     if (!empty($job['cleanup_zip'])) {
