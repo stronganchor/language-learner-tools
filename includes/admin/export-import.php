@@ -97,6 +97,9 @@ add_action('wp_ajax_ll_tools_import_start_job', 'll_tools_ajax_import_start_job'
 add_action('wp_ajax_ll_tools_import_status', 'll_tools_ajax_import_status');
 add_action('wp_ajax_ll_tools_import_process_job', 'll_tools_ajax_import_process_job');
 add_action('wp_ajax_ll_tools_import_discard_job', 'll_tools_ajax_import_discard_job');
+add_action('wp_ajax_ll_tools_import_preview_upload_start', 'll_tools_ajax_import_preview_upload_start');
+add_action('wp_ajax_ll_tools_import_preview_upload_chunk', 'll_tools_ajax_import_preview_upload_chunk');
+add_action('wp_ajax_ll_tools_import_preview_upload_finish', 'll_tools_ajax_import_preview_upload_finish');
 add_action('wp_ajax_ll_tools_start_export_bundle', 'll_tools_ajax_start_export_bundle');
 add_action('wp_ajax_ll_tools_run_export_bundle_batch', 'll_tools_ajax_run_export_bundle_batch');
 add_action('wp_ajax_ll_tools_export_full_bundle_categories', 'll_tools_ajax_export_full_bundle_categories');
@@ -133,6 +136,11 @@ function ll_tools_enqueue_export_import_assets($hook) {
         'importProcessAction' => 'll_tools_import_process_job',
         'importDiscardAction' => 'll_tools_import_discard_job',
         'importJobNonce' => wp_create_nonce('ll_tools_import_job_ajax'),
+        'importPreviewUploadStartAction' => 'll_tools_import_preview_upload_start',
+        'importPreviewUploadChunkAction' => 'll_tools_import_preview_upload_chunk',
+        'importPreviewUploadFinishAction' => 'll_tools_import_preview_upload_finish',
+        'importPreviewUploadNonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+        'importPreviewUploadChunkBytes' => ll_tools_import_get_chunk_upload_size_bytes(),
         'activeImportJob' => $active_import_job,
         'fullExportCategoriesAjaxAction' => 'll_tools_export_full_bundle_categories',
         'fullExportCategoriesNonce' => wp_create_nonce('ll_tools_export_full_bundle_categories'),
@@ -4405,12 +4413,14 @@ function ll_tools_resolve_import_request_zip(bool $allow_missing = false) {
                 'zip_path'     => '',
                 'cleanup_zip'  => false,
                 'uploaded_file'=> false,
+                'zip_name'     => '',
             ];
         }
         return new WP_Error('ll_tools_import_missing', __('Import failed: please choose a zip file to import.', 'll-tools-text-domain'));
     }
 
     if ($uploaded_file) {
+        $source_name = sanitize_file_name(wp_unslash((string) $_FILES['ll_import_file']['name']));
         $upload = wp_handle_upload($_FILES['ll_import_file'], [
             'test_form' => false,
             'mimes'     => ['zip' => 'application/zip'],
@@ -4422,6 +4432,7 @@ function ll_tools_resolve_import_request_zip(bool $allow_missing = false) {
             'zip_path'     => (string) $upload['file'],
             'cleanup_zip'  => true,
             'uploaded_file'=> true,
+            'zip_name'     => $source_name !== '' ? $source_name : basename((string) $upload['file']),
         ];
     }
 
@@ -4438,6 +4449,7 @@ function ll_tools_resolve_import_request_zip(bool $allow_missing = false) {
         'zip_path'     => (string) $existing_path,
         'cleanup_zip'  => false,
         'uploaded_file'=> false,
+        'zip_name'     => $existing_file !== '' ? $existing_file : basename((string) $existing_path),
     ];
 }
 
@@ -6481,6 +6493,50 @@ function ll_tools_read_import_preview_from_zip($zip_path) {
     ];
 }
 
+function ll_tools_prepare_import_preview_from_zip_info(array $zip_info) {
+    $zip_path = (string) $zip_info['zip_path'];
+    if ($zip_path === '' || !file_exists($zip_path)) {
+        return new WP_Error('ll_tools_import_missing_file', __('Import failed: uploaded file is missing.', 'll-tools-text-domain'));
+    }
+
+    $preview_result = ll_tools_read_import_preview_from_zip($zip_path);
+    if (is_wp_error($preview_result)) {
+        if (!empty($zip_info['cleanup_zip']) && $zip_path !== '') {
+            @unlink($zip_path);
+        }
+        return $preview_result;
+    }
+
+    $payload_for_defaults = isset($preview_result['payload']) && is_array($preview_result['payload'])
+        ? $preview_result['payload']
+        : [];
+    $preview_options = ll_tools_build_import_preview_default_options($payload_for_defaults);
+    $preview_data = is_array($preview_result['preview'] ?? null) ? $preview_result['preview'] : [];
+    $preview_data['zip_path'] = $zip_path;
+    $preview_data['zip_name'] = !empty($zip_info['zip_name'])
+        ? sanitize_file_name((string) $zip_info['zip_name'])
+        : basename($zip_path);
+    $preview_data['source_type'] = !empty($zip_info['uploaded_file']) ? 'uploaded' : 'server';
+    $preview_data['cleanup_zip'] = !empty($zip_info['cleanup_zip']);
+    $preview_data['options'] = $preview_options;
+    $preview_data['created_by'] = get_current_user_id();
+    $preview_data['created_at'] = time();
+
+    $token = wp_generate_password(20, false, false);
+    set_transient(ll_tools_import_preview_transient_key($token), $preview_data, 30 * MINUTE_IN_SECONDS);
+
+    $redirect_url = ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
+        'll_import_preview' => $token,
+    ]);
+    $redirect_url .= '#ll-tools-import-preview';
+
+    return [
+        'preview_token' => $token,
+        'preview_data'  => $preview_data,
+        'redirect_url'  => $redirect_url,
+    ];
+}
+
 /**
  * Handle preview action: inspect bundle and store summary for user confirmation.
  */
@@ -6506,42 +6562,230 @@ function ll_tools_handle_preview_import_bundle() {
         ]);
     }
 
-    $zip_path = (string) $zip_info['zip_path'];
-    $preview_result = ll_tools_read_import_preview_from_zip($zip_path);
-    if (is_wp_error($preview_result)) {
-        if (!empty($zip_info['cleanup_zip']) && $zip_path !== '') {
-            @unlink($zip_path);
-        }
+    $preview = ll_tools_prepare_import_preview_from_zip_info($zip_info);
+    if (is_wp_error($preview)) {
         ll_tools_store_import_result_and_redirect([
             'ok' => false,
             'message' => __('Import preview failed.', 'll-tools-text-domain'),
-            'errors' => [$preview_result->get_error_message()],
+            'errors' => [$preview->get_error_message()],
             'stats' => [],
         ]);
     }
 
-    $payload_for_defaults = isset($preview_result['payload']) && is_array($preview_result['payload'])
-        ? $preview_result['payload']
-        : [];
-    $preview_options = ll_tools_build_import_preview_default_options($payload_for_defaults);
-    $preview_data = is_array($preview_result['preview'] ?? null) ? $preview_result['preview'] : [];
-    $preview_data['zip_path'] = $zip_path;
-    $preview_data['zip_name'] = basename($zip_path);
-    $preview_data['source_type'] = !empty($zip_info['uploaded_file']) ? 'uploaded' : 'server';
-    $preview_data['cleanup_zip'] = !empty($zip_info['cleanup_zip']);
-    $preview_data['options'] = $preview_options;
-    $preview_data['created_by'] = get_current_user_id();
-    $preview_data['created_at'] = time();
-
-    $token = wp_generate_password(20, false, false);
-    set_transient(ll_tools_import_preview_transient_key($token), $preview_data, 30 * MINUTE_IN_SECONDS);
-
-    $redirect_url = ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug(), [
-        'll_import_preview' => $token,
-    ]);
-    $redirect_url .= '#ll-tools-import-preview';
+    $redirect_url = isset($preview['redirect_url']) ? (string) $preview['redirect_url'] : '';
     wp_safe_redirect($redirect_url);
     exit;
+}
+
+function ll_tools_ajax_import_preview_upload_start(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to import LL Tools data.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_tools_import_chunk_upload_ajax', 'nonce');
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+
+    $filename = isset($_POST['filename']) ? sanitize_file_name(wp_unslash((string) $_POST['filename'])) : '';
+    $total_size = isset($_POST['total_size']) ? max(0, (int) wp_unslash((string) $_POST['total_size'])) : 0;
+    $total_chunks = isset($_POST['total_chunks']) ? max(0, (int) wp_unslash((string) $_POST['total_chunks'])) : 0;
+
+    if ($filename === '' || strtolower((string) pathinfo($filename, PATHINFO_EXTENSION)) !== 'zip') {
+        wp_send_json_error([
+            'message' => __('Import failed: choose a .zip file to upload.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    if ($total_size <= 0 || $total_chunks <= 0) {
+        wp_send_json_error([
+            'message' => __('Import failed: the selected zip file is empty or invalid.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    if (!ll_tools_ensure_import_chunk_upload_dirs()) {
+        wp_send_json_error([
+            'message' => __('Import failed: upload staging folders are not available.', 'll-tools-text-domain'),
+        ], 500);
+    }
+
+    ll_tools_import_chunk_upload_cleanup_stale_artifacts();
+
+    $upload_id = sanitize_file_name((string) wp_generate_uuid4());
+    if ($upload_id === '') {
+        $upload_id = sanitize_file_name('upload-' . wp_generate_password(16, false, false));
+    }
+
+    $session_dir = ll_tools_import_chunk_upload_session_dir($upload_id);
+    if (!wp_mkdir_p($session_dir)) {
+        wp_send_json_error([
+            'message' => __('Import failed: could not create the upload session folder.', 'll-tools-text-domain'),
+        ], 500);
+    }
+
+    $session = [
+        'upload_id' => $upload_id,
+        'filename' => $filename,
+        'total_size' => $total_size,
+        'total_chunks' => $total_chunks,
+        'created_by' => (int) get_current_user_id(),
+        'created_at' => time(),
+        'received_chunks' => [],
+    ];
+
+    $write_result = ll_tools_import_job_write_json_file(ll_tools_import_chunk_upload_meta_path($upload_id), $session);
+    if (is_wp_error($write_result)) {
+        ll_tools_import_job_delete_path($session_dir);
+        wp_send_json_error([
+            'message' => $write_result->get_error_message(),
+        ], 500);
+    }
+
+    wp_send_json_success([
+        'uploadId' => $upload_id,
+        'filename' => $filename,
+        'totalChunks' => $total_chunks,
+    ]);
+}
+
+function ll_tools_ajax_import_preview_upload_chunk(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to import LL Tools data.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_tools_import_chunk_upload_ajax', 'nonce');
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+
+    $upload_id = isset($_POST['upload_id']) ? sanitize_file_name(wp_unslash((string) $_POST['upload_id'])) : '';
+    $chunk_index = isset($_POST['chunk_index']) ? (int) wp_unslash((string) $_POST['chunk_index']) : -1;
+    $session = ll_tools_import_chunk_upload_get_session($upload_id);
+    if (is_wp_error($session)) {
+        wp_send_json_error([
+            'message' => $session->get_error_message(),
+        ], 404);
+    }
+
+    $total_chunks = max(1, (int) ($session['total_chunks'] ?? 0));
+    if ($chunk_index < 0 || $chunk_index >= $total_chunks) {
+        wp_send_json_error([
+            'message' => __('Import failed: the upload chunk number is invalid.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $file_error = isset($_FILES['ll_import_chunk']['error']) ? (int) $_FILES['ll_import_chunk']['error'] : UPLOAD_ERR_NO_FILE;
+    $tmp_name = isset($_FILES['ll_import_chunk']['tmp_name']) ? (string) $_FILES['ll_import_chunk']['tmp_name'] : '';
+    if ($file_error !== UPLOAD_ERR_OK || $tmp_name === '' || !is_file($tmp_name)) {
+        wp_send_json_error([
+            'message' => __('Import failed: one of the upload chunks was missing.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $chunk_path = ll_tools_import_chunk_upload_chunk_path($upload_id, $chunk_index);
+    if (!ll_tools_import_chunk_upload_move_uploaded_file($tmp_name, $chunk_path)) {
+        wp_send_json_error([
+            'message' => __('Import failed: could not store one of the upload chunks.', 'll-tools-text-domain'),
+        ], 500);
+    }
+
+    $received_chunks = isset($session['received_chunks']) && is_array($session['received_chunks'])
+        ? $session['received_chunks']
+        : [];
+    $received_chunks[(string) $chunk_index] = [
+        'size' => max(0, (int) @filesize($chunk_path)),
+        'received_at' => time(),
+    ];
+    ksort($received_chunks, SORT_NATURAL);
+    $session['received_chunks'] = $received_chunks;
+
+    $write_result = ll_tools_import_job_write_json_file(ll_tools_import_chunk_upload_meta_path($upload_id), $session);
+    if (is_wp_error($write_result)) {
+        wp_send_json_error([
+            'message' => $write_result->get_error_message(),
+        ], 500);
+    }
+
+    $received_bytes = 0;
+    foreach ($received_chunks as $received_chunk) {
+        $received_bytes += max(0, (int) ($received_chunk['size'] ?? 0));
+    }
+
+    wp_send_json_success([
+        'uploadId' => $upload_id,
+        'chunkIndex' => $chunk_index,
+        'receivedChunks' => count($received_chunks),
+        'totalChunks' => $total_chunks,
+        'receivedBytes' => $received_bytes,
+    ]);
+}
+
+function ll_tools_ajax_import_preview_upload_finish(): void {
+    if (!ll_tools_current_user_can_export_import()) {
+        wp_send_json_error([
+            'message' => __('You do not have permission to import LL Tools data.', 'll-tools-text-domain'),
+        ], 403);
+    }
+
+    check_ajax_referer('ll_tools_import_chunk_upload_ajax', 'nonce');
+
+    if (!class_exists('ZipArchive')) {
+        wp_send_json_error([
+            'message' => __('ZipArchive is not available on this server.', 'll-tools-text-domain'),
+        ], 500);
+    }
+
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+
+    $upload_id = isset($_POST['upload_id']) ? sanitize_file_name(wp_unslash((string) $_POST['upload_id'])) : '';
+    $session = ll_tools_import_chunk_upload_get_session($upload_id);
+    if (is_wp_error($session)) {
+        wp_send_json_error([
+            'message' => $session->get_error_message(),
+        ], 404);
+    }
+
+    $total_chunks = max(1, (int) ($session['total_chunks'] ?? 0));
+    $received_chunks = isset($session['received_chunks']) && is_array($session['received_chunks'])
+        ? $session['received_chunks']
+        : [];
+
+    for ($chunk_index = 0; $chunk_index < $total_chunks; $chunk_index++) {
+        if (!isset($received_chunks[(string) $chunk_index]) || !is_file(ll_tools_import_chunk_upload_chunk_path($upload_id, $chunk_index))) {
+            wp_send_json_error([
+                'message' => __('Import failed: the upload did not finish all chunks.', 'll-tools-text-domain'),
+            ], 400);
+        }
+    }
+
+    $zip_path = ll_tools_import_chunk_upload_assemble_zip($session);
+    if (is_wp_error($zip_path)) {
+        wp_send_json_error([
+            'message' => $zip_path->get_error_message(),
+        ], 500);
+    }
+
+    $preview = ll_tools_prepare_import_preview_from_zip_info([
+        'zip_path' => (string) $zip_path,
+        'zip_name' => isset($session['filename']) ? (string) $session['filename'] : basename((string) $zip_path),
+        'cleanup_zip' => true,
+        'uploaded_file' => true,
+    ]);
+
+    ll_tools_import_job_delete_path(ll_tools_import_chunk_upload_session_dir($upload_id));
+
+    if (is_wp_error($preview)) {
+        wp_send_json_error([
+            'message' => $preview->get_error_message(),
+        ], 500);
+    }
+
+    wp_send_json_success([
+        'previewToken' => isset($preview['preview_token']) ? (string) $preview['preview_token'] : '',
+        'redirectUrl' => isset($preview['redirect_url']) ? (string) $preview['redirect_url'] : '',
+    ]);
 }
 
 /**
@@ -8597,9 +8841,226 @@ function ll_tools_handle_undo_import() {
  *
  * @return string
  */
+function ll_tools_import_get_chunk_upload_size_bytes(): int {
+    $default_size = 4 * MB_IN_BYTES;
+    $minimum_size = 64 * KB_IN_BYTES;
+    $limits = [];
+
+    if (function_exists('wp_max_upload_size')) {
+        $limits[] = (int) wp_max_upload_size();
+    }
+
+    foreach (['upload_max_filesize', 'post_max_size'] as $ini_key) {
+        $raw_limit = (string) ini_get($ini_key);
+        if ($raw_limit === '') {
+            continue;
+        }
+
+        $limits[] = function_exists('wp_convert_hr_to_bytes')
+            ? (int) wp_convert_hr_to_bytes($raw_limit)
+            : (int) $raw_limit;
+    }
+
+    $limits = array_values(array_filter(array_map('intval', $limits), static function (int $limit): bool {
+        return $limit > 0;
+    }));
+
+    $ceiling = !empty($limits) ? min($limits) : 0;
+    $chunk_size = $default_size;
+    if ($ceiling > 0) {
+        $chunk_size = min($chunk_size, max($minimum_size, (int) floor($ceiling * 0.75)));
+        $chunk_size = min($chunk_size, $ceiling);
+    }
+
+    $chunk_size = (int) apply_filters('ll_tools_import_chunk_upload_size_bytes', $chunk_size, $ceiling);
+    if ($ceiling > 0) {
+        $chunk_size = min($chunk_size, $ceiling);
+    }
+
+    return max($minimum_size, $chunk_size);
+}
+
 function ll_tools_get_import_dir() {
     $upload_dir = wp_upload_dir();
     return trailingslashit($upload_dir['basedir']) . 'll-tools-imports';
+}
+
+function ll_tools_get_import_staging_dir(): string {
+    return trailingslashit(ll_tools_get_import_dir()) . '_staged';
+}
+
+function ll_tools_get_import_chunk_upload_session_root(): string {
+    return trailingslashit(ll_tools_get_import_staging_dir()) . 'chunk-upload-sessions';
+}
+
+function ll_tools_get_import_chunk_upload_zip_root(): string {
+    return trailingslashit(ll_tools_get_import_staging_dir()) . 'chunk-upload-zips';
+}
+
+function ll_tools_ensure_import_chunk_upload_dirs(): bool {
+    return ll_tools_ensure_import_dir(ll_tools_get_import_chunk_upload_session_root())
+        && ll_tools_ensure_import_dir(ll_tools_get_import_chunk_upload_zip_root());
+}
+
+function ll_tools_import_chunk_upload_session_dir(string $upload_id): string {
+    return trailingslashit(ll_tools_get_import_chunk_upload_session_root()) . sanitize_file_name($upload_id);
+}
+
+function ll_tools_import_chunk_upload_meta_path(string $upload_id): string {
+    return trailingslashit(ll_tools_import_chunk_upload_session_dir($upload_id)) . 'meta.json';
+}
+
+function ll_tools_import_chunk_upload_chunk_path(string $upload_id, int $chunk_index): string {
+    return trailingslashit(ll_tools_import_chunk_upload_session_dir($upload_id)) . sprintf('chunk-%05d.part', max(0, $chunk_index));
+}
+
+function ll_tools_import_chunk_upload_get_session(string $upload_id) {
+    $upload_id = sanitize_file_name($upload_id);
+    if ($upload_id === '') {
+        return new WP_Error('ll_tools_import_chunk_upload_missing', __('The upload session could not be found.', 'll-tools-text-domain'));
+    }
+
+    $meta = ll_tools_import_job_read_json_file(ll_tools_import_chunk_upload_meta_path($upload_id));
+    if (is_wp_error($meta)) {
+        return $meta;
+    }
+
+    $created_by = isset($meta['created_by']) ? (int) $meta['created_by'] : 0;
+    $current_user_id = (int) get_current_user_id();
+    if ($created_by > 0 && $current_user_id > 0 && $created_by !== $current_user_id) {
+        return new WP_Error('ll_tools_import_chunk_upload_forbidden', __('That upload session belongs to another user.', 'll-tools-text-domain'));
+    }
+
+    return $meta;
+}
+
+function ll_tools_import_chunk_upload_cleanup_stale_artifacts(): void {
+    $ttl_seconds = max(HOUR_IN_SECONDS, (int) apply_filters('ll_tools_import_chunk_upload_ttl_seconds', DAY_IN_SECONDS));
+    $cutoff = time() - $ttl_seconds;
+
+    foreach ([ll_tools_get_import_chunk_upload_session_root(), ll_tools_get_import_chunk_upload_zip_root()] as $root) {
+        if (!is_dir($root)) {
+            continue;
+        }
+
+        try {
+            foreach (new DirectoryIterator($root) as $item) {
+                if ($item->isDot()) {
+                    continue;
+                }
+
+                $pathname = (string) $item->getPathname();
+                $mtime = (int) $item->getMTime();
+                if ($mtime <= 0 || $mtime >= $cutoff) {
+                    continue;
+                }
+
+                ll_tools_import_job_delete_path($pathname);
+            }
+        } catch (Exception $e) {
+            continue;
+        }
+    }
+}
+
+function ll_tools_import_chunk_upload_move_uploaded_file(string $tmp_name, string $destination): bool {
+    if ($tmp_name === '' || $destination === '') {
+        return false;
+    }
+
+    $destination_dir = dirname($destination);
+    if (!is_dir($destination_dir) && !wp_mkdir_p($destination_dir)) {
+        return false;
+    }
+
+    if (is_uploaded_file($tmp_name) && @move_uploaded_file($tmp_name, $destination)) {
+        return true;
+    }
+
+    if (@rename($tmp_name, $destination)) {
+        return true;
+    }
+
+    if (@copy($tmp_name, $destination)) {
+        @unlink($tmp_name);
+        return true;
+    }
+
+    return false;
+}
+
+function ll_tools_import_chunk_upload_build_final_zip_path(string $upload_id, string $source_name): string {
+    $zip_root = ll_tools_get_import_chunk_upload_zip_root();
+    if (!is_dir($zip_root)) {
+        wp_mkdir_p($zip_root);
+    }
+    $source_name = sanitize_file_name($source_name);
+    $stem = sanitize_file_name((string) pathinfo($source_name, PATHINFO_FILENAME));
+    if ($stem === '') {
+        $stem = 'll-tools-import-upload';
+    }
+
+    $filename = $stem . '-' . substr(sanitize_file_name($upload_id), 0, 8) . '.zip';
+    $filename = wp_unique_filename($zip_root, $filename);
+
+    return trailingslashit($zip_root) . $filename;
+}
+
+function ll_tools_import_chunk_upload_assemble_zip(array $session) {
+    $upload_id = sanitize_file_name((string) ($session['upload_id'] ?? ''));
+    $total_chunks = max(1, (int) ($session['total_chunks'] ?? 0));
+    $source_name = sanitize_file_name((string) ($session['filename'] ?? ''));
+    if ($upload_id === '') {
+        return new WP_Error('ll_tools_import_chunk_upload_missing', __('The upload session could not be found.', 'll-tools-text-domain'));
+    }
+
+    $zip_path = ll_tools_import_chunk_upload_build_final_zip_path($upload_id, $source_name);
+    $out = @fopen($zip_path, 'wb');
+    if ($out === false) {
+        return new WP_Error('ll_tools_import_chunk_upload_write_failed', __('Could not create the staged zip file.', 'll-tools-text-domain'));
+    }
+
+    $assembled_size = 0;
+    try {
+        for ($chunk_index = 0; $chunk_index < $total_chunks; $chunk_index++) {
+            $chunk_path = ll_tools_import_chunk_upload_chunk_path($upload_id, $chunk_index);
+            if (!is_file($chunk_path)) {
+                return new WP_Error(
+                    'll_tools_import_chunk_upload_missing_chunk',
+                    sprintf(
+                        /* translators: %d chunk number */
+                        __('Upload chunk %d is missing.', 'll-tools-text-domain'),
+                        $chunk_index + 1
+                    )
+                );
+            }
+
+            $in = @fopen($chunk_path, 'rb');
+            if ($in === false) {
+                return new WP_Error('ll_tools_import_chunk_upload_read_failed', __('One of the uploaded chunks could not be read.', 'll-tools-text-domain'));
+            }
+
+            try {
+                $copied = stream_copy_to_stream($in, $out);
+                if ($copied === false) {
+                    return new WP_Error('ll_tools_import_chunk_upload_write_failed', __('Could not assemble the uploaded zip file.', 'll-tools-text-domain'));
+                }
+                $assembled_size += (int) $copied;
+            } finally {
+                fclose($in);
+            }
+        }
+    } finally {
+        fclose($out);
+    }
+
+    $expected_size = max(0, (int) ($session['total_size'] ?? 0));
+    if ($expected_size > 0 && $assembled_size !== $expected_size) {
+        @unlink($zip_path);
+        return new WP_Error('ll_tools_import_chunk_upload_size_mismatch', __('The assembled zip size did not match the original upload.', 'll-tools-text-domain'));
+    }
+
+    return $zip_path;
 }
 
 /**

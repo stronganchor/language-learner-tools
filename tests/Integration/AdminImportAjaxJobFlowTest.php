@@ -15,6 +15,9 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
     /** @var array<string,mixed> */
     private $requestBackup = [];
 
+    /** @var array<string,mixed> */
+    private $filesBackup = [];
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -22,6 +25,7 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         $this->getBackup = $_GET;
         $this->postBackup = $_POST;
         $this->requestBackup = $_REQUEST;
+        $this->filesBackup = $_FILES;
     }
 
     protected function tearDown(): void
@@ -30,7 +34,132 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         $_GET = $this->getBackup;
         $_POST = $this->postBackup;
         $_REQUEST = $this->requestBackup;
+        $_FILES = $this->filesBackup;
         parent::tearDown();
+    }
+
+    public function test_ajax_chunked_preview_upload_creates_preview_from_staged_zip(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is not available in this test environment.');
+        }
+
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $bundle = $this->createMinimalServerImportBundleZip();
+        $zipPath = (string) ($bundle['zip_path'] ?? '');
+        $zipFilename = (string) ($bundle['zip_filename'] ?? '');
+        $categorySlug = (string) ($bundle['category_slug'] ?? '');
+        $this->assertNotSame('', $zipPath);
+        $this->assertNotSame('', $zipFilename);
+        $this->assertNotSame('', $categorySlug);
+
+        $zipBytes = file_get_contents($zipPath);
+        $this->assertIsString($zipBytes);
+        $this->assertNotSame('', $zipBytes);
+
+        $totalSize = strlen($zipBytes);
+        $chunkSize = max(1, (int) ceil($totalSize / 2));
+        $chunks = str_split($zipBytes, $chunkSize);
+        $this->assertGreaterThanOrEqual(2, count($chunks));
+
+        $previewToken = '';
+        $stagedZipPath = '';
+        $uploadId = '';
+
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_FILES = [];
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                'action' => 'll_tools_import_preview_upload_start',
+                'filename' => $zipFilename,
+                'total_size' => (string) $totalSize,
+                'total_chunks' => (string) count($chunks),
+            ];
+            $_REQUEST = $_POST;
+            $startResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_preview_upload_start();
+            });
+
+            $this->assertTrue($startResponse['success']);
+            $uploadId = (string) ($startResponse['data']['uploadId'] ?? '');
+            $this->assertNotSame('', $uploadId);
+
+            foreach ($chunks as $index => $chunkBytes) {
+                $chunkTmpPath = wp_tempnam('ll-tools-import-upload-chunk-' . $index . '.part');
+                $this->assertIsString($chunkTmpPath);
+                $this->assertNotSame('', $chunkTmpPath);
+                file_put_contents($chunkTmpPath, $chunkBytes);
+
+                $_FILES = [
+                    'll_import_chunk' => [
+                        'name' => 'chunk-' . $index . '.part',
+                        'type' => 'application/octet-stream',
+                        'tmp_name' => $chunkTmpPath,
+                        'error' => UPLOAD_ERR_OK,
+                        'size' => strlen($chunkBytes),
+                    ],
+                ];
+                $_POST = [
+                    'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                    'action' => 'll_tools_import_preview_upload_chunk',
+                    'upload_id' => $uploadId,
+                    'chunk_index' => (string) $index,
+                    'total_chunks' => (string) count($chunks),
+                ];
+                $_REQUEST = $_POST;
+
+                $chunkResponse = $this->run_json_endpoint(static function (): void {
+                    ll_tools_ajax_import_preview_upload_chunk();
+                });
+
+                $this->assertTrue($chunkResponse['success']);
+                $this->assertSame($index, (int) ($chunkResponse['data']['chunkIndex'] ?? -1));
+            }
+
+            $_FILES = [];
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                'action' => 'll_tools_import_preview_upload_finish',
+                'upload_id' => $uploadId,
+            ];
+            $_REQUEST = $_POST;
+            $finishResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_preview_upload_finish();
+            });
+
+            $this->assertTrue($finishResponse['success']);
+            $previewToken = (string) ($finishResponse['data']['previewToken'] ?? '');
+            $this->assertNotSame('', $previewToken);
+            $this->assertStringContainsString('ll_import_preview=' . rawurlencode($previewToken), (string) ($finishResponse['data']['redirectUrl'] ?? ''));
+
+            $previewTransient = get_transient(ll_tools_import_preview_transient_key($previewToken));
+            $this->assertIsArray($previewTransient);
+            $this->assertSame('uploaded', (string) ($previewTransient['source_type'] ?? ''));
+            $this->assertSame($zipFilename, (string) ($previewTransient['zip_name'] ?? ''));
+            $this->assertTrue((bool) ($previewTransient['cleanup_zip'] ?? false));
+            $this->assertSame(1, (int) (($previewTransient['summary'] ?? [])['categories'] ?? 0));
+            $this->assertStringContainsString('Import AJAX Job Category', (string) implode(' ', (array) ($previewTransient['category_names'] ?? [])));
+
+            $stagedZipPath = (string) ($previewTransient['zip_path'] ?? '');
+            $this->assertNotSame('', $stagedZipPath);
+            $this->assertFileExists($stagedZipPath);
+            $this->assertFalse(file_exists(ll_tools_import_chunk_upload_session_dir($uploadId)));
+        } finally {
+            if ($previewToken !== '') {
+                delete_transient(ll_tools_import_preview_transient_key($previewToken));
+            }
+            if ($stagedZipPath !== '' && file_exists($stagedZipPath)) {
+                @unlink($stagedZipPath);
+            }
+            if ($uploadId !== '' && file_exists(ll_tools_import_chunk_upload_session_dir($uploadId))) {
+                ll_tools_import_job_delete_path(ll_tools_import_chunk_upload_session_dir($uploadId));
+            }
+            @unlink($zipPath);
+            $_FILES = [];
+        }
     }
 
     public function test_ajax_import_job_runs_in_multiple_batches_and_completes(): void
