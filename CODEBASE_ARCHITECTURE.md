@@ -119,6 +119,7 @@ includes/
     editor-hub-shortcode.php
     word-audio-shortcode.php
     wordset-page-shortcode.php
+    wordset-buttons-shortcode.php
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
@@ -257,6 +258,7 @@ Core settings live in `includes/admin/settings.php`:
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
 - `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
+- `[wordset_buttons]` / `[ll_wordset_buttons]` (`includes/shortcodes/wordset-buttons-shortcode.php`).
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).

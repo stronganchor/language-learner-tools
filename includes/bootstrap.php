@@ -128,6 +128,7 @@ require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
 require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
+require_once(__DIR__ . '/shortcodes/wordset-buttons-shortcode.php');
 require_once(__DIR__ . '/shortcodes/dictionary-shortcode.php');
 
 // Include the plugin update checker only on admin/cron/CLI requests.

@@ -685,6 +685,51 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     align-items: center;
 }
 
+.ll-wordset-page.ll-wordset-buttons-shortcode {
+    --ll-wordset-buttons-max-width: min(100%, 820px);
+    max-width: var(--ll-wordset-buttons-max-width);
+    margin-left: auto;
+    margin-right: auto;
+    min-height: 0;
+    padding: clamp(8px, 2vw, 18px) 0;
+}
+
+.ll-wordset-buttons-shortcode__list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    list-style: none !important;
+}
+
+.ll-wordset-buttons-shortcode__item {
+    display: flex;
+}
+
+.ll-wordset-page .ll-wordset-buttons-shortcode__button {
+    min-width: min(100%, 220px) !important;
+    width: auto !important;
+    max-width: min(100vw - 48px, 320px) !important;
+    text-align: center !important;
+    white-space: normal !important;
+}
+
+@media (max-width: 640px) {
+    .ll-wordset-buttons-shortcode__list {
+        gap: 10px;
+    }
+
+    .ll-wordset-buttons-shortcode__item {
+        width: min(100%, 360px);
+    }
+
+    .ll-wordset-page .ll-wordset-buttons-shortcode__button {
+        width: 100% !important;
+        max-width: none !important;
+    }
+}
+
 .ll-wordset-page .ll-study-btn,
 .ll-wordset-page .ll-vocab-lesson-mode-button {
     display: inline-flex !important;
