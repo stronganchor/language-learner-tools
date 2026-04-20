@@ -7969,8 +7969,61 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-transform: uppercase;
 }
 
-.ll-teacher-classes__table tbody tr:last-child td {
-    border-bottom: none;
+.ll-teacher-classes__table-head--sortable {
+    padding-block: 0.5rem;
+}
+
+.ll-teacher-classes__sort-button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.42rem;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: 1.1;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+    text-transform: inherit;
+}
+
+.ll-teacher-classes__sort-button:hover,
+.ll-teacher-classes__sort-button:focus,
+.ll-teacher-classes__sort-button:focus-visible {
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+    outline: none;
+}
+
+.ll-teacher-classes__sort-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 0.9rem;
+    min-width: 0.9rem;
+    color: rgba(35, 29, 21, 0.42);
+    font-size: 0.82rem;
+    line-height: 1;
+}
+
+.ll-teacher-classes__table-head--sortable[aria-sort="ascending"] .ll-teacher-classes__sort-indicator::before {
+    content: "\2191";
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+}
+
+.ll-teacher-classes__table-head--sortable[aria-sort="descending"] .ll-teacher-classes__sort-indicator::before {
+    content: "\2193";
+    color: var(--ll-wp-pill-blue-text, #1d4d99);
+}
+
+.ll-teacher-classes__table-head--sortable[aria-sort="none"] .ll-teacher-classes__sort-indicator::before,
+.ll-teacher-classes__sort-indicator::before {
+    content: "\2195";
 }
 
 .ll-teacher-classes__table a,

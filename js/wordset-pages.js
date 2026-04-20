@@ -307,6 +307,134 @@
         }, 1600);
     }
 
+    function bindTeacherClassesInteractions() {
+        const tables = Array.from($root[0].querySelectorAll('[data-ll-teacher-classes-progress-table]'));
+        if (!tables.length) {
+            return;
+        }
+
+        tables.forEach(function (table) {
+            const tbody = table.tBodies && table.tBodies[0];
+            const sortButtons = Array.from(table.querySelectorAll('[data-ll-teacher-classes-sort]'));
+            if (!tbody || !sortButtons.length) {
+                return;
+            }
+
+            Array.from(tbody.rows).forEach(function (row, index) {
+                row.setAttribute('data-ll-teacher-classes-row-index', String(index));
+            });
+
+            function updateSortState(activeButton, direction) {
+                sortButtons.forEach(function (button) {
+                    const th = button.closest('th');
+                    if (!th) { return; }
+                    const isActive = button === activeButton;
+                    th.setAttribute('aria-sort', isActive
+                        ? (direction === 'desc' ? 'descending' : 'ascending')
+                        : 'none');
+                    button.classList.toggle('is-active', isActive);
+                    if (isActive) {
+                        button.setAttribute('data-sort-direction', direction);
+                    } else {
+                        button.removeAttribute('data-sort-direction');
+                    }
+                });
+            }
+
+            function getCellValue(row, cellIndex, type) {
+                const cell = row && row.cells ? row.cells[cellIndex] : null;
+                const raw = cell
+                    ? String(cell.getAttribute('data-sort-value') || cell.textContent || '').trim()
+                    : '';
+
+                if (type === 'number') {
+                    const numberValue = parseFloat(raw);
+                    return Number.isFinite(numberValue) ? numberValue : null;
+                }
+
+                return raw;
+            }
+
+            function compareRows(leftRow, rightRow, cellIndex, type, direction) {
+                const leftValue = getCellValue(leftRow, cellIndex, type);
+                const rightValue = getCellValue(rightRow, cellIndex, type);
+                const leftEmpty = (leftValue === null) || (leftValue === '');
+                const rightEmpty = (rightValue === null) || (rightValue === '');
+
+                if (leftEmpty || rightEmpty) {
+                    if (leftEmpty && rightEmpty) {
+                        return 0;
+                    }
+                    return leftEmpty ? 1 : -1;
+                }
+
+                let result = 0;
+                if (type === 'number') {
+                    result = (leftValue === rightValue) ? 0 : (leftValue < rightValue ? -1 : 1);
+                } else {
+                    result = localeTextCompare(leftValue, rightValue, {
+                        numeric: true,
+                        sensitivity: 'base'
+                    });
+                }
+
+                if (result === 0) {
+                    const leftIndex = parseInt(leftRow.getAttribute('data-ll-teacher-classes-row-index') || '0', 10) || 0;
+                    const rightIndex = parseInt(rightRow.getAttribute('data-ll-teacher-classes-row-index') || '0', 10) || 0;
+                    result = (leftIndex === rightIndex) ? 0 : (leftIndex < rightIndex ? -1 : 1);
+                }
+
+                return direction === 'desc' ? -result : result;
+            }
+
+            function sortTable(button, forceDirection) {
+                const th = button.closest('th');
+                if (!th) {
+                    return;
+                }
+
+                const sortKey = String(button.getAttribute('data-ll-teacher-classes-sort') || '');
+                const sortType = String(button.getAttribute('data-sort-type') || 'text');
+                const defaultDirection = (String(button.getAttribute('data-sort-default') || 'asc') === 'desc') ? 'desc' : 'asc';
+                const currentKey = String(table.getAttribute('data-sort-key') || '');
+                const currentDirection = String(table.getAttribute('data-sort-direction') || '');
+                const direction = forceDirection || ((currentKey === sortKey && currentDirection === 'asc') ? 'desc' : defaultDirection);
+                const rows = Array.from(tbody.rows);
+
+                rows.sort(function (leftRow, rightRow) {
+                    return compareRows(leftRow, rightRow, th.cellIndex, sortType, direction);
+                });
+
+                rows.forEach(function (row) {
+                    tbody.appendChild(row);
+                });
+
+                table.setAttribute('data-sort-key', sortKey);
+                table.setAttribute('data-sort-direction', direction);
+                updateSortState(button, direction);
+            }
+
+            sortButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    sortTable(button, '');
+                });
+            });
+
+            const initialButton = sortButtons.find(function (button) {
+                return button.getAttribute('data-sort-initial') === '1';
+            }) || null;
+
+            if (initialButton) {
+                sortTable(
+                    initialButton,
+                    String(initialButton.getAttribute('data-sort-default') || 'asc') === 'desc' ? 'desc' : 'asc'
+                );
+            } else {
+                updateSortState(null, 'asc');
+            }
+        });
+    }
+
     let progressMiniBurstCleanupTimer = null;
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
@@ -12379,6 +12507,10 @@
 
     if (view === 'games' && window.LLWordsetGames && typeof window.LLWordsetGames.init === 'function') {
         window.LLWordsetGames.init($root[0], cfg);
+    }
+
+    if (view === 'classes') {
+        bindTeacherClassesInteractions();
     }
 
     if (view === 'main') {

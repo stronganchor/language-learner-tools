@@ -7,6 +7,9 @@ if (!defined('LL_TOOLS_TEACHER_CLASS_POST_TYPE')) {
 if (!defined('LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META')) {
     define('LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META', '_ll_teacher_class_student_ids');
 }
+if (!defined('LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META')) {
+    define('LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META', '_ll_teacher_class_wordset_id');
+}
 if (!defined('LL_TOOLS_STUDENT_CLASS_IDS_META')) {
     define('LL_TOOLS_STUDENT_CLASS_IDS_META', 'll_tools_teacher_class_ids');
 }
@@ -92,6 +95,146 @@ if (!function_exists('ll_tools_teacher_class_get_name')) {
         }
 
         return sanitize_text_field((string) $class_post->post_title);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_available_wordsets')) {
+    function ll_tools_teacher_class_get_available_wordsets(): array {
+        $terms = get_terms([
+            'taxonomy' => 'wordset',
+            'hide_empty' => false,
+            'orderby' => 'name',
+            'order' => 'ASC',
+        ]);
+
+        if (is_wp_error($terms) || !is_array($terms)) {
+            return [];
+        }
+
+        return array_values(array_filter($terms, static function ($term): bool {
+            return ($term instanceof WP_Term) && !is_wp_error($term);
+        }));
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_is_valid_wordset_id')) {
+    function ll_tools_teacher_class_is_valid_wordset_id(int $wordset_id): bool {
+        if ($wordset_id <= 0) {
+            return false;
+        }
+
+        $term = get_term($wordset_id, 'wordset');
+        return ($term instanceof WP_Term) && !is_wp_error($term);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_single_wordset_id')) {
+    function ll_tools_teacher_class_get_single_wordset_id(): int {
+        $wordsets = ll_tools_teacher_class_get_available_wordsets();
+        if (count($wordsets) !== 1 || !($wordsets[0] instanceof WP_Term)) {
+            return 0;
+        }
+
+        return max(0, (int) $wordsets[0]->term_id);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_resolve_wordset_id')) {
+    function ll_tools_teacher_class_resolve_wordset_id($wordset = 0): int {
+        if ($wordset instanceof WP_Term) {
+            return ($wordset->taxonomy === 'wordset')
+                ? max(0, (int) $wordset->term_id)
+                : 0;
+        }
+
+        if (is_numeric($wordset)) {
+            $wordset_id = max(0, (int) $wordset);
+            if (ll_tools_teacher_class_is_valid_wordset_id($wordset_id)) {
+                return $wordset_id;
+            }
+        } elseif (is_string($wordset)) {
+            $candidate = trim($wordset);
+            if ($candidate !== '') {
+                $term = get_term_by('slug', sanitize_title($candidate), 'wordset');
+                if (!($term instanceof WP_Term) || is_wp_error($term)) {
+                    $term = get_term_by('name', $candidate, 'wordset');
+                }
+                if (($term instanceof WP_Term) && !is_wp_error($term)) {
+                    return max(0, (int) $term->term_id);
+                }
+            }
+        }
+
+        return ll_tools_teacher_class_get_single_wordset_id();
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_require_wordset_id')) {
+    function ll_tools_teacher_class_require_wordset_id($wordset = 0) {
+        $resolved_wordset_id = ll_tools_teacher_class_resolve_wordset_id($wordset);
+        if ($resolved_wordset_id > 0) {
+            return $resolved_wordset_id;
+        }
+
+        $available_wordsets = ll_tools_teacher_class_get_available_wordsets();
+        if (empty($available_wordsets)) {
+            return new WP_Error('missing_wordset', __('Create a word set before creating a class.', 'll-tools-text-domain'));
+        }
+
+        return new WP_Error('missing_wordset', __('Select a word set for this class.', 'll-tools-text-domain'));
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_wordset_id')) {
+    function ll_tools_teacher_class_get_wordset_id(int $class_id): int {
+        if (!ll_tools_teacher_class_exists($class_id)) {
+            return 0;
+        }
+
+        $stored_wordset_id = max(0, (int) get_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META, true));
+        if (ll_tools_teacher_class_is_valid_wordset_id($stored_wordset_id)) {
+            return $stored_wordset_id;
+        }
+
+        return ll_tools_teacher_class_get_single_wordset_id();
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_wordset_term')) {
+    function ll_tools_teacher_class_get_wordset_term(int $class_id): ?WP_Term {
+        $wordset_id = ll_tools_teacher_class_get_wordset_id($class_id);
+        if ($wordset_id <= 0) {
+            return null;
+        }
+
+        $term = get_term($wordset_id, 'wordset');
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            return null;
+        }
+
+        return $term;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_wordset_name')) {
+    function ll_tools_teacher_class_get_wordset_name(int $class_id): string {
+        $wordset_term = ll_tools_teacher_class_get_wordset_term($class_id);
+        if (!($wordset_term instanceof WP_Term)) {
+            return '';
+        }
+
+        return sanitize_text_field((string) $wordset_term->name);
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_matches_wordset')) {
+    function ll_tools_teacher_class_matches_wordset(int $class_id, int $wordset_id): bool {
+        $wordset_id = max(0, $wordset_id);
+        if ($wordset_id <= 0) {
+            return true;
+        }
+
+        return ll_tools_teacher_class_get_wordset_id($class_id) === $wordset_id;
     }
 }
 
@@ -183,7 +326,7 @@ if (!function_exists('ll_tools_teacher_class_user_can_be_teacher')) {
 }
 
 if (!function_exists('ll_tools_teacher_class_create')) {
-    function ll_tools_teacher_class_create(int $teacher_user_id, string $class_name) {
+    function ll_tools_teacher_class_create(int $teacher_user_id, string $class_name, int $wordset_id = 0) {
         $teacher_user_id = max(0, $teacher_user_id);
         $class_name = sanitize_text_field($class_name);
 
@@ -193,6 +336,11 @@ if (!function_exists('ll_tools_teacher_class_create')) {
 
         if ($class_name === '') {
             return new WP_Error('empty_name', __('Please enter a class name.', 'll-tools-text-domain'));
+        }
+
+        $resolved_wordset_id = ll_tools_teacher_class_require_wordset_id($wordset_id);
+        if (is_wp_error($resolved_wordset_id)) {
+            return $resolved_wordset_id;
         }
 
         $teacher_user = get_userdata($teacher_user_id);
@@ -219,6 +367,7 @@ if (!function_exists('ll_tools_teacher_class_create')) {
         }
 
         update_post_meta((int) $class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, []);
+        update_post_meta((int) $class_id, LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META, (int) $resolved_wordset_id);
         return (int) $class_id;
     }
 }
@@ -273,7 +422,7 @@ if (!function_exists('ll_tools_teacher_class_assign_teacher')) {
 }
 
 if (!function_exists('ll_tools_teacher_classes_for_user')) {
-    function ll_tools_teacher_classes_for_user(int $user_id = 0): array {
+    function ll_tools_teacher_classes_for_user(int $user_id = 0, int $wordset_id = 0): array {
         $uid = (int) ($user_id ?: get_current_user_id());
         if ($uid <= 0) {
             return [];
@@ -298,8 +447,14 @@ if (!function_exists('ll_tools_teacher_classes_for_user')) {
             return [];
         }
 
-        return array_values(array_filter($posts, static function ($post): bool {
-            return $post instanceof WP_Post;
+        return array_values(array_filter($posts, static function ($post) use ($wordset_id): bool {
+            if (!($post instanceof WP_Post)) {
+                return false;
+            }
+
+            return ($wordset_id <= 0)
+                ? true
+                : ll_tools_teacher_class_matches_wordset((int) $post->ID, $wordset_id);
         }));
     }
 }
@@ -446,6 +601,7 @@ if (!function_exists('ll_tools_teacher_class_delete')) {
         }
 
         delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META);
+        delete_post_meta($class_id, LL_TOOLS_TEACHER_CLASS_WORDSET_ID_META);
         $deleted = wp_delete_post($class_id, true);
         if (!($deleted instanceof WP_Post)) {
             return new WP_Error('delete_failed', __('The class could not be deleted.', 'll-tools-text-domain'));
@@ -511,7 +667,7 @@ if (!function_exists('ll_tools_teacher_class_user_option_label')) {
 }
 
 if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
-    function ll_tools_teacher_class_student_progress_rows(array $student_ids): array {
+    function ll_tools_teacher_class_student_progress_rows(array $student_ids, int $wordset_id = 0): array {
         $student_ids = array_values(array_filter(array_map('intval', $student_ids), static function (int $user_id): bool {
             return $user_id > 0;
         }));
@@ -528,8 +684,13 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
             return [];
         }
 
+        $resolved_wordset_id = ll_tools_teacher_class_resolve_wordset_id($wordset_id);
+        $resolved_wordset_name = ($resolved_wordset_id > 0 && function_exists('ll_tools_user_progress_report_wordset_name'))
+            ? ll_tools_user_progress_report_wordset_name($resolved_wordset_id)
+            : '';
+
         $stats = function_exists('ll_tools_user_progress_report_stats_for_users')
-            ? ll_tools_user_progress_report_stats_for_users($student_ids, 0)
+            ? ll_tools_user_progress_report_stats_for_users($student_ids, $resolved_wordset_id)
             : [];
 
         $rows = [];
@@ -540,16 +701,18 @@ if (!function_exists('ll_tools_teacher_class_student_progress_rows')) {
 
             $user_id = (int) $user->ID;
             $row_stats = isset($stats[$user_id]) && is_array($stats[$user_id]) ? $stats[$user_id] : [];
-            $current_wordset_id = function_exists('ll_tools_user_progress_report_user_wordset_id')
-                ? ll_tools_user_progress_report_user_wordset_id($user_id)
-                : 0;
+            $current_wordset_name = $resolved_wordset_name;
+            if ($current_wordset_name === '' && function_exists('ll_tools_user_progress_report_user_wordset_id')) {
+                $current_wordset_id = ll_tools_user_progress_report_user_wordset_id($user_id);
+                $current_wordset_name = function_exists('ll_tools_user_progress_report_wordset_name')
+                    ? ll_tools_user_progress_report_wordset_name($current_wordset_id)
+                    : '';
+            }
 
             $rows[] = [
                 'user' => $user,
                 'stats' => $row_stats,
-                'current_wordset_name' => function_exists('ll_tools_user_progress_report_wordset_name')
-                    ? ll_tools_user_progress_report_wordset_name($current_wordset_id)
-                    : '',
+                'wordset_name' => $current_wordset_name,
                 'last_activity' => function_exists('ll_tools_user_progress_report_last_activity')
                     ? ll_tools_user_progress_report_last_activity($row_stats)
                     : '',
@@ -762,9 +925,20 @@ if (!function_exists('ll_tools_teacher_class_parse_invite_token')) {
 
 if (!function_exists('ll_tools_teacher_class_get_invite_landing_url')) {
     function ll_tools_teacher_class_get_invite_landing_url(int $class_id = 0): string {
-        $url = function_exists('ll_tools_get_learner_redirect_url')
-            ? ll_tools_get_learner_redirect_url()
-            : home_url('/');
+        $url = '';
+        $wordset_term = ($class_id > 0)
+            ? ll_tools_teacher_class_get_wordset_term($class_id)
+            : null;
+
+        if (($wordset_term instanceof WP_Term) && function_exists('ll_tools_get_wordset_page_view_url')) {
+            $url = (string) ll_tools_get_wordset_page_view_url($wordset_term);
+        }
+
+        if ($url === '') {
+            $url = function_exists('ll_tools_get_learner_redirect_url')
+                ? ll_tools_get_learner_redirect_url()
+                : home_url('/');
+        }
 
         return (string) wp_validate_redirect($url, home_url('/'));
     }

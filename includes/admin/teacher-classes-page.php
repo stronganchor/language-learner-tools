@@ -147,6 +147,9 @@ if (!function_exists('ll_tools_handle_teacher_class_create_action')) {
         $class_name = isset($_POST['ll_tools_teacher_class_name'])
             ? sanitize_text_field((string) wp_unslash($_POST['ll_tools_teacher_class_name']))
             : '';
+        $wordset_id = isset($_POST['ll_tools_teacher_class_wordset_id'])
+            ? max(0, (int) wp_unslash((string) $_POST['ll_tools_teacher_class_wordset_id']))
+            : 0;
         $teacher_user_id = get_current_user_id();
 
         if (current_user_can('manage_options')) {
@@ -156,7 +159,7 @@ if (!function_exists('ll_tools_handle_teacher_class_create_action')) {
         }
 
         $result = function_exists('ll_tools_teacher_class_create')
-            ? ll_tools_teacher_class_create($teacher_user_id, $class_name)
+            ? ll_tools_teacher_class_create($teacher_user_id, $class_name, $wordset_id)
             : new WP_Error('missing_helper', __('Class creation is currently unavailable.', 'll-tools-text-domain'));
 
         $redirect_url = ll_tools_teacher_classes_requested_redirect_url(ll_tools_get_teacher_classes_page_url());
@@ -470,6 +473,12 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
         $classes = function_exists('ll_tools_teacher_classes_for_user')
             ? ll_tools_teacher_classes_for_user(get_current_user_id())
             : [];
+        $available_wordsets = function_exists('ll_tools_teacher_class_get_available_wordsets')
+            ? ll_tools_teacher_class_get_available_wordsets()
+            : [];
+        $single_wordset_id = function_exists('ll_tools_teacher_class_get_single_wordset_id')
+            ? ll_tools_teacher_class_get_single_wordset_id()
+            : 0;
         $selected_class_id = isset($_GET['class_id'])
             ? max(0, (int) wp_unslash((string) $_GET['class_id']))
             : 0;
@@ -485,11 +494,17 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
         $selected_class = ($selected_class_id > 0 && function_exists('ll_tools_get_teacher_class'))
             ? ll_tools_get_teacher_class($selected_class_id)
             : null;
+        $selected_class_wordset_term = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_wordset_term'))
+            ? ll_tools_teacher_class_get_wordset_term((int) $selected_class->ID)
+            : null;
+        $selected_class_wordset_id = ($selected_class_wordset_term instanceof WP_Term)
+            ? max(0, (int) $selected_class_wordset_term->term_id)
+            : 0;
         $student_ids = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_student_ids'))
             ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
             : [];
         $student_rows = function_exists('ll_tools_teacher_class_student_progress_rows')
-            ? ll_tools_teacher_class_student_progress_rows($student_ids)
+            ? ll_tools_teacher_class_student_progress_rows($student_ids, $selected_class_wordset_id)
             : [];
         $selected_teacher_user = ($selected_class instanceof WP_Post)
             ? get_userdata((int) $selected_class->post_author)
@@ -522,49 +537,84 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
 
             <div class="card" style="max-width: 720px;">
                 <h2><?php esc_html_e('Create a class', 'll-tools-text-domain'); ?></h2>
-                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <input type="hidden" name="action" value="ll_tools_teacher_create_class" />
-                    <?php wp_nonce_field('ll_tools_teacher_create_class'); ?>
-                    <table class="form-table" role="presentation">
-                        <tr>
-                            <th scope="row">
-                                <label for="ll-tools-teacher-class-name"><?php esc_html_e('Class name', 'll-tools-text-domain'); ?></label>
-                            </th>
-                            <td>
-                                <input
-                                    type="text"
-                                    id="ll-tools-teacher-class-name"
-                                    name="ll_tools_teacher_class_name"
-                                    class="regular-text"
-                                    required />
-                                <p class="description"><?php esc_html_e('Use a short label that learners will recognize in invitation emails.', 'll-tools-text-domain'); ?></p>
-                            </td>
-                        </tr>
-                        <?php if ($can_directly_assign_teachers && !empty($assignable_teachers)) : ?>
+                <?php if (empty($available_wordsets)) : ?>
+                    <p><?php esc_html_e('Create a word set before creating classes.', 'll-tools-text-domain'); ?></p>
+                <?php else : ?>
+                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="ll_tools_teacher_create_class" />
+                        <?php wp_nonce_field('ll_tools_teacher_create_class'); ?>
+                        <table class="form-table" role="presentation">
                             <tr>
                                 <th scope="row">
-                                    <label for="ll-tools-teacher-class-teacher-user-id"><?php esc_html_e('Teacher', 'll-tools-text-domain'); ?></label>
+                                    <label for="ll-tools-teacher-class-name"><?php esc_html_e('Class name', 'll-tools-text-domain'); ?></label>
                                 </th>
                                 <td>
-                                    <select
-                                        id="ll-tools-teacher-class-teacher-user-id"
-                                        name="ll_tools_teacher_class_teacher_user_id"
+                                    <input
+                                        type="text"
+                                        id="ll-tools-teacher-class-name"
+                                        name="ll_tools_teacher_class_name"
                                         class="regular-text"
-                                        required>
-                                        <?php foreach ($assignable_teachers as $assignable_teacher) : ?>
-                                            <?php if (!($assignable_teacher instanceof WP_User)) { continue; } ?>
-                                            <option value="<?php echo esc_attr((string) $assignable_teacher->ID); ?>" <?php selected((int) $assignable_teacher->ID, get_current_user_id()); ?>>
-                                                <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_teacher)); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <p class="description"><?php esc_html_e('Administrators can create the class for any existing user. The selected user will receive the Teacher role automatically if needed.', 'll-tools-text-domain'); ?></p>
+                                        required />
+                                    <p class="description"><?php esc_html_e('Use a short label that learners will recognize in invitation emails.', 'll-tools-text-domain'); ?></p>
                                 </td>
                             </tr>
-                        <?php endif; ?>
-                    </table>
-                    <?php submit_button(__('Create class', 'll-tools-text-domain')); ?>
-                </form>
+                            <tr>
+                                <th scope="row">
+                                    <label for="ll-tools-teacher-class-wordset-id"><?php esc_html_e('Word set', 'll-tools-text-domain'); ?></label>
+                                </th>
+                                <td>
+                                    <?php if (count($available_wordsets) === 1 && ($single_wordset_id > 0) && ($available_wordsets[0] instanceof WP_Term)) : ?>
+                                        <input type="hidden" name="ll_tools_teacher_class_wordset_id" value="<?php echo esc_attr((string) $single_wordset_id); ?>" />
+                                        <input
+                                            type="text"
+                                            id="ll-tools-teacher-class-wordset-id"
+                                            class="regular-text"
+                                            value="<?php echo esc_attr((string) $available_wordsets[0]->name); ?>"
+                                            readonly />
+                                    <?php else : ?>
+                                        <select
+                                            id="ll-tools-teacher-class-wordset-id"
+                                            name="ll_tools_teacher_class_wordset_id"
+                                            class="regular-text"
+                                            required>
+                                            <option value=""><?php esc_html_e('Select a word set', 'll-tools-text-domain'); ?></option>
+                                            <?php foreach ($available_wordsets as $wordset_term) : ?>
+                                                <?php if (!($wordset_term instanceof WP_Term)) { continue; } ?>
+                                                <option value="<?php echo esc_attr((string) $wordset_term->term_id); ?>">
+                                                    <?php echo esc_html((string) $wordset_term->name); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    <?php endif; ?>
+                                    <p class="description"><?php esc_html_e('Each class tracks progress for one word set only.', 'll-tools-text-domain'); ?></p>
+                                </td>
+                            </tr>
+                            <?php if ($can_directly_assign_teachers && !empty($assignable_teachers)) : ?>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="ll-tools-teacher-class-teacher-user-id"><?php esc_html_e('Teacher', 'll-tools-text-domain'); ?></label>
+                                    </th>
+                                    <td>
+                                        <select
+                                            id="ll-tools-teacher-class-teacher-user-id"
+                                            name="ll_tools_teacher_class_teacher_user_id"
+                                            class="regular-text"
+                                            required>
+                                            <?php foreach ($assignable_teachers as $assignable_teacher) : ?>
+                                                <?php if (!($assignable_teacher instanceof WP_User)) { continue; } ?>
+                                                <option value="<?php echo esc_attr((string) $assignable_teacher->ID); ?>" <?php selected((int) $assignable_teacher->ID, get_current_user_id()); ?>>
+                                                    <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_teacher)); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <p class="description"><?php esc_html_e('Administrators can create the class for any existing user. The selected user will receive the Teacher role automatically if needed.', 'll-tools-text-domain'); ?></p>
+                                    </td>
+                                </tr>
+                            <?php endif; ?>
+                        </table>
+                        <?php submit_button(__('Create class', 'll-tools-text-domain')); ?>
+                    </form>
+                <?php endif; ?>
             </div>
 
             <?php if (empty($classes)) : ?>
@@ -579,6 +629,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <thead>
                     <tr>
                         <th><?php esc_html_e('Class', 'll-tools-text-domain'); ?></th>
+                        <th><?php esc_html_e('Word Set', 'll-tools-text-domain'); ?></th>
                         <?php if (current_user_can('manage_options')) : ?>
                             <th><?php esc_html_e('Teacher', 'll-tools-text-domain'); ?></th>
                         <?php endif; ?>
@@ -593,9 +644,13 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                         <?php
                         $class_id = (int) $class_post->ID;
                         $teacher_user = get_userdata((int) $class_post->post_author);
+                        $class_wordset_name = function_exists('ll_tools_teacher_class_get_wordset_name')
+                            ? ll_tools_teacher_class_get_wordset_name($class_id)
+                            : '';
                         ?>
                         <tr>
                             <td><?php echo esc_html($class_post->post_title); ?></td>
+                            <td><?php echo esc_html($class_wordset_name !== '' ? $class_wordset_name : __('Not set', 'll-tools-text-domain')); ?></td>
                             <?php if (current_user_can('manage_options')) : ?>
                                 <td><?php echo esc_html($teacher_user instanceof WP_User ? ($teacher_user->display_name ?: $teacher_user->user_login) : ''); ?></td>
                             <?php endif; ?>
@@ -632,26 +687,26 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                     <tr>
                         <th><?php esc_html_e('Teacher', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html($selected_teacher_user instanceof WP_User ? ll_tools_teacher_class_user_label($selected_teacher_user) : ''); ?></td>
+                        <th><?php esc_html_e('Word Set', 'll-tools-text-domain'); ?></th>
+                        <td><?php echo esc_html(($selected_class_wordset_term instanceof WP_Term) ? (string) $selected_class_wordset_term->name : __('Not set', 'll-tools-text-domain')); ?></td>
+                    </tr>
+                    <tr>
                         <th><?php esc_html_e('Students', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['students']); ?></td>
-                    </tr>
-                    <tr>
                         <th><?php esc_html_e('30d rounds', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['rounds_30d']); ?></td>
+                    </tr>
+                    <tr>
                         <th><?php esc_html_e('Studied words', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['studied_words']); ?></td>
-                    </tr>
-                    <tr>
                         <th><?php esc_html_e('Mastered words', 'll-tools-text-domain'); ?></th>
                         <td><?php echo esc_html((string) $summary['mastered_words']); ?></td>
-                        <th><?php esc_html_e('Hard words', 'll-tools-text-domain'); ?></th>
-                        <td><?php echo esc_html((string) $summary['hard_words']); ?></td>
                     </tr>
                     <tr>
+                        <th><?php esc_html_e('Hard words', 'll-tools-text-domain'); ?></th>
+                        <td><?php echo esc_html((string) $summary['hard_words']); ?></td>
                         <th><?php esc_html_e('Signup link', 'll-tools-text-domain'); ?></th>
                         <td><?php echo $signup_url !== '' ? esc_html__('Ready', 'll-tools-text-domain') : esc_html__('Unavailable', 'll-tools-text-domain'); ?></td>
-                        <th></th>
-                        <td></td>
                     </tr>
                 </tbody>
             </table>
@@ -749,7 +804,6 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                     <tr>
                         <th><?php esc_html_e('Learner', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Email', 'll-tools-text-domain'); ?></th>
-                        <th><?php esc_html_e('Current Word Set', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('30d Rounds', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Studied', 'll-tools-text-domain'); ?></th>
                         <th><?php esc_html_e('Mastered', 'll-tools-text-domain'); ?></th>
@@ -761,7 +815,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                 <tbody>
                     <?php if (empty($student_rows)) : ?>
                         <tr>
-                            <td colspan="9"><?php esc_html_e('No learners have joined this class yet.', 'll-tools-text-domain'); ?></td>
+                            <td colspan="8"><?php esc_html_e('No learners have joined this class yet.', 'll-tools-text-domain'); ?></td>
                         </tr>
                     <?php else : ?>
                         <?php foreach ($student_rows as $row) : ?>
@@ -775,7 +829,6 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                             <tr>
                                 <td><?php echo esc_html(ll_tools_teacher_class_user_label($user)); ?></td>
                                 <td><a href="mailto:<?php echo esc_attr($user->user_email); ?>"><?php echo esc_html($user->user_email); ?></a></td>
-                                <td><?php echo esc_html((string) ($row['current_wordset_name'] ?? '')); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['studied_words'] ?? 0))); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['mastered_words'] ?? 0))); ?></td>

@@ -215,7 +215,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'user_email' => 'learner-frontend@example.org',
         ]);
 
-        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Class');
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Class', (int) $wordset->term_id);
         $this->assertIsInt($class_id);
         $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
 
@@ -239,6 +239,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Copy link', $classesHtml);
         $this->assertStringContainsString('Student progress', $classesHtml);
         $this->assertStringContainsString('learner-frontend@example.org', $classesHtml);
+        $this->assertStringContainsString('data-ll-teacher-classes-sort="learner"', $classesHtml);
     }
 
     public function test_teacher_classes_view_renders_frontend_student_progress_stats(): void
@@ -274,7 +275,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             'user_email' => 'learner-progress@example.org',
         ]);
 
-        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Progress Class');
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Progress Class', $wordset_id);
         $this->assertIsInt($class_id);
         $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
 
@@ -355,6 +356,42 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('>11<', $classesHtml);
         $this->assertStringContainsString('>2<', $classesHtml);
         $this->assertStringContainsString('>1<', $classesHtml);
+    }
+
+    public function test_teacher_classes_view_only_lists_classes_for_the_current_wordset(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $term = wp_insert_term('Current Classes Wordset ' . wp_generate_password(6, false), 'wordset');
+        $other_term = wp_insert_term('Other Classes Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertFalse(is_wp_error($other_term));
+        $this->assertIsArray($term);
+        $this->assertIsArray($other_term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->setValidWordsetRewriteRules((string) $wordset->slug);
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-wordset-filter@example.org',
+        ]);
+
+        $visible_class_id = ll_tools_teacher_class_create($teacher_id, 'Visible Wordset Class', (int) $term['term_id']);
+        $hidden_class_id = ll_tools_teacher_class_create($teacher_id, 'Hidden Wordset Class', (int) $other_term['term_id']);
+        $this->assertIsInt($visible_class_id);
+        $this->assertIsInt($hidden_class_id);
+
+        wp_set_current_user($teacher_id);
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset, 'classes'));
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', 'classes');
+
+        $classesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+
+        $this->assertStringContainsString('Visible Wordset Class', $classesHtml);
+        $this->assertStringNotContainsString('Hidden Wordset Class', $classesHtml);
     }
 
     public function test_speaking_hidden_notice_is_only_returned_for_users_who_can_manage_wordset_settings(): void

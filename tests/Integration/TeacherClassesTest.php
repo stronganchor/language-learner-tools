@@ -3,6 +3,14 @@ declare(strict_types=1);
 
 final class TeacherClassesTest extends LL_Tools_TestCase
 {
+    private int $default_wordset_id = 0;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->default_wordset_id = $this->createWordset('Teacher Classes Default Wordset');
+    }
+
     public function test_teacher_role_has_expected_caps(): void
     {
         ll_tools_register_or_refresh_teacher_role();
@@ -236,6 +244,25 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertSame([$available_learner_id], array_values(array_filter($user_ids)));
     }
 
+    public function test_class_creation_requires_explicit_wordset_when_multiple_wordsets_exist(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $second_wordset_id = $this->createWordset('Teacher Classes Second Wordset');
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-wordset@example.org',
+        ]);
+
+        $missing_wordset_result = ll_tools_teacher_class_create($teacher_id, 'Needs Wordset');
+        $this->assertInstanceOf(WP_Error::class, $missing_wordset_result);
+        $this->assertSame('missing_wordset', $missing_wordset_result->get_error_code());
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Scoped Class', $second_wordset_id);
+        $this->assertIsInt($class_id);
+        $this->assertSame($second_wordset_id, ll_tools_teacher_class_get_wordset_id((int) $class_id));
+    }
+
     public function test_existing_learner_invite_rejects_different_logged_in_user(): void
     {
         ll_tools_register_or_refresh_teacher_role();
@@ -378,5 +405,38 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('ll_tools_teacher_class_teacher_user_id', $html);
         $this->assertStringNotContainsString('Assign an existing learner now', $html);
         $this->assertStringNotContainsString('ll_tools_teacher_assign_class_student', $html);
+    }
+
+    public function test_admin_classes_page_renders_wordset_selection_when_multiple_wordsets_exist(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $this->createWordset('Teacher Classes Admin Select');
+        $admin_user = self::factory()->user->create_and_get([
+            'role' => 'administrator',
+            'user_email' => 'teacher-wordset-admin@example.org',
+        ]);
+        $this->assertInstanceOf(WP_User::class, $admin_user);
+        $admin_user->add_cap('view_ll_tools');
+        wp_set_current_user((int) $admin_user->ID);
+
+        ob_start();
+        try {
+            ll_tools_render_teacher_classes_page();
+        } finally {
+            $html = (string) ob_get_clean();
+        }
+
+        $this->assertStringContainsString('Select a word set', $html);
+        $this->assertStringContainsString('ll_tools_teacher_class_wordset_id', $html);
+    }
+
+    private function createWordset(string $label): int
+    {
+        $wordset = wp_insert_term($label . ' ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        return (int) $wordset['term_id'];
     }
 }
