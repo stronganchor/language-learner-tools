@@ -163,6 +163,82 @@ if (!function_exists('ll_tools_handle_teacher_class_invite_action')) {
 }
 add_action('admin_post_ll_tools_teacher_send_class_invite', 'll_tools_handle_teacher_class_invite_action');
 
+if (!function_exists('ll_tools_teacher_classes_user_label')) {
+    function ll_tools_teacher_classes_user_label(WP_User $user): string {
+        $label = trim((string) $user->display_name);
+        if ($label === '') {
+            $label = trim((string) $user->user_login);
+        }
+        if ($label === '') {
+            $label = trim((string) $user->user_email);
+        }
+
+        return $label;
+    }
+}
+
+if (!function_exists('ll_tools_handle_teacher_class_manual_assign_action')) {
+    function ll_tools_handle_teacher_class_manual_assign_action(): void {
+        ll_tools_teacher_classes_require_manage_access();
+
+        if (!current_user_can('manage_options')) {
+            wp_die(__('Only administrators can assign learners to classes directly.', 'll-tools-text-domain'));
+        }
+
+        $class_id = isset($_POST['class_id']) ? max(0, (int) wp_unslash((string) $_POST['class_id'])) : 0;
+        if ($class_id <= 0 || !function_exists('ll_tools_teacher_class_user_can_access') || !ll_tools_teacher_class_user_can_access($class_id)) {
+            wp_die(__('You do not have permission to manage that class.', 'll-tools-text-domain'));
+        }
+
+        check_admin_referer('ll_tools_teacher_assign_class_student_' . $class_id);
+
+        $user_id = isset($_POST['ll_tools_teacher_assign_user_id'])
+            ? max(0, (int) wp_unslash((string) $_POST['ll_tools_teacher_assign_user_id']))
+            : 0;
+
+        $result = function_exists('ll_tools_teacher_class_assign_student')
+            ? ll_tools_teacher_class_assign_student($class_id, $user_id)
+            : new WP_Error('missing_helper', __('Manual class assignment is currently unavailable.', 'll-tools-text-domain'));
+
+        $redirect_url = ll_tools_get_teacher_classes_page_url(['class_id' => $class_id]);
+        if (is_wp_error($result)) {
+            wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+                $redirect_url,
+                'error',
+                $result->get_error_message()
+            ));
+            exit;
+        }
+
+        $assigned_user = isset($result['user']) && ($result['user'] instanceof WP_User)
+            ? $result['user']
+            : get_userdata($user_id);
+        $assigned_label = $assigned_user instanceof WP_User
+            ? ll_tools_teacher_classes_user_label($assigned_user)
+            : __('The selected learner', 'll-tools-text-domain');
+
+        $message = !empty($result['already_member'])
+            ? sprintf(
+                /* translators: %s: learner display name */
+                __('%s is already a member of this class.', 'll-tools-text-domain'),
+                $assigned_label
+            )
+            : sprintf(
+                /* translators: %s: learner display name */
+                __('Added %s to this class.', 'll-tools-text-domain'),
+                $assigned_label
+            );
+
+        wp_safe_redirect(ll_tools_teacher_classes_build_notice_url(
+            $redirect_url,
+            'success',
+            $message
+        ));
+        exit;
+    }
+}
+add_action('admin_post_ll_tools_teacher_assign_class_student', 'll_tools_handle_teacher_class_manual_assign_action');
+
 if (!function_exists('ll_tools_teacher_classes_student_rows')) {
     function ll_tools_teacher_classes_student_rows(array $student_ids): array {
         $student_ids = array_values(array_filter(array_map('intval', $student_ids), static function (int $user_id): bool {
@@ -239,6 +315,10 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
             ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
             : [];
         $student_rows = ll_tools_teacher_classes_student_rows($student_ids);
+        $can_directly_assign_students = current_user_can('manage_options');
+        $assignable_students = ($selected_class instanceof WP_Post && $can_directly_assign_students && function_exists('ll_tools_teacher_class_get_assignable_students'))
+            ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID)
+            : [];
 
         $summary = [
             'students' => count($student_rows),
@@ -360,6 +440,39 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
             </table>
 
             <div class="card" style="max-width: 900px;">
+                <?php if ($can_directly_assign_students) : ?>
+                    <h3><?php esc_html_e('Assign an existing learner now', 'll-tools-text-domain'); ?></h3>
+                    <p><?php esc_html_e('Administrators can add an existing learner account to this class immediately without waiting for the learner to open an invitation link.', 'll-tools-text-domain'); ?></p>
+                    <?php if (empty($assignable_students)) : ?>
+                        <p class="description"><?php esc_html_e('No eligible learner accounts are currently available to assign.', 'll-tools-text-domain'); ?></p>
+                    <?php else : ?>
+                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin-bottom: 18px;">
+                            <input type="hidden" name="action" value="ll_tools_teacher_assign_class_student" />
+                            <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                            <?php wp_nonce_field('ll_tools_teacher_assign_class_student_' . (int) $selected_class->ID); ?>
+                            <p>
+                                <label for="ll-tools-teacher-assign-user" class="screen-reader-text"><?php esc_html_e('Learner account', 'll-tools-text-domain'); ?></label>
+                                <select id="ll-tools-teacher-assign-user" name="ll_tools_teacher_assign_user_id" class="regular-text" required>
+                                    <option value=""><?php esc_html_e('Select a learner account', 'll-tools-text-domain'); ?></option>
+                                    <?php foreach ($assignable_students as $assignable_student) : ?>
+                                        <?php if (!($assignable_student instanceof WP_User)) { continue; } ?>
+                                        <?php
+                                        $assignable_label = ll_tools_teacher_classes_user_label($assignable_student);
+                                        if ($assignable_student->user_email !== '') {
+                                            $assignable_label .= ' (' . (string) $assignable_student->user_email . ')';
+                                        }
+                                        ?>
+                                        <option value="<?php echo esc_attr((string) $assignable_student->ID); ?>"><?php echo esc_html($assignable_label); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </p>
+                            <p class="description"><?php esc_html_e('This adds the learner to the selected class immediately and updates the learner account membership list.', 'll-tools-text-domain'); ?></p>
+                            <?php submit_button(__('Assign learner to class', 'll-tools-text-domain'), 'secondary', '', false); ?>
+                        </form>
+                    <?php endif; ?>
+                    <hr />
+                <?php endif; ?>
+
                 <h3><?php esc_html_e('Invite an existing learner', 'll-tools-text-domain'); ?></h3>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
                     <input type="hidden" name="action" value="ll_tools_teacher_send_class_invite" />
@@ -420,7 +533,7 @@ if (!function_exists('ll_tools_render_teacher_classes_page')) {
                             }
                             ?>
                             <tr>
-                                <td><?php echo esc_html($user->display_name ?: $user->user_login); ?></td>
+                                <td><?php echo esc_html(ll_tools_teacher_classes_user_label($user)); ?></td>
                                 <td><a href="mailto:<?php echo esc_attr($user->user_email); ?>"><?php echo esc_html($user->user_email); ?></a></td>
                                 <td><?php echo esc_html((string) ($row['current_wordset_name'] ?? '')); ?></td>
                                 <td><?php echo esc_html((string) max(0, (int) ($row_stats['rounds_30d'] ?? 0))); ?></td>

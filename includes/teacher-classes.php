@@ -263,6 +263,62 @@ if (!function_exists('ll_tools_teacher_class_get_invitable_learner_by_email')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_assign_student')) {
+    function ll_tools_teacher_class_assign_student(int $class_id, int $user_id) {
+        if (!ll_tools_teacher_class_exists($class_id)) {
+            return new WP_Error('missing_class', __('This class no longer exists.', 'll-tools-text-domain'));
+        }
+
+        $user = get_userdata($user_id);
+        if (!($user instanceof WP_User)) {
+            return new WP_Error('missing_user', __('Select a valid learner account.', 'll-tools-text-domain'));
+        }
+
+        if (!ll_tools_teacher_class_user_can_be_student($user)) {
+            return new WP_Error('invalid_student', __('Only learner accounts can be added to a class manually.', 'll-tools-text-domain'));
+        }
+
+        $already_member = ll_tools_teacher_class_user_is_student($class_id, $user_id);
+        if (!$already_member && !ll_tools_teacher_class_add_student($class_id, $user_id)) {
+            return new WP_Error('join_failed', __('The learner could not be added to the class.', 'll-tools-text-domain'));
+        }
+
+        return [
+            'class_id' => $class_id,
+            'class_name' => ll_tools_teacher_class_get_name($class_id),
+            'user_id' => $user_id,
+            'user' => $user,
+            'already_member' => $already_member,
+        ];
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_assignable_students')) {
+    function ll_tools_teacher_class_get_assignable_students(int $class_id = 0): array {
+        $query_args = [
+            'orderby' => 'display_name',
+            'order' => 'ASC',
+            'fields' => 'all_with_meta',
+        ];
+
+        if ($class_id > 0) {
+            $assigned_student_ids = ll_tools_teacher_class_get_student_ids($class_id);
+            if (!empty($assigned_student_ids)) {
+                $query_args['exclude'] = $assigned_student_ids;
+            }
+        }
+
+        $users = get_users($query_args);
+        if (!is_array($users)) {
+            return [];
+        }
+
+        return array_values(array_filter($users, static function ($user): bool {
+            return ($user instanceof WP_User) && ll_tools_teacher_class_user_can_be_student($user);
+        }));
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_base64url_encode')) {
     function ll_tools_teacher_class_base64url_encode(string $value): string {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
@@ -488,15 +544,15 @@ if (!function_exists('ll_tools_teacher_class_accept_invite_for_user')) {
         }
 
         $class_id = max(0, (int) ($context['class_id'] ?? 0));
-        $already_member = ll_tools_teacher_class_user_is_student($class_id, $user_id);
-        if (!$already_member && !ll_tools_teacher_class_add_student($class_id, $user_id)) {
-            return new WP_Error('join_failed', __('The learner could not be added to the class.', 'll-tools-text-domain'));
+        $assignment = ll_tools_teacher_class_assign_student($class_id, $user_id);
+        if (is_wp_error($assignment)) {
+            return $assignment;
         }
 
         return [
             'class_id' => $class_id,
-            'class_name' => (string) ($context['class_name'] ?? ''),
-            'already_member' => $already_member,
+            'class_name' => (string) ($assignment['class_name'] ?? ($context['class_name'] ?? '')),
+            'already_member' => !empty($assignment['already_member']),
         ];
     }
 }

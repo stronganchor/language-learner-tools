@@ -78,6 +78,69 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_manual_assignment_adds_learner_to_class_memberships(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-manual@example.org',
+        ]);
+        $learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'learner-manual@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Manual Assignment Class');
+        $this->assertIsInt($class_id);
+
+        $result = ll_tools_teacher_class_assign_student((int) $class_id, $learner_id);
+
+        $this->assertIsArray($result);
+        $this->assertFalse($result['already_member']);
+        $this->assertTrue(ll_tools_teacher_class_user_is_student((int) $class_id, $learner_id));
+        $this->assertSame(
+            [(int) $class_id],
+            ll_tools_teacher_class_get_ids_for_student($learner_id)
+        );
+    }
+
+    public function test_assignable_students_excludes_existing_members_and_non_learners(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-list@example.org',
+        ]);
+        $assigned_learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'already-in-class@example.org',
+        ]);
+        $available_learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'available@example.org',
+        ]);
+        self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_email' => 'subscriber@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Assignable Learners Class');
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $assigned_learner_id));
+
+        $users = ll_tools_teacher_class_get_assignable_students((int) $class_id);
+        $user_ids = array_map(static function ($user): int {
+            return $user instanceof WP_User ? (int) $user->ID : 0;
+        }, $users);
+        sort($user_ids, SORT_NUMERIC);
+
+        $this->assertSame([$available_learner_id], array_values(array_filter($user_ids)));
+    }
+
     public function test_existing_learner_invite_rejects_different_logged_in_user(): void
     {
         ll_tools_register_or_refresh_teacher_role();
@@ -133,5 +196,79 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertInstanceOf(WP_User::class, $user);
         $this->assertTrue(ll_tools_user_can_manage_classes($user_id));
         $this->assertSame('', ll_tools_get_limited_role_admin_redirect_target($user, true, false));
+    }
+
+    public function test_admin_classes_page_renders_manual_assignment_controls(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $admin_user = self::factory()->user->create_and_get([
+            'role' => 'administrator',
+            'user_email' => 'manual-assignment-admin@example.org',
+        ]);
+        $this->assertInstanceOf(WP_User::class, $admin_user);
+        $admin_user->add_cap('view_ll_tools');
+        $admin_id = (int) $admin_user->ID;
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-ui@example.org',
+        ]);
+        self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'learner-ui@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Rendered Manual Assignment Class');
+        $this->assertIsInt($class_id);
+
+        $original_get = $_GET;
+        $_GET['class_id'] = (string) $class_id;
+        wp_set_current_user($admin_id);
+
+        ob_start();
+        try {
+            ll_tools_render_teacher_classes_page();
+        } finally {
+            $html = (string) ob_get_clean();
+            $_GET = $original_get;
+        }
+
+        $this->assertStringContainsString('Assign an existing learner now', $html);
+        $this->assertStringContainsString('ll_tools_teacher_assign_class_student', $html);
+        $this->assertStringContainsString('Select a learner account', $html);
+    }
+
+    public function test_teacher_classes_page_hides_manual_assignment_controls_for_non_admin_teachers(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-only@example.org',
+        ]);
+        self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'learner-hidden@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Teacher View Class');
+        $this->assertIsInt($class_id);
+
+        $original_get = $_GET;
+        $_GET['class_id'] = (string) $class_id;
+        wp_set_current_user($teacher_id);
+
+        ob_start();
+        try {
+            ll_tools_render_teacher_classes_page();
+        } finally {
+            $html = (string) ob_get_clean();
+            $_GET = $original_get;
+        }
+
+        $this->assertStringNotContainsString('Assign an existing learner now', $html);
+        $this->assertStringNotContainsString('ll_tools_teacher_assign_class_student', $html);
     }
 }
