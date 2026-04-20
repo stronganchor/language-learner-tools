@@ -3447,6 +3447,207 @@ function ll_tools_wordset_games_score_best_speaking_match(int $wordset_id, array
     ]);
 }
 
+function ll_tools_wordset_games_speaking_transcription_rate_limit_config(): array {
+    $config = (array) apply_filters('ll_tools_wordset_games_speaking_transcription_rate_limit_config', [
+        'user_limit' => apply_filters('ll_tools_wordset_games_speaking_transcription_user_limit', 30),
+        'user_window' => apply_filters('ll_tools_wordset_games_speaking_transcription_user_window', 5 * MINUTE_IN_SECONDS),
+        'ip_limit' => apply_filters('ll_tools_wordset_games_speaking_transcription_ip_limit', 200),
+        'ip_window' => apply_filters('ll_tools_wordset_games_speaking_transcription_ip_window', 10 * MINUTE_IN_SECONDS),
+    ]);
+
+    return [
+        'user_limit' => max(0, (int) ($config['user_limit'] ?? 30)),
+        'user_window' => max(MINUTE_IN_SECONDS, (int) ($config['user_window'] ?? (5 * MINUTE_IN_SECONDS))),
+        'ip_limit' => max(0, (int) ($config['ip_limit'] ?? 200)),
+        'ip_window' => max(MINUTE_IN_SECONDS, (int) ($config['ip_window'] ?? (10 * MINUTE_IN_SECONDS))),
+    ];
+}
+
+function ll_tools_wordset_games_normalize_ip($candidate): string {
+    $candidate = trim((string) $candidate);
+    if ($candidate === '') {
+        return '';
+    }
+
+    if (strpos($candidate, ',') !== false) {
+        foreach (array_map('trim', explode(',', $candidate)) as $part) {
+            $normalized = ll_tools_wordset_games_normalize_ip($part);
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '';
+    }
+
+    $candidate = trim($candidate, "[] \t\n\r\0\x0B");
+    if (substr_count($candidate, ':') === 1 && strpos($candidate, '.') !== false) {
+        $segments = explode(':', $candidate, 2);
+        if (count($segments) === 2 && filter_var($segments[0], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $candidate = $segments[0];
+        }
+    }
+
+    return filter_var($candidate, FILTER_VALIDATE_IP) ? $candidate : '';
+}
+
+function ll_tools_wordset_games_get_client_ip(): string {
+    $candidates = (array) apply_filters('ll_tools_wordset_games_speaking_ip_candidates', [
+        isset($_SERVER['REMOTE_ADDR']) ? wp_unslash((string) $_SERVER['REMOTE_ADDR']) : '',
+    ]);
+
+    foreach ($candidates as $candidate) {
+        $normalized = ll_tools_wordset_games_normalize_ip($candidate);
+        if ($normalized !== '') {
+            return $normalized;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_wordset_games_speaking_transcription_rate_limit_key(string $scope, string $identifier): string {
+    return 'll_tools_speaking_txn_rl_' . sanitize_key($scope) . '_' . substr(md5($identifier), 0, 24);
+}
+
+function ll_tools_wordset_games_speaking_transcription_rate_limit_bucket(string $scope, string $identifier): array {
+    if ($identifier === '') {
+        return [
+            'attempts' => 0,
+            'expires_at' => 0,
+        ];
+    }
+
+    $stored = get_transient(ll_tools_wordset_games_speaking_transcription_rate_limit_key($scope, $identifier));
+    if (!is_array($stored)) {
+        return [
+            'attempts' => max(0, (int) $stored),
+            'expires_at' => 0,
+        ];
+    }
+
+    return [
+        'attempts' => max(0, (int) ($stored['attempts'] ?? 0)),
+        'expires_at' => max(0, (int) ($stored['expires_at'] ?? 0)),
+    ];
+}
+
+function ll_tools_wordset_games_get_speaking_transcription_bucket_status(string $scope, string $identifier, int $limit, int $window): array {
+    $bucket = ll_tools_wordset_games_speaking_transcription_rate_limit_bucket($scope, $identifier);
+    $now = time();
+    $retry_after = 0;
+    if (!empty($bucket['expires_at']) && (int) $bucket['expires_at'] > $now) {
+        $retry_after = max(1, (int) $bucket['expires_at'] - $now);
+    }
+
+    return [
+        'scope' => $scope,
+        'identifier' => $identifier,
+        'limited' => ($identifier !== '' && $limit > 0 && (int) $bucket['attempts'] >= $limit),
+        'attempts' => (int) $bucket['attempts'],
+        'limit' => max(0, $limit),
+        'window' => max(MINUTE_IN_SECONDS, $window),
+        'retry_after' => $retry_after,
+    ];
+}
+
+function ll_tools_wordset_games_record_speaking_transcription_bucket_attempt(string $scope, string $identifier, int $window): array {
+    if ($identifier === '') {
+        return [
+            'attempts' => 0,
+            'expires_at' => 0,
+        ];
+    }
+
+    $bucket = ll_tools_wordset_games_speaking_transcription_rate_limit_bucket($scope, $identifier);
+    $attempts = max(0, (int) ($bucket['attempts'] ?? 0)) + 1;
+    $expires_at = time() + max(MINUTE_IN_SECONDS, $window);
+
+    set_transient(
+        ll_tools_wordset_games_speaking_transcription_rate_limit_key($scope, $identifier),
+        [
+            'attempts' => $attempts,
+            'expires_at' => $expires_at,
+        ],
+        max(MINUTE_IN_SECONDS, $window)
+    );
+
+    return [
+        'attempts' => $attempts,
+        'expires_at' => $expires_at,
+    ];
+}
+
+function ll_tools_wordset_games_reset_speaking_transcription_rate_limit(int $user_id = 0, string $ip = ''): void {
+    $uid = max(0, (int) $user_id);
+    if ($uid > 0) {
+        delete_transient(ll_tools_wordset_games_speaking_transcription_rate_limit_key('user', (string) $uid));
+    }
+
+    $normalized_ip = ($ip !== '') ? ll_tools_wordset_games_normalize_ip($ip) : '';
+    if ($normalized_ip !== '') {
+        delete_transient(ll_tools_wordset_games_speaking_transcription_rate_limit_key('ip', $normalized_ip));
+    }
+}
+
+function ll_tools_wordset_games_speaking_transcription_rate_limit_message(string $scope = ''): string {
+    if ($scope === 'ip') {
+        return __('Too many speaking attempts from this connection. Please wait a few minutes and try again.', 'll-tools-text-domain');
+    }
+
+    return __('Too many speaking attempts in a short time. Please wait a few minutes and try again.', 'll-tools-text-domain');
+}
+
+function ll_tools_wordset_games_get_speaking_transcription_rate_limit_status(int $user_id = 0, string $ip = ''): array {
+    $config = ll_tools_wordset_games_speaking_transcription_rate_limit_config();
+    $uid = max(0, (int) $user_id);
+    $normalized_ip = ($ip !== '') ? ll_tools_wordset_games_normalize_ip($ip) : ll_tools_wordset_games_get_client_ip();
+
+    $user_status = ll_tools_wordset_games_get_speaking_transcription_bucket_status(
+        'user',
+        $uid > 0 ? (string) $uid : '',
+        (int) $config['user_limit'],
+        (int) $config['user_window']
+    );
+    $ip_status = ll_tools_wordset_games_get_speaking_transcription_bucket_status(
+        'ip',
+        $normalized_ip,
+        (int) $config['ip_limit'],
+        (int) $config['ip_window']
+    );
+
+    $limited_status = [];
+    if (!empty($user_status['limited'])) {
+        $limited_status = $user_status;
+    } elseif (!empty($ip_status['limited'])) {
+        $limited_status = $ip_status;
+    }
+
+    return [
+        'limited' => !empty($limited_status),
+        'scope' => (string) ($limited_status['scope'] ?? ''),
+        'retry_after' => max(0, (int) ($limited_status['retry_after'] ?? 0)),
+        'message' => ll_tools_wordset_games_speaking_transcription_rate_limit_message((string) ($limited_status['scope'] ?? '')),
+        'user' => $user_status,
+        'ip' => $ip_status,
+    ];
+}
+
+function ll_tools_wordset_games_record_speaking_transcription_attempt(int $user_id = 0, string $ip = ''): array {
+    $config = ll_tools_wordset_games_speaking_transcription_rate_limit_config();
+    $uid = max(0, (int) $user_id);
+    $normalized_ip = ($ip !== '') ? ll_tools_wordset_games_normalize_ip($ip) : ll_tools_wordset_games_get_client_ip();
+
+    if ($uid > 0 && (int) $config['user_limit'] > 0) {
+        ll_tools_wordset_games_record_speaking_transcription_bucket_attempt('user', (string) $uid, (int) $config['user_window']);
+    }
+    if ($normalized_ip !== '' && (int) $config['ip_limit'] > 0) {
+        ll_tools_wordset_games_record_speaking_transcription_bucket_attempt('ip', $normalized_ip, (int) $config['ip_window']);
+    }
+
+    return ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($uid, $normalized_ip);
+}
+
 function ll_tools_wordset_games_require_speaking_permissions(): void {
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => __('Login required.', 'll-tools-text-domain')], 401);
@@ -3508,6 +3709,22 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
             'message' => __('This speaking set is not configured for server-side transcription.', 'll-tools-text-domain'),
         ], 400);
     }
+
+    $rate_limit_status = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status(get_current_user_id());
+    if (!empty($rate_limit_status['limited'])) {
+        $retry_after = max(0, (int) ($rate_limit_status['retry_after'] ?? 0));
+        if ($retry_after > 0 && !headers_sent()) {
+            header('Retry-After: ' . $retry_after);
+        }
+
+        wp_send_json_error([
+            'code' => 'rate_limited',
+            'message' => (string) ($rate_limit_status['message'] ?? ll_tools_wordset_games_speaking_transcription_rate_limit_message()),
+            'scope' => (string) ($rate_limit_status['scope'] ?? ''),
+            'retry_after' => $retry_after,
+        ], 429);
+    }
+
     if (empty($_FILES['audio']) || !is_array($_FILES['audio']) || empty($_FILES['audio']['tmp_name'])) {
         wp_send_json_error([
             'code' => 'missing_audio',
@@ -3522,6 +3739,8 @@ function ll_tools_wordset_games_transcribe_attempt_ajax(): void {
             'message' => (string) ($upload_validation['error'] ?? __('Invalid audio upload.', 'll-tools-text-domain')),
         ], (int) ($upload_validation['status'] ?? 400));
     }
+
+    ll_tools_wordset_games_record_speaking_transcription_attempt(get_current_user_id());
 
     $text = '';
     if ($provider === 'assemblyai') {

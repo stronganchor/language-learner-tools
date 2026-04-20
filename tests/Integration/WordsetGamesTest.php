@@ -1839,6 +1839,135 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertSame('right', (string) ($response['data']['bucket'] ?? ''));
     }
 
+    public function test_speaking_transcribe_endpoint_returns_429_after_user_rate_limit_is_reached(): void
+    {
+        $userId = self::factory()->user->create(['role' => 'subscriber']);
+        $wordsetId = $this->createServerSideSpeakingRateLimitWordset('Speaking User Limit Wordset');
+        $ip = '198.51.100.21';
+
+        $userLimitFilter = static function (): int {
+            return 2;
+        };
+        $userWindowFilter = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+        $ipLimitFilter = static function (): int {
+            return 50;
+        };
+        $ipWindowFilter = static function (): int {
+            return 10 * MINUTE_IN_SECONDS;
+        };
+
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+
+        try {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
+            $firstStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
+            $this->assertFalse((bool) ($firstStatus['limited'] ?? true));
+            $this->assertSame(1, (int) ($firstStatus['user']['attempts'] ?? 0));
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userId, $ip);
+            $limitedStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userId, $ip);
+            $this->assertTrue((bool) ($limitedStatus['limited'] ?? false));
+            $this->assertSame('user', (string) ($limitedStatus['scope'] ?? ''));
+            $this->assertSame(2, (int) ($limitedStatus['user']['attempts'] ?? 0));
+
+            wp_set_current_user($userId);
+            $_SERVER['REMOTE_ADDR'] = $ip;
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_user_study'),
+                'wordset_id' => $wordsetId,
+            ];
+            $_REQUEST = $_POST;
+
+            $httpRequests = [];
+            $httpFilter = static function ($preempt, $args, $url) use (&$httpRequests) {
+                $httpRequests[] = [
+                    'url' => (string) $url,
+                    'args' => $args,
+                ];
+
+                return new WP_Error('unexpected_http', 'External HTTP call should not run for rate-limited speaking requests.');
+            };
+            add_filter('pre_http_request', $httpFilter, 10, 3);
+
+            try {
+                $response = $this->runJsonEndpoint(static function (): void {
+                    ll_tools_wordset_games_transcribe_attempt_ajax();
+                });
+            } finally {
+                remove_filter('pre_http_request', $httpFilter, 10);
+                $_POST = [];
+                $_REQUEST = [];
+            }
+
+            $this->assertFalse((bool) ($response['success'] ?? true));
+            $this->assertSame('rate_limited', (string) (($response['data']['code'] ?? '')));
+            $this->assertSame('user', (string) (($response['data']['scope'] ?? '')));
+            $this->assertGreaterThan(0, (int) (($response['data']['retry_after'] ?? 0)));
+            $this->assertSame([], $httpRequests);
+        } finally {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userId, $ip);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+        }
+    }
+
+    public function test_speaking_transcription_rate_limit_tracks_shared_ip_usage_across_users(): void
+    {
+        $userOneId = self::factory()->user->create(['role' => 'subscriber']);
+        $userTwoId = self::factory()->user->create(['role' => 'subscriber']);
+        $ip = '198.51.100.42';
+
+        $userLimitFilter = static function (): int {
+            return 10;
+        };
+        $userWindowFilter = static function (): int {
+            return 5 * MINUTE_IN_SECONDS;
+        };
+        $ipLimitFilter = static function (): int {
+            return 2;
+        };
+        $ipWindowFilter = static function (): int {
+            return 10 * MINUTE_IN_SECONDS;
+        };
+
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+        add_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+
+        try {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userOneId, $ip);
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userTwoId, $ip);
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userOneId, $ip);
+            $firstStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userOneId, $ip);
+            $this->assertFalse((bool) ($firstStatus['limited'] ?? true));
+            $this->assertSame(1, (int) ($firstStatus['ip']['attempts'] ?? 0));
+
+            ll_tools_wordset_games_record_speaking_transcription_attempt($userTwoId, $ip);
+            $secondStatus = ll_tools_wordset_games_get_speaking_transcription_rate_limit_status($userTwoId, $ip);
+            $this->assertTrue((bool) ($secondStatus['limited'] ?? false));
+            $this->assertSame('ip', (string) ($secondStatus['scope'] ?? ''));
+            $this->assertSame(1, (int) ($secondStatus['user']['attempts'] ?? 0));
+            $this->assertSame(2, (int) ($secondStatus['ip']['attempts'] ?? 0));
+        } finally {
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userOneId, $ip);
+            ll_tools_wordset_games_reset_speaking_transcription_rate_limit($userTwoId, $ip);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_limit', $userLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_user_window', $userWindowFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_limit', $ipLimitFilter);
+            remove_filter('ll_tools_wordset_games_speaking_transcription_ip_window', $ipWindowFilter);
+        }
+    }
+
     public function test_speaking_score_treats_capitalization_only_text_differences_as_exact_matches(): void
     {
         $userId = self::factory()->user->create(['role' => 'subscriber']);
@@ -2393,6 +2522,24 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         return $effectiveCategoryId > 0 ? $effectiveCategoryId : $categoryId;
     }
 
+    private function createServerSideSpeakingRateLimitWordset(string $label): int
+    {
+        $wordset = wp_insert_term($label . ' ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        $wordsetId = (int) $wordset['term_id'];
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ENABLED_META_KEY, 1);
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'hosted_api');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY, 'learners');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_text');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, 'hosted_api');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, 'https://example.test/transcribe');
+        update_term_meta($wordsetId, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, 'recording_text');
+
+        return $wordsetId;
+    }
+
     private function runJsonEndpoint(callable $callback): array
     {
         $dieHandler = static function (): void {
@@ -2404,10 +2551,17 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $doingAjaxFilter = static function (): bool {
             return true;
         };
+        $status = 0;
+        $statusHeaderFilter = static function ($statusHeader, $code) use (&$status) {
+            $status = (int) $code;
+            return $statusHeader;
+        };
 
         add_filter('wp_die_handler', $dieFilter);
         add_filter('wp_die_ajax_handler', $dieFilter);
         add_filter('wp_doing_ajax', $doingAjaxFilter);
+        add_filter('status_header', $statusHeaderFilter, 10, 2);
+        $headersBefore = function_exists('headers_list') ? headers_list() : [];
 
         ob_start();
         try {
@@ -2419,10 +2573,29 @@ final class WordsetGamesTest extends LL_Tools_TestCase
             remove_filter('wp_die_handler', $dieFilter);
             remove_filter('wp_die_ajax_handler', $dieFilter);
             remove_filter('wp_doing_ajax', $doingAjaxFilter);
+            remove_filter('status_header', $statusHeaderFilter, 10);
         }
 
         $decoded = json_decode($output, true);
         $this->assertIsArray($decoded, 'Expected JSON response payload.');
+        if (function_exists('headers_list')) {
+            $headersAfter = headers_list();
+            $newHeaders = array_values(array_diff($headersAfter, $headersBefore));
+            foreach ($newHeaders as $headerLine) {
+                if (preg_match('/^HTTP\/\S+\s+(\d{3})\b/', (string) $headerLine, $matches)) {
+                    $status = (int) $matches[1];
+                    break;
+                }
+                if (preg_match('/^Status:\s+(\d{3})\b/', (string) $headerLine, $matches)) {
+                    $status = (int) $matches[1];
+                    break;
+                }
+            }
+        }
+        if ($status === 0) {
+            $status = (int) http_response_code();
+        }
+        $decoded['status'] = $status;
         return $decoded;
     }
 }
