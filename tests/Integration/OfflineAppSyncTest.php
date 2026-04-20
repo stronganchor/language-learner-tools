@@ -112,7 +112,7 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $synced_category_ids = array_values(array_map('intval', (array) (($sync_data['state'] ?? [])['category_ids'] ?? [])));
             $this->assertContains($effective_category_id, $synced_category_ids);
             $this->assertSame([$fixture['word_id']], array_values(array_map('intval', (array) (($sync_data['state'] ?? [])['starred_word_ids'] ?? []))));
-            $this->assertSame('only', (string) (($sync_data['state'] ?? [])['star_mode'] ?? ''));
+            $this->assertSame('normal', (string) (($sync_data['state'] ?? [])['star_mode'] ?? ''));
             $this->assertTrue((bool) (($sync_data['state'] ?? [])['fast_transitions'] ?? false));
             $progress_words = (array) ($sync_data['progress_words'] ?? []);
             $this->assertTrue(
@@ -128,7 +128,7 @@ final class OfflineAppSyncTest extends LL_Tools_TestCase
             $saved_state = ll_tools_get_user_study_state($user_id);
             $this->assertNotEmpty(array_values(array_map('intval', (array) ($saved_state['category_ids'] ?? []))));
             $this->assertSame([$fixture['word_id']], array_values(array_map('intval', (array) ($saved_state['starred_word_ids'] ?? []))));
-            $this->assertSame('only', (string) ($saved_state['star_mode'] ?? ''));
+            $this->assertSame('normal', (string) ($saved_state['star_mode'] ?? ''));
             $this->assertTrue((bool) ($saved_state['fast_transitions'] ?? false));
 
             $category_progress = (array) ($sync_data['category_progress'] ?? []);
