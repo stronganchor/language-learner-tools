@@ -407,7 +407,7 @@ function ll_tools_content_lesson_parse_json_source(string $raw): array {
         $rows = $decoded['cues'];
     } elseif (isset($decoded['items']) && is_array($decoded['items'])) {
         $rows = $decoded['items'];
-    } elseif (array_is_list($decoded)) {
+    } elseif (ll_tools_array_is_list($decoded)) {
         $rows = $decoded;
     }
 
