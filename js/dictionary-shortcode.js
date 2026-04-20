@@ -231,7 +231,6 @@
         const form = root.querySelector('[data-ll-dictionary-form]');
         const results = root.querySelector('[data-ll-dictionary-results]');
         const toolbar = root.querySelector('.ll-dictionary__toolbar');
-        const resetLink = root.querySelector('[data-ll-dictionary-reset]');
         const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
         const scopeInput = form ? form.querySelector('select[name="ll_dictionary_scope"]') : null;
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
@@ -300,9 +299,6 @@
         const setActiveState = (active) => {
             toolbar.classList.toggle('is-expanded', active);
             toolbar.classList.toggle('is-collapsed', !active);
-            if (resetLink) {
-                resetLink.hidden = !active;
-            }
         };
 
         const buildToolbarBootstrapPayload = () => {
@@ -655,19 +651,6 @@
             showLoadingState();
             requestResults(1, true);
         });
-
-        if (resetLink) {
-            resetLink.addEventListener('click', (event) => {
-                event.preventDefault();
-                setFieldValue('ll_dictionary_q', '');
-                setFieldValue('ll_dictionary_scope', 'all');
-                setFieldValue('ll_dictionary_pos', '');
-                setFieldValue('ll_dictionary_source', '');
-                setFieldValue('ll_dictionary_dialect', '');
-                letterInput.value = '';
-                clearResults();
-            });
-        }
 
         root.addEventListener('click', (event) => {
             const textToggle = event.target.closest('[data-ll-dictionary-toggle]');

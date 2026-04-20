@@ -1931,7 +1931,6 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
 
     $base_url = ll_tools_dictionary_get_current_base_url();
     $defer_toolbar_panel = ($requested_entry_id <= 0 && !$has_active_browse_query);
-    $reset_url = ll_tools_dictionary_build_url($base_url);
     $search_scope_options = ll_tools_dictionary_get_search_scope_options();
 
     ob_start();
@@ -1987,7 +1986,6 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                         </div>
                         <div class="ll-dictionary__actions ll-dictionary__actions--primary">
                             <button class="ll-dictionary__button" type="submit"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
-                            <a class="ll-dictionary__button ll-dictionary__button--ghost" data-ll-dictionary-reset href="<?php echo esc_url($reset_url); ?>"<?php echo $has_active_browse_query ? '' : ' hidden'; ?>><?php esc_html_e('Reset', 'll-tools-text-domain'); ?></a>
                         </div>
                     </div>
                     <?php
