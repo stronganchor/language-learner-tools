@@ -99,7 +99,9 @@ function buildSortControls() {
   `;
 }
 
-function buildMarkup(categories) {
+function buildMarkup(categories, options = {}) {
+  const opts = options || {};
+  const includeLazyRoot = !!opts.includeLazyRoot;
   return `
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="main" data-ll-wordset-id="77">
       <div class="ll-wordset-grid-tools">
@@ -110,6 +112,14 @@ function buildMarkup(categories) {
       <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
         ${categories.map((category) => buildCardMarkup(category)).join('\n')}
       </div>
+
+      ${includeLazyRoot ? `
+      <div class="ll-wordset-grid-lazy" data-ll-wordset-lazy-root>
+        <span class="ll-wordset-grid-lazy__status screen-reader-text" data-ll-wordset-load-more-status aria-live="polite"></span>
+        <div class="ll-wordset-grid-lazy__placeholders" data-ll-wordset-load-more-placeholders aria-hidden="true"></div>
+        <span class="ll-wordset-grid-lazy__sentinel" data-ll-wordset-load-more-sentinel aria-hidden="true"></span>
+      </div>
+      ` : ''}
 
       <div class="ll-wordset-empty ll-wordset-empty--search" data-ll-wordset-page-search-empty hidden>
         No categories match this search.
@@ -264,18 +274,23 @@ function buildAnalytics(categories) {
 
 async function mountWordsetPage(page, options = {}) {
   const categories = options.categories || [];
+  const initialCategories = Array.isArray(options.initialCategories) ? options.initialCategories : categories;
+  const remainingCards = Array.isArray(options.remainingCards) ? options.remainingCards : [];
   const analytics = options.analytics || buildAnalytics(categories);
   const config = buildConfig(categories, options.configOverrides || {});
   const analyticsDelayMs = Number(options.analyticsDelayMs || 0);
 
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.setContent(buildMarkup(categories));
+  await page.setContent(buildMarkup(initialCategories, {
+    includeLazyRoot: !!(config.lazyCards && config.lazyCards.enabled)
+  }));
   await page.addScriptTag({ content: jquerySource });
 
-  await page.evaluate(({ configValue, analyticsValue, analyticsDelayValue }) => {
+  await page.evaluate(({ configValue, analyticsValue, analyticsDelayValue, remainingCardsValue }) => {
     window.llWordsetPageData = configValue;
     window.alert = function () {};
+    window.__llLazyAjaxCalls = [];
 
     const $ = window.jQuery;
     $.post = function () {
@@ -292,10 +307,59 @@ async function mountWordsetPage(page, options = {}) {
       }, analyticsDelayValue);
       return deferred.promise();
     };
+
+    $.ajax = function (options) {
+      const deferred = $.Deferred();
+      const data = (options && options.data) || {};
+      window.__llLazyAjaxCalls.push(data);
+
+      const offset = Number.parseInt(data.offset, 10) || 0;
+      const count = Math.max(1, Number.parseInt(data.count, 10) || 1);
+      const startIndex = Math.max(0, offset);
+      const nextCards = remainingCardsValue.slice(startIndex, startIndex + count);
+      const html = nextCards.map((card) => {
+        return [
+          '<article class=\"ll-wordset-card\" role=\"listitem\" data-cat-id=\"' + card.id + '\" data-word-count=\"' + card.count + '\">',
+          '  <div class=\"ll-wordset-card__top\">',
+          '    <label class=\"ll-wordset-card__select\" aria-label=\"Select ' + card.name + '\">',
+          '      <input type=\"checkbox\" value=\"' + card.id + '\" data-ll-wordset-select />',
+          '      <span class=\"ll-wordset-card__select-box\" aria-hidden=\"true\"></span>',
+          '    </label>',
+          '    <a class=\"ll-wordset-card__heading\" href=\"#\" aria-label=\"' + card.name + '\">',
+          '      <h2 class=\"ll-wordset-card__title\">' + card.name + '</h2>',
+          '    </a>',
+          '    <span class=\"ll-wordset-card__hide-spacer\" aria-hidden=\"true\"></span>',
+          '  </div>',
+          '  <div class=\"ll-wordset-card__progress\" aria-hidden=\"true\">',
+          '    <span class=\"ll-wordset-card__progress-track\">',
+          '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered\" style=\"width: 0%;\"></span>',
+          '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied\" style=\"width: 0%;\"></span>',
+          '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new\" style=\"width: 100%;\"></span>',
+          '    </span>',
+          '  </div>',
+          '</article>'
+        ].join('');
+      }).join('');
+
+      window.setTimeout(() => {
+        deferred.resolve({
+          success: true,
+          data: {
+            html,
+            loaded: Math.min(remainingCardsValue.length, startIndex + nextCards.length),
+            nextOffset: Math.min(remainingCardsValue.length, startIndex + nextCards.length),
+            hasMore: (startIndex + nextCards.length) < remainingCardsValue.length
+          }
+        });
+      }, 40);
+
+      return deferred.promise();
+    };
   }, {
     configValue: config,
     analyticsValue: analytics,
-    analyticsDelayValue: analyticsDelayMs
+    analyticsDelayValue: analyticsDelayMs,
+    remainingCardsValue: remainingCards
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -497,4 +561,95 @@ test('deferred metrics apply an active progress sort after analytics loads', asy
   await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeVisible();
   await page.click('[data-ll-wordset-main-sort-option="progress-desc"]');
   await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Fruit', 'Animals', 'Travel']);
+});
+
+test('changing sort loads all lazy cards before applying the order', async ({ page }) => {
+  const categories = [
+    {
+      id: 33,
+      slug: 'travel',
+      name: 'Travel',
+      translation: 'Travel',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'plane train hotel',
+      preview: []
+    },
+    {
+      id: 11,
+      slug: 'fruit',
+      name: 'Fruit',
+      translation: 'Fruit',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'apple pear banana',
+      preview: []
+    },
+    {
+      id: 22,
+      slug: 'animals',
+      name: 'Animals',
+      translation: 'Animals',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'cat dog bird',
+      preview: []
+    }
+  ];
+
+  await mountWordsetPage(page, {
+    categories,
+    initialCategories: [categories[0]],
+    remainingCards: categories,
+    configOverrides: {
+      lazyCards: {
+        enabled: true,
+        nonce: 'lazy-nonce',
+        token: 'lazy-token',
+        wordsetId: 77,
+        previewLimit: 2,
+        batchSize: 1,
+        initialCount: 1,
+        loaded: 1,
+        total: 3,
+        remaining: 2
+      }
+    }
+  });
+
+  await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(1);
+
+  await page.click('[data-ll-wordset-main-sort-toggle]');
+  await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeVisible();
+  await page.click('[data-ll-wordset-main-sort-option="alpha-asc"]');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => document.querySelectorAll('.ll-wordset-card[data-cat-id]').length);
+  }).toBe(3);
+  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Animals', 'Fruit', 'Travel']);
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llLazyAjaxCalls.length);
+  }).toBeGreaterThan(0);
+  await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
 });

@@ -73,6 +73,8 @@
     let mainCategorySort = 'default';
     let mainCategorySortMenuOpen = false;
     let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
+    let mainCategorySortLoading = false;
+    let mainCategorySortRequestToken = 0;
     let saveStateTimer = null;
     let stateSaveInFlightRequest = null;
     let stateSaveQueued = false;
@@ -1073,14 +1075,16 @@
 
         const currentSort = normalizeMainCategorySort(mainCategorySort);
         const waitingForMetrics = mainCategorySortRequiresMetrics(currentSort) && isLoggedIn && !mainCategoryMetricsReady;
+        const busy = waitingForMetrics || mainCategorySortLoading;
         $mainCategorySortRoot
             .toggleClass('is-open', mainCategorySortMenuOpen)
             .toggleClass('has-custom-sort', currentSort !== 'default')
-            .toggleClass('is-pending-metrics', waitingForMetrics);
+            .toggleClass('is-pending-metrics', waitingForMetrics)
+            .toggleClass('is-loading', mainCategorySortLoading);
 
         if ($mainCategorySortToggle.length) {
             $mainCategorySortToggle.attr('aria-expanded', mainCategorySortMenuOpen ? 'true' : 'false');
-            if (waitingForMetrics) {
+            if (busy) {
                 $mainCategorySortToggle.attr('aria-busy', 'true');
             } else {
                 $mainCategorySortToggle.removeAttr('aria-busy');
@@ -1103,10 +1107,46 @@
         }
     }
 
-    function refreshMainCategoryOrdering() {
-        sortMainCategoriesInMemory();
-        renderMainCategorySearch();
-        reorderMainCategoryGridCards();
+    function refreshMainCategoryOrdering(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const shouldEnsureAllLoaded = !!opts.ensureAllLoaded && hasPendingLazyCards();
+        const renderOrdering = function () {
+            sortMainCategoriesInMemory();
+            renderMainCategorySearch();
+            reorderMainCategoryGridCards();
+        };
+
+        if (!shouldEnsureAllLoaded) {
+            renderOrdering();
+            return $.Deferred().resolve({
+                ensuredAllLoaded: false
+            }).promise();
+        }
+
+        const requestToken = ++mainCategorySortRequestToken;
+        mainCategorySortLoading = true;
+        syncMainCategorySortUi();
+
+        return ensureAllMainCardsLoaded()
+            .done(function () {
+                if (requestToken !== mainCategorySortRequestToken) {
+                    return;
+                }
+                renderOrdering();
+            })
+            .fail(function () {
+                if (requestToken !== mainCategorySortRequestToken) {
+                    return;
+                }
+                renderOrdering();
+            })
+            .always(function () {
+                if (requestToken !== mainCategorySortRequestToken) {
+                    return;
+                }
+                mainCategorySortLoading = false;
+                syncMainCategorySortUi();
+            });
     }
 
     function setMainCategorySort(sortKey, options) {
@@ -1120,16 +1160,20 @@
         }
 
         syncMainCategorySortUi();
-
-        if (opts.skipRender !== true) {
-            refreshMainCategoryOrdering();
-        }
-
         if (opts.closeMenu !== false) {
             closeMainCategorySortMenu();
         }
 
-        return changed;
+        if (opts.skipRender !== true) {
+            return refreshMainCategoryOrdering({
+                ensureAllLoaded: !!opts.ensureAllLoaded
+            });
+        }
+
+        return $.Deferred().resolve({
+            changed: changed,
+            skipped: true
+        }).promise();
     }
 
     function applyMainCategoryMetricsFromAnalytics(analyticsPayload) {
@@ -9070,7 +9114,9 @@
             }
             const categoryMetricsChanged = applyMainCategoryMetricsFromAnalytics(analytics);
             if (categoryMetricsChanged && mainCategorySortRequiresMetrics(mainCategorySort)) {
-                refreshMainCategoryOrdering();
+                refreshMainCategoryOrdering({
+                    ensureAllLoaded: (normalizeMainCategorySort(mainCategorySort) !== 'default')
+                });
             }
             const hasCategoryProgressChanges = queueCategoryProgressUpdatesFromAnalytics(analytics, {
                 deferVisible: deferVisibleCategoryProgress,
@@ -12296,9 +12342,10 @@
         if (!isLoggedIn && mainCategorySortRequiresMetrics(mainCategorySort)) {
             mainCategorySort = 'default';
         }
-        sortMainCategoriesInMemory();
         syncMainCategorySortUi();
-        reorderMainCategoryGridCards();
+        refreshMainCategoryOrdering({
+            ensureAllLoaded: (normalizeMainCategorySort(mainCategorySort) !== 'default')
+        });
         scheduleSelectAllAlignment();
         $(window).off('resize.llWordsetSelectAllAlign').on('resize.llWordsetSelectAllAlign', function () {
             scheduleSelectAllAlignment();
@@ -12313,6 +12360,9 @@
             $root.on('click', '[data-ll-wordset-main-sort-toggle]', function (event) {
                 event.preventDefault();
                 event.stopPropagation();
+                if (mainCategorySortLoading) {
+                    return;
+                }
                 if (mainCategorySortMenuOpen) {
                     closeMainCategorySortMenu();
                     return;
@@ -12324,12 +12374,14 @@
         if ($mainCategorySortOptions.length) {
             $root.on('click', '[data-ll-wordset-main-sort-option]', function (event) {
                 const $option = $(this);
-                if ($option.prop('disabled')) {
+                if ($option.prop('disabled') || mainCategorySortLoading) {
                     return;
                 }
                 event.preventDefault();
                 event.stopPropagation();
-                setMainCategorySort($option.attr('data-ll-wordset-main-sort-option') || 'default');
+                setMainCategorySort($option.attr('data-ll-wordset-main-sort-option') || 'default', {
+                    ensureAllLoaded: true
+                });
             });
         }
 
