@@ -4613,12 +4613,16 @@
 
         // Ensure any confetti canvas is removed when closing the widget
         try {
-            const confettiCanvas = document.getElementById('confetti-canvas');
-            if (confettiCanvas && confettiCanvas.parentNode) {
-                confettiCanvas.parentNode.removeChild(confettiCanvas);
-            }
-            if (root.confetti && typeof root.confetti.reset === 'function') {
-                root.confetti.reset();
+            if (Effects && typeof Effects.resetConfetti === 'function') {
+                Effects.resetConfetti();
+            } else {
+                const confettiCanvas = document.getElementById('confetti-canvas');
+                if (confettiCanvas && confettiCanvas.parentNode) {
+                    confettiCanvas.parentNode.removeChild(confettiCanvas);
+                }
+                if (root.confetti && typeof root.confetti.reset === 'function') {
+                    root.confetti.reset();
+                }
             }
         } catch (_) { }
 
