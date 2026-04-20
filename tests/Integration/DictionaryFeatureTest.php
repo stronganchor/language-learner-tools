@@ -151,7 +151,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'Turkish',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(4, (int) ($summary['rows_grouped'] ?? 0));
@@ -191,6 +190,38 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $paged_html = do_shortcode(sprintf('[ll_dictionary wordset="%d" per_page="1"]', $wordset_id));
         $this->assertStringContainsString('Showing 2-2 of 2', $paged_html);
         $this->assertStringContainsString('Biya', $paged_html);
+    }
+
+    public function test_import_keeps_review_flagged_rows_after_skip_option_removal(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Rae',
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'needs_review' => 'manual-check',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertSame(1, (int) ($summary['rows_grouped'] ?? 0));
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Rae', 0);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertCount(1, $senses);
+        $this->assertSame('manual-check', (string) ($senses[0]['needs_review'] ?? ''));
     }
 
     public function test_bulk_translation_lookup_prefers_imported_dictionary_entries(): void
@@ -478,7 +509,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ], 'harun.tsv');
 
         $this->assertIsArray($job);
@@ -565,7 +595,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ], 'orphaned.tsv');
 
         $this->assertIsArray($job);
@@ -613,7 +642,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'wordset_id' => $wordset_id,
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
-                'skip_review_rows' => true,
             ]);
         } finally {
             @unlink($temp_file);
@@ -714,7 +742,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'wordset_id' => $wordset_id,
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'Turkish',
-                'skip_review_rows' => true,
             ]);
         } finally {
             @unlink($temp_file);
@@ -928,7 +955,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
@@ -1006,6 +1032,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Manage Dictionary Sources', $manager_html);
         $this->assertStringContainsString('tools.php?page=ll-dictionary-sources', $manager_html);
+        $this->assertStringNotContainsString('ll_dictionary_skip_review_rows', $manager_html);
+        $this->assertStringNotContainsString('Legacy Migration', $manager_html);
+        $this->assertStringNotContainsString('Migrate Legacy Dictionary Table', $manager_html);
         $this->assertStringContainsString('Back to Dictionary Manager', $sources_html);
         $this->assertStringContainsString('ll-dictionary-sources-admin__rows', $sources_html);
         $this->assertStringContainsString('ll-dictionary-sources-admin__field--full', $sources_html);
@@ -1048,7 +1077,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
@@ -1085,7 +1113,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(1, (int) ($follow_up_summary['entries_created'] ?? 0));
@@ -1599,7 +1626,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));

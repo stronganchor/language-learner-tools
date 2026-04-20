@@ -234,14 +234,6 @@ jQuery(function ($) {
 
     $('[data-ll-dictionary-job-form]').on('submit', function (event) {
         event.preventDefault();
-        var $form = $(this);
-        if ($form.attr('id') === 'll-dictionary-legacy-form') {
-            $form.find('input[name="ll_dictionary_wordset_id"]').val($('#ll-dictionary-wordset').val() || '0');
-            $form.find('input[name="ll_dictionary_entry_lang"]').val($('#ll-dictionary-entry-lang').val() || '');
-            $form.find('input[name="ll_dictionary_def_lang"]').val($('#ll-dictionary-def-lang').val() || '');
-            $form.find('input[name="ll_dictionary_skip_review_rows"]').val($('input[name="ll_dictionary_skip_review_rows"]').is(':checked') ? '1' : '0');
-            $form.find('input[name="ll_dictionary_replace_existing_senses"]').val($('input[name="ll_dictionary_replace_existing_senses"]').is(':checked') ? '1' : '0');
-        }
         startJobFromForm(this);
     });
 

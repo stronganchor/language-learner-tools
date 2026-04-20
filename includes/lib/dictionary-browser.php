@@ -1493,24 +1493,6 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
 }
 
 /**
- * Decide whether an import row should be skipped because of review flags.
- *
- * @param array<string,string> $row Prepared import row.
- */
-function ll_tools_dictionary_should_skip_row_for_review(array $row, bool $skip_flagged = true): bool {
-    if (!$skip_flagged) {
-        return false;
-    }
-
-    $flag = trim((string) ($row['needs_review'] ?? ''));
-    if ($flag === '' || $flag === '0' || $flag === '1') {
-        return false;
-    }
-
-    return true;
-}
-
-/**
  * Find one dictionary entry by exact title within an optional word set.
  */
 function ll_tools_dictionary_find_entry_by_title(string $title, int $wordset_id = 0): int {
@@ -1784,7 +1766,6 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
         @set_time_limit(0);
     }
 
-    $skip_flagged = !empty($options['skip_review_rows']);
     $defaults = [
         'entry_lang' => trim(sanitize_text_field((string) ($options['entry_lang'] ?? ''))),
         'def_lang' => trim(sanitize_text_field((string) ($options['def_lang'] ?? ''))),
@@ -1794,7 +1775,6 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
         'rows_total' => count($rows),
         'rows_grouped' => 0,
         'rows_skipped_empty' => 0,
-        'rows_skipped_review' => 0,
         'entries_created' => 0,
         'entries_updated' => 0,
         'entry_ids' => [],
@@ -1811,10 +1791,6 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
         $prepared = ll_tools_dictionary_prepare_import_row($row, $defaults);
         if ($prepared['entry'] === '') {
             $summary['rows_skipped_empty']++;
-            continue;
-        }
-        if (ll_tools_dictionary_should_skip_row_for_review($prepared, $skip_flagged)) {
-            $summary['rows_skipped_review']++;
             continue;
         }
 
@@ -1910,93 +1886,6 @@ function ll_tools_dictionary_import_rows(array $rows, array $options = []): arra
     $summary['error_count'] = count($summary['errors']);
 
     return $summary;
-}
-
-/**
- * Name of the legacy one-off dictionary importer table.
- */
-function ll_tools_dictionary_get_legacy_table_name(): string {
-    global $wpdb;
-    return $wpdb->prefix . 'dictionary_entries';
-}
-
-/**
- * Check whether the legacy raw dictionary table exists.
- */
-function ll_tools_dictionary_legacy_table_exists(): bool {
-    global $wpdb;
-    $table = ll_tools_dictionary_get_legacy_table_name();
-    $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
-    return $exists === $table;
-}
-
-/**
- * Import the legacy raw dictionary table in batches.
- *
- * @param array<string,mixed> $options Import options.
- * @return array<string,mixed>|WP_Error
- */
-function ll_tools_dictionary_import_legacy_table(array $options = []) {
-    global $wpdb;
-
-    if (!ll_tools_dictionary_legacy_table_exists()) {
-        return new WP_Error('ll_tools_dictionary_legacy_table_missing', __('Legacy dictionary table not found.', 'll-tools-text-domain'));
-    }
-
-    if (function_exists('set_time_limit')) {
-        @set_time_limit(0);
-    }
-
-    $table = ll_tools_dictionary_get_legacy_table_name();
-    $batch_size = max(50, min(1000, (int) ($options['batch_size'] ?? 500)));
-    $offset = 0;
-    $aggregate = [
-        'rows_total' => 0,
-        'rows_grouped' => 0,
-        'rows_skipped_empty' => 0,
-        'rows_skipped_review' => 0,
-        'entries_created' => 0,
-        'entries_updated' => 0,
-        'entry_ids' => [],
-        'errors' => [],
-        'legacy_batches' => 0,
-    ];
-
-    do {
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT entry, definition, gender_number, entry_type, parent, needs_review, page_number, entry_lang, def_lang
-                 FROM {$table}
-                 ORDER BY entry ASC, id ASC
-                 LIMIT %d OFFSET %d",
-                $batch_size,
-                $offset
-            ),
-            ARRAY_A
-        );
-
-        if (empty($rows)) {
-            break;
-        }
-
-        $aggregate['legacy_batches']++;
-        $batch_summary = ll_tools_dictionary_import_rows($rows, $options);
-        $aggregate['rows_total'] += (int) ($batch_summary['rows_total'] ?? 0);
-        $aggregate['rows_grouped'] += (int) ($batch_summary['rows_grouped'] ?? 0);
-        $aggregate['rows_skipped_empty'] += (int) ($batch_summary['rows_skipped_empty'] ?? 0);
-        $aggregate['rows_skipped_review'] += (int) ($batch_summary['rows_skipped_review'] ?? 0);
-        $aggregate['entries_created'] += (int) ($batch_summary['entries_created'] ?? 0);
-        $aggregate['entries_updated'] += (int) ($batch_summary['entries_updated'] ?? 0);
-        $aggregate['entry_ids'] = array_merge($aggregate['entry_ids'], (array) ($batch_summary['entry_ids'] ?? []));
-        $aggregate['errors'] = array_merge($aggregate['errors'], (array) ($batch_summary['errors'] ?? []));
-
-        $offset += $batch_size;
-    } while (!empty($rows));
-
-    $aggregate['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', $aggregate['entry_ids']))));
-    $aggregate['error_count'] = count($aggregate['errors']);
-
-    return $aggregate;
 }
 
 /**

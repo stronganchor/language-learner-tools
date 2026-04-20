@@ -30,7 +30,7 @@ if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS')) {
 }
 
 /**
- * Capability required for dictionary import and migration tools.
+ * Capability required for dictionary import tools.
  */
 function ll_tools_get_dictionary_import_capability(): string {
     return (string) apply_filters('ll_tools_dictionary_import_capability', 'manage_options');
@@ -167,7 +167,6 @@ function ll_tools_dictionary_import_default_summary(int $rows_total = 0): array 
         'rows_total' => max(0, $rows_total),
         'rows_grouped' => 0,
         'rows_skipped_empty' => 0,
-        'rows_skipped_review' => 0,
         'entries_created' => 0,
         'entries_updated' => 0,
         'entries_deleted' => 0,
@@ -226,7 +225,7 @@ function ll_tools_dictionary_import_merge_summary(array $summary, array $batch_s
     $summary = ll_tools_dictionary_import_normalize_summary($summary);
     $batch_summary = ll_tools_dictionary_import_normalize_summary($batch_summary);
 
-    foreach (['rows_grouped', 'rows_skipped_empty', 'rows_skipped_review', 'entries_created', 'entries_updated', 'entries_deleted', 'sources_updated', 'sources_replaced'] as $key) {
+    foreach (['rows_grouped', 'rows_skipped_empty', 'entries_created', 'entries_updated', 'entries_deleted', 'sources_updated', 'sources_replaced'] as $key) {
         $summary[$key] = (int) ($summary[$key] ?? 0) + (int) ($batch_summary[$key] ?? 0);
     }
 
@@ -274,7 +273,6 @@ function ll_tools_get_dictionary_import_summary_html(array $summary, string $hea
     $rows_total = (int) ($summary['rows_total'] ?? 0);
     $rows_grouped = (int) ($summary['rows_grouped'] ?? 0);
     $rows_skipped_empty = (int) ($summary['rows_skipped_empty'] ?? 0);
-    $rows_skipped_review = (int) ($summary['rows_skipped_review'] ?? 0);
     $touched_entries = ll_tools_dictionary_import_get_summary_touched_count($summary);
     $errors = array_values(array_filter(array_map('strval', (array) ($summary['errors'] ?? []))));
     $error_count = max((int) ($summary['error_count'] ?? 0), count($errors));
@@ -291,12 +289,11 @@ function ll_tools_get_dictionary_import_summary_html(array $summary, string $hea
         $entries_updated
     )) . '</p>';
 
-    if ($rows_skipped_empty > 0 || $rows_skipped_review > 0) {
+    if ($rows_skipped_empty > 0) {
         echo '<p>' . esc_html(sprintf(
-            /* translators: 1: skipped empty rows, 2: skipped review-flagged rows */
-            __('Skipped empty rows: %1$d. Skipped review-flagged rows: %2$d.', 'll-tools-text-domain'),
-            $rows_skipped_empty,
-            $rows_skipped_review
+            /* translators: %d: skipped empty rows */
+            __('Skipped empty rows: %d.', 'll-tools-text-domain'),
+            $rows_skipped_empty
         )) . '</p>';
     }
 
@@ -989,52 +986,6 @@ function ll_tools_dictionary_import_create_tsv_job_from_upload(array $options) {
 }
 
 /**
- * @param array<string,mixed> $options
- * @return array<string,mixed>|WP_Error
- */
-function ll_tools_dictionary_import_create_legacy_job(array $options) {
-    global $wpdb;
-
-    if (!function_exists('ll_tools_dictionary_legacy_table_exists') || !ll_tools_dictionary_legacy_table_exists()) {
-        return new WP_Error('ll_tools_dictionary_legacy_table_missing', __('Legacy dictionary table not found.', 'll-tools-text-domain'));
-    }
-
-    $table = ll_tools_dictionary_get_legacy_table_name();
-    $total_rows = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-
-    $job_id = ll_tools_dictionary_import_generate_job_id();
-    $user_id = get_current_user_id();
-    $user = $user_id > 0 ? get_userdata($user_id) : null;
-    $job = [
-        'id' => $job_id,
-        'type' => 'legacy',
-        'status' => $total_rows > 0 ? 'running' : 'completed',
-        'created_at' => time(),
-        'updated_at' => time(),
-        'user_id' => $user_id,
-        'user_label' => $user instanceof WP_User ? (string) $user->display_name : '',
-        'original_filename' => '',
-        'options' => $options,
-        'summary' => ll_tools_dictionary_import_default_summary($total_rows),
-        'legacy_offset' => 0,
-        'legacy_batch_size' => max(50, min(1000, (int) ($options['batch_size'] ?? 500))),
-        'total_rows' => $total_rows,
-        'processed_rows' => $total_rows > 0 ? 0 : $total_rows,
-        'error_message' => '',
-    ];
-
-    if ($job['status'] === 'running') {
-        ll_tools_dictionary_import_set_active_job_id($job_id);
-    }
-
-    $job = ll_tools_dictionary_import_attach_backup_snapshot($job);
-    ll_tools_dictionary_import_save_job($job_id, $job);
-    ll_tools_dictionary_import_set_last_job_id($job_id, $user_id);
-
-    return $job;
-}
-
-/**
  * @return array<string,mixed>|WP_Error
  */
 function ll_tools_dictionary_import_process_tsv_job(array $job) {
@@ -1093,72 +1044,6 @@ function ll_tools_dictionary_import_process_tsv_job(array $job) {
         $job['status'] = 'completed';
         ll_tools_dictionary_import_clear_active_job_id($job_id);
         ll_tools_dictionary_import_delete_path((string) ($job['job_dir'] ?? ''));
-    }
-
-    return $job;
-}
-
-/**
- * @return array<int,array<string,string>>
- */
-function ll_tools_dictionary_import_get_legacy_rows_batch(int $offset, int $batch_size): array {
-    global $wpdb;
-
-    $table = ll_tools_dictionary_get_legacy_table_name();
-
-    return (array) $wpdb->get_results(
-        $wpdb->prepare(
-            "SELECT entry, definition, gender_number, entry_type, parent, needs_review, page_number, entry_lang, def_lang
-             FROM {$table}
-             ORDER BY entry ASC, id ASC
-             LIMIT %d OFFSET %d",
-            $batch_size,
-            $offset
-        ),
-        ARRAY_A
-    );
-}
-
-/**
- * @return array<string,mixed>|WP_Error
- */
-function ll_tools_dictionary_import_process_legacy_job(array $job) {
-    ll_tools_dictionary_import_prepare_runtime();
-
-    if (!function_exists('ll_tools_dictionary_legacy_table_exists') || !ll_tools_dictionary_legacy_table_exists()) {
-        return new WP_Error('ll_tools_dictionary_legacy_table_missing', __('Legacy dictionary table not found.', 'll-tools-text-domain'));
-    }
-
-    $offset = max(0, (int) ($job['legacy_offset'] ?? 0));
-    $batch_size = max(50, min(1000, (int) ($job['legacy_batch_size'] ?? 500)));
-    $total_rows = max(0, (int) ($job['total_rows'] ?? 0));
-
-    if ($offset >= $total_rows) {
-        $job['status'] = 'completed';
-        ll_tools_dictionary_import_clear_active_job_id((string) ($job['id'] ?? ''));
-        return $job;
-    }
-
-    $rows = ll_tools_dictionary_import_get_legacy_rows_batch($offset, $batch_size);
-    if (empty($rows)) {
-        $job['status'] = 'completed';
-        ll_tools_dictionary_import_clear_active_job_id((string) ($job['id'] ?? ''));
-        return $job;
-    }
-
-    $batch_summary = function_exists('ll_tools_dictionary_import_rows')
-        ? ll_tools_dictionary_import_rows($rows, (array) ($job['options'] ?? []))
-        : ll_tools_dictionary_import_default_summary(count($rows));
-    $job['summary'] = ll_tools_dictionary_import_merge_summary(
-        is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary($total_rows),
-        is_array($batch_summary) ? $batch_summary : []
-    );
-    $job['processed_rows'] = min($total_rows, max(0, (int) ($job['processed_rows'] ?? 0)) + count($rows));
-    $job['legacy_offset'] = $offset + count($rows);
-
-    if ((int) $job['legacy_offset'] >= $total_rows) {
-        $job['status'] = 'completed';
-        ll_tools_dictionary_import_clear_active_job_id((string) ($job['id'] ?? ''));
     }
 
     return $job;
@@ -1256,14 +1141,12 @@ function ll_tools_dictionary_import_process_snapshot_job(array $job) {
  */
 function ll_tools_dictionary_import_process_job(array $job) {
     $type = sanitize_key((string) ($job['type'] ?? ''));
-    $processed_job = null;
-
-    if ($type === 'legacy') {
-        $processed_job = ll_tools_dictionary_import_process_legacy_job($job);
-    } elseif ($type === 'snapshot') {
+    if ($type === 'snapshot') {
         $processed_job = ll_tools_dictionary_import_process_snapshot_job($job);
-    } else {
+    } elseif ($type === '' || $type === 'tsv') {
         $processed_job = ll_tools_dictionary_import_process_tsv_job($job);
+    } else {
+        return new WP_Error('ll_tools_dictionary_import_unsupported_job_type', __('This dictionary import job type is no longer supported.', 'll-tools-text-domain'));
     }
 
     if (is_wp_error($processed_job)) {
@@ -1578,11 +1461,11 @@ function ll_tools_dictionary_import_get_job_snapshot(array $job): array {
             max(0, (int) ($job['total_groups'] ?? 0))
         );
         $detail_text = sprintf(
-            /* translators: 1: created entry count, 2: updated entry count, 3: skipped row count */
-            __('Created %1$d, updated %2$d, skipped %3$d rows so far.', 'll-tools-text-domain'),
+            /* translators: 1: created entry count, 2: updated entry count, 3: skipped empty row count */
+            __('Created %1$d, updated %2$d, skipped %3$d empty rows so far.', 'll-tools-text-domain'),
             max(0, (int) ($summary['entries_created'] ?? 0)),
             max(0, (int) ($summary['entries_updated'] ?? 0)),
-            max(0, (int) ($summary['rows_skipped_empty'] ?? 0)) + max(0, (int) ($summary['rows_skipped_review'] ?? 0))
+            max(0, (int) ($summary['rows_skipped_empty'] ?? 0))
         );
     }
 
@@ -1701,7 +1584,6 @@ function ll_tools_dictionary_import_ajax_start_job(): void {
     $selected_wordset_id = isset($_POST['ll_dictionary_wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['ll_dictionary_wordset_id'])) : 0;
     $entry_lang = isset($_POST['ll_dictionary_entry_lang']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_entry_lang']))) : '';
     $def_lang = isset($_POST['ll_dictionary_def_lang']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_def_lang']))) : '';
-    $skip_review_rows = !isset($_POST['ll_dictionary_skip_review_rows']) || wp_unslash((string) $_POST['ll_dictionary_skip_review_rows']) === '1';
     $replace_existing_senses = isset($_POST['ll_dictionary_replace_existing_senses']) && wp_unslash((string) $_POST['ll_dictionary_replace_existing_senses']) === '1';
     $action = isset($_POST['ll_dictionary_action']) ? sanitize_key((string) wp_unslash((string) $_POST['ll_dictionary_action'])) : 'import_tsv';
     $snapshot_mode = isset($_POST['ll_dictionary_snapshot_mode']) && sanitize_key((string) wp_unslash((string) $_POST['ll_dictionary_snapshot_mode'])) === 'override'
@@ -1722,14 +1604,11 @@ function ll_tools_dictionary_import_ajax_start_job(): void {
         'wordset_id' => $selected_wordset_id,
         'entry_lang' => $entry_lang,
         'def_lang' => $def_lang,
-        'skip_review_rows' => $skip_review_rows,
         'replace_existing_senses' => $replace_existing_senses,
         'snapshot_mode' => $snapshot_mode,
     ];
 
-    if ($action === 'migrate_legacy') {
-        $job = ll_tools_dictionary_import_create_legacy_job($import_options);
-    } elseif ($action === 'import_snapshot') {
+    if ($action === 'import_snapshot') {
         $job = ll_tools_dictionary_import_create_snapshot_job_from_upload($import_options);
     } elseif ($action === 'undo_import') {
         $job = ll_tools_dictionary_import_create_undo_job($history_id);
@@ -1844,7 +1723,7 @@ function ll_tools_dictionary_import_ajax_process_job(): void {
 add_action('wp_ajax_ll_tools_dictionary_import_process_job', 'll_tools_dictionary_import_ajax_process_job');
 
 /**
- * Render the dictionary import/migration screen.
+ * Render the dictionary import screen.
  */
 function ll_tools_render_dictionary_import_page(): void {
     if (!ll_tools_current_user_can_dictionary_import()) {
@@ -1854,7 +1733,6 @@ function ll_tools_render_dictionary_import_page(): void {
     $selected_wordset_id = isset($_POST['ll_dictionary_wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['ll_dictionary_wordset_id'])) : 0;
     $entry_lang = isset($_POST['ll_dictionary_entry_lang']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_entry_lang']))) : '';
     $def_lang = isset($_POST['ll_dictionary_def_lang']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_def_lang']))) : '';
-    $skip_review_rows = !isset($_POST['ll_dictionary_skip_review_rows']) || wp_unslash((string) $_POST['ll_dictionary_skip_review_rows']) === '1';
     $replace_existing_senses = isset($_POST['ll_dictionary_replace_existing_senses']) && wp_unslash((string) $_POST['ll_dictionary_replace_existing_senses']) === '1';
     $snapshot_mode = isset($_POST['ll_dictionary_snapshot_mode']) && sanitize_key((string) wp_unslash((string) $_POST['ll_dictionary_snapshot_mode'])) === 'override'
         ? 'override'
@@ -1880,7 +1758,6 @@ function ll_tools_render_dictionary_import_page(): void {
             'wordset_id' => $selected_wordset_id,
             'entry_lang' => $entry_lang,
             'def_lang' => $def_lang,
-            'skip_review_rows' => $skip_review_rows,
             'replace_existing_senses' => $replace_existing_senses,
         ];
 
@@ -1893,19 +1770,10 @@ function ll_tools_render_dictionary_import_page(): void {
                 $summary = ll_tools_dictionary_import_rows($rows, $import_options);
                 $summary_heading = __('Dictionary TSV import completed.', 'll-tools-text-domain');
             }
-        } elseif ($action === 'migrate_legacy') {
-            $summary = ll_tools_dictionary_import_legacy_table($import_options);
-            if (is_wp_error($summary)) {
-                $errors[] = $summary->get_error_message();
-                $summary = null;
-            } else {
-                $summary_heading = __('Legacy dictionary table migration completed.', 'll-tools-text-domain');
-            }
         }
     }
 
     $wordsets = ll_tools_dictionary_import_get_wordsets();
-    $legacy_table_exists = function_exists('ll_tools_dictionary_legacy_table_exists') && ll_tools_dictionary_legacy_table_exists();
     $recent_imports = ll_tools_dictionary_import_get_recent_history_entries();
     $sources_url = function_exists('ll_tools_get_tools_page_url')
         ? ll_tools_get_tools_page_url('ll-dictionary-sources')
@@ -1914,7 +1782,7 @@ function ll_tools_render_dictionary_import_page(): void {
     <div class="wrap ll-dictionary-import-admin">
         <h1><?php esc_html_e('LL Dictionary Manager', 'll-tools-text-domain'); ?></h1>
         <p>
-            <?php esc_html_e('Manage dictionary imports, exports, and legacy migration in one place. TSV rows are grouped by headword so search, browse, bulk translations, and word-linking all use the same data.', 'll-tools-text-domain'); ?>
+            <?php esc_html_e('Manage dictionary TSV imports, whole-site snapshot imports, and exports in one place. TSV rows are grouped by headword so search, browse, bulk translations, and word-linking all use the same data.', 'll-tools-text-domain'); ?>
         </p>
         <div class="ll-dictionary-import-admin__nav-card">
             <div>
@@ -2025,10 +1893,6 @@ function ll_tools_render_dictionary_import_page(): void {
                 <tr>
                     <th scope="row"><?php esc_html_e('Import Options', 'll-tools-text-domain'); ?></th>
                     <td>
-                        <label style="display:block;margin-bottom:8px;">
-                            <input type="checkbox" name="ll_dictionary_skip_review_rows" value="1" <?php checked($skip_review_rows); ?>>
-                            <?php esc_html_e('Skip rows marked with a non-trivial review flag (matches the legacy plugin behavior).', 'll-tools-text-domain'); ?>
-                        </label>
                         <label style="display:block;">
                             <input type="checkbox" name="ll_dictionary_replace_existing_senses" value="1" <?php checked($replace_existing_senses); ?>>
                             <?php esc_html_e('Replace existing structured senses for matching headwords instead of merging.', 'll-tools-text-domain'); ?>
@@ -2070,25 +1934,6 @@ function ll_tools_render_dictionary_import_page(): void {
 
             <?php submit_button(__('Import Dictionary Snapshot', 'll-tools-text-domain'), 'primary', 'submit', false); ?>
         </form>
-
-        <hr style="margin:28px 0;">
-
-        <h2><?php esc_html_e('Legacy Migration', 'll-tools-text-domain'); ?></h2>
-        <?php if ($legacy_table_exists) : ?>
-            <p><?php esc_html_e('A legacy raw dictionary table was found. This will group those rows into LL Tools dictionary entries so the old one-off plugin can be removed cleanly.', 'll-tools-text-domain'); ?></p>
-            <form method="post" id="ll-dictionary-legacy-form" data-ll-dictionary-job-form>
-                <?php wp_nonce_field('ll_tools_dictionary_import', 'll_dictionary_import_nonce'); ?>
-                <input type="hidden" name="ll_dictionary_action" value="migrate_legacy">
-                <input type="hidden" name="ll_dictionary_wordset_id" value="<?php echo esc_attr((string) $selected_wordset_id); ?>">
-                <input type="hidden" name="ll_dictionary_entry_lang" value="<?php echo esc_attr($entry_lang); ?>">
-                <input type="hidden" name="ll_dictionary_def_lang" value="<?php echo esc_attr($def_lang); ?>">
-                <input type="hidden" name="ll_dictionary_skip_review_rows" value="<?php echo esc_attr($skip_review_rows ? '1' : '0'); ?>">
-                <input type="hidden" name="ll_dictionary_replace_existing_senses" value="<?php echo esc_attr($replace_existing_senses ? '1' : '0'); ?>">
-                <?php submit_button(__('Migrate Legacy Dictionary Table', 'll-tools-text-domain'), 'secondary', 'submit', false); ?>
-            </form>
-        <?php else : ?>
-            <p class="description"><?php esc_html_e('No legacy dictionary table was detected on this site.', 'll-tools-text-domain'); ?></p>
-        <?php endif; ?>
 
         <hr style="margin:28px 0;">
         <?php ll_tools_render_dictionary_import_history_section($recent_imports); ?>

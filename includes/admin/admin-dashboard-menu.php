@@ -561,7 +561,7 @@ function ll_tools_render_tools_hub_page() {
         ],
         [
             'label' => __('Dictionary Manager', 'll-tools-text-domain'),
-            'description' => __('Import TSV dictionaries, export whole-site snapshots, or migrate the legacy raw dictionary table into LL Tools dictionary entries.', 'll-tools-text-domain'),
+            'description' => __('Import TSV dictionaries or export and restore whole-site dictionary snapshots.', 'll-tools-text-domain'),
             'url' => ll_tools_get_tools_page_url('ll-dictionary-import'),
             'cap' => $dictionary_import_capability,
             'icon' => 'dashicons-book-alt',

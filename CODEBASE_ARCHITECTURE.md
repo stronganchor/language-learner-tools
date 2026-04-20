@@ -39,7 +39,7 @@ read_first:
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
-- Dictionary tooling: TSV/legacy-table import into `ll_dictionary_entry`, grouped sense metadata, and a public `[ll_dictionary]` browse/search page.
+- Dictionary tooling: TSV import into `ll_dictionary_entry`, grouped sense metadata, snapshot import/export, and a public `[ll_dictionary]` browse/search page.
 - Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
 # Entry points and runtime flow
@@ -85,7 +85,7 @@ includes/
   lib/
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
-    dictionary-browser.php    # Dictionary import/search helpers + legacy raw-table migration
+    dictionary-browser.php    # Dictionary import/search helpers
     ll-matching.php           # Audio <-> image matching heuristics
     media-proxy.php           # Signed image proxy for quizzes
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
