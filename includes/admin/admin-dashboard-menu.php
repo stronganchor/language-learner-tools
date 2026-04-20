@@ -32,6 +32,30 @@ if (!function_exists('ll_tools_get_tools_hub_screen_id')) {
     }
 }
 
+if (!function_exists('ll_tools_get_language_learning_menu_title')) {
+    function ll_tools_get_language_learning_menu_title(): string {
+        return __('LL Tools', 'll-tools-text-domain');
+    }
+}
+
+if (!function_exists('ll_tools_get_tools_hub_menu_title')) {
+    function ll_tools_get_tools_hub_menu_title(): string {
+        return __('LL Tools Utilities', 'll-tools-text-domain');
+    }
+}
+
+if (!function_exists('ll_tools_get_language_learning_menu_position')) {
+    function ll_tools_get_language_learning_menu_position(): float {
+        return 58.01;
+    }
+}
+
+if (!function_exists('ll_tools_get_tools_hub_menu_position')) {
+    function ll_tools_get_tools_hub_menu_position(): float {
+        return 58.02;
+    }
+}
+
 if (!function_exists('ll_tools_get_dashboard_page_url')) {
     function ll_tools_get_dashboard_page_url(string $page_slug, array $args = []): string {
         $page_slug = sanitize_key($page_slug);
@@ -355,8 +379,8 @@ function ll_tools_render_home_hub_page() {
             'icon' => 'dashicons-groups',
         ],
         [
-            'label' => __('Tools', 'll-tools-text-domain'),
-            'description' => __('Open workflow utilities for import/export, processing, and maintenance.', 'll-tools-text-domain'),
+            'label' => ll_tools_get_tools_hub_menu_title(),
+            'description' => __('Open the utilities menu for import/export, processing, and maintenance workflows.', 'll-tools-text-domain'),
             'url' => ll_tools_get_dashboard_page_url(ll_tools_get_tools_hub_page_slug()),
             'cap' => 'view_ll_tools',
             'icon' => 'dashicons-admin-tools',
@@ -648,6 +672,33 @@ function ll_tools_get_tools_hub_menu_items(): array {
     return $items;
 }
 
+function ll_tools_get_tools_hub_direct_submenu_page_slugs(): array {
+    $export_page_slug = function_exists('ll_tools_get_export_page_slug')
+        ? sanitize_key((string) ll_tools_get_export_page_slug())
+        : 'll-export';
+    $import_page_slug = function_exists('ll_tools_get_import_page_slug')
+        ? sanitize_key((string) ll_tools_get_import_page_slug())
+        : 'll-import';
+
+    return [
+        'll-audio-processor',
+        'll-bulk-word-import',
+        'll-dictionary-import',
+        $export_page_slug,
+        $import_page_slug,
+        'll-offline-app-export',
+    ];
+}
+
+function ll_tools_get_tools_hub_direct_submenu_items(): array {
+    $allowed_page_slugs = array_fill_keys(ll_tools_get_tools_hub_direct_submenu_page_slugs(), true);
+
+    return array_values(array_filter(ll_tools_get_tools_hub_menu_items(), static function ($item) use ($allowed_page_slugs): bool {
+        $page_slug = isset($item['page_slug']) ? sanitize_key((string) $item['page_slug']) : '';
+        return $page_slug !== '' && isset($allowed_page_slugs[$page_slug]);
+    }));
+}
+
 function ll_tools_register_dashboard_menu() {
     $menu_slug = ll_tools_get_admin_menu_slug();
     $tools_menu_slug = ll_tools_get_tools_hub_page_slug();
@@ -656,22 +707,22 @@ function ll_tools_register_dashboard_menu() {
 
     add_menu_page(
         __('Language Learning Tools', 'll-tools-text-domain'),
-        __('Language Learning', 'll-tools-text-domain'),
+        ll_tools_get_language_learning_menu_title(),
         'view_ll_tools',
         $menu_slug,
         'll_tools_render_home_hub_page',
         'dashicons-translation',
-        58
+        ll_tools_get_language_learning_menu_position()
     );
 
     add_menu_page(
         __('LL Tools Utilities', 'll-tools-text-domain'),
-        __('LL Tools', 'll-tools-text-domain'),
+        ll_tools_get_tools_hub_menu_title(),
         'view_ll_tools',
         $tools_menu_slug,
         'll_tools_render_tools_hub_page',
         'dashicons-admin-tools',
-        59
+        ll_tools_get_tools_hub_menu_position()
     );
 
     // Rename the auto-created first submenu (same slug as top-level) to "Overview"
@@ -750,7 +801,7 @@ function ll_tools_register_tools_hub_submenus(): void {
         return;
     }
 
-    foreach (ll_tools_get_tools_hub_menu_items() as $item) {
+    foreach (ll_tools_get_tools_hub_direct_submenu_items() as $item) {
         $label = isset($item['label']) ? (string) $item['label'] : '';
         $capability = isset($item['cap']) ? (string) $item['cap'] : 'manage_options';
         $submenu_slug = isset($item['menu_slug']) ? (string) $item['menu_slug'] : '';

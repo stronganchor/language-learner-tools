@@ -80,4 +80,26 @@ final class AdminMenuSplitTest extends LL_Tools_TestCase
         $this->assertContains('admin.php?page=ll-tools-user-progress-report', $menu_slugs);
         $this->assertContains('edit.php?post_type=ll_vocab_lesson', $menu_slugs);
     }
+
+    public function test_top_level_menu_titles_use_matching_ll_tools_labels(): void
+    {
+        $this->assertSame('LL Tools', ll_tools_get_language_learning_menu_title());
+        $this->assertSame('LL Tools Utilities', ll_tools_get_tools_hub_menu_title());
+        $this->assertLessThan(
+            ll_tools_get_tools_hub_menu_position(),
+            ll_tools_get_language_learning_menu_position()
+        );
+    }
+
+    public function test_tools_hub_direct_submenu_items_include_requested_workflows_only(): void
+    {
+        $items = ll_tools_get_tools_hub_direct_submenu_items();
+        $page_slugs = array_values(array_filter(array_map(static function ($item): string {
+            return isset($item['page_slug']) ? (string) $item['page_slug'] : '';
+        }, $items)));
+
+        $this->assertSame(ll_tools_get_tools_hub_direct_submenu_page_slugs(), $page_slugs);
+        $this->assertNotContains('ll-audio-image-matcher', $page_slugs);
+        $this->assertNotContains('ll-ipa-keyboard', $page_slugs);
+    }
 }
