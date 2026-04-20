@@ -102,4 +102,42 @@ final class AdminMenuSplitTest extends LL_Tools_TestCase
         $this->assertNotContains('ll-audio-image-matcher', $page_slugs);
         $this->assertNotContains('ll-ipa-keyboard', $page_slugs);
     }
+
+    public function test_tools_hub_registers_hover_submenu_entries(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $user = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $user->add_cap('view_ll_tools');
+
+        global $menu, $submenu;
+        $original_menu = $menu;
+        $original_submenu = $submenu;
+
+        try {
+            $menu = [];
+            $submenu = [];
+
+            ll_tools_register_dashboard_menu();
+            ll_tools_register_tools_hub_submenus();
+
+            $tools_menu_slug = ll_tools_get_tools_hub_page_slug();
+            $this->assertArrayHasKey($tools_menu_slug, $submenu);
+
+            $submenu_slugs = array_values(array_filter(array_map(static function ($item): string {
+                return isset($item[2]) ? (string) $item[2] : '';
+            }, (array) $submenu[$tools_menu_slug])));
+
+            $this->assertContains(ll_tools_get_tools_hub_page_slug(), $submenu_slugs);
+            $this->assertContains('tools.php?page=ll-audio-processor', $submenu_slugs);
+            $this->assertContains('tools.php?page=ll-bulk-word-import', $submenu_slugs);
+            $this->assertContains('tools.php?page=ll-dictionary-import', $submenu_slugs);
+            $this->assertContains('tools.php?page=ll-offline-app-export', $submenu_slugs);
+        } finally {
+            $menu = $original_menu;
+            $submenu = $original_submenu;
+        }
+    }
 }

@@ -790,6 +790,15 @@ function ll_tools_register_dashboard_menu() {
         $settings_slug,
         'll_tools_render_settings_page_menu_wrapper'
     );
+
+    add_submenu_page(
+        $tools_menu_slug,
+        __('LL Tools Utilities', 'll-tools-text-domain'),
+        __('Overview', 'll-tools-text-domain'),
+        'view_ll_tools',
+        $tools_menu_slug,
+        'll_tools_render_tools_hub_page'
+    );
 }
 add_action('admin_menu', 'll_tools_register_dashboard_menu', 9);
 
