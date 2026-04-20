@@ -985,6 +985,84 @@
         rebuildCategoryOrderLookup();
     }
 
+    function isInlineSortedMainCategoryPlaceholderElement(node) {
+        return !!(
+            node
+            && node.nodeType === 1
+            && node.hasAttribute
+            && node.hasAttribute('data-ll-wordset-inline-placeholder')
+        );
+    }
+
+    function shouldUseInlineSortedMainCategoryPlaceholders() {
+        const currentSort = normalizeMainCategorySort(mainCategorySort);
+        if (currentSort === 'default' || isMainCategorySearchActive() || !hasPendingLazyCards()) {
+            return false;
+        }
+        if (mainCategorySortRequiresMetrics(currentSort) && !mainCategoryMetricsReady) {
+            return false;
+        }
+        return true;
+    }
+
+    function buildInlineSortedMainCategoryPlaceholderMarkup(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const categoryId = parseInt(cat.id, 10) || 0;
+        if (!categoryId) {
+            return '';
+        }
+
+        return ''
+            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-card--inline-sort-placeholder" role="listitem"'
+            + ' data-cat-id="' + categoryId + '"'
+            + ' data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '"'
+            + ' data-ll-wordset-inline-placeholder="true"'
+            + ' aria-hidden="true">'
+            + '  <div class="ll-wordset-card__top">'
+            + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder" aria-hidden="true">'
+            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__progress" aria-hidden="true">'
+            + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '  </div>'
+            + '</article>';
+    }
+
+    function createInlineSortedMainCategoryPlaceholderElement(category) {
+        const markup = buildInlineSortedMainCategoryPlaceholderMarkup(category);
+        if (!markup) {
+            return null;
+        }
+        const parsedNodes = $.parseHTML(String(markup), document, true) || [];
+        for (let index = 0; index < parsedNodes.length; index += 1) {
+            const node = parsedNodes[index];
+            if (node && node.nodeType === 1 && node.hasAttribute('data-ll-wordset-inline-placeholder')) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    function getMainCategoryCardSlotByCategoryId(categoryId) {
+        const id = parseInt(categoryId, 10) || 0;
+        if (!id) {
+            return $();
+        }
+        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]').first();
+    }
+
     function reorderMainCategoryGridCards() {
         if (!$grid.length || !$grid[0]) {
             return;
@@ -992,11 +1070,13 @@
 
         const gridEl = $grid[0];
         const childElements = $grid.children().toArray();
-        if (!childElements.length) {
+        const useInlinePlaceholders = shouldUseInlineSortedMainCategoryPlaceholders();
+        if (!childElements.length && !useInlinePlaceholders) {
             return;
         }
 
         const existingCategoryNodes = {};
+        const existingPlaceholderNodes = {};
         childElements.forEach(function (child) {
             if (!child || child.nodeType !== 1) {
                 return;
@@ -1005,24 +1085,53 @@
             if (!categoryId) {
                 return;
             }
+            if (isInlineSortedMainCategoryPlaceholderElement(child)) {
+                if (!existingPlaceholderNodes[categoryId]) {
+                    existingPlaceholderNodes[categoryId] = child;
+                }
+                return;
+            }
             existingCategoryNodes[categoryId] = child;
         });
 
-        const sortedLoadedNodes = categories.reduce(function (nodes, category) {
+        const sortedCategoryNodes = categories.reduce(function (nodes, category) {
             const categoryId = parseInt(category && category.id, 10) || 0;
-            if (!categoryId || !existingCategoryNodes[categoryId]) {
+            if (!categoryId || isCategoryHidden(categoryId)) {
                 return nodes;
             }
-            nodes.push(existingCategoryNodes[categoryId]);
+
+            if (existingCategoryNodes[categoryId]) {
+                nodes.push(existingCategoryNodes[categoryId]);
+                return nodes;
+            }
+
+            if (!useInlinePlaceholders) {
+                return nodes;
+            }
+
+            const placeholderNode = existingPlaceholderNodes[categoryId] || createInlineSortedMainCategoryPlaceholderElement(category);
+            if (placeholderNode) {
+                nodes.push(placeholderNode);
+            }
             return nodes;
         }, []);
 
-        if (!sortedLoadedNodes.length) {
+        if (!sortedCategoryNodes.length) {
+            if (childElements.length) {
+                childElements.forEach(function (child) {
+                    if (isInlineSortedMainCategoryPlaceholderElement(child) && child.parentNode === gridEl) {
+                        child.parentNode.removeChild(child);
+                    }
+                });
+            }
             return;
         }
 
+        const baseChildElements = childElements.filter(function (child) {
+            return useInlinePlaceholders || !isInlineSortedMainCategoryPlaceholderElement(child);
+        });
         let nextCategoryIndex = 0;
-        const orderedChildren = childElements.reduce(function (nodes, child) {
+        const orderedChildren = baseChildElements.reduce(function (nodes, child) {
             if (!child || child.nodeType !== 1) {
                 nodes.push(child);
                 return nodes;
@@ -1034,16 +1143,24 @@
                 return nodes;
             }
 
-            const replacement = sortedLoadedNodes[nextCategoryIndex] || child;
+            const replacement = sortedCategoryNodes[nextCategoryIndex] || child;
             nextCategoryIndex += 1;
             nodes.push(replacement);
             return nodes;
         }, []);
 
-        while (nextCategoryIndex < sortedLoadedNodes.length) {
-            orderedChildren.push(sortedLoadedNodes[nextCategoryIndex]);
+        while (nextCategoryIndex < sortedCategoryNodes.length) {
+            orderedChildren.push(sortedCategoryNodes[nextCategoryIndex]);
             nextCategoryIndex += 1;
         }
+
+        const keepNodes = new Set(orderedChildren.filter(Boolean));
+        childElements.forEach(function (child) {
+            if (!child || child.parentNode !== gridEl || keepNodes.has(child)) {
+                return;
+            }
+            child.parentNode.removeChild(child);
+        });
 
         const fragment = document.createDocumentFragment();
         orderedChildren.forEach(function (child) {
@@ -1113,7 +1230,6 @@
         const renderOrdering = function () {
             sortMainCategoriesInMemory();
             renderMainCategorySearch();
-            reorderMainCategoryGridCards();
         };
 
         if (!shouldEnsureAllLoaded) {
@@ -6454,15 +6570,15 @@
             return $();
         }
 
-        const $existing = getWordsetCardByCategoryId(targetId);
-        if ($existing.length) {
-            if ($existing.is('[data-ll-wordset-search-rendered="true"]')) {
-                $node.insertBefore($existing);
-                $existing.remove();
+        const $existingSlot = getMainCategoryCardSlotByCategoryId(targetId);
+        if ($existingSlot.length) {
+            if ($existingSlot.is('[data-ll-wordset-search-rendered="true"], [data-ll-wordset-inline-placeholder="true"]')) {
+                $node.insertBefore($existingSlot);
+                $existingSlot.remove();
                 return $node;
             }
             $node.remove();
-            return $existing;
+            return $existingSlot;
         }
 
         const targetOrder = getCategoryOrderIndex(targetId);
@@ -6671,9 +6787,10 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const hasError = !!opts.error;
         const searchActive = isMainCategorySearchActive();
+        const inlineSortedPlaceholders = shouldUseInlineSortedMainCategoryPlaceholders();
         const hasMore = hasPendingLazyCards();
 
-        if (!hasMore || hasError || searchActive) {
+        if (!hasMore || hasError || searchActive || inlineSortedPlaceholders) {
             lazyCardsPlaceholderCount = 0;
             $lazyCardsPlaceholders.empty().prop('hidden', true);
             return;
@@ -6718,6 +6835,9 @@
         const hasError = !!opts.error;
         const hasMore = hasPendingLazyCards();
         const searchActive = isMainCategorySearchActive();
+        const inlineSortedPlaceholders = shouldUseInlineSortedMainCategoryPlaceholders();
+
+        $lazyCardsRoot.toggleClass('has-inline-sort-placeholders', inlineSortedPlaceholders);
 
         if (!hasMore) {
             $lazyCardsRoot.prop('hidden', true).removeClass('is-loading is-error');
@@ -7062,10 +7182,12 @@
             }
         });
 
+        if (!query) {
+            removeTemporarySearchResultCards();
+        }
+        reorderMainCategoryGridCards();
         if (query) {
             ensureSearchMatchCardsRendered(visibleLookup, query);
-        } else {
-            removeTemporarySearchResultCards();
         }
 
         const previousSelectedIds = uniqueIntList(selectedCategoryIds || []);
@@ -8398,7 +8520,7 @@
     function getWordsetCardByCategoryId(categoryId) {
         const id = parseInt(categoryId, 10) || 0;
         if (!id) { return $(); }
-        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]').first();
+        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]:not([data-ll-wordset-inline-placeholder="true"])').first();
     }
 
     function getWordsetCardProgressSegments($card) {
@@ -12375,9 +12497,7 @@
                 }
                 event.preventDefault();
                 event.stopPropagation();
-                setMainCategorySort($option.attr('data-ll-wordset-main-sort-option') || 'default', {
-                    ensureAllLoaded: true
-                });
+                setMainCategorySort($option.attr('data-ll-wordset-main-sort-option') || 'default');
             });
         }
 

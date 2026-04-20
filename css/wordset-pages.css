@@ -2046,6 +2046,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-height: 1px;
 }
 
+.ll-wordset-grid-lazy.has-inline-sort-placeholders {
+    margin: 0 auto 1px;
+}
+
 .ll-wordset-grid-lazy[hidden] {
     display: none !important;
 }

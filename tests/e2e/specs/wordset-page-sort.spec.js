@@ -395,6 +395,19 @@ async function getRenderedCategoryOrder(page) {
   );
 }
 
+async function getRenderedCategorySlots(page) {
+  return page.locator('.ll-wordset-card[data-cat-id]').evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const titleNode = node.querySelector('.ll-wordset-card__title');
+      return {
+        id: Number.parseInt(node.getAttribute('data-cat-id') || '0', 10) || 0,
+        placeholder: node.hasAttribute('data-ll-wordset-inline-placeholder'),
+        title: titleNode ? (titleNode.textContent || '').trim() : ''
+      };
+    })
+  );
+}
+
 test('wordset page sort menu reorders categories by alpha, progress, and recency', async ({ page }) => {
   const categories = [
     {
@@ -587,7 +600,7 @@ test('deferred metrics apply an active progress sort after analytics loads', asy
   await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Fruit', 'Animals', 'Travel']);
 });
 
-test('changing sort loads all lazy cards before applying the order', async ({ page }) => {
+test('changing sort keeps a stable sorted layout with inline lazy placeholders', async ({ page }) => {
   const categories = [
     {
       id: 33,
@@ -644,7 +657,11 @@ test('changing sort loads all lazy cards before applying the order', async ({ pa
 
   await mountWordsetPage(page, {
     categories,
-    initialCategories: [categories[0]],
+    initialCategories: [
+      Object.assign({}, categories[0], {
+        extraStyle: 'margin-top: 1600px;'
+      })
+    ],
     remainingCards: categories,
     configOverrides: {
       lazyCards: {
@@ -669,13 +686,35 @@ test('changing sort loads all lazy cards before applying the order', async ({ pa
   await page.click('[data-ll-wordset-main-sort-option="alpha-asc"]');
 
   await expect.poll(async () => {
-    return page.evaluate(() => document.querySelectorAll('.ll-wordset-card[data-cat-id]').length);
-  }).toBe(3);
-  await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Animals', 'Fruit', 'Travel']);
+    return getRenderedCategorySlots(page);
+  }).toEqual([
+    { id: 22, placeholder: true, title: '' },
+    { id: 11, placeholder: true, title: '' },
+    { id: 33, placeholder: false, title: 'Travel' }
+  ]);
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llLazyAjaxCalls.length);
+  }).toBe(0);
+
+  await page.mouse.wheel(0, 4000);
+
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.length);
   }).toBeGreaterThan(0);
-  await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
+  await expect.poll(async () => {
+    const slots = await getRenderedCategorySlots(page);
+    return slots.length >= 3 && !slots[1].placeholder && !slots[2].placeholder;
+  }).toBe(true);
+
+  const afterLoadSlots = await getRenderedCategorySlots(page);
+  expect(afterLoadSlots.map((slot) => slot.id)).toEqual([22, 11, 33]);
+  expect(afterLoadSlots[1]).toEqual({ id: 11, placeholder: false, title: 'Fruit' });
+  expect(afterLoadSlots[2]).toEqual({ id: 33, placeholder: false, title: 'Travel' });
+  if (afterLoadSlots[0].placeholder) {
+    expect(afterLoadSlots[0].title).toBe('');
+  } else {
+    expect(afterLoadSlots[0].title).toBe('Animals');
+  }
 });
 
 test('saved sort preferences do not force-load all lazy cards on page init', async ({ page }) => {
@@ -794,7 +833,11 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
     }
   });
 
-  await expect(page.locator('.ll-wordset-card[data-cat-id]')).toHaveCount(1);
+  await expect.poll(() => getRenderedCategorySlots(page)).toEqual([
+    { id: 33, placeholder: false, title: 'Travel' },
+    { id: 11, placeholder: true, title: '' },
+    { id: 22, placeholder: true, title: '' }
+  ]);
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.length);
   }).toBe(0);
