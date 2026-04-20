@@ -789,12 +789,14 @@ test('changing sort materializes the top sorted rows while deeper slots stay laz
   });
 
   await expect.poll(async () => {
-    return page.evaluate(() => window.__llLazyAjaxCalls.length);
-  }).toBeGreaterThan(0);
-  await expect.poll(async () => {
     const slots = await getRenderedCategorySlots(page);
     return slots.find((slot) => slot.id === 88) || null;
   }).toEqual({ id: 88, placeholder: false, title: 'Weather' });
+
+  await expect.poll(async () => {
+    const slots = await getRenderedCategorySlots(page);
+    return slots.slice(0, 6).every((slot) => !slot.placeholder);
+  }).toBe(true);
 
   const afterLoadSlots = await getRenderedCategorySlots(page);
   expect(afterLoadSlots.map((slot) => slot.id)).toEqual([22, 44, 55, 11, 66, 77, 33, 88]);
@@ -923,7 +925,7 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
   await expect.poll(() => getRenderedCategorySlots(page)).toEqual([
     { id: 33, placeholder: false, title: 'Travel' },
     { id: 11, placeholder: false, title: 'Fruit' },
-    { id: 22, placeholder: true, title: '' }
+    { id: 22, placeholder: false, title: 'Animals' }
   ]);
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.length);

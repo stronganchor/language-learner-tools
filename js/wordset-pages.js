@@ -50,6 +50,8 @@
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
     const LAZY_CARDS_AUTOLOAD_VIEWPORT_OFFSET_PX = 720;
     const INLINE_SORT_WARM_ROWS = 2;
+    const INLINE_SORT_SCROLL_ROWS = 1;
+    const INLINE_SORT_AUTOLOAD_VIEWPORT_OFFSET_PX = 240;
     const lazyCardsCfg = (cfg.lazyCards && typeof cfg.lazyCards === 'object') ? cfg.lazyCards : {};
 
     let wordsByCategory = {};
@@ -78,6 +80,7 @@
     let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
     let mainCategorySortLoading = false;
     let mainCategorySortRequestToken = 0;
+    let inlineSortedPlaceholderScrollMode = false;
     let saveStateTimer = null;
     let stateSaveInFlightRequest = null;
     let stateSaveQueued = false;
@@ -1339,6 +1342,9 @@
         const nextSort = normalizeMainCategorySort(sortKey);
         const changed = nextSort !== mainCategorySort;
         mainCategorySort = nextSort;
+        if (changed) {
+            inlineSortedPlaceholderScrollMode = false;
+        }
 
         if (opts.persist !== false) {
             writeMainCategorySortPreference(mainCategorySort);
@@ -7084,28 +7090,103 @@
         return Math.min(visibleCategoryCount, Math.max(1, columnCount * INLINE_SORT_WARM_ROWS));
     }
 
-    function materializeInlineSortedMainCategoryCards() {
+    function getInlineSortedMainCategoryScrollBatchCount() {
+        if (!shouldUseInlineSortedMainCategoryPlaceholders()) {
+            return 0;
+        }
+
+        return Math.max(1, getLazyCardsPlaceholderColumnCount() * INLINE_SORT_SCROLL_ROWS);
+    }
+
+    function getInlineSortedMainCategoryPlaceholderElements() {
+        if (!$grid.length) {
+            return [];
+        }
+
+        return $grid.children('.ll-wordset-card[data-ll-wordset-inline-placeholder="true"]').toArray().filter(function (node) {
+            if (!node || node.hidden) {
+                return false;
+            }
+            if (node.classList && node.classList.contains('is-search-filtered-out')) {
+                return false;
+            }
+            if (window.getComputedStyle && typeof window.getComputedStyle === 'function') {
+                const computed = window.getComputedStyle(node);
+                if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }
+
+    function getVisibleInlineSortedMainCategoryPlaceholderElements() {
+        return getInlineSortedMainCategoryPlaceholderElements().filter(function (node) {
+            if (!node || !node.getBoundingClientRect) {
+                return false;
+            }
+            const rect = node.getBoundingClientRect();
+            return !!rect && rect.width > 0 && rect.height > 0;
+        });
+    }
+
+    function isInlineSortedPlaceholderNearViewport() {
+        const placeholders = getVisibleInlineSortedMainCategoryPlaceholderElements();
+        if (!placeholders.length) {
+            return false;
+        }
+
+        const rect = placeholders[0].getBoundingClientRect();
+        if (!rect) {
+            return false;
+        }
+
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        return rect.top <= (viewportHeight + INLINE_SORT_AUTOLOAD_VIEWPORT_OFFSET_PX);
+    }
+
+    function materializeInlineSortedMainCategoryCards(options) {
         if (!$grid.length) {
             return 0;
         }
 
-        const slotCount = getInlineSortedMainCategoryWarmSlotCount();
+        const opts = (options && typeof options === 'object') ? options : {};
+        const slotCount = Math.max(0, parseInt(opts.count, 10) || getInlineSortedMainCategoryWarmSlotCount());
         if (!slotCount) {
             return 0;
         }
 
+        const placeholderElements = getInlineSortedMainCategoryPlaceholderElements();
+        if (!placeholderElements.length) {
+            return 0;
+        }
+
+        const targetCategoryIds = placeholderElements.slice(0, slotCount).map(function (node) {
+            return parseInt(node && node.getAttribute && node.getAttribute('data-cat-id'), 10) || 0;
+        }).filter(function (categoryId) {
+            return !!categoryId;
+        });
+        if (!targetCategoryIds.length) {
+            return 0;
+        }
+
+        const categoryLookup = {};
+        categories.forEach(function (category) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (categoryId) {
+                categoryLookup[categoryId] = category;
+            }
+        });
         const progressLookup = buildCategoryProgressLookupForMainGrid();
         const starredLookup = buildCategoryStarredLookupForMainGrid();
         let $inserted = $();
-        let remainingSlots = slotCount;
 
-        categories.some(function (category) {
-            const categoryId = parseInt(category && category.id, 10) || 0;
-            if (!categoryId || isCategoryHidden(categoryId)) {
-                return false;
+        targetCategoryIds.forEach(function (categoryId) {
+            const category = categoryLookup[categoryId];
+            if (!category || isCategoryHidden(categoryId)) {
+                return;
             }
-
-            remainingSlots -= 1;
             if (!getWordsetCardByCategoryId(categoryId).length) {
                 const markup = buildWordsetCategoryCardMarkup(category, {
                     progressLookup: progressLookup,
@@ -7122,8 +7203,6 @@
                     }
                 }
             }
-
-            return remainingSlots <= 0;
         });
 
         finalizeInsertedMainGridCards($inserted);
@@ -7156,6 +7235,23 @@
         if (isMainCategorySearchActive() || !lazyCardsEnabled || !hasPendingLazyCards() || lazyCardsRequest || $lazyCardsRoot.hasClass('is-error')) {
             return;
         }
+
+        const inlinePlaceholderNearViewport = (
+            inlineSortedPlaceholderScrollMode
+            && shouldUseInlineSortedMainCategoryPlaceholders()
+            && isInlineSortedPlaceholderNearViewport()
+        );
+        if (inlinePlaceholderNearViewport) {
+            const materializedCount = materializeInlineSortedMainCategoryCards({
+                count: getInlineSortedMainCategoryScrollBatchCount()
+            });
+            if (materializedCount > 0) {
+                syncLazyCardsUi({ loading: false });
+                scheduleLazyCardsAutoLoadCheck();
+                return;
+            }
+        }
+
         if (!isLazyCardsSentinelNearViewport()) {
             return;
         }
@@ -7306,6 +7402,9 @@
         $(window)
             .off('.llWordsetLazyCards')
             .on('scroll.llWordsetLazyCards resize.llWordsetLazyCards orientationchange.llWordsetLazyCards load.llWordsetLazyCards', function (event) {
+                if (event && event.type === 'scroll') {
+                    inlineSortedPlaceholderScrollMode = true;
+                }
                 if (event && event.type !== 'scroll') {
                     syncLazyCardsPlaceholders({ error: $lazyCardsRoot.hasClass('is-error') });
                 }
