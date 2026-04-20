@@ -241,6 +241,122 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('learner-frontend@example.org', $classesHtml);
     }
 
+    public function test_teacher_classes_view_renders_frontend_student_progress_stats(): void
+    {
+        global $wpdb;
+
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $term = wp_insert_term('Rendered Classes Progress ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Rendered Classes Progress Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($term));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($term);
+        $this->assertIsArray($category);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->setValidWordsetRewriteRules((string) $wordset->slug);
+
+        $wordset_id = (int) $term['term_id'];
+        $category_id = (int) $category['term_id'];
+        $effective_category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-progress@example.org',
+        ]);
+        $learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'display_name' => 'Frontend Progress Learner',
+            'user_email' => 'learner-progress@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Progress Class');
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $learner_id));
+
+        $word_one_id = $this->createWordWithGameMedia(
+            'Progress One',
+            'Progress One Translation',
+            $category_id,
+            $wordset_id,
+            false,
+            []
+        );
+        $word_two_id = $this->createWordWithGameMedia(
+            'Progress Two',
+            'Progress Two Translation',
+            $category_id,
+            $wordset_id,
+            false,
+            []
+        );
+
+        ll_tools_save_user_study_state([
+            'wordset_id' => $wordset_id,
+            'category_ids' => [$effective_category_id],
+        ], $learner_id);
+
+        $this->seedWordProgressRow($learner_id, $word_one_id, $category_id, $wordset_id, [
+            'total_coverage' => 3,
+            'correct_clean' => 3,
+            'current_correct_streak' => 3,
+            'mastery_unlocked' => 1,
+            'stage' => 6,
+            'last_seen_at' => '2026-04-18 09:15:00',
+            'updated_at' => '2026-04-18 09:15:00',
+        ]);
+        $this->seedWordProgressRow($learner_id, $word_two_id, $category_id, $wordset_id, [
+            'total_coverage' => 1,
+            'incorrect' => 2,
+            'lapse_count' => 1,
+            'stage' => 0,
+            'last_seen_at' => '2026-04-17 08:00:00',
+            'updated_at' => '2026-04-17 08:00:00',
+        ]);
+
+        $events_table = ll_tools_user_progress_table_names()['events'];
+        for ($index = 0; $index < 11; $index++) {
+            $inserted = $wpdb->insert(
+                $events_table,
+                [
+                    'user_id' => $learner_id,
+                    'event_uuid' => wp_generate_uuid4(),
+                    'event_type' => 'word_exposure',
+                    'mode' => 'practice',
+                    'word_id' => $word_one_id,
+                    'category_id' => $effective_category_id,
+                    'wordset_id' => $wordset_id,
+                    'is_correct' => null,
+                    'had_wrong_before' => 0,
+                    'payload_json' => null,
+                    'created_at' => '2026-04-18 09:15:00',
+                ],
+                ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
+            );
+            $this->assertNotFalse($inserted);
+        }
+
+        wp_set_current_user($teacher_id);
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset, 'classes'));
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', 'classes');
+
+        $classesHtml = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Frontend Progress Class', $classesHtml);
+        $this->assertStringContainsString('Frontend Progress Learner', $classesHtml);
+        $this->assertStringContainsString('learner-progress@example.org', $classesHtml);
+        $this->assertStringContainsString($wordset->name, $classesHtml);
+        $this->assertStringContainsString('2026-04-18 09:15:00', $classesHtml);
+        $this->assertStringContainsString('>11<', $classesHtml);
+        $this->assertStringContainsString('>2<', $classesHtml);
+        $this->assertStringContainsString('>1<', $classesHtml);
+    }
+
     public function test_speaking_hidden_notice_is_only_returned_for_users_who_can_manage_wordset_settings(): void
     {
         $managerId = self::factory()->user->create(['role' => 'administrator']);
