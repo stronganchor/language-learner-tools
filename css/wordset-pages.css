@@ -1785,7 +1785,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 180px;
+    min-width: 232px;
+    width: max-content;
+    max-width: min(100vw - 24px, 320px);
     padding: 8px;
     border: 1px solid var(--ll-wp-border);
     border-radius: 14px;
@@ -1833,6 +1835,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-main-sort__option-label {
     font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .ll-wordset-main-sort__option-check {
@@ -4465,7 +4468,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     .ll-wordset-main-sort__menu {
         right: auto;
         left: 0;
-        min-width: min(100vw - 40px, 220px);
+        min-width: min(100vw - 40px, 232px);
     }
 }
 

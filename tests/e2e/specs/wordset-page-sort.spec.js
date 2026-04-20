@@ -600,7 +600,7 @@ test('deferred metrics apply an active progress sort after analytics loads', asy
   await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Fruit', 'Animals', 'Travel']);
 });
 
-test('changing sort keeps a stable sorted layout with inline lazy placeholders', async ({ page }) => {
+test('changing sort materializes the top sorted rows while deeper slots stay lazy', async ({ page }) => {
   const categories = [
     {
       id: 33,
@@ -620,6 +620,57 @@ test('changing sort keeps a stable sorted layout with inline lazy placeholders',
       preview: []
     },
     {
+      id: 66,
+      slug: 'numbers',
+      name: 'Numbers',
+      translation: 'Numbers',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'one two three',
+      preview: []
+    },
+    {
+      id: 77,
+      slug: 'school',
+      name: 'School',
+      translation: 'School',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'teacher book class',
+      preview: []
+    },
+    {
+      id: 88,
+      slug: 'weather',
+      name: 'Weather',
+      translation: 'Weather',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'rain sun cloud',
+      preview: []
+    },
+    {
       id: 11,
       slug: 'fruit',
       name: 'Fruit',
@@ -634,6 +685,40 @@ test('changing sort keeps a stable sorted layout with inline lazy placeholders',
       aspect_bucket: 'ratio:1_1',
       hidden: false,
       search_text: 'apple pear banana',
+      preview: []
+    },
+    {
+      id: 55,
+      slug: 'colors',
+      name: 'Colors',
+      translation: 'Colors',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'red blue green',
+      preview: []
+    },
+    {
+      id: 44,
+      slug: 'body',
+      name: 'Body',
+      translation: 'Body',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'hand eye foot',
       preview: []
     },
     {
@@ -670,11 +755,11 @@ test('changing sort keeps a stable sorted layout with inline lazy placeholders',
         token: 'lazy-token',
         wordsetId: 77,
         previewLimit: 2,
-        batchSize: 1,
+        batchSize: 3,
         initialCount: 1,
         loaded: 1,
-        total: 3,
-        remaining: 2
+        total: 8,
+        remaining: 7
       }
     }
   });
@@ -686,35 +771,37 @@ test('changing sort keeps a stable sorted layout with inline lazy placeholders',
   await page.click('[data-ll-wordset-main-sort-option="alpha-asc"]');
 
   await expect.poll(async () => {
-    return getRenderedCategorySlots(page);
-  }).toEqual([
-    { id: 22, placeholder: true, title: '' },
-    { id: 11, placeholder: true, title: '' },
-    { id: 33, placeholder: false, title: 'Travel' }
-  ]);
+    return (await getRenderedCategorySlots(page)).map((slot) => slot.id);
+  }).toEqual([22, 44, 55, 11, 66, 77, 33, 88]);
+  await expect.poll(async () => {
+    return (await getRenderedCategorySlots(page)).slice(0, 2).every((slot) => !slot.placeholder);
+  }).toBe(true);
+
+  const afterSortSlots = await getRenderedCategorySlots(page);
+  expect(afterSortSlots.slice(2).some((slot) => slot.placeholder)).toBe(true);
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.length);
   }).toBe(0);
 
-  await page.mouse.wheel(0, 4000);
+  await page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight || document.body.scrollHeight || 0);
+    window.dispatchEvent(new Event('scroll'));
+  });
 
   await expect.poll(async () => {
     return page.evaluate(() => window.__llLazyAjaxCalls.length);
   }).toBeGreaterThan(0);
   await expect.poll(async () => {
     const slots = await getRenderedCategorySlots(page);
-    return slots.length >= 3 && !slots[1].placeholder && !slots[2].placeholder;
-  }).toBe(true);
+    return slots.find((slot) => slot.id === 88) || null;
+  }).toEqual({ id: 88, placeholder: false, title: 'Weather' });
 
   const afterLoadSlots = await getRenderedCategorySlots(page);
-  expect(afterLoadSlots.map((slot) => slot.id)).toEqual([22, 11, 33]);
-  expect(afterLoadSlots[1]).toEqual({ id: 11, placeholder: false, title: 'Fruit' });
-  expect(afterLoadSlots[2]).toEqual({ id: 33, placeholder: false, title: 'Travel' });
-  if (afterLoadSlots[0].placeholder) {
-    expect(afterLoadSlots[0].title).toBe('');
-  } else {
-    expect(afterLoadSlots[0].title).toBe('Animals');
-  }
+  expect(afterLoadSlots.map((slot) => slot.id)).toEqual([22, 44, 55, 11, 66, 77, 33, 88]);
+  expect(afterLoadSlots[0]).toEqual({ id: 22, placeholder: false, title: 'Animals' });
+  expect(afterLoadSlots[3]).toEqual({ id: 11, placeholder: false, title: 'Fruit' });
+  expect(afterLoadSlots[6]).toEqual({ id: 33, placeholder: false, title: 'Travel' });
+  expect(afterLoadSlots[7]).toEqual({ id: 88, placeholder: false, title: 'Weather' });
 });
 
 test('saved sort preferences do not force-load all lazy cards on page init', async ({ page }) => {
@@ -835,7 +922,7 @@ test('saved sort preferences do not force-load all lazy cards on page init', asy
 
   await expect.poll(() => getRenderedCategorySlots(page)).toEqual([
     { id: 33, placeholder: false, title: 'Travel' },
-    { id: 11, placeholder: true, title: '' },
+    { id: 11, placeholder: false, title: 'Fruit' },
     { id: 22, placeholder: true, title: '' }
   ]);
   await expect.poll(async () => {
