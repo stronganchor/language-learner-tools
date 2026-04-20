@@ -172,6 +172,16 @@ if (!function_exists('ll_tools_teacher_class_add_student')) {
     }
 }
 
+if (!function_exists('ll_tools_teacher_class_user_can_be_teacher')) {
+    function ll_tools_teacher_class_user_can_be_teacher($user): bool {
+        if (!($user instanceof WP_User)) {
+            return false;
+        }
+
+        return (bool) apply_filters('ll_tools_teacher_class_user_can_be_teacher', true, $user);
+    }
+}
+
 if (!function_exists('ll_tools_teacher_class_create')) {
     function ll_tools_teacher_class_create(int $teacher_user_id, string $class_name) {
         $teacher_user_id = max(0, $teacher_user_id);
@@ -183,6 +193,18 @@ if (!function_exists('ll_tools_teacher_class_create')) {
 
         if ($class_name === '') {
             return new WP_Error('empty_name', __('Please enter a class name.', 'll-tools-text-domain'));
+        }
+
+        $teacher_user = get_userdata($teacher_user_id);
+        if (!($teacher_user instanceof WP_User) || !ll_tools_teacher_class_user_can_be_teacher($teacher_user)) {
+            return new WP_Error('invalid_teacher', __('Select a valid teacher account.', 'll-tools-text-domain'));
+        }
+
+        if (function_exists('ll_tools_assign_teacher_role')) {
+            $teacher_user = ll_tools_assign_teacher_role($teacher_user_id);
+            if (is_wp_error($teacher_user)) {
+                return $teacher_user;
+            }
         }
 
         $class_id = wp_insert_post([
@@ -198,6 +220,55 @@ if (!function_exists('ll_tools_teacher_class_create')) {
 
         update_post_meta((int) $class_id, LL_TOOLS_TEACHER_CLASS_STUDENT_IDS_META, []);
         return (int) $class_id;
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_assign_teacher')) {
+    function ll_tools_teacher_class_assign_teacher(int $class_id, int $teacher_user_id) {
+        if (!ll_tools_teacher_class_exists($class_id)) {
+            return new WP_Error('missing_class', __('This class no longer exists.', 'll-tools-text-domain'));
+        }
+
+        $teacher_user = get_userdata($teacher_user_id);
+        if (!($teacher_user instanceof WP_User) || !ll_tools_teacher_class_user_can_be_teacher($teacher_user)) {
+            return new WP_Error('invalid_teacher', __('Select a valid teacher account.', 'll-tools-text-domain'));
+        }
+
+        $previous_teacher_id = ll_tools_teacher_class_get_owner_id($class_id);
+        $had_teacher_role = function_exists('ll_tools_user_has_teacher_role')
+            ? ll_tools_user_has_teacher_role($teacher_user)
+            : false;
+
+        if (function_exists('ll_tools_assign_teacher_role')) {
+            $teacher_user = ll_tools_assign_teacher_role($teacher_user_id);
+            if (is_wp_error($teacher_user)) {
+                return $teacher_user;
+            }
+        }
+
+        $ownership_changed = ($previous_teacher_id !== $teacher_user_id);
+        if ($ownership_changed) {
+            $update_result = wp_update_post([
+                'ID' => $class_id,
+                'post_author' => $teacher_user_id,
+            ], true, false);
+
+            if (is_wp_error($update_result)) {
+                return $update_result;
+            }
+
+            clean_post_cache($class_id);
+        }
+
+        return [
+            'class_id' => $class_id,
+            'class_name' => ll_tools_teacher_class_get_name($class_id),
+            'user_id' => $teacher_user_id,
+            'user' => $teacher_user,
+            'previous_teacher_id' => $previous_teacher_id,
+            'ownership_changed' => $ownership_changed,
+            'teacher_role_added' => !$had_teacher_role,
+        ];
     }
 }
 
@@ -229,6 +300,24 @@ if (!function_exists('ll_tools_teacher_classes_for_user')) {
 
         return array_values(array_filter($posts, static function ($post): bool {
             return $post instanceof WP_Post;
+        }));
+    }
+}
+
+if (!function_exists('ll_tools_teacher_class_get_assignable_teachers')) {
+    function ll_tools_teacher_class_get_assignable_teachers(): array {
+        $users = get_users([
+            'orderby' => 'display_name',
+            'order' => 'ASC',
+            'fields' => 'all_with_meta',
+        ]);
+
+        if (!is_array($users)) {
+            return [];
+        }
+
+        return array_values(array_filter($users, static function ($user): bool {
+            return ($user instanceof WP_User) && ll_tools_teacher_class_user_can_be_teacher($user);
         }));
     }
 }

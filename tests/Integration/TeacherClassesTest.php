@@ -106,6 +106,50 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_class_creation_assigns_teacher_role_to_selected_user(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_email' => 'new-teacher@example.org',
+        ]);
+
+        $this->assertFalse(ll_tools_user_has_teacher_role($teacher_id));
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Assigned Teacher Class');
+
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_user_has_teacher_role($teacher_id));
+        $this->assertSame($teacher_id, ll_tools_teacher_class_get_owner_id((int) $class_id));
+    }
+
+    public function test_assigning_class_teacher_updates_owner_and_promotes_user(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $current_teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'current-teacher@example.org',
+        ]);
+        $next_teacher_id = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_email' => 'next-teacher@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($current_teacher_id, 'Teacher Reassignment Class');
+        $this->assertIsInt($class_id);
+        $this->assertFalse(ll_tools_user_has_teacher_role($next_teacher_id));
+
+        $result = ll_tools_teacher_class_assign_teacher((int) $class_id, $next_teacher_id);
+
+        $this->assertIsArray($result);
+        $this->assertTrue($result['ownership_changed']);
+        $this->assertTrue($result['teacher_role_added']);
+        $this->assertTrue(ll_tools_user_has_teacher_role($next_teacher_id));
+        $this->assertSame($next_teacher_id, ll_tools_teacher_class_get_owner_id((int) $class_id));
+    }
+
     public function test_assignable_students_excludes_existing_members_and_non_learners(): void
     {
         ll_tools_register_or_refresh_teacher_role();
@@ -234,6 +278,9 @@ final class TeacherClassesTest extends LL_Tools_TestCase
             $_GET = $original_get;
         }
 
+        $this->assertStringContainsString('Assign a teacher', $html);
+        $this->assertStringContainsString('ll_tools_teacher_assign_class_teacher', $html);
+        $this->assertStringContainsString('ll_tools_teacher_class_teacher_user_id', $html);
         $this->assertStringContainsString('Assign an existing learner now', $html);
         $this->assertStringContainsString('ll_tools_teacher_assign_class_student', $html);
         $this->assertStringContainsString('Select a learner account', $html);
@@ -268,6 +315,9 @@ final class TeacherClassesTest extends LL_Tools_TestCase
             $_GET = $original_get;
         }
 
+        $this->assertStringNotContainsString('Assign a teacher', $html);
+        $this->assertStringNotContainsString('ll_tools_teacher_assign_class_teacher', $html);
+        $this->assertStringNotContainsString('ll_tools_teacher_class_teacher_user_id', $html);
         $this->assertStringNotContainsString('Assign an existing learner now', $html);
         $this->assertStringNotContainsString('ll_tools_teacher_assign_class_student', $html);
     }
