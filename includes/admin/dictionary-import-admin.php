@@ -9,8 +9,24 @@ if (!defined('LL_TOOLS_DICTIONARY_IMPORT_JOB_OPTION_PREFIX')) {
     define('LL_TOOLS_DICTIONARY_IMPORT_JOB_OPTION_PREFIX', 'll_tools_dictionary_import_job_');
 }
 
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX', 'll_tools_dictionary_import_lock_');
+}
+
 if (!defined('LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY')) {
     define('LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY', 'll_tools_dictionary_import_last_job_id');
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_LOCK_TTL')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_LOCK_TTL', 5 * MINUTE_IN_SECONDS);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS', 200);
+}
+
+if (!defined('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS')) {
+    define('LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS', 25);
 }
 
 /**
@@ -164,6 +180,42 @@ function ll_tools_dictionary_import_default_summary(int $rows_total = 0): array 
 }
 
 /**
+ * Count how many dictionary entries were touched for one import summary.
+ */
+function ll_tools_dictionary_import_get_summary_touched_count(array $summary): int {
+    return max(0, (int) ($summary['entries_created'] ?? 0))
+        + max(0, (int) ($summary['entries_updated'] ?? 0));
+}
+
+/**
+ * Keep long-running job summaries compact so AJAX payloads stay stable.
+ *
+ * @param array<string,mixed> $summary
+ * @return array<string,mixed>
+ */
+function ll_tools_dictionary_import_normalize_summary(array $summary): array {
+    $entry_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($summary['entry_ids'] ?? [])))));
+    if (count($entry_ids) > LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS) {
+        $entry_ids = array_slice($entry_ids, -LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS);
+    }
+    $summary['entry_ids'] = $entry_ids;
+
+    $errors = array_values(array_unique(array_filter(array_map('strval', (array) ($summary['errors'] ?? [])))));
+    $existing_error_count = max(
+        0,
+        (int) ($summary['error_count'] ?? 0),
+        count($errors)
+    );
+    if (count($errors) > LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS) {
+        $errors = array_slice($errors, -LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS);
+    }
+    $summary['errors'] = $errors;
+    $summary['error_count'] = $existing_error_count;
+
+    return $summary;
+}
+
+/**
  * Merge one batch summary into an aggregate summary.
  *
  * @param array<string,mixed> $summary
@@ -171,19 +223,41 @@ function ll_tools_dictionary_import_default_summary(int $rows_total = 0): array 
  * @return array<string,mixed>
  */
 function ll_tools_dictionary_import_merge_summary(array $summary, array $batch_summary): array {
+    $summary = ll_tools_dictionary_import_normalize_summary($summary);
+    $batch_summary = ll_tools_dictionary_import_normalize_summary($batch_summary);
+
     foreach (['rows_grouped', 'rows_skipped_empty', 'rows_skipped_review', 'entries_created', 'entries_updated', 'entries_deleted', 'sources_updated', 'sources_replaced'] as $key) {
         $summary[$key] = (int) ($summary[$key] ?? 0) + (int) ($batch_summary[$key] ?? 0);
     }
 
-    $summary['entry_ids'] = array_values(array_unique(array_filter(array_merge(
+    $merged_entry_ids = array_values(array_unique(array_filter(array_merge(
         array_map('intval', (array) ($summary['entry_ids'] ?? [])),
         array_map('intval', (array) ($batch_summary['entry_ids'] ?? []))
     ))));
-    $summary['errors'] = array_values(array_filter(array_merge(
+    if (count($merged_entry_ids) > LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS) {
+        $merged_entry_ids = array_slice($merged_entry_ids, -LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS);
+    }
+    $summary['entry_ids'] = $merged_entry_ids;
+
+    $existing_error_count = max(
+        0,
+        (int) ($summary['error_count'] ?? 0),
+        count((array) ($summary['errors'] ?? []))
+    );
+    $batch_error_count = max(
+        0,
+        (int) ($batch_summary['error_count'] ?? 0),
+        count((array) ($batch_summary['errors'] ?? []))
+    );
+    $merged_errors = array_values(array_filter(array_unique(array_merge(
         array_map('strval', (array) ($summary['errors'] ?? [])),
         array_map('strval', (array) ($batch_summary['errors'] ?? []))
-    )));
-    $summary['error_count'] = count((array) $summary['errors']);
+    ))));
+    if (count($merged_errors) > LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS) {
+        $merged_errors = array_slice($merged_errors, -LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS);
+    }
+    $summary['errors'] = $merged_errors;
+    $summary['error_count'] = $existing_error_count + $batch_error_count;
 
     return $summary;
 }
@@ -194,14 +268,16 @@ function ll_tools_dictionary_import_merge_summary(array $summary, array $batch_s
  * @param array<string,mixed> $summary
  */
 function ll_tools_get_dictionary_import_summary_html(array $summary, string $heading): string {
+    $summary = ll_tools_dictionary_import_normalize_summary($summary);
     $entries_created = (int) ($summary['entries_created'] ?? 0);
     $entries_updated = (int) ($summary['entries_updated'] ?? 0);
     $rows_total = (int) ($summary['rows_total'] ?? 0);
     $rows_grouped = (int) ($summary['rows_grouped'] ?? 0);
     $rows_skipped_empty = (int) ($summary['rows_skipped_empty'] ?? 0);
     $rows_skipped_review = (int) ($summary['rows_skipped_review'] ?? 0);
-    $entry_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($summary['entry_ids'] ?? [])))));
+    $touched_entries = ll_tools_dictionary_import_get_summary_touched_count($summary);
     $errors = array_values(array_filter(array_map('strval', (array) ($summary['errors'] ?? []))));
+    $error_count = max((int) ($summary['error_count'] ?? 0), count($errors));
 
     ob_start();
     $notice_class = empty($errors) ? 'notice-success' : 'notice-warning';
@@ -224,11 +300,11 @@ function ll_tools_get_dictionary_import_summary_html(array $summary, string $hea
         )) . '</p>';
     }
 
-    if (!empty($entry_ids)) {
+    if ($touched_entries > 0) {
         echo '<p>' . esc_html(sprintf(
             /* translators: %d: count of touched dictionary entries */
-            _n('%d dictionary entry was touched.', '%d dictionary entries were touched.', count($entry_ids), 'll-tools-text-domain'),
-            count($entry_ids)
+            _n('%d dictionary entry was touched.', '%d dictionary entries were touched.', $touched_entries, 'll-tools-text-domain'),
+            $touched_entries
         )) . '</p>';
     }
 
@@ -237,11 +313,11 @@ function ll_tools_get_dictionary_import_summary_html(array $summary, string $hea
         foreach (array_slice($errors, 0, 8) as $error) {
             echo '<li>' . esc_html($error) . '</li>';
         }
-        if (count($errors) > 8) {
+        if ($error_count > 8) {
             echo '<li>' . esc_html(sprintf(
                 /* translators: %d: number of additional hidden errors */
                 __('%d more errors not shown.', 'll-tools-text-domain'),
-                count($errors) - 8
+                $error_count - 8
             )) . '</li>';
         }
         echo '</ul>';
@@ -306,6 +382,9 @@ function ll_tools_dictionary_import_clear_active_job_id(string $job_id = ''): vo
     if ($job_id !== '' && $current !== '' && $current !== $job_id) {
         return;
     }
+    if ($current !== '') {
+        ll_tools_dictionary_import_release_job_lock($current);
+    }
     delete_option(LL_TOOLS_DICTIONARY_IMPORT_ACTIVE_JOB_OPTION);
 }
 
@@ -349,10 +428,129 @@ function ll_tools_dictionary_import_get_job(string $job_id): ?array {
  */
 function ll_tools_dictionary_import_save_job(string $job_id, array $job): array {
     $job['id'] = $job_id;
+    if (isset($job['summary']) && is_array($job['summary'])) {
+        $job['summary'] = ll_tools_dictionary_import_normalize_summary($job['summary']);
+    }
     $job['updated_at'] = time();
     update_option(ll_tools_dictionary_import_get_job_option_key($job_id), $job, false);
 
     return $job;
+}
+
+function ll_tools_dictionary_import_get_lock_option_key(string $job_id): string {
+    return LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX . sanitize_key(str_replace('-', '_', $job_id));
+}
+
+function ll_tools_dictionary_import_acquire_job_lock(string $job_id): bool {
+    $job_id = trim(sanitize_text_field($job_id));
+    if ($job_id === '') {
+        return false;
+    }
+
+    $option_key = ll_tools_dictionary_import_get_lock_option_key($job_id);
+    $existing = get_option($option_key, null);
+    if (is_array($existing)) {
+        $acquired_at = max(0, (int) ($existing['acquired_at'] ?? 0));
+        if ($acquired_at > 0 && (time() - $acquired_at) < LL_TOOLS_DICTIONARY_IMPORT_LOCK_TTL) {
+            return false;
+        }
+
+        delete_option($option_key);
+    }
+
+    return add_option($option_key, [
+        'job_id' => $job_id,
+        'acquired_at' => time(),
+    ], '', 'no');
+}
+
+function ll_tools_dictionary_import_release_job_lock(string $job_id): void {
+    $job_id = trim(sanitize_text_field($job_id));
+    if ($job_id === '') {
+        return;
+    }
+
+    delete_option(ll_tools_dictionary_import_get_lock_option_key($job_id));
+}
+
+/**
+ * Recover the most recently-updated running job when the active pointer was lost.
+ *
+ * @return array<string,mixed>|null
+ */
+function ll_tools_dictionary_import_find_orphaned_running_job(): ?array {
+    global $wpdb;
+
+    $like = $wpdb->esc_like(LL_TOOLS_DICTIONARY_IMPORT_JOB_OPTION_PREFIX) . '%';
+    $option_names = $wpdb->get_col($wpdb->prepare(
+        "SELECT option_name
+         FROM {$wpdb->options}
+         WHERE option_name LIKE %s
+         ORDER BY option_id DESC",
+        $like
+    ));
+
+    $candidate = null;
+    $candidate_updated_at = -1;
+
+    foreach ((array) $option_names as $option_name) {
+        $job = get_option((string) $option_name);
+        if (!is_array($job) || sanitize_key((string) ($job['status'] ?? '')) !== 'running') {
+            continue;
+        }
+
+        $updated_at = max(
+            0,
+            (int) ($job['updated_at'] ?? 0),
+            (int) ($job['created_at'] ?? 0)
+        );
+        if ($candidate !== null && $updated_at < $candidate_updated_at) {
+            continue;
+        }
+
+        $candidate = $job;
+        $candidate_updated_at = $updated_at;
+    }
+
+    if (!is_array($candidate)) {
+        return null;
+    }
+
+    $job_id = sanitize_text_field((string) ($candidate['id'] ?? ''));
+    if ($job_id !== '') {
+        ll_tools_dictionary_import_set_active_job_id($job_id);
+        ll_tools_dictionary_import_set_last_job_id($job_id);
+    }
+
+    return $candidate;
+}
+
+/**
+ * Return the current running job, recovering orphaned jobs when possible.
+ *
+ * @return array<string,mixed>|null
+ */
+function ll_tools_dictionary_import_get_running_job(): ?array {
+    $active_job_id = ll_tools_dictionary_import_get_active_job_id();
+    if ($active_job_id !== '') {
+        $active_job = ll_tools_dictionary_import_get_job($active_job_id);
+        if (is_array($active_job) && sanitize_key((string) ($active_job['status'] ?? '')) === 'running') {
+            return $active_job;
+        }
+
+        ll_tools_dictionary_import_clear_active_job_id($active_job_id);
+    }
+
+    $last_job_id = ll_tools_dictionary_import_get_last_job_id();
+    if ($last_job_id !== '') {
+        $last_job = ll_tools_dictionary_import_get_job($last_job_id);
+        if (is_array($last_job) && sanitize_key((string) ($last_job['status'] ?? '')) === 'running') {
+            ll_tools_dictionary_import_set_active_job_id($last_job_id);
+            return $last_job;
+        }
+    }
+
+    return ll_tools_dictionary_import_find_orphaned_running_job();
 }
 
 function ll_tools_dictionary_import_get_base_dir(): string {
@@ -450,6 +648,33 @@ function ll_tools_dictionary_import_write_group_chunks(array $grouped_rows, stri
         'chunk_files' => array_values(array_map('strval', (array) ($chunk_result['chunk_files'] ?? []))),
         'processable_rows' => $total_rows,
     ];
+}
+
+/**
+ * Resolve the chunk size used for resumable dictionary jobs.
+ */
+function ll_tools_dictionary_import_get_chunk_size(string $type, array $options = []): int {
+    $type = sanitize_key($type);
+    $default = $type === 'snapshot' ? 25 : 15;
+    $filter_name = $type === 'snapshot'
+        ? 'll_tools_dictionary_import_snapshot_chunk_size'
+        : 'll_tools_dictionary_import_group_chunk_size';
+    $requested = isset($options['chunk_size']) ? (int) $options['chunk_size'] : $default;
+    $chunk_size = (int) apply_filters($filter_name, $requested, $options);
+
+    return max(5, min(200, $chunk_size));
+}
+
+/**
+ * Relax runtime limits for one resumable dictionary batch request.
+ */
+function ll_tools_dictionary_import_prepare_runtime(): void {
+    if (function_exists('ignore_user_abort')) {
+        @ignore_user_abort(true);
+    }
+    if (function_exists('set_time_limit')) {
+        @set_time_limit(0);
+    }
 }
 
 /**
@@ -562,7 +787,12 @@ function ll_tools_dictionary_import_create_snapshot_job_from_snapshot(array $sna
         : 'merge';
 
     $job_id = ll_tools_dictionary_import_generate_job_id();
-    $chunk_result = ll_tools_dictionary_import_write_chunks($entries, $job_id, 25, 'snapshot');
+    $chunk_result = ll_tools_dictionary_import_write_chunks(
+        $entries,
+        $job_id,
+        ll_tools_dictionary_import_get_chunk_size('snapshot', $options),
+        'snapshot'
+    );
     if (is_wp_error($chunk_result)) {
         return $chunk_result;
     }
@@ -696,7 +926,11 @@ function ll_tools_dictionary_import_create_tsv_job_from_rows(array $rows, array 
     $summary = isset($grouping['summary']) && is_array($grouping['summary']) ? $grouping['summary'] : ll_tools_dictionary_import_default_summary(count($rows));
 
     $job_id = ll_tools_dictionary_import_generate_job_id();
-    $chunk_result = ll_tools_dictionary_import_write_group_chunks($grouped_rows, $job_id);
+    $chunk_result = ll_tools_dictionary_import_write_group_chunks(
+        $grouped_rows,
+        $job_id,
+        ll_tools_dictionary_import_get_chunk_size('tsv', $options)
+    );
     if (is_wp_error($chunk_result)) {
         return $chunk_result;
     }
@@ -804,6 +1038,8 @@ function ll_tools_dictionary_import_create_legacy_job(array $options) {
  * @return array<string,mixed>|WP_Error
  */
 function ll_tools_dictionary_import_process_tsv_job(array $job) {
+    ll_tools_dictionary_import_prepare_runtime();
+
     $job_id = (string) ($job['id'] ?? '');
     $chunk_files = array_values(array_map('strval', (array) ($job['chunk_files'] ?? [])));
     $current_index = max(0, (int) ($job['current_index'] ?? 0));
@@ -830,8 +1066,11 @@ function ll_tools_dictionary_import_process_tsv_job(array $job) {
         return new WP_Error('ll_tools_dictionary_import_chunk_decode_failed', __('The next import chunk is invalid JSON.', 'll-tools-text-domain'));
     }
 
+    $batch_options = array_merge((array) ($job['options'] ?? []), [
+        'defer_cache_invalidation' => true,
+    ]);
     $batch_summary = function_exists('ll_tools_dictionary_apply_grouped_import_rows')
-        ? ll_tools_dictionary_apply_grouped_import_rows($chunk_groups, (array) ($job['options'] ?? []))
+        ? ll_tools_dictionary_apply_grouped_import_rows($chunk_groups, $batch_options)
         : ll_tools_dictionary_import_default_summary();
     $job['summary'] = ll_tools_dictionary_import_merge_summary(
         is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary(),
@@ -884,6 +1123,8 @@ function ll_tools_dictionary_import_get_legacy_rows_batch(int $offset, int $batc
  * @return array<string,mixed>|WP_Error
  */
 function ll_tools_dictionary_import_process_legacy_job(array $job) {
+    ll_tools_dictionary_import_prepare_runtime();
+
     if (!function_exists('ll_tools_dictionary_legacy_table_exists') || !ll_tools_dictionary_legacy_table_exists()) {
         return new WP_Error('ll_tools_dictionary_legacy_table_missing', __('Legacy dictionary table not found.', 'll-tools-text-domain'));
     }
@@ -927,6 +1168,8 @@ function ll_tools_dictionary_import_process_legacy_job(array $job) {
  * @return array<string,mixed>|WP_Error
  */
 function ll_tools_dictionary_import_process_snapshot_job(array $job) {
+    ll_tools_dictionary_import_prepare_runtime();
+
     $job_id = (string) ($job['id'] ?? '');
     $chunk_files = array_values(array_map('strval', (array) ($job['chunk_files'] ?? [])));
     $current_index = max(0, (int) ($job['current_index'] ?? 0));
@@ -1050,6 +1293,7 @@ function ll_tools_dictionary_import_get_job_heading(array $job): string {
 
 function ll_tools_dictionary_import_get_job_summary_html(array $job): string {
     $summary = is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary();
+    $summary = ll_tools_dictionary_import_normalize_summary($summary);
     $heading = ll_tools_dictionary_import_get_job_heading($job);
     $type = sanitize_key((string) ($job['type'] ?? 'tsv'));
 
@@ -1061,6 +1305,7 @@ function ll_tools_dictionary_import_get_job_summary_html(array $job): string {
         $sources_updated = (int) ($summary['sources_updated'] ?? 0);
         $sources_replaced = (int) ($summary['sources_replaced'] ?? 0);
         $errors = array_values(array_filter(array_map('strval', (array) ($summary['errors'] ?? []))));
+        $error_count = max((int) ($summary['error_count'] ?? 0), count($errors));
 
         ob_start();
         $notice_class = empty($errors) ? 'notice-success' : 'notice-warning';
@@ -1088,11 +1333,11 @@ function ll_tools_dictionary_import_get_job_summary_html(array $job): string {
             foreach (array_slice($errors, 0, 8) as $error) {
                 echo '<li>' . esc_html($error) . '</li>';
             }
-            if (count($errors) > 8) {
+            if ($error_count > 8) {
                 echo '<li>' . esc_html(sprintf(
                     /* translators: %d: number of additional hidden errors */
                     __('%d more errors not shown.', 'll-tools-text-domain'),
-                    count($errors) - 8
+                    $error_count - 8
                 )) . '</li>';
             }
             echo '</ul>';
@@ -1111,6 +1356,7 @@ function ll_tools_dictionary_import_get_job_summary_html(array $job): string {
  */
 function ll_tools_dictionary_import_build_history_entry(array $job): array {
     $summary = is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary();
+    $summary = ll_tools_dictionary_import_normalize_summary($summary);
     $type = sanitize_key((string) ($job['type'] ?? 'tsv'));
     $history_mode = sanitize_key((string) ($job['options']['history_mode'] ?? ''));
     $source_label = trim((string) ($job['original_filename'] ?? ''));
@@ -1276,6 +1522,7 @@ function ll_tools_dictionary_import_get_job_snapshot(array $job): array {
     $type = sanitize_key((string) ($job['type'] ?? 'tsv'));
     $status = sanitize_key((string) ($job['status'] ?? 'running'));
     $summary = is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary();
+    $summary = ll_tools_dictionary_import_normalize_summary($summary);
     $history_mode = sanitize_key((string) ($job['options']['history_mode'] ?? ''));
 
     if ($type === 'legacy') {
@@ -1396,20 +1643,17 @@ function ll_tools_dictionary_import_get_relevant_job(string $job_id = ''): ?arra
         return ll_tools_dictionary_import_get_job($job_id);
     }
 
+    $running_job = ll_tools_dictionary_import_get_running_job();
+    if (is_array($running_job)) {
+        return $running_job;
+    }
+
     $last_job_id = ll_tools_dictionary_import_get_last_job_id();
-    if ($last_job_id !== '') {
-        $last_job = ll_tools_dictionary_import_get_job($last_job_id);
-        if (is_array($last_job)) {
-            return $last_job;
-        }
+    if ($last_job_id === '') {
+        return null;
     }
 
-    $active_job_id = ll_tools_dictionary_import_get_active_job_id();
-    if ($active_job_id !== '') {
-        return ll_tools_dictionary_import_get_job($active_job_id);
-    }
-
-    return null;
+    return ll_tools_dictionary_import_get_job($last_job_id);
 }
 
 function ll_tools_dictionary_import_enqueue_admin_assets(string $hook_suffix): void {
@@ -1432,6 +1676,7 @@ function ll_tools_dictionary_import_enqueue_admin_assets(string $hook_suffix): v
             'starting' => __('Preparing the dictionary job…', 'll-tools-text-domain'),
             'running' => __('Dictionary job in progress…', 'll-tools-text-domain'),
             'failed' => __('The dictionary job request failed. Reopen this page to resume.', 'll-tools-text-domain'),
+            'retrying' => __('The dictionary job connection dropped. Checking whether it can resume…', 'll-tools-text-domain'),
             'alreadyRunning' => __('Another dictionary job is already running. Finish or resume that one first.', 'll-tools-text-domain'),
         ],
     ]);
@@ -1445,16 +1690,12 @@ function ll_tools_dictionary_import_ajax_start_job(): void {
 
     check_ajax_referer('ll_tools_dictionary_import_ajax', 'nonce');
 
-    $active_job_id = ll_tools_dictionary_import_get_active_job_id();
-    if ($active_job_id !== '') {
-        $active_job = ll_tools_dictionary_import_get_job($active_job_id);
-        if (is_array($active_job) && (string) ($active_job['status'] ?? '') === 'running') {
-            wp_send_json_error([
-                'message' => __('Another dictionary import is already running. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
-                'job' => ll_tools_dictionary_import_get_job_snapshot($active_job),
-            ], 409);
-        }
-        ll_tools_dictionary_import_clear_active_job_id($active_job_id);
+    $running_job = ll_tools_dictionary_import_get_running_job();
+    if (is_array($running_job)) {
+        wp_send_json_error([
+            'message' => __('Another dictionary import is already running. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
+            'job' => ll_tools_dictionary_import_get_job_snapshot($running_job),
+        ], 409);
     }
 
     $selected_wordset_id = isset($_POST['ll_dictionary_wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['ll_dictionary_wordset_id'])) : 0;
@@ -1546,31 +1787,59 @@ function ll_tools_dictionary_import_ajax_process_job(): void {
         wp_send_json_success(['job' => ll_tools_dictionary_import_get_job_snapshot($job)]);
     }
 
-    $processed_job = ll_tools_dictionary_import_process_job($job);
-    if (is_wp_error($processed_job)) {
-        $job['status'] = 'failed';
-        $job['error_message'] = $processed_job->get_error_message();
-        $job['summary'] = ll_tools_dictionary_import_merge_summary(
-            is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary(),
-            ['errors' => [$processed_job->get_error_message()]]
-        );
-        ll_tools_dictionary_import_clear_active_job_id($job_id);
-        $job = ll_tools_dictionary_import_save_job($job_id, $job);
-        $job = ll_tools_dictionary_import_finalize_job_history($job);
-        $job = ll_tools_dictionary_import_save_job($job_id, $job);
+    if (!ll_tools_dictionary_import_acquire_job_lock($job_id)) {
+        $fresh_job = ll_tools_dictionary_import_get_job($job_id);
+        if (!is_array($fresh_job)) {
+            $fresh_job = $job;
+        }
 
-        wp_send_json_error([
-            'message' => $processed_job->get_error_message(),
-            'job' => ll_tools_dictionary_import_get_job_snapshot($job),
-        ], 500);
+        wp_send_json_success([
+            'job' => ll_tools_dictionary_import_get_job_snapshot($fresh_job),
+            'locked' => true,
+        ]);
     }
 
-    $saved_job = ll_tools_dictionary_import_save_job($job_id, $processed_job);
-    $saved_job = ll_tools_dictionary_import_finalize_job_history($saved_job);
-    $saved_job = ll_tools_dictionary_import_save_job($job_id, $saved_job);
-    wp_send_json_success([
-        'job' => ll_tools_dictionary_import_get_job_snapshot($saved_job),
-    ]);
+    $response_success = true;
+    $response_code = 200;
+    $response_payload = [];
+
+    try {
+        $processed_job = ll_tools_dictionary_import_process_job($job);
+        if (is_wp_error($processed_job)) {
+            $job['status'] = 'failed';
+            $job['error_message'] = $processed_job->get_error_message();
+            $job['summary'] = ll_tools_dictionary_import_merge_summary(
+                is_array($job['summary'] ?? null) ? $job['summary'] : ll_tools_dictionary_import_default_summary(),
+                ['errors' => [$processed_job->get_error_message()], 'error_count' => 1]
+            );
+            ll_tools_dictionary_import_clear_active_job_id($job_id);
+            $job = ll_tools_dictionary_import_save_job($job_id, $job);
+            $job = ll_tools_dictionary_import_finalize_job_history($job);
+            $job = ll_tools_dictionary_import_save_job($job_id, $job);
+
+            $response_success = false;
+            $response_code = 500;
+            $response_payload = [
+                'message' => $processed_job->get_error_message(),
+                'job' => ll_tools_dictionary_import_get_job_snapshot($job),
+            ];
+        } else {
+            $saved_job = ll_tools_dictionary_import_save_job($job_id, $processed_job);
+            $saved_job = ll_tools_dictionary_import_finalize_job_history($saved_job);
+            $saved_job = ll_tools_dictionary_import_save_job($job_id, $saved_job);
+            $response_payload = [
+                'job' => ll_tools_dictionary_import_get_job_snapshot($saved_job),
+            ];
+        }
+    } finally {
+        ll_tools_dictionary_import_release_job_lock($job_id);
+    }
+
+    if ($response_success) {
+        wp_send_json_success($response_payload, $response_code);
+    }
+
+    wp_send_json_error($response_payload, $response_code);
 }
 add_action('wp_ajax_ll_tools_dictionary_import_process_job', 'll_tools_dictionary_import_ajax_process_job');
 

@@ -34,6 +34,13 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
         }
+        if (defined('LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY')) {
+            $wpdb->delete(
+                $wpdb->usermeta,
+                ['meta_key' => LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY],
+                ['%s']
+            );
+        }
         if (function_exists('ll_tools_dictionary_import_read_history')) {
             foreach (ll_tools_dictionary_import_read_history() as $entry) {
                 if (!is_array($entry)) {
@@ -538,6 +545,42 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ll_tools_dictionary_import_release_job_lock('lock-test-job');
 
         $this->assertTrue(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+    }
+
+    public function test_dictionary_import_recovers_orphaned_running_job_when_active_pointer_is_missing(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $job = ll_tools_dictionary_import_create_tsv_job_from_rows([
+            [
+                'entry' => 'Hew',
+                'definition' => 'cloud',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+            'skip_review_rows' => true,
+        ], 'orphaned.tsv');
+
+        $this->assertIsArray($job);
+        $job_id = (string) ($job['id'] ?? '');
+        $this->assertNotSame('', $job_id);
+
+        ll_tools_dictionary_import_clear_active_job_id($job_id);
+        delete_user_meta($admin_id, LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY);
+
+        $recovered_job = ll_tools_dictionary_import_get_relevant_job();
+
+        $this->assertIsArray($recovered_job);
+        $this->assertSame($job_id, (string) ($recovered_job['id'] ?? ''));
+        $this->assertSame($job_id, ll_tools_dictionary_import_get_active_job_id());
+        $this->assertSame($job_id, ll_tools_dictionary_import_get_last_job_id($admin_id));
     }
 
     public function test_header_tsv_import_supports_multilingual_gloss_columns(): void

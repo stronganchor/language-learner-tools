@@ -1571,6 +1571,52 @@ function ll_tools_dictionary_get_primary_sense_value(array $senses, string $fiel
 }
 
 /**
+ * Temporarily suspend expensive dictionary-entry save hooks during imports.
+ *
+ * @return array<int,array{tag:string,callback:string,priority:int,args:int}>
+ */
+function ll_tools_dictionary_suspend_entry_save_side_effect_hooks(): array {
+    $hooks = [
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_refresh_entry_search_meta', 'priority' => 50, 'args' => 3],
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_entry_refresh_scope_on_save', 'priority' => 55, 'args' => 1],
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_sync_lookup_rows_on_save', 'priority' => 60, 'args' => 3],
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_browser_invalidate_on_post_save', 'priority' => 60, 'args' => 2],
+    ];
+    $removed_hooks = [];
+
+    foreach ($hooks as $hook) {
+        if (!function_exists($hook['callback']) || !has_action($hook['tag'], $hook['callback'])) {
+            continue;
+        }
+
+        remove_action($hook['tag'], $hook['callback'], $hook['priority']);
+        $removed_hooks[] = $hook;
+    }
+
+    return $removed_hooks;
+}
+
+/**
+ * Restore dictionary-entry save hooks previously removed for imports.
+ *
+ * @param array<int,array{tag:string,callback:string,priority:int,args:int}> $removed_hooks
+ */
+function ll_tools_dictionary_restore_entry_save_side_effect_hooks(array $removed_hooks): void {
+    foreach ($removed_hooks as $hook) {
+        if (!is_array($hook) || empty($hook['tag']) || empty($hook['callback']) || !function_exists((string) $hook['callback'])) {
+            continue;
+        }
+
+        add_action(
+            (string) $hook['tag'],
+            (string) $hook['callback'],
+            (int) ($hook['priority'] ?? 10),
+            (int) ($hook['args'] ?? 1)
+        );
+    }
+}
+
+/**
  * Create or update one dictionary entry from grouped import rows.
  *
  * @param array<int,array<string,mixed>>  $rows Grouped prepared rows.
@@ -1645,7 +1691,12 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
         $postarr['ID'] = $entry_id;
     }
 
-    $saved_entry_id = wp_insert_post($postarr, true);
+    $removed_hooks = ll_tools_dictionary_suspend_entry_save_side_effect_hooks();
+    try {
+        $saved_entry_id = wp_insert_post($postarr, true);
+    } finally {
+        ll_tools_dictionary_restore_entry_save_side_effect_hooks($removed_hooks);
+    }
     if (is_wp_error($saved_entry_id) || (int) $saved_entry_id <= 0) {
         return new WP_Error(
             'll_tools_dictionary_entry_save_failed',
@@ -1702,6 +1753,14 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     ll_tools_dictionary_refresh_entry_search_meta($saved_entry_id);
     if (function_exists('ll_tools_refresh_dictionary_entry_wordset_scope_meta')) {
         ll_tools_refresh_dictionary_entry_wordset_scope_meta($saved_entry_id);
+    }
+    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+        ll_tools_dictionary_sync_lookup_rows_for_entry(
+            $saved_entry_id,
+            empty($options['defer_cache_invalidation'])
+        );
+    } elseif (empty($options['defer_cache_invalidation']) && function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
     }
 
     return [
@@ -1790,6 +1849,7 @@ function ll_tools_dictionary_apply_grouped_import_rows(array $grouped_rows, arra
         'entry_ids' => [],
         'errors' => [],
     ];
+    $touched_entries = 0;
 
     foreach ($grouped_rows as $group_rows) {
         if (!is_array($group_rows) || empty($group_rows)) {
@@ -1805,12 +1865,21 @@ function ll_tools_dictionary_apply_grouped_import_rows(array $grouped_rows, arra
         $entry_id = (int) ($result['entry_id'] ?? 0);
         if ($entry_id > 0) {
             $summary['entry_ids'][] = $entry_id;
+            $touched_entries++;
         }
         if (!empty($result['created'])) {
             $summary['entries_created']++;
         } else {
             $summary['entries_updated']++;
         }
+    }
+
+    if (
+        $touched_entries > 0
+        && !empty($options['defer_cache_invalidation'])
+        && function_exists('ll_tools_bump_dictionary_browser_cache_version')
+    ) {
+        ll_tools_bump_dictionary_browser_cache_version();
     }
 
     $summary['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', (array) $summary['entry_ids']))));
