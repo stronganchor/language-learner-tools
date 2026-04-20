@@ -29,6 +29,14 @@
             processingDiscard: typeof cfg.processingDiscard === 'string' ? cfg.processingDiscard : 'Discard partial import',
             processingDiscarding: typeof cfg.processingDiscarding === 'string' ? cfg.processingDiscarding : 'Discarding partial import…',
             processingDiscardConfirm: typeof cfg.processingDiscardConfirm === 'string' ? cfg.processingDiscardConfirm : 'Discard this partial import and remove the content it created?',
+            importPreviewUploadTitle: typeof cfg.importPreviewUploadTitle === 'string' ? cfg.importPreviewUploadTitle : '',
+            importPreviewUploadMessageKeepOpen: typeof cfg.importPreviewUploadMessageKeepOpen === 'string' ? cfg.importPreviewUploadMessageKeepOpen : '',
+            importPreviewUploadMessageBackground: typeof cfg.importPreviewUploadMessageBackground === 'string' ? cfg.importPreviewUploadMessageBackground : '',
+            importPreviewUploadProgressLabel: typeof cfg.importPreviewUploadProgressLabel === 'string' ? cfg.importPreviewUploadProgressLabel : '',
+            importPreviewUploadProgressPercent: typeof cfg.importPreviewUploadProgressPercent === 'string' ? cfg.importPreviewUploadProgressPercent : '',
+            importPreviewUploadFinishing: typeof cfg.importPreviewUploadFinishing === 'string' ? cfg.importPreviewUploadFinishing : '',
+            importPreviewUploadFailed: typeof cfg.importPreviewUploadFailed === 'string' ? cfg.importPreviewUploadFailed : '',
+            importPreviewUploadUnexpectedResponse: typeof cfg.importPreviewUploadUnexpectedResponse === 'string' ? cfg.importPreviewUploadUnexpectedResponse : '',
             exportProcessingTitle: typeof cfg.exportProcessingTitle === 'string' ? cfg.exportProcessingTitle : '',
             exportProcessingMessageKeepOpen: typeof cfg.exportProcessingMessageKeepOpen === 'string' ? cfg.exportProcessingMessageKeepOpen : '',
             exportProcessingMessageBackground: typeof cfg.exportProcessingMessageBackground === 'string' ? cfg.exportProcessingMessageBackground : '',
@@ -807,9 +815,9 @@
         syncUi();
     }
 
-    function initAutoPreviewOnZipUpload() {
+    function initImportPreviewUploadUi() {
         var fileInput = document.getElementById('ll_import_file');
-        if (!fileInput || !fileInput.form) {
+        if (!fileInput || !fileInput.form || typeof window.XMLHttpRequest !== 'function' || !window.FormData) {
             return;
         }
 
@@ -819,27 +827,168 @@
             return;
         }
 
-        var hasSubmitted = false;
+        var adminConfig = getAdminUiConfig();
+        var config = {
+            pageUrl: adminConfig.importPageUrl || window.location.href,
+            processingTitle: adminConfig.importPreviewUploadTitle || adminConfig.processingTitle,
+            processingMessageKeepOpen: adminConfig.importPreviewUploadMessageKeepOpen || adminConfig.processingMessageKeepOpen,
+            processingMessageBackground: adminConfig.importPreviewUploadMessageBackground || adminConfig.processingMessageBackground,
+            processingProgressLabel: adminConfig.importPreviewUploadProgressLabel || adminConfig.processingProgressLabel,
+            processingDone: adminConfig.importPreviewUploadFinishing || adminConfig.processingDone,
+            processingFailed: adminConfig.importPreviewUploadFailed || adminConfig.processingFailed,
+            processingReload: adminConfig.processingReload || ''
+        };
+
+        function hasSelectedUpload() {
+            return !!(fileInput.files && fileInput.files.length);
+        }
+
+        function formatUploadProgressLabel(percent) {
+            var template = adminConfig.importPreviewUploadProgressPercent || '';
+            if (template && template.indexOf('%s') !== -1) {
+                return template.replace('%s', String(percent));
+            }
+
+            return (config.processingProgressLabel || 'Uploading import bundle...') + ' ' + percent + '%';
+        }
+
+        function setSubmittingState(isSubmitting) {
+            var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            var index = 0;
+
+            if (isSubmitting) {
+                form.setAttribute('data-ll-tools-import-preview-uploading', '1');
+            } else {
+                form.removeAttribute('data-ll-tools-import-preview-uploading');
+            }
+
+            for (index = 0; index < submitButtons.length; index++) {
+                submitButtons[index].disabled = !!isSubmitting;
+            }
+        }
+
+        function getRedirectUrl(xhr) {
+            var responseUrl = xhr && typeof xhr.responseURL === 'string' ? xhr.responseURL : '';
+            if (!responseUrl) {
+                return '';
+            }
+
+            if (form.action && responseUrl === form.action) {
+                return '';
+            }
+
+            if (responseUrl.indexOf('admin-post.php') !== -1) {
+                return '';
+            }
+
+            return responseUrl;
+        }
+
+        function setFailureState(screen, message) {
+            setSubmittingState(false);
+            if (screen.error) {
+                screen.error.hidden = false;
+                screen.error.textContent = message || config.processingFailed;
+            }
+            if (screen.status) {
+                screen.status.textContent = message || config.processingFailed;
+            }
+            setProcessingActionButton(screen, config.processingReload, function () {
+                window.location.assign(config.pageUrl || window.location.href);
+            });
+            setProcessingDiscardButton(screen, '', null);
+            updateProcessingProgress(screen, NaN);
+        }
+
+        function startPreviewUpload() {
+            var screen;
+            var uploadData;
+            var xhr;
+
+            if (!hasSelectedUpload() || form.getAttribute('data-ll-tools-import-preview-uploading') === '1') {
+                return;
+            }
+
+            setSubmittingState(true);
+
+            screen = ensureProcessingScreen(config);
+            resetProcessingScreen(screen, config);
+            document.documentElement.classList.add('ll-tools-import-processing');
+
+            if (screen.status) {
+                screen.status.textContent = config.processingProgressLabel;
+            }
+
+            uploadData = new FormData(form);
+            xhr = new XMLHttpRequest();
+            xhr.open('POST', form.action, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+            xhr.upload.addEventListener('progress', function (event) {
+                var percent = 0;
+
+                if (!event.lengthComputable || !event.total) {
+                    updateProcessingProgress(screen, NaN);
+                    return;
+                }
+
+                percent = Math.max(1, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+                updateProcessingProgress(screen, event.loaded / event.total);
+                if (screen.status) {
+                    screen.status.textContent = formatUploadProgressLabel(percent);
+                }
+            });
+
+            xhr.upload.addEventListener('load', function () {
+                updateProcessingProgress(screen, NaN);
+                if (screen.status) {
+                    screen.status.textContent = adminConfig.importPreviewUploadFinishing || config.processingDone;
+                }
+            });
+
+            xhr.addEventListener('load', function () {
+                var redirectUrl = '';
+
+                if (xhr.status < 200 || xhr.status >= 400) {
+                    setFailureState(screen, config.processingFailed);
+                    return;
+                }
+
+                redirectUrl = getRedirectUrl(xhr);
+                if (!redirectUrl) {
+                    setFailureState(screen, adminConfig.importPreviewUploadUnexpectedResponse || config.processingFailed);
+                    return;
+                }
+
+                window.location.assign(redirectUrl);
+            });
+
+            xhr.addEventListener('error', function () {
+                setFailureState(screen, config.processingFailed);
+            });
+
+            xhr.addEventListener('abort', function () {
+                setFailureState(screen, config.processingFailed);
+            });
+
+            xhr.send(uploadData);
+        }
+
+        form.addEventListener('submit', function (event) {
+            if (!hasSelectedUpload()) {
+                return;
+            }
+
+            event.preventDefault();
+            startPreviewUpload();
+        });
 
         fileInput.addEventListener('change', function () {
-            var hasFile = !!(fileInput.files && fileInput.files.length);
-            if (!hasFile || hasSubmitted) {
+            if (!hasSelectedUpload()) {
                 return;
             }
 
-            hasSubmitted = true;
-
-            var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
-            for (var i = 0; i < submitButtons.length; i++) {
-                submitButtons[i].disabled = true;
-            }
-
-            if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
-                return;
-            }
-
-            form.submit();
+            startPreviewUpload();
         });
     }
 
@@ -1197,7 +1346,7 @@
         initExportBatchProgressUi();
         initExportWordTextDialectSync();
         initImportWordsetModeUi();
-        initAutoPreviewOnZipUpload();
+        initImportPreviewUploadUi();
         initImportConfirmProgressUi();
         initImportPreviewAudioButtons();
         initReferenceCopyButtons();
