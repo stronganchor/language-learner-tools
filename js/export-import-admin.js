@@ -925,7 +925,7 @@
         function formatUploadProgressLabel(percent) {
             var template = adminConfig.importPreviewUploadProgressPercent || '';
             if (template && template.indexOf('%s') !== -1) {
-                return template.replace('%s', String(percent));
+                return template.replace('%s', String(percent)).replace(/%%/g, '%');
             }
 
             return (config.processingProgressLabel || 'Uploading import bundle...') + ' ' + percent + '%';

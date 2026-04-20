@@ -644,6 +644,10 @@
   padding: 24px 24px 20px;
 }
 
+.ll-tools-import-processing-card [hidden] {
+  display: none !important;
+}
+
 .ll-tools-import-processing-title {
   margin: 0 0 10px;
   color: #0f172a;
@@ -698,6 +702,10 @@
 }
 
 .ll-tools-import-processing-reload {
+  min-height: 34px;
+}
+
+.ll-tools-import-processing-discard {
   min-height: 34px;
 }
 
