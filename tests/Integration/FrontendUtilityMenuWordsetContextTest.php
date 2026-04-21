@@ -58,6 +58,27 @@ final class FrontendUtilityMenuWordsetContextTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Manage Editor Hub Shortcut Wordset', $markup);
     }
 
+    public function test_wordset_pages_do_not_show_admin_check_updates_shortcut(): void
+    {
+        $admin_id = self::factory()->user->create([
+            'role' => 'administrator',
+        ]);
+        wp_set_current_user($admin_id);
+
+        $wordset_id = $this->ensureWordset('Admin Menu Wordset', 'admin-menu-wordset');
+        $wordset = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $markup = ll_tools_render_frontend_user_utility_menu([
+            'current_area' => 'wordset',
+            'wordset' => $wordset,
+        ]);
+
+        $this->assertStringContainsString('ll-wordset-utility-bar--context-wordset', $markup);
+        $this->assertStringNotContainsString('Check updates', $markup);
+        $this->assertStringNotContainsString('Up to date', $markup);
+    }
+
     private function ensureWordset(string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, 'wordset');

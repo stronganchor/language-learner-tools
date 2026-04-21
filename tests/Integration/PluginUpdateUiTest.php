@@ -47,7 +47,6 @@ final class PluginUpdateUiTest extends LL_Tools_TestCase
         $ll_tools_update_checker = $this->originalUpdateChecker;
 
         delete_option('ll_update_branch');
-        ll_tools_set_plugin_update_check_flash('');
 
         parent::tearDown();
     }
@@ -103,16 +102,5 @@ final class PluginUpdateUiTest extends LL_Tools_TestCase
             1,
             wp_verify_nonce((string) ($checkQuery['_wpnonce'] ?? ''), 'll_tools_check_plugin_update')
         );
-    }
-
-    public function test_update_check_flash_feedback_is_consumed_once_per_user(): void
-    {
-        $adminId = self::factory()->user->create(['role' => 'administrator']);
-        wp_set_current_user($adminId);
-
-        ll_tools_set_plugin_update_check_flash('up_to_date');
-
-        $this->assertSame('up_to_date', ll_tools_consume_plugin_update_check_flash());
-        $this->assertSame('', ll_tools_consume_plugin_update_check_flash());
     }
 }
