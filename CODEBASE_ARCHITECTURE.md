@@ -205,6 +205,7 @@ vendor/
   - Key meta: `word_translation`, legacy `word_english_meaning`, legacy `word_audio_file`.
   - Other meta: `word_example_sentence`, `word_example_sentence_translation`, `similar_word_id`.
   - Optional link meta: `ll_dictionary_entry_id` (links to umbrella dictionary entry).
+  - Current image-migration state: the `words` featured image is a compatibility mirror only; new read paths should resolve the linked `word_images` record first via the effective-image helpers in `includes/post-types/word-image-post-type.php`.
   - Publish guard: requires at least one published `word_audio` when category config needs audio.
     - Bypass with `_ll_skip_audio_requirement_once` or filter `ll_tools_skip_audio_requirement`.
 - `ll_dictionary_entry` (admin-facing umbrella entries)
@@ -213,6 +214,7 @@ vendor/
 - `word_images` (public, REST)
   - Featured image is the media asset.
   - Meta: `copyright_info`, plus translation fields used by grids.
+  - Canonical image record for vocabulary items; linked from `words` through `_ll_autopicked_image_id` and related matching/sync flows.
 - `word_audio` (admin-only UI, REST)
   - Child of `words` via `post_parent`.
   - Meta: `audio_file_path`, `recording_date`, `speaker_user_id` or `speaker_name`, `_ll_needs_audio_processing`.
@@ -236,6 +238,18 @@ vendor/
 - `_ll_tools_word_category_id` on auto-generated quiz pages.
 - `_ll_picked_count`, `_ll_picked_last`, `_ll_autopicked_image_id` for image matching usage tracking.
 - `_ll_needs_audio_processing` for unprocessed audio queue.
+
+# Deferred maintenance notes
+## Word image migration follow-up
+- Current direction: keep `word_images` as the canonical image object and treat the `words` post thumbnail as legacy compatibility state until all remaining consumers are migrated.
+- Short-term follow-up:
+  - Continue replacing direct `words` thumbnail reads (`has_post_thumbnail()`, `get_post_thumbnail_id()`, `get_the_post_thumbnail_url()`) with the effective-image helper layer in `includes/post-types/word-image-post-type.php`.
+  - Keep wp-admin from being the primary authoring surface for word images; prefer linked-image editing flows in the Editor Hub, wordset tools, or other front-end management UI.
+  - When adding new image-aware features, wire them to the linked `word_images` record instead of storing new image state on `words`.
+- Later cleanup, once UI coverage is complete:
+  - Move image maintenance/fixer workflows out of wp-admin utilities and into the normal plugin UI where practical.
+  - Remove `thumbnail` support from the `words` post type after all read/edit paths no longer depend on it directly.
+  - Retire one-way mirror/sync code and legacy fixer assumptions that exist only to support duplicated image state on `words`.
 
 ## User meta and per-user state
 - User study state (from `includes/user-study.php`):
