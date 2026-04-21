@@ -172,6 +172,12 @@ From plugin root:
 tests/bin/run-e2e.sh
 ```
 
+Read-only live-site smoke checks use a separate Playwright config and a local-only site list:
+
+```bash
+tests/bin/run-live-smoke.sh
+```
+
 Representative current E2E specs (`tests/e2e/specs/`, 52 files at the time of writing):
 
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
@@ -242,6 +248,15 @@ LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS=7000
 LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS=10000
 LL_E2E_PAGE_SPEED_MAX_LOAD_MS=15000
 ```
+
+Live smoke runner config:
+
+- Create a local JSON file at `tests/e2e/live-smoke/sites.local.json` by copying `tests/e2e/live-smoke/sites.example.json`.
+- Or point `LL_LIVE_SITES_FILE` at another local JSON file.
+- `tests/bin/run-live-smoke.sh` is serial and intended for anonymous, low-impact public-page checks only.
+- Keep live-site entries read-only. If opening the quiz UI triggers same-origin `POST` traffic or throws client errors on a public site, omit that entry's `interaction` block and limit coverage to shell assertions plus optional search exercises.
+- If a homepage is only a wordset-button hub, add `"navigation": { "type": "wordsetButtonMostLessons" }` so the smoke run clicks the visible button with the highest lesson count before applying the normal wordset-page assertions.
+- The runner treats `POST /wp-admin/admin-ajax.php?action=ll_get_words_by_category` as an allowed read-style quiz bootstrap request; other same-origin non-GET requests still fail unless you explicitly allow them in the site config.
 
 You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
 

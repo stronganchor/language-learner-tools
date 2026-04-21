@@ -476,6 +476,17 @@
         return parseOptionalStarMode(raw);
     }
 
+    function getEffectiveRuntimeStarMode() {
+        if (State && State.starModeOverride) {
+            return normalizeStarMode(State.starModeOverride);
+        }
+        const sessionOverride = getSessionStarModeOverride();
+        if (sessionOverride) {
+            return normalizeStarMode(sessionOverride);
+        }
+        return 'normal';
+    }
+
     function getCurrentWordsetKey() {
         const data = root.llToolsFlashcardsData || {};
         const ws = (typeof data.wordset !== 'undefined')
@@ -1239,11 +1250,12 @@
         try {
             const prefs = ensureStudyPrefs();
             const flashState = root.llToolsFlashcardsData || {};
-
-            const modeRaw = prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'normal';
-            const starMode = normalizeStarMode(modeRaw);
+            const starMode = normalizeStarMode(
+                State && State.starModeOverride
+                    ? State.starModeOverride
+                    : (prefs.starMode || prefs.star_mode || flashState.starMode || flashState.star_mode || 'normal')
+            );
             if (starMode !== 'only') return;
-            if (State.starModeOverride) return;
 
             const canUse = canUseStarOnlyForCurrentSelection();
             if (!canUse) {
@@ -2605,8 +2617,7 @@
 
     function syncStarModeButtons($buttons, options) {
         if (!$buttons || !$buttons.length) return;
-        const prefs = ensureStudyPrefs();
-        const starMode = normalizeStarMode(prefs.starMode || prefs.star_mode || 'normal');
+        const starMode = getEffectiveRuntimeStarMode();
         const defaultCanUse = canUseStarOnlyForCurrentSelection();
         const hasOverride = options && Object.prototype.hasOwnProperty.call(options, 'canUseStarOnly');
         const override = hasOverride ? options.canUseStarOnly : null;
@@ -2671,11 +2682,6 @@
     function updateStudyPrefs(updates) {
         const prefs = ensureStudyPrefs();
         if (updates && typeof updates === 'object') {
-            if (updates.starMode) {
-                const normalized = normalizeStarMode(updates.starMode);
-                prefs.starMode = normalized;
-                prefs.star_mode = normalized;
-            }
             if (typeof updates.fastTransitions === 'boolean') {
                 prefs.fastTransitions = updates.fastTransitions;
                 prefs.fast_transitions = updates.fastTransitions;
@@ -2683,17 +2689,15 @@
         }
         root.llToolsStudyPrefs = prefs;
         if (root.llToolsFlashcardsData) {
-            if (prefs.starMode) {
-                root.llToolsFlashcardsData.starMode = prefs.starMode;
-                root.llToolsFlashcardsData.star_mode = prefs.starMode;
-            }
+            root.llToolsFlashcardsData.starMode = 'normal';
+            root.llToolsFlashcardsData.star_mode = 'normal';
             if (typeof prefs.fastTransitions !== 'undefined') {
                 root.llToolsFlashcardsData.fastTransitions = !!prefs.fastTransitions;
                 root.llToolsFlashcardsData.fast_transitions = !!prefs.fastTransitions;
             }
             if (root.llToolsFlashcardsData.userStudyState) {
                 const state = root.llToolsFlashcardsData.userStudyState;
-                state.star_mode = prefs.starMode || state.star_mode;
+                state.star_mode = 'normal';
                 state.fast_transitions = typeof prefs.fastTransitions !== 'undefined'
                     ? !!prefs.fastTransitions
                     : state.fast_transitions;
@@ -2704,7 +2708,7 @@
         }
         if (root.llToolsStudyData && root.llToolsStudyData.payload && root.llToolsStudyData.payload.state) {
             const state = root.llToolsStudyData.payload.state;
-            state.star_mode = prefs.starMode || state.star_mode;
+            state.star_mode = 'normal';
             state.fast_transitions = typeof prefs.fastTransitions !== 'undefined'
                 ? !!prefs.fastTransitions
                 : state.fast_transitions;
@@ -2725,14 +2729,13 @@
                 .filter(function (id) { return id > 0 && !seen[id] && (seen[id] = true); });
         };
 
-        const starMode = normalizeStarMode(prefs.starMode || prefs.star_mode || data.starMode || data.star_mode || 'normal');
         const fastTransitions = prefs.fastTransitions ?? prefs.fast_transitions ?? data.fastTransitions ?? data.fast_transitions ?? false;
 
         return {
             wordset_id: parseInt(baseState.wordset_id, 10) || 0,
             category_ids: normalizeIds(baseState.category_ids || []),
             starred_word_ids: normalizeIds(prefs.starredWordIds || prefs.starred_word_ids || []),
-            star_mode: starMode,
+            star_mode: 'normal',
             fast_transitions: !!fastTransitions
         };
     }
@@ -2747,21 +2750,22 @@
         const normalizedIds = (Array.isArray(savedState.starred_word_ids) ? savedState.starred_word_ids : [])
             .map(function (val) { return parseInt(val, 10) || 0; })
             .filter(function (id) { return id > 0 && !seenIds[id] && (seenIds[id] = true); });
+        const normalizedState = Object.assign({}, savedState, { star_mode: 'normal' });
 
         prefs.starredWordIds = normalizedIds;
         prefs.starred_word_ids = normalizedIds.slice();
-        prefs.starMode = normalizeStarMode(savedState.star_mode || prefs.starMode || prefs.star_mode || 'normal');
-        prefs.star_mode = prefs.starMode;
+        prefs.starMode = 'normal';
+        prefs.star_mode = 'normal';
         prefs.fastTransitions = parseBool(savedState.fast_transitions);
         prefs.fast_transitions = prefs.fastTransitions;
         root.llToolsStudyPrefs = prefs;
 
         if (root.llToolsFlashcardsData) {
-            root.llToolsFlashcardsData.userStudyState = savedState;
+            root.llToolsFlashcardsData.userStudyState = normalizedState;
             root.llToolsFlashcardsData.starredWordIds = normalizedIds.slice();
             root.llToolsFlashcardsData.starred_word_ids = normalizedIds.slice();
-            root.llToolsFlashcardsData.starMode = prefs.starMode;
-            root.llToolsFlashcardsData.star_mode = prefs.starMode;
+            root.llToolsFlashcardsData.starMode = 'normal';
+            root.llToolsFlashcardsData.star_mode = 'normal';
             root.llToolsFlashcardsData.fastTransitions = !!prefs.fastTransitions;
             root.llToolsFlashcardsData.fast_transitions = !!prefs.fastTransitions;
         }
@@ -2769,7 +2773,7 @@
             root.llToolsStudyData.payload.state = Object.assign(
                 {},
                 root.llToolsStudyData.payload.state || {},
-                savedState
+                normalizedState
             );
         }
     }
@@ -2785,7 +2789,7 @@
 
         const mergedPrefs = {
             starred_word_ids: normalizeStudyPrefIds(remoteState.starred_word_ids || []),
-            star_mode: normalizeStarMode(remoteState.star_mode || 'normal'),
+            star_mode: 'normal',
             fast_transitions: parseBool(remoteState.fast_transitions, false)
         };
         saveOfflineStudyPrefsState(mergedPrefs, {
@@ -2935,13 +2939,25 @@
     }
 
     function applyStudyPrefsFromUI(updates) {
-        const prefs = updateStudyPrefs(updates);
+        const nextUpdates = (updates && typeof updates === 'object') ? Object.assign({}, updates) : {};
+        const requestedStarMode = Object.prototype.hasOwnProperty.call(nextUpdates, 'starMode')
+            ? normalizeStarMode(nextUpdates.starMode)
+            : '';
+        if (requestedStarMode) {
+            delete nextUpdates.starMode;
+        }
+        const prefs = updateStudyPrefs(nextUpdates);
+        if (requestedStarMode) {
+            setStarModeOverride(requestedStarMode);
+        }
         syncSettingsPanelSelections();
-        if (updates && updates.starMode) {
+        if (requestedStarMode) {
             maybeFallbackStarModeForSingleCategoryQuiz();
         }
         setSettingsOpen($('#ll-tools-settings-panel').attr('aria-hidden') === 'false');
-        persistStudyPrefsDebounced();
+        if (Object.prototype.hasOwnProperty.call(nextUpdates, 'fastTransitions')) {
+            persistStudyPrefsDebounced();
+        }
         return prefs;
     }
 
@@ -4613,12 +4629,16 @@
 
         // Ensure any confetti canvas is removed when closing the widget
         try {
-            const confettiCanvas = document.getElementById('confetti-canvas');
-            if (confettiCanvas && confettiCanvas.parentNode) {
-                confettiCanvas.parentNode.removeChild(confettiCanvas);
-            }
-            if (root.confetti && typeof root.confetti.reset === 'function') {
-                root.confetti.reset();
+            if (Effects && typeof Effects.resetConfetti === 'function') {
+                Effects.resetConfetti();
+            } else {
+                const confettiCanvas = document.getElementById('confetti-canvas');
+                if (confettiCanvas && confettiCanvas.parentNode) {
+                    confettiCanvas.parentNode.removeChild(confettiCanvas);
+                }
+                if (root.confetti && typeof root.confetti.reset === 'function') {
+                    root.confetti.reset();
+                }
             }
         } catch (_) { }
 
@@ -4820,9 +4840,7 @@
         normalizeStarMode: normalizeStarMode,
         syncStarModeButtons: syncStarModeButtons,
         getStarMode: function () {
-            const prefs = ensureStudyPrefs();
-            const fallback = root.llToolsFlashcardsData || {};
-            return normalizeStarMode(prefs.starMode || prefs.star_mode || fallback.starMode || fallback.star_mode || 'normal');
+            return getEffectiveRuntimeStarMode();
         },
         applyStarMode: function (mode) {
             const normalized = normalizeStarMode(mode);

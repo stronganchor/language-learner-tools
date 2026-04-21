@@ -87,6 +87,48 @@ function ll_tools_resolve_wordset_term($wordset) {
     return ($term && !is_wp_error($term)) ? $term : null;
 }
 
+/**
+ * Treat the seeded placeholder wordset like an unnamed lessons page until it is renamed.
+ */
+function ll_tools_wordset_page_uses_generic_default_title($wordset): bool {
+    $wordset_term = ll_tools_resolve_wordset_term($wordset);
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return false;
+    }
+
+    $name = trim((string) $wordset_term->name);
+    if ($name === '') {
+        return true;
+    }
+
+    if ((string) $wordset_term->slug !== 'default-word-set') {
+        return false;
+    }
+
+    $name_slug = sanitize_title($name);
+    $placeholder_slugs = array_unique(array_filter([
+        'default-word-set',
+        sanitize_title(__('Default Word Set', 'll-tools-text-domain')),
+    ]));
+
+    return in_array($name_slug, $placeholder_slugs, true);
+}
+
+function ll_tools_get_wordset_page_display_title($wordset): string {
+    $fallback_title = __('Lessons', 'll-tools-text-domain');
+    $wordset_term = ll_tools_resolve_wordset_term($wordset);
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return $fallback_title;
+    }
+
+    $name = trim((string) $wordset_term->name);
+    if ($name === '' || ll_tools_wordset_page_uses_generic_default_title($wordset_term)) {
+        return $fallback_title;
+    }
+
+    return $name;
+}
+
 function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
     $normalized = [];
     foreach ($classes as $class) {
@@ -105,6 +147,375 @@ function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
         }
     }
     return array_keys($normalized);
+}
+
+function ll_tools_wordset_page_normalize_main_sort(string $value): string {
+    $key = sanitize_key(strtolower(trim($value)));
+    if (in_array($key, ['alpha-asc', 'alpha-desc', 'progress-desc', 'progress-asc', 'recent-desc', 'recent-asc'], true)) {
+        return $key;
+    }
+
+    return 'default';
+}
+
+function ll_tools_wordset_page_main_sort_requires_metrics(string $sort_key): bool {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+
+    return in_array($sort_key, ['progress-desc', 'progress-asc', 'recent-desc', 'recent-asc'], true);
+}
+
+function ll_tools_wordset_page_get_main_sort_cookie_name(int $wordset_id): string {
+    return 'll_tools_wsp_sort_' . max(0, $wordset_id);
+}
+
+function ll_tools_wordset_page_get_saved_main_sort(int $wordset_id): string {
+    $cookie_name = ll_tools_wordset_page_get_main_sort_cookie_name($wordset_id);
+    if ($cookie_name === '' || !isset($_COOKIE[$cookie_name])) {
+        return 'default';
+    }
+
+    return ll_tools_wordset_page_normalize_main_sort((string) wp_unslash($_COOKIE[$cookie_name]));
+}
+
+function ll_tools_wordset_page_compare_main_sort_labels(string $left, string $right): int {
+    if (function_exists('ll_tools_locale_compare_strings')) {
+        return ll_tools_locale_compare_strings($left, $right);
+    }
+
+    return strnatcasecmp($left, $right);
+}
+
+function ll_tools_wordset_page_get_main_sort_label(array $category): string {
+    $label = isset($category['raw_name']) ? (string) $category['raw_name'] : '';
+    if ($label === '') {
+        $label = isset($category['name']) ? (string) $category['name'] : '';
+    }
+    if ($label === '') {
+        $label = isset($category['translation']) ? (string) $category['translation'] : '';
+    }
+
+    return trim($label);
+}
+
+function ll_tools_wordset_page_get_main_sort_progress_values(array $category): array {
+    $total_words = max(0, (int) ($category['count'] ?? 0));
+    $mastered_words = max(0, (int) ($category['mastered_words'] ?? 0));
+    $studied_total = max($mastered_words, (int) ($category['studied_words'] ?? 0));
+    $new_words = max(0, (int) ($category['new_words'] ?? max(0, $total_words - $studied_total)));
+    $studied_words = max(0, $studied_total - $mastered_words);
+    $progress_score = ($total_words > 0)
+        ? (((($mastered_words * 2) + $studied_words) / ($total_words * 2)))
+        : 0.0;
+
+    return [
+        'total_words' => $total_words,
+        'mastered_words' => $mastered_words,
+        'studied_total' => $studied_total,
+        'studied_words' => $studied_words,
+        'new_words' => $new_words,
+        'progress_score' => $progress_score,
+    ];
+}
+
+function ll_tools_wordset_page_compare_categories_for_main_sort(array $left, array $right, string $sort_key): int {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    $compare_default = static function () use ($left, $right): int {
+        $left_order = max(0, (int) ($left['default_order'] ?? 0));
+        $right_order = max(0, (int) ($right['default_order'] ?? 0));
+        if ($left_order !== $right_order) {
+            return $left_order <=> $right_order;
+        }
+
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return $label_cmp;
+        }
+
+        return ((int) ($left['id'] ?? 0)) <=> ((int) ($right['id'] ?? 0));
+    };
+
+    if ($sort_key === 'default') {
+        return $compare_default();
+    }
+
+    if ($sort_key === 'alpha-asc' || $sort_key === 'alpha-desc') {
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return ($sort_key === 'alpha-desc') ? (-1 * $label_cmp) : $label_cmp;
+        }
+
+        return $compare_default();
+    }
+
+    if ($sort_key === 'progress-desc' || $sort_key === 'progress-asc') {
+        $left_progress = ll_tools_wordset_page_get_main_sort_progress_values($left);
+        $right_progress = ll_tools_wordset_page_get_main_sort_progress_values($right);
+        if ($left_progress['progress_score'] !== $right_progress['progress_score']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['progress_score'] <=> $right_progress['progress_score'])
+                : ($right_progress['progress_score'] <=> $left_progress['progress_score']);
+        }
+        if ($left_progress['mastered_words'] !== $right_progress['mastered_words']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['mastered_words'] <=> $right_progress['mastered_words'])
+                : ($right_progress['mastered_words'] <=> $left_progress['mastered_words']);
+        }
+        if ($left_progress['studied_total'] !== $right_progress['studied_total']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['studied_total'] <=> $right_progress['studied_total'])
+                : ($right_progress['studied_total'] <=> $left_progress['studied_total']);
+        }
+        if ($left_progress['new_words'] !== $right_progress['new_words']) {
+            return ($sort_key === 'progress-asc')
+                ? ($left_progress['new_words'] <=> $right_progress['new_words'])
+                : ($right_progress['new_words'] <=> $left_progress['new_words']);
+        }
+
+        $recent_compare = strcmp(
+            trim((string) ($right['last_seen_at'] ?? '')),
+            trim((string) ($left['last_seen_at'] ?? ''))
+        );
+        if ($recent_compare !== 0) {
+            return ($sort_key === 'progress-asc') ? (-1 * $recent_compare) : $recent_compare;
+        }
+
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return $label_cmp;
+        }
+
+        return $compare_default();
+    }
+
+    if ($sort_key === 'recent-desc' || $sort_key === 'recent-asc') {
+        $recent_compare = strcmp(
+            trim((string) ($right['last_seen_at'] ?? '')),
+            trim((string) ($left['last_seen_at'] ?? ''))
+        );
+        if ($recent_compare !== 0) {
+            return ($sort_key === 'recent-asc') ? (-1 * $recent_compare) : $recent_compare;
+        }
+
+        $left_progress = ll_tools_wordset_page_get_main_sort_progress_values($left);
+        $right_progress = ll_tools_wordset_page_get_main_sort_progress_values($right);
+        if ($left_progress['progress_score'] !== $right_progress['progress_score']) {
+            return ($sort_key === 'recent-asc')
+                ? ($left_progress['progress_score'] <=> $right_progress['progress_score'])
+                : ($right_progress['progress_score'] <=> $left_progress['progress_score']);
+        }
+
+        $label_cmp = ll_tools_wordset_page_compare_main_sort_labels(
+            ll_tools_wordset_page_get_main_sort_label($left),
+            ll_tools_wordset_page_get_main_sort_label($right)
+        );
+        if ($label_cmp !== 0) {
+            return $label_cmp;
+        }
+
+        return $compare_default();
+    }
+
+    return $compare_default();
+}
+
+function ll_tools_wordset_page_sort_categories_for_main_sort(array $categories, string $sort_key): array {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    $prepared = [];
+
+    foreach (array_values($categories) as $index => $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+
+        if (!array_key_exists('default_order', $category)) {
+            $category['default_order'] = (int) $index;
+        }
+        $prepared[] = $category;
+    }
+
+    if (count($prepared) < 2 || $sort_key === 'default') {
+        return $prepared;
+    }
+
+    usort($prepared, static function (array $left, array $right) use ($sort_key): int {
+        return ll_tools_wordset_page_compare_categories_for_main_sort($left, $right, $sort_key);
+    });
+
+    return $prepared;
+}
+
+function ll_tools_wordset_page_apply_main_sort_to_mixed_cards(array $mixed_cards, string $sort_key, array $category_metrics_lookup = []): array {
+    $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    if ($sort_key === 'default' || count($mixed_cards) < 2) {
+        return array_values($mixed_cards);
+    }
+
+    $category_cards = [];
+    $default_order = 0;
+    foreach ($mixed_cards as $card) {
+        if (!is_array($card) || ($card['type'] ?? '') !== 'category' || !isset($card['data']) || !is_array($card['data'])) {
+            continue;
+        }
+
+        $category = $card['data'];
+        $category_id = isset($category['id']) ? (int) $category['id'] : 0;
+        if ($category_id <= 0) {
+            continue;
+        }
+
+        $category['default_order'] = $default_order;
+        $default_order++;
+
+        $metrics = isset($category_metrics_lookup[$category_id]) && is_array($category_metrics_lookup[$category_id])
+            ? $category_metrics_lookup[$category_id]
+            : [];
+        if (!empty($metrics)) {
+            $category['mastered_words'] = (int) ($metrics['mastered_words'] ?? 0);
+            $category['studied_words'] = (int) ($metrics['studied_words'] ?? 0);
+            $category['new_words'] = (int) ($metrics['new_words'] ?? max(0, (int) ($category['count'] ?? 0)));
+            $category['last_seen_at'] = (string) ($metrics['last_seen_at'] ?? '');
+        }
+
+        $category_cards[] = $category;
+    }
+
+    if (count($category_cards) < 2) {
+        return array_values($mixed_cards);
+    }
+
+    $sorted_categories = ll_tools_wordset_page_sort_categories_for_main_sort($category_cards, $sort_key);
+    $sorted_index = 0;
+    $result = [];
+
+    foreach ($mixed_cards as $card) {
+        if (
+            is_array($card)
+            && ($card['type'] ?? '') === 'category'
+            && isset($card['data'])
+            && is_array($card['data'])
+            && isset($sorted_categories[$sorted_index])
+        ) {
+            $card['data'] = $sorted_categories[$sorted_index];
+            $sorted_index++;
+        }
+
+        $result[] = $card;
+    }
+
+    return array_values($result);
+}
+
+function ll_tools_wordset_page_collect_category_metrics_for_user(int $user_id, int $wordset_id, array $category_ids): array {
+    static $request_cache = [];
+
+    $user_id = max(0, $user_id);
+    $wordset_id = max(0, $wordset_id);
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    }));
+    if ($user_id <= 0 || $wordset_id <= 0 || empty($category_ids)) {
+        return [];
+    }
+
+    if (
+        !function_exists('ll_tools_user_study_words')
+        || !function_exists('ll_tools_get_user_word_progress_rows')
+        || !function_exists('ll_tools_user_progress_word_status')
+        || !function_exists('ll_tools_get_user_category_progress')
+    ) {
+        return [];
+    }
+
+    $cache_key = md5((string) wp_json_encode([
+        'user_id' => $user_id,
+        'wordset_id' => $wordset_id,
+        'category_ids' => array_values($category_ids),
+    ]));
+    if (isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $words_by_category = ll_tools_user_study_words($category_ids, $wordset_id);
+    $all_word_ids = [];
+    $category_word_ids = [];
+
+    foreach ($category_ids as $category_id) {
+        $category_word_ids[$category_id] = [];
+        $rows = isset($words_by_category[$category_id]) && is_array($words_by_category[$category_id])
+            ? $words_by_category[$category_id]
+            : [];
+        foreach ($rows as $word_row) {
+            if (!is_array($word_row)) {
+                continue;
+            }
+
+            $word_id = isset($word_row['id']) ? (int) $word_row['id'] : 0;
+            if ($word_id <= 0) {
+                continue;
+            }
+
+            $category_word_ids[$category_id][$word_id] = true;
+            $all_word_ids[$word_id] = true;
+        }
+    }
+
+    $progress_rows = ll_tools_get_user_word_progress_rows($user_id, array_values(array_map('intval', array_keys($all_word_ids))));
+    $category_progress_rows = ll_tools_get_user_category_progress($user_id);
+    $metrics = [];
+
+    foreach ($category_ids as $category_id) {
+        $word_ids = isset($category_word_ids[$category_id]) && is_array($category_word_ids[$category_id])
+            ? array_values(array_map('intval', array_keys($category_word_ids[$category_id])))
+            : [];
+        $total_words = count($word_ids);
+        $studied_words = 0;
+        $mastered_words = 0;
+        $last_seen_at = '';
+
+        $category_progress_row = isset($category_progress_rows[$category_id]) && is_array($category_progress_rows[$category_id])
+            ? $category_progress_rows[$category_id]
+            : [];
+        if (!empty($category_progress_row['last_seen_at'])) {
+            $last_seen_at = (string) $category_progress_row['last_seen_at'];
+        }
+
+        foreach ($word_ids as $word_id) {
+            $progress_row = isset($progress_rows[$word_id]) && is_array($progress_rows[$word_id])
+                ? $progress_rows[$word_id]
+                : [];
+            $status = ll_tools_user_progress_word_status($progress_row);
+            if ($status !== 'new') {
+                $studied_words++;
+            }
+            if ($status === 'mastered') {
+                $mastered_words++;
+            }
+
+            $word_last_seen_at = !empty($progress_row['last_seen_at']) ? (string) $progress_row['last_seen_at'] : '';
+            if ($word_last_seen_at !== '' && ($last_seen_at === '' || strcmp($word_last_seen_at, $last_seen_at) > 0)) {
+                $last_seen_at = $word_last_seen_at;
+            }
+        }
+
+        $metrics[$category_id] = [
+            'mastered_words' => $mastered_words,
+            'studied_words' => $studied_words,
+            'new_words' => max(0, $total_words - $studied_words),
+            'last_seen_at' => $last_seen_at,
+        ];
+    }
+
+    $request_cache[$cache_key] = $metrics;
+    return $metrics;
 }
 
 function ll_tools_wordset_page_build_cache_key(string $namespace, array $args = []): string {
@@ -1221,11 +1632,16 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         }
     }
 
+    $saved_main_category_sort = ll_tools_wordset_page_get_saved_main_sort($wordset_id);
+    if (!$is_study_user && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)) {
+        $saved_main_category_sort = 'default';
+    }
     $mixed_lesson_cards = ll_tools_wordset_page_build_mixed_lesson_cards($enhanced_categories, $mixed_content_lessons);
     $visible_category_ids = array_values(array_map('intval', wp_list_pluck($visible_categories, 'id')));
     $summary_counts_deferred = ($is_study_user && !$should_bootstrap_analytics);
 
     $category_progress_lookup = [];
+    $category_metrics_lookup = [];
     $analytics_category_rows = (isset($analytics['categories']) && is_array($analytics['categories'])) ? $analytics['categories'] : [];
     foreach ($analytics_category_rows as $analytics_category_row) {
         if (!is_array($analytics_category_row)) {
@@ -1249,6 +1665,35 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             'studied' => $studied_words,
             'new' => $new_words,
         ];
+        $category_metrics_lookup[$cid] = [
+            'mastered_words' => $mastered_words,
+            'studied_words' => $studied_total,
+            'new_words' => $new_words,
+            'last_seen_at' => isset($analytics_category_row['last_seen_at'])
+                ? (string) $analytics_category_row['last_seen_at']
+                : '',
+        ];
+    }
+
+    if (
+        $saved_main_category_sort !== 'default'
+        && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)
+        && $is_study_user
+        && empty($category_metrics_lookup)
+    ) {
+        $category_metrics_lookup = ll_tools_wordset_page_collect_category_metrics_for_user(
+            get_current_user_id(),
+            $wordset_id,
+            $visible_category_ids
+        );
+    }
+
+    if ($saved_main_category_sort !== 'default') {
+        $mixed_lesson_cards = ll_tools_wordset_page_apply_main_sort_to_mixed_cards(
+            $mixed_lesson_cards,
+            $saved_main_category_sort,
+            $category_metrics_lookup
+        );
     }
 
     $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
@@ -1791,7 +2236,7 @@ function ll_tools_get_wordset_page_view(): string {
 }
 
 function ll_tools_get_wordset_page_allowed_views(): array {
-    return ['progress', 'hidden-categories', 'settings', 'games'];
+    return ['progress', 'hidden-categories', 'settings', 'games', 'classes'];
 }
 
 function ll_tools_wordset_page_rewrite_rule_matches_target(string $target, array $expected_query_args): bool {
@@ -1864,6 +2309,10 @@ function ll_tools_wordset_page_has_rewrite_routes(string $slug): bool {
         '^' . $quoted . '/games/?$' => [
             'll_wordset_page' => $slug,
             'll_wordset_view' => 'games',
+        ],
+        '^' . $quoted . '/classes/?$' => [
+            'll_wordset_page' => $slug,
+            'll_wordset_view' => 'classes',
         ],
     ];
 
@@ -2300,6 +2749,9 @@ function ll_tools_wordset_page_manager_settings_notice(): ?array {
     $error = isset($_GET['ll_wordset_manager_settings_error'])
         ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_settings_error']))
         : '';
+    $message = isset($_GET['ll_wordset_manager_settings_message'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_settings_message']))
+        : '';
 
     if ($error === 'permission') {
         return [
@@ -2317,6 +2769,12 @@ function ll_tools_wordset_page_manager_settings_notice(): ?array {
         return [
             'type' => 'error',
             'message' => __('Unable to find that word set.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($message !== '') {
+        return [
+            'type' => 'error',
+            'message' => $message,
         ];
     }
 
@@ -2426,11 +2884,15 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         ll_tools_wordset_page_resolve_back_url($wordset_term)
     );
 
-    $redirect_error = static function (string $error) use ($base_redirect): void {
-        wp_safe_redirect(add_query_arg([
+    $redirect_error = static function (string $error, string $message = '') use ($base_redirect): void {
+        $args = [
             'll_wordset_manager_settings' => 'error',
             'll_wordset_manager_settings_error' => $error,
-        ], $base_redirect));
+        ];
+        if ($message !== '') {
+            $args['ll_wordset_manager_settings_message'] = $message;
+        }
+        wp_safe_redirect(add_query_arg($args, $base_redirect));
         exit;
     };
 
@@ -2506,6 +2968,18 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $speaking_assemblyai_profile = isset($_POST['ll_wordset_speaking_game_assemblyai_profile'])
             ? ll_tools_sanitize_wordset_speaking_game_assemblyai_profile(wp_unslash((string) $_POST['ll_wordset_speaking_game_assemblyai_profile']))
             : 'wordset_language';
+        if (in_array('hosted_api', [$provider, $speaking_provider], true)) {
+            if ($endpoint === '') {
+                $redirect_error('hosted_api_endpoint', __('Hosted STT API requires an HTTPS endpoint URL.', 'll-tools-text-domain'));
+            }
+            if (function_exists('ll_tools_validate_hosted_stt_endpoint')) {
+                $validated_endpoint = ll_tools_validate_hosted_stt_endpoint($endpoint);
+                if (is_wp_error($validated_endpoint)) {
+                    $redirect_error('hosted_api_endpoint', $validated_endpoint->get_error_message());
+                }
+                $endpoint = (string) $validated_endpoint;
+            }
+        }
 
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, $provider);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, $target);
@@ -3917,10 +4391,450 @@ function ll_tools_wordset_page_render_reset_icon(string $class = 'll-wordset-pro
         . '</svg>';
 }
 
+function ll_tools_wordset_page_render_sort_icon(string $class = 'll-wordset-main-sort__toggle-icon'): string {
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+        . '<path d="M9 5.25v13.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'
+        . '<path d="M6.75 7.5 9 5.25 11.25 7.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<path d="M14.5 18.75V5.25" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'
+        . '<path d="M12.25 16.5 14.5 18.75 16.75 16.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '</svg>';
+}
+
+function ll_tools_wordset_page_render_classes_icon(string $class = 'll-wordset-classes-icon'): string {
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="18" height="18" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false">'
+        . '<circle cx="8" cy="9" r="3.25" stroke="currentColor" stroke-width="1.8"/>'
+        . '<circle cx="16.25" cy="8" r="2.5" stroke="currentColor" stroke-width="1.8"/>'
+        . '<path d="M3.75 18.25c.35-2.5 2.5-4.25 5.25-4.25s4.9 1.75 5.25 4.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '<path d="M13.8 17.15c.35-1.95 2.05-3.3 4.2-3.3 1.25 0 2.35.45 3.15 1.25" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
 function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-speaking-stage__record-icon-svg'): string {
     return '<svg class="' . esc_attr($class) . '" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true" focusable="false">'
         . '<circle cx="12" cy="12" r="8"/>'
         . '</svg>';
+}
+
+function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term, string $back_url): string {
+    $current_user_id = get_current_user_id();
+    $current_wordset_id = max(0, (int) $wordset_term->term_id);
+    $wordset_page_title = ll_tools_get_wordset_page_display_title($wordset_term);
+    $classes_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
+        ? ll_tools_get_teacher_classes_frontend_url([], $wordset_term)
+        : ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
+    $can_manage_classes = is_user_logged_in()
+        && current_user_can('view_ll_tools')
+        && function_exists('ll_tools_user_can_manage_classes')
+        && ll_tools_user_can_manage_classes($current_user_id);
+    $is_admin_user = current_user_can('manage_options');
+    $selected_class_id = isset($_GET['class_id'])
+        ? max(0, (int) wp_unslash((string) $_GET['class_id']))
+        : 0;
+    $available_wordsets = function_exists('ll_tools_teacher_class_get_available_wordsets')
+        ? ll_tools_teacher_class_get_available_wordsets()
+        : [];
+
+    $classes = $can_manage_classes && function_exists('ll_tools_teacher_classes_for_user')
+        ? ll_tools_teacher_classes_for_user($current_user_id, $current_wordset_id)
+        : [];
+    if ($selected_class_id <= 0 && !empty($classes) && ($classes[0] instanceof WP_Post)) {
+        $selected_class_id = (int) $classes[0]->ID;
+    }
+    if ($selected_class_id > 0 && function_exists('ll_tools_teacher_class_user_can_access') && !ll_tools_teacher_class_user_can_access($selected_class_id)) {
+        $selected_class_id = 0;
+    }
+    if ($selected_class_id > 0 && function_exists('ll_tools_teacher_class_matches_wordset') && !ll_tools_teacher_class_matches_wordset($selected_class_id, $current_wordset_id)) {
+        $selected_class_id = 0;
+    }
+
+    $selected_class = ($selected_class_id > 0 && function_exists('ll_tools_get_teacher_class'))
+        ? ll_tools_get_teacher_class($selected_class_id)
+        : null;
+    $selected_class_wordset_term = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_wordset_term'))
+        ? ll_tools_teacher_class_get_wordset_term((int) $selected_class->ID)
+        : $wordset_term;
+    $selected_class_wordset_id = ($selected_class_wordset_term instanceof WP_Term)
+        ? max(0, (int) $selected_class_wordset_term->term_id)
+        : $current_wordset_id;
+    $selected_classes_url = ($selected_class instanceof WP_Post && function_exists('ll_tools_get_teacher_classes_frontend_url'))
+        ? ll_tools_get_teacher_classes_frontend_url(['class_id' => (int) $selected_class->ID], $selected_class_wordset_term ?: $wordset_term)
+        : $classes_url;
+    $student_ids = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_student_ids'))
+        ? ll_tools_teacher_class_get_student_ids((int) $selected_class->ID)
+        : [];
+    $student_rows = function_exists('ll_tools_teacher_class_student_progress_rows')
+        ? ll_tools_teacher_class_student_progress_rows($student_ids, $selected_class_wordset_id)
+        : [];
+    $summary = function_exists('ll_tools_teacher_class_progress_summary')
+        ? ll_tools_teacher_class_progress_summary($student_rows)
+        : [
+            'students' => count($student_rows),
+            'rounds_30d' => 0,
+            'studied_words' => 0,
+            'mastered_words' => 0,
+            'hard_words' => 0,
+        ];
+    $selected_teacher_user = ($selected_class instanceof WP_Post)
+        ? get_userdata((int) $selected_class->post_author)
+        : null;
+    $signup_url = ($selected_class instanceof WP_Post && function_exists('ll_tools_teacher_class_get_signup_invite_url'))
+        ? ll_tools_teacher_class_get_signup_invite_url((int) $selected_class->ID)
+        : '';
+    $assignable_teachers = $is_admin_user && function_exists('ll_tools_teacher_class_get_assignable_teachers')
+        ? ll_tools_teacher_class_get_assignable_teachers()
+        : [];
+    $signup_input_id = 'll-teacher-class-signup-link-' . (int) (($selected_class instanceof WP_Post) ? $selected_class->ID : 0);
+    $redirect_to = function_exists('ll_tools_get_current_request_url')
+        ? ll_tools_get_current_request_url()
+        : $selected_classes_url;
+    $redirect_to = ($redirect_to !== '') ? $redirect_to : $selected_classes_url;
+    $create_wordset_id = $current_wordset_id;
+    $create_wordset_name = (string) $wordset_term->name;
+
+    ob_start();
+    ?>
+    <header class="ll-wordset-subpage-head">
+        <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
+            <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
+                <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                    <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="ll-wordset-back__label"><?php echo esc_html($wordset_page_title); ?></span>
+        </a>
+        <h1 class="ll-wordset-title"><?php echo esc_html__('Classes', 'll-tools-text-domain'); ?></h1>
+    </header>
+
+    <?php if (!is_user_logged_in()) : ?>
+        <?php
+        echo ll_tools_render_login_window([
+            'container_class' => 'll-wordset-empty ll-wordset-login-window',
+            'title' => __('Sign in to manage classes', 'll-tools-text-domain'),
+            'message' => __('Use your teacher account to open classes, invite learners, and review class progress.', 'll-tools-text-domain'),
+            'submit_label' => __('Open classes', 'll-tools-text-domain'),
+            'redirect_to' => $classes_url,
+            'show_registration' => false,
+            'screen_mode' => 'login',
+        ]);
+        ?>
+    <?php elseif (!$can_manage_classes) : ?>
+        <div class="ll-wordset-empty">
+            <?php echo esc_html__('Classes are available to teacher and administrator accounts only.', 'll-tools-text-domain'); ?>
+        </div>
+    <?php else : ?>
+        <section class="ll-teacher-classes" data-ll-teacher-classes>
+            <div class="ll-teacher-classes__sidebar">
+                <section class="ll-teacher-classes__panel ll-teacher-classes__panel--create">
+                    <div class="ll-teacher-classes__panel-head">
+                        <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html__('New class', 'll-tools-text-domain'); ?></h2>
+                    </div>
+                    <?php if (empty($available_wordsets)) : ?>
+                        <div class="ll-teacher-classes__empty">
+                            <?php echo esc_html__('Create a word set before creating classes.', 'll-tools-text-domain'); ?>
+                        </div>
+                    <?php else : ?>
+                        <form class="ll-teacher-classes__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="ll_tools_teacher_create_class" />
+                            <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($classes_url); ?>" />
+                            <?php wp_nonce_field('ll_tools_teacher_create_class'); ?>
+                            <label class="ll-teacher-classes__field">
+                                <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Class name', 'll-tools-text-domain'); ?></span>
+                                <input
+                                    class="ll-teacher-classes__input"
+                                    type="text"
+                                    name="ll_tools_teacher_class_name"
+                                    required />
+                            </label>
+                            <?php if ($create_wordset_id > 0) : ?>
+                                <label class="ll-teacher-classes__field">
+                                    <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Word set', 'll-tools-text-domain'); ?></span>
+                                    <input
+                                        class="ll-teacher-classes__input"
+                                        type="text"
+                                        value="<?php echo esc_attr($create_wordset_name); ?>"
+                                        readonly />
+                                    <input type="hidden" name="ll_tools_teacher_class_wordset_id" value="<?php echo esc_attr((string) $create_wordset_id); ?>" />
+                                </label>
+                            <?php endif; ?>
+                            <?php if ($is_admin_user && !empty($assignable_teachers)) : ?>
+                                <label class="ll-teacher-classes__field">
+                                    <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Teacher', 'll-tools-text-domain'); ?></span>
+                                    <select class="ll-teacher-classes__input" name="ll_tools_teacher_class_teacher_user_id" required>
+                                        <?php foreach ($assignable_teachers as $assignable_teacher) : ?>
+                                            <?php if (!($assignable_teacher instanceof WP_User)) { continue; } ?>
+                                            <option value="<?php echo esc_attr((string) $assignable_teacher->ID); ?>" <?php selected((int) $assignable_teacher->ID, $current_user_id); ?>>
+                                                <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_teacher)); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </label>
+                            <?php endif; ?>
+                            <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button">
+                                <?php echo esc_html__('Create class', 'll-tools-text-domain'); ?>
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                </section>
+
+                <section class="ll-teacher-classes__panel">
+                    <div class="ll-teacher-classes__panel-head">
+                        <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html($is_admin_user ? __('Classes', 'll-tools-text-domain') : __('Your classes', 'll-tools-text-domain')); ?></h2>
+                        <span class="ll-teacher-classes__panel-count"><?php echo esc_html((string) count($classes)); ?></span>
+                    </div>
+
+                    <?php if (empty($classes)) : ?>
+                        <div class="ll-teacher-classes__empty">
+                            <?php echo esc_html__('Create a class to start inviting learners.', 'll-tools-text-domain'); ?>
+                        </div>
+                    <?php else : ?>
+                        <div class="ll-teacher-classes__list">
+                            <?php foreach ($classes as $class_post) : ?>
+                                <?php if (!($class_post instanceof WP_Post)) { continue; } ?>
+                                <?php
+                                $class_id = (int) $class_post->ID;
+                                $class_teacher_user = get_userdata((int) $class_post->post_author);
+                                $class_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
+                                    ? ll_tools_get_teacher_classes_frontend_url(['class_id' => $class_id], $wordset_term)
+                                    : add_query_arg('class_id', $class_id, $classes_url);
+                                $student_total = function_exists('ll_tools_teacher_class_get_student_ids')
+                                    ? count(ll_tools_teacher_class_get_student_ids($class_id))
+                                    : 0;
+                                $is_selected = ($selected_class instanceof WP_Post) && ((int) $selected_class->ID === $class_id);
+                                ?>
+                                <article class="ll-teacher-classes__list-card<?php echo $is_selected ? ' is-selected' : ''; ?>">
+                                    <div class="ll-teacher-classes__list-copy">
+                                        <h3 class="ll-teacher-classes__list-title"><?php echo esc_html($class_post->post_title); ?></h3>
+                                        <div class="ll-teacher-classes__list-meta">
+                                            <?php if ($is_admin_user && ($class_teacher_user instanceof WP_User)) : ?>
+                                                <span><?php echo esc_html(ll_tools_teacher_class_user_label($class_teacher_user)); ?></span>
+                                            <?php endif; ?>
+                                            <span><?php echo esc_html(sprintf(_n('%d student', '%d students', $student_total, 'll-tools-text-domain'), $student_total)); ?></span>
+                                        </div>
+                                    </div>
+                                    <div class="ll-teacher-classes__list-actions">
+                                        <a class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button ll-teacher-classes__button--small" href="<?php echo esc_url($class_url); ?>">
+                                            <?php echo esc_html__('Open', 'll-tools-text-domain'); ?>
+                                        </a>
+                                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Delete %s?', 'll-tools-text-domain'), $class_post->post_title)); ?>');">
+                                            <input type="hidden" name="action" value="ll_tools_teacher_delete_class" />
+                                            <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $class_id); ?>" />
+                                            <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($redirect_to); ?>" />
+                                            <?php wp_nonce_field('ll_tools_teacher_delete_class_' . $class_id); ?>
+                                            <button type="submit" class="ll-teacher-classes__ghost-button">
+                                                <?php echo esc_html__('Delete', 'll-tools-text-domain'); ?>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </article>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </section>
+            </div>
+
+            <div class="ll-teacher-classes__detail">
+                <?php if (!($selected_class instanceof WP_Post)) : ?>
+                    <section class="ll-teacher-classes__panel ll-teacher-classes__panel--empty">
+                        <div class="ll-teacher-classes__empty">
+                            <?php echo esc_html__('Choose a class to see invites and student progress.', 'll-tools-text-domain'); ?>
+                        </div>
+                    </section>
+                <?php else : ?>
+                    <section class="ll-teacher-classes__panel">
+                        <div class="ll-teacher-classes__panel-head">
+                            <div>
+                                <h2 class="ll-teacher-classes__panel-title"><?php echo esc_html($selected_class->post_title); ?></h2>
+                                <?php if ($selected_teacher_user instanceof WP_User) : ?>
+                                    <p class="ll-teacher-classes__panel-subtitle"><?php echo esc_html(sprintf(__('Teacher: %s', 'll-tools-text-domain'), ll_tools_teacher_class_user_label($selected_teacher_user))); ?></p>
+                                <?php endif; ?>
+                                <?php if ($selected_class_wordset_term instanceof WP_Term) : ?>
+                                    <p class="ll-teacher-classes__panel-subtitle"><?php echo esc_html(sprintf(__('Word set: %s', 'll-tools-text-domain'), $selected_class_wordset_term->name)); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <div class="ll-teacher-classes__stats">
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['students'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Students', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['rounds_30d'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('30d rounds', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['studied_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Studied', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['mastered_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Mastered', 'll-tools-text-domain'); ?></span>
+                            </div>
+                            <div class="ll-teacher-classes__stat">
+                                <span class="ll-teacher-classes__stat-value"><?php echo esc_html((string) ($summary['hard_words'] ?? 0)); ?></span>
+                                <span class="ll-teacher-classes__stat-label"><?php echo esc_html__('Hard', 'll-tools-text-domain'); ?></span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="ll-teacher-classes__action-grid">
+                        <section class="ll-teacher-classes__panel">
+                            <div class="ll-teacher-classes__panel-head">
+                                <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Invite learner', 'll-tools-text-domain'); ?></h3>
+                            </div>
+                            <form class="ll-teacher-classes__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                <input type="hidden" name="action" value="ll_tools_teacher_send_class_invite" />
+                                <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                                <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($selected_classes_url); ?>" />
+                                <?php wp_nonce_field('ll_tools_teacher_send_class_invite_' . (int) $selected_class->ID); ?>
+                                <label class="ll-teacher-classes__field">
+                                    <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Existing learner email', 'll-tools-text-domain'); ?></span>
+                                    <input
+                                        class="ll-teacher-classes__input"
+                                        type="email"
+                                        name="ll_tools_teacher_invite_email"
+                                        placeholder="<?php echo esc_attr__('learner@example.com', 'll-tools-text-domain'); ?>"
+                                        required />
+                                </label>
+                                <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button">
+                                    <?php echo esc_html__('Send invite', 'll-tools-text-domain'); ?>
+                                </button>
+                            </form>
+                        </section>
+
+                        <section class="ll-teacher-classes__panel">
+                            <div class="ll-teacher-classes__panel-head">
+                                <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Signup link', 'll-tools-text-domain'); ?></h3>
+                            </div>
+                            <p class="ll-teacher-classes__signup-help"><?php echo esc_html__('New learner accounts created from this link join the class automatically.', 'll-tools-text-domain'); ?></p>
+                            <div class="ll-teacher-classes__copy-row">
+                                <input
+                                    id="<?php echo esc_attr($signup_input_id); ?>"
+                                    class="ll-teacher-classes__input ll-teacher-classes__input--code"
+                                    type="url"
+                                    readonly
+                                    value="<?php echo esc_attr($signup_url); ?>" />
+                                <button
+                                    type="button"
+                                    class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button ll-teacher-classes__button--copy"
+                                    data-ll-copy-target="<?php echo esc_attr($signup_input_id); ?>"
+                                    data-ll-copy-label="<?php echo esc_attr__('Copy link', 'll-tools-text-domain'); ?>"
+                                    data-ll-copy-success="<?php echo esc_attr__('Copied', 'll-tools-text-domain'); ?>"
+                                    data-ll-copy-failure="<?php echo esc_attr__('Copy failed', 'll-tools-text-domain'); ?>">
+                                    <?php echo esc_html__('Copy link', 'll-tools-text-domain'); ?>
+                                </button>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="ll-teacher-classes__panel">
+                        <div class="ll-teacher-classes__panel-head">
+                            <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Student progress', 'll-tools-text-domain'); ?></h3>
+                        </div>
+                        <?php if (empty($student_rows)) : ?>
+                            <div class="ll-teacher-classes__empty">
+                                <?php echo esc_html__('No learners have joined this class yet.', 'll-tools-text-domain'); ?>
+                            </div>
+                        <?php else : ?>
+                            <div class="ll-teacher-classes__table-wrap">
+                                <table class="ll-teacher-classes__table" data-ll-teacher-classes-progress-table>
+                                    <thead>
+                                        <tr>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="learner" data-sort-type="text" data-sort-default="asc" data-sort-initial="1">
+                                                    <span><?php echo esc_html__('Learner', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="email" data-sort-type="text" data-sort-default="asc">
+                                                    <span><?php echo esc_html__('Email', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="rounds_30d" data-sort-type="number" data-sort-default="desc">
+                                                    <span><?php echo esc_html__('30d', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="studied_words" data-sort-type="number" data-sort-default="desc">
+                                                    <span><?php echo esc_html__('Studied', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="mastered_words" data-sort-type="number" data-sort-default="desc">
+                                                    <span><?php echo esc_html__('Mastered', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="hard_words" data-sort-type="number" data-sort-default="desc">
+                                                    <span><?php echo esc_html__('Hard', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th class="ll-teacher-classes__table-head ll-teacher-classes__table-head--sortable" scope="col" aria-sort="none">
+                                                <button type="button" class="ll-teacher-classes__sort-button" data-ll-teacher-classes-sort="last_activity" data-sort-type="date" data-sort-default="desc">
+                                                    <span><?php echo esc_html__('Last', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-teacher-classes__sort-indicator" aria-hidden="true"></span>
+                                                </button>
+                                            </th>
+                                            <th scope="col"><?php echo esc_html__('Remove', 'll-tools-text-domain'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($student_rows as $row) : ?>
+                                            <?php
+                                            $user = $row['user'] ?? null;
+                                            $row_stats = (array) ($row['stats'] ?? []);
+                                            if (!($user instanceof WP_User)) {
+                                                continue;
+                                            }
+                                            $learner_label = ll_tools_teacher_class_user_label($user);
+                                            $email = (string) $user->user_email;
+                                            $rounds_30d = max(0, (int) ($row_stats['rounds_30d'] ?? 0));
+                                            $studied_words = max(0, (int) ($row_stats['studied_words'] ?? 0));
+                                            $mastered_words = max(0, (int) ($row_stats['mastered_words'] ?? 0));
+                                            $hard_words = max(0, (int) ($row_stats['hard_words'] ?? 0));
+                                            $last_activity = (string) ($row['last_activity'] ?? '');
+                                            ?>
+                                            <tr>
+                                                <td data-sort-value="<?php echo esc_attr($learner_label); ?>"><?php echo esc_html($learner_label); ?></td>
+                                                <td data-sort-value="<?php echo esc_attr($email); ?>"><a href="mailto:<?php echo esc_attr($email); ?>"><?php echo esc_html($email); ?></a></td>
+                                                <td data-sort-value="<?php echo esc_attr((string) $rounds_30d); ?>"><?php echo esc_html((string) $rounds_30d); ?></td>
+                                                <td data-sort-value="<?php echo esc_attr((string) $studied_words); ?>"><?php echo esc_html((string) $studied_words); ?></td>
+                                                <td data-sort-value="<?php echo esc_attr((string) $mastered_words); ?>"><?php echo esc_html((string) $mastered_words); ?></td>
+                                                <td data-sort-value="<?php echo esc_attr((string) $hard_words); ?>"><?php echo esc_html((string) $hard_words); ?></td>
+                                                <td data-sort-value="<?php echo esc_attr($last_activity); ?>"><?php echo esc_html($last_activity); ?></td>
+                                                <td>
+                                                    <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" onsubmit="return window.confirm('<?php echo esc_js(sprintf(__('Remove %s from this class?', 'll-tools-text-domain'), $learner_label)); ?>');">
+                                                        <input type="hidden" name="action" value="ll_tools_teacher_remove_class_student" />
+                                                        <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                                                        <input type="hidden" name="ll_tools_teacher_remove_user_id" value="<?php echo esc_attr((string) $user->ID); ?>" />
+                                                        <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($selected_classes_url); ?>" />
+                                                        <?php wp_nonce_field('ll_tools_teacher_remove_class_student_' . (int) $selected_class->ID); ?>
+                                                        <button type="submit" class="ll-teacher-classes__ghost-button">
+                                                            <?php echo esc_html__('Remove', 'll-tools-text-domain'); ?>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+                    </section>
+                <?php endif; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+    <?php
+
+    return (string) ob_get_clean();
 }
 
 function ll_tools_get_wordset_games_frontend_config(int $wordset_id = 0): array {
@@ -4517,7 +5431,7 @@ function ll_tools_render_wordset_page_missing_content(array $extra_classes = [],
  * Shared front-end utility navigation used across wordset/recorder/editor pages.
  *
  * @param array $args {
- *     @type string       $current_area  Active area key: wordset|wordset_settings|editor_hub|recorder.
+ *     @type string       $current_area  Active area key: wordset|wordset_settings|editor_hub|recorder|classes|site_tools.
  *     @type int|WP_Term  $wordset       Optional wordset context for Word Set / Manage Word Set links.
  *     @type string       $current_url   Optional current URL for login/logout redirect.
  * }
@@ -4629,6 +5543,7 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     }
 
     $links = [];
+    $is_wordset_page_context = in_array($current_area, ['wordset', 'wordset_settings', 'wordset_progress', 'wordset_hidden', 'wordset_games'], true);
     if ($user instanceof WP_User) {
         if (function_exists('ll_tools_editor_hub_user_can_access') && ll_tools_editor_hub_user_can_access() && function_exists('ll_get_editor_hub_redirect_url')) {
             $editor_hub_url = (string) ll_get_editor_hub_redirect_url((int) $user->ID);
@@ -4649,6 +5564,28 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                     'label' => __('Recorder', 'll-tools-text-domain'),
                     'url' => $recording_url,
                     'is_active' => ($current_area === 'recorder'),
+                ];
+            }
+        }
+
+        if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID) && function_exists('ll_tools_get_teacher_classes_frontend_url')) {
+            $teacher_classes_url = (string) ll_tools_get_teacher_classes_frontend_url([], $current_wordset_term ?: null);
+            if ($teacher_classes_url !== '') {
+                $links[] = [
+                    'label' => __('Classes', 'll-tools-text-domain'),
+                    'url' => $teacher_classes_url,
+                    'is_active' => ($current_area === 'classes'),
+                ];
+            }
+        }
+
+        if ($is_admin_user && function_exists('ll_tools_get_site_tools_page_url')) {
+            $site_tools_url = (string) ll_tools_get_site_tools_page_url((int) $user->ID);
+            if ($site_tools_url !== '') {
+                $links[] = [
+                    'label' => __('Site Tools', 'll-tools-text-domain'),
+                    'url' => $site_tools_url,
+                    'is_active' => ($current_area === 'site_tools'),
                 ];
             }
         }
@@ -4676,7 +5613,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
             }
         }
 
-        if ($scoped_wordset_term instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url')) {
+        if (
+            !$is_wordset_page_context
+            && $scoped_wordset_term instanceof WP_Term
+            && function_exists('ll_tools_get_wordset_page_view_url')
+        ) {
             $wordset_url = (string) ll_tools_get_wordset_page_view_url($scoped_wordset_term);
             $wordset_button_active = in_array($current_area, ['wordset', 'wordset_progress', 'wordset_hidden', 'wordset_games'], true)
                 && ($current_wordset_term instanceof WP_Term)
@@ -4702,7 +5643,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
             }
         }
 
-        if ($manage_link_term instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url')) {
+        if (
+            !$is_wordset_page_context
+            && $manage_link_term instanceof WP_Term
+            && function_exists('ll_tools_get_wordset_page_view_url')
+        ) {
             $wordset_settings_url = (string) ll_tools_get_wordset_page_view_url($manage_link_term, 'settings');
             $manage_link_active = ($current_area === 'wordset_settings')
                 && ($current_wordset_term instanceof WP_Term)
@@ -5478,10 +6423,10 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         autocomplete="off"
                     />
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Optional. When set, offline app exports will copy this model bundle into the Android app for this word set.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Reserved for future mobile STT support. Offline app exports currently do not copy or enable this bundle.', 'll-tools-text-domain'); ?>
                     </p>
                     <p class="description" style="margin-top:0;">
-                        <?php echo esc_html__('Use a mobile-ready model bundle here. Desktop training checkpoints can still be stored elsewhere, but Android needs a runtime-compatible model format.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('You can keep the path here for later, but exported learner apps currently ship without offline speaking.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
@@ -6530,7 +7475,7 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
         <div class="ll-wordset-settings-card">
             <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Offline app bundle', 'll-tools-text-domain'); ?></h2>
             <p class="description">
-                <?php echo esc_html__('Export this word set as a standalone learner app bundle with local study content, games, and optional offline speaking support.', 'll-tools-text-domain'); ?>
+                <?php echo esc_html__('Export this word set as a standalone learner app bundle with local study content, games, and local-first progress sync.', 'll-tools-text-domain'); ?>
             </p>
 
             <?php if (!$zip_available) : ?>
@@ -6647,7 +7592,7 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
                     <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Export notes', 'll-tools-text-domain'); ?></h3>
                     <div class="ll-wordset-settings-card__meta">
                         <span class="ll-wordset-settings-card__pill"><?php echo esc_html(!empty($site_icon_payload) ? __('Uses current site icon', 'll-tools-text-domain') : __('No site icon set', 'll-tools-text-domain')); ?></span>
-                        <span class="ll-wordset-settings-card__pill"><?php echo esc_html($offline_stt_bundle_path !== '' ? __('Offline STT bundle configured', 'll-tools-text-domain') : __('No offline STT bundle configured', 'll-tools-text-domain')); ?></span>
+                        <span class="ll-wordset-settings-card__pill"><?php echo esc_html__('Offline speaking disabled in exports', 'll-tools-text-domain'); ?></span>
                     </div>
                     <p class="description">
                         <?php
@@ -7017,11 +7962,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $show_title = (bool) $args['show_title'];
     $preview_limit = max(1, (int) $args['preview_limit']);
     $view = ll_tools_get_wordset_page_view();
+    $is_main_view = ($view === '' || $view === 'main');
+    $normalized_view = $is_main_view ? 'main' : $view;
     $classes = ll_tools_wordset_page_sanitize_class_list(array_merge(
         ['ll-wordset-page'],
         (array) ($args['extra_classes'] ?? [])
     ));
-    $classes[] = $view === '' ? 'll-wordset-page--main' : ('ll-wordset-page--' . sanitize_html_class($view));
+    $classes[] = $is_main_view ? 'll-wordset-page--main' : ('ll-wordset-page--' . sanitize_html_class($view));
     if (empty($classes)) {
         $classes = ['ll-wordset-page'];
     }
@@ -7043,6 +7990,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ll_tools_get_wordset_page_view_url($wordset_term, 'hidden-categories'),
         $subpage_return_url
     );
+    $wordset_page_title = ll_tools_get_wordset_page_display_title($wordset_term);
+    $classes_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
+        ? ll_tools_get_teacher_classes_frontend_url([], $wordset_term)
+        : ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
     $settings_url = ll_tools_wordset_page_with_back_url(
         ll_tools_get_wordset_page_view_url($wordset_term, 'settings'),
         $settings_navigation_back_url
@@ -7050,6 +8001,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     $settings_tool = ($view === 'settings') ? ll_tools_get_wordset_settings_tool() : '';
     $back_url = ll_tools_wordset_page_resolve_back_url($wordset_term);
     $is_study_user = is_user_logged_in() && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
+    $can_manage_classes_frontend = is_user_logged_in()
+        && current_user_can('view_ll_tools')
+        && function_exists('ll_tools_user_can_manage_classes')
+        && ll_tools_user_can_manage_classes();
     $can_manage_wordset_content = function_exists('ll_tools_current_user_can_manage_wordset_content')
         ? ll_tools_current_user_can_manage_wordset_content($wordset_id)
         : current_user_can('manage_options');
@@ -7375,6 +8330,12 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $hidden_category_count = count($hidden_categories);
+    $saved_main_category_sort = $is_main_view
+        ? ll_tools_wordset_page_get_saved_main_sort($wordset_id)
+        : 'default';
+    if (!$is_study_user && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)) {
+        $saved_main_category_sort = 'default';
+    }
     $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
         ? ll_tools_get_content_lessons_for_wordset($wordset_id)
         : [];
@@ -7461,8 +8422,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
     }
     $summary_counts = ll_tools_wordset_page_summary_counts($analytics);
-    $summary_counts_deferred = ($is_study_user && ($view === '' || $view === 'main') && !$should_bootstrap_analytics);
+    $summary_counts_deferred = ($is_study_user && $is_main_view && !$should_bootstrap_analytics);
     $category_progress_lookup = [];
+    $category_metrics_lookup = [];
     $analytics_category_rows = (isset($analytics['categories']) && is_array($analytics['categories'])) ? $analytics['categories'] : [];
     foreach ($analytics_category_rows as $analytics_category_row) {
         if (!is_array($analytics_category_row)) {
@@ -7486,6 +8448,33 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'studied' => $studied_words,
             'new' => $new_words,
         ];
+        $category_metrics_lookup[$cid] = [
+            'mastered_words' => $mastered_words,
+            'studied_words' => $studied_total,
+            'new_words' => $new_words,
+            'last_seen_at' => isset($analytics_category_row['last_seen_at'])
+                ? (string) $analytics_category_row['last_seen_at']
+                : '',
+        ];
+    }
+    if (
+        $saved_main_category_sort !== 'default'
+        && ll_tools_wordset_page_main_sort_requires_metrics($saved_main_category_sort)
+        && $is_study_user
+        && empty($category_metrics_lookup)
+    ) {
+        $category_metrics_lookup = ll_tools_wordset_page_collect_category_metrics_for_user(
+            get_current_user_id(),
+            $wordset_id,
+            $visible_category_ids
+        );
+    }
+    if ($saved_main_category_sort !== 'default') {
+        $mixed_lesson_cards = ll_tools_wordset_page_apply_main_sort_to_mixed_cards(
+            $mixed_lesson_cards,
+            $saved_main_category_sort,
+            $category_metrics_lookup
+        );
     }
     $category_starred_lookup = ll_tools_wordset_page_collect_category_starred_lookup(
         $analytics,
@@ -7516,7 +8505,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         'total' => count($mixed_lesson_cards),
         'remaining' => 0,
     ];
-    if (($view === '' || $view === 'main') && count($mixed_lesson_cards) > ll_tools_wordset_page_get_lazy_card_batch_size()) {
+    if ($is_main_view && count($mixed_lesson_cards) > ll_tools_wordset_page_get_lazy_card_batch_size()) {
         $lazy_batch_size = ll_tools_wordset_page_get_lazy_card_batch_size();
         $initial_mixed_lesson_cards = array_slice($mixed_lesson_cards, 0, $lazy_batch_size);
         $lazy_payload = [
@@ -7868,7 +8857,26 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         array_values(array_map('intval', wp_list_pluck($enhanced_categories, 'id')))
     );
 
-    $script_categories = array_map(function (array $cat) use ($category_search_index): array {
+    $script_categories_source = [];
+    foreach (array_values($enhanced_categories) as $index => $category_row) {
+        if (!is_array($category_row)) {
+            continue;
+        }
+        $category_row['default_order'] = (int) $index;
+        $category_id = isset($category_row['id']) ? (int) $category_row['id'] : 0;
+        if ($category_id > 0 && isset($category_metrics_lookup[$category_id]) && is_array($category_metrics_lookup[$category_id])) {
+            $category_row['mastered_words'] = (int) ($category_metrics_lookup[$category_id]['mastered_words'] ?? 0);
+            $category_row['studied_words'] = (int) ($category_metrics_lookup[$category_id]['studied_words'] ?? 0);
+            $category_row['new_words'] = (int) ($category_metrics_lookup[$category_id]['new_words'] ?? max(0, (int) ($category_row['count'] ?? 0)));
+            $category_row['last_seen_at'] = (string) ($category_metrics_lookup[$category_id]['last_seen_at'] ?? '');
+        }
+        $script_categories_source[] = $category_row;
+    }
+    if ($saved_main_category_sort !== 'default') {
+        $script_categories_source = ll_tools_wordset_page_sort_categories_for_main_sort($script_categories_source, $saved_main_category_sort);
+    }
+
+    $script_categories = array_map(function (array $cat) use ($category_search_index, $category_metrics_lookup): array {
         $preview_items = array_values((array) ($cat['preview'] ?? []));
         $preview_items = array_slice($preview_items, 0, 2);
         $preview_payload = [];
@@ -7891,8 +8899,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             }
         }
 
+        $category_id = (int) ($cat['id'] ?? 0);
+        $metrics = isset($category_metrics_lookup[$category_id]) && is_array($category_metrics_lookup[$category_id])
+            ? $category_metrics_lookup[$category_id]
+            : [];
+
         return [
-            'id' => (int) ($cat['id'] ?? 0),
+            'id' => $category_id,
+            'default_order' => (int) ($cat['default_order'] ?? 0),
             'slug' => (string) ($cat['slug'] ?? ''),
             'name' => (string) ($cat['raw_name'] ?? $cat['name'] ?? ''),
             'translation' => (string) ($cat['translation'] ?? ($cat['name'] ?? '')),
@@ -7905,11 +8919,15 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'gender_supported' => !empty($cat['gender_supported']),
             'aspect_bucket' => (string) ($cat['aspect_bucket'] ?? 'no-image'),
             'hidden' => !empty($cat['hidden']),
-            'preview' => $preview_payload,
             'has_images' => !empty($cat['has_images']),
-            'search_text' => (string) ($category_search_index[(int) ($cat['id'] ?? 0)]['search_text'] ?? ''),
+            'preview' => $preview_payload,
+            'search_text' => (string) ($category_search_index[$category_id]['search_text'] ?? ''),
+            'mastered_words' => (int) ($metrics['mastered_words'] ?? 0),
+            'studied_words' => (int) ($metrics['studied_words'] ?? 0),
+            'new_words' => (int) ($metrics['new_words'] ?? max(0, (int) ($cat['count'] ?? 0))),
+            'last_seen_at' => (string) ($metrics['last_seen_at'] ?? ''),
         ];
-    }, $enhanced_categories);
+    }, $script_categories_source);
 
     $games_frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
         ? ll_tools_get_wordset_games_frontend_config($wordset_id)
@@ -7938,19 +8956,25 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'speakingHiddenNotice' => $speaking_hidden_notice,
         ])
         : [];
-    $localized_lazy_cards = ($view === 'main') ? $lazy_cards_config : [];
+    $localized_lazy_cards = $is_main_view ? $lazy_cards_config : [];
 
     ll_tools_wordset_page_enqueue_styles();
     ll_tools_wordset_page_enqueue_scripts();
+    $wordset_page_scripts = wp_scripts();
+    if ($wordset_page_scripts instanceof WP_Scripts && isset($wordset_page_scripts->registered['ll-wordset-pages-js'])) {
+        unset($wordset_page_scripts->registered['ll-wordset-pages-js']->extra['data']);
+    }
     wp_localize_script('ll-wordset-pages-js', 'llWordsetPageData', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => $is_study_user ? wp_create_nonce('ll_user_study') : '',
         'isLoggedIn' => $is_study_user,
         'sortLocale' => get_locale(),
-        'view' => $view === '' ? 'main' : $view,
+        'view' => $normalized_view,
         'wordsetId' => $wordset_id,
         'wordsetSlug' => (string) $wordset_term->slug,
         'wordsetName' => (string) $wordset_term->name,
+        'initialMainCategorySort' => $saved_main_category_sort,
+        'mainCategorySortCookieName' => ll_tools_wordset_page_get_main_sort_cookie_name($wordset_id),
         'links' => $localized_links,
         'progressReset' => $localized_progress_reset,
         'progressIncludeHidden' => ($view === 'progress'),
@@ -8136,6 +9160,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 $utility_current_area = 'wordset_hidden';
             } elseif ($view === 'games') {
                 $utility_current_area = 'wordset_games';
+            } elseif ($view === 'classes') {
+                $utility_current_area = 'classes';
             }
             echo ll_tools_render_frontend_user_utility_menu([
                 'current_area' => $utility_current_area,
@@ -8164,13 +9190,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         <?php endif; ?>
         <?php if ($view === 'progress') : ?>
             <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
                     <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_page_title); ?></span>
                 </a>
                 <h1 class="ll-wordset-title"><?php echo esc_html__('Progress', 'll-tools-text-domain'); ?></h1>
             </header>
@@ -8577,15 +9603,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 'back_url' => $back_url,
             ]);
             ?>
+        <?php elseif ($view === 'classes') : ?>
+            <?php echo ll_tools_wordset_page_render_teacher_classes_view($wordset_term, $back_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php elseif ($view === 'hidden-categories') : ?>
             <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
                     <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_page_title); ?></span>
                 </a>
                 <h1 class="ll-wordset-title"><?php echo esc_html__('Hidden Categories', 'll-tools-text-domain'); ?></h1>
             </header>
@@ -8616,10 +9644,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         <?php elseif ($view === 'settings') : ?>
             <?php
             $settings_header_back_url = ($settings_tool !== '') ? $settings_tool_urls['hub'] : $back_url;
-            $settings_header_back_label = ($settings_tool !== '') ? __('Word Set Tools', 'll-tools-text-domain') : $wordset_term->name;
+            $settings_header_back_label = ($settings_tool !== '') ? __('Word Set Tools', 'll-tools-text-domain') : $wordset_page_title;
             $settings_header_back_aria = ($settings_tool !== '')
                 ? __('Back to word set tools', 'll-tools-text-domain')
-                : sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name);
+                : sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title);
             $settings_page_title = ll_tools_wordset_settings_tool_title($settings_tool);
             $settings_notices = [];
             if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && ($settings_tool === '' || in_array($settings_tool, ['study', 'language', 'visibility', 'transcription'], true))) {
@@ -8728,7 +9756,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <span class="ll-wordset-hero__dot"></span>
                             <span class="ll-wordset-hero__dot"></span>
                         </div>
-                        <h1 class="ll-wordset-title"><?php echo esc_html($wordset_term->name); ?></h1>
+                        <h1 class="ll-wordset-title"><?php echo esc_html($wordset_page_title); ?></h1>
                     </div>
                     <div class="ll-wordset-hero__tools">
                         <div class="ll-wordset-hero__action-links">
@@ -8752,6 +9780,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 </span>
                                 <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
                             </a>
+                            <?php if ($can_manage_classes_frontend) : ?>
+                                <a
+                                    class="ll-wordset-link-chip ll-wordset-link-chip--classes"
+                                    href="<?php echo esc_url($classes_url); ?>"
+                                    aria-label="<?php echo esc_attr__('Open classes', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-wordset-link-chip__icon" aria-hidden="true">
+                                        <?php echo ll_tools_wordset_page_render_classes_icon('ll-wordset-classes-link-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </span>
+                                    <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Classes', 'll-tools-text-domain'); ?></span>
+                                </a>
+                            <?php endif; ?>
                             <?php if ($show_plugin_update_link) : ?>
                                 <a
                                     class="ll-wordset-link-chip ll-wordset-update-link"
@@ -8901,18 +9940,69 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 </div>
             <?php else : ?>
                 <?php if ($visible_category_count > 1) : ?>
+                    <?php $sort_menu_id = 'll-wordset-main-sort-menu-' . $wordset_id; ?>
                     <div class="ll-wordset-grid-tools">
-                        <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
-                            <label class="screen-reader-text" for="ll-wordset-page-search-input"><?php echo esc_html__('Search words or translations', 'll-tools-text-domain'); ?></label>
-                            <input
-                                id="ll-wordset-page-search-input"
-                                class="ll-wordset-progress-search__input"
-                                type="search"
-                                data-ll-wordset-page-search
-                                placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
-                                autocomplete="off"
-                            />
-                            <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
+                        <div class="ll-wordset-grid-search-tools">
+                            <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
+                                <label class="screen-reader-text" for="ll-wordset-page-search-input"><?php echo esc_html__('Search words or translations', 'll-tools-text-domain'); ?></label>
+                                <input
+                                    id="ll-wordset-page-search-input"
+                                    class="ll-wordset-progress-search__input"
+                                    type="search"
+                                    data-ll-wordset-page-search
+                                    placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
+                                    autocomplete="off"
+                                />
+                                <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
+                            </div>
+                            <div class="ll-wordset-main-sort" data-ll-wordset-main-sort-root>
+                                <button
+                                    type="button"
+                                    class="ll-wordset-main-sort__toggle"
+                                    data-ll-wordset-main-sort-toggle
+                                    aria-expanded="false"
+                                    aria-haspopup="menu"
+                                    aria-controls="<?php echo esc_attr($sort_menu_id); ?>"
+                                    aria-label="<?php echo esc_attr__('Sort categories', 'll-tools-text-domain'); ?>"
+                                    title="<?php echo esc_attr__('Sort categories', 'll-tools-text-domain'); ?>">
+                                    <?php echo ll_tools_wordset_page_render_sort_icon(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                </button>
+                                <div
+                                    id="<?php echo esc_attr($sort_menu_id); ?>"
+                                    class="ll-wordset-main-sort__menu"
+                                    data-ll-wordset-main-sort-menu
+                                    role="menu"
+                                    hidden>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="default" role="menuitemradio" aria-checked="true">
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Default', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="alpha-asc" role="menuitemradio" aria-checked="false">
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('A-Z', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="alpha-desc" role="menuitemradio" aria-checked="false">
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Z-A', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('More learned', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="progress-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Less learned', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-desc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Recently studied', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                    <button type="button" class="ll-wordset-main-sort__option" data-ll-wordset-main-sort-option="recent-asc" role="menuitemradio" aria-checked="false"<?php echo $is_study_user ? '' : ' disabled'; ?>>
+                                        <span class="ll-wordset-main-sort__option-label"><?php echo esc_html__('Not recently studied', 'll-tools-text-domain'); ?></span>
+                                        <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <button
                             type="button"
@@ -9103,6 +10193,10 @@ function ll_tools_register_wordset_page_rewrite_rules() {
         $games_pattern = '^' . preg_quote($slug, '/') . '/games/?$';
         $games_target = 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=games';
         add_rewrite_rule($games_pattern, $games_target, 'top');
+
+        $classes_pattern = '^' . preg_quote($slug, '/') . '/classes/?$';
+        $classes_target = 'index.php?ll_wordset_page=' . $slug . '&ll_wordset_view=classes';
+        add_rewrite_rule($classes_pattern, $classes_target, 'top');
     }
 
     if (get_transient('ll_tools_vocab_lesson_flush_rewrite')) {
@@ -9211,6 +10305,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
     if (!$wordset_term instanceof WP_Term) {
         return '';
     }
+    $wordset_page_title = ll_tools_get_wordset_page_display_title($wordset_term);
 
     $games_catalog = is_array($args['games_catalog'] ?? null) ? $args['games_catalog'] : [];
     $speaking_hidden_notice = is_array($args['speaking_hidden_notice'] ?? null) ? $args['speaking_hidden_notice'] : [];
@@ -9241,13 +10336,13 @@ function ll_tools_render_wordset_games_shell(array $args): string {
             <section class="ll-wordset-games-modal__dialog" data-ll-wordset-games-modal-dialog role="dialog" aria-modal="true" aria-labelledby="<?php echo esc_attr($title_id); ?>">
     <?php endif; ?>
         <header class="ll-wordset-subpage-head">
-            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
                 <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                     <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                         <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </span>
-                <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_term->name); ?></span>
+                <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_page_title); ?></span>
             </a>
             <h1 class="ll-wordset-title" id="<?php echo esc_attr($title_id); ?>" data-ll-wordset-games-page-title><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></h1>
         </header>

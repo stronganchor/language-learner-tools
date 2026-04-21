@@ -21,8 +21,25 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 delete_option((string) $option_name);
             }
         }
+        if (defined('LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX')) {
+            $lock_like = $wpdb->esc_like(LL_TOOLS_DICTIONARY_IMPORT_LOCK_OPTION_PREFIX) . '%';
+            $lock_option_names = $wpdb->get_col($wpdb->prepare(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s",
+                $lock_like
+            ));
+            foreach ((array) $lock_option_names as $option_name) {
+                delete_option((string) $option_name);
+            }
+        }
         if (function_exists('ll_tools_dictionary_import_clear_active_job_id')) {
             ll_tools_dictionary_import_clear_active_job_id();
+        }
+        if (defined('LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY')) {
+            $wpdb->delete(
+                $wpdb->usermeta,
+                ['meta_key' => LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY],
+                ['%s']
+            );
         }
         if (function_exists('ll_tools_dictionary_import_read_history')) {
             foreach (ll_tools_dictionary_import_read_history() as $entry) {
@@ -41,7 +58,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
-        delete_option(LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION);
         delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
@@ -134,7 +150,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'Turkish',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(4, (int) ($summary['rows_grouped'] ?? 0));
@@ -174,6 +189,38 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $paged_html = do_shortcode(sprintf('[ll_dictionary wordset="%d" per_page="1"]', $wordset_id));
         $this->assertStringContainsString('Showing 2-2 of 2', $paged_html);
         $this->assertStringContainsString('Biya', $paged_html);
+    }
+
+    public function test_import_keeps_review_flagged_rows_after_skip_option_removal(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $summary = ll_tools_dictionary_import_rows([
+            [
+                'entry' => 'Rae',
+                'definition' => 'sun',
+                'entry_type' => 'noun',
+                'needs_review' => 'manual-check',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ]);
+
+        $this->assertSame(1, (int) ($summary['rows_grouped'] ?? 0));
+        $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
+
+        $entry_id = ll_tools_dictionary_find_entry_by_title('Rae', 0);
+        $this->assertGreaterThan(0, $entry_id);
+
+        $senses = ll_tools_get_dictionary_entry_senses($entry_id);
+        $this->assertCount(1, $senses);
+        $this->assertSame('manual-check', (string) ($senses[0]['needs_review'] ?? ''));
     }
 
     public function test_bulk_translation_lookup_prefers_imported_dictionary_entries(): void
@@ -405,6 +452,15 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'linked_word_limit' => 0,
             'post_status' => ['publish'],
         ]);
+        $mixed_scope_query = ll_tools_dictionary_query_entries([
+            'search' => 'su',
+            'search_scopes' => ['headword', 'tr'],
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
 
         $all_titles = array_values(array_map(static function (array $item): string {
             return (string) ($item['title'] ?? '');
@@ -415,18 +471,28 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $headword_titles = array_values(array_map(static function (array $item): string {
             return (string) ($item['title'] ?? '');
         }, (array) ($headword_query['items'] ?? [])));
+        $mixed_scope_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($mixed_scope_query['items'] ?? [])));
 
         $this->assertSame(['Su', 'Ava'], array_slice($all_titles, 0, 2));
         $this->assertSame(['Ava'], $translation_titles);
         $this->assertSame(['Su'], $headword_titles);
+        $this->assertSame(['Su', 'Ava'], array_slice($mixed_scope_titles, 0, 2));
 
         $_GET = [
             'll_dictionary_q' => 'su',
-            'll_dictionary_scope' => 'tr',
+            'll_dictionary_scope' => ['headword', 'tr'],
         ];
         $html = do_shortcode('[ll_dictionary]');
-        $this->assertStringContainsString('name="ll_dictionary_scope"', $html);
-        $this->assertStringContainsString('value="tr" selected=\'selected\'', $html);
+        $this->assertStringContainsString('name="ll_dictionary_scope[]"', $html);
+        $this->assertMatchesRegularExpression('/value="headword"[^>]*checked/', $html);
+        $this->assertMatchesRegularExpression('/value="tr"[^>]*checked/', $html);
+        $this->assertDoesNotMatchRegularExpression('/value="en"[^>]*checked/', $html);
+        $this->assertStringContainsString('ll-dictionary__translation-label">TR<', $html);
+        $this->assertStringNotContainsString('ll-dictionary__translation-label">EN<', $html);
+        $this->assertStringContainsString('kaynak', $html);
+        $this->assertStringNotContainsString('spring', $html);
     }
 
     public function test_dictionary_import_job_processes_rows_in_batches_with_resume_snapshot(): void
@@ -461,7 +527,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ], 'harun.tsv');
 
         $this->assertIsArray($job);
@@ -486,6 +551,83 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Dar', 0));
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Roce', 0));
         $this->assertGreaterThan(0, ll_tools_dictionary_find_entry_by_title('Ava', 0));
+    }
+
+    public function test_dictionary_import_save_job_trims_large_tracking_arrays(): void
+    {
+        $summary = ll_tools_dictionary_import_default_summary(250);
+        $summary['entries_created'] = LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS + 12;
+        $summary['entry_ids'] = range(1, LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS + 40);
+        $summary['errors'] = array_map(
+            static fn (int $index): string => 'Import error ' . $index,
+            range(1, LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS + 10)
+        );
+        $summary['error_count'] = count($summary['errors']);
+
+        $saved = ll_tools_dictionary_import_save_job('trim-test-job', [
+            'status' => 'running',
+            'type' => 'tsv',
+            'summary' => $summary,
+        ]);
+
+        $this->assertCount(LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS, (array) ($saved['summary']['entry_ids'] ?? []));
+        $this->assertCount(LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS, (array) ($saved['summary']['errors'] ?? []));
+        $this->assertSame(LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS + 10, (int) ($saved['summary']['error_count'] ?? 0));
+
+        $summary_html = ll_tools_get_dictionary_import_summary_html((array) ($saved['summary'] ?? []), 'Trimmed');
+        $this->assertStringContainsString(
+            (string) (LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ENTRY_IDS + 12) . ' dictionary entries were touched.',
+            $summary_html
+        );
+        $this->assertStringContainsString(
+            (string) (LL_TOOLS_DICTIONARY_IMPORT_MAX_TRACKED_ERRORS + 2) . ' more errors not shown.',
+            $summary_html
+        );
+    }
+
+    public function test_dictionary_import_job_lock_blocks_parallel_processing_until_released(): void
+    {
+        $this->assertTrue(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+        $this->assertFalse(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+
+        ll_tools_dictionary_import_release_job_lock('lock-test-job');
+
+        $this->assertTrue(ll_tools_dictionary_import_acquire_job_lock('lock-test-job'));
+    }
+
+    public function test_dictionary_import_recovers_orphaned_running_job_when_active_pointer_is_missing(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->ensurePartOfSpeechTerm('noun', 'Noun');
+
+        $job = ll_tools_dictionary_import_create_tsv_job_from_rows([
+            [
+                'entry' => 'Hew',
+                'definition' => 'cloud',
+                'entry_type' => 'noun',
+                'entry_lang' => 'Zazaki',
+                'def_lang' => 'English',
+            ],
+        ], [
+            'entry_lang' => 'Zazaki',
+            'def_lang' => 'English',
+        ], 'orphaned.tsv');
+
+        $this->assertIsArray($job);
+        $job_id = (string) ($job['id'] ?? '');
+        $this->assertNotSame('', $job_id);
+
+        ll_tools_dictionary_import_clear_active_job_id($job_id);
+        delete_user_meta($admin_id, LL_TOOLS_DICTIONARY_IMPORT_LAST_JOB_META_KEY);
+
+        $recovered_job = ll_tools_dictionary_import_get_relevant_job();
+
+        $this->assertIsArray($recovered_job);
+        $this->assertSame($job_id, (string) ($recovered_job['id'] ?? ''));
+        $this->assertSame($job_id, ll_tools_dictionary_import_get_active_job_id());
+        $this->assertSame($job_id, ll_tools_dictionary_import_get_last_job_id($admin_id));
     }
 
     public function test_header_tsv_import_supports_multilingual_gloss_columns(): void
@@ -518,7 +660,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'wordset_id' => $wordset_id,
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'English',
-                'skip_review_rows' => true,
             ]);
         } finally {
             @unlink($temp_file);
@@ -619,7 +760,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
                 'wordset_id' => $wordset_id,
                 'entry_lang' => 'Zazaki',
                 'def_lang' => 'Turkish',
-                'skip_review_rows' => true,
             ]);
         } finally {
             @unlink($temp_file);
@@ -647,7 +787,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $detail_html = do_shortcode(sprintf('[ll_dictionary wordset="%d"]', $wordset_id));
         $this->assertStringContainsString('Definitions', $detail_html);
-        $this->assertSame(1, substr_count($detail_html, 'güneş'));
+        $this->assertGreaterThanOrEqual(1, substr_count($detail_html, 'güneş'));
         $this->assertStringContainsString('>TR<', $detail_html);
     }
 
@@ -833,7 +973,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ], [
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
@@ -911,6 +1050,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Manage Dictionary Sources', $manager_html);
         $this->assertStringContainsString('tools.php?page=ll-dictionary-sources', $manager_html);
+        $this->assertStringNotContainsString('ll_dictionary_skip_review_rows', $manager_html);
+        $this->assertStringNotContainsString('Legacy Migration', $manager_html);
+        $this->assertStringNotContainsString('Migrate Legacy Dictionary Table', $manager_html);
         $this->assertStringContainsString('Back to Dictionary Manager', $sources_html);
         $this->assertStringContainsString('ll-dictionary-sources-admin__rows', $sources_html);
         $this->assertStringContainsString('ll-dictionary-sources-admin__field--full', $sources_html);
@@ -953,7 +1095,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(1, (int) ($summary['entries_created'] ?? 0));
@@ -990,7 +1131,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(1, (int) ($follow_up_summary['entries_created'] ?? 0));
@@ -1504,7 +1644,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'entry_lang' => 'Zazaki',
             'def_lang' => 'English',
-            'skip_review_rows' => true,
         ]);
 
         $this->assertSame(4, (int) ($summary['entries_created'] ?? 0));

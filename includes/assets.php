@@ -96,6 +96,8 @@ function ll_tools_get_public_assets_shortcode_tags(): array {
         'word_audio',
         'wordset_page',
         'll_wordset_page',
+        'wordset_buttons',
+        'll_wordset_buttons',
         'audio_recording_interface',
         'editor_hub',
         'image_copyright_grid',

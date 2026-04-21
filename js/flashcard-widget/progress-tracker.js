@@ -322,7 +322,7 @@
             wordset_id: resolveWordsetId(state.wordset_id || state.wordsetId || flashState.wordset_id),
             category_ids: toIntList(state.category_ids || state.categoryIds || flashState.category_ids || []),
             starred_word_ids: toIntList(state.starred_word_ids || state.starredWordIds || flashState.starred_word_ids || []),
-            star_mode: sanitizeString(state.star_mode || state.starMode || flashState.star_mode || 'normal') || 'normal',
+            star_mode: 'normal',
             fast_transitions: parseBool(
                 typeof state.fast_transitions !== 'undefined' ? state.fast_transitions : state.fastTransitions,
                 parseBool(flashState.fast_transitions, false)
@@ -336,15 +336,15 @@
         flash.userStudyState = Object.assign({}, flash.userStudyState || {}, normalized);
         flash.starredWordIds = normalized.starred_word_ids.slice();
         flash.starred_word_ids = normalized.starred_word_ids.slice();
-        flash.starMode = normalized.star_mode;
-        flash.star_mode = normalized.star_mode;
+        flash.starMode = 'normal';
+        flash.star_mode = 'normal';
         flash.fastTransitions = !!normalized.fast_transitions;
         flash.fast_transitions = !!normalized.fast_transitions;
         if (root.llToolsStudyPrefs && typeof root.llToolsStudyPrefs === 'object') {
             root.llToolsStudyPrefs.starredWordIds = normalized.starred_word_ids.slice();
             root.llToolsStudyPrefs.starred_word_ids = normalized.starred_word_ids.slice();
-            root.llToolsStudyPrefs.starMode = normalized.star_mode;
-            root.llToolsStudyPrefs.star_mode = normalized.star_mode;
+            root.llToolsStudyPrefs.starMode = 'normal';
+            root.llToolsStudyPrefs.star_mode = 'normal';
             root.llToolsStudyPrefs.fastTransitions = !!normalized.fast_transitions;
             root.llToolsStudyPrefs.fast_transitions = !!normalized.fast_transitions;
         }
@@ -886,9 +886,7 @@
         if (Array.isArray(prefs.starredWordIds)) {
             state.starred_word_ids = prefs.starredWordIds.slice();
         }
-        if (typeof prefs.starMode !== 'undefined') {
-            state.star_mode = prefs.starMode;
-        }
+        state.star_mode = 'normal';
         if (typeof prefs.fastTransitions !== 'undefined') {
             state.fast_transitions = !!prefs.fastTransitions;
         }

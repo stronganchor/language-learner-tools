@@ -466,7 +466,6 @@ if (!function_exists('ll_tools_offline_app_normalize_state_payload')) {
         $wordset_id = isset($raw['wordset_id']) ? (int) $raw['wordset_id'] : (int) ($current['wordset_id'] ?? 0);
         $category_ids = isset($raw['category_ids']) ? (array) $raw['category_ids'] : (array) ($current['category_ids'] ?? []);
         $starred_ids = isset($raw['starred_word_ids']) ? (array) $raw['starred_word_ids'] : (array) ($current['starred_word_ids'] ?? []);
-        $star_mode = ll_tools_normalize_star_mode($raw['star_mode'] ?? ($current['star_mode'] ?? 'normal'));
         $fast_transitions = filter_var($raw['fast_transitions'] ?? ($current['fast_transitions'] ?? false), FILTER_VALIDATE_BOOLEAN);
 
         $goals = function_exists('ll_tools_get_user_study_goals')
@@ -492,7 +491,7 @@ if (!function_exists('ll_tools_offline_app_normalize_state_payload')) {
             'wordset_id' => $wordset_id,
             'category_ids' => $category_ids,
             'starred_word_ids' => $starred_ids,
-            'star_mode' => $star_mode,
+            'star_mode' => 'normal',
             'fast_transitions' => $fast_transitions,
         ];
     }

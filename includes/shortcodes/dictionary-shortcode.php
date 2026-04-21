@@ -34,8 +34,8 @@ function ll_tools_dictionary_enqueue_assets(): void {
             'loadingLabel' => __('Loading dictionary results...', 'll-tools-text-domain'),
             'toolbarLoadingLabel' => __('Loading dictionary filters...', 'll-tools-text-domain'),
             'entryTitleRequiredLabel' => __('Enter a dictionary entry title.', 'll-tools-text-domain'),
+            'entryDefinitionRequiredLabel' => __('Enter a definition.', 'll-tools-text-domain'),
             'entrySavingLabel' => __('Saving...', 'll-tools-text-domain'),
-            'entrySavedLabel' => __('Dictionary entry updated.', 'll-tools-text-domain'),
             'entryErrorLabel' => __('Unable to save this dictionary entry right now.', 'll-tools-text-domain'),
         ]);
         $script_localized = true;
@@ -107,15 +107,23 @@ function ll_tools_dictionary_build_url(string $base_url, array $args = []): stri
         if (!is_string($key)) {
             continue;
         }
-        $value = is_scalar($value) ? trim((string) $value) : '';
-        if (
-            $value === ''
-            || ($key === 'll_dictionary_page' && (int) $value <= 1)
-            || ($key === 'll_dictionary_scope' && $value === 'all')
-        ) {
+
+        if ($key === 'll_dictionary_scope') {
+            $scope_value = ll_tools_dictionary_shortcode_build_scope_query_value($value);
+            if ($scope_value === '') {
+                continue;
+            }
+
+            $query_args[$key] = $scope_value;
             continue;
         }
-        $query_args[$key] = $value;
+
+        $string_value = is_scalar($value) ? trim((string) $value) : '';
+        if ($string_value === '' || ($key === 'll_dictionary_page' && (int) $string_value <= 1)) {
+            continue;
+        }
+
+        $query_args[$key] = $string_value;
     }
 
     return (string) add_query_arg($query_args, $base_url);
@@ -185,6 +193,52 @@ function ll_tools_dictionary_shortcode_resolve_preferred_languages(int $wordset_
 }
 
 /**
+ * Resolve visible translation languages from the checked scope UI.
+ *
+ * @param array<int,string> $search_scopes
+ * @return string[]
+ */
+function ll_tools_dictionary_shortcode_resolve_display_languages(array $search_scopes, int $wordset_id = 0, string $raw_gloss_langs = ''): array {
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
+    $scope_languages = function_exists('ll_tools_dictionary_search_scopes_translation_languages')
+        ? ll_tools_dictionary_search_scopes_translation_languages($search_scopes)
+        : [];
+    $preferred_languages = ll_tools_dictionary_shortcode_resolve_preferred_languages($wordset_id, $raw_gloss_langs);
+
+    $resolved_languages = [];
+    foreach ($preferred_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key === '' || in_array($language_key, $resolved_languages, true)) {
+            continue;
+        }
+        if (!empty($scope_languages) && !in_array($language_key, $scope_languages, true)) {
+            continue;
+        }
+
+        $resolved_languages[] = $language_key;
+    }
+
+    foreach ($scope_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key === '' || in_array($language_key, $resolved_languages, true)) {
+            continue;
+        }
+
+        $resolved_languages[] = $language_key;
+    }
+
+    if (!empty($resolved_languages)) {
+        return $resolved_languages;
+    }
+
+    return $preferred_languages;
+}
+
+/**
  * Resolve the current dictionary search scope from request/query input.
  */
 function ll_tools_dictionary_shortcode_resolve_search_scope(string $raw_scope = ''): string {
@@ -204,10 +258,6 @@ function ll_tools_dictionary_shortcode_resolve_search_scope(string $raw_scope = 
 function ll_tools_dictionary_get_search_scope_options(): array {
     return [
         [
-            'value' => 'all',
-            'label' => __('All', 'll-tools-text-domain'),
-        ],
-        [
             'value' => 'headword',
             'label' => __('Zazaki', 'll-tools-text-domain'),
         ],
@@ -224,6 +274,94 @@ function ll_tools_dictionary_get_search_scope_options(): array {
             'label' => __('Deutsch', 'll-tools-text-domain'),
         ],
     ];
+}
+
+/**
+ * Return the ordered set of search scopes exposed by the public checkbox UI.
+ *
+ * @return string[]
+ */
+function ll_tools_dictionary_shortcode_get_available_search_scopes(): array {
+    return array_values(array_filter(array_map(static function (array $option): string {
+        return trim((string) ($option['value'] ?? ''));
+    }, ll_tools_dictionary_get_search_scope_options())));
+}
+
+/**
+ * Resolve one or more submitted dictionary search scopes for the public UI.
+ *
+ * @param string|string[] $raw_scope
+ * @return string[]
+ */
+function ll_tools_dictionary_shortcode_resolve_search_scopes($raw_scope = []): array {
+    $available_scopes = ll_tools_dictionary_shortcode_get_available_search_scopes();
+    if (empty($available_scopes)) {
+        return ['all'];
+    }
+
+    $normalized_scopes = function_exists('ll_tools_dictionary_normalize_search_scopes')
+        ? ll_tools_dictionary_normalize_search_scopes($raw_scope)
+        : [ll_tools_dictionary_shortcode_resolve_search_scope(is_scalar($raw_scope) ? (string) $raw_scope : '')];
+
+    if (in_array('all', $normalized_scopes, true)) {
+        return $available_scopes;
+    }
+
+    $selected_scopes = [];
+    foreach ($available_scopes as $scope) {
+        if (in_array($scope, $normalized_scopes, true)) {
+            $selected_scopes[] = $scope;
+        }
+    }
+
+    return !empty($selected_scopes) ? $selected_scopes : $available_scopes;
+}
+
+/**
+ * Resolve submitted search scopes from a request array.
+ *
+ * @param array<string,mixed> $source
+ * @return string[]
+ */
+function ll_tools_dictionary_shortcode_resolve_search_scopes_from_request(array $source): array {
+    if (!array_key_exists('ll_dictionary_scope', $source)) {
+        return ll_tools_dictionary_shortcode_resolve_search_scopes([]);
+    }
+
+    $raw_scope = wp_unslash($source['ll_dictionary_scope']);
+    if (is_array($raw_scope)) {
+        return ll_tools_dictionary_shortcode_resolve_search_scopes(array_map('sanitize_text_field', array_map('strval', $raw_scope)));
+    }
+
+    return ll_tools_dictionary_shortcode_resolve_search_scopes(sanitize_text_field((string) $raw_scope));
+}
+
+/**
+ * Determine whether the selected scopes match the default "all checked" UI state.
+ *
+ * @param string[] $search_scopes
+ */
+function ll_tools_dictionary_shortcode_uses_default_search_scopes(array $search_scopes): bool {
+    $available_scopes = ll_tools_dictionary_shortcode_get_available_search_scopes();
+    $resolved_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
+
+    return count($resolved_scopes) === count($available_scopes)
+        && empty(array_diff($available_scopes, $resolved_scopes))
+        && empty(array_diff($resolved_scopes, $available_scopes));
+}
+
+/**
+ * Convert the selected scopes to one compact query-string value.
+ *
+ * @param string|string[] $search_scopes
+ */
+function ll_tools_dictionary_shortcode_build_scope_query_value($search_scopes): string {
+    $resolved_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
+    if (ll_tools_dictionary_shortcode_uses_default_search_scopes($resolved_scopes)) {
+        return '';
+    }
+
+    return implode(',', $resolved_scopes);
 }
 
 /**
@@ -256,10 +394,12 @@ function ll_tools_dictionary_shortcode_resolve_requested_entry_id(int $wordset_i
 /**
  * Build one entry-detail URL that preserves the current dictionary query context.
  */
-function ll_tools_dictionary_build_detail_url(string $base_url, int $entry_id, string $search, string $search_scope, string $letter, string $pos_slug, int $page, string $source_id = '', string $dialect = ''): string {
+function ll_tools_dictionary_build_detail_url(string $base_url, int $entry_id, string $search, array $search_scopes, string $letter, string $pos_slug, int $page, string $source_id = '', string $dialect = ''): string {
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
+
     return ll_tools_dictionary_build_url($base_url, [
         'll_dictionary_q' => $search,
-        'll_dictionary_scope' => $search_scope,
+        'll_dictionary_scope' => $search_scopes,
         'll_dictionary_letter' => $letter,
         'll_dictionary_pos' => $pos_slug,
         'll_dictionary_source' => $source_id,
@@ -285,106 +425,394 @@ function ll_tools_dictionary_user_can_inline_edit_entry(int $entry_id): bool {
     return current_user_can('edit_post', $entry_id);
 }
 
+function ll_tools_dictionary_inline_sense_has_content(array $sense): bool {
+    foreach ($sense as $key => $value) {
+        if ($key === 'translations' || $key === 'dialects') {
+            if (!empty($value) && is_array($value)) {
+                return true;
+            }
+            continue;
+        }
+
+        if (trim((string) $value) !== '') {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /**
- * Render the admin-only inline title/review editor for a dictionary entry detail page.
+ * Normalize and persist structured senses for one dictionary entry.
+ *
+ * @param array<int,array<string,mixed>> $senses
+ * @return true|WP_Error
  */
-function ll_tools_dictionary_render_detail_title_editor(int $entry_id, string $title, bool $needs_review): string {
+function ll_tools_dictionary_persist_entry_senses(int $entry_id, array $senses, array $preferred_languages = []) {
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0 || get_post_type($entry_id) !== 'll_dictionary_entry') {
+        return new WP_Error('ll_tools_dictionary_invalid_entry', __('Dictionary entry not found.', 'll-tools-text-domain'));
+    }
+
+    $normalized_senses = [];
+    foreach ($senses as $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        $clean = function_exists('ll_tools_dictionary_sanitize_sense')
+            ? ll_tools_dictionary_sanitize_sense($sense)
+            : $sense;
+        if (ll_tools_dictionary_inline_sense_has_content($clean)) {
+            $normalized_senses[] = $clean;
+        }
+    }
+
+    $content = function_exists('ll_tools_dictionary_build_post_content_from_senses')
+        ? ll_tools_dictionary_build_post_content_from_senses($normalized_senses, $preferred_languages)
+        : '';
+    $translation = function_exists('ll_tools_dictionary_build_translation_summary')
+        ? ll_tools_dictionary_build_translation_summary(
+            $normalized_senses,
+            (string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true),
+            $preferred_languages
+        )
+        : '';
+
+    if (!empty($normalized_senses)) {
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY, $normalized_senses);
+    } else {
+        delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_SENSES_META_KEY);
+    }
+
+    if ($translation !== '') {
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, $translation);
+    } else {
+        delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY);
+    }
+
+    $primary_entry_type = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'entry_type')
+        : '';
+    $primary_page_number = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'page_number')
+        : '';
+    $primary_parent = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'parent')
+        : '';
+    $primary_gender = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'gender_number')
+        : '';
+    $primary_entry_lang = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'entry_lang')
+        : '';
+    $primary_def_lang = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'def_lang')
+        : '';
+    $primary_review = function_exists('ll_tools_dictionary_get_primary_sense_value')
+        ? ll_tools_dictionary_get_primary_sense_value($normalized_senses, 'needs_review')
+        : '';
+    $pos_slug = function_exists('ll_tools_dictionary_resolve_pos_slug_from_entry_type')
+        ? ll_tools_dictionary_resolve_pos_slug_from_entry_type($primary_entry_type)
+        : '';
+
+    $meta_updates = [
+        LL_TOOLS_DICTIONARY_ENTRY_TYPE_META_KEY => $primary_entry_type,
+        LL_TOOLS_DICTIONARY_ENTRY_PAGE_META_KEY => $primary_page_number,
+        LL_TOOLS_DICTIONARY_ENTRY_PARENT_META_KEY => $primary_parent,
+        LL_TOOLS_DICTIONARY_ENTRY_GENDER_META_KEY => $primary_gender,
+        LL_TOOLS_DICTIONARY_ENTRY_ENTRY_LANG_META_KEY => $primary_entry_lang,
+        LL_TOOLS_DICTIONARY_ENTRY_DEF_LANG_META_KEY => $primary_def_lang,
+        LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY => $primary_review,
+        LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY => $pos_slug,
+    ];
+
+    foreach ($meta_updates as $meta_key => $value) {
+        if ($value !== '') {
+            update_post_meta($entry_id, $meta_key, $value);
+        } else {
+            delete_post_meta($entry_id, $meta_key);
+        }
+    }
+
+    $current_content = (string) get_post_field('post_content', $entry_id);
+    if ($content !== $current_content) {
+        $updated = wp_update_post([
+            'ID' => $entry_id,
+            'post_content' => $content,
+        ], true);
+        if (is_wp_error($updated)) {
+            return $updated;
+        }
+    }
+
+    if (function_exists('ll_tools_dictionary_refresh_entry_search_meta')) {
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+    }
+    if (function_exists('ll_tools_refresh_dictionary_entry_wordset_scope_meta')) {
+        ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+    }
+    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+        ll_tools_dictionary_sync_lookup_rows_for_entry($entry_id);
+    } elseif (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
+
+    clean_post_cache($entry_id);
+
+    return true;
+}
+
+function ll_tools_dictionary_build_inline_entry_response(int $entry_id, array $preferred_languages = [], array $extra = []): array {
+    $needs_review = function_exists('ll_tools_dictionary_entry_has_review_flag')
+        ? ll_tools_dictionary_entry_has_review_flag($entry_id)
+        : false;
+    $summary = '';
+    if (function_exists('ll_tools_dictionary_build_translation_summary') && function_exists('ll_tools_get_dictionary_entry_senses')) {
+        $summary = ll_tools_dictionary_build_translation_summary(
+            ll_tools_get_dictionary_entry_senses($entry_id),
+            trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true)),
+            $preferred_languages
+        );
+    }
+    if ($summary === '') {
+        $summary = function_exists('ll_tools_get_dictionary_entry_translation')
+            ? ll_tools_get_dictionary_entry_translation($entry_id)
+            : trim((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_TRANSLATION_META_KEY, true));
+    }
+
+    return array_merge([
+        'title' => (string) get_the_title($entry_id),
+        'summary' => $summary,
+        'needs_review' => $needs_review,
+        'review_label' => $needs_review
+            ? __('Needs review', 'll-tools-text-domain')
+            : __('Reviewed', 'll-tools-text-domain'),
+    ], $extra);
+}
+
+function ll_tools_dictionary_get_editable_sense_language(array $sense, array $preferred_languages = []): string {
+    $translations = function_exists('ll_tools_dictionary_get_sense_translations')
+        ? ll_tools_dictionary_get_sense_translations($sense)
+        : [];
+
+    foreach ($preferred_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key !== '' && !empty($translations[$language_key])) {
+            return $language_key;
+        }
+    }
+
+    $def_lang = function_exists('ll_tools_dictionary_normalize_language_key')
+        ? ll_tools_dictionary_normalize_language_key((string) ($sense['def_lang'] ?? ''))
+        : strtolower(trim((string) ($sense['def_lang'] ?? '')));
+    if ($def_lang !== '' && !empty($translations[$def_lang])) {
+        return $def_lang;
+    }
+
+    if (!empty($translations)) {
+        $first_language = (string) array_key_first($translations);
+        if ($first_language !== '') {
+            return $first_language;
+        }
+    }
+
+    return $def_lang;
+}
+
+/**
+ * @param array<int,array<string,mixed>> $senses
+ * @return array<int,array{language:string,label:string,items:array<int,array{sense_index:int,text:string,language:string}>}>
+ */
+function ll_tools_dictionary_collect_editable_translation_groups(array $senses, array $preferred_languages = []): array {
+    $groups = [];
+
+    foreach ($senses as $sense_index => $sense) {
+        if (!is_array($sense)) {
+            continue;
+        }
+
+        $translations = function_exists('ll_tools_dictionary_get_sense_translations')
+            ? ll_tools_dictionary_get_sense_translations($sense)
+            : [];
+        if (empty($translations)) {
+            continue;
+        }
+
+        foreach ($translations as $language => $text) {
+            $language = function_exists('ll_tools_dictionary_normalize_language_key')
+                ? ll_tools_dictionary_normalize_language_key((string) $language)
+                : strtolower(trim((string) $language));
+            $text = trim((string) $text);
+            if ($language === '' || $text === '') {
+                continue;
+            }
+
+            if (!isset($groups[$language])) {
+                $groups[$language] = [
+                    'language' => $language,
+                    'label' => function_exists('ll_tools_dictionary_get_language_label')
+                        ? ll_tools_dictionary_get_language_label($language)
+                        : strtoupper($language),
+                    'items' => [],
+                ];
+            }
+
+            $groups[$language]['items'][] = [
+                'sense_index' => (int) $sense_index,
+                'language' => $language,
+                'text' => $text,
+            ];
+        }
+    }
+
+    if (empty($groups)) {
+        return [];
+    }
+
+    $ordered_languages = [];
+    foreach ($preferred_languages as $language) {
+        $language = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language !== '' && isset($groups[$language]) && !in_array($language, $ordered_languages, true)) {
+            $ordered_languages[] = $language;
+        }
+    }
+
+    $remaining_languages = array_values(array_diff(array_keys($groups), $ordered_languages));
+    usort($remaining_languages, static function (string $left, string $right): int {
+        $left_label = function_exists('ll_tools_dictionary_get_language_label')
+            ? ll_tools_dictionary_get_language_label($left)
+            : strtoupper($left);
+        $right_label = function_exists('ll_tools_dictionary_get_language_label')
+            ? ll_tools_dictionary_get_language_label($right)
+            : strtoupper($right);
+
+        return function_exists('ll_tools_locale_compare_strings')
+            ? ll_tools_locale_compare_strings($left_label, $right_label)
+            : strnatcasecmp($left_label, $right_label);
+    });
+
+    $ordered_groups = [];
+    foreach (array_merge($ordered_languages, $remaining_languages) as $language) {
+        $ordered_groups[] = $groups[$language];
+    }
+
+    return $ordered_groups;
+}
+
+function ll_tools_dictionary_render_inline_title_editor(int $entry_id, string $title): string {
     $entry_id = (int) $entry_id;
     if ($entry_id <= 0) {
         return '<h3 class="ll-dictionary__detail-title">' . esc_html($title) . '</h3>';
     }
 
-    $form_id = 'll-dictionary-entry-editor-' . $entry_id;
-    $title_input_id = 'll-dictionary-entry-title-' . $entry_id;
-    $review_input_id = 'll-dictionary-entry-review-' . $entry_id;
     $nonce = wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id);
-
-    $html = '<div class="ll-dictionary__detail-title-edit"'
-        . ' data-ll-dictionary-entry-editor'
+    $input_id = 'll-dictionary-inline-title-' . $entry_id;
+    $html = '<div class="ll-dictionary__detail-title-edit ll-dictionary__inline-editor ll-dictionary__inline-editor--title"'
+        . ' data-ll-dictionary-inline-editor'
         . ' data-entry-id="' . esc_attr((string) $entry_id) . '"'
         . ' data-action="ll_tools_dictionary_update_entry"'
-        . ' data-nonce="' . esc_attr($nonce) . '">';
-    $html .= '<h3 class="ll-dictionary__detail-title">';
-    $html .= '<button'
-        . ' type="button"'
-        . ' class="ll-dictionary__detail-title-trigger"'
-        . ' data-ll-dictionary-entry-edit-trigger'
-        . ' aria-expanded="false"'
-        . ' aria-controls="' . esc_attr($form_id) . '"'
-        . ' aria-label="' . esc_attr__('Edit dictionary entry title', 'll-tools-text-domain') . '"'
-        . ' title="' . esc_attr__('Edit dictionary entry title', 'll-tools-text-domain') . '">';
-    $html .= '<span class="ll-dictionary__detail-title-text" data-ll-dictionary-entry-title-text>' . esc_html($title) . '</span>';
-    $html .= '<span class="ll-dictionary__detail-title-icon" aria-hidden="true">'
+        . ' data-nonce="' . esc_attr($nonce) . '"'
+        . ' data-update-type="title">';
+    $html .= '<div class="ll-dictionary__inline-display">';
+    $html .= '<h3 class="ll-dictionary__detail-title"><span class="ll-dictionary__detail-title-text ll-dictionary__inline-text" data-ll-dictionary-inline-text>' . esc_html($title) . '</span></h3>';
+    $html .= '<button type="button" class="ll-dictionary__inline-edit-button ll-dictionary__inline-edit-button--title" data-ll-dictionary-inline-trigger aria-label="' . esc_attr__('Edit dictionary entry title', 'll-tools-text-domain') . '" title="' . esc_attr__('Edit dictionary entry title', 'll-tools-text-domain') . '">'
         . '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">'
         . '<path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         . '<path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
         . '</svg>'
-        . '</span>';
-    $html .= '</button>';
-    $html .= '</h3>';
-    $html .= '<form'
-        . ' class="ll-dictionary__admin-form"'
-        . ' id="' . esc_attr($form_id) . '"'
-        . ' data-ll-dictionary-entry-form'
-        . ' hidden'
-        . ' novalidate>';
-    $html .= '<label class="screen-reader-text" for="' . esc_attr($title_input_id) . '">' . esc_html__('Dictionary entry title', 'll-tools-text-domain') . '</label>';
-    $html .= '<input'
-        . ' type="text"'
-        . ' id="' . esc_attr($title_input_id) . '"'
-        . ' class="ll-dictionary__input ll-dictionary__admin-input"'
-        . ' data-ll-dictionary-entry-title-input'
-        . ' value="' . esc_attr($title) . '"'
-        . ' autocomplete="off"'
-        . ' aria-label="' . esc_attr__('Dictionary entry title', 'll-tools-text-domain') . '">';
-    $html .= '<label class="ll-dictionary__admin-review" for="' . esc_attr($review_input_id) . '">';
-    $html .= '<input'
-        . ' type="checkbox"'
-        . ' id="' . esc_attr($review_input_id) . '"'
-        . ' data-ll-dictionary-entry-review'
-        . ($needs_review ? ' checked' : '')
-        . '>';
-    $html .= '<span>' . esc_html__('Needs review', 'll-tools-text-domain') . '</span>';
-    $html .= '</label>';
-    $html .= '<div class="ll-dictionary__admin-form-actions">';
-    $html .= '<button'
-        . ' type="submit"'
-        . ' class="ll-dictionary__admin-icon-button"'
-        . ' data-ll-dictionary-entry-save'
-        . ' aria-label="' . esc_attr__('Save dictionary entry', 'll-tools-text-domain') . '"'
-        . ' title="' . esc_attr__('Save dictionary entry', 'll-tools-text-domain') . '">'
-        . '<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">'
-        . '<path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
-        . '</svg>'
-        . '</button>';
-    $html .= '<button'
-        . ' type="button"'
-        . ' class="ll-dictionary__admin-icon-button ll-dictionary__admin-icon-button--ghost"'
-        . ' data-ll-dictionary-entry-cancel'
-        . ' aria-label="' . esc_attr__('Cancel editing', 'll-tools-text-domain') . '"'
-        . ' title="' . esc_attr__('Cancel editing', 'll-tools-text-domain') . '">'
-        . '<svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">'
-        . '<path d="M4 4l8 8M12 4 4 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
-        . '</svg>'
         . '</button>';
     $html .= '</div>';
-    $html .= '<span class="ll-dictionary__admin-status" data-ll-dictionary-entry-status aria-live="polite" hidden></span>';
-    $html .= '</form>';
+    $html .= '<div class="ll-dictionary__inline-field" data-ll-dictionary-inline-field hidden>';
+    $html .= '<label class="screen-reader-text" for="' . esc_attr($input_id) . '">' . esc_html__('Dictionary entry title', 'll-tools-text-domain') . '</label>';
+    $html .= '<input type="text" id="' . esc_attr($input_id) . '" class="ll-dictionary__input ll-dictionary__inline-input ll-dictionary__inline-input--title" data-ll-dictionary-inline-input value="' . esc_attr($title) . '" autocomplete="off" aria-label="' . esc_attr__('Dictionary entry title', 'll-tools-text-domain') . '">';
+    $html .= '</div>';
+    $html .= '<span class="ll-dictionary__inline-status" data-ll-dictionary-inline-status aria-live="polite" hidden></span>';
     $html .= '</div>';
 
     return $html;
 }
 
-/**
- * Render the compact admin-only entry status / admin-link row.
- */
+function ll_tools_dictionary_render_inline_definition_editor(int $entry_id, string $value, int $sense_index, string $language = '', string $label = ''): string {
+    $entry_id = (int) $entry_id;
+    $sense_index = max(0, $sense_index);
+    $value = trim((string) $value);
+    if ($entry_id <= 0 || $value === '') {
+        return '<div class="ll-dictionary__inline-text ll-dictionary__inline-text--definition">' . nl2br(esc_html($value)) . '</div>';
+    }
+
+    $nonce = wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id);
+    $input_id = 'll-dictionary-inline-definition-' . $entry_id . '-' . $sense_index . '-' . ($language !== '' ? sanitize_html_class($language) : 'default');
+    $aria_label = $label !== ''
+        ? sprintf(
+            /* translators: %s: glossary language label. */
+            __('Edit %s definition', 'll-tools-text-domain'),
+            $label
+        )
+        : __('Edit definition', 'll-tools-text-domain');
+
+    $html = '<div class="ll-dictionary__inline-editor ll-dictionary__inline-editor--definition"'
+        . ' data-ll-dictionary-inline-editor'
+        . ' data-entry-id="' . esc_attr((string) $entry_id) . '"'
+        . ' data-action="ll_tools_dictionary_update_entry"'
+        . ' data-nonce="' . esc_attr($nonce) . '"'
+        . ' data-update-type="sense"'
+        . ' data-sense-index="' . esc_attr((string) $sense_index) . '"'
+        . ($language !== '' ? ' data-language="' . esc_attr($language) . '"' : '')
+        . '>';
+    $html .= '<div class="ll-dictionary__inline-display ll-dictionary__inline-display--definition">';
+    $html .= '<div class="ll-dictionary__inline-text ll-dictionary__inline-text--definition" data-ll-dictionary-inline-text>' . nl2br(esc_html($value)) . '</div>';
+    $html .= '<button type="button" class="ll-dictionary__inline-edit-button ll-dictionary__inline-edit-button--definition" data-ll-dictionary-inline-trigger aria-label="' . esc_attr($aria_label) . '" title="' . esc_attr($aria_label) . '">'
+        . '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">'
+        . '<path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '<path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        . '</svg>'
+        . '</button>';
+    $html .= '</div>';
+    $html .= '<div class="ll-dictionary__inline-field" data-ll-dictionary-inline-field hidden>';
+    $html .= '<label class="screen-reader-text" for="' . esc_attr($input_id) . '">' . esc_html($aria_label) . '</label>';
+    $html .= '<textarea id="' . esc_attr($input_id) . '" class="ll-dictionary__inline-input ll-dictionary__inline-input--definition" data-ll-dictionary-inline-input rows="2" aria-label="' . esc_attr($aria_label) . '">' . esc_textarea($value) . '</textarea>';
+    $html .= '</div>';
+    $html .= '<span class="ll-dictionary__inline-status" data-ll-dictionary-inline-status aria-live="polite" hidden></span>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+function ll_tools_dictionary_render_review_state(int $entry_id, bool $needs_review): string {
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0) {
+        return '';
+    }
+
+    $nonce = wp_create_nonce('ll_dictionary_entry_inline_edit_' . $entry_id);
+    $html = '<div class="ll-dictionary__review-state' . ($needs_review ? ' is-needs-review' : ' is-reviewed') . '"'
+        . ' data-ll-dictionary-review-state'
+        . ' data-entry-id="' . esc_attr((string) $entry_id) . '"'
+        . ' data-action="ll_tools_dictionary_update_entry"'
+        . ' data-nonce="' . esc_attr($nonce) . '">';
+    $html .= '<span class="ll-dictionary__review-pill' . ($needs_review ? ' is-active' : '') . '" data-ll-dictionary-entry-review-pill>';
+    $html .= '<span data-ll-dictionary-entry-review-label>' . esc_html($needs_review ? __('Needs review', 'll-tools-text-domain') : __('Reviewed', 'll-tools-text-domain')) . '</span>';
+    $html .= '<button type="button" class="ll-dictionary__review-clear" data-ll-dictionary-review-clear' . ($needs_review ? '' : ' hidden') . ' aria-label="' . esc_attr__('Clear review flag', 'll-tools-text-domain') . '" title="' . esc_attr__('Clear review flag', 'll-tools-text-domain') . '">'
+        . '<span aria-hidden="true">&times;</span>'
+        . '</button>';
+    $html .= '</span>';
+    $html .= '<button type="button" class="ll-dictionary__review-mark" data-ll-dictionary-review-mark' . ($needs_review ? ' hidden' : '') . '>' . esc_html__('Mark for review', 'll-tools-text-domain') . '</button>';
+    $html .= '<span class="ll-dictionary__inline-status ll-dictionary__inline-status--review" data-ll-dictionary-review-status aria-live="polite" hidden></span>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function ll_tools_dictionary_render_detail_admin_meta(int $entry_id, bool $needs_review): string {
     $edit_link = get_edit_post_link($entry_id, '');
 
     $html = '<div class="ll-dictionary__admin-meta">';
-    $html .= '<span class="ll-dictionary__admin-review-pill' . ($needs_review ? ' is-active' : '') . '" data-ll-dictionary-entry-review-pill>'
-        . esc_html($needs_review ? __('Needs review', 'll-tools-text-domain') : __('Reviewed', 'll-tools-text-domain'))
-        . '</span>';
+    $html .= ll_tools_dictionary_render_review_state($entry_id, $needs_review);
     if (is_string($edit_link) && $edit_link !== '') {
         $html .= '<a class="ll-dictionary__admin-link" href="' . esc_url($edit_link) . '">'
             . '<span class="ll-dictionary__admin-link-icon" aria-hidden="true">'
@@ -488,6 +916,66 @@ function ll_tools_dictionary_collect_translation_groups(array $senses, array $pr
     }
 
     return $groups;
+}
+
+/**
+ * Keep only the translation groups for the requested display languages.
+ *
+ * @param array<int,array{language:string,label:string,values:array<int,string>}> $translation_groups
+ * @param array<int,string> $visible_languages
+ * @return array<int,array{language:string,label:string,values:array<int,string>}>
+ */
+function ll_tools_dictionary_filter_translation_groups(array $translation_groups, array $visible_languages = []): array {
+    $visible_lookup = [];
+    foreach ($visible_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key === '') {
+            continue;
+        }
+
+        $visible_lookup[$language_key] = true;
+    }
+
+    if (empty($visible_lookup)) {
+        return [];
+    }
+
+    return array_values(array_filter($translation_groups, static function (array $group) use ($visible_lookup): bool {
+        $language = trim((string) ($group['language'] ?? ''));
+        return $language !== '' && !empty($visible_lookup[$language]);
+    }));
+}
+
+/**
+ * Keep only editable translation groups for the requested display languages.
+ *
+ * @param array<int,array{language:string,label:string,items:array<int,array{sense_index:int,text:string,language:string}>}> $translation_groups
+ * @param array<int,string> $visible_languages
+ * @return array<int,array{language:string,label:string,items:array<int,array{sense_index:int,text:string,language:string}>}>
+ */
+function ll_tools_dictionary_filter_editable_translation_groups(array $translation_groups, array $visible_languages = []): array {
+    $visible_lookup = [];
+    foreach ($visible_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key === '') {
+            continue;
+        }
+
+        $visible_lookup[$language_key] = true;
+    }
+
+    if (empty($visible_lookup)) {
+        return [];
+    }
+
+    return array_values(array_filter($translation_groups, static function (array $group) use ($visible_lookup): bool {
+        $language = trim((string) ($group['language'] ?? ''));
+        return $language !== '' && !empty($visible_lookup[$language]);
+    }));
 }
 
 /**
@@ -868,8 +1356,44 @@ function ll_tools_dictionary_render_translation_groups(array $translation_groups
         $html .= '<article class="ll-dictionary__translation-group">';
         $html .= '<div class="ll-dictionary__translation-label">' . esc_html($label) . '</div>';
         $html .= '<div class="ll-dictionary__translation-values">';
-        foreach ($values as $value) {
-            $html .= '<div class="ll-dictionary__translation-chip">' . nl2br(esc_html($value)) . '</div>';
+        $html .= ll_tools_dictionary_render_text_block(implode('; ', $values), 'translation', 220);
+        $html .= '</div></article>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+/**
+ * @param array<int,array{language:string,label:string,items:array<int,array{sense_index:int,text:string,language:string}>}> $translation_groups
+ */
+function ll_tools_dictionary_render_editable_translation_groups(int $entry_id, array $translation_groups): string {
+    if ($entry_id <= 0 || empty($translation_groups)) {
+        return '';
+    }
+
+    $html = '<div class="ll-dictionary__translation-groups">';
+    foreach ($translation_groups as $group) {
+        $label = trim((string) ($group['label'] ?? ''));
+        $items = isset($group['items']) && is_array($group['items']) ? array_values($group['items']) : [];
+        if ($label === '' || empty($items)) {
+            continue;
+        }
+
+        $html .= '<article class="ll-dictionary__translation-group">';
+        $html .= '<div class="ll-dictionary__translation-label">' . esc_html($label) . '</div>';
+        $html .= '<div class="ll-dictionary__translation-values">';
+        foreach ($items as $item) {
+            $text = trim((string) ($item['text'] ?? ''));
+            $sense_index = isset($item['sense_index']) ? (int) $item['sense_index'] : -1;
+            $language = trim((string) ($item['language'] ?? ''));
+            if ($text === '' || $sense_index < 0) {
+                continue;
+            }
+
+            $html .= '<div class="ll-dictionary__translation-chip ll-dictionary__translation-chip--editable">';
+            $html .= ll_tools_dictionary_render_inline_definition_editor($entry_id, $text, $sense_index, $language, $label);
+            $html .= '</div>';
         }
         $html .= '</div></article>';
     }
@@ -964,6 +1488,10 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
     $sources = array_values(array_filter((array) ($item['sources'] ?? []), 'is_array'));
     $dialects = array_values(array_filter(array_map('strval', (array) ($item['dialects'] ?? []))));
     $preferred_languages = array_values(array_filter(array_map('strval', (array) ($item['preferred_languages'] ?? []))));
+    $visible_translation_groups = ll_tools_dictionary_filter_translation_groups(
+        array_values(array_filter((array) ($item['translation_groups'] ?? []), 'is_array')),
+        $preferred_languages
+    );
 
     if (empty($wordset_names) && $wordset_name !== '') {
         $wordset_names[] = $wordset_name;
@@ -979,7 +1507,7 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
         $html .= esc_html($title);
     }
     $html .= '</h3>';
-    if ($translation !== '') {
+    if (empty($visible_translation_groups) && $translation !== '') {
         $html .= '<div class="ll-dictionary__summary">' . ll_tools_dictionary_render_text_block($translation, 'summary', 220) . '</div>';
     }
     $html .= '</div>';
@@ -1021,6 +1549,10 @@ function ll_tools_dictionary_render_result_card(array $item, string $detail_url 
         $html .= ll_tools_dictionary_render_badge($dialect, 'dialect');
     }
     $html .= '</div></div>';
+
+    if (!empty($visible_translation_groups)) {
+        $html .= '<div class="ll-dictionary__card-translations">' . ll_tools_dictionary_render_translation_groups($visible_translation_groups) . '</div>';
+    }
 
     if (!empty($senses)) {
         $summary_lookup = $translation !== '' && function_exists('ll_tools_dictionary_entry_normalize_lookup_value')
@@ -1135,11 +1667,20 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     if (function_exists('ll_tools_get_dictionary_entry_senses')) {
         $senses = ll_tools_get_dictionary_entry_senses($entry_id);
     }
-    $translation_groups = ll_tools_dictionary_collect_translation_groups($senses, $preferred_languages);
+    $can_inline_edit = ll_tools_dictionary_user_can_inline_edit_entry($entry_id);
+    $translation_groups = ll_tools_dictionary_filter_translation_groups(
+        ll_tools_dictionary_collect_translation_groups($senses, $preferred_languages),
+        $preferred_languages
+    );
+    $editable_translation_groups = $can_inline_edit
+        ? ll_tools_dictionary_filter_editable_translation_groups(
+            ll_tools_dictionary_collect_editable_translation_groups($senses, $preferred_languages),
+            $preferred_languages
+        )
+        : [];
     $parent_notes = ll_tools_dictionary_collect_parent_notes($senses);
     $sources = function_exists('ll_tools_dictionary_collect_sources') ? ll_tools_dictionary_collect_sources($senses) : [];
     $dialects = ll_tools_dictionary_collect_entry_dialects($senses);
-    $can_inline_edit = ll_tools_dictionary_user_can_inline_edit_entry($entry_id);
     $needs_review = function_exists('ll_tools_dictionary_entry_has_review_flag')
         ? ll_tools_dictionary_entry_has_review_flag($entry_id)
         : false;
@@ -1153,7 +1694,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
 
     $back_url = ll_tools_dictionary_build_url($base_url, [
         'll_dictionary_q' => isset($_GET['ll_dictionary_q']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_q'])) : '',
-        'll_dictionary_scope' => isset($_GET['ll_dictionary_scope']) ? ll_tools_dictionary_shortcode_resolve_search_scope(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_scope']))) : 'all',
+        'll_dictionary_scope' => ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_GET),
         'll_dictionary_letter' => isset($_GET['ll_dictionary_letter']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_letter'])) : '',
         'll_dictionary_pos' => isset($_GET['ll_dictionary_pos']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_pos'])) : '',
         'll_dictionary_source' => isset($_GET['ll_dictionary_source']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_source'])) : '',
@@ -1169,12 +1710,12 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     $html .= '<header class="ll-dictionary__detail-header">';
     $html .= '<div class="ll-dictionary__detail-heading-wrap">';
     if ($can_inline_edit) {
-        $html .= ll_tools_dictionary_render_detail_title_editor($entry_id, $title, $needs_review);
+        $html .= ll_tools_dictionary_render_inline_title_editor($entry_id, $title);
     } else {
         $html .= '<h3 class="ll-dictionary__detail-title">' . esc_html($title) . '</h3>';
     }
-    if ($summary !== '' && empty($translation_groups)) {
-        $html .= '<p class="ll-dictionary__detail-summary">' . esc_html($summary) . '</p>';
+    if (empty($translation_groups) && ($summary !== '' || $can_inline_edit)) {
+        $html .= '<p class="ll-dictionary__detail-summary" data-ll-dictionary-summary' . ($summary === '' ? ' hidden' : '') . '>' . esc_html($summary) . '</p>';
     }
     $html .= '</div>';
     $html .= '<div class="ll-dictionary__detail-side">';
@@ -1219,7 +1760,9 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
     if (!empty($translation_groups)) {
         $html .= '<section class="ll-dictionary__detail-section">';
         $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Definitions', 'll-tools-text-domain') . '</h4>';
-        $html .= ll_tools_dictionary_render_translation_groups($translation_groups);
+        $html .= $can_inline_edit
+            ? ll_tools_dictionary_render_editable_translation_groups($entry_id, $editable_translation_groups)
+            : ll_tools_dictionary_render_translation_groups($translation_groups);
         if (!empty($parent_notes)) {
             $html .= '<div class="ll-dictionary__detail-notes">';
             foreach ($parent_notes as $note) {
@@ -1234,7 +1777,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
         $html .= '<section class="ll-dictionary__detail-section">';
         $html .= '<h4 class="ll-dictionary__section-title">' . esc_html__('Senses', 'll-tools-text-domain') . '</h4>';
         $html .= '<ol class="ll-dictionary__sense-list ll-dictionary__sense-list--detail">';
-        foreach ($senses as $sense) {
+        foreach ($senses as $sense_index => $sense) {
             $sense_text = function_exists('ll_tools_dictionary_get_preferred_translation_text')
                 ? ll_tools_dictionary_get_preferred_translation_text((array) $sense, $preferred_languages, true)
                 : trim((string) ($sense['definition'] ?? ''));
@@ -1272,7 +1815,17 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
             }
 
             $html .= '<li class="ll-dictionary__sense-item">';
-            $html .= '<span class="ll-dictionary__sense-text">' . esc_html($sense_text) . '</span>';
+            if ($can_inline_edit) {
+                $html .= ll_tools_dictionary_render_inline_definition_editor(
+                    $entry_id,
+                    $sense_text,
+                    (int) $sense_index,
+                    ll_tools_dictionary_get_editable_sense_language((array) $sense, $preferred_languages),
+                    __('Definition', 'll-tools-text-domain')
+                );
+            } else {
+                $html .= '<span class="ll-dictionary__sense-text">' . esc_html($sense_text) . '</span>';
+            }
             if (!empty($detail_translations)) {
                 $html .= '<span class="ll-dictionary__sense-translations">' . implode('', $detail_translations) . '</span>';
             }
@@ -1331,7 +1884,7 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
                 $base_url,
                 $related_id,
                 isset($_GET['ll_dictionary_q']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_q'])) : '',
-                isset($_GET['ll_dictionary_scope']) ? ll_tools_dictionary_shortcode_resolve_search_scope(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_scope']))) : 'all',
+                ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_GET),
                 isset($_GET['ll_dictionary_letter']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_letter'])) : '',
                 isset($_GET['ll_dictionary_pos']) ? sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_pos'])) : '',
                 isset($_GET['ll_dictionary_page']) ? max(1, (int) wp_unslash((string) $_GET['ll_dictionary_page'])) : 1,
@@ -1359,7 +1912,8 @@ function ll_tools_dictionary_render_detail_view(int $entry_id, string $base_url,
 /**
  * @param array<string,mixed> $query
  */
-function ll_tools_dictionary_render_pagination(array $query, string $base_url, string $search, string $search_scope, string $letter, string $pos_slug, string $source_id = '', string $dialect = ''): string {
+function ll_tools_dictionary_render_pagination(array $query, string $base_url, string $search, array $search_scopes, string $letter, string $pos_slug, string $source_id = '', string $dialect = ''): string {
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
     $page = max(1, (int) ($query['page'] ?? 1));
     $total_pages = max(1, (int) ($query['total_pages'] ?? 1));
     if ($total_pages <= 1) {
@@ -1370,7 +1924,7 @@ function ll_tools_dictionary_render_pagination(array $query, string $base_url, s
 
     $prev_url = ll_tools_dictionary_build_url($base_url, [
         'll_dictionary_q' => $search,
-        'll_dictionary_scope' => $search_scope,
+        'll_dictionary_scope' => $search_scopes,
         'll_dictionary_letter' => $letter,
         'll_dictionary_pos' => $pos_slug,
         'll_dictionary_source' => $source_id,
@@ -1379,7 +1933,7 @@ function ll_tools_dictionary_render_pagination(array $query, string $base_url, s
     ]);
     $next_url = ll_tools_dictionary_build_url($base_url, [
         'll_dictionary_q' => $search,
-        'll_dictionary_scope' => $search_scope,
+        'll_dictionary_scope' => $search_scopes,
         'll_dictionary_letter' => $letter,
         'll_dictionary_pos' => $pos_slug,
         'll_dictionary_source' => $source_id,
@@ -1399,7 +1953,7 @@ function ll_tools_dictionary_render_pagination(array $query, string $base_url, s
     for ($current = $start; $current <= $end; $current++) {
         $url = ll_tools_dictionary_build_url($base_url, [
             'll_dictionary_q' => $search,
-            'll_dictionary_scope' => $search_scope,
+            'll_dictionary_scope' => $search_scopes,
             'll_dictionary_letter' => $letter,
             'll_dictionary_pos' => $pos_slug,
             'll_dictionary_source' => $source_id,
@@ -1425,7 +1979,7 @@ function ll_tools_dictionary_render_pagination(array $query, string $base_url, s
 function ll_tools_dictionary_run_browse_query(
     int $wordset_id,
     string $search,
-    string $search_scope,
+    array $search_scopes,
     string $letter,
     int $page,
     string $pos_slug,
@@ -1446,9 +2000,11 @@ function ll_tools_dictionary_run_browse_query(
         ];
     }
 
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
+
     return ll_tools_dictionary_query_entries([
         'search' => $search,
-        'search_scope' => $search_scope,
+        'search_scopes' => $search_scopes,
         'letter' => $letter,
         'page' => max(1, $page),
         'per_page' => max(1, $per_page),
@@ -1466,7 +2022,8 @@ function ll_tools_dictionary_run_browse_query(
 /**
  * Render the browse-results region used by both the shortcode and live AJAX search.
  */
-function ll_tools_dictionary_render_browse_results(array $query, string $base_url, string $search, string $search_scope, string $letter, string $pos_slug, string $source_id = '', string $dialect = ''): string {
+function ll_tools_dictionary_render_browse_results(array $query, string $base_url, string $search, array $search_scopes, string $letter, string $pos_slug, string $source_id = '', string $dialect = ''): string {
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
     $items = (array) ($query['items'] ?? []);
     $total = max(0, (int) ($query['total'] ?? 0));
     $current_page = max(1, (int) ($query['page'] ?? 1));
@@ -1501,13 +2058,13 @@ function ll_tools_dictionary_render_browse_results(array $query, string $base_ur
                 <?php
                 $entry_id = isset($item['id']) ? (int) $item['id'] : 0;
                 $detail_url = $entry_id > 0
-                    ? ll_tools_dictionary_build_detail_url($base_url, $entry_id, $search, $search_scope, $letter, $pos_slug, $current_page, $source_id, $dialect)
+                    ? ll_tools_dictionary_build_detail_url($base_url, $entry_id, $search, $search_scopes, $letter, $pos_slug, $current_page, $source_id, $dialect)
                     : '';
                 ?>
                 <?php echo ll_tools_dictionary_render_result_card((array) $item, $detail_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endforeach; ?>
         </div>
-        <?php echo ll_tools_dictionary_render_pagination($query, $base_url, $search, $search_scope, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php echo ll_tools_dictionary_render_pagination($query, $base_url, $search, $search_scopes, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
     <?php else : ?>
         <div class="ll-dictionary__empty">
             <?php if ($search !== '') : ?>
@@ -1589,12 +2146,13 @@ function ll_tools_dictionary_build_toolbar_panel_context(int $wordset_id, string
 function ll_tools_dictionary_render_toolbar_panel(
     string $base_url,
     int $wordset_id,
-    string $search_scope = 'all',
+    array $search_scopes = ['headword', 'tr', 'en', 'de'],
     string $letter = '',
     string $pos_slug = '',
     string $source_id = '',
     string $dialect = ''
 ): string {
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
     $context = ll_tools_dictionary_build_toolbar_panel_context($wordset_id, $source_id, $dialect);
     $letters = (isset($context['letters']) && is_array($context['letters'])) ? $context['letters'] : [];
     $pos_options = (isset($context['pos_options']) && is_array($context['pos_options'])) ? $context['pos_options'] : [];
@@ -1653,7 +2211,7 @@ function ll_tools_dictionary_render_toolbar_panel(
                 <?php foreach ($letters as $browse_letter) : ?>
                     <?php
                     $browse_url = ll_tools_dictionary_build_url($base_url, [
-                        'll_dictionary_scope' => $search_scope,
+                        'll_dictionary_scope' => $search_scopes,
                         'll_dictionary_letter' => (string) $browse_letter,
                         'll_dictionary_pos' => $pos_slug,
                         'll_dictionary_source' => $source_id,
@@ -1678,7 +2236,15 @@ function ll_tools_dictionary_render_toolbar_panel(
 function ll_tools_dictionary_handle_entry_update(): void {
     $entry_id = isset($_POST['entry_id']) ? (int) wp_unslash((string) $_POST['entry_id']) : 0;
     $nonce = isset($_POST['nonce']) ? (string) wp_unslash((string) $_POST['nonce']) : '';
+    $update_type = isset($_POST['update_type']) ? sanitize_key(wp_unslash((string) $_POST['update_type'])) : 'title';
+    $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
+    $gloss_lang = isset($_POST['gloss_lang']) ? sanitize_text_field(wp_unslash((string) $_POST['gloss_lang'])) : '';
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST);
+    $preferred_languages = ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, $wordset_id, $gloss_lang);
     $submitted_title = isset($_POST['title']) ? (string) wp_unslash((string) $_POST['title']) : '';
+    $submitted_value = isset($_POST['value']) ? (string) wp_unslash((string) $_POST['value']) : '';
+    $sense_index = isset($_POST['sense_index']) ? max(0, (int) wp_unslash((string) $_POST['sense_index'])) : -1;
+    $language = isset($_POST['language']) ? sanitize_text_field(wp_unslash((string) $_POST['language'])) : '';
     $raw_needs_review = isset($_POST['needs_review']) ? strtolower(trim((string) wp_unslash((string) $_POST['needs_review']))) : '';
     $needs_review = in_array($raw_needs_review, ['1', 'true', 'yes', 'on', 'needs_review'], true);
 
@@ -1707,55 +2273,142 @@ function ll_tools_dictionary_handle_entry_update(): void {
         ], 404);
     }
 
-    $title = sanitize_text_field($submitted_title);
-    $title = trim((string) preg_replace('/\s+/u', ' ', $title));
-    if ($title === '') {
-        wp_send_json_error([
-            'message' => __('Enter a dictionary entry title.', 'll-tools-text-domain'),
-        ], 400);
+    if ($update_type === 'title') {
+        $title = sanitize_text_field($submitted_title);
+        $title = trim((string) preg_replace('/\s+/u', ' ', $title));
+        if ($title === '') {
+            wp_send_json_error([
+                'message' => __('Enter a dictionary entry title.', 'll-tools-text-domain'),
+            ], 400);
+        }
+
+        $current_title = trim((string) get_the_title($entry_id));
+        if ($title !== $current_title) {
+            $updated = wp_update_post([
+                'ID' => $entry_id,
+                'post_title' => $title,
+                'post_name' => (string) $entry->post_name,
+            ], true);
+
+            if (is_wp_error($updated)) {
+                wp_send_json_error([
+                    'message' => __('Unable to save this dictionary entry right now.', 'll-tools-text-domain'),
+                ], 500);
+            }
+        }
+
+        clean_post_cache($entry_id);
+
+        wp_send_json_success(array_merge(
+            [
+                'message' => __('Dictionary entry updated.', 'll-tools-text-domain'),
+            ],
+            ll_tools_dictionary_build_inline_entry_response($entry_id, $preferred_languages)
+        ));
     }
 
-    $current_title = trim((string) get_the_title($entry_id));
-    if ($title !== $current_title) {
-        $updated = wp_update_post([
-            'ID' => $entry_id,
-            'post_title' => $title,
-            'post_name' => (string) $entry->post_name,
-        ], true);
+    if ($update_type === 'review') {
+        if (function_exists('ll_tools_dictionary_entry_set_review_flag')) {
+            ll_tools_dictionary_entry_set_review_flag($entry_id, $needs_review);
+        } else {
+            $review_value = $needs_review ? 'needs_review' : '';
+            if ($review_value !== '') {
+                update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY, $review_value);
+            } else {
+                delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY);
+            }
+            if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+                ll_tools_bump_dictionary_browser_cache_version();
+            }
+        }
 
-        if (is_wp_error($updated)) {
+        clean_post_cache($entry_id);
+
+        wp_send_json_success(array_merge(
+            [
+                'message' => __('Dictionary entry updated.', 'll-tools-text-domain'),
+            ],
+            ll_tools_dictionary_build_inline_entry_response($entry_id, $preferred_languages)
+        ));
+    }
+
+    if ($update_type === 'sense') {
+        $value = trim(sanitize_textarea_field($submitted_value));
+        if ($value === '') {
+            wp_send_json_error([
+                'message' => __('Enter a definition.', 'll-tools-text-domain'),
+            ], 400);
+        }
+
+        $senses = function_exists('ll_tools_get_dictionary_entry_senses')
+            ? ll_tools_get_dictionary_entry_senses($entry_id)
+            : [];
+        if (!isset($senses[$sense_index]) || !is_array($senses[$sense_index])) {
+            wp_send_json_error([
+                'message' => __('Dictionary definition not found.', 'll-tools-text-domain'),
+            ], 404);
+        }
+
+        $sense = $senses[$sense_index];
+        $language = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key($language)
+            : strtolower(trim($language));
+        if ($language === '') {
+            $language = ll_tools_dictionary_get_editable_sense_language($sense, $preferred_languages);
+        }
+        if ($language === '') {
+            $language = function_exists('ll_tools_dictionary_normalize_language_key')
+                ? ll_tools_dictionary_normalize_language_key((string) ($sense['def_lang'] ?? ''))
+                : strtolower(trim((string) ($sense['def_lang'] ?? '')));
+        }
+
+        if ($language !== '') {
+            $translations = function_exists('ll_tools_dictionary_get_sense_translations')
+                ? ll_tools_dictionary_get_sense_translations($sense)
+                : [];
+            $previous_translation = trim((string) ($translations[$language] ?? ''));
+            $translations[$language] = $value;
+            $sense['translations'] = $translations;
+
+            $definition_language = function_exists('ll_tools_dictionary_normalize_language_key')
+                ? ll_tools_dictionary_normalize_language_key((string) ($sense['def_lang'] ?? ''))
+                : strtolower(trim((string) ($sense['def_lang'] ?? '')));
+            $current_definition = trim((string) ($sense['definition'] ?? ''));
+            if (
+                $definition_language === $language
+                || ($definition_language === '' && ($current_definition === '' || $current_definition === $previous_translation))
+            ) {
+                $sense['definition'] = $value;
+                if ($definition_language === '') {
+                    $sense['def_lang'] = $language;
+                }
+            }
+        } else {
+            $sense['definition'] = $value;
+        }
+
+        $senses[$sense_index] = $sense;
+        $persisted = ll_tools_dictionary_persist_entry_senses($entry_id, $senses, $preferred_languages);
+        if (is_wp_error($persisted)) {
             wp_send_json_error([
                 'message' => __('Unable to save this dictionary entry right now.', 'll-tools-text-domain'),
             ], 500);
         }
+
+        wp_send_json_success(array_merge(
+            [
+                'message' => __('Dictionary entry updated.', 'll-tools-text-domain'),
+                'value' => $value,
+                'sense_index' => $sense_index,
+                'language' => $language,
+            ],
+            ll_tools_dictionary_build_inline_entry_response($entry_id, $preferred_languages)
+        ));
     }
 
-    if (function_exists('ll_tools_dictionary_entry_set_review_flag')) {
-        ll_tools_dictionary_entry_set_review_flag($entry_id, $needs_review);
-    } else {
-        $review_value = $needs_review ? 'needs_review' : '';
-        if ($review_value !== '') {
-            update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY, $review_value);
-        } else {
-            delete_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_REVIEW_META_KEY);
-        }
-        if (function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
-            ll_tools_bump_dictionary_browser_cache_version();
-        }
-    }
-
-    clean_post_cache($entry_id);
-
-    wp_send_json_success([
-        'message' => __('Dictionary entry updated.', 'll-tools-text-domain'),
-        'title' => (string) get_the_title($entry_id),
-        'needs_review' => function_exists('ll_tools_dictionary_entry_has_review_flag')
-            ? ll_tools_dictionary_entry_has_review_flag($entry_id)
-            : $needs_review,
-        'review_label' => function_exists('ll_tools_dictionary_entry_has_review_flag') && ll_tools_dictionary_entry_has_review_flag($entry_id)
-            ? __('Needs review', 'll-tools-text-domain')
-            : __('Reviewed', 'll-tools-text-domain'),
-    ]);
+    wp_send_json_error([
+        'message' => __('Invalid dictionary update request.', 'll-tools-text-domain'),
+    ], 400);
 }
 add_action('wp_ajax_ll_tools_dictionary_update_entry', 'll_tools_dictionary_handle_entry_update');
 
@@ -1764,7 +2417,7 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
     $base_url = ll_tools_dictionary_resolve_live_base_url(isset($_POST['base_url']) ? (string) wp_unslash((string) $_POST['base_url']) : '');
-    $search_scope = isset($_POST['ll_dictionary_scope']) ? ll_tools_dictionary_shortcode_resolve_search_scope(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_scope']))) : 'all';
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST);
     $letter = isset($_POST['ll_dictionary_letter']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_letter']))) : '';
     $pos_slug = isset($_POST['ll_dictionary_pos']) ? sanitize_title(wp_unslash((string) $_POST['ll_dictionary_pos'])) : '';
     $source_id = isset($_POST['ll_dictionary_source']) ? sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_source'])) : '';
@@ -1774,7 +2427,7 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
     $dialect = isset($_POST['ll_dictionary_dialect']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_dialect']))) : '';
 
     wp_send_json_success([
-        'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scope, $letter, $pos_slug, $source_id, $dialect),
+        'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_id, $dialect),
     ]);
 }
 add_action('wp_ajax_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
@@ -1792,7 +2445,7 @@ function ll_tools_dictionary_handle_live_search(): void {
     $linked_word_limit = isset($_POST['linked_word_limit']) ? max(0, min(8, (int) wp_unslash((string) $_POST['linked_word_limit']))) : 4;
     $gloss_lang = isset($_POST['gloss_lang']) ? sanitize_text_field(wp_unslash((string) $_POST['gloss_lang'])) : '';
     $search = isset($_POST['ll_dictionary_q']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_q']))) : '';
-    $search_scope = isset($_POST['ll_dictionary_scope']) ? ll_tools_dictionary_shortcode_resolve_search_scope(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_scope']))) : 'all';
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST);
     $letter = isset($_POST['ll_dictionary_letter']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_letter']))) : '';
     $page = isset($_POST['ll_dictionary_page']) ? max(1, (int) wp_unslash((string) $_POST['ll_dictionary_page'])) : 1;
     $pos_slug = isset($_POST['ll_dictionary_pos']) ? sanitize_title(wp_unslash((string) $_POST['ll_dictionary_pos'])) : '';
@@ -1802,7 +2455,7 @@ function ll_tools_dictionary_handle_live_search(): void {
     }
     $dialect = isset($_POST['ll_dictionary_dialect']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_dialect']))) : '';
     $base_url = ll_tools_dictionary_resolve_live_base_url(isset($_POST['base_url']) ? (string) wp_unslash((string) $_POST['base_url']) : '');
-    $preferred_languages = ll_tools_dictionary_shortcode_resolve_preferred_languages($wordset_id, $gloss_lang);
+    $preferred_languages = ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, $wordset_id, $gloss_lang);
 
     if ($search !== '') {
         $letter = '';
@@ -1820,7 +2473,7 @@ function ll_tools_dictionary_handle_live_search(): void {
         $query = ll_tools_dictionary_run_browse_query(
             $wordset_id,
             $search,
-            $search_scope,
+            $search_scopes,
             $letter,
             $page,
             $pos_slug,
@@ -1835,13 +2488,13 @@ function ll_tools_dictionary_handle_live_search(): void {
 
     wp_send_json_success([
         'html' => $has_active_browse_query
-            ? ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scope, $letter, $pos_slug, $source_id, $dialect)
+            ? ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scopes, $letter, $pos_slug, $source_id, $dialect)
             : '',
         'has_active_query' => $has_active_browse_query,
         'url' => $has_active_browse_query
             ? ll_tools_dictionary_build_url($base_url, [
                 'll_dictionary_q' => $search,
-                'll_dictionary_scope' => $search_scope,
+                'll_dictionary_scope' => $search_scopes,
                 'll_dictionary_letter' => $letter,
                 'll_dictionary_pos' => $pos_slug,
                 'll_dictionary_source' => $source_id,
@@ -1868,9 +2521,9 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
     ll_tools_dictionary_enqueue_assets();
 
     $wordset_id = ll_tools_dictionary_shortcode_resolve_wordset_id((string) $atts['wordset']);
-    $preferred_languages = ll_tools_dictionary_shortcode_resolve_preferred_languages($wordset_id, (string) $atts['gloss_lang']);
     $search = isset($_GET['ll_dictionary_q']) ? trim(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_q']))) : '';
-    $search_scope = isset($_GET['ll_dictionary_scope']) ? ll_tools_dictionary_shortcode_resolve_search_scope(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_scope']))) : 'all';
+    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_GET);
+    $preferred_languages = ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, $wordset_id, (string) $atts['gloss_lang']);
     $letter = isset($_GET['ll_dictionary_letter'])
         ? trim(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_letter'])))
         : (isset($_GET['letter']) ? trim(sanitize_text_field(wp_unslash((string) $_GET['letter']))) : '');
@@ -1901,7 +2554,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         $query = ll_tools_dictionary_run_browse_query(
             $wordset_id,
             $search,
-            $search_scope,
+            $search_scopes,
             $letter,
             $page,
             $pos_slug,
@@ -1931,8 +2584,13 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
 
     $base_url = ll_tools_dictionary_get_current_base_url();
     $defer_toolbar_panel = ($requested_entry_id <= 0 && !$has_active_browse_query);
-    $reset_url = ll_tools_dictionary_build_url($base_url);
     $search_scope_options = ll_tools_dictionary_get_search_scope_options();
+    $search_scope_fieldset_id = 'll-dictionary-scope-group-' . wp_unique_id();
+    $has_explicit_scope = array_key_exists('ll_dictionary_scope', $_GET);
+    $toolbar_classes = ['ll-dictionary__toolbar', $has_active_browse_query ? 'is-expanded' : 'is-collapsed'];
+    if ($has_active_browse_query || $has_explicit_scope) {
+        $toolbar_classes[] = 'is-scope-visible';
+    }
 
     ob_start();
     ?>
@@ -1946,6 +2604,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         data-gloss-lang="<?php echo esc_attr((string) $atts['gloss_lang']); ?>"
         data-base-url="<?php echo esc_attr($base_url); ?>"
         data-ll-dictionary-toolbar-deferred="<?php echo $defer_toolbar_panel ? '1' : '0'; ?>"
+        data-ll-dictionary-has-explicit-scope="<?php echo $has_explicit_scope ? '1' : '0'; ?>"
     >
         <?php if ($show_title) : ?>
             <header class="ll-dictionary__header">
@@ -1959,7 +2618,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         <?php if ($requested_entry_id > 0) : ?>
             <?php echo ll_tools_dictionary_render_detail_view($requested_entry_id, $base_url, $preferred_languages); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php else : ?>
-            <div class="ll-dictionary__toolbar<?php echo $has_active_browse_query ? ' is-expanded' : ' is-collapsed'; ?>">
+            <div class="<?php echo esc_attr(implode(' ', $toolbar_classes)); ?>">
                 <form class="ll-dictionary__form" method="get" action="<?php echo esc_url($base_url); ?>" data-ll-dictionary-form>
                     <?php echo ll_tools_dictionary_preserve_non_dictionary_query_inputs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <input type="hidden" name="ll_dictionary_letter" value="<?php echo esc_attr($letter); ?>">
@@ -1975,26 +2634,40 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                                 placeholder="<?php echo esc_attr__('Search dictionary', 'll-tools-text-domain'); ?>"
                             >
                         </div>
-                        <div class="ll-dictionary__field ll-dictionary__field--select ll-dictionary__field--scope">
-                            <label class="screen-reader-text" for="ll-dictionary-scope"><?php esc_html_e('Search scope', 'll-tools-text-domain'); ?></label>
-                            <select id="ll-dictionary-scope" class="ll-dictionary__select" name="ll_dictionary_scope">
-                                <?php foreach ($search_scope_options as $option) : ?>
-                                    <option value="<?php echo esc_attr((string) ($option['value'] ?? 'all')); ?>"<?php echo selected($search_scope, (string) ($option['value'] ?? 'all'), false); ?>>
-                                        <?php echo esc_html((string) ($option['label'] ?? '')); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
                         <div class="ll-dictionary__actions ll-dictionary__actions--primary">
                             <button class="ll-dictionary__button" type="submit"><?php esc_html_e('Search', 'll-tools-text-domain'); ?></button>
-                            <a class="ll-dictionary__button ll-dictionary__button--ghost" data-ll-dictionary-reset href="<?php echo esc_url($reset_url); ?>"<?php echo $has_active_browse_query ? '' : ' hidden'; ?>><?php esc_html_e('Reset', 'll-tools-text-domain'); ?></a>
                         </div>
                     </div>
+                    <fieldset class="ll-dictionary__scope-group" aria-labelledby="<?php echo esc_attr($search_scope_fieldset_id); ?>">
+                        <legend id="<?php echo esc_attr($search_scope_fieldset_id); ?>" class="screen-reader-text"><?php esc_html_e('Search scope', 'll-tools-text-domain'); ?></legend>
+                        <div class="ll-dictionary__scope-options">
+                            <?php foreach ($search_scope_options as $option) : ?>
+                                <?php
+                                $scope_value = trim((string) ($option['value'] ?? ''));
+                                if ($scope_value === '') {
+                                    continue;
+                                }
+                                $scope_id = 'll-dictionary-scope-' . sanitize_html_class($scope_value) . '-' . wp_unique_id();
+                                ?>
+                                <label class="ll-dictionary__scope-option" for="<?php echo esc_attr($scope_id); ?>">
+                                    <input
+                                        type="checkbox"
+                                        id="<?php echo esc_attr($scope_id); ?>"
+                                        class="ll-dictionary__scope-checkbox"
+                                        name="ll_dictionary_scope[]"
+                                        value="<?php echo esc_attr($scope_value); ?>"
+                                        <?php checked(in_array($scope_value, $search_scopes, true)); ?>
+                                    >
+                                    <span class="ll-dictionary__scope-option-label"><?php echo esc_html((string) ($option['label'] ?? '')); ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </fieldset>
                     <?php
                     if ($defer_toolbar_panel) {
                         echo '<div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel></div>';
                     } else {
-                        echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scope, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                        echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     }
                     ?>
                 </form>
@@ -2003,7 +2676,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
             <div class="ll-dictionary__browse-results" data-ll-dictionary-results>
                 <?php
                 if ($has_active_browse_query) {
-                    echo ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scope, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    echo ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scopes, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                 }
                 ?>
             </div>

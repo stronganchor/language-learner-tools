@@ -679,8 +679,10 @@ add_action('admin_notices', function() {
 
     $screen = get_current_screen();
     $expected_screen_id = 'tools_page_ll-tools';
-    if (function_exists('ll_tools_get_admin_menu_slug') && function_exists('ll_tools_get_tools_hub_page_slug')) {
-        $expected_screen_id = ll_tools_get_admin_menu_slug() . '_page_' . ll_tools_get_tools_hub_page_slug();
+    if (function_exists('ll_tools_get_tools_hub_screen_id')) {
+        $expected_screen_id = ll_tools_get_tools_hub_screen_id();
+    } elseif (function_exists('ll_tools_get_tools_hub_page_slug')) {
+        $expected_screen_id = 'toplevel_page_' . ll_tools_get_tools_hub_page_slug();
     }
     if (!$screen || $screen->id !== $expected_screen_id) return;
 

@@ -212,3 +212,142 @@ test('rapid practice-mode unstars queue study saves and preserve the latest stat
   expect(finalState.prefs).toEqual([]);
   expect(finalState.state).toEqual([]);
 });
+
+test('changing star mode in the flashcard runtime stays session-local and does not queue a study save', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div id="ll-tools-flashcard-content"></div>
+    <div id="ll-tools-category-stack">
+      <button id="ll-tools-repeat-flashcard" type="button"></button>
+    </div>
+    <div id="ll-tools-prompt"></div>
+    <div id="ll-tools-flashcard"></div>
+  `);
+
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate(() => {
+    const noop = function () {};
+
+    window.llToolsFlashcardsData = {
+      ajaxurl: '/fake-admin-ajax.php',
+      userStudyNonce: 'test-nonce',
+      isUserLoggedIn: true,
+      categoriesPreselected: false,
+      userStudyState: {
+        wordset_id: 77,
+        category_ids: [12],
+        starred_word_ids: [101],
+        star_mode: 'normal',
+        fast_transitions: false
+      },
+      starredWordIds: [101],
+      starred_word_ids: [101],
+      starMode: 'normal',
+      star_mode: 'normal',
+      fastTransitions: false,
+      fast_transitions: false
+    };
+
+    window.llToolsStudyPrefs = {
+      starredWordIds: [101],
+      starred_word_ids: [101],
+      starMode: 'normal',
+      star_mode: 'normal',
+      fastTransitions: false,
+      fast_transitions: false
+    };
+
+    window.LLFlashcards = {
+      State: {
+        STATES: {},
+        categoryNames: ['Cat A'],
+        initialCategoryNames: ['Cat A'],
+        wordsByCategory: {
+          'Cat A': [
+            { id: 101, title: 'One', label: 'One' },
+            { id: 102, title: 'Two', label: 'Two' }
+          ]
+        },
+        currentCategoryName: 'Cat A',
+        currentPromptType: 'audio',
+        currentOptionType: 'image',
+        categoryRepetitionQueues: {},
+        practiceForcedReplays: {},
+        usedWordIDs: [],
+        categoryRoundCount: { 'Cat A': 0 },
+        completedCategories: {},
+        wrongIndexes: [],
+        isLearningMode: false,
+        isListeningMode: false,
+        isGenderMode: false,
+        isSelfCheckMode: false,
+        clearActiveTimeouts: noop,
+        reset: noop
+      },
+      Util: {
+        randomInt: function (min) {
+          return Number(min) || 0;
+        }
+      },
+      Dom: {
+        updateSimpleProgress: noop,
+        restoreHeaderUI: noop,
+        clearRepeatButtonBinding: noop
+      },
+      Effects: {},
+      Selection: {
+        getCategoryPromptType: function () {
+          return 'audio';
+        }
+      },
+      Cards: {},
+      Results: {
+        hideResults: noop,
+        showResults: noop
+      },
+      StateMachine: {},
+      Modes: {}
+    };
+
+    window.FlashcardAudio = {
+      initializeAudio: noop,
+      getCorrectAudioURL: function () { return ''; },
+      getWrongAudioURL: function () { return ''; },
+      pauseAllAudio: noop
+    };
+
+    window.FlashcardLoader = {
+      loadAudio: noop
+    };
+
+    window.__llPostCalls = [];
+
+    const $ = window.jQuery;
+    $.post = function () {
+      window.__llPostCalls.push(Array.from(arguments));
+      const deferred = $.Deferred();
+      return deferred.promise();
+    };
+  });
+
+  await page.addScriptTag({ content: mainSource });
+
+  const result = await page.evaluate(() => {
+    window.LLFlashcards.StudySettings.applyStarMode('only');
+
+    return {
+      postCount: window.__llPostCalls.length,
+      effectiveMode: window.LLFlashcards.StudySettings.getStarMode(),
+      overrideMode: window.LLFlashcards.State.starModeOverride,
+      persistedMode: window.llToolsStudyPrefs.starMode,
+      persistedFlashMode: window.llToolsFlashcardsData.starMode
+    };
+  });
+
+  expect(result.postCount).toBe(0);
+  expect(result.effectiveMode).toBe('only');
+  expect(result.overrideMode).toBe('only');
+  expect(result.persistedMode).toBe('normal');
+  expect(result.persistedFlashMode).toBe('normal');
+});

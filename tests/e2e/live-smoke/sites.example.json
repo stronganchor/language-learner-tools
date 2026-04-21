@@ -1,0 +1,33 @@
+[
+  {
+    "name": "example-wordset-page",
+    "url": "https://example.com/lessons/",
+    "expected": {
+      "titleIncludes": "Example",
+      "h1Includes": "Lessons",
+      "hasWordsetPage": true,
+      "hasDictionary": false,
+      "expectUtilityBar": true,
+      "expectWordsetSearch": true,
+      "minWordsetCards": 1,
+      "minWordsetModeButtons": 1
+    },
+    "exercise": {
+      "wordsetSearch": true,
+      "wordsetSearchProbe": "Animals"
+    },
+    "interaction": {
+      "openSelector": "[data-ll-wordset-category-mode]",
+      "expectModeSwitcher": true,
+      "expectBodyClassIncludes": [
+        "ll-tools-flashcard-open"
+      ],
+      "expectBodyClassRemoved": [
+        "ll-tools-flashcard-open"
+      ]
+    },
+    "network": {
+      "maxSameOriginNonGetRequests": 0
+    }
+  }
+]

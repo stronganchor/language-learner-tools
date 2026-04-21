@@ -39,7 +39,7 @@ read_first:
 - Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
-- Dictionary tooling: TSV/legacy-table import into `ll_dictionary_entry`, grouped sense metadata, and a public `[ll_dictionary]` browse/search page.
+- Dictionary tooling: TSV import into `ll_dictionary_entry`, grouped sense metadata, snapshot import/export, and a public `[ll_dictionary]` browse/search page.
 - Template override system and GitHub update checker (`main` stable via release asset zip, `dev` via branch for testing).
 
 # Entry points and runtime flow
@@ -71,6 +71,10 @@ read_first:
   - Ensures a default Editor Hub page with `[editor_hub]`.
   - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
   - Redirects `ll_tools_editor` users on login to the default Editor Hub page.
+- `includes/pages/site-tools-page.php`
+  - Ensures a default Site Tools page with `[ll_site_tools]`.
+  - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
+  - Provides a front-end home for selected sitewide settings, managed shortcode pages, plugin-update controls, privacy retention, and maintenance actions that previously lived only in wp-admin.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
@@ -85,7 +89,7 @@ includes/
   lib/
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
-    dictionary-browser.php    # Dictionary import/search helpers + legacy raw-table migration
+    dictionary-browser.php    # Dictionary import/search helpers
     ll-matching.php           # Audio <-> image matching heuristics
     media-proxy.php           # Signed image proxy for quizzes
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
@@ -98,6 +102,7 @@ includes/
     recording-page.php        # Recording page creation + login redirect
     editor-hub-page.php       # Editor Hub page creation + login redirect
     dictionary-page.php       # Dictionary page creation + settings-row controls
+    site-tools-page.php       # Front-end Site Tools page creation + URL helper
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
   post-types/
@@ -117,8 +122,10 @@ includes/
     quiz-pages-shortcodes.php
     word-grid-shortcode.php
     editor-hub-shortcode.php
+    site-tools-shortcode.php  # [ll_site_tools] sitewide settings + maintenance UI
     word-audio-shortcode.php
     wordset-page-shortcode.php
+    wordset-buttons-shortcode.php
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
@@ -257,6 +264,7 @@ Core settings live in `includes/admin/settings.php`:
 - `[word_grid]` (`includes/shortcodes/word-grid-shortcode.php`).
 - `[word_audio]` (`includes/shortcodes/word-audio-shortcode.php`, JS: `js/word-audio.js`).
 - `[wordset_page]` / `[ll_wordset_page]` (`includes/shortcodes/wordset-page-shortcode.php`).
+- `[wordset_buttons]` / `[ll_wordset_buttons]` (`includes/shortcodes/wordset-buttons-shortcode.php`).
 - `[audio_recording_interface]` (`includes/shortcodes/audio-recording-shortcode.php`).
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).

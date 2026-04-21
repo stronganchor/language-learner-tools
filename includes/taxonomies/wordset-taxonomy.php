@@ -429,6 +429,470 @@ function ll_tools_filter_viewable_wordset_ids(array $wordset_ids, int $user_id =
     return array_values(array_unique(array_map('intval', $visible_ids)));
 }
 
+function ll_tools_should_enforce_vocab_frontend_access(): bool {
+    if (current_user_can('manage_options')) {
+        return false;
+    }
+
+    if (is_admin() && !(defined('REST_REQUEST') && REST_REQUEST) && !wp_doing_ajax()) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Determine whether a public-facing vocab object is visible to the current user.
+ *
+ * A word/image stays visible only when each attached LL Tools taxonomy still has at
+ * least one term the requester can access. This keeps direct queries aligned with
+ * the shortcode/page privacy checks without breaking content shared across public
+ * and private collections.
+ *
+ * @param mixed $post
+ * @param int   $user_id
+ * @return bool
+ */
+function ll_tools_user_can_view_vocab_post($post, int $user_id = 0): bool {
+    if ($post instanceof WP_Post) {
+        $resolved_post = $post;
+    } else {
+        $resolved_post = get_post($post);
+    }
+
+    if (!($resolved_post instanceof WP_Post)) {
+        return false;
+    }
+
+    if (!in_array($resolved_post->post_type, ['words', 'word_images'], true)) {
+        return true;
+    }
+
+    $user_id = $user_id > 0 ? $user_id : (int) get_current_user_id();
+    $cache_key = $resolved_post->ID . ':' . $user_id;
+    static $visibility_cache = [];
+    if (array_key_exists($cache_key, $visibility_cache)) {
+        return (bool) $visibility_cache[$cache_key];
+    }
+
+    $wordset_ids = wp_get_post_terms($resolved_post->ID, 'wordset', [
+        'fields' => 'ids',
+        'suppress_filter' => true,
+    ]);
+    if (is_array($wordset_ids) && !empty($wordset_ids)) {
+        $visible_wordset_ids = ll_tools_filter_viewable_wordset_ids($wordset_ids, $user_id);
+        if (empty($visible_wordset_ids)) {
+            $visibility_cache[$cache_key] = false;
+            return false;
+        }
+    }
+
+    $category_ids = wp_get_post_terms($resolved_post->ID, 'word-category', [
+        'fields' => 'ids',
+        'suppress_filter' => true,
+    ]);
+    if (is_array($category_ids) && !empty($category_ids)) {
+        $visible_category_ids = function_exists('ll_tools_filter_category_ids_for_user')
+            ? ll_tools_filter_category_ids_for_user($category_ids, $user_id)
+            : array_values(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+                return $category_id > 0;
+            }));
+        if (empty($visible_category_ids)) {
+            $visibility_cache[$cache_key] = false;
+            return false;
+        }
+    }
+
+    $visibility_cache[$cache_key] = true;
+    return true;
+}
+
+/**
+ * Filter word/category term lists outside the admin so private terms never leak
+ * into public UI or REST collections.
+ *
+ * @param array $terms
+ * @param array $taxonomies
+ * @param array $args
+ * @return array
+ */
+function ll_tools_filter_vocab_terms_for_request($terms, $taxonomies, $args) {
+    if (!ll_tools_should_enforce_vocab_frontend_access() || empty($terms) || is_wp_error($terms)) {
+        return $terms;
+    }
+
+    $taxonomies = array_values(array_filter(array_map('strval', (array) $taxonomies)));
+    $user_id = (int) get_current_user_id();
+
+    if (!empty($taxonomies) && count($terms) > 0 && is_numeric(reset($terms))) {
+        $taxonomy = (string) ($taxonomies[0] ?? '');
+        if ($taxonomy === 'wordset') {
+            return ll_tools_filter_viewable_wordset_ids(array_map('intval', $terms), $user_id);
+        }
+        if ($taxonomy === 'word-category' && function_exists('ll_tools_filter_category_ids_for_user')) {
+            return ll_tools_filter_category_ids_for_user(array_map('intval', $terms), $user_id);
+        }
+        return $terms;
+    }
+
+    $filtered = [];
+    foreach ((array) $terms as $term) {
+        if (!($term instanceof WP_Term) || is_wp_error($term)) {
+            $filtered[] = $term;
+            continue;
+        }
+
+        if ($term->taxonomy === 'wordset') {
+            if (ll_tools_user_can_view_wordset($term, $user_id)) {
+                $filtered[] = $term;
+            }
+            continue;
+        }
+
+        if ($term->taxonomy === 'word-category' && function_exists('ll_tools_user_can_view_category')) {
+            if (ll_tools_user_can_view_category($term, $user_id)) {
+                $filtered[] = $term;
+            }
+            continue;
+        }
+
+        $filtered[] = $term;
+    }
+
+    return array_values($filtered);
+}
+
+function ll_tools_get_visible_vocab_term_ids_for_request(string $taxonomy, int $user_id = 0): array {
+    $taxonomy = sanitize_key($taxonomy);
+    if (!in_array($taxonomy, ['wordset', 'word-category'], true)) {
+        return [];
+    }
+
+    $user_id = $user_id > 0 ? $user_id : (int) get_current_user_id();
+    $cache_key = $taxonomy . ':' . $user_id;
+    static $term_cache = [];
+    if (isset($term_cache[$cache_key])) {
+        return $term_cache[$cache_key];
+    }
+
+    $term_ids = get_terms([
+        'taxonomy' => $taxonomy,
+        'hide_empty' => false,
+        'fields' => 'ids',
+        'suppress_filter' => true,
+    ]);
+    if (!is_array($term_ids)) {
+        $term_cache[$cache_key] = [];
+        return [];
+    }
+
+    if ($taxonomy === 'wordset') {
+        $term_cache[$cache_key] = ll_tools_filter_viewable_wordset_ids($term_ids, $user_id);
+    } else {
+        $term_cache[$cache_key] = function_exists('ll_tools_filter_category_ids_for_user')
+            ? ll_tools_filter_category_ids_for_user($term_ids, $user_id)
+            : array_values(array_filter(array_map('intval', $term_ids), static function (int $term_id): bool {
+                return $term_id > 0;
+            }));
+    }
+
+    return $term_cache[$cache_key];
+}
+
+function ll_tools_get_vocab_access_tax_query(int $user_id = 0): array {
+    $user_id = $user_id > 0 ? $user_id : (int) get_current_user_id();
+    $wordset_clause = [
+        'relation' => 'OR',
+        [
+            'taxonomy' => 'wordset',
+            'operator' => 'NOT EXISTS',
+        ],
+    ];
+    $visible_wordset_ids = ll_tools_get_visible_vocab_term_ids_for_request('wordset', $user_id);
+    if (!empty($visible_wordset_ids)) {
+        $wordset_clause[] = [
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => $visible_wordset_ids,
+            'operator' => 'IN',
+        ];
+    }
+
+    $category_clause = [
+        'relation' => 'OR',
+        [
+            'taxonomy' => 'word-category',
+            'operator' => 'NOT EXISTS',
+        ],
+    ];
+    $visible_category_ids = ll_tools_get_visible_vocab_term_ids_for_request('word-category', $user_id);
+    if (!empty($visible_category_ids)) {
+        $category_clause[] = [
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => $visible_category_ids,
+            'operator' => 'IN',
+        ];
+    }
+
+    return [
+        'relation' => 'AND',
+        $wordset_clause,
+        $category_clause,
+    ];
+}
+
+function ll_tools_apply_vocab_access_constraints_to_rest_query(array $args, WP_REST_Request $request): array {
+    if (!ll_tools_should_enforce_vocab_frontend_access()) {
+        return $args;
+    }
+
+    $existing_tax_query = isset($args['tax_query']) && is_array($args['tax_query'])
+        ? $args['tax_query']
+        : [];
+    $combined_tax_query = ['relation' => 'AND'];
+    if (!empty($existing_tax_query)) {
+        $combined_tax_query[] = $existing_tax_query;
+    }
+    $combined_tax_query[] = ll_tools_get_vocab_access_tax_query((int) get_current_user_id());
+
+    $args['tax_query'] = $combined_tax_query;
+    return $args;
+}
+add_filter('rest_words_query', 'll_tools_apply_vocab_access_constraints_to_rest_query', 10, 2);
+add_filter('rest_word_images_query', 'll_tools_apply_vocab_access_constraints_to_rest_query', 10, 2);
+
+function ll_tools_apply_vocab_access_constraints_to_rest_terms_query(array $prepared_args, WP_REST_Request $request): array {
+    if (!ll_tools_should_enforce_vocab_frontend_access()) {
+        return $prepared_args;
+    }
+
+    $route = (string) $request->get_route();
+    if (strpos($route, '/wp/v2/wordsets') === 0) {
+        $taxonomy = 'wordset';
+    } elseif (strpos($route, '/wp/v2/word-category') === 0) {
+        $taxonomy = 'word-category';
+    } else {
+        return $prepared_args;
+    }
+
+    $visible_term_ids = ll_tools_get_visible_vocab_term_ids_for_request($taxonomy, (int) get_current_user_id());
+    $prepared_args['include'] = !empty($visible_term_ids)
+        ? array_values(array_unique(array_map('intval', $visible_term_ids)))
+        : [0];
+
+    return $prepared_args;
+}
+add_filter('rest_wordset_query', 'll_tools_apply_vocab_access_constraints_to_rest_terms_query', 10, 2);
+add_filter('rest_word-category_query', 'll_tools_apply_vocab_access_constraints_to_rest_terms_query', 10, 2);
+
+function ll_tools_rest_request_targets_private_vocab_item(WP_REST_Request $request): array {
+    $route = (string) $request->get_route();
+    if ($route === '') {
+        return [];
+    }
+
+    if (!preg_match('#^/wp/v2/(words|word_images|wordsets|word-category)/(\d+)$#', $route, $matches)) {
+        return [];
+    }
+
+    return [
+        'resource' => (string) $matches[1],
+        'id' => (int) $matches[2],
+    ];
+}
+
+/**
+ * Turn direct REST item requests for restricted vocab content into 404s so
+ * unpublished/private study content cannot be enumerated via public routes.
+ *
+ * @param mixed           $response
+ * @param array           $handler
+ * @param WP_REST_Request $request
+ * @return mixed
+ */
+function ll_tools_block_private_vocab_rest_item($response, array $handler, WP_REST_Request $request) {
+    if ($response instanceof WP_Error || !ll_tools_should_enforce_vocab_frontend_access()) {
+        return $response;
+    }
+
+    $method = strtoupper((string) $request->get_method());
+    if (!in_array($method, ['GET', 'HEAD'], true)) {
+        return $response;
+    }
+
+    $target = ll_tools_rest_request_targets_private_vocab_item($request);
+    if (empty($target)) {
+        return $response;
+    }
+
+    $resource = (string) ($target['resource'] ?? '');
+    $id = (int) ($target['id'] ?? 0);
+    if ($id <= 0) {
+        return $response;
+    }
+
+    $is_allowed = true;
+    if (in_array($resource, ['words', 'word_images'], true)) {
+        $post = get_post($id);
+        $is_allowed = $post instanceof WP_Post
+            && $post->post_type === $resource
+            && ll_tools_user_can_view_vocab_post($post);
+    } elseif ($resource === 'wordsets') {
+        $is_allowed = ll_tools_user_can_view_wordset($id);
+    } elseif ($resource === 'word-category' && function_exists('ll_tools_user_can_view_category')) {
+        $is_allowed = ll_tools_user_can_view_category($id);
+    }
+
+    if ($is_allowed) {
+        return $response;
+    }
+
+    return new WP_Error(
+        'll_tools_rest_private_content',
+        __('Sorry, you are not allowed to view this item.', 'll-tools-text-domain'),
+        ['status' => 404]
+    );
+}
+add_filter('rest_request_before_callbacks', 'll_tools_block_private_vocab_rest_item', 10, 3);
+
+function ll_tools_filter_vocab_rest_taxonomy_data(array $data, int $user_id = 0): array {
+    if (isset($data['wordset']) && is_array($data['wordset'])) {
+        $data['wordset'] = ll_tools_filter_viewable_wordset_ids($data['wordset'], $user_id);
+    }
+
+    if (isset($data['word-category']) && is_array($data['word-category']) && function_exists('ll_tools_filter_category_ids_for_user')) {
+        $data['word-category'] = ll_tools_filter_category_ids_for_user($data['word-category'], $user_id);
+    }
+
+    if (isset($data['_embedded']['wp:term']) && is_array($data['_embedded']['wp:term'])) {
+        $visible_wordset_ids = isset($data['wordset']) && is_array($data['wordset'])
+            ? array_map('intval', $data['wordset'])
+            : [];
+        $visible_category_ids = isset($data['word-category']) && is_array($data['word-category'])
+            ? array_map('intval', $data['word-category'])
+            : [];
+
+        foreach ($data['_embedded']['wp:term'] as $group_index => $embedded_group) {
+            if (!is_array($embedded_group)) {
+                continue;
+            }
+
+            $filtered_group = [];
+            foreach ($embedded_group as $embedded_term) {
+                if (!is_array($embedded_term)) {
+                    continue;
+                }
+
+                $taxonomy = (string) ($embedded_term['taxonomy'] ?? '');
+                $term_id = (int) ($embedded_term['id'] ?? 0);
+                if ($taxonomy === 'wordset' && !in_array($term_id, $visible_wordset_ids, true)) {
+                    continue;
+                }
+                if ($taxonomy === 'word-category' && !in_array($term_id, $visible_category_ids, true)) {
+                    continue;
+                }
+
+                $filtered_group[] = $embedded_term;
+            }
+
+            $data['_embedded']['wp:term'][$group_index] = array_values($filtered_group);
+        }
+    }
+
+    return $data;
+}
+
+/**
+ * Sanitize public REST post payloads so mixed public/private assignments do not
+ * expose restricted taxonomy IDs through otherwise-visible words/images.
+ */
+function ll_tools_rest_prepare_vocab_post(WP_REST_Response $response, WP_Post $post, WP_REST_Request $request): WP_REST_Response {
+    if (!ll_tools_should_enforce_vocab_frontend_access()) {
+        return $response;
+    }
+
+    $data = $response->get_data();
+    if (!is_array($data)) {
+        return $response;
+    }
+
+    $response->set_data(
+        ll_tools_filter_vocab_rest_taxonomy_data($data, (int) get_current_user_id())
+    );
+
+    return $response;
+}
+add_filter('rest_prepare_words', 'll_tools_rest_prepare_vocab_post', 10, 3);
+add_filter('rest_prepare_word_images', 'll_tools_rest_prepare_vocab_post', 10, 3);
+
+function ll_tools_filter_vocab_rest_response(WP_REST_Response $response, WP_REST_Server $server, WP_REST_Request $request): WP_REST_Response {
+    if (!ll_tools_should_enforce_vocab_frontend_access()) {
+        return $response;
+    }
+
+    $route = (string) $request->get_route();
+    if (!preg_match('#^/wp/v2/(words|word_images)(?:/\d+)?$#', $route)) {
+        return $response;
+    }
+
+    $data = $response->get_data();
+    if (!is_array($data)) {
+        return $response;
+    }
+
+    $user_id = (int) get_current_user_id();
+    if (isset($data['id'])) {
+        $response->set_data(ll_tools_filter_vocab_rest_taxonomy_data($data, $user_id));
+        return $response;
+    }
+
+    foreach ($data as $index => $row) {
+        if (!is_array($row) || !isset($row['id'])) {
+            continue;
+        }
+        $data[$index] = ll_tools_filter_vocab_rest_taxonomy_data($row, $user_id);
+    }
+
+    $response->set_data($data);
+    return $response;
+}
+add_filter('rest_post_dispatch', 'll_tools_filter_vocab_rest_response', 20, 3);
+
+function ll_tools_maybe_enforce_vocab_frontend_access(): void {
+    if (!ll_tools_should_enforce_vocab_frontend_access()) {
+        return;
+    }
+
+    $post = null;
+    if (is_singular(['words', 'word_images'])) {
+        $post = get_queried_object();
+        if ($post instanceof WP_Post && ll_tools_user_can_view_vocab_post($post)) {
+            return;
+        }
+    } elseif (is_tax('wordset')) {
+        $term = get_queried_object();
+        if ($term instanceof WP_Term && ll_tools_user_can_view_wordset($term)) {
+            return;
+        }
+    } elseif (is_tax('word-category')) {
+        $term = get_queried_object();
+        if ($term instanceof WP_Term && function_exists('ll_tools_user_can_view_category') && ll_tools_user_can_view_category($term)) {
+            return;
+        }
+    } else {
+        return;
+    }
+
+    global $wp_query;
+    if ($wp_query instanceof WP_Query) {
+        $wp_query->set_404();
+    }
+    status_header(404);
+    nocache_headers();
+}
+add_action('template_redirect', 'll_tools_maybe_enforce_vocab_frontend_access', 1);
+
 // Register the "wordset" taxonomy
 function ll_tools_register_wordset_taxonomy() {
     $labels = [

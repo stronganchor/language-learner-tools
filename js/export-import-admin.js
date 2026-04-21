@@ -29,6 +29,19 @@
             processingDiscard: typeof cfg.processingDiscard === 'string' ? cfg.processingDiscard : 'Discard partial import',
             processingDiscarding: typeof cfg.processingDiscarding === 'string' ? cfg.processingDiscarding : 'Discarding partial import…',
             processingDiscardConfirm: typeof cfg.processingDiscardConfirm === 'string' ? cfg.processingDiscardConfirm : 'Discard this partial import and remove the content it created?',
+            importPreviewUploadTitle: typeof cfg.importPreviewUploadTitle === 'string' ? cfg.importPreviewUploadTitle : '',
+            importPreviewUploadMessageKeepOpen: typeof cfg.importPreviewUploadMessageKeepOpen === 'string' ? cfg.importPreviewUploadMessageKeepOpen : '',
+            importPreviewUploadMessageBackground: typeof cfg.importPreviewUploadMessageBackground === 'string' ? cfg.importPreviewUploadMessageBackground : '',
+            importPreviewUploadProgressLabel: typeof cfg.importPreviewUploadProgressLabel === 'string' ? cfg.importPreviewUploadProgressLabel : '',
+            importPreviewUploadProgressPercent: typeof cfg.importPreviewUploadProgressPercent === 'string' ? cfg.importPreviewUploadProgressPercent : '',
+            importPreviewUploadFinishing: typeof cfg.importPreviewUploadFinishing === 'string' ? cfg.importPreviewUploadFinishing : '',
+            importPreviewUploadFailed: typeof cfg.importPreviewUploadFailed === 'string' ? cfg.importPreviewUploadFailed : '',
+            importPreviewUploadUnexpectedResponse: typeof cfg.importPreviewUploadUnexpectedResponse === 'string' ? cfg.importPreviewUploadUnexpectedResponse : '',
+            importPreviewUploadStartAction: typeof cfg.importPreviewUploadStartAction === 'string' ? cfg.importPreviewUploadStartAction : '',
+            importPreviewUploadChunkAction: typeof cfg.importPreviewUploadChunkAction === 'string' ? cfg.importPreviewUploadChunkAction : '',
+            importPreviewUploadFinishAction: typeof cfg.importPreviewUploadFinishAction === 'string' ? cfg.importPreviewUploadFinishAction : '',
+            importPreviewUploadNonce: typeof cfg.importPreviewUploadNonce === 'string' ? cfg.importPreviewUploadNonce : '',
+            importPreviewUploadChunkBytes: typeof cfg.importPreviewUploadChunkBytes === 'number' ? cfg.importPreviewUploadChunkBytes : 0,
             exportProcessingTitle: typeof cfg.exportProcessingTitle === 'string' ? cfg.exportProcessingTitle : '',
             exportProcessingMessageKeepOpen: typeof cfg.exportProcessingMessageKeepOpen === 'string' ? cfg.exportProcessingMessageKeepOpen : '',
             exportProcessingMessageBackground: typeof cfg.exportProcessingMessageBackground === 'string' ? cfg.exportProcessingMessageBackground : '',
@@ -337,6 +350,61 @@
         });
     }
 
+    function readJsonTextBody(bodyText) {
+        var payload = {};
+
+        if (bodyText) {
+            try {
+                payload = JSON.parse(bodyText);
+            } catch (error) {
+                payload = {};
+            }
+        }
+
+        return payload;
+    }
+
+    function sendJsonXhr(url, formData, onProgress) {
+        return new Promise(function (resolve, reject) {
+            var xhr = new XMLHttpRequest();
+
+            xhr.open('POST', url, true);
+            xhr.withCredentials = true;
+
+            if (xhr.upload && typeof onProgress === 'function') {
+                xhr.upload.addEventListener('progress', function (event) {
+                    onProgress(event);
+                });
+            }
+
+            xhr.addEventListener('load', function () {
+                var payload = readJsonTextBody(xhr.responseText || '');
+                if (xhr.status >= 200 && xhr.status < 300 && payload && payload.success === true) {
+                    resolve(payload.data || {});
+                    return;
+                }
+
+                var message = '';
+                if (payload && payload.data && typeof payload.data.message === 'string') {
+                    message = payload.data.message;
+                }
+                var error = new Error(message || ('request_failed_' + xhr.status));
+                error.payload = payload && payload.data ? payload.data : {};
+                reject(error);
+            });
+
+            xhr.addEventListener('error', function () {
+                reject(new Error('network_error'));
+            });
+
+            xhr.addEventListener('abort', function () {
+                reject(new Error('request_aborted'));
+            });
+
+            xhr.send(formData);
+        });
+    }
+
     function initImportConfirmProgressUi() {
         var forms = document.querySelectorAll('form');
         if (!window.fetch || !window.FormData) {
@@ -347,6 +415,43 @@
         var config = getProcessingScreenConfig(adminConfig, 'import');
         if (!adminConfig.ajaxUrl || !adminConfig.importStartAction || !adminConfig.importProcessAction || !adminConfig.importJobNonce) {
             return;
+        }
+
+        function getPreviewTokenFromLocation() {
+            var search = (window.location && typeof window.location.search === 'string') ? window.location.search : '';
+            var match;
+
+            if (!search) {
+                return '';
+            }
+
+            if (typeof window.URLSearchParams === 'function') {
+                return window.URLSearchParams ? (new window.URLSearchParams(search)).get('ll_import_preview') || '' : '';
+            }
+
+            match = search.match(/[?&]ll_import_preview=([^&#]+)/);
+            if (!match || !match[1]) {
+                return '';
+            }
+
+            try {
+                return decodeURIComponent(String(match[1]).replace(/\+/g, '%20'));
+            } catch (error) {
+                return String(match[1]);
+            }
+        }
+
+        function getPreviewTokenForRequest(form) {
+            var previewTokenField = form ? form.querySelector('input[name="ll_import_preview_token"]') : null;
+            var previewToken = previewTokenField && typeof previewTokenField.value === 'string'
+                ? previewTokenField.value
+                : '';
+
+            if (!previewToken) {
+                previewToken = getPreviewTokenFromLocation();
+            }
+
+            return previewToken || '';
         }
 
         function setIdleState(form, submitButtons) {
@@ -544,8 +649,13 @@
             document.documentElement.classList.add('ll-tools-import-processing');
 
             var startData = new FormData(form);
+            var previewToken = getPreviewTokenForRequest(form);
             startData.set('action', adminConfig.importStartAction);
             startData.set('nonce', adminConfig.importJobNonce);
+            if (previewToken) {
+                startData.set('ll_import_preview_token', previewToken);
+                startData.set('ll_import_preview', previewToken);
+            }
 
             return fetch(adminConfig.ajaxUrl, {
                 method: 'POST',
@@ -807,9 +917,9 @@
         syncUi();
     }
 
-    function initAutoPreviewOnZipUpload() {
+    function initImportPreviewUploadUi() {
         var fileInput = document.getElementById('ll_import_file');
-        if (!fileInput || !fileInput.form) {
+        if (!fileInput || !fileInput.form || typeof window.XMLHttpRequest !== 'function' || !window.FormData) {
             return;
         }
 
@@ -819,27 +929,267 @@
             return;
         }
 
-        var hasSubmitted = false;
+        var adminConfig = getAdminUiConfig();
+        if (
+            !adminConfig.ajaxUrl
+            || !adminConfig.importPreviewUploadStartAction
+            || !adminConfig.importPreviewUploadChunkAction
+            || !adminConfig.importPreviewUploadFinishAction
+            || !adminConfig.importPreviewUploadNonce
+        ) {
+            return;
+        }
+
+        var config = {
+            pageUrl: adminConfig.importPageUrl || window.location.href,
+            processingTitle: adminConfig.importPreviewUploadTitle || adminConfig.processingTitle,
+            processingMessageKeepOpen: adminConfig.importPreviewUploadMessageKeepOpen || adminConfig.processingMessageKeepOpen,
+            processingMessageBackground: adminConfig.importPreviewUploadMessageBackground || adminConfig.processingMessageBackground,
+            processingProgressLabel: adminConfig.importPreviewUploadProgressLabel || adminConfig.processingProgressLabel,
+            processingDone: adminConfig.importPreviewUploadFinishing || adminConfig.processingDone,
+            processingFailed: adminConfig.importPreviewUploadFailed || adminConfig.processingFailed,
+            processingReload: adminConfig.processingReload || ''
+        };
+        var activeUploadRun = 0;
+
+        function hasSelectedUpload() {
+            return !!(fileInput.files && fileInput.files.length);
+        }
+
+        function getSelectedUpload() {
+            if (!hasSelectedUpload()) {
+                return null;
+            }
+
+            return fileInput.files[0];
+        }
+
+        function formatUploadProgressLabel(percent) {
+            var template = adminConfig.importPreviewUploadProgressPercent || '';
+            if (template && template.indexOf('%s') !== -1) {
+                return template.replace('%s', String(percent)).replace(/%%/g, '%');
+            }
+
+            return (config.processingProgressLabel || 'Uploading import bundle...') + ' ' + percent + '%';
+        }
+
+        function setSubmittingState(isSubmitting) {
+            var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+            var index = 0;
+
+            if (isSubmitting) {
+                form.setAttribute('data-ll-tools-import-preview-uploading', '1');
+            } else {
+                form.removeAttribute('data-ll-tools-import-preview-uploading');
+            }
+
+            for (index = 0; index < submitButtons.length; index++) {
+                submitButtons[index].disabled = !!isSubmitting;
+            }
+        }
+
+        function setFailureState(screen, message) {
+            setSubmittingState(false);
+            if (screen.error) {
+                screen.error.hidden = false;
+                screen.error.textContent = message || config.processingFailed;
+            }
+            if (screen.status) {
+                screen.status.textContent = message || config.processingFailed;
+            }
+            setProcessingActionButton(screen, config.processingReload, function () {
+                window.location.assign(config.pageUrl || window.location.href);
+            });
+            setProcessingDiscardButton(screen, '', null);
+            updateProcessingProgress(screen, NaN);
+        }
+
+        function resolveUploadErrorMessage(error) {
+            var message = error && typeof error.message === 'string' ? error.message : '';
+            if (
+                !message
+                || message === 'network_error'
+                || message === 'request_aborted'
+                || message === 'upload_cancelled'
+                || message.indexOf('request_failed_') === 0
+            ) {
+                return config.processingFailed;
+            }
+
+            return message;
+        }
+
+        function uploadChunk(uploadId, file, chunkIndex, totalChunks, chunkBytes, screen, runId) {
+            var totalSize = Math.max(file && typeof file.size === 'number' ? file.size : 0, 1);
+            var startByte = chunkIndex * chunkBytes;
+            var endByte = Math.min(totalSize, startByte + chunkBytes);
+            var chunkBlob = file.slice(startByte, endByte);
+            var chunkData = new FormData();
+
+            chunkData.set('action', adminConfig.importPreviewUploadChunkAction);
+            chunkData.set('nonce', adminConfig.importPreviewUploadNonce);
+            chunkData.set('upload_id', uploadId);
+            chunkData.set('chunk_index', String(chunkIndex));
+            chunkData.set('total_chunks', String(totalChunks));
+            chunkData.set('ll_import_chunk', chunkBlob, file.name + '.part' + String(chunkIndex));
+
+            return sendJsonXhr(adminConfig.ajaxUrl, chunkData, function (event) {
+                var ratio = 0;
+                var percent = 0;
+                if (activeUploadRun !== runId) {
+                    return;
+                }
+
+                if (!event.lengthComputable || !event.total) {
+                    return;
+                }
+
+                ratio = Math.min(0.999, (startByte + event.loaded) / totalSize);
+                percent = Math.max(1, Math.min(99, Math.round(ratio * 100)));
+                updateProcessingProgress(screen, ratio);
+                if (screen.status) {
+                    screen.status.textContent = formatUploadProgressLabel(percent);
+                }
+            }).then(function () {
+                var ratio = 0;
+                var percent = 0;
+
+                if (activeUploadRun !== runId) {
+                    throw new Error('upload_cancelled');
+                }
+
+                ratio = Math.min(0.999, endByte / totalSize);
+                percent = Math.max(1, Math.min(99, Math.round(ratio * 100)));
+                updateProcessingProgress(screen, ratio);
+                if (screen.status) {
+                    screen.status.textContent = formatUploadProgressLabel(percent);
+                }
+            });
+        }
+
+        function uploadAllChunks(uploadId, file, chunkBytes, screen, runId) {
+            var totalSize = Math.max(file && typeof file.size === 'number' ? file.size : 0, 0);
+            var totalChunks = Math.max(1, Math.ceil(totalSize / chunkBytes));
+            var chain = Promise.resolve();
+            var chunkIndex = 0;
+
+            for (chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                (function (currentChunkIndex) {
+                    chain = chain.then(function () {
+                        return uploadChunk(uploadId, file, currentChunkIndex, totalChunks, chunkBytes, screen, runId);
+                    });
+                })(chunkIndex);
+            }
+
+            return chain.then(function () {
+                return totalChunks;
+            });
+        }
+
+        function startPreviewUpload() {
+            var screen;
+            var file;
+            var totalSize;
+            var chunkBytes;
+            var totalChunks;
+            var runId;
+            var startData;
+
+            if (!hasSelectedUpload() || form.getAttribute('data-ll-tools-import-preview-uploading') === '1') {
+                return;
+            }
+
+            file = getSelectedUpload();
+            if (!file || !(file.size > 0)) {
+                return;
+            }
+
+            totalSize = Math.max(file.size, 0);
+            chunkBytes = Math.max(65536, parseInt(adminConfig.importPreviewUploadChunkBytes, 10) || (4 * 1024 * 1024));
+            totalChunks = Math.max(1, Math.ceil(totalSize / chunkBytes));
+            runId = Date.now();
+            activeUploadRun = runId;
+
+            setSubmittingState(true);
+
+            screen = ensureProcessingScreen(config);
+            resetProcessingScreen(screen, config);
+            document.documentElement.classList.add('ll-tools-import-processing');
+
+            if (screen.status) {
+                screen.status.textContent = config.processingProgressLabel;
+            }
+
+            startData = new FormData();
+            startData.set('action', adminConfig.importPreviewUploadStartAction);
+            startData.set('nonce', adminConfig.importPreviewUploadNonce);
+            startData.set('filename', file.name || 'import.zip');
+            startData.set('total_size', String(totalSize));
+            startData.set('total_chunks', String(totalChunks));
+
+            fetch(adminConfig.ajaxUrl, {
+                method: 'POST',
+                body: startData,
+                credentials: 'same-origin'
+            }).then(readJsonResponse).then(function (payload) {
+                var uploadId = payload && typeof payload.uploadId === 'string' ? payload.uploadId : '';
+                if (!uploadId) {
+                    throw new Error(config.processingFailed);
+                }
+
+                if (activeUploadRun !== runId) {
+                    throw new Error('upload_cancelled');
+                }
+
+                return uploadAllChunks(uploadId, file, chunkBytes, screen, runId).then(function () {
+                    var finishData = new FormData();
+                    finishData.set('action', adminConfig.importPreviewUploadFinishAction);
+                    finishData.set('nonce', adminConfig.importPreviewUploadNonce);
+                    finishData.set('upload_id', uploadId);
+
+                    updateProcessingProgress(screen, NaN);
+                    if (screen.status) {
+                        screen.status.textContent = adminConfig.importPreviewUploadFinishing || config.processingDone;
+                    }
+
+                    return fetch(adminConfig.ajaxUrl, {
+                        method: 'POST',
+                        body: finishData,
+                        credentials: 'same-origin'
+                    }).then(readJsonResponse);
+                });
+            }).then(function (payload) {
+                var redirectUrl = payload && typeof payload.redirectUrl === 'string' ? payload.redirectUrl : '';
+                if (!redirectUrl) {
+                    throw new Error(adminConfig.importPreviewUploadUnexpectedResponse || config.processingFailed);
+                }
+
+                window.location.assign(redirectUrl);
+            }).catch(function (error) {
+                setFailureState(screen, resolveUploadErrorMessage(error));
+            });
+        }
+
+        form.addEventListener('submit', function (event) {
+            if (form.getAttribute('data-ll-tools-import-preview-uploading') === '1') {
+                event.preventDefault();
+                return;
+            }
+
+            if (!hasSelectedUpload()) {
+                return;
+            }
+
+            event.preventDefault();
+            startPreviewUpload();
+        });
 
         fileInput.addEventListener('change', function () {
-            var hasFile = !!(fileInput.files && fileInput.files.length);
-            if (!hasFile || hasSubmitted) {
+            if (!hasSelectedUpload()) {
                 return;
             }
 
-            hasSubmitted = true;
-
-            var submitButtons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
-            for (var i = 0; i < submitButtons.length; i++) {
-                submitButtons[i].disabled = true;
-            }
-
-            if (typeof form.requestSubmit === 'function') {
-                form.requestSubmit();
-                return;
-            }
-
-            form.submit();
+            startPreviewUpload();
         });
     }
 
@@ -1197,7 +1547,7 @@
         initExportBatchProgressUi();
         initExportWordTextDialectSync();
         initImportWordsetModeUi();
-        initAutoPreviewOnZipUpload();
+        initImportPreviewUploadUi();
         initImportConfirmProgressUi();
         initImportPreviewAudioButtons();
         initReferenceCopyButtons();

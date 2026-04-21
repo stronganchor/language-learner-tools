@@ -5,6 +5,7 @@
   "description": "Playwright E2E tests for language-learner-tools",
   "scripts": {
     "test": "playwright test",
+    "test:live": "playwright test --config=live-smoke.config.js",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug"
   },

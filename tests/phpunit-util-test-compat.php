@@ -8,6 +8,19 @@ declare(strict_types=1);
  */
 final class LL_Tools_PHPUnit_Compat
 {
+    public static function getTestMethodName(object $testCase): string
+    {
+        if (method_exists($testCase, 'name')) {
+            return (string) $testCase->name();
+        }
+
+        if (method_exists($testCase, 'getName')) {
+            return (string) $testCase->getName(false);
+        }
+
+        return '';
+    }
+
     /**
      * Recreates the legacy array shape that wordpress-tests-lib expects.
      *

@@ -1240,6 +1240,206 @@ function ll_get_uncategorized_term_count($taxonomy, $post_type) {
     return (int) $count;
 }
 
+/**
+ * Normalize a Words admin search token for Turkish-aware matching.
+ */
+function ll_tools_words_admin_normalize_search_token(string $token): string {
+    $token = html_entity_decode((string) $token, ENT_QUOTES, 'UTF-8');
+    $token = trim((string) wp_strip_all_tags($token));
+    if ($token === '') {
+        return '';
+    }
+
+    $token = preg_replace('/\s+/u', ' ', $token);
+
+    if (function_exists('ll_tools_turkish_lowercase')) {
+        return ll_tools_turkish_lowercase((string) $token);
+    }
+
+    if (function_exists('mb_strtolower')) {
+        return mb_strtolower((string) $token, 'UTF-8');
+    }
+
+    return strtolower((string) $token);
+}
+
+/**
+ * Split an admin search string into normalized Turkish-aware tokens.
+ *
+ * @return array<int,string>
+ */
+function ll_tools_words_admin_search_tokens(string $search): array {
+    $search = trim((string) preg_replace('/\s+/u', ' ', $search));
+    if ($search === '') {
+        return [];
+    }
+
+    $tokens = preg_split('/\s+/u', $search);
+    if (!is_array($tokens)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($tokens as $token) {
+        $token = ll_tools_words_admin_normalize_search_token((string) $token);
+        if ($token !== '') {
+            $normalized[$token] = $token;
+        }
+    }
+
+    return array_values($normalized);
+}
+
+/**
+ * Expand a normalized token with Turkish dotted/dotless-i fallback variants.
+ *
+ * @return array<int,string>
+ */
+function ll_tools_words_admin_search_token_variants(string $token): array {
+    $token = ll_tools_words_admin_normalize_search_token($token);
+    if ($token === '') {
+        return [];
+    }
+
+    $variants = [$token => $token];
+
+    if (strpos($token, 'ı') !== false) {
+        $variants[str_replace('ı', 'i', $token)] = str_replace('ı', 'i', $token);
+    }
+
+    if (strpos($token, 'i') !== false) {
+        $variants[str_replace('i', 'ı', $token)] = str_replace('i', 'ı', $token);
+    }
+
+    return array_values($variants);
+}
+
+/**
+ * Add visible-case variants that commonly appear in word titles and translations.
+ *
+ * @return array<int,string>
+ */
+function ll_tools_words_admin_search_visual_variants(string $token): array {
+    $variants = ll_tools_words_admin_search_token_variants($token);
+    if (empty($variants)) {
+        return [];
+    }
+
+    $visuals = [];
+    foreach ($variants as $variant) {
+        $visuals[$variant] = $variant;
+
+        if (function_exists('ll_tools_uppercase_first_char_for_language')) {
+            $capitalized = ll_tools_uppercase_first_char_for_language($variant, 'tr');
+        } elseif (function_exists('mb_substr') && function_exists('mb_strtoupper')) {
+            $capitalized = mb_strtoupper(mb_substr($variant, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($variant, 1, null, 'UTF-8');
+        } else {
+            $capitalized = ucfirst($variant);
+        }
+
+        if ($capitalized !== '') {
+            $visuals[$capitalized] = $capitalized;
+        }
+    }
+
+    return array_values($visuals);
+}
+
+/**
+ * Build SQL that lowercases Turkish text consistently for LIKE matching.
+ */
+function ll_tools_words_admin_sql_casefold_expression(string $column_sql): string {
+    return "LOWER(REPLACE(REPLACE({$column_sql}, 'I', 'ı'), 'İ', 'i'))";
+}
+
+/**
+ * Replace default Words admin search with a Turkish-aware title/translation search.
+ */
+function ll_tools_prepare_words_admin_search_query(WP_Query $query): void {
+    $search = $query->get('s');
+    if (!is_string($search)) {
+        $search = (string) $search;
+    }
+
+    $tokens = ll_tools_words_admin_search_tokens($search);
+    if (empty($tokens)) {
+        return;
+    }
+
+    $query->set('ll_tools_words_admin_search_tokens', $tokens);
+    $query->set('s', '');
+}
+
+/**
+ * Apply Turkish-aware title/translation search on the Words admin list.
+ */
+function ll_tools_filter_words_admin_search_where($where, $query) {
+    if (!($query instanceof WP_Query)) {
+        return $where;
+    }
+
+    $tokens = $query->get('ll_tools_words_admin_search_tokens');
+    if (!is_array($tokens) || empty($tokens)) {
+        return $where;
+    }
+
+    global $wpdb;
+
+    $title_expression = ll_tools_words_admin_sql_casefold_expression("{$wpdb->posts}.post_title");
+    $meta_expression = ll_tools_words_admin_sql_casefold_expression('ll_tools_word_search_meta.meta_value');
+    $token_clauses = [];
+
+    foreach ($tokens as $token) {
+        $variants = ll_tools_words_admin_search_token_variants((string) $token);
+        $visual_variants = ll_tools_words_admin_search_visual_variants((string) $token);
+        if (empty($variants) && empty($visual_variants)) {
+            continue;
+        }
+
+        $variant_clauses = [];
+        foreach ($variants as $variant) {
+            $like = '%' . $wpdb->esc_like($variant) . '%';
+            $variant_clauses[] = $wpdb->prepare(
+                '(' . $title_expression . ' LIKE %s OR EXISTS (
+                    SELECT 1
+                    FROM ' . $wpdb->postmeta . ' ll_tools_word_search_meta
+                    WHERE ll_tools_word_search_meta.post_id = ' . $wpdb->posts . '.ID
+                        AND ll_tools_word_search_meta.meta_key IN (\'word_translation\', \'word_english_meaning\')
+                        AND ' . $meta_expression . ' LIKE %s
+                ))',
+                $like,
+                $like
+            );
+        }
+
+        foreach ($visual_variants as $variant) {
+            $like = '%' . $wpdb->esc_like($variant) . '%';
+            $variant_clauses[] = $wpdb->prepare(
+                '(' . $wpdb->posts . '.post_title LIKE %s OR EXISTS (
+                    SELECT 1
+                    FROM ' . $wpdb->postmeta . ' ll_tools_word_search_meta
+                    WHERE ll_tools_word_search_meta.post_id = ' . $wpdb->posts . '.ID
+                        AND ll_tools_word_search_meta.meta_key IN (\'word_translation\', \'word_english_meaning\')
+                        AND ll_tools_word_search_meta.meta_value LIKE %s
+                ))',
+                $like,
+                $like
+            );
+        }
+
+        if (!empty($variant_clauses)) {
+            $token_clauses[] = '(' . implode(' OR ', $variant_clauses) . ')';
+        }
+    }
+
+    if (empty($token_clauses)) {
+        return $where;
+    }
+
+    return $where . ' AND (' . implode(' AND ', $token_clauses) . ')';
+}
+add_filter('posts_where', 'll_tools_filter_words_admin_search_where', 20, 2);
+
 // Apply the selected filters to the query
 function ll_apply_words_filters($query) {
     global $pagenow;
@@ -1318,6 +1518,8 @@ function ll_apply_words_filters($query) {
         $query->set('meta_key', 'word_translation');
         $query->set('orderby', 'meta_value');
     }
+
+    ll_tools_prepare_words_admin_search_query($query);
 }
 
 /**

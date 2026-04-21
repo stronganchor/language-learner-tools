@@ -18,6 +18,7 @@ From plugin root:
 ```bash
 tests/bin/run-tests.sh
 tests/bin/run-e2e.sh
+tests/bin/run-live-smoke.sh
 ```
 
 Run one PHPUnit test:
@@ -39,6 +40,12 @@ Headed Playwright debug:
 ```bash
 cd tests/e2e
 npx playwright test --headed --project=chromium specs/quiz-mode-transitions.spec.js
+```
+
+Read-only live smoke checks against public URLs in a local config file:
+
+```bash
+tests/bin/run-live-smoke.sh
 ```
 
 ## 3) Environment Rules
@@ -65,6 +72,7 @@ Recommended `.env` keys to verify before debugging code:
 - `LL_E2E_BASE_URL`
 - `LL_E2E_LEARN_PATH`
 - `LL_E2E_PAGE_SPEED_PATH` and `LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS` when debugging the throttled page-speed regression
+- `LL_LIVE_SITES_FILE` when running the read-only live smoke suite against public URLs
 
 ## 4) Adding New PHPUnit Integration Tests
 
@@ -185,6 +193,7 @@ For behavior changes touching quiz/recording flows:
 For public-page shell, asset, or template changes that could affect perceived load time:
 
 1. `tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js`
+2. `tests/bin/run-live-smoke.sh` when you also need a low-impact post-deploy production sanity check
 
 Wordset-boundary changes should also include:
 

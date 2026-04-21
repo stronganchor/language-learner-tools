@@ -14,6 +14,8 @@
     const isLoggedIn = !!cfg.isLoggedIn;
     const wordsetId = parseInt(cfg.wordsetId, 10) || 0;
     const wordsetSlug = String(cfg.wordsetSlug || '');
+    const initialMainCategorySort = String(cfg.initialMainCategorySort || '');
+    const mainCategorySortCookieName = String(cfg.mainCategorySortCookieName || '');
     const modeUi = (cfg.modeUi && typeof cfg.modeUi === 'object') ? cfg.modeUi : {};
     const i18n = (cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {};
     const genderCfg = (cfg.gender && typeof cfg.gender === 'object') ? cfg.gender : {};
@@ -47,18 +49,15 @@
     const RESULTS_FOLLOWUP_PREFETCH_PROGRESS_RATIO = 0.8;
     const RESULTS_FOLLOWUP_PREFETCH_UNKNOWN_TOTAL_TRIGGER = 8;
     const LAZY_CARDS_AUTOLOAD_VIEWPORT_OFFSET_PX = 720;
+    const INLINE_SORT_WARM_ROWS = 2;
+    const INLINE_SORT_SCROLL_ROWS = 1;
+    const INLINE_SORT_AUTOLOAD_VIEWPORT_OFFSET_PX = 240;
     const lazyCardsCfg = (cfg.lazyCards && typeof cfg.lazyCards === 'object') ? cfg.lazyCards : {};
 
     let wordsByCategory = {};
     let categories = normalizeCategories(cfg.categories || []);
-    const categoryOrderLookup = {};
-    categories.forEach(function (category, index) {
-        const categoryId = parseInt(category && category.id, 10) || 0;
-        if (!categoryId || Object.prototype.hasOwnProperty.call(categoryOrderLookup, categoryId)) {
-            return;
-        }
-        categoryOrderLookup[categoryId] = index;
-    });
+    let categoryOrderLookup = {};
+    rebuildCategoryOrderLookup();
     let goals = normalizeGoals(cfg.goals || {});
     let state = normalizeState(cfg.state || {});
     let nextActivity = normalizeNextActivity(cfg.nextActivity || null);
@@ -76,6 +75,12 @@
     let mainCategorySearchRenderTimer = null;
     let mainCategorySearchLoadingTimer = null;
     let mainCategorySearchRenderToken = 0;
+    let mainCategorySort = 'default';
+    let mainCategorySortMenuOpen = false;
+    let mainCategoryMetricsReady = !!isLoggedIn && !cfg.summaryCountsDeferred;
+    let mainCategorySortLoading = false;
+    let mainCategorySortRequestToken = 0;
+    let inlineSortedPlaceholderScrollMode = false;
     let saveStateTimer = null;
     let stateSaveInFlightRequest = null;
     let stateSaveQueued = false;
@@ -256,6 +261,185 @@
         });
     }
 
+    function copyTextToClipboard(text) {
+        const value = String(text || '');
+        if (!value) {
+            return Promise.reject(new Error('empty_copy_value'));
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            return navigator.clipboard.writeText(value);
+        }
+
+        return new Promise(function (resolve, reject) {
+            const probe = document.createElement('textarea');
+            probe.value = value;
+            probe.setAttribute('readonly', 'readonly');
+            probe.style.position = 'fixed';
+            probe.style.top = '-9999px';
+            probe.style.opacity = '0';
+            document.body.appendChild(probe);
+            probe.focus();
+            probe.select();
+
+            try {
+                if (document.execCommand('copy')) {
+                    resolve();
+                } else {
+                    reject(new Error('copy_failed'));
+                }
+            } catch (error) {
+                reject(error);
+            } finally {
+                document.body.removeChild(probe);
+            }
+        });
+    }
+
+    function setCopyButtonFeedback(button, text) {
+        if (!button) { return; }
+        const resetLabel = String(button.getAttribute('data-ll-copy-label') || button.textContent || '').trim();
+        const feedbackLabel = String(text || '').trim();
+        if (!feedbackLabel) { return; }
+
+        button.textContent = feedbackLabel;
+        if (button._llCopyFeedbackTimer) {
+            window.clearTimeout(button._llCopyFeedbackTimer);
+        }
+        button._llCopyFeedbackTimer = window.setTimeout(function () {
+            button.textContent = resetLabel;
+            button._llCopyFeedbackTimer = 0;
+        }, 1600);
+    }
+
+    function bindTeacherClassesInteractions() {
+        const tables = Array.from($root[0].querySelectorAll('[data-ll-teacher-classes-progress-table]'));
+        if (!tables.length) {
+            return;
+        }
+
+        tables.forEach(function (table) {
+            const tbody = table.tBodies && table.tBodies[0];
+            const sortButtons = Array.from(table.querySelectorAll('[data-ll-teacher-classes-sort]'));
+            if (!tbody || !sortButtons.length) {
+                return;
+            }
+
+            Array.from(tbody.rows).forEach(function (row, index) {
+                row.setAttribute('data-ll-teacher-classes-row-index', String(index));
+            });
+
+            function updateSortState(activeButton, direction) {
+                sortButtons.forEach(function (button) {
+                    const th = button.closest('th');
+                    if (!th) { return; }
+                    const isActive = button === activeButton;
+                    th.setAttribute('aria-sort', isActive
+                        ? (direction === 'desc' ? 'descending' : 'ascending')
+                        : 'none');
+                    button.classList.toggle('is-active', isActive);
+                    if (isActive) {
+                        button.setAttribute('data-sort-direction', direction);
+                    } else {
+                        button.removeAttribute('data-sort-direction');
+                    }
+                });
+            }
+
+            function getCellValue(row, cellIndex, type) {
+                const cell = row && row.cells ? row.cells[cellIndex] : null;
+                const raw = cell
+                    ? String(cell.getAttribute('data-sort-value') || cell.textContent || '').trim()
+                    : '';
+
+                if (type === 'number') {
+                    const numberValue = parseFloat(raw);
+                    return Number.isFinite(numberValue) ? numberValue : null;
+                }
+
+                return raw;
+            }
+
+            function compareRows(leftRow, rightRow, cellIndex, type, direction) {
+                const leftValue = getCellValue(leftRow, cellIndex, type);
+                const rightValue = getCellValue(rightRow, cellIndex, type);
+                const leftEmpty = (leftValue === null) || (leftValue === '');
+                const rightEmpty = (rightValue === null) || (rightValue === '');
+
+                if (leftEmpty || rightEmpty) {
+                    if (leftEmpty && rightEmpty) {
+                        return 0;
+                    }
+                    return leftEmpty ? 1 : -1;
+                }
+
+                let result = 0;
+                if (type === 'number') {
+                    result = (leftValue === rightValue) ? 0 : (leftValue < rightValue ? -1 : 1);
+                } else {
+                    result = localeTextCompare(leftValue, rightValue, {
+                        numeric: true,
+                        sensitivity: 'base'
+                    });
+                }
+
+                if (result === 0) {
+                    const leftIndex = parseInt(leftRow.getAttribute('data-ll-teacher-classes-row-index') || '0', 10) || 0;
+                    const rightIndex = parseInt(rightRow.getAttribute('data-ll-teacher-classes-row-index') || '0', 10) || 0;
+                    result = (leftIndex === rightIndex) ? 0 : (leftIndex < rightIndex ? -1 : 1);
+                }
+
+                return direction === 'desc' ? -result : result;
+            }
+
+            function sortTable(button, forceDirection) {
+                const th = button.closest('th');
+                if (!th) {
+                    return;
+                }
+
+                const sortKey = String(button.getAttribute('data-ll-teacher-classes-sort') || '');
+                const sortType = String(button.getAttribute('data-sort-type') || 'text');
+                const defaultDirection = (String(button.getAttribute('data-sort-default') || 'asc') === 'desc') ? 'desc' : 'asc';
+                const currentKey = String(table.getAttribute('data-sort-key') || '');
+                const currentDirection = String(table.getAttribute('data-sort-direction') || '');
+                const direction = forceDirection || ((currentKey === sortKey && currentDirection === 'asc') ? 'desc' : defaultDirection);
+                const rows = Array.from(tbody.rows);
+
+                rows.sort(function (leftRow, rightRow) {
+                    return compareRows(leftRow, rightRow, th.cellIndex, sortType, direction);
+                });
+
+                rows.forEach(function (row) {
+                    tbody.appendChild(row);
+                });
+
+                table.setAttribute('data-sort-key', sortKey);
+                table.setAttribute('data-sort-direction', direction);
+                updateSortState(button, direction);
+            }
+
+            sortButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    sortTable(button, '');
+                });
+            });
+
+            const initialButton = sortButtons.find(function (button) {
+                return button.getAttribute('data-sort-initial') === '1';
+            }) || null;
+
+            if (initialButton) {
+                sortTable(
+                    initialButton,
+                    String(initialButton.getAttribute('data-sort-default') || 'asc') === 'desc' ? 'desc' : 'asc'
+                );
+            } else {
+                updateSortState(null, 'asc');
+            }
+        });
+    }
+
     let progressMiniBurstCleanupTimer = null;
     let progressMiniCountToken = 0;
     let isFlashcardOpen = false;
@@ -316,6 +500,10 @@
     const $mainCategorySearchInput = $root.find('[data-ll-wordset-page-search]');
     const $mainCategorySearchLoading = $root.find('[data-ll-wordset-page-search-loading]');
     const $mainCategorySearchEmpty = $root.find('[data-ll-wordset-page-search-empty]');
+    const $mainCategorySortRoot = $root.find('[data-ll-wordset-main-sort-root]').first();
+    const $mainCategorySortToggle = $root.find('[data-ll-wordset-main-sort-toggle]').first();
+    const $mainCategorySortMenu = $root.find('[data-ll-wordset-main-sort-menu]').first();
+    const $mainCategorySortOptions = $root.find('[data-ll-wordset-main-sort-option]');
     const $lazyCardsRoot = $root.find('[data-ll-wordset-lazy-root]').first();
     const $lazyCardsButton = $root.find('[data-ll-wordset-load-more]').first();
     const $lazyCardsStatus = $root.find('[data-ll-wordset-load-more-status]').first();
@@ -605,12 +793,643 @@
         }, Math.max(0, parseInt(delayMs, 10) || 0));
     }
 
+    function rebuildCategoryOrderLookup() {
+        const nextLookup = {};
+        categories.forEach(function (category, index) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (!categoryId || Object.prototype.hasOwnProperty.call(nextLookup, categoryId)) {
+                return;
+            }
+            nextLookup[categoryId] = index;
+        });
+        categoryOrderLookup = nextLookup;
+    }
+
+    function normalizeMainCategorySort(value) {
+        const key = String(value || '').trim().toLowerCase();
+        if (
+            key === 'alpha-asc'
+            || key === 'alpha-desc'
+            || key === 'progress-desc'
+            || key === 'progress-asc'
+            || key === 'recent-desc'
+            || key === 'recent-asc'
+        ) {
+            return key;
+        }
+        return 'default';
+    }
+
+    function mainCategorySortRequiresMetrics(sortKey) {
+        const key = normalizeMainCategorySort(sortKey);
+        return key === 'progress-desc'
+            || key === 'progress-asc'
+            || key === 'recent-desc'
+            || key === 'recent-asc';
+    }
+
+    function getMainCategorySortStorageKey() {
+        return 'llToolsWordsetMainSort:' + String(wordsetId || wordsetSlug || '0');
+    }
+
+    function getMainCategorySortCookieKey() {
+        return String(mainCategorySortCookieName || '').trim();
+    }
+
+    function getMainCategorySortStorage() {
+        try {
+            return window.localStorage || null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function readMainCategorySortStorageValue() {
+        const storage = getMainCategorySortStorage();
+        if (!storage || typeof storage.getItem !== 'function') {
+            return '';
+        }
+        try {
+            const value = storage.getItem(getMainCategorySortStorageKey());
+            return (typeof value === 'string') ? value : '';
+        } catch (_) {
+            return '';
+        }
+    }
+
+    function readMainCategorySortCookieValue() {
+        const cookieKey = getMainCategorySortCookieKey();
+        if (!cookieKey || typeof document === 'undefined') {
+            return '';
+        }
+
+        const rawCookie = String(document.cookie || '');
+        if (!rawCookie) {
+            return '';
+        }
+
+        const entries = rawCookie.split(';');
+        for (let index = 0; index < entries.length; index += 1) {
+            const entry = String(entries[index] || '').trim();
+            if (!entry) {
+                continue;
+            }
+
+            const separatorIndex = entry.indexOf('=');
+            const key = separatorIndex >= 0 ? entry.slice(0, separatorIndex).trim() : entry;
+            if (key !== cookieKey) {
+                continue;
+            }
+
+            const value = separatorIndex >= 0 ? entry.slice(separatorIndex + 1) : '';
+            try {
+                return decodeURIComponent(String(value || ''));
+            } catch (_) {
+                return String(value || '');
+            }
+        }
+
+        return '';
+    }
+
+    function readMainCategorySortPreference() {
+        const storageValue = readMainCategorySortStorageValue();
+        if (storageValue !== '') {
+            return normalizeMainCategorySort(storageValue);
+        }
+
+        const cookieValue = readMainCategorySortCookieValue();
+        if (cookieValue !== '') {
+            return normalizeMainCategorySort(cookieValue);
+        }
+
+        return normalizeMainCategorySort(initialMainCategorySort);
+    }
+
+    function writeMainCategorySortPreference(sortKey) {
+        const normalizedSort = normalizeMainCategorySort(sortKey);
+        const storage = getMainCategorySortStorage();
+        if (!storage || typeof storage.setItem !== 'function') {
+            // Continue and still try cookie persistence below.
+        } else {
+            try {
+                storage.setItem(getMainCategorySortStorageKey(), normalizedSort);
+            } catch (_) { /* no-op */ }
+        }
+
+        const cookieKey = getMainCategorySortCookieKey();
+        if (!cookieKey || typeof document === 'undefined') {
+            return;
+        }
+
+        try {
+            document.cookie = cookieKey + '=' + encodeURIComponent(normalizedSort)
+                + '; path=/; max-age=31536000; samesite=lax';
+        } catch (_) { /* no-op */ }
+    }
+
+    function mainCategorySortLabel(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        return String(cat.name || cat.translation || '').trim();
+    }
+
+    function mainCategoryDefaultOrder(category) {
+        return Math.max(0, parseInt(category && category.default_order, 10) || 0);
+    }
+
+    function mainCategoryProgressValues(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const totalWords = Math.max(0, parseInt(cat.count, 10) || 0);
+        const masteredWords = Math.max(0, parseInt(cat.mastered_words, 10) || 0);
+        const studiedTotal = Math.max(masteredWords, parseInt(cat.studied_words, 10) || 0);
+        const studiedWords = Math.max(0, studiedTotal - masteredWords);
+        const newWords = Math.max(0, parseInt(cat.new_words, 10) || Math.max(0, totalWords - studiedTotal));
+        const progressScore = totalWords > 0
+            ? (((masteredWords * 2) + studiedWords) / (totalWords * 2))
+            : 0;
+
+        return {
+            totalWords: totalWords,
+            masteredWords: masteredWords,
+            studiedTotal: studiedTotal,
+            studiedWords: studiedWords,
+            newWords: newWords,
+            progressScore: progressScore
+        };
+    }
+
+    function mainCategoryLastSeenTimestamp(category) {
+        const parsed = parseMysqlUtcDate(category && category.last_seen_at);
+        return parsed ? parsed.getTime() : 0;
+    }
+
+    function compareMainCategories(leftCategory, rightCategory) {
+        const left = (leftCategory && typeof leftCategory === 'object') ? leftCategory : {};
+        const right = (rightCategory && typeof rightCategory === 'object') ? rightCategory : {};
+        const currentSort = normalizeMainCategorySort(mainCategorySort);
+        const compareDefault = function () {
+            return mainCategoryDefaultOrder(left) - mainCategoryDefaultOrder(right);
+        };
+
+        const currentNeedsMetrics = mainCategorySortRequiresMetrics(currentSort);
+        if (currentNeedsMetrics && !mainCategoryMetricsReady) {
+            return compareDefault();
+        }
+
+        if (currentSort === 'alpha-asc' || currentSort === 'alpha-desc') {
+            const labelCompare = localeTextCompare(mainCategorySortLabel(left), mainCategorySortLabel(right), {
+                usage: 'sort',
+                sensitivity: 'base'
+            });
+            if (labelCompare !== 0) {
+                return currentSort === 'alpha-desc' ? -labelCompare : labelCompare;
+            }
+            return compareDefault();
+        }
+
+        if (currentSort === 'progress-desc' || currentSort === 'progress-asc') {
+            const leftProgress = mainCategoryProgressValues(left);
+            const rightProgress = mainCategoryProgressValues(right);
+            if (leftProgress.progressScore !== rightProgress.progressScore) {
+                return currentSort === 'progress-asc'
+                    ? (leftProgress.progressScore - rightProgress.progressScore)
+                    : (rightProgress.progressScore - leftProgress.progressScore);
+            }
+            if (leftProgress.masteredWords !== rightProgress.masteredWords) {
+                return currentSort === 'progress-asc'
+                    ? (leftProgress.masteredWords - rightProgress.masteredWords)
+                    : (rightProgress.masteredWords - leftProgress.masteredWords);
+            }
+            if (leftProgress.studiedTotal !== rightProgress.studiedTotal) {
+                return currentSort === 'progress-asc'
+                    ? (leftProgress.studiedTotal - rightProgress.studiedTotal)
+                    : (rightProgress.studiedTotal - leftProgress.studiedTotal);
+            }
+            if (leftProgress.newWords !== rightProgress.newWords) {
+                return currentSort === 'progress-asc'
+                    ? (leftProgress.newWords - rightProgress.newWords)
+                    : (rightProgress.newWords - leftProgress.newWords);
+            }
+            const recentCompare = mainCategoryLastSeenTimestamp(right) - mainCategoryLastSeenTimestamp(left);
+            if (recentCompare !== 0) {
+                return currentSort === 'progress-asc' ? -recentCompare : recentCompare;
+            }
+            const labelCompare = localeTextCompare(mainCategorySortLabel(left), mainCategorySortLabel(right), {
+                usage: 'sort',
+                sensitivity: 'base'
+            });
+            if (labelCompare !== 0) {
+                return labelCompare;
+            }
+            return compareDefault();
+        }
+
+        if (currentSort === 'recent-desc' || currentSort === 'recent-asc') {
+            const leftSeen = mainCategoryLastSeenTimestamp(left);
+            const rightSeen = mainCategoryLastSeenTimestamp(right);
+            if (leftSeen !== rightSeen) {
+                return currentSort === 'recent-asc'
+                    ? (leftSeen - rightSeen)
+                    : (rightSeen - leftSeen);
+            }
+            const leftProgress = mainCategoryProgressValues(left);
+            const rightProgress = mainCategoryProgressValues(right);
+            if (leftProgress.progressScore !== rightProgress.progressScore) {
+                return currentSort === 'recent-asc'
+                    ? (leftProgress.progressScore - rightProgress.progressScore)
+                    : (rightProgress.progressScore - leftProgress.progressScore);
+            }
+            const labelCompare = localeTextCompare(mainCategorySortLabel(left), mainCategorySortLabel(right), {
+                usage: 'sort',
+                sensitivity: 'base'
+            });
+            if (labelCompare !== 0) {
+                return labelCompare;
+            }
+            return compareDefault();
+        }
+
+        return compareDefault();
+    }
+
+    function sortMainCategoriesInMemory() {
+        categories = categories.slice().sort(compareMainCategories);
+        rebuildCategoryOrderLookup();
+    }
+
+    function isInlineSortedMainCategoryPlaceholderElement(node) {
+        return !!(
+            node
+            && node.nodeType === 1
+            && node.hasAttribute
+            && node.hasAttribute('data-ll-wordset-inline-placeholder')
+        );
+    }
+
+    function shouldUseInlineSortedMainCategoryPlaceholders() {
+        const currentSort = normalizeMainCategorySort(mainCategorySort);
+        if (currentSort === 'default' || isMainCategorySearchActive() || !hasPendingLazyCards()) {
+            return false;
+        }
+        if (mainCategorySortRequiresMetrics(currentSort) && !mainCategoryMetricsReady) {
+            return false;
+        }
+        return true;
+    }
+
+    function buildInlineSortedMainCategoryPlaceholderMarkup(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const categoryId = parseInt(cat.id, 10) || 0;
+        if (!categoryId) {
+            return '';
+        }
+
+        return ''
+            + '<article class="ll-wordset-card ll-wordset-card--lazy-placeholder ll-wordset-card--inline-sort-placeholder" role="listitem"'
+            + ' data-cat-id="' + categoryId + '"'
+            + ' data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '"'
+            + ' data-ll-wordset-inline-placeholder="true"'
+            + ' aria-hidden="true">'
+            + '  <div class="ll-wordset-card__top">'
+            + '    <span class="ll-wordset-card__select-box ll-wordset-card__skeleton-block" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__title-skeleton ll-wordset-card__skeleton-line" aria-hidden="true"></span>'
+            + '    <span class="ll-wordset-card__hide-spacer ll-wordset-card__skeleton-block ll-wordset-card__skeleton-block--icon" aria-hidden="true"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__preview ll-wordset-card__preview--lazy-placeholder" aria-hidden="true">'
+            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-preview-item ll-wordset-preview-item--lazy-skeleton"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__progress" aria-hidden="true">'
+            + '    <span class="ll-wordset-card__progress-track ll-wordset-card__progress-track--lazy-skeleton"></span>'
+            + '  </div>'
+            + '  <div class="ll-wordset-card__quiz-actions" aria-hidden="true">'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '    <span class="ll-wordset-card__quiz-btn ll-wordset-card__quiz-btn--lazy-skeleton"></span>'
+            + '  </div>'
+            + '</article>';
+    }
+
+    function createInlineSortedMainCategoryPlaceholderElement(category) {
+        const markup = buildInlineSortedMainCategoryPlaceholderMarkup(category);
+        if (!markup) {
+            return null;
+        }
+        const parsedNodes = $.parseHTML(String(markup), document, true) || [];
+        for (let index = 0; index < parsedNodes.length; index += 1) {
+            const node = parsedNodes[index];
+            if (node && node.nodeType === 1 && node.hasAttribute('data-ll-wordset-inline-placeholder')) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    function getMainCategoryCardSlotByCategoryId(categoryId) {
+        const id = parseInt(categoryId, 10) || 0;
+        if (!id) {
+            return $();
+        }
+        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]').first();
+    }
+
+    function reorderMainCategoryGridCards() {
+        if (!$grid.length || !$grid[0]) {
+            return;
+        }
+
+        const gridEl = $grid[0];
+        const childElements = $grid.children().toArray();
+        const useInlinePlaceholders = shouldUseInlineSortedMainCategoryPlaceholders();
+        if (!childElements.length && !useInlinePlaceholders) {
+            return;
+        }
+
+        const existingCategoryNodes = {};
+        const existingPlaceholderNodes = {};
+        childElements.forEach(function (child) {
+            if (!child || child.nodeType !== 1) {
+                return;
+            }
+            const categoryId = parseInt(child.getAttribute('data-cat-id') || '0', 10) || 0;
+            if (!categoryId) {
+                return;
+            }
+            if (isInlineSortedMainCategoryPlaceholderElement(child)) {
+                if (!existingPlaceholderNodes[categoryId]) {
+                    existingPlaceholderNodes[categoryId] = child;
+                }
+                return;
+            }
+            existingCategoryNodes[categoryId] = child;
+        });
+
+        const sortedCategoryNodes = categories.reduce(function (nodes, category) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (!categoryId || isCategoryHidden(categoryId)) {
+                return nodes;
+            }
+
+            if (existingCategoryNodes[categoryId]) {
+                nodes.push(existingCategoryNodes[categoryId]);
+                return nodes;
+            }
+
+            if (!useInlinePlaceholders) {
+                return nodes;
+            }
+
+            const placeholderNode = existingPlaceholderNodes[categoryId] || createInlineSortedMainCategoryPlaceholderElement(category);
+            if (placeholderNode) {
+                nodes.push(placeholderNode);
+            }
+            return nodes;
+        }, []);
+
+        if (!sortedCategoryNodes.length) {
+            if (childElements.length) {
+                childElements.forEach(function (child) {
+                    if (isInlineSortedMainCategoryPlaceholderElement(child) && child.parentNode === gridEl) {
+                        child.parentNode.removeChild(child);
+                    }
+                });
+            }
+            return;
+        }
+
+        const baseChildElements = childElements.filter(function (child) {
+            return useInlinePlaceholders || !isInlineSortedMainCategoryPlaceholderElement(child);
+        });
+        let nextCategoryIndex = 0;
+        const orderedChildren = baseChildElements.reduce(function (nodes, child) {
+            if (!child || child.nodeType !== 1) {
+                nodes.push(child);
+                return nodes;
+            }
+
+            const categoryId = parseInt(child.getAttribute('data-cat-id') || '0', 10) || 0;
+            if (!categoryId) {
+                nodes.push(child);
+                return nodes;
+            }
+
+            const replacement = sortedCategoryNodes[nextCategoryIndex] || child;
+            nextCategoryIndex += 1;
+            nodes.push(replacement);
+            return nodes;
+        }, []);
+
+        while (nextCategoryIndex < sortedCategoryNodes.length) {
+            orderedChildren.push(sortedCategoryNodes[nextCategoryIndex]);
+            nextCategoryIndex += 1;
+        }
+
+        const keepNodes = new Set(orderedChildren.filter(Boolean));
+        childElements.forEach(function (child) {
+            if (!child || child.parentNode !== gridEl || keepNodes.has(child)) {
+                return;
+            }
+            child.parentNode.removeChild(child);
+        });
+
+        const fragment = document.createDocumentFragment();
+        orderedChildren.forEach(function (child) {
+            if (child) {
+                fragment.appendChild(child);
+            }
+        });
+        gridEl.appendChild(fragment);
+        scheduleSelectAllAlignment();
+    }
+
+    function closeMainCategorySortMenu() {
+        mainCategorySortMenuOpen = false;
+        syncMainCategorySortUi();
+    }
+
+    function openMainCategorySortMenu() {
+        if (!$mainCategorySortRoot.length) {
+            return;
+        }
+        mainCategorySortMenuOpen = true;
+        syncMainCategorySortUi();
+    }
+
+    function syncMainCategorySortUi() {
+        if (!$mainCategorySortRoot.length) {
+            return;
+        }
+
+        const currentSort = normalizeMainCategorySort(mainCategorySort);
+        const waitingForMetrics = mainCategorySortRequiresMetrics(currentSort) && isLoggedIn && !mainCategoryMetricsReady;
+        const busy = waitingForMetrics || mainCategorySortLoading;
+        $mainCategorySortRoot
+            .toggleClass('is-open', mainCategorySortMenuOpen)
+            .toggleClass('has-custom-sort', currentSort !== 'default')
+            .toggleClass('is-pending-metrics', waitingForMetrics)
+            .toggleClass('is-loading', mainCategorySortLoading);
+
+        if ($mainCategorySortToggle.length) {
+            $mainCategorySortToggle.attr('aria-expanded', mainCategorySortMenuOpen ? 'true' : 'false');
+            if (busy) {
+                $mainCategorySortToggle.attr('aria-busy', 'true');
+            } else {
+                $mainCategorySortToggle.removeAttr('aria-busy');
+            }
+        }
+
+        if ($mainCategorySortMenu.length) {
+            $mainCategorySortMenu.prop('hidden', !mainCategorySortMenuOpen);
+        }
+
+        if ($mainCategorySortOptions.length) {
+            $mainCategorySortOptions.each(function () {
+                const $option = $(this);
+                const optionSort = normalizeMainCategorySort($option.attr('data-ll-wordset-main-sort-option') || '');
+                const isActive = optionSort === currentSort;
+                $option
+                    .toggleClass('is-active', isActive)
+                    .attr('aria-checked', isActive ? 'true' : 'false');
+            });
+        }
+    }
+
+    function refreshMainCategoryOrdering(options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const shouldEnsureAllLoaded = !!opts.ensureAllLoaded && hasPendingLazyCards();
+        const renderOrdering = function () {
+            sortMainCategoriesInMemory();
+            renderMainCategorySearch();
+        };
+
+        if (!shouldEnsureAllLoaded) {
+            renderOrdering();
+            return $.Deferred().resolve({
+                ensuredAllLoaded: false
+            }).promise();
+        }
+
+        const requestToken = ++mainCategorySortRequestToken;
+        mainCategorySortLoading = true;
+        syncMainCategorySortUi();
+
+        return ensureAllMainCardsLoaded()
+            .done(function () {
+                if (requestToken !== mainCategorySortRequestToken) {
+                    return;
+                }
+                renderOrdering();
+            })
+            .fail(function () {
+                if (requestToken !== mainCategorySortRequestToken) {
+                    return;
+                }
+                renderOrdering();
+            })
+            .always(function () {
+                if (requestToken !== mainCategorySortRequestToken) {
+                    return;
+                }
+                mainCategorySortLoading = false;
+                syncMainCategorySortUi();
+            });
+    }
+
+    function setMainCategorySort(sortKey, options) {
+        const opts = (options && typeof options === 'object') ? options : {};
+        const nextSort = normalizeMainCategorySort(sortKey);
+        const changed = nextSort !== mainCategorySort;
+        mainCategorySort = nextSort;
+        if (changed) {
+            inlineSortedPlaceholderScrollMode = false;
+        }
+
+        if (opts.persist !== false) {
+            writeMainCategorySortPreference(mainCategorySort);
+        }
+
+        syncMainCategorySortUi();
+        if (opts.closeMenu !== false) {
+            closeMainCategorySortMenu();
+        }
+
+        if (opts.skipRender !== true) {
+            return refreshMainCategoryOrdering({
+                ensureAllLoaded: !!opts.ensureAllLoaded
+            });
+        }
+
+        return $.Deferred().resolve({
+            changed: changed,
+            skipped: true
+        }).promise();
+    }
+
+    function applyMainCategoryMetricsFromAnalytics(analyticsPayload) {
+        const analyticsData = (analyticsPayload && typeof analyticsPayload === 'object') ? analyticsPayload : {};
+        if (!Array.isArray(analyticsData.categories)) {
+            return false;
+        }
+
+        const wasReady = !!mainCategoryMetricsReady;
+        const metricsById = {};
+        analyticsData.categories.forEach(function (row) {
+            const source = (row && typeof row === 'object') ? row : {};
+            const categoryId = parseInt(source.id, 10) || 0;
+            if (!categoryId) {
+                return;
+            }
+            metricsById[categoryId] = {
+                mastered_words: Math.max(0, parseInt(source.mastered_words, 10) || 0),
+                studied_words: Math.max(0, parseInt(source.studied_words, 10) || 0),
+                new_words: Math.max(0, parseInt(source.new_words, 10) || 0),
+                last_seen_at: String(source.last_seen_at || '')
+            };
+        });
+
+        let changed = false;
+        categories = categories.map(function (category) {
+            const cat = (category && typeof category === 'object') ? category : {};
+            const categoryId = parseInt(cat.id, 10) || 0;
+            if (!categoryId) {
+                return cat;
+            }
+
+            const fallbackCount = Math.max(0, parseInt(cat.count, 10) || 0);
+            const nextMetrics = metricsById[categoryId] || {
+                mastered_words: 0,
+                studied_words: 0,
+                new_words: fallbackCount,
+                last_seen_at: ''
+            };
+
+            if (
+                parseInt(cat.mastered_words, 10) !== nextMetrics.mastered_words
+                || parseInt(cat.studied_words, 10) !== nextMetrics.studied_words
+                || parseInt(cat.new_words, 10) !== nextMetrics.new_words
+                || String(cat.last_seen_at || '') !== nextMetrics.last_seen_at
+            ) {
+                changed = true;
+            }
+
+            return Object.assign({}, cat, nextMetrics);
+        });
+
+        mainCategoryMetricsReady = !!isLoggedIn;
+        syncMainCategorySortUi();
+
+        return changed || !wasReady;
+    }
+
     function normalizeCategories(raw) {
-        return (Array.isArray(raw) ? raw : []).map(function (cat) {
+        return (Array.isArray(raw) ? raw : []).map(function (cat, index) {
             const id = parseInt(cat && cat.id, 10) || 0;
             if (!id) { return null; }
             return {
                 id: id,
+                default_order: Math.max(0, parseInt(cat && cat.default_order, 10) || index),
                 slug: String((cat && cat.slug) || ''),
                 name: String((cat && cat.name) || ''),
                 translation: String((cat && cat.translation) || ''),
@@ -625,7 +1444,12 @@
                     : true,
                 gender_supported: !!(cat && cat.gender_supported),
                 hidden: !!(cat && cat.hidden),
+                has_images: !!(cat && cat.has_images),
                 search_text: String((cat && cat.search_text) || ''),
+                mastered_words: Math.max(0, parseInt(cat && cat.mastered_words, 10) || 0),
+                studied_words: Math.max(0, parseInt(cat && cat.studied_words, 10) || 0),
+                new_words: Math.max(0, parseInt(cat && cat.new_words, 10) || Math.max(0, parseInt(cat && cat.count, 10) || 0)),
+                last_seen_at: String((cat && cat.last_seen_at) || ''),
                 preview: normalizeCategoryPreview(cat && cat.preview)
             };
         }).filter(Boolean);
@@ -5684,6 +6508,24 @@
         return lookup;
     }
 
+    function buildCategoryProgressLookupForMainGrid() {
+        const lookup = buildCategoryProgressLookupFromAnalytics();
+        categories.forEach(function (category) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (!categoryId || lookup[categoryId]) {
+                return;
+            }
+
+            lookup[categoryId] = buildWordsetCardProgressPercentsFromAnalyticsRow({
+                word_count: parseInt(category && category.count, 10) || 0,
+                mastered_words: parseInt(category && category.mastered_words, 10) || 0,
+                studied_words: parseInt(category && category.studied_words, 10) || 0,
+                new_words: parseInt(category && category.new_words, 10) || 0
+            });
+        });
+        return lookup;
+    }
+
     function buildCategoryStarredLookupFromAnalytics() {
         const lookup = {};
         const rows = Array.isArray(analytics.words) ? analytics.words : [];
@@ -5704,6 +6546,22 @@
                 }
                 lookup[categoryId] = (lookup[categoryId] || 0) + 1;
             });
+        });
+        return lookup;
+    }
+
+    function buildCategoryStarredLookupForMainGrid() {
+        const lookup = buildCategoryStarredLookupFromAnalytics();
+        categories.forEach(function (category) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (!categoryId || lookup[categoryId]) {
+                return;
+            }
+
+            const starredWords = Math.max(0, parseInt(category && category.starred_words, 10) || 0);
+            if (starredWords > 0) {
+                lookup[categoryId] = starredWords;
+            }
         });
         return lookup;
     }
@@ -5821,15 +6679,15 @@
             return $();
         }
 
-        const $existing = getWordsetCardByCategoryId(targetId);
-        if ($existing.length) {
-            if ($existing.is('[data-ll-wordset-search-rendered="true"]')) {
-                $node.insertBefore($existing);
-                $existing.remove();
+        const $existingSlot = getMainCategoryCardSlotByCategoryId(targetId);
+        if ($existingSlot.length) {
+            if ($existingSlot.is('[data-ll-wordset-search-rendered="true"], [data-ll-wordset-inline-placeholder="true"]')) {
+                $node.insertBefore($existingSlot);
+                $existingSlot.remove();
                 return $node;
             }
             $node.remove();
-            return $existing;
+            return $existingSlot;
         }
 
         const targetOrder = getCategoryOrderIndex(targetId);
@@ -5955,39 +6813,49 @@
             return 1;
         }
 
-        const visibleCards = $grid.children('.ll-wordset-card').toArray().filter(function (cardEl) {
+        const visibleCards = $grid.children('.ll-wordset-card').toArray().map(function (cardEl) {
             if (!cardEl || cardEl.hidden) {
-                return false;
+                return null;
             }
             if (cardEl.classList && cardEl.classList.contains('is-search-filtered-out')) {
-                return false;
+                return null;
             }
             if (window.getComputedStyle && typeof window.getComputedStyle === 'function') {
                 const computed = window.getComputedStyle(cardEl);
                 if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) {
-                    return false;
+                    return null;
                 }
             }
-            return !!cardEl.getBoundingClientRect;
-        });
+            if (!cardEl.getBoundingClientRect) {
+                return null;
+            }
+
+            const rect = cardEl.getBoundingClientRect();
+            if (!rect || rect.width <= 0 || rect.height <= 0) {
+                return null;
+            }
+
+            return {
+                element: cardEl,
+                rect: rect
+            };
+        }).filter(Boolean);
 
         if (!visibleCards.length) {
             return 1;
         }
 
-        const firstRect = visibleCards[0].getBoundingClientRect();
-        if (!firstRect || firstRect.width <= 0 || firstRect.height <= 0) {
-            return 1;
-        }
-
-        const firstRowTop = firstRect.top;
-        let columnCount = 0;
-        visibleCards.forEach(function (cardEl) {
-            const rect = cardEl.getBoundingClientRect();
-            if (!rect || rect.width <= 0 || rect.height <= 0) {
-                return;
+        visibleCards.sort(function (left, right) {
+            if (Math.abs(left.rect.top - right.rect.top) > 6) {
+                return left.rect.top - right.rect.top;
             }
-            if (Math.abs(rect.top - firstRowTop) <= 6) {
+            return left.rect.left - right.rect.left;
+        });
+
+        const firstRowTop = visibleCards[0].rect.top;
+        let columnCount = 0;
+        visibleCards.forEach(function (entry) {
+            if (Math.abs(entry.rect.top - firstRowTop) <= 6) {
                 columnCount += 1;
             }
         });
@@ -6038,9 +6906,10 @@
         const opts = (options && typeof options === 'object') ? options : {};
         const hasError = !!opts.error;
         const searchActive = isMainCategorySearchActive();
+        const inlineSortedPlaceholders = shouldUseInlineSortedMainCategoryPlaceholders();
         const hasMore = hasPendingLazyCards();
 
-        if (!hasMore || hasError || searchActive) {
+        if (!hasMore || hasError || searchActive || inlineSortedPlaceholders) {
             lazyCardsPlaceholderCount = 0;
             $lazyCardsPlaceholders.empty().prop('hidden', true);
             return;
@@ -6085,6 +6954,9 @@
         const hasError = !!opts.error;
         const hasMore = hasPendingLazyCards();
         const searchActive = isMainCategorySearchActive();
+        const inlineSortedPlaceholders = shouldUseInlineSortedMainCategoryPlaceholders();
+
+        $lazyCardsRoot.toggleClass('has-inline-sort-placeholders', inlineSortedPlaceholders);
 
         if (!hasMore) {
             $lazyCardsRoot.prop('hidden', true).removeClass('is-loading is-error');
@@ -6198,6 +7070,145 @@
         scheduleLazyCardsAutoLoadCheck();
     }
 
+    function getInlineSortedMainCategoryWarmSlotCount() {
+        if (!shouldUseInlineSortedMainCategoryPlaceholders()) {
+            return 0;
+        }
+
+        const visibleCategoryCount = categories.reduce(function (count, category) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (!categoryId || isCategoryHidden(categoryId)) {
+                return count;
+            }
+            return count + 1;
+        }, 0);
+        if (!visibleCategoryCount) {
+            return 0;
+        }
+
+        const columnCount = Math.max(1, getLazyCardsPlaceholderColumnCount());
+        return Math.min(visibleCategoryCount, Math.max(1, columnCount * INLINE_SORT_WARM_ROWS));
+    }
+
+    function getInlineSortedMainCategoryScrollBatchCount() {
+        if (!shouldUseInlineSortedMainCategoryPlaceholders()) {
+            return 0;
+        }
+
+        return Math.max(1, getLazyCardsPlaceholderColumnCount() * INLINE_SORT_SCROLL_ROWS);
+    }
+
+    function getInlineSortedMainCategoryPlaceholderElements() {
+        if (!$grid.length) {
+            return [];
+        }
+
+        return $grid.children('.ll-wordset-card[data-ll-wordset-inline-placeholder="true"]').toArray().filter(function (node) {
+            if (!node || node.hidden) {
+                return false;
+            }
+            if (node.classList && node.classList.contains('is-search-filtered-out')) {
+                return false;
+            }
+            if (window.getComputedStyle && typeof window.getComputedStyle === 'function') {
+                const computed = window.getComputedStyle(node);
+                if (computed && (computed.display === 'none' || computed.visibility === 'hidden')) {
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    }
+
+    function getVisibleInlineSortedMainCategoryPlaceholderElements() {
+        return getInlineSortedMainCategoryPlaceholderElements().filter(function (node) {
+            if (!node || !node.getBoundingClientRect) {
+                return false;
+            }
+            const rect = node.getBoundingClientRect();
+            return !!rect && rect.width > 0 && rect.height > 0;
+        });
+    }
+
+    function isInlineSortedPlaceholderNearViewport() {
+        const placeholders = getVisibleInlineSortedMainCategoryPlaceholderElements();
+        if (!placeholders.length) {
+            return false;
+        }
+
+        const rect = placeholders[0].getBoundingClientRect();
+        if (!rect) {
+            return false;
+        }
+
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        return rect.top <= (viewportHeight + INLINE_SORT_AUTOLOAD_VIEWPORT_OFFSET_PX);
+    }
+
+    function materializeInlineSortedMainCategoryCards(options) {
+        if (!$grid.length) {
+            return 0;
+        }
+
+        const opts = (options && typeof options === 'object') ? options : {};
+        const slotCount = Math.max(0, parseInt(opts.count, 10) || getInlineSortedMainCategoryWarmSlotCount());
+        if (!slotCount) {
+            return 0;
+        }
+
+        const placeholderElements = getInlineSortedMainCategoryPlaceholderElements();
+        if (!placeholderElements.length) {
+            return 0;
+        }
+
+        const targetCategoryIds = placeholderElements.slice(0, slotCount).map(function (node) {
+            return parseInt(node && node.getAttribute && node.getAttribute('data-cat-id'), 10) || 0;
+        }).filter(function (categoryId) {
+            return !!categoryId;
+        });
+        if (!targetCategoryIds.length) {
+            return 0;
+        }
+
+        const categoryLookup = {};
+        categories.forEach(function (category) {
+            const categoryId = parseInt(category && category.id, 10) || 0;
+            if (categoryId) {
+                categoryLookup[categoryId] = category;
+            }
+        });
+        const progressLookup = buildCategoryProgressLookupForMainGrid();
+        const starredLookup = buildCategoryStarredLookupForMainGrid();
+        let $inserted = $();
+
+        targetCategoryIds.forEach(function (categoryId) {
+            const category = categoryLookup[categoryId];
+            if (!category || isCategoryHidden(categoryId)) {
+                return;
+            }
+            if (!getWordsetCardByCategoryId(categoryId).length) {
+                const markup = buildWordsetCategoryCardMarkup(category, {
+                    progressLookup: progressLookup,
+                    starredLookup: starredLookup
+                });
+                if (markup) {
+                    const parsedNodes = $.parseHTML(String(markup), document, true) || [];
+                    const $card = $(parsedNodes).filter('.ll-wordset-card[data-cat-id]').first();
+                    if ($card.length) {
+                        const $mounted = insertCategoryCardIntoGrid($card, categoryId);
+                        if ($mounted.length) {
+                            $inserted = $inserted.add($mounted);
+                        }
+                    }
+                }
+            }
+        });
+
+        finalizeInsertedMainGridCards($inserted);
+        return $inserted.length;
+    }
+
     function cancelLazyCardsAutoLoadCheck() {
         if (!lazyCardsAutoLoadRaf) {
             return;
@@ -6224,6 +7235,23 @@
         if (isMainCategorySearchActive() || !lazyCardsEnabled || !hasPendingLazyCards() || lazyCardsRequest || $lazyCardsRoot.hasClass('is-error')) {
             return;
         }
+
+        const inlinePlaceholderNearViewport = (
+            inlineSortedPlaceholderScrollMode
+            && shouldUseInlineSortedMainCategoryPlaceholders()
+            && isInlineSortedPlaceholderNearViewport()
+        );
+        if (inlinePlaceholderNearViewport) {
+            const materializedCount = materializeInlineSortedMainCategoryCards({
+                count: getInlineSortedMainCategoryScrollBatchCount()
+            });
+            if (materializedCount > 0) {
+                syncLazyCardsUi({ loading: false });
+                scheduleLazyCardsAutoLoadCheck();
+                return;
+            }
+        }
+
         if (!isLazyCardsSentinelNearViewport()) {
             return;
         }
@@ -6374,6 +7402,9 @@
         $(window)
             .off('.llWordsetLazyCards')
             .on('scroll.llWordsetLazyCards resize.llWordsetLazyCards orientationchange.llWordsetLazyCards load.llWordsetLazyCards', function (event) {
+                if (event && event.type === 'scroll') {
+                    inlineSortedPlaceholderScrollMode = true;
+                }
                 if (event && event.type !== 'scroll') {
                     syncLazyCardsPlaceholders({ error: $lazyCardsRoot.hasClass('is-error') });
                 }
@@ -6429,10 +7460,15 @@
             }
         });
 
+        if (!query) {
+            removeTemporarySearchResultCards();
+        }
+        reorderMainCategoryGridCards();
+        if (!query) {
+            materializeInlineSortedMainCategoryCards();
+        }
         if (query) {
             ensureSearchMatchCardsRendered(visibleLookup, query);
-        } else {
-            removeTemporarySearchResultCards();
         }
 
         const previousSelectedIds = uniqueIntList(selectedCategoryIds || []);
@@ -6544,6 +7580,7 @@
         }
 
         syncSelectAllButton();
+        syncMainCategorySortUi();
     }
 
     function syncSelectAllButton() {
@@ -7764,7 +8801,7 @@
     function getWordsetCardByCategoryId(categoryId) {
         const id = parseInt(categoryId, 10) || 0;
         if (!id) { return $(); }
-        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]').first();
+        return $root.find('.ll-wordset-card[data-cat-id="' + id + '"]:not([data-ll-wordset-inline-placeholder="true"])').first();
     }
 
     function getWordsetCardProgressSegments($card) {
@@ -8477,6 +9514,10 @@
                 clearInitialWordsetCardProgressLoading();
                 complete({ hasCountChanges: false, skipped: true });
                 return;
+            }
+            const categoryMetricsChanged = applyMainCategoryMetricsFromAnalytics(analytics);
+            if (categoryMetricsChanged && mainCategorySortRequiresMetrics(mainCategorySort)) {
+                refreshMainCategoryOrdering();
             }
             const hasCategoryProgressChanges = queueCategoryProgressUpdatesFromAnalytics(analytics, {
                 deferVisible: deferVisibleCategoryProgress,
@@ -11698,6 +12739,13 @@
         schedulePendingCategoryProgressVisibilityCheck();
         clearCategorySelection({ refreshRecommendation: false });
         syncGlobalPrefs();
+        mainCategorySort = readMainCategorySortPreference();
+        if (!isLoggedIn && mainCategorySortRequiresMetrics(mainCategorySort)) {
+            mainCategorySort = 'default';
+        }
+        writeMainCategorySortPreference(mainCategorySort);
+        syncMainCategorySortUi();
+        refreshMainCategoryOrdering();
         scheduleSelectAllAlignment();
         $(window).off('resize.llWordsetSelectAllAlign').on('resize.llWordsetSelectAllAlign', function () {
             scheduleSelectAllAlignment();
@@ -11707,6 +12755,57 @@
             mainCategorySearchQuery = String($mainCategorySearchInput.val() || '');
             renderMainCategorySearch();
         }
+
+        if ($mainCategorySortToggle.length) {
+            $root.on('click', '[data-ll-wordset-main-sort-toggle]', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (mainCategorySortLoading) {
+                    return;
+                }
+                if (mainCategorySortMenuOpen) {
+                    closeMainCategorySortMenu();
+                    return;
+                }
+                openMainCategorySortMenu();
+            });
+        }
+
+        if ($mainCategorySortOptions.length) {
+            $root.on('click', '[data-ll-wordset-main-sort-option]', function (event) {
+                const $option = $(this);
+                if ($option.prop('disabled') || mainCategorySortLoading) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                setMainCategorySort($option.attr('data-ll-wordset-main-sort-option') || 'default');
+            });
+        }
+
+        $(document)
+            .off('click.llWordsetMainSort')
+            .on('click.llWordsetMainSort', function (event) {
+                if (!mainCategorySortMenuOpen) {
+                    return;
+                }
+                const target = event && event.target ? event.target : null;
+                if (target && $(target).closest('[data-ll-wordset-main-sort-root]').length) {
+                    return;
+                }
+                closeMainCategorySortMenu();
+            })
+            .off('keydown.llWordsetMainSort')
+            .on('keydown.llWordsetMainSort', function (event) {
+                if (!mainCategorySortMenuOpen || !event || event.key !== 'Escape') {
+                    return;
+                }
+                event.preventDefault();
+                closeMainCategorySortMenu();
+                if ($mainCategorySortToggle.length) {
+                    $mainCategorySortToggle.trigger('focus');
+                }
+            });
 
         $root.on('change', '[data-ll-wordset-select]', function () {
             const categoryId = parseInt($(this).val(), 10) || 0;
@@ -12249,6 +13348,25 @@
             handleProgressWordAudioClick(this);
         });
 
+        $root.on('click', '[data-ll-copy-target]', function (evt) {
+            evt.preventDefault();
+            const button = this;
+            const targetId = String(button.getAttribute('data-ll-copy-target') || '').trim();
+            if (!targetId) { return; }
+            const target = document.getElementById(targetId);
+            if (!target) { return; }
+
+            const value = ('value' in target)
+                ? String(target.value || '')
+                : String(target.textContent || '');
+
+            copyTextToClipboard(value).then(function () {
+                setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-success'));
+            }).catch(function () {
+                setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-failure'));
+            });
+        });
+
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
             if (isFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose({ silent: true });
@@ -12309,6 +13427,10 @@
 
     if (view === 'games' && window.LLWordsetGames && typeof window.LLWordsetGames.init === 'function') {
         window.LLWordsetGames.init($root[0], cfg);
+    }
+
+    if (view === 'classes') {
+        bindTeacherClassesInteractions();
     }
 
     if (view === 'main') {

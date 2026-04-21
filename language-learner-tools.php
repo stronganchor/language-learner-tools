@@ -3,15 +3,12 @@
 Plugin Name: Language Learner Tools
 Plugin URI: https://github.com/stronganchor/language-learner-tools
 Description: WordPress tools for building language-learning vocabulary content with word management, audio/image uploads, and ready-to-use flashcard quizzes and embeddable practice pages.
-<<<<<<< HEAD
-Version: 6.0.0
-=======
-Version: 5.11.20
->>>>>>> 862f8f6c604b812462f2718619b3529e97e15bf5
+Version: 6.1.0
 Author: Strong Anchor Tech
 Author URI: https://stronganchortech.com
 Text Domain: ll-tools-text-domain
 Domain Path: /languages
+Requires PHP: 8.0
 */
 
 // If this file is called directly, abort.
@@ -19,20 +16,66 @@ if (!defined('WPINC')) {
     die;
 }
 
-define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__)); 
+define('LL_TOOLS_BASE_URL', plugin_dir_url(__FILE__));
 define('LL_TOOLS_BASE_PATH', plugin_dir_path(__FILE__));
 define('LL_TOOLS_MAIN_FILE', __FILE__);
-<<<<<<< HEAD
-define('LL_TOOLS_VERSION', '6.0.0');
+define('LL_TOOLS_VERSION', '6.1.0');
+define('LL_TOOLS_MIN_PHP_VERSION', '8.0');
 define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
 define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
 define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
-=======
-define('LL_TOOLS_VERSION', '5.11.20');
-define('LL_TOOLS_MIN_WORDS_PER_QUIZ', 5);
-define('LL_TOOLS_SETTINGS_SLUG', 'language-learning-tools-settings');
-define('LL_TOOLS_VERSION_OPTION', 'll_tools_plugin_version');
->>>>>>> 862f8f6c604b812462f2718619b3529e97e15bf5
+
+function ll_tools_is_supported_php_version($version = null): bool {
+    if (!is_string($version) || $version === '') {
+        $version = PHP_VERSION;
+    }
+
+    return version_compare($version, LL_TOOLS_MIN_PHP_VERSION, '>=');
+}
+
+function ll_tools_get_unsupported_php_notice_message($current_version = null): string {
+    if (!is_string($current_version) || $current_version === '') {
+        $current_version = PHP_VERSION;
+    }
+
+    return sprintf(
+        /* translators: 1: minimum supported PHP version, 2: current PHP version */
+        __('Language Learner Tools requires PHP %1$s or newer. This site is running PHP %2$s, so the plugin was not loaded to prevent a fatal error.', 'll-tools-text-domain'),
+        LL_TOOLS_MIN_PHP_VERSION,
+        $current_version
+    );
+}
+
+function ll_tools_render_unsupported_php_notice(): void {
+    if (function_exists('current_user_can') && !current_user_can('activate_plugins')) {
+        return;
+    }
+
+    echo '<div class="notice notice-error"><p>' . esc_html(ll_tools_get_unsupported_php_notice_message()) . '</p></div>';
+}
+
+function ll_tools_block_activation_on_unsupported_php(): void {
+    if (ll_tools_is_supported_php_version()) {
+        return;
+    }
+
+    if (function_exists('deactivate_plugins')) {
+        deactivate_plugins(plugin_basename(__FILE__));
+    }
+
+    wp_die(
+        esc_html(ll_tools_get_unsupported_php_notice_message()),
+        esc_html__('Plugin Activation Error', 'll-tools-text-domain'),
+        ['back_link' => true]
+    );
+}
+register_activation_hook(__FILE__, 'll_tools_block_activation_on_unsupported_php');
+
+if (!ll_tools_is_supported_php_version()) {
+    add_action('admin_notices', 'll_tools_render_unsupported_php_notice');
+    add_action('network_admin_notices', 'll_tools_render_unsupported_php_notice');
+    return;
+}
 
 function ll_tools_normalize_update_branch($branch) {
     return ($branch === 'dev') ? 'dev' : 'main';

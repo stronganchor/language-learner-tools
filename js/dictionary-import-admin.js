@@ -17,6 +17,8 @@ jQuery(function ($) {
 
     var currentJob = null;
     var processing = false;
+    var requestFailureCount = 0;
+    var maxFailureRetries = 4;
 
     function setBusy(isBusy) {
         $('[data-ll-dictionary-job-form] :submit').prop('disabled', !!isBusy);
@@ -46,6 +48,19 @@ jQuery(function ($) {
             return;
         }
         $summaryArea.empty();
+    }
+
+    function scheduleRecoveryAttempt(message) {
+        if (!currentJob || !currentJob.id || !currentJob.has_more || requestFailureCount >= maxFailureRetries) {
+            return false;
+        }
+
+        requestFailureCount += 1;
+        renderError(message || (config.strings && config.strings.retrying ? config.strings.retrying : 'Checking import status...'));
+        setBusy(true);
+        window.setTimeout(loadCurrentJob, Math.min(4000, 750 * requestFailureCount));
+
+        return true;
     }
 
     function renderJob(job, errorMessage) {
@@ -107,13 +122,14 @@ jQuery(function ($) {
             nonce: config.nonce
         }).done(function (response) {
             var job = response && response.success && response.data ? response.data.job : null;
+            requestFailureCount = 0;
             if (job) {
                 renderJob(job);
             }
             processing = false;
 
             if (job && job.has_more) {
-                window.setTimeout(processNextStep, 80);
+                window.setTimeout(processNextStep, response && response.data && response.data.locked ? 350 : 80);
                 return;
             }
 
@@ -124,8 +140,14 @@ jQuery(function ($) {
             var response = xhr && xhr.responseJSON && xhr.responseJSON.data ? xhr.responseJSON.data : null;
             if (response && response.job) {
                 renderJob(response.job, response.message || message);
+                if (response.job.has_more && scheduleRecoveryAttempt(config.strings && config.strings.retrying ? config.strings.retrying : message)) {
+                    return;
+                }
             } else {
                 renderError(response && response.message ? response.message : message);
+                if (scheduleRecoveryAttempt(config.strings && config.strings.retrying ? config.strings.retrying : message)) {
+                    return;
+                }
             }
             setBusy(false);
         });
@@ -136,6 +158,9 @@ jQuery(function ($) {
         formData.append('action', config.startAction);
         formData.append('nonce', config.nonce);
 
+        currentJob = null;
+        processing = false;
+        requestFailureCount = 0;
         setBusy(true);
         showRuntime();
         renderSummary(null);
@@ -146,12 +171,15 @@ jQuery(function ($) {
         $progressBar.css('width', '0%');
         $progressText.text('');
         $detailText.text('');
+        $adviceTitle.text('');
+        $adviceText.text('');
 
         ajaxRequest({}, {
             method: 'POST',
             data: formData
         }).done(function (response) {
             var job = response && response.success && response.data ? response.data.job : null;
+            requestFailureCount = 0;
             if (!job) {
                 renderError(config.strings && config.strings.failed ? config.strings.failed : 'Import failed.');
                 setBusy(false);
@@ -187,26 +215,25 @@ jQuery(function ($) {
         }).done(function (response) {
             var job = response && response.success && response.data ? response.data.job : null;
             if (!job) {
+                setBusy(false);
                 return;
             }
+            requestFailureCount = 0;
             renderJob(job);
             if (job.has_more) {
                 setBusy(true);
                 window.setTimeout(processNextStep, 150);
             }
+        }).fail(function () {
+            if (scheduleRecoveryAttempt(config.strings && config.strings.retrying ? config.strings.retrying : 'Checking import status...')) {
+                return;
+            }
+            setBusy(false);
         });
     }
 
     $('[data-ll-dictionary-job-form]').on('submit', function (event) {
         event.preventDefault();
-        var $form = $(this);
-        if ($form.attr('id') === 'll-dictionary-legacy-form') {
-            $form.find('input[name="ll_dictionary_wordset_id"]').val($('#ll-dictionary-wordset').val() || '0');
-            $form.find('input[name="ll_dictionary_entry_lang"]').val($('#ll-dictionary-entry-lang').val() || '');
-            $form.find('input[name="ll_dictionary_def_lang"]').val($('#ll-dictionary-def-lang').val() || '');
-            $form.find('input[name="ll_dictionary_skip_review_rows"]').val($('input[name="ll_dictionary_skip_review_rows"]').is(':checked') ? '1' : '0');
-            $form.find('input[name="ll_dictionary_replace_existing_senses"]').val($('input[name="ll_dictionary_replace_existing_senses"]').is(':checked') ? '1' : '0');
-        }
         startJobFromForm(this);
     });
 

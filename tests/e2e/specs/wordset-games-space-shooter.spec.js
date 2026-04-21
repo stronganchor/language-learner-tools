@@ -2497,14 +2497,16 @@ test('space shooter launches with safe option mixes and records progress flows',
   });
   const stageDimensions = await page.evaluate(() => {
     const root = document.querySelector('[data-ll-wordset-games-root]');
+    const dialog = document.querySelector('[data-ll-wordset-game-run-dialog]');
     const stage = document.querySelector('[data-ll-wordset-game-stage]');
     return {
       rootWidth: root ? Math.round(root.getBoundingClientRect().width) : 0,
+      dialogWidth: dialog ? Math.round(dialog.getBoundingClientRect().width) : 0,
       stageWidth: stage ? Math.round(stage.getBoundingClientRect().width) : 0
     };
   });
   expect(stageDimensions.stageWidth).toBeGreaterThan(0);
-  expect(stageDimensions.rootWidth).toBeGreaterThanOrEqual(stageDimensions.stageWidth);
+  expect(stageDimensions.dialogWidth).toBeGreaterThanOrEqual(stageDimensions.stageWidth);
   await page.waitForFunction(() => {
     const run = window.LLWordsetGames.__debug.getRunState();
     return !!(run && run.targetWordId && run.activeCardCount === 4 && !run.awaitingPrompt);

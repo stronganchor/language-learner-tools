@@ -15,12 +15,12 @@
     const entryTitleRequiredLabel = typeof config.entryTitleRequiredLabel === 'string' && config.entryTitleRequiredLabel
         ? config.entryTitleRequiredLabel
         : 'Enter a dictionary entry title.';
+    const entryDefinitionRequiredLabel = typeof config.entryDefinitionRequiredLabel === 'string' && config.entryDefinitionRequiredLabel
+        ? config.entryDefinitionRequiredLabel
+        : 'Enter a definition.';
     const entrySavingLabel = typeof config.entrySavingLabel === 'string' && config.entrySavingLabel
         ? config.entrySavingLabel
         : 'Saving...';
-    const entrySavedLabel = typeof config.entrySavedLabel === 'string' && config.entrySavedLabel
-        ? config.entrySavedLabel
-        : 'Dictionary entry updated.';
     const entryErrorLabel = typeof config.entryErrorLabel === 'string' && config.entryErrorLabel
         ? config.entryErrorLabel
         : 'Unable to save this dictionary entry right now.';
@@ -39,206 +39,440 @@
         return fallback;
     };
 
-    const initEntryEditors = (root) => {
-        root.querySelectorAll('[data-ll-dictionary-entry-editor]').forEach((editor) => {
-            if (editor.getAttribute('data-ll-dictionary-entry-editor-ready') === '1') {
+    const escapeInlineHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
+        switch (char) {
+        case '&':
+            return '&amp;';
+        case '<':
+            return '&lt;';
+        case '>':
+            return '&gt;';
+        case '"':
+            return '&quot;';
+        case '\'':
+            return '&#039;';
+        default:
+            return char;
+        }
+    });
+
+    const normalizeInlineValue = (value) => String(value || '').replace(/\r\n?/g, '\n').trim();
+    const formatInlineText = (value) => escapeInlineHtml(value).replace(/\n/g, '<br>');
+
+    const postUpdateRequest = (params, keepalive) => {
+        const payload = new URLSearchParams();
+        Object.keys(params || {}).forEach((key) => {
+            const value = params[key];
+            if (value === null || typeof value === 'undefined') {
                 return;
             }
-            editor.setAttribute('data-ll-dictionary-entry-editor-ready', '1');
+            payload.set(key, String(value));
+        });
 
-            const trigger = editor.querySelector('[data-ll-dictionary-entry-edit-trigger]');
-            const form = editor.querySelector('[data-ll-dictionary-entry-form]');
-            const titleInput = editor.querySelector('[data-ll-dictionary-entry-title-input]');
-            const reviewInput = editor.querySelector('[data-ll-dictionary-entry-review]');
-            const cancelButton = editor.querySelector('[data-ll-dictionary-entry-cancel]');
-            const status = editor.querySelector('[data-ll-dictionary-entry-status]');
-            const reviewPill = root.querySelector('[data-ll-dictionary-entry-review-pill]');
-            let closeTimer = 0;
+        return fetch(ajaxUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            },
+            body: payload.toString(),
+            keepalive: !!keepalive,
+        }).then((response) => {
+            if (!response.ok) {
+                throw new Error('request_failed');
+            }
 
-            if (!trigger || !form || !titleInput || !reviewInput || !status) {
+            return response.json();
+        });
+    };
+
+    const updateSummary = (root, summary) => {
+        const summaryNode = root.querySelector('[data-ll-dictionary-summary]');
+        if (!summaryNode) {
+            return;
+        }
+
+        const text = typeof summary === 'string' ? summary.trim() : '';
+        summaryNode.textContent = text;
+        summaryNode.hidden = !text;
+    };
+
+    const syncReviewState = (reviewState, payload) => {
+        if (!reviewState || !payload || typeof payload !== 'object') {
+            return;
+        }
+
+        const needsReview = !!payload.needs_review;
+        const reviewLabel = (payload.review_label || '').toString();
+        const pill = reviewState.querySelector('[data-ll-dictionary-entry-review-pill]');
+        const label = reviewState.querySelector('[data-ll-dictionary-entry-review-label]');
+        const clearButton = reviewState.querySelector('[data-ll-dictionary-review-clear]');
+        const markButton = reviewState.querySelector('[data-ll-dictionary-review-mark]');
+
+        reviewState.classList.toggle('is-needs-review', needsReview);
+        reviewState.classList.toggle('is-reviewed', !needsReview);
+
+        if (pill) {
+            pill.classList.toggle('is-active', needsReview);
+        }
+        if (label && reviewLabel) {
+            label.textContent = reviewLabel;
+        }
+        if (clearButton) {
+            clearButton.hidden = !needsReview;
+        }
+        if (markButton) {
+            markButton.hidden = needsReview;
+        }
+    };
+
+    const autoResizeTextarea = (input) => {
+        if (!input || input.tagName !== 'TEXTAREA') {
+            return;
+        }
+
+        input.style.height = 'auto';
+        input.style.height = `${Math.max(input.scrollHeight, 72)}px`;
+    };
+
+    const initInlineEditors = (root) => {
+        root.querySelectorAll('[data-ll-dictionary-inline-editor]').forEach((editor) => {
+            if (editor.getAttribute('data-ll-dictionary-inline-editor-ready') === '1') {
+                return;
+            }
+            editor.setAttribute('data-ll-dictionary-inline-editor-ready', '1');
+
+            const trigger = editor.querySelector('[data-ll-dictionary-inline-trigger]');
+            const field = editor.querySelector('[data-ll-dictionary-inline-field]');
+            const input = editor.querySelector('[data-ll-dictionary-inline-input]');
+            const text = editor.querySelector('[data-ll-dictionary-inline-text]');
+            const status = editor.querySelector('[data-ll-dictionary-inline-status]');
+            const updateType = (editor.getAttribute('data-update-type') || '').toString();
+            let savePromise = null;
+
+            if (!trigger || !field || !input || !text || !status || !updateType) {
                 return;
             }
 
-            const clearCloseTimer = () => {
-                if (closeTimer) {
-                    window.clearTimeout(closeTimer);
-                    closeTimer = 0;
-                }
-            };
+            input.dataset.committedValue = normalizeInlineValue(input.value);
+            autoResizeTextarea(input);
 
             const setStatus = (message, type) => {
                 const hasMessage = !!message;
                 status.textContent = hasMessage ? String(message) : '';
                 status.hidden = !hasMessage;
                 status.classList.toggle('is-error', type === 'error');
-                status.classList.toggle('is-success', type === 'success');
+                status.classList.toggle('is-saving', type === 'saving');
             };
 
             const setSaving = (saving) => {
-                editor.classList.toggle('is-saving', !!saving);
-                form.querySelectorAll('input, button').forEach((control) => {
-                    control.disabled = !!saving;
-                });
+                const isSaving = !!saving;
+                editor.classList.toggle('is-saving', isSaving);
+                input.disabled = isSaving;
+                trigger.disabled = isSaving;
             };
 
-            const syncEditor = (data) => {
-                const payload = (data && typeof data === 'object') ? data : {};
-                const title = (payload.title || '').toString();
-                const needsReview = !!payload.needs_review;
-                const reviewLabel = (payload.review_label || '').toString();
-                const titleText = editor.querySelector('[data-ll-dictionary-entry-title-text]');
-
-                if (title && titleText) {
-                    titleText.textContent = title;
-                    titleInput.value = title;
-                    titleInput.defaultValue = title;
-                }
-
-                reviewInput.checked = needsReview;
-                reviewInput.defaultChecked = needsReview;
-
-                if (reviewPill) {
-                    reviewPill.textContent = reviewLabel;
-                    reviewPill.classList.toggle('is-active', needsReview);
-                }
-            };
-
-            const closeEditor = (restoreValues) => {
-                clearCloseTimer();
-                if (restoreValues) {
-                    titleInput.value = titleInput.defaultValue;
-                    reviewInput.checked = !!reviewInput.defaultChecked;
+            const closeEditor = (restoreValue) => {
+                if (restoreValue) {
+                    input.value = input.dataset.committedValue || '';
+                    autoResizeTextarea(input);
                 }
                 editor.classList.remove('is-editing');
-                form.hidden = true;
-                trigger.setAttribute('aria-expanded', 'false');
+                field.hidden = true;
             };
 
             const openEditor = () => {
-                clearCloseTimer();
-                setStatus('', '');
                 editor.classList.add('is-editing');
-                form.hidden = false;
-                trigger.setAttribute('aria-expanded', 'true');
-                titleInput.focus();
-                titleInput.select();
+                field.hidden = false;
+                setStatus('', '');
+                window.requestAnimationFrame(() => {
+                    input.focus();
+                    if (typeof input.select === 'function' && input.tagName !== 'TEXTAREA') {
+                        input.select();
+                    }
+                    autoResizeTextarea(input);
+                });
             };
 
-            const submitEditor = () => {
-                if (editor.classList.contains('is-saving')) {
-                    return;
+            const syncEditor = (payload) => {
+                const data = (payload && typeof payload === 'object') ? payload : {};
+                const nextValue = updateType === 'title'
+                    ? (data.title || '').toString()
+                    : (typeof data.value === 'string' ? data.value : normalizeInlineValue(input.value));
+
+                if (nextValue !== '') {
+                    if (updateType === 'title') {
+                        text.textContent = nextValue;
+                    } else {
+                        text.innerHTML = formatInlineText(nextValue);
+                    }
+                    input.value = nextValue;
+                    input.dataset.committedValue = normalizeInlineValue(nextValue);
+                    autoResizeTextarea(input);
+                }
+
+                updateSummary(root, data.summary);
+                syncReviewState(root.querySelector('[data-ll-dictionary-review-state]'), data);
+            };
+
+            const submitEditor = (reason) => {
+                if (savePromise) {
+                    return savePromise;
                 }
 
                 const action = (editor.getAttribute('data-action') || '').toString();
                 const entryId = parseInt(editor.getAttribute('data-entry-id') || '0', 10) || 0;
                 const editorNonce = (editor.getAttribute('data-nonce') || '').toString();
-                const title = String(titleInput.value || '').trim();
-
-                clearCloseTimer();
-
-                if (!title) {
-                    setStatus(entryTitleRequiredLabel, 'error');
-                    titleInput.focus();
-                    return;
-                }
+                const value = normalizeInlineValue(input.value);
+                const committedValue = normalizeInlineValue(input.dataset.committedValue || '');
+                const emptyMessage = updateType === 'title'
+                    ? entryTitleRequiredLabel
+                    : entryDefinitionRequiredLabel;
 
                 if (!action || !entryId || !editorNonce) {
                     setStatus(entryErrorLabel, 'error');
-                    return;
+                    return Promise.resolve();
+                }
+                if (!value) {
+                    input.value = committedValue;
+                    closeEditor(true);
+                    setStatus(emptyMessage, 'error');
+                    return Promise.resolve();
+                }
+                if (value === committedValue) {
+                    closeEditor(false);
+                    setStatus('', '');
+                    return Promise.resolve();
                 }
 
-                const payload = new FormData();
-                payload.set('action', action);
-                payload.set('entry_id', String(entryId));
-                payload.set('nonce', editorNonce);
-                payload.set('title', title);
-                payload.set('needs_review', reviewInput.checked ? '1' : '0');
+                const params = {
+                    action: action,
+                    entry_id: entryId,
+                    nonce: editorNonce,
+                    update_type: updateType,
+                    wordset_id: root.dataset.wordsetId || '0',
+                    gloss_lang: root.dataset.glossLang || '',
+                    ll_dictionary_scope: root.dataset.currentScope || 'all',
+                };
+                if (updateType === 'title') {
+                    params.title = value;
+                } else {
+                    params.value = value;
+                    params.sense_index = editor.getAttribute('data-sense-index') || '0';
+                    params.language = editor.getAttribute('data-language') || '';
+                }
 
                 setSaving(true);
-                setStatus(entrySavingLabel, '');
+                setStatus(entrySavingLabel, 'saving');
 
-                fetch(ajaxUrl, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    body: payload,
-                }).then((response) => {
-                    if (!response.ok) {
-                        throw new Error('request_failed');
-                    }
-                    return response.json();
-                }).then((payloadResponse) => {
+                savePromise = postUpdateRequest(params, reason !== 'manual')
+                    .then((payloadResponse) => {
                     if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
                         throw new Error(readAjaxMessage(payloadResponse, entryErrorLabel));
                     }
 
+                    if (!editor.isConnected) {
+                        return;
+                    }
+
                     syncEditor(payloadResponse.data);
-                    setStatus(readAjaxMessage(payloadResponse, entrySavedLabel), 'success');
-                    closeTimer = window.setTimeout(() => {
-                        closeEditor(false);
-                        setStatus('', '');
-                    }, 700);
-                }).catch((error) => {
+                    closeEditor(false);
+                    setStatus('', '');
+                })
+                    .catch((error) => {
+                    if (!editor.isConnected) {
+                        return;
+                    }
+
                     const message = error && error.message && error.message !== 'request_failed'
                         ? error.message
                         : entryErrorLabel;
                     setStatus(message, 'error');
-                }).finally(() => {
-                    setSaving(false);
+                })
+                    .finally(() => {
+                    if (editor.isConnected) {
+                        setSaving(false);
+                    }
+                    savePromise = null;
                 });
+
+                return savePromise;
             };
 
             trigger.addEventListener('click', (event) => {
                 event.preventDefault();
-                if (editor.classList.contains('is-saving')) {
-                    return;
-                }
-                if (editor.classList.contains('is-editing')) {
-                    closeEditor(true);
-                    setStatus('', '');
+                if (editor.classList.contains('is-saving') || editor.classList.contains('is-editing')) {
                     return;
                 }
                 openEditor();
             });
 
-            form.addEventListener('submit', (event) => {
-                event.preventDefault();
-                submitEditor();
-            });
-
-            form.addEventListener('keydown', (event) => {
-                if (event.key !== 'Escape') {
+            editor.addEventListener('keydown', (event) => {
+                if (event.target !== input) {
                     return;
                 }
 
-                event.preventDefault();
-                setStatus('', '');
-                closeEditor(true);
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    closeEditor(true);
+                    setStatus('', '');
+                    trigger.focus();
+                    return;
+                }
+
+                if (event.key === 'Enter' && input.tagName !== 'TEXTAREA') {
+                    event.preventDefault();
+                    input.blur();
+                    return;
+                }
+
+                if (event.key === 'Enter' && input.tagName === 'TEXTAREA' && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    input.blur();
+                }
             });
 
-            if (cancelButton) {
-                cancelButton.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    setStatus('', '');
-                    closeEditor(true);
-                });
-            }
+            input.addEventListener('input', () => {
+                autoResizeTextarea(input);
+            });
+
+            editor.addEventListener('focusout', (event) => {
+                if (!editor.classList.contains('is-editing') || editor.classList.contains('is-saving')) {
+                    return;
+                }
+
+                const nextTarget = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+                if (nextTarget && editor.contains(nextTarget)) {
+                    return;
+                }
+
+                window.setTimeout(() => {
+                    if (!editor.isConnected || !editor.classList.contains('is-editing')) {
+                        return;
+                    }
+                    if (editor.contains(document.activeElement)) {
+                        return;
+                    }
+
+                    submitEditor('blur');
+                }, 0);
+            });
         });
     };
 
+    const initReviewStates = (root) => {
+        root.querySelectorAll('[data-ll-dictionary-review-state]').forEach((reviewState) => {
+            if (reviewState.getAttribute('data-ll-dictionary-review-ready') === '1') {
+                return;
+            }
+            reviewState.setAttribute('data-ll-dictionary-review-ready', '1');
+
+            const markButton = reviewState.querySelector('[data-ll-dictionary-review-mark]');
+            const clearButton = reviewState.querySelector('[data-ll-dictionary-review-clear]');
+            const status = reviewState.querySelector('[data-ll-dictionary-review-status]');
+
+            if (!markButton || !clearButton || !status) {
+                return;
+            }
+
+            const setStatus = (message, type) => {
+                const hasMessage = !!message;
+                status.textContent = hasMessage ? String(message) : '';
+                status.hidden = !hasMessage;
+                status.classList.toggle('is-error', type === 'error');
+                status.classList.toggle('is-saving', type === 'saving');
+            };
+
+            const setSaving = (saving) => {
+                const isSaving = !!saving;
+                reviewState.classList.toggle('is-saving', isSaving);
+                markButton.disabled = isSaving;
+                clearButton.disabled = isSaving;
+            };
+
+            const submitReviewState = (needsReview) => {
+                const action = (reviewState.getAttribute('data-action') || '').toString();
+                const entryId = parseInt(reviewState.getAttribute('data-entry-id') || '0', 10) || 0;
+                const editorNonce = (reviewState.getAttribute('data-nonce') || '').toString();
+                if (!action || !entryId || !editorNonce) {
+                    setStatus(entryErrorLabel, 'error');
+                    return;
+                }
+
+                setSaving(true);
+                setStatus(entrySavingLabel, 'saving');
+
+                postUpdateRequest({
+                    action: action,
+                    entry_id: entryId,
+                    nonce: editorNonce,
+                    update_type: 'review',
+                    needs_review: needsReview ? '1' : '0',
+                    wordset_id: root.dataset.wordsetId || '0',
+                    gloss_lang: root.dataset.glossLang || '',
+                    ll_dictionary_scope: root.dataset.currentScope || 'all',
+                }, true)
+                    .then((payloadResponse) => {
+                    if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
+                        throw new Error(readAjaxMessage(payloadResponse, entryErrorLabel));
+                    }
+
+                    if (!reviewState.isConnected) {
+                        return;
+                    }
+
+                    syncReviewState(reviewState, payloadResponse.data);
+                    updateSummary(root, payloadResponse.data.summary);
+                    setStatus('', '');
+                })
+                    .catch((error) => {
+                    if (!reviewState.isConnected) {
+                        return;
+                    }
+
+                    const message = error && error.message && error.message !== 'request_failed'
+                        ? error.message
+                        : entryErrorLabel;
+                    setStatus(message, 'error');
+                })
+                    .finally(() => {
+                    if (reviewState.isConnected) {
+                        setSaving(false);
+                    }
+                });
+            };
+
+            markButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                submitReviewState(true);
+            });
+
+            clearButton.addEventListener('click', (event) => {
+                event.preventDefault();
+                submitReviewState(false);
+            });
+        });
+    };
+
+    const initInlineControls = (root) => {
+        initInlineEditors(root);
+        initReviewStates(root);
+    };
+
     document.querySelectorAll('[data-ll-dictionary-root]').forEach((root) => {
-        initEntryEditors(root);
+        initInlineControls(root);
 
         const form = root.querySelector('[data-ll-dictionary-form]');
         const results = root.querySelector('[data-ll-dictionary-results]');
         const toolbar = root.querySelector('.ll-dictionary__toolbar');
-        const resetLink = root.querySelector('[data-ll-dictionary-reset]');
         const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
-        const scopeInput = form ? form.querySelector('select[name="ll_dictionary_scope"]') : null;
+        const scopeInputs = form ? Array.from(form.querySelectorAll('input[name="ll_dictionary_scope[]"]')) : [];
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
         const toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
         const toolbarDeferred = root.getAttribute('data-ll-dictionary-toolbar-deferred') === '1';
+        const hasExplicitScope = root.getAttribute('data-ll-dictionary-has-explicit-scope') === '1';
 
-        if (!form || !results || !toolbar || !searchInput || !scopeInput || !letterInput) {
+        if (!form || !results || !toolbar || !searchInput || !scopeInputs.length || !letterInput) {
             return;
         }
 
@@ -248,6 +482,9 @@
         let toolbarBootstrapPromise = null;
         let toolbarReady = !toolbarDeferred;
         const responseCache = new Map();
+        const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
+        let scopePreferencesRestored = false;
+        let hasScrolledForSearchQuery = false;
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -278,6 +515,121 @@
             }
         };
 
+        const getAllScopeValues = () => scopeInputs
+            .map((input) => String(input.value || '').trim())
+            .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+
+        const getSelectedScopeValues = () => {
+            const selected = scopeInputs
+                .filter((input) => !!input.checked)
+                .map((input) => String(input.value || '').trim())
+                .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+
+            return selected.length ? selected : getAllScopeValues();
+        };
+
+        const getScopeQueryValue = () => {
+            const allScopes = getAllScopeValues();
+            const selectedScopes = getSelectedScopeValues();
+            if (!allScopes.length || selectedScopes.length >= allScopes.length) {
+                return 'all';
+            }
+
+            return selectedScopes.join(',');
+        };
+
+        const setScopeValuesFromQueryValue = (rawValue) => {
+            const allScopes = getAllScopeValues();
+            const raw = String(rawValue || '').trim();
+            let selectedScopes = [];
+
+            if (!raw || raw === 'all') {
+                selectedScopes = allScopes;
+            } else {
+                selectedScopes = raw
+                    .split(/[\s,|]+/)
+                    .map((value) => value.trim())
+                    .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+            }
+
+            if (!selectedScopes.length) {
+                selectedScopes = allScopes;
+            }
+
+            scopeInputs.forEach((input) => {
+                input.checked = selectedScopes.indexOf(String(input.value || '').trim()) !== -1;
+            });
+        };
+
+        const getScopeQueryValueFromUrl = (url) => {
+            if (!url || !url.searchParams) {
+                return 'all';
+            }
+
+            const scalarValue = String(url.searchParams.get('ll_dictionary_scope') || '').trim();
+            if (scalarValue) {
+                return scalarValue;
+            }
+
+            const indexedValues = [];
+            url.searchParams.forEach((value, key) => {
+                if (key === 'll_dictionary_scope[]' || key.indexOf('ll_dictionary_scope[') === 0) {
+                    indexedValues.push(String(value || '').trim());
+                }
+            });
+
+            return indexedValues.length ? indexedValues.join(',') : 'all';
+        };
+
+        const updateCurrentScopeState = () => {
+            root.dataset.currentScope = getScopeQueryValue();
+        };
+
+        const revealScopeOptions = () => {
+            toolbar.classList.add('is-scope-visible');
+        };
+
+        const persistScopePreferences = () => {
+            updateCurrentScopeState();
+            if (!window.localStorage) {
+                return;
+            }
+
+            try {
+                if (root.dataset.currentScope && root.dataset.currentScope !== 'all') {
+                    window.localStorage.setItem(storageKey, root.dataset.currentScope);
+                } else {
+                    window.localStorage.removeItem(storageKey);
+                }
+            } catch (error) {
+                // Ignore storage failures and keep the in-memory scope state.
+            }
+        };
+
+        const restoreStoredScopePreferences = () => {
+            updateCurrentScopeState();
+            if (hasExplicitScope || !window.localStorage) {
+                return false;
+            }
+
+            let storedValue = '';
+            try {
+                storedValue = String(window.localStorage.getItem(storageKey) || '').trim();
+            } catch (error) {
+                storedValue = '';
+            }
+
+            if (!storedValue || storedValue === 'all') {
+                return false;
+            }
+
+            const currentScope = root.dataset.currentScope || 'all';
+            setScopeValuesFromQueryValue(storedValue);
+            updateCurrentScopeState();
+
+            return (root.dataset.currentScope || 'all') !== currentScope;
+        };
+
         const hasActiveQuery = () => {
             return [
                 String(searchInput.value || '').trim(),
@@ -298,11 +650,9 @@
         };
 
         const setActiveState = (active) => {
-            toolbar.classList.toggle('is-expanded', active);
-            toolbar.classList.toggle('is-collapsed', !active);
-            if (resetLink) {
-                resetLink.hidden = !active;
-            }
+            const shouldStayExpanded = active || toolbar.classList.contains('is-scope-visible');
+            toolbar.classList.toggle('is-expanded', shouldStayExpanded);
+            toolbar.classList.toggle('is-collapsed', !shouldStayExpanded);
         };
 
         const buildToolbarBootstrapPayload = () => {
@@ -311,7 +661,7 @@
             payload.set('nonce', nonce);
             payload.set('wordset_id', root.dataset.wordsetId || '0');
             payload.set('base_url', root.dataset.baseUrl || window.location.href);
-            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_scope', getScopeQueryValue());
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
             payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
             payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
@@ -394,6 +744,7 @@
             }
 
             results.innerHTML = typeof payload.data.html === 'string' ? payload.data.html : '';
+            initInlineControls(root);
             setActiveState(Boolean(payload.data.has_active_query));
 
             if (payload.data.url && window.history && typeof window.history.replaceState === 'function') {
@@ -474,6 +825,8 @@
             return !(search === '' && !hasActiveQuery());
         };
 
+        scopePreferencesRestored = restoreStoredScopePreferences();
+
         const buildRequestCacheKey = (page) => JSON.stringify({
             wordsetId: root.dataset.wordsetId || '0',
             perPage: root.dataset.perPage || '20',
@@ -481,7 +834,7 @@
             linkedWordLimit: root.dataset.linkedWordLimit || '4',
             glossLang: root.dataset.glossLang || '',
             query: String(searchInput.value || '').trim(),
-            scope: getFieldValue('ll_dictionary_scope') || 'all',
+            scope: getScopeQueryValue(),
             letter: String(letterInput.value || '').trim(),
             pos: getFieldValue('ll_dictionary_pos'),
             source: getFieldValue('ll_dictionary_source'),
@@ -519,7 +872,7 @@
             payload.set('gloss_lang', root.dataset.glossLang || '');
             payload.set('base_url', root.dataset.baseUrl || window.location.href);
             payload.set('ll_dictionary_q', String(searchInput.value || '').trim());
-            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_scope', getScopeQueryValue());
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
             payload.set('ll_dictionary_page', String(Math.max(1, page || 1)));
             payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
@@ -603,21 +956,73 @@
             }, debounceMs);
         };
 
+        const getCurrentPageFromLocation = () => {
+            try {
+                return Number(new URL(window.location.href).searchParams.get('ll_dictionary_page') || '1');
+            } catch (error) {
+                return 1;
+            }
+        };
+
+        const scrollResultsPreviewIntoView = () => {
+            const query = String(searchInput.value || '').trim();
+            if (query === '' || hasScrolledForSearchQuery || typeof window.scrollTo !== 'function') {
+                if (query === '') {
+                    hasScrolledForSearchQuery = false;
+                }
+                return;
+            }
+
+            hasScrolledForSearchQuery = true;
+            window.requestAnimationFrame(() => {
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                const searchRect = searchInput.getBoundingClientRect();
+                if (!viewportHeight || !searchRect || typeof searchRect.top !== 'number') {
+                    return;
+                }
+
+                const currentScrollTop = Math.max(0, window.scrollY || window.pageYOffset || 0);
+                const desiredSearchTop = Math.max(20, Math.min(96, Math.round(viewportHeight * 0.16)));
+                const targetTop = Math.max(currentScrollTop, currentScrollTop + searchRect.top - desiredSearchTop);
+
+                if (Math.abs(targetTop - currentScrollTop) < 8) {
+                    return;
+                }
+
+                const prefersReducedMotion = typeof window.matchMedia === 'function'
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+                window.scrollTo({
+                    top: targetTop,
+                    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                });
+            });
+        };
+
         const primeToolbarBootstrap = () => {
             ensureToolbarBootstrap().catch(() => {});
         };
 
-        searchInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
-        searchInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
-        if (scopeInput) {
+        searchInput.addEventListener('focus', () => {
+            revealScopeOptions();
+            primeToolbarBootstrap();
+        }, { passive: true });
+        searchInput.addEventListener('pointerdown', () => {
+            revealScopeOptions();
+            primeToolbarBootstrap();
+        }, { passive: true });
+        scopeInputs.forEach((scopeInput) => {
             scopeInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
             scopeInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
-        }
+        });
 
         searchInput.addEventListener('input', () => {
+            revealScopeOptions();
             primeToolbarBootstrap();
             if (String(searchInput.value || '').trim() !== '') {
                 letterInput.value = '';
+            } else {
+                hasScrolledForSearchQuery = false;
             }
 
             if (!canRunQuery()) {
@@ -626,14 +1031,21 @@
             }
 
             showLoadingState();
+            scrollResultsPreviewIntoView();
             scheduleLiveSearch();
         });
 
         form.addEventListener('change', (event) => {
             const target = event.target;
             const name = target && target.name ? String(target.name) : '';
-            if (['ll_dictionary_scope', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
+            if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
                 return;
+            }
+
+            if (name === 'll_dictionary_scope[]') {
+                persistScopePreferences();
+            } else {
+                updateCurrentScopeState();
             }
 
             if (!canRunQuery()) {
@@ -652,22 +1064,13 @@
             }
 
             event.preventDefault();
+            revealScopeOptions();
+            if (String(searchInput.value || '').trim() !== '') {
+                scrollResultsPreviewIntoView();
+            }
             showLoadingState();
             requestResults(1, true);
         });
-
-        if (resetLink) {
-            resetLink.addEventListener('click', (event) => {
-                event.preventDefault();
-                setFieldValue('ll_dictionary_q', '');
-                setFieldValue('ll_dictionary_scope', 'all');
-                setFieldValue('ll_dictionary_pos', '');
-                setFieldValue('ll_dictionary_source', '');
-                setFieldValue('ll_dictionary_dialect', '');
-                letterInput.value = '';
-                clearResults();
-            });
-        }
 
         root.addEventListener('click', (event) => {
             const textToggle = event.target.closest('[data-ll-dictionary-toggle]');
@@ -706,7 +1109,8 @@
             event.preventDefault();
 
             searchInput.value = url.searchParams.get('ll_dictionary_q') || '';
-            setFieldValue('ll_dictionary_scope', url.searchParams.get('ll_dictionary_scope') || 'all');
+            setScopeValuesFromQueryValue(getScopeQueryValueFromUrl(url));
+            persistScopePreferences();
             letterInput.value = url.searchParams.get('ll_dictionary_letter') || '';
             setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
             setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
@@ -715,5 +1119,16 @@
             showLoadingState();
             requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
         });
+
+        if (scopePreferencesRestored && hasActiveQuery()) {
+            showLoadingState();
+            requestResults(getCurrentPageFromLocation(), false);
+        } else {
+            updateCurrentScopeState();
+        }
+
+        if (hasActiveQuery() || hasExplicitScope) {
+            revealScopeOptions();
+        }
     });
 }());

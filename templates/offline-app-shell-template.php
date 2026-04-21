@@ -96,6 +96,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
     }
     .ll-wordset-page.ll-wordset-page--offline .ll-offline-app-header,
     .ll-wordset-page.ll-wordset-page--offline .ll-offline-warning-list,
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-next-wrap,
     .ll-wordset-page.ll-wordset-page--offline .ll-wordset-grid-tools,
     .ll-wordset-page.ll-wordset-page--offline .ll-wordset-grid,
     .ll-wordset-page.ll-wordset-page--offline .ll-wordset-empty {
@@ -732,7 +733,88 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
          data-ll-config="<?php echo esc_attr(is_string($ll_config_json) ? $ll_config_json : '{}'); ?>">
       <section id="ll-offline-study-view" class="ll-offline-app-view" data-ll-offline-view="study">
       <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
+        <div class="ll-wordset-next-wrap">
+          <p class="ll-wordset-next-heading"><?php esc_html_e('Recommended:', 'll-tools-text-domain'); ?></p>
+          <div class="ll-wordset-next-shell" data-ll-offline-next-shell>
+            <button type="button" class="ll-wordset-next-card is-disabled" id="ll-offline-next-card" data-ll-offline-next aria-live="polite" aria-disabled="true" disabled>
+              <span class="ll-wordset-next-card__main">
+                <span class="ll-wordset-next-card__icon" id="ll-offline-next-icon" data-ll-offline-next-icon aria-hidden="true"></span>
+                <span class="ll-wordset-next-card__preview" id="ll-offline-next-preview" data-ll-offline-next-preview aria-hidden="true"></span>
+                <span class="ll-wordset-next-card__text" id="ll-offline-next-text" data-ll-offline-next-text><?php esc_html_e('Loading next recommendation...', 'll-tools-text-domain'); ?></span>
+              </span>
+            </button>
+            <span class="ll-wordset-next-card__meta">
+              <span class="ll-wordset-queue-item__count ll-wordset-next-card__count" id="ll-offline-next-count" data-ll-offline-next-count hidden></span>
+            </span>
+          </div>
+        </div>
         <div class="ll-wordset-grid-tools">
+          <div class="ll-wordset-grid-search-tools">
+            <div class="ll-wordset-progress-search ll-wordset-progress-search--wordset-page">
+              <label class="screen-reader-text" for="ll-offline-category-search"><?php esc_html_e('Search words or translations', 'll-tools-text-domain'); ?></label>
+              <input
+                id="ll-offline-category-search"
+                class="ll-wordset-progress-search__input"
+                type="search"
+                data-ll-offline-category-search
+                placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
+                autocomplete="off"
+              />
+            </div>
+            <div class="ll-wordset-main-sort" data-ll-offline-sort-root>
+              <button
+                type="button"
+                class="ll-wordset-main-sort__toggle"
+                data-ll-offline-sort-toggle
+                aria-expanded="false"
+                aria-haspopup="menu"
+                aria-controls="ll-offline-sort-menu"
+                aria-label="<?php echo esc_attr__('Sort categories', 'll-tools-text-domain'); ?>"
+                title="<?php echo esc_attr__('Sort categories', 'll-tools-text-domain'); ?>">
+                <?php
+                echo function_exists('ll_tools_wordset_page_render_sort_icon')
+                    ? ll_tools_wordset_page_render_sort_icon()
+                    : '<span class="ll-wordset-main-sort__toggle-icon" aria-hidden="true">⇅</span>';
+                // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                ?>
+              </button>
+              <div
+                id="ll-offline-sort-menu"
+                class="ll-wordset-main-sort__menu"
+                data-ll-offline-sort-menu
+                role="menu"
+                hidden>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="default" role="menuitemradio" aria-checked="true">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('Default', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="alpha-asc" role="menuitemradio" aria-checked="false">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('A-Z', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="alpha-desc" role="menuitemradio" aria-checked="false">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('Z-A', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="progress-desc" role="menuitemradio" aria-checked="false">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('More learned', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="progress-asc" role="menuitemradio" aria-checked="false">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('Less learned', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="recent-desc" role="menuitemradio" aria-checked="false">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('Recently studied', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+                <button type="button" class="ll-wordset-main-sort__option" data-ll-offline-sort-option="recent-asc" role="menuitemradio" aria-checked="false">
+                  <span class="ll-wordset-main-sort__option-label"><?php esc_html_e('Not recently studied', 'll-tools-text-domain'); ?></span>
+                  <span class="ll-wordset-main-sort__option-check" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+          </div>
           <button id="ll-offline-select-all" class="ll-wordset-select-all ll-wordset-progress-select-all" type="button">
             <?php esc_html_e('Select All', 'll-tools-text-domain'); ?>
           </button>

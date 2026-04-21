@@ -229,6 +229,116 @@ function ll_tools_dictionary_normalize_search_scope(string $value): string {
 }
 
 /**
+ * Normalize one or more public dictionary search scope values.
+ *
+ * @param string|string[] $value
+ * @return string[]
+ */
+function ll_tools_dictionary_normalize_search_scopes($value): array {
+    if (is_array($value)) {
+        $raw_values = $value;
+    } else {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return ['all'];
+        }
+
+        $raw_values = preg_split('/[\s,|]+/', $raw, -1, PREG_SPLIT_NO_EMPTY);
+        if (!is_array($raw_values)) {
+            $raw_values = [];
+        }
+    }
+
+    $scopes = [];
+    foreach ($raw_values as $raw_scope) {
+        $scope = ll_tools_dictionary_normalize_search_scope((string) $raw_scope);
+        if ($scope === '' || in_array($scope, $scopes, true)) {
+            continue;
+        }
+        if ($scope === 'all') {
+            return ['all'];
+        }
+
+        $scopes[] = $scope;
+    }
+
+    return !empty($scopes) ? $scopes : ['all'];
+}
+
+/**
+ * Determine whether the selected scopes should behave like the broad "all" search.
+ *
+ * @param string[] $scopes
+ */
+function ll_tools_dictionary_search_scopes_use_all(array $scopes): bool {
+    $normalized = ll_tools_dictionary_normalize_search_scopes($scopes);
+    return count($normalized) === 1 && $normalized[0] === 'all';
+}
+
+/**
+ * Determine whether the selected scopes include headword matching.
+ *
+ * @param string[] $scopes
+ */
+function ll_tools_dictionary_search_scopes_include_headword(array $scopes): bool {
+    if (ll_tools_dictionary_search_scopes_use_all($scopes)) {
+        return true;
+    }
+
+    return in_array('headword', ll_tools_dictionary_normalize_search_scopes($scopes), true);
+}
+
+/**
+ * Return the selected translation-language scopes.
+ *
+ * @param string[] $scopes
+ * @return string[]
+ */
+function ll_tools_dictionary_search_scopes_translation_languages(array $scopes): array {
+    if (ll_tools_dictionary_search_scopes_use_all($scopes)) {
+        return [];
+    }
+
+    $languages = [];
+    foreach (ll_tools_dictionary_normalize_search_scopes($scopes) as $scope) {
+        if ($scope === '' || $scope === 'all' || $scope === 'headword') {
+            continue;
+        }
+
+        $languages[] = $scope;
+    }
+
+    return $languages;
+}
+
+/**
+ * Reduce a multi-scope selection to the coarse lookup-table scope it needs.
+ *
+ * @param string[] $scopes
+ */
+function ll_tools_dictionary_get_lookup_search_scope_from_scopes(array $scopes): string {
+    $normalized = ll_tools_dictionary_normalize_search_scopes($scopes);
+    if (ll_tools_dictionary_search_scopes_use_all($normalized)) {
+        return 'all';
+    }
+
+    $has_headword = ll_tools_dictionary_search_scopes_include_headword($normalized);
+    $translation_languages = ll_tools_dictionary_search_scopes_translation_languages($normalized);
+
+    if ($has_headword && !empty($translation_languages)) {
+        return 'all';
+    }
+    if ($has_headword) {
+        return 'headword';
+    }
+    if (!empty($translation_languages)) {
+        return (string) $translation_languages[0];
+    }
+
+    return 'all';
+}
+
+/**
  * Determine whether a search scope should only match entry/headword text.
  */
 function ll_tools_dictionary_search_scope_uses_headword(string $scope): bool {
@@ -1493,24 +1603,6 @@ function ll_tools_dictionary_prepare_import_row(array $row, array $defaults = []
 }
 
 /**
- * Decide whether an import row should be skipped because of review flags.
- *
- * @param array<string,string> $row Prepared import row.
- */
-function ll_tools_dictionary_should_skip_row_for_review(array $row, bool $skip_flagged = true): bool {
-    if (!$skip_flagged) {
-        return false;
-    }
-
-    $flag = trim((string) ($row['needs_review'] ?? ''));
-    if ($flag === '' || $flag === '0' || $flag === '1') {
-        return false;
-    }
-
-    return true;
-}
-
-/**
  * Find one dictionary entry by exact title within an optional word set.
  */
 function ll_tools_dictionary_find_entry_by_title(string $title, int $wordset_id = 0): int {
@@ -1571,6 +1663,52 @@ function ll_tools_dictionary_get_primary_sense_value(array $senses, string $fiel
 }
 
 /**
+ * Temporarily suspend expensive dictionary-entry save hooks during imports.
+ *
+ * @return array<int,array{tag:string,callback:string,priority:int,args:int}>
+ */
+function ll_tools_dictionary_suspend_entry_save_side_effect_hooks(): array {
+    $hooks = [
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_refresh_entry_search_meta', 'priority' => 50, 'args' => 3],
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_entry_refresh_scope_on_save', 'priority' => 55, 'args' => 1],
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_sync_lookup_rows_on_save', 'priority' => 60, 'args' => 3],
+        ['tag' => 'save_post_ll_dictionary_entry', 'callback' => 'll_tools_dictionary_browser_invalidate_on_post_save', 'priority' => 60, 'args' => 2],
+    ];
+    $removed_hooks = [];
+
+    foreach ($hooks as $hook) {
+        if (!function_exists($hook['callback']) || !has_action($hook['tag'], $hook['callback'])) {
+            continue;
+        }
+
+        remove_action($hook['tag'], $hook['callback'], $hook['priority']);
+        $removed_hooks[] = $hook;
+    }
+
+    return $removed_hooks;
+}
+
+/**
+ * Restore dictionary-entry save hooks previously removed for imports.
+ *
+ * @param array<int,array{tag:string,callback:string,priority:int,args:int}> $removed_hooks
+ */
+function ll_tools_dictionary_restore_entry_save_side_effect_hooks(array $removed_hooks): void {
+    foreach ($removed_hooks as $hook) {
+        if (!is_array($hook) || empty($hook['tag']) || empty($hook['callback']) || !function_exists((string) $hook['callback'])) {
+            continue;
+        }
+
+        add_action(
+            (string) $hook['tag'],
+            (string) $hook['callback'],
+            (int) ($hook['priority'] ?? 10),
+            (int) ($hook['args'] ?? 1)
+        );
+    }
+}
+
+/**
  * Create or update one dictionary entry from grouped import rows.
  *
  * @param array<int,array<string,mixed>>  $rows Grouped prepared rows.
@@ -1588,6 +1726,15 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     $entry_id = max(0, (int) ($options['entry_id'] ?? 0));
     if ($entry_id <= 0) {
         $entry_id = ll_tools_dictionary_find_entry_by_title($title, $wordset_id);
+    }
+    if (
+        $entry_id > 0
+        && (
+            (function_exists('ll_tools_is_dictionary_entry_id') && !ll_tools_is_dictionary_entry_id($entry_id))
+            || (!function_exists('ll_tools_is_dictionary_entry_id') && get_post_type($entry_id) !== 'll_dictionary_entry')
+        )
+    ) {
+        $entry_id = 0;
     }
 
     $existing_senses = [];
@@ -1645,7 +1792,12 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
         $postarr['ID'] = $entry_id;
     }
 
-    $saved_entry_id = wp_insert_post($postarr, true);
+    $removed_hooks = ll_tools_dictionary_suspend_entry_save_side_effect_hooks();
+    try {
+        $saved_entry_id = wp_insert_post($postarr, true);
+    } finally {
+        ll_tools_dictionary_restore_entry_save_side_effect_hooks($removed_hooks);
+    }
     if (is_wp_error($saved_entry_id) || (int) $saved_entry_id <= 0) {
         return new WP_Error(
             'll_tools_dictionary_entry_save_failed',
@@ -1703,6 +1855,14 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     if (function_exists('ll_tools_refresh_dictionary_entry_wordset_scope_meta')) {
         ll_tools_refresh_dictionary_entry_wordset_scope_meta($saved_entry_id);
     }
+    if (function_exists('ll_tools_dictionary_sync_lookup_rows_for_entry')) {
+        ll_tools_dictionary_sync_lookup_rows_for_entry(
+            $saved_entry_id,
+            empty($options['defer_cache_invalidation'])
+        );
+    } elseif (empty($options['defer_cache_invalidation']) && function_exists('ll_tools_bump_dictionary_browser_cache_version')) {
+        ll_tools_bump_dictionary_browser_cache_version();
+    }
 
     return [
         'entry_id' => $saved_entry_id,
@@ -1725,7 +1885,6 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
         @set_time_limit(0);
     }
 
-    $skip_flagged = !empty($options['skip_review_rows']);
     $defaults = [
         'entry_lang' => trim(sanitize_text_field((string) ($options['entry_lang'] ?? ''))),
         'def_lang' => trim(sanitize_text_field((string) ($options['def_lang'] ?? ''))),
@@ -1735,7 +1894,6 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
         'rows_total' => count($rows),
         'rows_grouped' => 0,
         'rows_skipped_empty' => 0,
-        'rows_skipped_review' => 0,
         'entries_created' => 0,
         'entries_updated' => 0,
         'entry_ids' => [],
@@ -1752,10 +1910,6 @@ function ll_tools_dictionary_group_import_rows(array $rows, array $options = [])
         $prepared = ll_tools_dictionary_prepare_import_row($row, $defaults);
         if ($prepared['entry'] === '') {
             $summary['rows_skipped_empty']++;
-            continue;
-        }
-        if (ll_tools_dictionary_should_skip_row_for_review($prepared, $skip_flagged)) {
-            $summary['rows_skipped_review']++;
             continue;
         }
 
@@ -1790,6 +1944,7 @@ function ll_tools_dictionary_apply_grouped_import_rows(array $grouped_rows, arra
         'entry_ids' => [],
         'errors' => [],
     ];
+    $touched_entries = 0;
 
     foreach ($grouped_rows as $group_rows) {
         if (!is_array($group_rows) || empty($group_rows)) {
@@ -1805,12 +1960,21 @@ function ll_tools_dictionary_apply_grouped_import_rows(array $grouped_rows, arra
         $entry_id = (int) ($result['entry_id'] ?? 0);
         if ($entry_id > 0) {
             $summary['entry_ids'][] = $entry_id;
+            $touched_entries++;
         }
         if (!empty($result['created'])) {
             $summary['entries_created']++;
         } else {
             $summary['entries_updated']++;
         }
+    }
+
+    if (
+        $touched_entries > 0
+        && !empty($options['defer_cache_invalidation'])
+        && function_exists('ll_tools_bump_dictionary_browser_cache_version')
+    ) {
+        ll_tools_bump_dictionary_browser_cache_version();
     }
 
     $summary['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', (array) $summary['entry_ids']))));
@@ -1841,93 +2005,6 @@ function ll_tools_dictionary_import_rows(array $rows, array $options = []): arra
     $summary['error_count'] = count($summary['errors']);
 
     return $summary;
-}
-
-/**
- * Name of the legacy one-off dictionary importer table.
- */
-function ll_tools_dictionary_get_legacy_table_name(): string {
-    global $wpdb;
-    return $wpdb->prefix . 'dictionary_entries';
-}
-
-/**
- * Check whether the legacy raw dictionary table exists.
- */
-function ll_tools_dictionary_legacy_table_exists(): bool {
-    global $wpdb;
-    $table = ll_tools_dictionary_get_legacy_table_name();
-    $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
-    return $exists === $table;
-}
-
-/**
- * Import the legacy raw dictionary table in batches.
- *
- * @param array<string,mixed> $options Import options.
- * @return array<string,mixed>|WP_Error
- */
-function ll_tools_dictionary_import_legacy_table(array $options = []) {
-    global $wpdb;
-
-    if (!ll_tools_dictionary_legacy_table_exists()) {
-        return new WP_Error('ll_tools_dictionary_legacy_table_missing', __('Legacy dictionary table not found.', 'll-tools-text-domain'));
-    }
-
-    if (function_exists('set_time_limit')) {
-        @set_time_limit(0);
-    }
-
-    $table = ll_tools_dictionary_get_legacy_table_name();
-    $batch_size = max(50, min(1000, (int) ($options['batch_size'] ?? 500)));
-    $offset = 0;
-    $aggregate = [
-        'rows_total' => 0,
-        'rows_grouped' => 0,
-        'rows_skipped_empty' => 0,
-        'rows_skipped_review' => 0,
-        'entries_created' => 0,
-        'entries_updated' => 0,
-        'entry_ids' => [],
-        'errors' => [],
-        'legacy_batches' => 0,
-    ];
-
-    do {
-        $rows = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT entry, definition, gender_number, entry_type, parent, needs_review, page_number, entry_lang, def_lang
-                 FROM {$table}
-                 ORDER BY entry ASC, id ASC
-                 LIMIT %d OFFSET %d",
-                $batch_size,
-                $offset
-            ),
-            ARRAY_A
-        );
-
-        if (empty($rows)) {
-            break;
-        }
-
-        $aggregate['legacy_batches']++;
-        $batch_summary = ll_tools_dictionary_import_rows($rows, $options);
-        $aggregate['rows_total'] += (int) ($batch_summary['rows_total'] ?? 0);
-        $aggregate['rows_grouped'] += (int) ($batch_summary['rows_grouped'] ?? 0);
-        $aggregate['rows_skipped_empty'] += (int) ($batch_summary['rows_skipped_empty'] ?? 0);
-        $aggregate['rows_skipped_review'] += (int) ($batch_summary['rows_skipped_review'] ?? 0);
-        $aggregate['entries_created'] += (int) ($batch_summary['entries_created'] ?? 0);
-        $aggregate['entries_updated'] += (int) ($batch_summary['entries_updated'] ?? 0);
-        $aggregate['entry_ids'] = array_merge($aggregate['entry_ids'], (array) ($batch_summary['entry_ids'] ?? []));
-        $aggregate['errors'] = array_merge($aggregate['errors'], (array) ($batch_summary['errors'] ?? []));
-
-        $offset += $batch_size;
-    } while (!empty($rows));
-
-    $aggregate['entry_ids'] = array_values(array_unique(array_filter(array_map('intval', $aggregate['entry_ids']))));
-    $aggregate['error_count'] = count($aggregate['errors']);
-
-    return $aggregate;
 }
 
 /**
@@ -2089,6 +2166,9 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'linked_word_count' => $linked_word_count,
         'linked_words' => ll_tools_dictionary_get_linked_word_previews($entry_id, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
+        'translation_groups' => function_exists('ll_tools_dictionary_collect_translation_groups')
+            ? ll_tools_dictionary_collect_translation_groups($senses, $normalized_preferred_languages)
+            : [],
         'sources' => $sources,
         'dialects' => $dialects,
         'senses' => array_slice($senses, 0, max(1, $sense_limit)),
@@ -2444,7 +2524,12 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     global $wpdb;
 
     $search = trim((string) ($args['search'] ?? ''));
-    $search_scope = ll_tools_dictionary_normalize_search_scope((string) ($args['search_scope'] ?? 'all'));
+    $search_scopes = array_key_exists('search_scopes', $args)
+        ? ll_tools_dictionary_normalize_search_scopes($args['search_scopes'])
+        : ll_tools_dictionary_normalize_search_scopes((string) ($args['search_scope'] ?? 'all'));
+    $search_scope = ll_tools_dictionary_search_scopes_use_all($search_scopes)
+        ? 'all'
+        : ((count($search_scopes) === 1) ? (string) $search_scopes[0] : ll_tools_dictionary_get_lookup_search_scope_from_scopes($search_scopes));
     $page = max(1, (int) ($args['page'] ?? 1));
     $per_page = max(1, min(100, (int) ($args['per_page'] ?? 20)));
     $wordset_id = max(0, (int) ($args['wordset_id'] ?? 0));
@@ -2471,7 +2556,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
     $cache_args = [
         'search' => $search,
-        'search_scope' => $search_scope,
+        'search_scopes' => $search_scopes,
         'page' => $page,
         'per_page' => $per_page,
         'wordset_id' => $wordset_id,
@@ -2517,9 +2602,9 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         && function_exists('ll_tools_dictionary_query_entry_ids_from_lookup_table')
     ) {
         $candidate_ids = ll_tools_dictionary_query_entry_ids_from_lookup_table($search, $statuses, $search_scope);
-        $search_results_pre_ranked = ($search_scope === 'all') && !empty($candidate_ids);
+        $search_results_pre_ranked = ll_tools_dictionary_search_scopes_use_all($search_scopes) && !empty($candidate_ids);
         if (!empty($candidate_ids)) {
-            $needs_meta_cache = ($search_scope !== 'all' || $pos_slug !== '' || $source_id !== '' || $dialect !== '');
+            $needs_meta_cache = (!ll_tools_dictionary_search_scopes_use_all($search_scopes) || $pos_slug !== '' || $source_id !== '' || $dialect !== '');
             if ($needs_meta_cache) {
                 update_postmeta_cache($candidate_ids);
             }
@@ -2561,8 +2646,8 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         if ($letter !== '' && !ll_tools_dictionary_entry_matches_browse_letter($entry_id, $letter, $title_language)) {
             continue;
         }
-        if ($search !== '' && $search_scope !== 'all') {
-            $rank = ll_tools_dictionary_get_entry_search_rank($entry_id, $search, $search_scope);
+        if ($search !== '' && !ll_tools_dictionary_search_scopes_use_all($search_scopes)) {
+            $rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($entry_id, $search, $search_scopes);
             if ((int) ($rank['bucket'] ?? 7) >= 7) {
                 continue;
             }
@@ -2585,9 +2670,9 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             return $left_id <=> $right_id;
         });
     } elseif ($search !== '' && !empty($filtered_ids) && !$search_results_pre_ranked) {
-        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $search_scope, $title_language): int {
-            $left_rank = ll_tools_dictionary_get_entry_search_rank($left_id, $search, $search_scope);
-            $right_rank = ll_tools_dictionary_get_entry_search_rank($right_id, $search, $search_scope);
+        usort($filtered_ids, static function (int $left_id, int $right_id) use ($search, $search_scopes, $title_language): int {
+            $left_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($left_id, $search, $search_scopes);
+            $right_rank = ll_tools_dictionary_get_entry_search_rank_for_scopes($right_id, $search, $search_scopes);
 
             foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
                 $compared = ((int) ($left_rank[$field] ?? 0)) <=> ((int) ($right_rank[$field] ?? 0));
@@ -3261,6 +3346,64 @@ function ll_tools_dictionary_get_entry_translation_candidates(array $senses, str
     }
 
     return $candidates;
+}
+
+/**
+ * Build one sortable search-rank tuple for a dictionary entry across selected scopes.
+ *
+ * @param string[]|string $scopes
+ * @return array{bucket:int,secondary_score:int,secondary_length:int,title:string}
+ */
+function ll_tools_dictionary_get_entry_search_rank_for_scopes(int $entry_id, string $term, $scopes = ['all']): array {
+    static $request_cache = [];
+
+    $normalized_scopes = ll_tools_dictionary_normalize_search_scopes($scopes);
+    if (ll_tools_dictionary_search_scopes_use_all($normalized_scopes)) {
+        return ll_tools_dictionary_get_entry_search_rank($entry_id, $term, 'all');
+    }
+
+    if (count($normalized_scopes) === 1) {
+        return ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $normalized_scopes[0]);
+    }
+
+    $cache_key = $entry_id . ':' . implode('|', $normalized_scopes) . ':' . ll_tools_dictionary_entry_normalize_lookup_value($term);
+    if ($cache_key !== '' && isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $best_rank = [
+        'bucket' => 7,
+        'secondary_score' => 99,
+        'secondary_length' => PHP_INT_MAX,
+        'title' => trim((string) get_the_title($entry_id)),
+    ];
+
+    foreach ($normalized_scopes as $scope) {
+        $rank = ll_tools_dictionary_get_entry_search_rank($entry_id, $term, (string) $scope);
+        $is_better = false;
+
+        foreach (['bucket', 'secondary_score', 'secondary_length'] as $field) {
+            $current = (int) ($rank[$field] ?? 0);
+            $best = (int) ($best_rank[$field] ?? 0);
+            if ($current < $best) {
+                $is_better = true;
+                break;
+            }
+            if ($current > $best) {
+                break;
+            }
+        }
+
+        if ($is_better) {
+            $best_rank = $rank;
+        }
+    }
+
+    if ($cache_key !== '') {
+        $request_cache[$cache_key] = $best_rank;
+    }
+
+    return $best_rank;
 }
 
 /**

@@ -1774,6 +1774,79 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
     return $stats;
 }
 
+function ll_tools_record_server_progress_event(int $user_id, array $event): bool {
+    global $wpdb;
+
+    $uid = max(0, $user_id);
+    if ($uid <= 0 || !function_exists('ll_tools_user_progress_table_names')) {
+        return false;
+    }
+
+    $event_type = strtolower(trim((string) ($event['event_type'] ?? '')));
+    $allowed_types = ['stt_api_call'];
+    if (!in_array($event_type, $allowed_types, true)) {
+        return false;
+    }
+
+    $word_id = max(0, (int) ($event['word_id'] ?? 0));
+    $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
+    if ($wordset_id <= 0 && $word_id > 0) {
+        $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
+    }
+
+    $category_id = max(0, (int) ($event['category_id'] ?? 0));
+    if ($category_id <= 0 && $word_id > 0) {
+        $category_id = ll_tools_resolve_category_id_for_word($word_id);
+    }
+    if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
+        if ($effective_category_id > 0) {
+            $category_id = $effective_category_id;
+        }
+    }
+
+    $mode = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
+    $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+    $payload_json = !empty($payload) ? wp_json_encode($payload) : null;
+    $event_uuid = sanitize_text_field(substr((string) ($event['event_uuid'] ?? ''), 0, 64));
+    if ($event_uuid === '') {
+        $event_uuid = wp_generate_uuid4();
+    }
+
+    $tables = ll_tools_user_progress_table_names();
+    $events_table = $tables['events'];
+
+    $previous_suppress_errors = $wpdb->suppress_errors(true);
+    $inserted = $wpdb->insert(
+        $events_table,
+        [
+            'user_id' => $uid,
+            'event_uuid' => $event_uuid,
+            'event_type' => $event_type,
+            'mode' => $mode,
+            'word_id' => $word_id,
+            'category_id' => $category_id,
+            'wordset_id' => $wordset_id,
+            'is_correct' => null,
+            'had_wrong_before' => 0,
+            'payload_json' => $payload_json,
+            'created_at' => gmdate('Y-m-d H:i:s'),
+        ],
+        ['%d', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
+    );
+    $wpdb->suppress_errors($previous_suppress_errors);
+
+    if ($inserted === false) {
+        $last_error = (string) $wpdb->last_error;
+        if (stripos($last_error, 'duplicate') !== false) {
+            return true;
+        }
+        return false;
+    }
+
+    return true;
+}
+
 function ll_tools_get_user_word_progress_rows(int $user_id, array $word_ids): array {
     global $wpdb;
     if ($user_id <= 0 || empty($word_ids)) {

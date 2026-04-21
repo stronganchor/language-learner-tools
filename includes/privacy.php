@@ -271,7 +271,6 @@ if (!function_exists('ll_tools_privacy_export_study_settings')) {
                     ll_tools_privacy_export_data_pair(__('Selected word set', 'll-tools-text-domain'), ll_tools_privacy_term_label($wordset_id, 'wordset')),
                     ll_tools_privacy_export_data_pair(__('Selected category IDs', 'll-tools-text-domain'), $category_ids),
                     ll_tools_privacy_export_data_pair(__('Starred word IDs', 'll-tools-text-domain'), (array) ($study_state['starred_word_ids'] ?? [])),
-                    ll_tools_privacy_export_data_pair(__('Star mode', 'll-tools-text-domain'), (string) ($study_state['star_mode'] ?? 'normal')),
                     ll_tools_privacy_export_data_pair(__('Fast transitions enabled', 'll-tools-text-domain'), !empty($study_state['fast_transitions'])),
                 ],
             ];

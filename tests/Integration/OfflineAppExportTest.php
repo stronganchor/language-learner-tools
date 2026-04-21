@@ -128,7 +128,6 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             $this->assertFalse(is_wp_error($wordset_term));
             $this->assertIsArray($wordset_term);
             $wordset_id = (int) $wordset_term['term_id'];
-            $wordset_slug = (string) get_term_field('slug', $wordset_id, 'wordset');
             update_term_meta($wordset_id, 'll_wordset_has_gender', '1');
 
             $category_term = wp_insert_term('Offline Bundle Category ' . wp_generate_password(6, false), 'word-category');
@@ -188,7 +187,6 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_PROVIDER_META_KEY, 'local_browser');
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY, 'recording_ipa');
             $offline_stt_bundle_path = $this->create_offline_stt_bundle_dir('offline-stt-bundle');
-            $offline_stt_bundle_dir_name = wp_basename($offline_stt_bundle_path);
             update_term_meta($wordset_id, LL_TOOLS_WORDSET_OFFLINE_STT_BUNDLE_PATH_META_KEY, $offline_stt_bundle_path);
 
             wp_update_post([
@@ -335,11 +333,13 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('"genderOptions":["', $offline_data);
                 $this->assertStringContainsString('"games":{', $offline_data);
                 $this->assertStringContainsString('"runtimeMode":"offline"', $offline_data);
-                $this->assertStringContainsString('"provider":"embedded_model"', $offline_data);
-                $this->assertStringContainsString('"embedded_model":{"wordsetId":', $offline_data);
-                $this->assertStringContainsString('"offline_stt":{"wordsetId":', $offline_data);
                 $this->assertStringContainsString('"./plugin/media/space-shooter-correct-hit.mp3"', $offline_data);
                 $this->assertStringContainsString('"./plugin/media/bubble-pop.mp3"', $offline_data);
+                $this->assertStringNotContainsString('"speaking-practice":{"slug":"speaking-practice"', $offline_data);
+                $this->assertStringNotContainsString('"speaking-stack":{"slug":"speaking-stack"', $offline_data);
+                $this->assertStringNotContainsString('"embedded_model"', $offline_data);
+                $this->assertStringNotContainsString('"offline_stt"', $offline_data);
+                $this->assertStringNotContainsString('"speechToText"', $offline_data);
 
                 $index_html = $zip->getFromName('www/index.html');
                 $this->assertIsString($index_html);
@@ -347,10 +347,13 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertIsString($offline_app_js);
                 $manifest_json = $zip->getFromName('bundle-manifest.json');
                 $this->assertIsString($manifest_json);
-                $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/manifest.json'));
-                $this->assertNotFalse($zip->locateName('www/content/stt-models/' . $wordset_slug . '/' . $offline_stt_bundle_dir_name . '/model.bin'));
                 $this->assertStringContainsString('id="ll-offline-category-grid"', $index_html);
                 $this->assertStringContainsString('class="ll-wordset-grid"', $index_html);
+                $this->assertStringContainsString('id="ll-offline-next-card"', $index_html);
+                $this->assertStringContainsString('data-ll-offline-next', $index_html);
+                $this->assertStringContainsString('data-ll-offline-category-search', $index_html);
+                $this->assertStringContainsString('data-ll-offline-sort-toggle', $index_html);
+                $this->assertStringContainsString('data-ll-offline-sort-option="progress-desc"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-selection-bar"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-view-toggle', $index_html);
@@ -361,6 +364,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('id="ll-offline-sync-sheet"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-sync-connect"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-sync-password-toggle"', $index_html);
+                $this->assertStringContainsString('Speaking Practice is temporarily disabled in offline app exports.', $index_html);
                 $this->assertStringContainsString('src="./app/offline-app.js"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/language-learner-tools.css"', $index_html);
                 $this->assertStringContainsString('href="./plugin/css/wordset-pages.css"', $index_html);
@@ -370,6 +374,8 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringNotContainsString('http://./', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);
+                $this->assertStringContainsString('buildCategoryProgressMarkup', $offline_app_js);
+                $this->assertStringContainsString('data-ll-offline-sort-option', $offline_app_js);
                 $this->assertStringContainsString('buildOfflineSpeakingBridge', $offline_app_js);
                 $this->assertStringContainsString('id="restart-self-check-mode"', $index_html);
                 $this->assertStringContainsString('id="restart-listening-mode"', $index_html);
@@ -379,10 +385,9 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('data-mode="listening"', $index_html);
                 $this->assertStringContainsString('data-mode="self-check"', $index_html);
                 $this->assertStringContainsString('data-mode="gender"', $index_html);
-                $this->assertStringContainsString('"speechToText"', $manifest_json);
-                $this->assertStringContainsString('"wordsetId": ' . $wordset_id, $manifest_json);
-                $this->assertStringContainsString('"androidAssetModelPath"', $offline_data);
-                $this->assertStringContainsString('"engine":"whisper.cpp"', $offline_data);
+                $this->assertStringNotContainsString('"speechToText"', $manifest_json);
+                $this->assertStringNotContainsString('"androidAssetModelPath"', $offline_data);
+                $this->assertStringNotContainsString('"engine":"whisper.cpp"', $offline_data);
 
                 $has_image_asset = false;
                 $has_audio_asset = false;
@@ -401,7 +406,7 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
 
                 $this->assertTrue($has_image_asset, 'Expected bundled offline image assets.');
                 $this->assertTrue($has_audio_asset, 'Expected bundled offline audio assets.');
-                $this->assertTrue($has_model_asset, 'Expected bundled offline STT model assets.');
+                $this->assertFalse($has_model_asset, 'Offline export should not bundle STT model assets while mobile speaking is disabled.');
                 $zip->close();
             } finally {
                 @unlink($zip_path);

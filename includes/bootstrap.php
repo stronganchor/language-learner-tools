@@ -3,6 +3,7 @@ if (!defined('WPINC')) { die; }
 
 // Include asset management
 require_once(__DIR__ . '/assets.php');
+require_once __DIR__ . '/lib/php-compat.php';
 require_once __DIR__ . '/lib/sort.php';
 require_once __DIR__ . '/lib/text-display.php';
 require_once __DIR__ . '/lib/wordset-language-settings.php';
@@ -52,6 +53,7 @@ require_once(__DIR__ . '/admin/uploads/audio-upload-form.php');
 require_once(__DIR__ . '/admin/uploads/image-upload-form.php');
 require_once(__DIR__ . '/user-progress.php');
 require_once(__DIR__ . '/user-study.php');
+require_once(__DIR__ . '/user-progress-report-data.php');
 require_once(__DIR__ . '/offline-app-sync.php');
 require_once(__DIR__ . '/privacy.php');
 
@@ -116,6 +118,7 @@ require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');
 require_once(__DIR__ . '/pages/recording-page.php');
 require_once(__DIR__ . '/pages/editor-hub-page.php');
 require_once(__DIR__ . '/pages/dictionary-page.php');
+require_once(__DIR__ . '/pages/site-tools-page.php');
 // Note: embed-page.php is loaded via template_include filter, not require
 
 // Include shortcodes
@@ -128,7 +131,9 @@ require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');
 require_once(__DIR__ . '/shortcodes/wordset-page-shortcode.php');
+require_once(__DIR__ . '/shortcodes/wordset-buttons-shortcode.php');
 require_once(__DIR__ . '/shortcodes/dictionary-shortcode.php');
+require_once(__DIR__ . '/shortcodes/site-tools-shortcode.php');
 
 // Include the plugin update checker only on admin/cron/CLI requests.
 if (!function_exists('ll_tools_should_boot_update_checker') || ll_tools_should_boot_update_checker()) {
