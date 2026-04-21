@@ -87,6 +87,10 @@
     box-shadow: 0 14px 36px rgba(17, 34, 51, 0.06);
 }
 
+.ll-site-tools-card--managed-pages {
+    grid-column: 1 / -1;
+}
+
 .ll-site-tools-card__head {
     margin-bottom: 16px;
 }
@@ -248,14 +252,21 @@
     border-radius: 18px;
     background: #f7fbfc;
     color: inherit;
-    text-decoration: none;
+    text-decoration: none !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
 }
 
+.ll-site-tools-link-card:link,
+.ll-site-tools-link-card:visited,
 .ll-site-tools-link-card:hover,
 .ll-site-tools-link-card:focus {
     border-color: rgba(26, 127, 116, 0.24);
     background: #f0faf8;
-    text-decoration: none;
+    color: inherit;
+    text-decoration: none !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
 }
 
 .ll-site-tools-link-card__title {
@@ -263,6 +274,9 @@
     color: #0e1b29;
     font-size: 1rem;
     font-weight: 700;
+    text-decoration: none !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
 }
 
 .ll-site-tools-link-card__description {
@@ -271,6 +285,9 @@
     color: #536978;
     font-size: 0.92rem;
     line-height: 1.5;
+    text-decoration: none !important;
+    border-bottom: 0 !important;
+    box-shadow: none !important;
 }
 
 .ll-site-tools-page-list {
@@ -376,6 +393,13 @@
     line-height: 1.5;
 }
 
+@media (min-width: 960px) {
+    .ll-site-tools-page-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+}
+
 @media (max-width: 700px) {
     .ll-site-tools {
         width: min(100%, calc(100% - 20px));
@@ -406,6 +430,10 @@
     .ll-site-tools-inline-actions .ll-site-tools-button--secondary,
     .ll-site-tools-inline-actions .ll-site-tools-button--ghost {
         width: 100%;
+    }
+
+    .ll-site-tools-card--managed-pages {
+        grid-column: auto;
     }
 
     .ll-site-tools-button,

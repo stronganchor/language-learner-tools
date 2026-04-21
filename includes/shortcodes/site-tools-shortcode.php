@@ -735,69 +735,6 @@ function ll_site_tools_shortcode($atts): string {
 
             <section class="ll-site-tools-card">
                 <div class="ll-site-tools-card__head">
-                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Managed Pages', 'll-tools-text-domain'); ?></h2>
-                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Create or recreate the plugin-owned front-end pages that still relied on dashboard settings-row actions.', 'll-tools-text-domain'); ?></p>
-                </div>
-
-                <?php if (empty($page_manager_rows)) : ?>
-                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('No managed LL Tools pages are configured yet.', 'll-tools-text-domain'); ?></p>
-                <?php else : ?>
-                    <div class="ll-site-tools-page-list">
-                        <?php foreach ($page_manager_rows as $page_row) : ?>
-                            <div class="ll-site-tools-page-item">
-                                <div class="ll-site-tools-page-item__copy">
-                                    <div class="ll-site-tools-page-item__header">
-                                        <h3 class="ll-site-tools-page-item__title"><?php echo esc_html((string) ($page_row['label'] ?? '')); ?></h3>
-                                        <span class="ll-site-tools-pill">
-                                            <?php echo !empty($page_row['exists']) ? esc_html__('Published', 'll-tools-text-domain') : esc_html__('Missing', 'll-tools-text-domain'); ?>
-                                        </span>
-                                    </div>
-                                    <p class="ll-site-tools-page-item__description">
-                                        <?php
-                                        if (!empty($page_row['exists'])) {
-                                            echo esc_html(
-                                                sprintf(
-                                                    /* translators: %s: page title */
-                                                    __('Using "%s".', 'll-tools-text-domain'),
-                                                    (string) ($page_row['title'] ?? '')
-                                                )
-                                            );
-                                        } else {
-                                            echo esc_html((string) ($page_row['empty_text'] ?? ''));
-                                        }
-                                        ?>
-                                    </p>
-
-                                    <?php if (!empty($page_row['exists'])) : ?>
-                                        <div class="ll-site-tools-page-links">
-                                            <a class="ll-site-tools-text-link" href="<?php echo esc_url((string) ($page_row['url'] ?? '')); ?>"><?php echo esc_html__('View', 'll-tools-text-domain'); ?></a>
-                                            <?php if (!empty($page_row['edit_url'])) : ?>
-                                                <a class="ll-site-tools-text-link" href="<?php echo esc_url((string) $page_row['edit_url']); ?>"><?php echo esc_html__('Edit in WordPress', 'll-tools-text-domain'); ?></a>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-
-                                <?php if ($can_manage_settings) : ?>
-                                    <form class="ll-site-tools-page-item__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                        <input type="hidden" name="action" value="ll_tools_manage_site_tools_page" />
-                                        <input type="hidden" name="ll_site_tools_page_key" value="<?php echo esc_attr((string) ($page_row['key'] ?? '')); ?>" />
-                                        <input type="hidden" name="ll_site_tools_page_mode" value="<?php echo !empty($page_row['exists']) ? 'recreate' : 'create'; ?>" />
-                                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
-                                        <?php wp_nonce_field('ll_tools_site_tools_page_' . (string) ($page_row['key'] ?? ''), 'll_site_tools_page_nonce'); ?>
-                                        <button type="submit" class="ll-site-tools-button ll-site-tools-button--secondary">
-                                            <?php echo esc_html(!empty($page_row['exists']) ? (string) ($page_row['recreate_label'] ?? '') : (string) ($page_row['create_label'] ?? '')); ?>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </section>
-
-            <section class="ll-site-tools-card">
-                <div class="ll-site-tools-card__head">
                     <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Study Defaults', 'll-tools-text-domain'); ?></h2>
                     <p class="ll-site-tools-card__description"><?php echo esc_html__('These are global defaults currently only available in the dashboard settings screen.', 'll-tools-text-domain'); ?></p>
                 </div>
@@ -1050,6 +987,69 @@ function ll_site_tools_shortcode($atts): string {
                     </div>
                 <?php else : ?>
                     <p class="ll-site-tools-card__empty"><?php echo esc_html__('Administrator access is required to run maintenance actions.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </section>
+
+            <section class="ll-site-tools-card ll-site-tools-card--managed-pages">
+                <div class="ll-site-tools-card__head">
+                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Managed Pages', 'll-tools-text-domain'); ?></h2>
+                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Create or recreate the plugin-owned front-end pages that still relied on dashboard settings-row actions.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <?php if (empty($page_manager_rows)) : ?>
+                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('No managed LL Tools pages are configured yet.', 'll-tools-text-domain'); ?></p>
+                <?php else : ?>
+                    <div class="ll-site-tools-page-list">
+                        <?php foreach ($page_manager_rows as $page_row) : ?>
+                            <div class="ll-site-tools-page-item">
+                                <div class="ll-site-tools-page-item__copy">
+                                    <div class="ll-site-tools-page-item__header">
+                                        <h3 class="ll-site-tools-page-item__title"><?php echo esc_html((string) ($page_row['label'] ?? '')); ?></h3>
+                                        <span class="ll-site-tools-pill">
+                                            <?php echo !empty($page_row['exists']) ? esc_html__('Published', 'll-tools-text-domain') : esc_html__('Missing', 'll-tools-text-domain'); ?>
+                                        </span>
+                                    </div>
+                                    <p class="ll-site-tools-page-item__description">
+                                        <?php
+                                        if (!empty($page_row['exists'])) {
+                                            echo esc_html(
+                                                sprintf(
+                                                    /* translators: %s: page title */
+                                                    __('Using "%s".', 'll-tools-text-domain'),
+                                                    (string) ($page_row['title'] ?? '')
+                                                )
+                                            );
+                                        } else {
+                                            echo esc_html((string) ($page_row['empty_text'] ?? ''));
+                                        }
+                                        ?>
+                                    </p>
+
+                                    <?php if (!empty($page_row['exists'])) : ?>
+                                        <div class="ll-site-tools-page-links">
+                                            <a class="ll-site-tools-text-link" href="<?php echo esc_url((string) ($page_row['url'] ?? '')); ?>"><?php echo esc_html__('View', 'll-tools-text-domain'); ?></a>
+                                            <?php if (!empty($page_row['edit_url'])) : ?>
+                                                <a class="ll-site-tools-text-link" href="<?php echo esc_url((string) $page_row['edit_url']); ?>"><?php echo esc_html__('Edit in WordPress', 'll-tools-text-domain'); ?></a>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <?php if ($can_manage_settings) : ?>
+                                    <form class="ll-site-tools-page-item__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                        <input type="hidden" name="action" value="ll_tools_manage_site_tools_page" />
+                                        <input type="hidden" name="ll_site_tools_page_key" value="<?php echo esc_attr((string) ($page_row['key'] ?? '')); ?>" />
+                                        <input type="hidden" name="ll_site_tools_page_mode" value="<?php echo !empty($page_row['exists']) ? 'recreate' : 'create'; ?>" />
+                                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                                        <?php wp_nonce_field('ll_tools_site_tools_page_' . (string) ($page_row['key'] ?? ''), 'll_site_tools_page_nonce'); ?>
+                                        <button type="submit" class="ll-site-tools-button ll-site-tools-button--secondary">
+                                            <?php echo esc_html(!empty($page_row['exists']) ? (string) ($page_row['recreate_label'] ?? '') : (string) ($page_row['create_label'] ?? '')); ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 <?php endif; ?>
             </section>
         </div>
