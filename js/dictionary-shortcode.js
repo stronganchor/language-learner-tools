@@ -650,8 +650,9 @@
         };
 
         const setActiveState = (active) => {
-            toolbar.classList.toggle('is-expanded', active);
-            toolbar.classList.toggle('is-collapsed', !active);
+            const shouldStayExpanded = active || toolbar.classList.contains('is-scope-visible');
+            toolbar.classList.toggle('is-expanded', shouldStayExpanded);
+            toolbar.classList.toggle('is-collapsed', !shouldStayExpanded);
         };
 
         const buildToolbarBootstrapPayload = () => {

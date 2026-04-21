@@ -91,13 +91,15 @@
 .ll-dictionary__scope-option:hover,
 .ll-dictionary__scope-option:focus-within {
     border-color: var(--ll-dictionary-accent);
-    background: var(--ll-dictionary-accent-soft);
-    color: var(--ll-dictionary-accent);
+    background: #fff;
+    color: var(--ll-dictionary-ink);
     transform: translateY(-1px);
     box-shadow: 0 10px 20px rgba(24, 33, 43, 0.08);
 }
 
-.ll-dictionary__scope-option:has(.ll-dictionary__scope-checkbox:checked) {
+.ll-dictionary__scope-option:has(.ll-dictionary__scope-checkbox:checked),
+.ll-dictionary__scope-option:has(.ll-dictionary__scope-checkbox:checked):hover,
+.ll-dictionary__scope-option:has(.ll-dictionary__scope-checkbox:checked):focus-within {
     border-color: var(--ll-dictionary-accent);
     background: var(--ll-dictionary-accent-soft);
     color: var(--ll-dictionary-accent);

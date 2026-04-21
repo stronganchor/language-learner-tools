@@ -6,6 +6,10 @@ const dictionaryScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/dictionary-shortcode.js'),
   'utf8'
 );
+const dictionaryCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/dictionary-shortcode.css'),
+  'utf8'
+);
 
 function buildMarkup() {
   return `
@@ -62,6 +66,7 @@ function buildMarkup() {
 
 async function mountDictionaryHarness(page, options = {}) {
   await page.setContent(buildMarkup(), { waitUntil: 'domcontentloaded' });
+  await page.addStyleTag({ content: dictionaryCssSource });
   await page.evaluate((config) => {
     if (config && config.trackScroll) {
       const initialScrollTop = Number(config.scrollY || 0);
@@ -278,6 +283,37 @@ test('restores saved checkbox scope preferences on load when the URL has no expl
 
   await expect(page.locator('#ll-dictionary-scope-headword')).toBeChecked();
   await expect(page.locator('#ll-dictionary-scope-tr')).not.toBeChecked();
+});
+
+test('unchecked scope chips lose their green fill immediately while focused', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
+
+  await page.locator('#ll-dictionary-scope-tr').focus();
+  const scopeChip = page.locator('label[for="ll-dictionary-scope-tr"]');
+
+  await expect(page.locator('#ll-dictionary-scope-tr')).toBeChecked();
+  await expect(scopeChip).toHaveCSS('background-color', 'rgb(230, 246, 239)');
+
+  await page.keyboard.press('Space');
+
+  await expect(page.locator('#ll-dictionary-scope-tr')).not.toBeChecked();
+  await expect(scopeChip).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+});
+
+test('scope changes keep the alphabet panel open', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('.ll-dictionary__letters')).toBeVisible();
+
+  await page.locator('#ll-dictionary-scope-tr').uncheck();
+  await page.locator('body').click({ position: { x: 4, y: 4 } });
+
+  await expect(page.locator('.ll-dictionary__toolbar')).toHaveClass(/is-expanded/);
+  await expect(page.locator('.ll-dictionary__letters')).toBeVisible();
 });
 
 test('scrolls down once when live search starts so the search field stays visible', async ({ page }) => {
