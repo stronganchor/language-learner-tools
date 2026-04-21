@@ -5057,6 +5057,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesLineupProgress' => __('Sequence %1$d of %2$d', 'll-tools-text-domain'),
         'gamesLineupMoveEarlier' => __('Move earlier', 'll-tools-text-domain'),
         'gamesLineupMoveLater' => __('Move later', 'll-tools-text-domain'),
+        'gamesLineupCardAudio' => __('Play card audio', 'll-tools-text-domain'),
         'gamesLineupShuffle' => __('Shuffle', 'll-tools-text-domain'),
         'gamesLineupCheck' => __('Check', 'll-tools-text-domain'),
         'gamesLineupNext' => __('Next', 'll-tools-text-domain'),
