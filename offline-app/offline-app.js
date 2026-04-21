@@ -52,6 +52,13 @@
         noCategoriesSelected: String(messages.noCategoriesSelected || 'Select at least one category.'),
         somethingWentWrong: String(messages.somethingWentWrong || 'Something went wrong')
     };
+    const recommendationMessages = {
+        loading: String(messages.offlineNextLoading || 'Loading next recommendation...'),
+        empty: String(messages.offlineNextEmpty || 'Start with a category below, or connect sync to get the next study step.'),
+        ready: String(messages.offlineNextReady || 'Recommended: %1$s in %2$s (%3$d words).'),
+        readyNoCount: String(messages.offlineNextReadyNoCount || 'Recommended: %1$s in %2$s.'),
+        wordCount: String(messages.offlineNextWords || '%d words')
+    };
     const syncMessages = {
         localOnlyLabel: String(syncConfigMessages.localOnlyLabel || 'Local progress only'),
         connectedAsLabel: String(syncConfigMessages.connectedAsLabel || 'Connected as %s'),
@@ -190,6 +197,8 @@
             fast_transitions: false
         },
         availableModes: MODE_ORDER.slice(),
+        sessionWordIds: [],
+        session_word_ids: [],
         offlineCategoryData: {}
     }, flashcards);
 
@@ -599,6 +608,27 @@
         });
     }
 
+    function uniqueIntList(values) {
+        const seen = {};
+        return (Array.isArray(values) ? values : []).map(function (value) {
+            return parseInt(value, 10) || 0;
+        }).filter(function (id) {
+            if (!id || seen[id]) {
+                return false;
+            }
+            seen[id] = true;
+            return true;
+        });
+    }
+
+    function normalizeRecommendedMode(mode) {
+        const normalized = String(mode || '').trim().toLowerCase();
+        if (normalized === 'selfcheck') {
+            return 'self-check';
+        }
+        return MODE_ORDER.indexOf(normalized) !== -1 ? normalized : '';
+    }
+
     function renderPreviewMarkup(category) {
         const previewItems = Array.isArray(category.preview) ? category.preview.slice(0, category.preview_limit || 2) : [];
         const markup = [];
@@ -635,6 +665,36 @@
         return markup.join('');
     }
 
+    function renderRecommendedPreviewMarkup(previewItems) {
+        const items = Array.isArray(previewItems) ? previewItems.slice(0, 2) : [];
+        const markup = [];
+
+        items.forEach(function (previewItem) {
+            if (previewItem.type === 'image' && previewItem.url) {
+                markup.push(
+                    '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--image">' +
+                        '<img src="' + escapeHtml(previewItem.url) + '" alt="' + escapeHtml(previewItem.alt || '') + '" loading="lazy" decoding="async">' +
+                    '</span>'
+                );
+                return;
+            }
+
+            if (previewItem.type === 'text' && previewItem.label) {
+                markup.push(
+                    '<span class="ll-wordset-next-thumb ll-wordset-next-thumb--text">' +
+                        '<span class="ll-wordset-next-thumb__text" dir="auto">' + escapeHtml(previewItem.label) + '</span>' +
+                    '</span>'
+                );
+            }
+        });
+
+        while (markup.length < 2) {
+            markup.push('<span class="ll-wordset-next-thumb ll-wordset-next-thumb--empty" aria-hidden="true"></span>');
+        }
+
+        return markup.join('');
+    }
+
     function buildSelectionActionMarkup(mode) {
         const label = getModeLabel(mode);
         return getModeIconMarkup(mode, 'll-vocab-lesson-mode-icon') +
@@ -653,10 +713,11 @@
             '</button>';
     }
 
-    function launchOfflineSelection(categoryIds, mode, categories, offlineCategoryData) {
+    function launchOfflineSelection(categoryIds, mode, categories, offlineCategoryData, sessionWordIds) {
         const normalizedMode = normalizeMode(mode);
         const wantedLookup = {};
         const wantedIds = Array.isArray(categoryIds) ? categoryIds : [];
+        const normalizedSessionWordIds = uniqueIntList(sessionWordIds || []);
 
         wantedIds.forEach(function (categoryId) {
             const normalizedId = parseInt(categoryId, 10) || 0;
@@ -714,6 +775,8 @@
         flashData.quiz_mode = normalizedMode;
         flashData.availableModes = getConfiguredModes(flashData);
         flashData.offlineCategoryData = offlineCategoryData;
+        flashData.sessionWordIds = normalizedSessionWordIds.slice();
+        flashData.session_word_ids = normalizedSessionWordIds.slice();
         flashData.userStudyState = Object.assign({}, flashData.userStudyState || {}, {
             wordset_id: Array.isArray(flashData.wordsetIds) && flashData.wordsetIds.length
                 ? (parseInt(flashData.wordsetIds[0], 10) || 0)
@@ -729,6 +792,12 @@
         flashData.star_mode = starMode;
         flashData.fastTransitions = fastTransitions;
         flashData.fast_transitions = fastTransitions;
+        flashData.lastLaunchPlan = {
+            mode: normalizedMode,
+            category_ids: selectedIds.slice(),
+            session_word_ids: normalizedSessionWordIds.slice()
+        };
+        flashData.last_launch_plan = Object.assign({}, flashData.lastLaunchPlan);
         if (normalizedMode === 'gender') {
             flashData.genderLaunchSource = 'direct';
         }
@@ -1834,6 +1903,11 @@
             'self-check': documentRef.getElementById('ll-offline-launch-self-check-selected')
         };
         const clearSelectionButton = documentRef.getElementById('ll-offline-selection-clear');
+        const nextCardEl = documentRef.getElementById('ll-offline-next-card');
+        const nextTextEl = documentRef.getElementById('ll-offline-next-text');
+        const nextIconEl = documentRef.getElementById('ll-offline-next-icon');
+        const nextPreviewEl = documentRef.getElementById('ll-offline-next-preview');
+        const nextCountEl = documentRef.getElementById('ll-offline-next-count');
 
         if (!rootEl || !launcherEl || !gridEl || !emptyEl || !selectionBarEl || !selectAllButton || !clearSelectionButton) {
             return;
@@ -1849,6 +1923,226 @@
         let selectedIds = Array.isArray((flashData.userStudyState && flashData.userStudyState.category_ids) || [])
             ? flashData.userStudyState.category_ids.map(toInt).filter(Boolean)
             : [];
+        let nextActivity = null;
+        let recommendationQueue = [];
+
+        function getCategoryById(categoryId) {
+            const targetId = parseInt(categoryId, 10) || 0;
+            if (!targetId) {
+                return null;
+            }
+            for (let index = 0; index < categories.length; index += 1) {
+                if ((parseInt(categories[index] && categories[index].id, 10) || 0) === targetId) {
+                    return categories[index];
+                }
+            }
+            return null;
+        }
+
+        function getRecommendationCategories(activity) {
+            return uniqueIntList(activity && activity.category_ids).map(getCategoryById).filter(Boolean);
+        }
+
+        function normalizeRecommendationActivity(raw) {
+            if (!raw || typeof raw !== 'object') {
+                return null;
+            }
+
+            const mode = normalizeRecommendedMode(raw.mode || '');
+            const categoryIds = uniqueIntList(raw.category_ids || []).filter(function (categoryId) {
+                return !!getCategoryById(categoryId);
+            });
+            if (!mode || !categoryIds.length) {
+                return null;
+            }
+
+            return {
+                mode: mode,
+                category_ids: categoryIds,
+                session_word_ids: uniqueIntList(raw.session_word_ids || []),
+                details: (raw.details && typeof raw.details === 'object') ? raw.details : {}
+            };
+        }
+
+        function buildFallbackRecommendation() {
+            if (!categories.length) {
+                return null;
+            }
+
+            for (let index = 0; index < categories.length; index += 1) {
+                if (isModeSupportedForCategory('learning', categories[index], flashData)) {
+                    return {
+                        mode: 'learning',
+                        category_ids: [categories[index].id],
+                        session_word_ids: []
+                    };
+                }
+            }
+
+            return {
+                mode: 'practice',
+                category_ids: [categories[0].id],
+                session_word_ids: []
+            };
+        }
+
+        function recommendationWordCount(activity) {
+            const normalized = normalizeRecommendationActivity(activity);
+            if (!normalized) {
+                return 0;
+            }
+
+            if (normalized.session_word_ids.length) {
+                return normalized.session_word_ids.length;
+            }
+
+            return getRecommendationCategories(normalized).reduce(function (total, category) {
+                return total + Math.max(0, parseInt(category.word_count, 10) || 0);
+            }, 0);
+        }
+
+        function recommendationCategoryText(activity) {
+            const normalized = normalizeRecommendationActivity(activity);
+            const labels = getRecommendationCategories(normalized).map(function (category) {
+                return String(category.name || '').trim();
+            }).filter(Boolean);
+
+            if (labels.length) {
+                return labels.join(', ');
+            }
+
+            return String(messages.categoriesLabel || 'Categories');
+        }
+
+        function recommendationPreviewItems(activity) {
+            const normalized = normalizeRecommendationActivity(activity);
+            const preview = [];
+            const seenText = {};
+
+            getRecommendationCategories(normalized).forEach(function (category) {
+                (Array.isArray(category.preview) ? category.preview : []).forEach(function (item) {
+                    if (preview.length >= 2) {
+                        return;
+                    }
+                    if (item.type === 'image' && item.url) {
+                        preview.push({
+                            type: 'image',
+                            url: String(item.url || ''),
+                            alt: String(item.alt || '')
+                        });
+                        return;
+                    }
+                    const label = String(item.label || '').trim();
+                    if (!label || seenText[label]) {
+                        return;
+                    }
+                    seenText[label] = true;
+                    preview.push({
+                        type: 'text',
+                        label: label
+                    });
+                });
+            });
+
+            return preview;
+        }
+
+        function recommendationIsLaunchable(activity) {
+            const normalized = normalizeRecommendationActivity(activity);
+            if (!normalized) {
+                return false;
+            }
+            const activityCategories = getRecommendationCategories(normalized);
+            if (!activityCategories.length) {
+                return false;
+            }
+            if (getConfiguredModes(flashData).indexOf(normalized.mode) === -1) {
+                return false;
+            }
+            return isModeSupportedForSelection(normalized.mode, activityCategories, flashData);
+        }
+
+        function resolveRecommendedActivity() {
+            const direct = normalizeRecommendationActivity(nextActivity);
+            if (recommendationIsLaunchable(direct)) {
+                return direct;
+            }
+
+            for (let index = 0; index < recommendationQueue.length; index += 1) {
+                const queued = normalizeRecommendationActivity(recommendationQueue[index]);
+                if (recommendationIsLaunchable(queued)) {
+                    return queued;
+                }
+            }
+
+            const fallback = buildFallbackRecommendation();
+            return recommendationIsLaunchable(fallback) ? fallback : null;
+        }
+
+        function applyRecommendationPayload(payload) {
+            const source = (payload && typeof payload === 'object') ? payload : {};
+            if (Object.prototype.hasOwnProperty.call(source, 'next_activity')) {
+                nextActivity = normalizeRecommendationActivity(source.next_activity);
+            }
+            if (Object.prototype.hasOwnProperty.call(source, 'recommendation_queue')) {
+                recommendationQueue = (Array.isArray(source.recommendation_queue) ? source.recommendation_queue : []).map(function (item) {
+                    return normalizeRecommendationActivity(item);
+                }).filter(Boolean);
+            }
+            renderRecommendationCard();
+        }
+
+        function renderRecommendationCard() {
+            if (!nextCardEl || !nextTextEl || !nextIconEl || !nextPreviewEl) {
+                return;
+            }
+
+            const activity = resolveRecommendedActivity();
+            const selectionActive = selectedIds.length > 0;
+            const launchable = !selectionActive && recommendationIsLaunchable(activity);
+
+            nextCardEl.classList.toggle('is-disabled', !launchable);
+            nextCardEl.disabled = !launchable;
+            nextCardEl.setAttribute('aria-disabled', launchable ? 'false' : 'true');
+
+            if (!activity) {
+                nextTextEl.textContent = recommendationMessages.empty;
+                nextIconEl.innerHTML = '';
+                nextPreviewEl.innerHTML = renderRecommendedPreviewMarkup([]);
+                if (nextCountEl) {
+                    nextCountEl.hidden = true;
+                    nextCountEl.textContent = '';
+                }
+                nextCardEl.setAttribute('aria-label', recommendationMessages.empty);
+                return;
+            }
+
+            const modeLabel = getModeLabel(activity.mode);
+            const categoryLabel = recommendationCategoryText(activity);
+            const wordCount = recommendationWordCount(activity);
+            const ariaLabel = wordCount > 0
+                ? formatMessage(recommendationMessages.ready, [modeLabel, categoryLabel, wordCount])
+                : formatMessage(recommendationMessages.readyNoCount, [modeLabel, categoryLabel]);
+
+            nextTextEl.innerHTML =
+                '<span class="ll-wordset-next-card__line" dir="auto">' + escapeHtml(modeLabel) + '</span>' +
+                '<span class="ll-wordset-next-card__line ll-wordset-next-card__line--muted" dir="auto">' + escapeHtml(categoryLabel) + '</span>';
+            nextIconEl.innerHTML = getModeIconMarkup(activity.mode, 'll-vocab-lesson-mode-icon');
+            nextPreviewEl.innerHTML = renderRecommendedPreviewMarkup(recommendationPreviewItems(activity));
+            nextCardEl.setAttribute('aria-label', ariaLabel);
+
+            if (nextCountEl) {
+                if (wordCount > 0) {
+                    nextCountEl.hidden = false;
+                    nextCountEl.textContent = String(wordCount);
+                    nextCountEl.setAttribute('title', formatMessage(recommendationMessages.wordCount, [wordCount]));
+                } else {
+                    nextCountEl.hidden = true;
+                    nextCountEl.textContent = '';
+                    nextCountEl.removeAttribute('title');
+                }
+            }
+        }
 
         function setModeButtonDisabled(buttonEl, disabled) {
             if (!buttonEl) {
@@ -1943,6 +2237,7 @@
             selectAllButton.disabled = categories.length < 1;
             selectAllButton.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
             syncSelectionButtons(selectedCategories);
+            renderRecommendationCard();
         }
 
         function renderCategoryCards() {
@@ -1955,6 +2250,7 @@
                 }
                 selectAllButton.hidden = true;
                 syncSelectionUi();
+                renderRecommendationCard();
                 return;
             }
 
@@ -1991,6 +2287,7 @@
             }).join('');
 
             syncSelectionUi();
+            renderRecommendationCard();
         }
 
         launcherEl.addEventListener('change', function (event) {
@@ -2042,6 +2339,21 @@
                 return;
             }
 
+            if (target.closest('[data-ll-offline-next]')) {
+                const activity = resolveRecommendedActivity();
+                if (!recommendationIsLaunchable(activity)) {
+                    return;
+                }
+                launchOfflineSelection(
+                    activity.category_ids || [],
+                    activity.mode || 'practice',
+                    categories,
+                    offlineCategoryData,
+                    activity.session_word_ids || []
+                );
+                return;
+            }
+
             if (target.closest('#ll-offline-selection-clear')) {
                 setAllSelections(false);
                 syncSelectionUi();
@@ -2062,7 +2374,14 @@
             syncSelectionUi();
         });
 
+        if ($ && typeof $.fn !== 'undefined') {
+            $(document).on('lltools:remote-sync-snapshot', function (_event, payload) {
+                applyRecommendationPayload(payload);
+            });
+        }
+
         renderCategoryCards();
+        renderRecommendationCard();
     }
 
     if (documentRef) {

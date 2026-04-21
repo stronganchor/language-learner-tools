@@ -396,7 +396,7 @@ function ll_tools_offline_app_resolve_wordset_stt_bundle(int $wordset_id, WP_Ter
     ];
 }
 
-function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $wordset_term, array $allowed_category_ids, array $offline_category_data = [], array $stt_bundle_manifest = [], array &$warnings = []): array {
+function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $wordset_term, array $allowed_category_ids, array $offline_category_data = [], array &$warnings = []): array {
     $frontend_config = function_exists('ll_tools_get_wordset_games_frontend_config')
         ? ll_tools_get_wordset_games_frontend_config($wordset_id)
         : [];
@@ -420,29 +420,13 @@ function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $word
     }
 
     if (isset($catalog['speaking-practice']) && is_array($catalog['speaking-practice'])) {
-        if (!empty($stt_bundle_manifest)) {
-            $catalog['speaking-practice']['provider'] = 'embedded_model';
-            $catalog['speaking-practice']['provider_label'] = __('Bundled offline model', 'll-tools-text-domain');
-            $catalog['speaking-practice']['local_endpoint'] = '';
-            $catalog['speaking-practice']['embedded_model'] = $stt_bundle_manifest;
-            $catalog['speaking-practice']['offline_stt'] = $stt_bundle_manifest;
-        } else {
-            unset($catalog['speaking-practice']);
-            $warnings[] = __('Speaking Practice was not included in the offline app because this word set does not have an offline STT model bundle configured.', 'll-tools-text-domain');
-        }
+        unset($catalog['speaking-practice']);
+        $warnings[] = __('Speaking Practice is temporarily disabled in offline app exports.', 'll-tools-text-domain');
     }
 
     if (isset($catalog['speaking-stack']) && is_array($catalog['speaking-stack'])) {
-        if (!empty($stt_bundle_manifest)) {
-            $catalog['speaking-stack']['provider'] = 'embedded_model';
-            $catalog['speaking-stack']['provider_label'] = __('Bundled offline model', 'll-tools-text-domain');
-            $catalog['speaking-stack']['local_endpoint'] = '';
-            $catalog['speaking-stack']['embedded_model'] = $stt_bundle_manifest;
-            $catalog['speaking-stack']['offline_stt'] = $stt_bundle_manifest;
-        } else {
-            unset($catalog['speaking-stack']);
-            $warnings[] = __('Word Stack was not included in the offline app because this word set does not have an offline STT model bundle configured.', 'll-tools-text-domain');
-        }
+        unset($catalog['speaking-stack']);
+        $warnings[] = __('Word Stack speaking mode is temporarily disabled in offline app exports.', 'll-tools-text-domain');
     }
 
     return array_merge($frontend_config, [
@@ -452,7 +436,7 @@ function ll_tools_offline_app_build_games_payload(int $wordset_id, WP_Term $word
         'i18n' => $games_i18n,
         'offlineBridge' => [
             'androidInterface' => 'LLToolsOfflineAndroid',
-            'usesEmbeddedModel' => !empty($stt_bundle_manifest),
+            'usesEmbeddedModel' => false,
         ],
     ]);
 }
@@ -1450,28 +1434,12 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             break;
         }
     }
-    $stt_bundle_source = ll_tools_offline_app_resolve_wordset_stt_bundle($wordset_id, $wordset);
-    if (is_wp_error($stt_bundle_source)) {
-        return $stt_bundle_source;
-    }
     $external_asset_entries = [];
-    $stt_bundle_manifest = [];
-    if (!empty($stt_bundle_source)) {
-        $external_asset_entries[] = [
-            'source_path' => (string) ($stt_bundle_source['source_path'] ?? ''),
-            'relative_path' => (string) ($stt_bundle_source['relative_path'] ?? ''),
-            'is_directory' => !empty($stt_bundle_source['is_directory']),
-        ];
-        $stt_bundle_manifest = is_array($stt_bundle_source['manifest'] ?? null)
-            ? (array) $stt_bundle_source['manifest']
-            : [];
-    }
     $offline_games_payload = ll_tools_offline_app_build_games_payload(
         $wordset_id,
         $wordset,
         $exported_category_ids,
         $category_data,
-        $stt_bundle_manifest,
         $warnings
     );
 
@@ -1493,9 +1461,6 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
             'id'   => (int) $wordset->term_id,
             'slug' => (string) $wordset->slug,
             'name' => (string) $wordset->name,
-        ],
-        'speechToText'  => [
-            'bundles' => !empty($stt_bundle_manifest) ? [$stt_bundle_manifest] : [],
         ],
         'categories'    => array_values(array_map(static function (array $category): array {
             return [
@@ -1613,9 +1578,6 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
                     'enabled' => !empty($offline_games_payload['catalog']) && is_array($offline_games_payload['catalog']),
                 ],
             ],
-            'speechToText' => [
-                'bundles' => !empty($stt_bundle_manifest) ? [$stt_bundle_manifest] : [],
-            ],
             'sync'         => [
                 'enabled' => true,
                 'messages' => [
@@ -1706,13 +1668,6 @@ function ll_tools_build_offline_app_bundle(array $options = []) {
         __('To build an APK, extract this zip and run the scripts in offline-app-builder from this plugin repository against the bundle zip or extracted folder.', 'll-tools-text-domain'),
         __('This bundle includes the offline quiz shell, bundled media, and local-first quiz runtime data. Learners can keep studying fully offline, then optionally sign in later to sync saved progress back to the source site.', 'll-tools-text-domain'),
     ];
-    if (!empty($stt_bundle_manifest)) {
-        $readme_lines[] = sprintf(
-            /* translators: %s: bundle path inside the offline app */
-            __('Bundled STT model: %s', 'll-tools-text-domain'),
-            (string) ($stt_bundle_manifest['bundlePath'] ?? '')
-        );
-    }
     if (!empty($warnings)) {
         $readme_lines[] = '';
         $readme_lines[] = __('Warnings:', 'll-tools-text-domain');

@@ -96,6 +96,7 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
     }
     .ll-wordset-page.ll-wordset-page--offline .ll-offline-app-header,
     .ll-wordset-page.ll-wordset-page--offline .ll-offline-warning-list,
+    .ll-wordset-page.ll-wordset-page--offline .ll-wordset-next-wrap,
     .ll-wordset-page.ll-wordset-page--offline .ll-wordset-grid-tools,
     .ll-wordset-page.ll-wordset-page--offline .ll-wordset-grid,
     .ll-wordset-page.ll-wordset-page--offline .ll-wordset-empty {
@@ -732,6 +733,21 @@ $viewport_content = function_exists('ll_tools_get_locked_viewport_content')
          data-ll-config="<?php echo esc_attr(is_string($ll_config_json) ? $ll_config_json : '{}'); ?>">
       <section id="ll-offline-study-view" class="ll-offline-app-view" data-ll-offline-view="study">
       <section id="ll-offline-launcher" class="ll-offline-launcher" aria-label="<?php echo esc_attr__('Offline quiz launcher', 'll-tools-text-domain'); ?>">
+        <div class="ll-wordset-next-wrap">
+          <p class="ll-wordset-next-heading"><?php esc_html_e('Recommended:', 'll-tools-text-domain'); ?></p>
+          <div class="ll-wordset-next-shell" data-ll-offline-next-shell>
+            <button type="button" class="ll-wordset-next-card is-disabled" id="ll-offline-next-card" data-ll-offline-next aria-live="polite" aria-disabled="true" disabled>
+              <span class="ll-wordset-next-card__main">
+                <span class="ll-wordset-next-card__icon" id="ll-offline-next-icon" data-ll-offline-next-icon aria-hidden="true"></span>
+                <span class="ll-wordset-next-card__preview" id="ll-offline-next-preview" data-ll-offline-next-preview aria-hidden="true"></span>
+                <span class="ll-wordset-next-card__text" id="ll-offline-next-text" data-ll-offline-next-text><?php esc_html_e('Loading next recommendation...', 'll-tools-text-domain'); ?></span>
+              </span>
+            </button>
+            <span class="ll-wordset-next-card__meta">
+              <span class="ll-wordset-queue-item__count ll-wordset-next-card__count" id="ll-offline-next-count" data-ll-offline-next-count hidden></span>
+            </span>
+          </div>
+        </div>
         <div class="ll-wordset-grid-tools">
           <button id="ll-offline-select-all" class="ll-wordset-select-all ll-wordset-progress-select-all" type="button">
             <?php esc_html_e('Select All', 'll-tools-text-domain'); ?>

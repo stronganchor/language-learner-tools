@@ -6389,10 +6389,10 @@ function ll_tools_wordset_page_render_settings_transcription_tool(WP_Term $words
                         autocomplete="off"
                     />
                     <p class="description" style="margin-top:8px;">
-                        <?php echo esc_html__('Optional. When set, offline app exports will copy this model bundle into the Android app for this word set.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('Reserved for future mobile STT support. Offline app exports currently do not copy or enable this bundle.', 'll-tools-text-domain'); ?>
                     </p>
                     <p class="description" style="margin-top:0;">
-                        <?php echo esc_html__('Use a mobile-ready model bundle here. Desktop training checkpoints can still be stored elsewhere, but Android needs a runtime-compatible model format.', 'll-tools-text-domain'); ?>
+                        <?php echo esc_html__('You can keep the path here for later, but exported learner apps currently ship without offline speaking.', 'll-tools-text-domain'); ?>
                     </p>
                 </div>
 
@@ -7441,7 +7441,7 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
         <div class="ll-wordset-settings-card">
             <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Offline app bundle', 'll-tools-text-domain'); ?></h2>
             <p class="description">
-                <?php echo esc_html__('Export this word set as a standalone learner app bundle with local study content, games, and optional offline speaking support.', 'll-tools-text-domain'); ?>
+                <?php echo esc_html__('Export this word set as a standalone learner app bundle with local study content, games, and local-first progress sync.', 'll-tools-text-domain'); ?>
             </p>
 
             <?php if (!$zip_available) : ?>
@@ -7558,7 +7558,7 @@ function ll_tools_wordset_page_render_settings_offline_app_tool(
                     <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Export notes', 'll-tools-text-domain'); ?></h3>
                     <div class="ll-wordset-settings-card__meta">
                         <span class="ll-wordset-settings-card__pill"><?php echo esc_html(!empty($site_icon_payload) ? __('Uses current site icon', 'll-tools-text-domain') : __('No site icon set', 'll-tools-text-domain')); ?></span>
-                        <span class="ll-wordset-settings-card__pill"><?php echo esc_html($offline_stt_bundle_path !== '' ? __('Offline STT bundle configured', 'll-tools-text-domain') : __('No offline STT bundle configured', 'll-tools-text-domain')); ?></span>
+                        <span class="ll-wordset-settings-card__pill"><?php echo esc_html__('Offline speaking disabled in exports', 'll-tools-text-domain'); ?></span>
                     </div>
                     <p class="description">
                         <?php
