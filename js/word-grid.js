@@ -6,6 +6,7 @@
     const nonce = cfg.nonce || '';
     const i18n = cfg.i18n || {};
     const editI18n = cfg.editI18n || {};
+    const orderI18n = cfg.orderI18n || {};
     const bulkI18n = cfg.bulkI18n || {};
     const prereqI18n = cfg.prereqI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
@@ -1172,6 +1173,11 @@
         savingBackground: editI18n.savingBackground || 'Saving in background...',
         saved: editI18n.saved || 'Saved.',
         error: editI18n.error || 'Unable to save changes.'
+    };
+    const orderMessages = {
+        saving: orderI18n.saving || 'Saving order...',
+        saved: orderI18n.saved || 'Order saved.',
+        error: orderI18n.error || 'Unable to save the lesson order.'
     };
     const bulkMessages = {
         saving: bulkI18n.saving || 'Updating...',
@@ -3856,6 +3862,246 @@
         });
         $grids.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
             initDictionaryEntryAutocomplete($(this));
+        });
+
+        function getLessonOrderStatusElement($grid) {
+            if (!$grid || !$grid.length) { return $(); }
+            return $grid.find('[data-ll-word-grid-order-status]').first();
+        }
+
+        function clearLessonOrderStatusTimer($grid) {
+            if (!$grid || !$grid.length) { return; }
+            const timerId = parseInt($grid.data('llLessonOrderStatusTimerId'), 10) || 0;
+            if (timerId > 0) {
+                window.clearTimeout(timerId);
+            }
+            $grid.removeData('llLessonOrderStatusTimerId');
+        }
+
+        function setLessonOrderStatus($grid, stateName, message) {
+            const $status = getLessonOrderStatusElement($grid);
+            if (!$status.length) { return; }
+
+            clearLessonOrderStatusTimer($grid);
+
+            const stateValue = ['saving', 'saved', 'error'].indexOf((stateName || '').toString()) >= 0
+                ? stateName.toString()
+                : '';
+            const text = (message || '').toString();
+
+            $status.removeClass('is-saving is-saved is-error');
+            if (!stateValue || !text) {
+                $status.text('').attr('hidden', 'hidden').removeAttr('data-state');
+                return;
+            }
+
+            $status
+                .text(text)
+                .removeAttr('hidden')
+                .attr('data-state', stateValue)
+                .addClass('is-' + stateValue);
+        }
+
+        function scheduleLessonOrderStatusClear($grid, delayMs) {
+            if (!$grid || !$grid.length) { return; }
+            clearLessonOrderStatusTimer($grid);
+            const timerId = window.setTimeout(function () {
+                setLessonOrderStatus($grid, '', '');
+            }, Math.max(400, delayMs || 0));
+            $grid.data('llLessonOrderStatusTimerId', timerId);
+        }
+
+        function collectLessonOrderWordIds($grid) {
+            if (!$grid || !$grid.length) { return []; }
+            return normalizeIds($grid.children('.word-item[data-word-id]').map(function () {
+                return parseInt($(this).attr('data-word-id'), 10) || 0;
+            }).get());
+        }
+
+        function getLessonOrderState($grid) {
+            let lessonState = $grid.data('llLessonOrderState');
+            if (!lessonState || typeof lessonState !== 'object') {
+                lessonState = {
+                    saving: false,
+                    queued: false,
+                    pendingIds: [],
+                    lastSavedKey: '',
+                    timerId: 0
+                };
+                $grid.data('llLessonOrderState', lessonState);
+            }
+            return lessonState;
+        }
+
+        function flushLessonOrderSave($grid) {
+            if (!$grid || !$grid.length) { return; }
+
+            const lessonId = parseInt($grid.attr('data-ll-lesson-id'), 10) || 0;
+            if (!lessonId) { return; }
+
+            const lessonState = getLessonOrderState($grid);
+            const orderIds = Array.isArray(lessonState.pendingIds) && lessonState.pendingIds.length
+                ? lessonState.pendingIds.slice()
+                : collectLessonOrderWordIds($grid);
+            const orderKey = orderIds.join(',');
+
+            if (!orderKey || orderKey === lessonState.lastSavedKey) {
+                lessonState.pendingIds = [];
+                lessonState.queued = false;
+                setLessonOrderStatus($grid, '', '');
+                return;
+            }
+
+            if (lessonState.saving) {
+                lessonState.queued = true;
+                return;
+            }
+
+            lessonState.pendingIds = orderIds.slice();
+            lessonState.saving = true;
+            $grid.attr('aria-busy', 'true');
+            setLessonOrderStatus($grid, 'saving', orderMessages.saving);
+
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'll_tools_word_grid_save_lesson_order',
+                    nonce: editNonce,
+                    lesson_id: String(lessonId),
+                    order: orderIds
+                }
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    setLessonOrderStatus(
+                        $grid,
+                        'error',
+                        readResponseErrorMessage(response, orderMessages.error)
+                    );
+                    return;
+                }
+
+                const data = (response.data && typeof response.data === 'object') ? response.data : {};
+                const savedIds = Array.isArray(data.order) ? normalizeIds(data.order) : orderIds;
+                lessonState.lastSavedKey = savedIds.join(',') || orderKey;
+                lessonState.pendingIds = [];
+                setLessonOrderStatus($grid, 'saved', orderMessages.saved);
+                scheduleLessonOrderStatusClear($grid, 1200);
+            }).fail(function (jqXHR) {
+                setLessonOrderStatus($grid, 'error', readAjaxErrorMessage(jqXHR, orderMessages.error));
+            }).always(function () {
+                lessonState.saving = false;
+                $grid.removeAttr('aria-busy');
+                if (lessonState.queued) {
+                    lessonState.queued = false;
+                    flushLessonOrderSave($grid);
+                }
+            });
+        }
+
+        function scheduleLessonOrderSave($grid, delayMs) {
+            if (!$grid || !$grid.length) { return; }
+            const lessonState = getLessonOrderState($grid);
+            if (lessonState.timerId) {
+                window.clearTimeout(lessonState.timerId);
+            }
+            lessonState.pendingIds = collectLessonOrderWordIds($grid);
+            lessonState.timerId = window.setTimeout(function () {
+                lessonState.timerId = 0;
+                flushLessonOrderSave($grid);
+            }, Math.max(80, delayMs || 0));
+        }
+
+        function initLessonWordReorder($scope) {
+            const $targets = $scope && $scope.jquery ? $scope : $($scope || []);
+            if (!$targets.length) { return; }
+
+            $targets.each(function () {
+                const $grid = $(this);
+                const lessonId = parseInt($grid.attr('data-ll-lesson-id'), 10) || 0;
+                const reorderable = $grid.attr('data-ll-word-grid-reorderable') === '1';
+                const itemCount = $grid.children('.word-item[data-word-id]').length;
+                const lessonState = getLessonOrderState($grid);
+
+                if (lessonState.timerId) {
+                    window.clearTimeout(lessonState.timerId);
+                    lessonState.timerId = 0;
+                }
+                lessonState.pendingIds = [];
+                lessonState.queued = false;
+                lessonState.saving = false;
+                lessonState.lastSavedKey = collectLessonOrderWordIds($grid).join(',');
+
+                setLessonOrderStatus($grid, '', '');
+                $grid.removeClass('ll-word-grid--ordering');
+                if (typeof $grid.sortable === 'function' && $grid.data('ui-sortable')) {
+                    try {
+                        $grid.sortable('destroy');
+                    } catch (_error) {}
+                }
+
+                if (!reorderable || !lessonId || itemCount < 2 || typeof $grid.sortable !== 'function') {
+                    return;
+                }
+
+                $grid.sortable({
+                    items: '> .word-item[data-word-id]',
+                    distance: 6,
+                    tolerance: 'pointer',
+                    placeholder: 'll-word-grid-order-placeholder',
+                    cancel: [
+                        'a',
+                        'button',
+                        'input',
+                        'textarea',
+                        'select',
+                        'option',
+                        'label',
+                        'audio',
+                        'canvas',
+                        '.ll-word-edit-open',
+                        '.ll-word-edit-open *',
+                        '[data-ll-word-edit-panel]',
+                        '[data-ll-word-edit-backdrop]',
+                        '[data-ll-word-edit-toggle]',
+                        '[data-ll-recording-edit-trigger]'
+                    ].join(','),
+                    start: function (_event, ui) {
+                        clearLessonOrderStatusTimer($grid);
+                        $grid.addClass('ll-word-grid--ordering');
+                        if (ui && ui.item) {
+                            ui.item.addClass('is-dragging');
+                        }
+                        if (ui && ui.placeholder && ui.item) {
+                            ui.placeholder.height(ui.item.outerHeight());
+                        }
+                    },
+                    stop: function (_event, ui) {
+                        $grid.removeClass('ll-word-grid--ordering');
+                        if (ui && ui.item) {
+                            ui.item.removeClass('is-dragging');
+                        }
+                    },
+                    update: function (_event, ui) {
+                        if (ui && ui.item && ui.item.hasClass('ll-word-edit-open')) {
+                            return;
+                        }
+                        scheduleLessonOrderSave($grid, 140);
+                    }
+                });
+            });
+        }
+
+        initLessonWordReorder($grids);
+        $(document).on('lltools:word-grid-rendered', function (_evt, detail) {
+            const info = (detail && typeof detail === 'object') ? detail : {};
+            const $scope = info.scope && info.scope.jquery
+                ? info.scope
+                : $(info.scope || []);
+            if ($scope.length) {
+                initLessonWordReorder($scope);
+            }
         });
 
         function getBulkContext($wrap) {

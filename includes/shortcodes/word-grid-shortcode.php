@@ -2352,6 +2352,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'wordset'  => '',
         'deepest_only' => '',
         'word_ids' => '',
+        'lesson_id' => '',
     ], (array) $atts);
 
     $sanitized_category = sanitize_text_field((string) ($atts['category'] ?? ''));
@@ -2360,6 +2361,10 @@ function ll_tools_word_grid_resolve_context($atts): array {
         return $word_id > 0;
     }));
     $specific_word_ids = array_values(array_unique($specific_word_ids));
+    $lesson_id = isset($atts['lesson_id']) ? (int) $atts['lesson_id'] : 0;
+    if ($lesson_id <= 0 && is_singular('ll_vocab_lesson')) {
+        $lesson_id = (int) get_queried_object_id();
+    }
     $deepest_only = false;
     if (!empty($atts['deepest_only'])) {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
@@ -2457,6 +2462,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'sanitized_wordset'            => $sanitized_wordset,
         'specific_word_ids'            => $specific_word_ids,
         'deepest_only'                 => $deepest_only,
+        'lesson_id'                    => $lesson_id,
         'access_denied'                => $access_denied,
         'category_term'                => $category_term,
         'wordset_term'                 => $wordset_term,
@@ -2592,6 +2598,11 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'secondaryTextCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
             'secondaryTextWordset' => (string) ($transcription_config['wordset_chars_label'] ?? __('Wordset IPA symbols', 'll-tools-text-domain')),
         ],
+        'orderI18n' => [
+            'saving' => __('Saving order...', 'll-tools-text-domain'),
+            'saved' => __('Order saved.', 'll-tools-text-domain'),
+            'error' => __('Unable to save the lesson order.', 'll-tools-text-domain'),
+        ],
         'bulkI18n' => [
             'saving' => __('Updating...', 'll-tools-text-domain'),
             'saved' => __('Saved.', 'll-tools-text-domain'),
@@ -2660,6 +2671,9 @@ function ll_tools_word_grid_enqueue_frontend_assets_for_context(array $context, 
     $deps = ['jquery'];
     if ($can_edit_words) {
         $deps[] = 'jquery-ui-autocomplete';
+        if (ll_tools_word_grid_is_lesson_context($context)) {
+            $deps[] = 'jquery-ui-sortable';
+        }
     }
     ll_enqueue_asset_by_timestamp('/js/word-grid.js', 'll-tools-word-grid', $deps, true);
 
@@ -3324,6 +3338,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $wordset_has_plurality = !empty($context['wordset_has_plurality']);
     $wordset_has_verb_tense = !empty($context['wordset_has_verb_tense']);
     $wordset_has_verb_mood = !empty($context['wordset_has_verb_mood']);
+    $lesson_id = isset($context['lesson_id']) ? (int) $context['lesson_id'] : 0;
     $can_edit_words = !empty($context['can_edit_words']);
     $user_study_state = is_array($context['user_study_state'] ?? null)
         ? $context['user_study_state']
@@ -3440,7 +3455,31 @@ function ll_tools_word_grid_shortcode($atts) {
         }
     }
 
-    if (empty($specific_word_ids) && $category_term && $wordset_id > 0 && function_exists('ll_tools_get_word_option_maps')) {
+    $manual_order_applied = false;
+    if ($lesson_id > 0 && empty($specific_word_ids)) {
+        $allowed_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, (array) $query->posts), static function (int $word_id): bool {
+            return $word_id > 0;
+        }));
+        $manual_word_order = function_exists('ll_tools_get_vocab_lesson_manual_word_order')
+            ? ll_tools_get_vocab_lesson_manual_word_order($lesson_id, $allowed_word_ids)
+            : [];
+        if (!empty($manual_word_order) && function_exists('ll_tools_reorder_posts_by_word_id_order')) {
+            $query->posts = ll_tools_reorder_posts_by_word_id_order((array) $query->posts, $manual_word_order);
+            $query->post_count = count($query->posts);
+            $query->current_post = -1;
+            $manual_order_applied = true;
+        }
+    }
+
+    if (
+        !$manual_order_applied
+        && empty($specific_word_ids)
+        && $category_term
+        && $wordset_id > 0
+        && function_exists('ll_tools_get_word_option_maps')
+    ) {
         $maps = ll_tools_get_word_option_maps($wordset_id, (int) $category_term->term_id);
         $groups = isset($maps['groups']) && is_array($maps['groups']) ? $maps['groups'] : [];
         if (!empty($groups)) {
@@ -3454,10 +3493,10 @@ function ll_tools_word_grid_shortcode($atts) {
         update_meta_cache('post', $word_ids);
     }
     $display_values_cache = [];
-    if (empty($specific_word_ids)) {
+    if (empty($specific_word_ids) && !$manual_order_applied) {
         $query->posts = ll_tools_word_grid_group_same_name_or_image($query->posts, $display_values_cache);
     }
-    if ($sort_visible_titles && empty($specific_word_ids)) {
+    if ($sort_visible_titles && empty($specific_word_ids) && !$manual_order_applied) {
         $query->posts = ll_tools_word_grid_sort_posts_by_display_title($query->posts, $display_values_cache);
     }
     $query->post_count = count($query->posts);
@@ -3539,11 +3578,17 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($hide_lesson_grid_text) {
             $grid_classes .= ' ll-word-grid--hide-text';
         }
+        if ($can_edit_words && $lesson_id > 0) {
+            $grid_classes .= ' ll-word-grid--reorderable';
+        }
         $grid_attrs = 'data-ll-word-grid';
         $grid_attrs .= ' data-ll-secondary-text-mode="' . esc_attr($transcription_mode) . '"';
         $grid_attrs .= ' data-ll-secondary-text-format="' . esc_attr($secondary_text_display_format) . '"';
         $grid_attrs .= ' data-ll-secondary-text-uses-ipa-font="' . ($secondary_text_uses_ipa_font ? '1' : '0') . '"';
         $grid_attrs .= ' data-ll-secondary-text-supports-superscript="' . ($secondary_text_supports_superscript ? '1' : '0') . '"';
+        if ($lesson_id > 0) {
+            $grid_attrs .= ' data-ll-lesson-id="' . esc_attr($lesson_id) . '"';
+        }
         if ($wordset_id > 0) {
             $grid_attrs .= ' data-ll-wordset-id="' . esc_attr($wordset_id) . '"';
         }
@@ -3561,6 +3606,9 @@ function ll_tools_word_grid_shortcode($atts) {
         }
         if ($wordset_has_verb_mood) {
             $grid_attrs .= ' data-ll-verb-mood-enabled="1"';
+        }
+        if ($can_edit_words && $lesson_id > 0) {
+            $grid_attrs .= ' data-ll-word-grid-reorderable="1"';
         }
         $word_grid_style_parts = [];
         if ($wordset_id > 0 && function_exists('ll_tools_wordset_get_answer_option_text_style_config')) {
@@ -3590,6 +3638,9 @@ function ll_tools_word_grid_shortcode($atts) {
             $grid_attrs .= ' style="' . esc_attr(implode(';', $word_grid_style_parts) . ';') . '"';
         }
         echo '<div id="word-grid" class="' . esc_attr($grid_classes) . '" ' . $grid_attrs . '>'; // Grid container
+        if ($can_edit_words && $lesson_id > 0) {
+            echo '<div class="ll-word-grid-order-status" data-ll-word-grid-order-status aria-live="polite" hidden></div>';
+        }
         $word_grid_image_size = apply_filters('ll_tools_word_grid_image_size', 'medium_large', $wordset_id, $category_term);
         if (!is_array($word_grid_image_size) && !is_string($word_grid_image_size)) {
             $word_grid_image_size = 'medium_large';
@@ -5215,6 +5266,74 @@ function ll_tools_word_grid_update_word_handler() {
             'value' => $verb_mood_value,
             'label' => $verb_mood_label,
         ],
+    ]);
+}
+
+add_action('wp_ajax_ll_tools_word_grid_save_lesson_order', 'll_tools_word_grid_save_lesson_order_handler');
+function ll_tools_word_grid_save_lesson_order_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in', 401);
+    }
+
+    if (!ll_tools_user_can_edit_vocab_words()) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
+    $lesson = $lesson_id > 0 ? get_post($lesson_id) : null;
+    if (!$lesson || $lesson->post_type !== 'll_vocab_lesson') {
+        wp_send_json_error('Invalid lesson', 400);
+    }
+
+    [$wordset_id, $category_id] = ll_tools_get_vocab_lesson_ids_from_post($lesson_id);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        wp_send_json_error('Missing lesson metadata', 400);
+    }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error('Forbidden', 403);
+    }
+
+    $allowed_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
+    if (empty($allowed_word_ids)) {
+        delete_post_meta($lesson_id, defined('LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META') ? LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META : '_ll_tools_vocab_word_order');
+        wp_send_json_success([
+            'order' => [],
+            'count' => 0,
+        ]);
+    }
+
+    $submitted_order = $_POST['order'] ?? [];
+    $ordered_word_ids = function_exists('ll_tools_normalize_vocab_lesson_word_order_ids')
+        ? ll_tools_normalize_vocab_lesson_word_order_ids($submitted_order, $allowed_word_ids)
+        : array_values(array_filter(array_map('intval', (array) $submitted_order), static function (int $word_id) use ($allowed_word_ids): bool {
+            return $word_id > 0 && in_array($word_id, $allowed_word_ids, true);
+        }));
+
+    $ordered_lookup = array_fill_keys($ordered_word_ids, true);
+    foreach ($allowed_word_ids as $allowed_word_id) {
+        $allowed_word_id = (int) $allowed_word_id;
+        if ($allowed_word_id <= 0 || isset($ordered_lookup[$allowed_word_id])) {
+            continue;
+        }
+        $ordered_lookup[$allowed_word_id] = true;
+        $ordered_word_ids[] = $allowed_word_id;
+    }
+
+    $meta_key = defined('LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META')
+        ? LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META
+        : '_ll_tools_vocab_word_order';
+    if (empty($ordered_word_ids)) {
+        delete_post_meta($lesson_id, $meta_key);
+    } else {
+        update_post_meta($lesson_id, $meta_key, $ordered_word_ids);
+    }
+    clean_post_cache($lesson_id);
+
+    wp_send_json_success([
+        'order' => $ordered_word_ids,
+        'count' => count($ordered_word_ids),
     ]);
 }
 

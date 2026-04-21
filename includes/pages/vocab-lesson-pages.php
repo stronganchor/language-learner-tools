@@ -15,6 +15,9 @@ if (!defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
 if (!defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')) {
     define('LL_TOOLS_VOCAB_LESSON_WORDSET_META', '_ll_tools_vocab_wordset_id');
 }
+if (!defined('LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META')) {
+    define('LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META', '_ll_tools_vocab_word_order');
+}
 if (!defined('LL_TOOLS_VOCAB_LESSON_SEPARATOR')) {
     define('LL_TOOLS_VOCAB_LESSON_SEPARATOR', '-');
 }
@@ -36,6 +39,99 @@ function ll_tools_mark_vocab_lesson_recent_update(): void {
 
 function ll_tools_vocab_lesson_recent_update_guard_active(): bool {
     return (bool) get_transient(LL_TOOLS_VOCAB_LESSON_RECENT_UPDATE_TRANSIENT);
+}
+
+function ll_tools_normalize_vocab_lesson_word_order_ids($value, array $allowed_word_ids = []): array {
+    $allowed_word_ids = array_values(array_unique(array_filter(array_map('intval', $allowed_word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            $value = [];
+        } elseif ($trimmed[0] === '[' || $trimmed[0] === '{') {
+            $decoded = json_decode($trimmed, true);
+            $value = is_array($decoded) ? $decoded : preg_split('/[\s,]+/', $trimmed);
+        } else {
+            $value = preg_split('/[\s,]+/', $trimmed);
+        }
+    }
+
+    if (!is_array($value)) {
+        $value = [];
+    }
+
+    $allowed_lookup = !empty($allowed_word_ids) ? array_fill_keys($allowed_word_ids, true) : [];
+    $seen = [];
+    $ordered_ids = [];
+
+    foreach ($value as $raw_word_id) {
+        $word_id = (int) $raw_word_id;
+        if ($word_id <= 0 || isset($seen[$word_id])) {
+            continue;
+        }
+        if (!empty($allowed_lookup) && !isset($allowed_lookup[$word_id])) {
+            continue;
+        }
+
+        $seen[$word_id] = true;
+        $ordered_ids[] = $word_id;
+    }
+
+    return $ordered_ids;
+}
+
+function ll_tools_get_vocab_lesson_manual_word_order(int $lesson_id, array $allowed_word_ids = []): array {
+    $lesson_id = (int) $lesson_id;
+    if ($lesson_id <= 0) {
+        return [];
+    }
+
+    return ll_tools_normalize_vocab_lesson_word_order_ids(
+        get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META, true),
+        $allowed_word_ids
+    );
+}
+
+function ll_tools_reorder_posts_by_word_id_order(array $posts, array $ordered_word_ids): array {
+    if (count($posts) < 2 || empty($ordered_word_ids)) {
+        return $posts;
+    }
+
+    $post_map = [];
+    foreach ($posts as $post_obj) {
+        $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        if ($post_id > 0) {
+            $post_map[$post_id] = $post_obj;
+        }
+    }
+    if (count($post_map) < 2) {
+        return $posts;
+    }
+
+    $ordered = [];
+    $used = [];
+    foreach ($ordered_word_ids as $word_id) {
+        $word_id = (int) $word_id;
+        if ($word_id <= 0 || !isset($post_map[$word_id]) || isset($used[$word_id])) {
+            continue;
+        }
+
+        $ordered[] = $post_map[$word_id];
+        $used[$word_id] = true;
+    }
+
+    foreach ($posts as $post_obj) {
+        $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        if ($post_id > 0 && isset($used[$post_id])) {
+            continue;
+        }
+
+        $ordered[] = $post_obj;
+    }
+
+    return $ordered;
 }
 
 /**
@@ -2078,6 +2174,7 @@ function ll_tools_get_vocab_lesson_grid_handler() {
             'category' => (string) $category->slug,
             'wordset' => (string) $wordset->slug,
             'deepest_only' => true,
+            'lesson_id' => $lesson_id,
         ]);
     } finally {
         unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
