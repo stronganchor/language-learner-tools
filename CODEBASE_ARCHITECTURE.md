@@ -71,6 +71,10 @@ read_first:
   - Ensures a default Editor Hub page with `[editor_hub]`.
   - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
   - Redirects `ll_tools_editor` users on login to the default Editor Hub page.
+- `includes/pages/site-tools-page.php`
+  - Ensures a default Site Tools page with `[ll_site_tools]`.
+  - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
+  - Provides a front-end home for selected sitewide settings and maintenance actions that previously lived only in wp-admin.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 
@@ -98,6 +102,7 @@ includes/
     recording-page.php        # Recording page creation + login redirect
     editor-hub-page.php       # Editor Hub page creation + login redirect
     dictionary-page.php       # Dictionary page creation + settings-row controls
+    site-tools-page.php       # Front-end Site Tools page creation + URL helper
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
   post-types/
@@ -117,6 +122,7 @@ includes/
     quiz-pages-shortcodes.php
     word-grid-shortcode.php
     editor-hub-shortcode.php
+    site-tools-shortcode.php  # [ll_site_tools] sitewide settings + maintenance UI
     word-audio-shortcode.php
     wordset-page-shortcode.php
     wordset-buttons-shortcode.php

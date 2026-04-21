@@ -5406,7 +5406,7 @@ function ll_tools_render_wordset_page_missing_content(array $extra_classes = [],
  * Shared front-end utility navigation used across wordset/recorder/editor pages.
  *
  * @param array $args {
- *     @type string       $current_area  Active area key: wordset|wordset_settings|editor_hub|recorder|classes.
+ *     @type string       $current_area  Active area key: wordset|wordset_settings|editor_hub|recorder|classes|site_tools.
  *     @type int|WP_Term  $wordset       Optional wordset context for Word Set / Manage Word Set links.
  *     @type string       $current_url   Optional current URL for login/logout redirect.
  * }
@@ -5549,6 +5549,17 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
                     'label' => __('Classes', 'll-tools-text-domain'),
                     'url' => $teacher_classes_url,
                     'is_active' => ($current_area === 'classes'),
+                ];
+            }
+        }
+
+        if ($is_admin_user && function_exists('ll_tools_get_site_tools_page_url')) {
+            $site_tools_url = (string) ll_tools_get_site_tools_page_url((int) $user->ID);
+            if ($site_tools_url !== '') {
+                $links[] = [
+                    'label' => __('Site Tools', 'll-tools-text-domain'),
+                    'url' => $site_tools_url,
+                    'is_active' => ($current_area === 'site_tools'),
                 ];
             }
         }
