@@ -4113,7 +4113,9 @@ function ll_get_words_by_category_count($categoryName, $displayMode = 'image', $
         }
 
         if ($require_prompt_image || $require_option_image) {
-            $image_id = (int) get_post_meta($word_id, '_thumbnail_id', true);
+            $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+                : (int) get_post_meta($word_id, '_thumbnail_id', true);
             if ($image_id <= 0) {
                 continue;
             }
@@ -4344,7 +4346,9 @@ function ll_tools_count_gender_eligible_words_for_category($categoryName, $words
             continue;
         }
         if ($require_image) {
-            $image_id = (int) get_post_meta($word_id, '_thumbnail_id', true);
+            $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+                : (int) get_post_meta($word_id, '_thumbnail_id', true);
             if ($image_id <= 0) {
                 continue;
             }
@@ -4580,17 +4584,17 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
             ? $display_text_by_word[$word_id]
             : [];
         $raw_post_title = trim((string) ($display_values['raw_title'] ?? ''));
-        $image_id = (int) get_post_meta($word_id, '_thumbnail_id', true);
         $image_size = apply_filters('ll_tools_quiz_image_size', 'full', $word_id, $term_id, $option_type);
         $image_size = $image_size ? sanitize_key($image_size) : 'full';
         if ($image_size === '') { $image_size = 'full'; }
-        $image   = '';
-        if ($image_id) {
-            $image = ll_tools_get_masked_image_url($image_id, $image_size);
-            if (empty($image)) {
-                $image = wp_get_attachment_image_url($image_id, $image_size) ?: '';
-            }
-        }
+        $image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
+            ? ll_tools_get_effective_word_image_data_for_word($word_id, $image_size, true)
+            : [
+                'attachment_id' => (int) get_post_meta($word_id, '_thumbnail_id', true),
+                'url' => '',
+            ];
+        $image_id = (int) ($image_data['attachment_id'] ?? 0);
+        $image = (string) ($image_data['url'] ?? '');
         $image_is_animated_webp = $image_id > 0 && function_exists('ll_tools_is_attachment_animated_webp')
             ? ll_tools_is_attachment_animated_webp((int) $image_id)
             : false;

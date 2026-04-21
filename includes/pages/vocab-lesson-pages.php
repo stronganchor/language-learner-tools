@@ -270,7 +270,14 @@ function ll_tools_vocab_lesson_category_supports_gender_mode(int $wordset_id, $c
                     if ($gender_key === '' || !isset($gender_lookup[$gender_key])) {
                         continue;
                     }
-                    if ($requires_image && !get_post_thumbnail_id($word_id)) {
+                    if (
+                        $requires_image
+                        && !(
+                            function_exists('ll_tools_word_has_effective_image')
+                                ? ll_tools_word_has_effective_image($word_id, true)
+                                : (bool) get_post_thumbnail_id($word_id)
+                        )
+                    ) {
                         continue;
                     }
                     if ($requires_audio && empty($audio_by_word[$word_id])) {
@@ -748,7 +755,9 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
             continue;
         }
 
-        $has_image = has_post_thumbnail($word_id);
+        $has_image = function_exists('ll_tools_word_has_effective_image')
+            ? ll_tools_word_has_effective_image($word_id, true)
+            : has_post_thumbnail($word_id);
         foreach ($deepest_ids as $term_id) {
             $all_counts[$term_id] = ($all_counts[$term_id] ?? 0) + 1;
             if ($has_image) {
@@ -1996,12 +2005,6 @@ function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id
         'no_found_rows'  => true,
         'orderby'        => 'date',
         'order'          => 'ASC',
-        'meta_query'     => [
-            [
-                'key'     => '_thumbnail_id',
-                'compare' => 'EXISTS',
-            ],
-        ],
         'tax_query'      => [
             'relation' => 'AND',
             [
@@ -2034,8 +2037,38 @@ function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id
             }));
         }
     }
+    if (!empty($posts) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
+        $visible_word_ids = ll_tools_filter_word_ids_with_effective_images(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, $posts), true);
+        $visible_lookup = array_fill_keys($visible_word_ids, true);
+        if (count($visible_lookup) !== count($posts)) {
+            $posts = array_values(array_filter($posts, static function ($post_obj) use ($visible_lookup): bool {
+                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                return $post_id > 0 && isset($visible_lookup[$post_id]);
+            }));
+        }
+    }
 
-    if (function_exists('ll_tools_get_word_option_maps') && function_exists('ll_tools_word_grid_reorder_by_option_groups')) {
+    $lesson_id = is_singular('ll_vocab_lesson') ? (int) get_queried_object_id() : 0;
+    $allowed_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
+        return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+    }, $posts), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    $manual_word_order = $lesson_id > 0
+        ? ll_tools_get_vocab_lesson_manual_word_order($lesson_id, $allowed_word_ids)
+        : [];
+    $manual_order_applied = !empty($manual_word_order);
+    if ($manual_order_applied) {
+        $posts = ll_tools_reorder_posts_by_word_id_order($posts, $manual_word_order);
+    }
+
+    if (
+        !$manual_order_applied
+        && function_exists('ll_tools_get_word_option_maps')
+        && function_exists('ll_tools_word_grid_reorder_by_option_groups')
+    ) {
         $maps = ll_tools_get_word_option_maps($wordset_id, $category_id);
         $groups = isset($maps['groups']) && is_array($maps['groups']) ? $maps['groups'] : [];
         if (!empty($groups)) {
@@ -2053,7 +2086,7 @@ function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id
     }
 
     $display_values_cache = [];
-    if (function_exists('ll_tools_word_grid_group_same_name_or_image')) {
+    if (!$manual_order_applied && function_exists('ll_tools_word_grid_group_same_name_or_image')) {
         $posts = ll_tools_word_grid_group_same_name_or_image($posts, $display_values_cache);
     }
 
@@ -2061,7 +2094,11 @@ function ll_tools_get_vocab_lesson_print_posts(int $wordset_id, int $category_id
     if (function_exists('ll_tools_should_hide_lesson_grid_text')) {
         $sort_visible_titles = !ll_tools_should_hide_lesson_grid_text($category, $wordset_id);
     }
-    if ($sort_visible_titles && function_exists('ll_tools_word_grid_sort_posts_by_display_title')) {
+    if (
+        !$manual_order_applied
+        && $sort_visible_titles
+        && function_exists('ll_tools_word_grid_sort_posts_by_display_title')
+    ) {
         $posts = ll_tools_word_grid_sort_posts_by_display_title($posts, $display_values_cache);
     }
 
@@ -2084,7 +2121,13 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
             continue;
         }
 
-        $attachment_id = (int) get_post_thumbnail_id($word_id);
+        $image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
+            ? ll_tools_get_effective_word_image_data_for_word($word_id, 'large', true)
+            : [
+                'attachment_id' => (int) get_post_thumbnail_id($word_id),
+                'alt' => '',
+            ];
+        $attachment_id = (int) ($image_data['attachment_id'] ?? 0);
         if ($attachment_id <= 0) {
             continue;
         }
@@ -2110,7 +2153,7 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
             continue;
         }
 
-        $alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+        $alt = trim((string) ($image_data['alt'] ?? ''));
         if ($alt === '') {
             $alt = $label;
         }

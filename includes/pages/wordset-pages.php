@@ -946,12 +946,6 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                     'terms'    => [$wordset_id],
                 ],
             ],
-            'meta_query' => [
-                [
-                    'key'     => '_thumbnail_id',
-                    'compare' => 'EXISTS',
-                ],
-            ],
         ]);
 
         if (!empty($image_query->posts)) {
@@ -967,7 +961,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                         continue;
                     }
                 }
-                $image_id = get_post_thumbnail_id($word_id);
+                $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                    ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+                    : (int) get_post_thumbnail_id($word_id);
                 if (!$image_id) {
                     continue;
                 }

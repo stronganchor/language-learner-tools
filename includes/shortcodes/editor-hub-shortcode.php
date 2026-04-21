@@ -483,49 +483,27 @@ function ll_tools_editor_hub_missing_field_label_map(): array {
 }
 
 function ll_tools_editor_hub_get_word_image_data(int $word_id): array {
-    $fallback = [
-        'id' => 0,
-        'url' => '',
-        'alt' => '',
-        'width' => 0,
-        'height' => 0,
-    ];
+    $image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
+        ? ll_tools_get_effective_word_image_data_for_word($word_id, 'large', true)
+        : [
+            'attachment_id' => 0,
+            'url'           => '',
+            'alt'           => '',
+            'width'         => 0,
+            'height'        => 0,
+        ];
 
-    if ($word_id <= 0) {
-        return $fallback;
-    }
-
-    $attachment_id = (int) get_post_thumbnail_id($word_id);
-    if ($attachment_id <= 0) {
-        return $fallback;
-    }
-
-    $url = function_exists('ll_tools_get_masked_image_url')
-        ? (string) ll_tools_get_masked_image_url($attachment_id, 'large')
-        : '';
-    if ($url === '') {
-        $url = (string) (wp_get_attachment_image_url($attachment_id, 'large') ?: '');
-    }
-
-    $size_data = wp_get_attachment_image_src($attachment_id, 'large');
-    $width = 0;
-    $height = 0;
-    if (is_array($size_data) && isset($size_data[1], $size_data[2])) {
-        $width = (int) $size_data[1];
-        $height = (int) $size_data[2];
-    }
-
-    $alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+    $alt = trim((string) ($image_data['alt'] ?? ''));
     if ($alt === '') {
         $alt = trim((string) get_the_title($word_id));
     }
 
     return [
-        'id' => $attachment_id,
-        'url' => $url,
+        'id' => (int) ($image_data['attachment_id'] ?? 0),
+        'url' => (string) ($image_data['url'] ?? ''),
         'alt' => $alt,
-        'width' => $width,
-        'height' => $height,
+        'width' => (int) ($image_data['width'] ?? 0),
+        'height' => (int) ($image_data['height'] ?? 0),
     ];
 }
 

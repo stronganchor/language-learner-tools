@@ -119,6 +119,61 @@ function ll_tools_save_similar_words_metadata($post_id) {
     }
 }
 
+function ll_tools_configure_words_image_admin_box(): void {
+    remove_meta_box('postimagediv', 'words', 'side');
+
+    add_meta_box(
+        'll_tools_linked_word_image_box',
+        __('Linked Image', 'll-tools-text-domain'),
+        'll_tools_render_words_linked_image_metabox',
+        'words',
+        'side',
+        'low'
+    );
+}
+add_action('add_meta_boxes_words', 'll_tools_configure_words_image_admin_box', 20);
+
+function ll_tools_render_words_linked_image_metabox(WP_Post $post): void {
+    $word_id = (int) $post->ID;
+    $image_data = function_exists('ll_tools_get_effective_word_image_data_for_word')
+        ? ll_tools_get_effective_word_image_data_for_word($word_id, 'medium', true)
+        : [
+            'word_image_id' => 0,
+            'source' => 'none',
+        ];
+    $image_html = function_exists('ll_tools_get_effective_word_image_html_for_word')
+        ? ll_tools_get_effective_word_image_html_for_word($word_id, 'medium', [
+            'style' => 'display:block;height:auto;max-width:100%;',
+        ], true)
+        : '';
+
+    $word_image_id = (int) ($image_data['word_image_id'] ?? 0);
+    $image_source = (string) ($image_data['source'] ?? 'none');
+
+    echo '<p>' . esc_html__('Manage images from the linked word image so one change updates connected words.', 'll-tools-text-domain') . '</p>';
+
+    if ($image_html !== '') {
+        echo '<div style="margin:0 0 12px 0;">' . $image_html . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+
+    if ($word_image_id > 0) {
+        $edit_link = get_edit_post_link($word_image_id);
+        if (is_string($edit_link) && $edit_link !== '') {
+            echo '<p><a class="button button-secondary" href="' . esc_url($edit_link) . '">' . esc_html__('Edit linked image', 'll-tools-text-domain') . '</a></p>';
+        }
+
+        if ($image_source === 'word') {
+            echo '<p class="howto">' . esc_html__('This preview is still falling back to the legacy mirrored thumbnail on the word post. Update the linked image record to finish migrating it.', 'll-tools-text-domain') . '</p>';
+        }
+    } elseif ($image_html !== '') {
+        echo '<p class="howto">' . esc_html__('This word is still using a legacy mirrored thumbnail and does not have a linked image record yet.', 'll-tools-text-domain') . '</p>';
+    } else {
+        echo '<p class="howto">' . esc_html__('No linked image is available for this word yet.', 'll-tools-text-domain') . '</p>';
+    }
+
+    echo '<p class="howto">' . esc_html__('Use the linked image record or the frontend word editor to change images. The standard Featured Image box is hidden during migration.', 'll-tools-text-domain') . '</p>';
+}
+
 /**
  * Normalize the configured per-word specific wrong-answer IDs.
  *
@@ -830,21 +885,14 @@ function ll_tools_display_vocab_content($content) {
         // Prepend the category list.
         $custom_content .= $word_categories_content;
 
-        // Display the featured image if one is set.
-        if (has_post_thumbnail($post->ID)) {
-            if (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
-                $custom_content .= ll_tools_get_post_thumbnail_html_with_repair(
-                    $post->ID,
-                    'full',
-                    array('class' => 'vocab-featured-image')
-                );
-            } else {
-                $custom_content .= get_the_post_thumbnail(
-                    $post->ID,
-                    'full',
-                    array('class' => 'vocab-featured-image')
-                );
-            }
+        // Display the linked/canonical image if one is set.
+        $image_html = function_exists('ll_tools_get_effective_word_image_html_for_word')
+            ? ll_tools_get_effective_word_image_html_for_word((int) $post->ID, 'full', [
+                'class' => 'vocab-featured-image',
+            ], true)
+            : '';
+        if ($image_html !== '') {
+            $custom_content .= $image_html;
         }
 
         // Show the English meaning as a heading.
@@ -914,7 +962,9 @@ function ll_render_words_columns($column, $post_id) {
             break;
 
         case 'featured_image':
-            if (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
+            if (function_exists('ll_tools_get_effective_word_image_html_for_word')) {
+                $thumbnail = ll_tools_get_effective_word_image_html_for_word((int) $post_id, 'full', ['style' => 'width:50px;height:auto;'], true);
+            } elseif (function_exists('ll_tools_get_post_thumbnail_html_with_repair')) {
                 $thumbnail = ll_tools_get_post_thumbnail_html_with_repair($post_id, 'full', array('style' => 'width:50px;height:auto;'));
             } else {
                 $thumbnail = get_the_post_thumbnail($post_id, 'full', array('style' => 'width:50px;height:auto;'));

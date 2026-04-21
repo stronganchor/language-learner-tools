@@ -1492,6 +1492,21 @@ function ll_tools_run_wordset_isolation_migration(): array {
     $legacy_word_image_ids = [];
     $created_category_ids = [];
     $created_image_ids = [];
+    $owned_word_image_ids_before = get_posts([
+        'post_type'        => 'word_images',
+        'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+        'meta_query'       => [
+            [
+                'key'     => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
+                'compare' => 'EXISTS',
+            ],
+        ],
+    ]);
+    $owned_word_image_lookup_before = array_fill_keys(array_map('intval', (array) $owned_word_image_ids_before), true);
     foreach ((array) $word_ids as $word_id) {
         $word_id = (int) $word_id;
         if ($word_id <= 0) {
@@ -1633,7 +1648,6 @@ function ll_tools_run_wordset_isolation_migration(): array {
             $effective_image_id = ll_tools_get_effective_word_image_id_for_wordset($legacy_image_id, $primary_wordset_id);
             if ($effective_image_id > 0 && $effective_image_id !== $legacy_image_id) {
                 update_post_meta($word_id, '_ll_autopicked_image_id', $effective_image_id);
-                $result['images_relinked']++;
             }
         }
     }
@@ -1737,6 +1751,40 @@ function ll_tools_run_wordset_isolation_migration(): array {
                     $result['user_data_repaired']++;
                 }
             }
+        }
+    }
+
+    $owned_word_image_ids_after = get_posts([
+        'post_type'        => 'word_images',
+        'post_status'      => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'   => -1,
+        'fields'           => 'ids',
+        'no_found_rows'    => true,
+        'suppress_filters' => true,
+        'meta_query'       => [
+            [
+                'key'     => LL_TOOLS_WORD_IMAGE_WORDSET_OWNER_META_KEY,
+                'compare' => 'EXISTS',
+            ],
+        ],
+    ]);
+    foreach ((array) $owned_word_image_ids_after as $owned_word_image_id) {
+        $owned_word_image_id = (int) $owned_word_image_id;
+        if ($owned_word_image_id > 0 && !isset($owned_word_image_lookup_before[$owned_word_image_id])) {
+            $created_image_ids[$owned_word_image_id] = true;
+        }
+    }
+    $result['images_relinked'] = 0;
+    foreach ((array) $word_ids as $word_id) {
+        $word_id = (int) $word_id;
+        if ($word_id <= 0) {
+            continue;
+        }
+
+        $legacy_image_id = max(0, (int) ($legacy_word_image_ids[$word_id] ?? 0));
+        $linked_after = (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+        if ($linked_after > 0 && ($legacy_image_id <= 0 || $linked_after !== $legacy_image_id)) {
+            $result['images_relinked']++;
         }
     }
 

@@ -2113,7 +2113,9 @@ function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$displ
             $name_map[$name_key][$post_id] = true;
         }
 
-        $thumb_id = (int) get_post_thumbnail_id($post_id);
+        $thumb_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+            ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($post_id, true)
+            : (int) get_post_thumbnail_id($post_id);
         if ($thumb_id > 0) {
             if (!isset($image_map[$thumb_id])) {
                 $image_map[$thumb_id] = [];
@@ -2721,51 +2723,33 @@ function ll_tools_word_grid_sanitize_thumbnail_html(string $html): string {
 }
 
 function ll_tools_word_grid_get_post_thumbnail_html(int $post_id, $size = 'post-thumbnail', array $attr = []): string {
-    $thumbnail_html = function_exists('ll_tools_get_post_thumbnail_html_with_repair')
-        ? ll_tools_get_post_thumbnail_html_with_repair($post_id, $size, $attr)
-        : get_the_post_thumbnail($post_id, $size, $attr);
+    $thumbnail_html = function_exists('ll_tools_get_effective_word_image_html_for_word')
+        ? ll_tools_get_effective_word_image_html_for_word($post_id, $size, $attr, true)
+        : (
+            function_exists('ll_tools_get_post_thumbnail_html_with_repair')
+                ? ll_tools_get_post_thumbnail_html_with_repair($post_id, $size, $attr)
+                : get_the_post_thumbnail($post_id, $size, $attr)
+        );
 
     return ll_tools_word_grid_sanitize_thumbnail_html((string) $thumbnail_html);
 }
 
 function ll_tools_word_grid_get_image_data_for_word(int $word_id): array {
-    $fallback = [
-        'id' => 0,
-        'url' => '',
-        'alt' => '',
-        'width' => 0,
-        'height' => 0,
-        'word_image_id' => function_exists('ll_tools_get_linked_word_image_post_id_for_word')
-            ? (int) ll_tools_get_linked_word_image_post_id_for_word($word_id)
-            : 0,
-    ];
-
-    if ($word_id <= 0) {
-        return $fallback;
-    }
-
-    $attachment_id = (int) get_post_thumbnail_id($word_id);
-    if ($attachment_id <= 0) {
-        return $fallback;
-    }
-
-    $url = function_exists('ll_tools_get_masked_image_url')
-        ? (string) ll_tools_get_masked_image_url($attachment_id, 'large')
-        : '';
-    if ($url === '') {
-        $url = (string) (wp_get_attachment_image_url($attachment_id, 'large') ?: '');
-    }
-
-    $size_data = wp_get_attachment_image_src($attachment_id, 'large');
-    $width = 0;
-    $height = 0;
-    if (is_array($size_data) && isset($size_data[1], $size_data[2])) {
-        $width = (int) $size_data[1];
-        $height = (int) $size_data[2];
-    }
+    $fallback = function_exists('ll_tools_get_effective_word_image_data_for_word')
+        ? ll_tools_get_effective_word_image_data_for_word($word_id, 'large', true)
+        : [
+            'word_image_id' => function_exists('ll_tools_get_linked_word_image_post_id_for_word')
+                ? (int) ll_tools_get_linked_word_image_post_id_for_word($word_id)
+                : 0,
+            'attachment_id' => 0,
+            'url'           => '',
+            'alt'           => '',
+            'width'         => 0,
+            'height'        => 0,
+        ];
 
     $display_values = ll_tools_word_grid_resolve_display_text($word_id);
-    $alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+    $alt = trim((string) ($fallback['alt'] ?? ''));
     if ($alt === '') {
         $alt = trim((string) ($display_values['word_text'] ?? ''));
     }
@@ -2773,11 +2757,8 @@ function ll_tools_word_grid_get_image_data_for_word(int $word_id): array {
         $alt = trim((string) get_the_title($word_id));
     }
 
-    $fallback['id'] = $attachment_id;
-    $fallback['url'] = $url;
+    $fallback['id'] = (int) ($fallback['attachment_id'] ?? 0);
     $fallback['alt'] = $alt;
-    $fallback['width'] = $width;
-    $fallback['height'] = $height;
 
     return $fallback;
 }
@@ -3070,15 +3051,6 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
             ],
         ],
     ];
-    if (!$is_text_based) {
-        $query_args['meta_query'] = [
-            [
-                'key' => '_thumbnail_id',
-                'compare' => 'EXISTS',
-            ],
-        ];
-    }
-
     $word_ids = [];
     $seen_word_ids = [];
     $offset = 0;
@@ -3099,6 +3071,9 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
 
         if (!empty($batch_word_ids) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
             $batch_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($batch_word_ids);
+        }
+        if (!$is_text_based && !empty($batch_word_ids) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
+            $batch_word_ids = ll_tools_filter_word_ids_with_effective_images($batch_word_ids, true);
         }
 
         foreach ($batch_word_ids as $word_id) {
@@ -3171,7 +3146,9 @@ function ll_tools_word_grid_get_shell_cards(array $context, int $limit = 6): arr
         $media_aspect_ratio = $default_ratio;
 
         if (!$is_text_based) {
-            $attachment_id = (int) get_post_thumbnail_id((int) $word_id);
+            $attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word((int) $word_id, true)
+                : (int) get_post_thumbnail_id((int) $word_id);
             if ($attachment_id > 0 && function_exists('ll_tools_get_image_aspect_ratio_for_size')) {
                 $media_aspect_ratio = ll_tools_word_grid_normalize_css_aspect_ratio(
                     (string) ll_tools_get_image_aspect_ratio_for_size($attachment_id, $word_grid_image_size)
@@ -3394,14 +3371,6 @@ function ll_tools_word_grid_shortcode($atts) {
         'orderby' => 'date', // Order by date
         'order' => 'ASC', // Ascending order
     );
-    if (!$is_text_based && empty($specific_word_ids)) {
-        $args['meta_query'] = array(
-            array(
-                'key' => '_thumbnail_id', // Checks if the post has a featured image.
-                'compare' => 'EXISTS'
-            ),
-        );
-    }
     if (!empty($specific_word_ids)) {
         $args['post__in'] = $specific_word_ids;
         $args['orderby'] = 'post__in';
@@ -3443,6 +3412,21 @@ function ll_tools_word_grid_shortcode($atts) {
         $visible_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids(array_map(static function ($post_obj): int {
             return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
         }, (array) $query->posts));
+        $visible_lookup = array_fill_keys($visible_word_ids, true);
+        if (count($visible_lookup) !== count((array) $query->posts)) {
+            $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($visible_lookup): bool {
+                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                return $post_id > 0 && isset($visible_lookup[$post_id]);
+            }));
+            $query->posts = $visible_posts;
+            $query->post_count = count($visible_posts);
+            $query->current_post = -1;
+        }
+    }
+    if (!$is_text_based && !empty($query->posts) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
+        $visible_word_ids = ll_tools_filter_word_ids_with_effective_images(array_map(static function ($post_obj): int {
+            return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        }, (array) $query->posts), true);
         $visible_lookup = array_fill_keys($visible_word_ids, true);
         if (count($visible_lookup) !== count((array) $query->posts)) {
             $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($visible_lookup): bool {
@@ -3748,7 +3732,14 @@ function ll_tools_word_grid_shortcode($atts) {
             // Individual item
             echo '<div class="word-item" data-word-id="' . esc_attr($word_id) . '">';
             // Featured image with container
-            if (!$is_text_based && has_post_thumbnail()) {
+            if (
+                !$is_text_based
+                && (
+                    function_exists('ll_tools_word_has_effective_image')
+                        ? ll_tools_word_has_effective_image((int) get_the_ID(), true)
+                        : has_post_thumbnail()
+                )
+            ) {
                 echo '<div class="word-image-container">'; // Start new container
                 echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, array(
                     'class' => 'word-image',
