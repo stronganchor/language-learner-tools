@@ -49,6 +49,10 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
 
         delete_option('_transient_ll_wc_words_site_tools_alpha');
         delete_option('_transient_timeout_ll_wc_words_site_tools_alpha');
+        delete_transient('ll_recording_page_creation_attempt');
+        delete_transient('ll_editor_hub_page_creation_attempt');
+        delete_transient('ll_dictionary_page_creation_attempt');
+        delete_transient('ll_site_tools_page_creation_attempt');
 
         parent::tearDown();
     }
@@ -82,8 +86,12 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Study Defaults', $html);
         $this->assertStringContainsString('Learner Accounts', $html);
         $this->assertStringContainsString('Recording Defaults', $html);
+        $this->assertStringContainsString('Managed Pages', $html);
+        $this->assertStringContainsString('Privacy &amp; Retention', $html);
+        $this->assertStringContainsString('Plugin Updates', $html);
         $this->assertStringContainsString('Maintenance', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_save_site_tools"', $html);
+        $this->assertStringContainsString('name="action" value="ll_tools_manage_site_tools_page"', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_run_site_tools_maintenance"', $html);
     }
 
@@ -182,6 +190,97 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame(12, (int) get_option('ll_tools_recording_notification_delay_minutes', 0));
     }
 
+    public function test_save_handler_updates_privacy_retention_settings(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $page_id = $this->createSiteToolsPage();
+        $page_url = (string) get_permalink($page_id);
+
+        $_POST = [
+            'll_site_tools_section' => 'privacy-retention',
+            'll_site_tools_nonce' => wp_create_nonce('ll_tools_site_tools_privacy-retention'),
+            'redirect_to' => $page_url,
+            LL_TOOLS_USER_PROGRESS_RETENTION_OPTION => '365',
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_save_site_tools_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('settings_saved', (string) ($query['ll_site_tools_notice'] ?? ''));
+        $this->assertSame('privacy-retention', (string) ($query['ll_site_tools_section'] ?? ''));
+        $this->assertSame(365, (int) get_option(LL_TOOLS_USER_PROGRESS_RETENTION_OPTION, 0));
+    }
+
+    public function test_save_handler_updates_plugin_update_channel(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $page_id = $this->createSiteToolsPage();
+        $page_url = (string) get_permalink($page_id);
+
+        $_POST = [
+            'll_site_tools_section' => 'plugin-updates',
+            'll_site_tools_nonce' => wp_create_nonce('ll_tools_site_tools_plugin-updates'),
+            'redirect_to' => $page_url,
+            'll_update_branch' => 'dev',
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_save_site_tools_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('settings_saved', (string) ($query['ll_site_tools_notice'] ?? ''));
+        $this->assertSame('plugin-updates', (string) ($query['ll_site_tools_section'] ?? ''));
+        $this->assertSame('dev', (string) get_option('ll_update_branch', 'main'));
+    }
+
+    public function test_page_management_handler_recreates_recording_page_and_redirects_back(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $page_id = $this->createSiteToolsPage();
+        $page_url = (string) get_permalink($page_id);
+        $existing_page_id = self::factory()->post->create([
+            'post_type' => 'page',
+            'post_status' => 'publish',
+            'post_title' => 'Existing Managed Recording Page',
+            'post_content' => '[audio_recording_interface]',
+        ]);
+        update_option('ll_default_recording_page_id', $existing_page_id);
+        set_transient('ll_recording_page_creation_attempt', time(), MINUTE_IN_SECONDS);
+
+        $_POST = [
+            'll_site_tools_page_key' => 'recording',
+            'll_site_tools_page_mode' => 'recreate',
+            'll_site_tools_page_nonce' => wp_create_nonce('ll_tools_site_tools_page_recording'),
+            'redirect_to' => $page_url,
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_site_tools_page_management_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('page_managed', (string) ($query['ll_site_tools_notice'] ?? ''));
+        $this->assertSame('recording', (string) ($query['ll_site_tools_section'] ?? ''));
+
+        $new_page_id = (int) get_option('ll_default_recording_page_id', 0);
+        $this->assertGreaterThan(0, $new_page_id);
+        $this->assertNotSame($existing_page_id, $new_page_id);
+        $this->assertSame('publish', (string) get_post_status($new_page_id));
+        $this->assertStringContainsString('[audio_recording_interface]', (string) get_post_field('post_content', $new_page_id));
+    }
+
     public function test_maintenance_handler_flushes_quiz_caches_and_redirects_with_result(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -228,6 +327,15 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
             'll_hide_recording_titles',
             'll_tools_recording_notification_email',
             'll_tools_recording_notification_delay_minutes',
+            LL_TOOLS_USER_PROGRESS_RETENTION_OPTION,
+            'll_update_branch',
+            'll_default_recording_page_id',
+            'll_default_editor_hub_page_id',
+            'll_default_dictionary_page_id',
+            'll_tools_force_create_recording_page',
+            'll_tools_force_create_editor_hub_page',
+            'll_tools_force_create_dictionary_page',
+            'll_tools_force_create_site_tools_page',
             'users_can_register',
         ];
     }

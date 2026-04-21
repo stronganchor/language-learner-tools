@@ -74,7 +74,7 @@ read_first:
 - `includes/pages/site-tools-page.php`
   - Ensures a default Site Tools page with `[ll_site_tools]`.
   - Uses shared shortcode-page admin helpers for notices, settings-row actions, and AJAX recreation.
-  - Provides a front-end home for selected sitewide settings and maintenance actions that previously lived only in wp-admin.
+  - Provides a front-end home for selected sitewide settings, managed shortcode pages, plugin-update controls, privacy retention, and maintenance actions that previously lived only in wp-admin.
 - `includes/lib/media-proxy.php`
   - Signed image proxy (`lltools-img`, `lltools-size`, `lltools-sig`) to hide filenames.
 

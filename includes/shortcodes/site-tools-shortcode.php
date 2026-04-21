@@ -25,6 +25,10 @@ function ll_tools_site_tools_current_user_can_run_maintenance(): bool {
     return current_user_can('manage_options');
 }
 
+function ll_tools_site_tools_normalize_update_branch($value): string {
+    return ((string) $value === 'dev') ? 'dev' : 'main';
+}
+
 function ll_tools_site_tools_normalize_toggle($value): int {
     return absint($value) === 1 ? 1 : 0;
 }
@@ -87,6 +91,72 @@ function ll_tools_site_tools_resolve_redirect_url(): string {
     return $page_url !== '' ? $page_url : home_url('/');
 }
 
+function ll_tools_site_tools_get_managed_page_configs(): array {
+    $pages = [];
+
+    if (function_exists('ll_tools_get_site_tools_page_config')) {
+        $pages['site-tools'] = ll_tools_get_site_tools_page_config();
+    }
+    if (function_exists('ll_tools_get_editor_hub_page_config')) {
+        $pages['editor-hub'] = ll_tools_get_editor_hub_page_config();
+    }
+    if (function_exists('ll_tools_get_recording_page_config')) {
+        $pages['recording'] = ll_tools_get_recording_page_config();
+    }
+    if (function_exists('ll_tools_get_dictionary_page_config')) {
+        $pages['dictionary'] = ll_tools_get_dictionary_page_config();
+    }
+
+    return array_filter($pages, 'is_array');
+}
+
+function ll_tools_site_tools_get_page_manager_rows(): array {
+    $rows = [];
+
+    foreach (ll_tools_site_tools_get_managed_page_configs() as $page_key => $config) {
+        $option_key = isset($config['option_key']) ? (string) $config['option_key'] : '';
+        if ($option_key === '') {
+            continue;
+        }
+
+        $page_id = (int) get_option($option_key);
+        $page_url = $page_id > 0 ? (string) ll_tools_get_published_page_permalink($page_id) : '';
+        $page_exists = ($page_id > 0 && $page_url !== '');
+
+        $rows[] = [
+            'key' => (string) $page_key,
+            'label' => (string) ($config['post_title'] ?? ($config['settings_label'] ?? '')),
+            'page_id' => $page_exists ? $page_id : 0,
+            'exists' => $page_exists,
+            'title' => $page_exists ? (string) get_the_title($page_id) : '',
+            'url' => $page_url,
+            'edit_url' => $page_exists ? (string) get_edit_post_link($page_id) : '',
+            'empty_text' => (string) ($config['none_found_text'] ?? ''),
+            'create_label' => (string) ($config['create_label'] ?? __('Create', 'll-tools-text-domain')),
+            'recreate_label' => (string) ($config['recreate_label'] ?? __('Recreate', 'll-tools-text-domain')),
+        ];
+    }
+
+    return $rows;
+}
+
+function ll_tools_site_tools_get_page_management_label(string $page_key): string {
+    $configs = ll_tools_site_tools_get_managed_page_configs();
+    $config = $configs[$page_key] ?? null;
+
+    if (is_array($config)) {
+        $label = trim((string) ($config['post_title'] ?? ''));
+        if ($label === '') {
+            $label = trim((string) ($config['settings_label'] ?? ''));
+        }
+        if ($label !== '') {
+            return $label;
+        }
+    }
+
+    return __('Page', 'll-tools-text-domain');
+}
+
 function ll_tools_site_tools_build_notice(): ?array {
     $notice = isset($_GET['ll_site_tools_notice'])
         ? sanitize_key(wp_unslash((string) $_GET['ll_site_tools_notice']))
@@ -110,11 +180,26 @@ function ll_tools_site_tools_build_notice(): ?array {
             $message = __('Learner account defaults saved.', 'll-tools-text-domain');
         } elseif ($section === 'recording-defaults') {
             $message = __('Recording defaults saved.', 'll-tools-text-domain');
+        } elseif ($section === 'privacy-retention') {
+            $message = __('Privacy retention settings saved.', 'll-tools-text-domain');
+        } elseif ($section === 'plugin-updates') {
+            $message = __('Plugin update settings saved.', 'll-tools-text-domain');
         }
 
         return [
             'type' => 'success',
             'message' => $message,
+        ];
+    }
+
+    if ($notice === 'page_managed') {
+        return [
+            'type' => 'success',
+            'message' => sprintf(
+                /* translators: %s: managed page label */
+                __('%s page is ready.', 'll-tools-text-domain'),
+                ll_tools_site_tools_get_page_management_label($section)
+            ),
         ];
     }
 
@@ -191,10 +276,28 @@ function ll_tools_site_tools_build_notice(): ?array {
                 'message' => __('That site tools section is not available.', 'll-tools-text-domain'),
             ];
         }
+        if ($error === 'page_key') {
+            return [
+                'type' => 'error',
+                'message' => __('That managed page is not available.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($error === 'page_create_failed') {
+            return [
+                'type' => 'error',
+                'message' => __('Unable to create or reuse that managed page right now.', 'll-tools-text-domain'),
+            ];
+        }
         if ($error === 'maintenance_action') {
             return [
                 'type' => 'error',
                 'message' => __('That maintenance action is not available.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($error === 'plugin_update_permission') {
+            return [
+                'type' => 'error',
+                'message' => __('You do not have permission to manage plugin updates.', 'll-tools-text-domain'),
             ];
         }
 
@@ -299,6 +402,24 @@ function ll_tools_handle_save_site_tools_action(): void {
         update_option('ll_hide_recording_titles', ll_tools_site_tools_normalize_toggle(isset($_POST['ll_hide_recording_titles']) ? 1 : 0));
         update_option('ll_tools_recording_notification_email', $notification_email);
         update_option('ll_tools_recording_notification_delay_minutes', $notification_delay);
+    } elseif ($section === 'privacy-retention') {
+        $retention_option_name = defined('LL_TOOLS_USER_PROGRESS_RETENTION_OPTION')
+            ? LL_TOOLS_USER_PROGRESS_RETENTION_OPTION
+            : 'll_user_progress_events_retention_days';
+        $retention_days = function_exists('ll_tools_sanitize_user_progress_retention_days')
+            ? ll_tools_sanitize_user_progress_retention_days($_POST[$retention_option_name] ?? 180)
+            : max(30, min(1095, absint($_POST[$retention_option_name] ?? 180)));
+
+        update_option($retention_option_name, $retention_days);
+    } elseif ($section === 'plugin-updates') {
+        if (!function_exists('ll_tools_user_can_manage_plugin_updates') || !ll_tools_user_can_manage_plugin_updates()) {
+            $redirect_error('plugin_update_permission');
+        }
+
+        update_option(
+            'll_update_branch',
+            ll_tools_site_tools_normalize_update_branch($_POST['ll_update_branch'] ?? 'main')
+        );
     } else {
         $redirect_error('section');
     }
@@ -310,6 +431,71 @@ function ll_tools_handle_save_site_tools_action(): void {
     exit;
 }
 add_action('admin_post_ll_tools_save_site_tools', 'll_tools_handle_save_site_tools_action');
+
+function ll_tools_handle_site_tools_page_management_action(): void {
+    if (!is_user_logged_in()) {
+        auth_redirect();
+    }
+
+    $redirect_url = ll_tools_site_tools_resolve_redirect_url();
+    $page_key = isset($_POST['ll_site_tools_page_key'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_site_tools_page_key']))
+        : '';
+    $page_mode = isset($_POST['ll_site_tools_page_mode'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_site_tools_page_mode']))
+        : 'create';
+    $nonce = isset($_POST['ll_site_tools_page_nonce'])
+        ? wp_unslash((string) $_POST['ll_site_tools_page_nonce'])
+        : '';
+
+    $redirect_error = static function (string $error) use ($redirect_url, $page_key): void {
+        wp_safe_redirect(add_query_arg([
+            'll_site_tools_notice' => 'error',
+            'll_site_tools_error' => $error,
+            'll_site_tools_section' => $page_key,
+        ], $redirect_url));
+        exit;
+    };
+
+    if ($page_key === '') {
+        $redirect_error('page_key');
+    }
+
+    if (!ll_tools_site_tools_current_user_can_manage_settings()) {
+        $redirect_error('permission');
+    }
+
+    if (!wp_verify_nonce($nonce, 'll_tools_site_tools_page_' . $page_key)) {
+        $redirect_error('nonce');
+    }
+
+    $configs = ll_tools_site_tools_get_managed_page_configs();
+    $config = $configs[$page_key] ?? null;
+    if (!is_array($config)) {
+        $redirect_error('page_key');
+    }
+
+    if ($page_mode === 'recreate') {
+        $force_option_key = isset($config['force_option_key']) ? (string) $config['force_option_key'] : '';
+        if ($force_option_key !== '') {
+            update_option($force_option_key, 1);
+        }
+    }
+
+    $page_id = function_exists('ll_tools_ensure_default_shortcode_page')
+        ? (int) ll_tools_ensure_default_shortcode_page($config)
+        : 0;
+    if ($page_id <= 0) {
+        $redirect_error('page_create_failed');
+    }
+
+    wp_safe_redirect(add_query_arg([
+        'll_site_tools_notice' => 'page_managed',
+        'll_site_tools_section' => $page_key,
+    ], $redirect_url));
+    exit;
+}
+add_action('admin_post_ll_tools_manage_site_tools_page', 'll_tools_handle_site_tools_page_management_action');
 
 function ll_tools_handle_site_tools_maintenance_action(): void {
     if (!is_user_logged_in()) {
@@ -459,7 +645,9 @@ function ll_site_tools_shortcode($atts): string {
 
     $can_manage_settings = ll_tools_site_tools_current_user_can_manage_settings();
     $can_run_maintenance = ll_tools_site_tools_current_user_can_run_maintenance();
+    $can_manage_plugin_updates = function_exists('ll_tools_user_can_manage_plugin_updates') && ll_tools_user_can_manage_plugin_updates();
     $workspace_links = ll_tools_site_tools_get_workspace_links();
+    $page_manager_rows = ll_tools_site_tools_get_page_manager_rows();
     $notice_html = ll_tools_site_tools_render_notice();
 
     $browser_autoswitch = function_exists('ll_tools_normalize_browser_language_autoswitch_setting_value')
@@ -475,6 +663,40 @@ function ll_site_tools_shortcode($atts): string {
     $recording_notification_delay = function_exists('ll_tools_get_recording_notification_delay_minutes')
         ? (int) ll_tools_get_recording_notification_delay_minutes()
         : max(1, min(1440, (int) get_option('ll_tools_recording_notification_delay_minutes', 5)));
+    $retention_option_name = defined('LL_TOOLS_USER_PROGRESS_RETENTION_OPTION')
+        ? LL_TOOLS_USER_PROGRESS_RETENTION_OPTION
+        : 'll_user_progress_events_retention_days';
+    $retention_days = function_exists('ll_tools_get_user_progress_retention_days')
+        ? (int) ll_tools_get_user_progress_retention_days()
+        : max(30, min(1095, (int) get_option($retention_option_name, 180)));
+    $update_branch = function_exists('ll_tools_get_update_branch')
+        ? (string) ll_tools_get_update_branch()
+        : ll_tools_site_tools_normalize_update_branch(get_option('ll_update_branch', 'main'));
+    $plugin_update_status = function_exists('ll_tools_get_plugin_update_status_details')
+        ? ll_tools_get_plugin_update_status_details()
+        : ['status' => 'unknown', 'version' => '', 'raw' => null];
+    $plugin_update_status_name = is_array($plugin_update_status)
+        ? (string) ($plugin_update_status['status'] ?? 'unknown')
+        : 'unknown';
+    $plugin_update_version = is_array($plugin_update_status)
+        ? (string) ($plugin_update_status['version'] ?? '')
+        : '';
+    $plugin_update_status_label = __('Status unknown', 'll-tools-text-domain');
+    if ($plugin_update_status_name === 'available' && $plugin_update_version !== '') {
+        $plugin_update_status_label = sprintf(
+            /* translators: %s: plugin version */
+            __('Update %s available', 'll-tools-text-domain'),
+            $plugin_update_version
+        );
+    } elseif ($plugin_update_status_name === 'none') {
+        $plugin_update_status_label = __('No update detected', 'll-tools-text-domain');
+    }
+    $plugin_update_action_url = ($can_manage_plugin_updates && function_exists('ll_tools_get_plugin_update_action_url'))
+        ? (string) ll_tools_get_plugin_update_action_url()
+        : '';
+    $plugin_update_check_url = ($can_manage_plugin_updates && function_exists('ll_tools_get_plugin_update_check_action_url'))
+        ? (string) ll_tools_get_plugin_update_check_action_url($current_url)
+        : '';
 
     ob_start();
     ?>
@@ -506,6 +728,69 @@ function ll_site_tools_shortcode($atts): string {
                                 <span class="ll-site-tools-link-card__title"><?php echo esc_html((string) ($workspace_link['label'] ?? '')); ?></span>
                                 <span class="ll-site-tools-link-card__description"><?php echo esc_html((string) ($workspace_link['description'] ?? '')); ?></span>
                             </a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </section>
+
+            <section class="ll-site-tools-card">
+                <div class="ll-site-tools-card__head">
+                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Managed Pages', 'll-tools-text-domain'); ?></h2>
+                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Create or recreate the plugin-owned front-end pages that still relied on dashboard settings-row actions.', 'll-tools-text-domain'); ?></p>
+                </div>
+
+                <?php if (empty($page_manager_rows)) : ?>
+                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('No managed LL Tools pages are configured yet.', 'll-tools-text-domain'); ?></p>
+                <?php else : ?>
+                    <div class="ll-site-tools-page-list">
+                        <?php foreach ($page_manager_rows as $page_row) : ?>
+                            <div class="ll-site-tools-page-item">
+                                <div class="ll-site-tools-page-item__copy">
+                                    <div class="ll-site-tools-page-item__header">
+                                        <h3 class="ll-site-tools-page-item__title"><?php echo esc_html((string) ($page_row['label'] ?? '')); ?></h3>
+                                        <span class="ll-site-tools-pill">
+                                            <?php echo !empty($page_row['exists']) ? esc_html__('Published', 'll-tools-text-domain') : esc_html__('Missing', 'll-tools-text-domain'); ?>
+                                        </span>
+                                    </div>
+                                    <p class="ll-site-tools-page-item__description">
+                                        <?php
+                                        if (!empty($page_row['exists'])) {
+                                            echo esc_html(
+                                                sprintf(
+                                                    /* translators: %s: page title */
+                                                    __('Using "%s".', 'll-tools-text-domain'),
+                                                    (string) ($page_row['title'] ?? '')
+                                                )
+                                            );
+                                        } else {
+                                            echo esc_html((string) ($page_row['empty_text'] ?? ''));
+                                        }
+                                        ?>
+                                    </p>
+
+                                    <?php if (!empty($page_row['exists'])) : ?>
+                                        <div class="ll-site-tools-page-links">
+                                            <a class="ll-site-tools-text-link" href="<?php echo esc_url((string) ($page_row['url'] ?? '')); ?>"><?php echo esc_html__('View', 'll-tools-text-domain'); ?></a>
+                                            <?php if (!empty($page_row['edit_url'])) : ?>
+                                                <a class="ll-site-tools-text-link" href="<?php echo esc_url((string) $page_row['edit_url']); ?>"><?php echo esc_html__('Edit in WordPress', 'll-tools-text-domain'); ?></a>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+
+                                <?php if ($can_manage_settings) : ?>
+                                    <form class="ll-site-tools-page-item__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                        <input type="hidden" name="action" value="ll_tools_manage_site_tools_page" />
+                                        <input type="hidden" name="ll_site_tools_page_key" value="<?php echo esc_attr((string) ($page_row['key'] ?? '')); ?>" />
+                                        <input type="hidden" name="ll_site_tools_page_mode" value="<?php echo !empty($page_row['exists']) ? 'recreate' : 'create'; ?>" />
+                                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                                        <?php wp_nonce_field('ll_tools_site_tools_page_' . (string) ($page_row['key'] ?? ''), 'll_site_tools_page_nonce'); ?>
+                                        <button type="submit" class="ll-site-tools-button ll-site-tools-button--secondary">
+                                            <?php echo esc_html(!empty($page_row['exists']) ? (string) ($page_row['recreate_label'] ?? '') : (string) ($page_row['create_label'] ?? '')); ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
                         <?php endforeach; ?>
                     </div>
                 <?php endif; ?>
@@ -636,6 +921,98 @@ function ll_site_tools_shortcode($atts): string {
                     </form>
                 <?php else : ?>
                     <p class="ll-site-tools-card__empty"><?php echo esc_html__('Administrator access is required to change recording defaults.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </section>
+
+            <section class="ll-site-tools-card">
+                <div class="ll-site-tools-card__head">
+                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Privacy & Retention', 'll-tools-text-domain'); ?></h2>
+                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Move the learner progress retention control out of the dashboard settings table and into the front-end admin workspace.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <div class="ll-site-tools-card__meta">
+                    <span class="ll-site-tools-pill">
+                        <?php
+                        echo esc_html(
+                            sprintf(
+                                /* translators: %d: number of days */
+                                __('Keep event details for %d days', 'll-tools-text-domain'),
+                                $retention_days
+                            )
+                        );
+                        ?>
+                    </span>
+                </div>
+
+                <?php if ($can_manage_settings) : ?>
+                    <form class="ll-site-tools-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="ll_tools_save_site_tools" />
+                        <input type="hidden" name="ll_site_tools_section" value="privacy-retention" />
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                        <?php wp_nonce_field('ll_tools_site_tools_privacy-retention', 'll_site_tools_nonce'); ?>
+
+                        <label class="ll-site-tools-field">
+                            <span><?php echo esc_html__('Detailed activity retention (days)', 'll-tools-text-domain'); ?></span>
+                            <input type="number" min="30" max="1095" step="1" name="<?php echo esc_attr($retention_option_name); ?>" value="<?php echo esc_attr((string) $retention_days); ?>" />
+                        </label>
+
+                        <p class="ll-site-tools-note"><?php echo esc_html__('Detailed learner activity rows older than this are deleted automatically. Summary progress remains attached to the learner account until that account is removed or erased.', 'll-tools-text-domain'); ?></p>
+
+                        <button type="submit" class="ll-site-tools-button"><?php echo esc_html__('Save Retention Settings', 'll-tools-text-domain'); ?></button>
+                    </form>
+                <?php else : ?>
+                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('Administrator access is required to change privacy retention settings.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </section>
+
+            <section class="ll-site-tools-card">
+                <div class="ll-site-tools-card__head">
+                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Plugin Updates', 'll-tools-text-domain'); ?></h2>
+                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Bring update-channel selection and manual update checks into the custom UI while still handing installation off to core WordPress update flow.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <div class="ll-site-tools-card__meta">
+                    <span class="ll-site-tools-pill"><?php echo $update_branch === 'dev' ? esc_html__('Dev channel', 'll-tools-text-domain') : esc_html__('Stable channel', 'll-tools-text-domain'); ?></span>
+                    <span class="ll-site-tools-pill"><?php echo esc_html($plugin_update_status_label); ?></span>
+                </div>
+
+                <?php if ($can_manage_plugin_updates) : ?>
+                    <form class="ll-site-tools-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="ll_tools_save_site_tools" />
+                        <input type="hidden" name="ll_site_tools_section" value="plugin-updates" />
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                        <?php wp_nonce_field('ll_tools_site_tools_plugin-updates', 'll_site_tools_nonce'); ?>
+
+                        <label class="ll-site-tools-field">
+                            <span><?php echo esc_html__('Update channel', 'll-tools-text-domain'); ?></span>
+                            <select name="ll_update_branch">
+                                <option value="main" <?php selected($update_branch, 'main'); ?>><?php echo esc_html__('Stable release packages', 'll-tools-text-domain'); ?></option>
+                                <option value="dev" <?php selected($update_branch, 'dev'); ?>><?php echo esc_html__('Dev branch builds', 'll-tools-text-domain'); ?></option>
+                            </select>
+                        </label>
+
+                        <div class="ll-site-tools-inline-actions">
+                            <button type="submit" class="ll-site-tools-button"><?php echo esc_html__('Save Update Channel', 'll-tools-text-domain'); ?></button>
+                            <?php if ($plugin_update_check_url !== '') : ?>
+                                <a class="ll-site-tools-button ll-site-tools-button--secondary" href="<?php echo esc_url($plugin_update_check_url); ?>"><?php echo esc_html__('Check for Updates', 'll-tools-text-domain'); ?></a>
+                            <?php endif; ?>
+                            <?php if ($plugin_update_action_url !== '' && $plugin_update_status_name === 'available' && $plugin_update_version !== '') : ?>
+                                <a class="ll-site-tools-button ll-site-tools-button--ghost" href="<?php echo esc_url($plugin_update_action_url); ?>">
+                                    <?php
+                                    echo esc_html(
+                                        sprintf(
+                                            /* translators: %s: plugin version */
+                                            __('Install %s', 'll-tools-text-domain'),
+                                            $plugin_update_version
+                                        )
+                                    );
+                                    ?>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+
+                        <p class="ll-site-tools-note"><?php echo esc_html__('Stable uses packaged GitHub releases only. Dev follows the configured branch for testing changes before release.', 'll-tools-text-domain'); ?></p>
+                    </form>
+                <?php else : ?>
+                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('The current account cannot manage LL Tools plugin updates.', 'll-tools-text-domain'); ?></p>
                 <?php endif; ?>
             </section>
 

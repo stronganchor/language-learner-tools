@@ -5518,6 +5518,7 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
     }
 
     $links = [];
+    $is_wordset_page_context = in_array($current_area, ['wordset', 'wordset_settings', 'wordset_progress', 'wordset_hidden', 'wordset_games'], true);
     if ($user instanceof WP_User) {
         if (function_exists('ll_tools_editor_hub_user_can_access') && ll_tools_editor_hub_user_can_access() && function_exists('ll_get_editor_hub_redirect_url')) {
             $editor_hub_url = (string) ll_get_editor_hub_redirect_url((int) $user->ID);
@@ -5587,7 +5588,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
             }
         }
 
-        if ($scoped_wordset_term instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url')) {
+        if (
+            !$is_wordset_page_context
+            && $scoped_wordset_term instanceof WP_Term
+            && function_exists('ll_tools_get_wordset_page_view_url')
+        ) {
             $wordset_url = (string) ll_tools_get_wordset_page_view_url($scoped_wordset_term);
             $wordset_button_active = in_array($current_area, ['wordset', 'wordset_progress', 'wordset_hidden', 'wordset_games'], true)
                 && ($current_wordset_term instanceof WP_Term)
@@ -5613,7 +5618,11 @@ function ll_tools_render_frontend_user_utility_menu(array $args = []): string {
             }
         }
 
-        if ($manage_link_term instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url')) {
+        if (
+            !$is_wordset_page_context
+            && $manage_link_term instanceof WP_Term
+            && function_exists('ll_tools_get_wordset_page_view_url')
+        ) {
             $wordset_settings_url = (string) ll_tools_get_wordset_page_view_url($manage_link_term, 'settings');
             $manage_link_active = ($current_area === 'wordset_settings')
                 && ($current_wordset_term instanceof WP_Term)
