@@ -518,6 +518,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     box-shadow: 0 1px 0 rgba(20, 80, 107, 0.08);
 }
 
+.ll-wordset-link-chip--classes {
+    min-height: var(--ll-wp-top-chip-height);
+    height: var(--ll-wp-top-chip-height);
+    padding: 0 12px;
+    gap: 8px;
+}
+
 .ll-wordset-link-chip--games:hover,
 .ll-wordset-link-chip--games:focus-visible {
     border-color: rgba(21, 92, 123, 0.42);
@@ -4466,9 +4473,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-main-sort__menu {
-        right: auto;
-        left: 0;
-        min-width: min(100vw - 40px, 232px);
+        right: 0;
+        left: auto;
+        min-width: min(232px, calc(100vw - 24px));
+        max-width: min(320px, calc(100vw - 24px));
     }
 }
 
@@ -6550,34 +6558,39 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-hero__action-links {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        justify-content: start;
-        align-items: start;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        align-items: center;
         width: 100%;
         row-gap: 10px;
         column-gap: 8px;
     }
 
     .ll-wordset-hero__action-links .ll-wordset-link-chip--games {
-        order: -3;
-        grid-column: 1 / -1;
+        order: 1;
         justify-content: center;
-        width: 100%;
+        width: auto;
         min-height: 44px;
         height: 44px;
     }
 
+    .ll-wordset-hero__action-links .ll-wordset-link-chip--classes {
+        order: 2;
+        justify-content: center;
+        min-height: 44px;
+        height: 44px;
+        padding: 0 14px;
+    }
+
     .ll-wordset-hero__action-links .ll-wordset-link-chip--hidden {
-        order: -2;
+        order: 4;
         min-height: 44px;
         height: 44px;
     }
 
     .ll-wordset-hero__action-links .ll-wordset-settings-link.ll-tools-settings-button {
-        order: -1;
-        grid-column: 2;
-        justify-self: end;
+        order: 3;
         width: 44px !important;
         height: 44px !important;
         min-width: 44px !important;
@@ -6587,7 +6600,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-hero__action-links .ll-wordset-update-link,
     .ll-wordset-hero__action-links .ll-wordset-check-updates-link {
-        grid-column: 1 / -1;
+        order: 5;
+        flex: 1 1 100%;
+        justify-content: center;
+        width: 100%;
         min-height: 44px;
         height: 44px;
     }
