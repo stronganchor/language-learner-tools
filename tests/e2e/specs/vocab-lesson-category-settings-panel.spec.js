@@ -1,0 +1,272 @@
+const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
+
+const jquerySource = fs.readFileSync(require.resolve('jquery/dist/jquery.js'), 'utf8');
+const flashcardBaseCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/flashcard/base.css'),
+  'utf8'
+);
+const vocabLessonCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
+  'utf8'
+);
+const vocabLessonJsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/vocab-lesson-page.js'),
+  'utf8'
+);
+
+const hostileThemeCss = `
+  .ll-vocab-lesson-page button,
+  .ll-vocab-lesson-page input,
+  .ll-vocab-lesson-page select {
+    min-width: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: inset 0 0 0 2px rgba(15, 64, 99, 0.18) !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+  }
+`;
+
+function buildCategorySettingsMarkup() {
+  return `
+    <main class="ll-vocab-lesson-page" data-ll-vocab-lesson style="padding: 16px;">
+      <header class="ll-vocab-lesson-hero">
+        <div class="ll-vocab-lesson-top-row">
+          <div class="ll-vocab-lesson-star-controls">
+            <div class="ll-vocab-lesson-category-settings ll-tools-settings-control" data-ll-vocab-lesson-category-settings>
+              <button type="button" class="ll-vocab-lesson-category-settings-trigger ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="Category settings">
+                <span class="ll-vocab-lesson-category-settings-trigger-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M12 3.5 4 7.5v9l8 4 8-4v-9l-8-4Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <path d="M12 8.5v7M8.8 10.1l3.2 1.8 3.2-1.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </span>
+                <span class="ll-vocab-lesson-category-settings-trigger-label">Category</span>
+              </button>
+              <form class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel" role="dialog" aria-label="Category settings" aria-hidden="true">
+                <div class="ll-vocab-lesson-category-settings-panel__title-row">
+                  <div class="ll-vocab-lesson-category-settings-panel__title">Category settings</div>
+                  <div class="ll-vocab-lesson-category-settings-summary">
+                    <span class="ll-vocab-lesson-category-settings-summary-pill">Text to text</span>
+                    <span class="ll-vocab-lesson-category-settings-summary-pill">Text visible</span>
+                    <span class="ll-vocab-lesson-category-settings-summary-pill">1 recording type</span>
+                  </div>
+                </div>
+
+                <div class="ll-vocab-lesson-category-settings-section">
+                  <div class="ll-vocab-lesson-category-settings-section__heading">Quiz</div>
+                  <label class="ll-vocab-lesson-category-settings-field">
+                    <span class="ll-vocab-lesson-category-settings-field__label">Prompt</span>
+                    <select name="ll_vocab_lesson_quiz_prompt_type" class="ll-vocab-lesson-category-settings-select">
+                      <option value="text_title" selected>Word text</option>
+                      <option value="text_translation">Translation</option>
+                    </select>
+                  </label>
+                  <label class="ll-vocab-lesson-category-settings-field">
+                    <span class="ll-vocab-lesson-category-settings-field__label">Answers</span>
+                    <select name="ll_vocab_lesson_quiz_option_type" class="ll-vocab-lesson-category-settings-select">
+                      <option value="text_title" selected>Word text</option>
+                      <option value="image">Images</option>
+                    </select>
+                  </label>
+                  <label class="ll-vocab-lesson-category-settings-field">
+                    <span class="ll-vocab-lesson-category-settings-field__label">Lesson text</span>
+                    <select name="ll_vocab_lesson_grid_text_visibility" class="ll-vocab-lesson-category-settings-select">
+                      <option value="default" selected>Default</option>
+                      <option value="hide">Hide</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="ll-vocab-lesson-category-settings-section">
+                  <div class="ll-vocab-lesson-category-settings-section__heading">Games</div>
+                  <div class="ll-vocab-lesson-category-settings-checkboxes">
+                    <label class="ll-vocab-lesson-category-settings-check">
+                      <input type="checkbox" name="ll_vocab_lesson_category_enabled_games[]" value="line-up" checked />
+                      <span>Line-Up</span>
+                    </label>
+                    <label class="ll-vocab-lesson-category-settings-check">
+                      <input type="checkbox" name="ll_vocab_lesson_category_enabled_games[]" value="unscramble" />
+                      <span>Unscramble</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="ll-vocab-lesson-category-settings-section">
+                  <div class="ll-vocab-lesson-category-settings-section__heading">Recording</div>
+                  <p class="ll-vocab-lesson-category-settings-help">Choose which recording types this category expects.</p>
+                  <div class="ll-vocab-lesson-category-settings-checkboxes">
+                    <label class="ll-vocab-lesson-category-settings-check">
+                      <input type="checkbox" name="ll_vocab_lesson_desired_recording_types[]" value="isolation" checked />
+                      <span>Isolation</span>
+                    </label>
+                    <label class="ll-vocab-lesson-category-settings-check">
+                      <input type="checkbox" name="ll_vocab_lesson_desired_recording_types[]" value="question" />
+                      <span>Question</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--lineup" data-ll-category-lineup-ordering>
+                  <div class="ll-vocab-lesson-category-settings-section__heading">Line-Up</div>
+                  <input type="hidden" name="ll_vocab_lesson_category_lineup_submitted" value="1" />
+                  <label class="ll-vocab-lesson-category-settings-field">
+                    <span class="ll-vocab-lesson-category-settings-field__label">Direction</span>
+                    <select name="ll_vocab_lesson_category_lineup_direction" class="ll-vocab-lesson-category-settings-select" data-ll-category-lineup-direction>
+                      <option value="auto" selected>Auto</option>
+                      <option value="ltr">Left to right</option>
+                      <option value="rtl">Right to left</option>
+                    </select>
+                  </label>
+                  <ol class="ll-vocab-lesson-category-lineup-list" data-ll-category-lineup-list>
+                    <li class="ll-vocab-lesson-category-lineup-item" data-ll-category-lineup-item data-word-id="41">
+                      <span class="ll-vocab-lesson-category-lineup-title" dir="auto">Alpha</span>
+                      <span class="ll-vocab-lesson-category-lineup-actions">
+                        <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="up">Up</button>
+                        <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="down">Down</button>
+                      </span>
+                    </li>
+                    <li class="ll-vocab-lesson-category-lineup-item" data-ll-category-lineup-item data-word-id="42">
+                      <span class="ll-vocab-lesson-category-lineup-title" dir="auto">Beta</span>
+                      <span class="ll-vocab-lesson-category-lineup-actions">
+                        <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="up">Up</button>
+                        <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="down">Down</button>
+                      </span>
+                    </li>
+                    <li class="ll-vocab-lesson-category-lineup-item" data-ll-category-lineup-item data-word-id="43">
+                      <span class="ll-vocab-lesson-category-lineup-title" dir="auto">Gamma</span>
+                      <span class="ll-vocab-lesson-category-lineup-actions">
+                        <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="up">Up</button>
+                        <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="down">Down</button>
+                      </span>
+                    </li>
+                  </ol>
+                  <input type="hidden" name="ll_vocab_lesson_category_lineup_word_ids" value="41,42,43" data-ll-category-lineup-order-input />
+                  <p class="ll-vocab-lesson-category-settings-help">Move words up or down to set the Line-Up teaching order for this category.</p>
+                </div>
+
+                <div class="ll-vocab-lesson-category-settings-actions">
+                  <button type="submit" class="ll-study-btn tiny ll-vocab-lesson-category-settings-save">
+                    <span class="ll-vocab-lesson-category-settings-save-icon" aria-hidden="true">
+                      <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                        <path d="m5.5 10.2 3 3.1 6-6.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
+                      </svg>
+                    </span>
+                    <span>Save Category Settings</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </header>
+    </main>
+  `;
+}
+
+async function mountCategorySettingsHarness(page, viewport) {
+  await page.setViewportSize(viewport);
+  await page.goto('about:blank');
+  await page.setContent(buildCategorySettingsMarkup());
+  await page.addStyleTag({ content: flashcardBaseCssSource });
+  await page.addStyleTag({ content: vocabLessonCssSource });
+  await page.addStyleTag({ content: hostileThemeCss });
+  await page.addScriptTag({ content: jquerySource });
+  await page.addScriptTag({
+    content: `
+      window.jQuery = window.$ = jQuery;
+      window.llToolsVocabLessonData = {
+        ajaxUrl: '/wp-admin/admin-ajax.php',
+        grid: {
+          action: 'll_tools_get_vocab_lesson_grid',
+          i18n: {}
+        }
+      };
+    `
+  });
+  await page.addScriptTag({ content: vocabLessonJsSource });
+}
+
+test('lesson category settings panel opens, reorders Line-Up, and closes cleanly', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 1366, height: 900 });
+
+  const trigger = page.locator('.ll-vocab-lesson-category-settings-trigger');
+  const panel = page.locator('.ll-vocab-lesson-category-settings-panel');
+  const orderInput = page.locator('[data-ll-category-lineup-order-input]');
+
+  await trigger.click();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel).toHaveAttribute('aria-hidden', 'false');
+  await expect(orderInput).toHaveValue('41,42,43');
+
+  await page.locator('[data-word-id="42"] [data-ll-category-lineup-move="up"]').click();
+  await expect(orderInput).toHaveValue('42,41,43');
+
+  await page.locator('[data-word-id="41"] [data-ll-category-lineup-move="down"]').click();
+  await expect(orderInput).toHaveValue('42,43,41');
+
+  await page.keyboard.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel).toHaveAttribute('aria-hidden', 'true');
+});
+
+test('lesson category settings panel clamps to the mobile viewport and keeps actions reachable', async ({ page }) => {
+  await mountCategorySettingsHarness(page, { width: 390, height: 844 });
+
+  const trigger = page.locator('.ll-vocab-lesson-category-settings-trigger');
+  const panel = page.locator('.ll-vocab-lesson-category-settings-panel');
+
+  await trigger.click();
+  await expect(panel).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.getByRole('button', { name: 'Save Category Settings' })).toBeVisible();
+
+  const metrics = await page.evaluate(() => {
+    const panelEl = document.querySelector('.ll-vocab-lesson-category-settings-panel');
+    const saveButton = document.querySelector('.ll-vocab-lesson-category-settings-save');
+    const directionSelect = document.querySelector('[data-ll-category-lineup-direction]');
+    const lineupActions = Array.from(document.querySelectorAll('.ll-vocab-lesson-category-lineup-move')).map((button) => {
+      const rect = button.getBoundingClientRect();
+      return {
+        left: Math.round(rect.left),
+        right: Math.round(rect.right),
+        width: Math.round(rect.width)
+      };
+    });
+
+    if (!panelEl || !saveButton || !directionSelect) {
+      return null;
+    }
+
+    const panelRect = panelEl.getBoundingClientRect();
+    const saveRect = saveButton.getBoundingClientRect();
+    const selectRect = directionSelect.getBoundingClientRect();
+
+    return {
+      viewportWidth: window.innerWidth,
+      panelLeft: Math.round(panelRect.left),
+      panelRight: Math.round(panelRect.right),
+      bodyWidth: document.documentElement.scrollWidth,
+      selectWidth: Math.round(selectRect.width),
+      lineupActions
+    };
+  });
+
+  expect(metrics).not.toBeNull();
+  expect(metrics.bodyWidth).toBeLessThanOrEqual(metrics.viewportWidth + 2);
+  expect(metrics.panelLeft).toBeGreaterThanOrEqual(0);
+  expect(metrics.panelRight).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+  expect(metrics.selectWidth).toBeGreaterThan(180);
+  metrics.lineupActions.forEach((actionMetric) => {
+    expect(actionMetric.left).toBeGreaterThanOrEqual(0);
+    expect(actionMetric.right).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+    expect(actionMetric.width).toBeGreaterThanOrEqual(40);
+  });
+
+  const saveButton = page.getByRole('button', { name: 'Save Category Settings' });
+  await saveButton.scrollIntoViewIfNeeded();
+  await expect(saveButton).toBeInViewport();
+
+  await page.locator('body').click({ position: { x: 8, y: 8 } });
+  await expect(panel).toHaveAttribute('aria-hidden', 'true');
+});
