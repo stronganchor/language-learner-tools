@@ -351,6 +351,9 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringContainsString('class="ll-wordset-grid"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-next-card"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-next', $index_html);
+                $this->assertStringContainsString('data-ll-offline-category-search', $index_html);
+                $this->assertStringContainsString('data-ll-offline-sort-toggle', $index_html);
+                $this->assertStringContainsString('data-ll-offline-sort-option="progress-desc"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-select-all"', $index_html);
                 $this->assertStringContainsString('id="ll-offline-selection-bar"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-view-toggle', $index_html);
@@ -371,6 +374,8 @@ final class OfflineAppExportTest extends LL_Tools_TestCase
                 $this->assertStringNotContainsString('http://./', $index_html);
                 $this->assertStringNotContainsString('id="ll-tools-start-flashcard"', $index_html);
                 $this->assertStringContainsString('data-ll-offline-category-mode', $offline_app_js);
+                $this->assertStringContainsString('buildCategoryProgressMarkup', $offline_app_js);
+                $this->assertStringContainsString('data-ll-offline-sort-option', $offline_app_js);
                 $this->assertStringContainsString('buildOfflineSpeakingBridge', $offline_app_js);
                 $this->assertStringContainsString('id="restart-self-check-mode"', $index_html);
                 $this->assertStringContainsString('id="restart-listening-mode"', $index_html);

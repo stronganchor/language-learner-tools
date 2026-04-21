@@ -49,6 +49,7 @@
         modeCategoryLabel: String(messages.offlineModeCategoryLabel || '%1$s: %2$s'),
         learningUnavailable: String(messages.offlineLearningUnavailable || 'Learning mode is not available for this selection.'),
         genderUnavailable: String(messages.offlineGenderUnavailable || 'Gender mode is not available for this selection.'),
+        noMatchingCategories: String(messages.offlineNoMatchingCategories || 'No categories match your search.'),
         noCategoriesSelected: String(messages.noCategoriesSelected || 'Select at least one category.'),
         somethingWentWrong: String(messages.somethingWentWrong || 'Something went wrong')
     };
@@ -627,6 +628,46 @@
             return 'self-check';
         }
         return MODE_ORDER.indexOf(normalized) !== -1 ? normalized : '';
+    }
+
+    function normalizeLauncherSortKey(sortKey) {
+        const normalized = String(sortKey || '').trim().toLowerCase();
+        if ([
+            'default',
+            'alpha-asc',
+            'alpha-desc',
+            'progress-desc',
+            'progress-asc',
+            'recent-desc',
+            'recent-asc'
+        ].indexOf(normalized) !== -1) {
+            return normalized;
+        }
+        return 'default';
+    }
+
+    function getOfflineLauncherSortStorageKey() {
+        return 'lltools_offline_launcher_sort_v1::wordset:' + String(getOfflineWordsetId() || 0);
+    }
+
+    function loadOfflineLauncherSortKey() {
+        if (!root.localStorage) {
+            return 'default';
+        }
+        try {
+            return normalizeLauncherSortKey(root.localStorage.getItem(getOfflineLauncherSortStorageKey()) || 'default');
+        } catch (_) {
+            return 'default';
+        }
+    }
+
+    function saveOfflineLauncherSortKey(sortKey) {
+        if (!root.localStorage) {
+            return;
+        }
+        try {
+            root.localStorage.setItem(getOfflineLauncherSortStorageKey(), normalizeLauncherSortKey(sortKey));
+        } catch (_) { /* no-op */ }
     }
 
     function renderPreviewMarkup(category) {
@@ -1895,6 +1936,11 @@
         const selectionTextEl = documentRef.getElementById('ll-offline-selection-text');
         const selectAllButton = documentRef.getElementById('ll-offline-select-all');
         const selectAllWrap = selectAllButton ? selectAllButton.closest('.ll-wordset-grid-tools') : null;
+        const searchInputEl = documentRef.querySelector('[data-ll-offline-category-search]');
+        const sortRootEl = documentRef.querySelector('[data-ll-offline-sort-root]');
+        const sortToggleEl = documentRef.querySelector('[data-ll-offline-sort-toggle]');
+        const sortMenuEl = documentRef.querySelector('[data-ll-offline-sort-menu]');
+        const sortOptionEls = sortMenuEl ? Array.prototype.slice.call(sortMenuEl.querySelectorAll('[data-ll-offline-sort-option]')) : [];
         const selectionButtons = {
             learning: documentRef.getElementById('ll-offline-launch-learning-selected'),
             practice: documentRef.getElementById('ll-offline-launch-practice-selected'),
@@ -1916,15 +1962,35 @@
         const flashData = (root.llToolsFlashcardsData && typeof root.llToolsFlashcardsData === 'object')
             ? root.llToolsFlashcardsData
             : {};
-        const categories = getLauncherCategories(flashData);
         const offlineCategoryData = (flashData.offlineCategoryData && typeof flashData.offlineCategoryData === 'object')
             ? flashData.offlineCategoryData
             : {};
+        const categories = getLauncherCategories(flashData).map(function (category, index) {
+            const rows = Array.isArray(offlineCategoryData[category.name]) ? offlineCategoryData[category.name] : [];
+            const previewText = Array.isArray(category.preview) ? category.preview.map(function (item) {
+                return item && item.type === 'text' ? String(item.label || '') : '';
+            }).join(' ') : '';
+            return Object.assign({}, category, {
+                default_order: index,
+                word_ids: uniqueIntList(rows.map(function (row) {
+                    return toInt(row && row.id);
+                })),
+                search_text: [
+                    String(category.name || ''),
+                    String(category.translation || ''),
+                    previewText
+                ].join(' ').toLowerCase()
+            });
+        });
         let selectedIds = Array.isArray((flashData.userStudyState && flashData.userStudyState.category_ids) || [])
             ? flashData.userStudyState.category_ids.map(toInt).filter(Boolean)
             : [];
+        let searchQuery = '';
+        let sortKey = loadOfflineLauncherSortKey();
         let nextActivity = null;
         let recommendationQueue = [];
+        let wordProgressById = {};
+        let categoryProgressById = {};
 
         function getCategoryById(categoryId) {
             const targetId = parseInt(categoryId, 10) || 0;
@@ -1937,6 +2003,179 @@
                 }
             }
             return null;
+        }
+
+        function compareCategoryLabels(left, right) {
+            return String(left || '').localeCompare(String(right || ''), undefined, {
+                numeric: true,
+                sensitivity: 'base'
+            });
+        }
+
+        function getCategoryLastSeenAt(category) {
+            const cat = (category && typeof category === 'object') ? category : {};
+            const snapshot = categoryProgressById[cat.id] && typeof categoryProgressById[cat.id] === 'object'
+                ? categoryProgressById[cat.id]
+                : {};
+            let lastSeenAt = String(snapshot.last_seen_at || '').trim();
+
+            (Array.isArray(cat.word_ids) ? cat.word_ids : []).forEach(function (wordId) {
+                const row = wordProgressById[wordId] && typeof wordProgressById[wordId] === 'object'
+                    ? wordProgressById[wordId]
+                    : {};
+                const candidate = String(row.last_seen_at || row.updated_at || '').trim();
+                if (candidate && (!lastSeenAt || candidate > lastSeenAt)) {
+                    lastSeenAt = candidate;
+                }
+            });
+
+            return lastSeenAt;
+        }
+
+        function getCategoryExposureTotal(category) {
+            const cat = (category && typeof category === 'object') ? category : {};
+            const snapshot = categoryProgressById[cat.id] && typeof categoryProgressById[cat.id] === 'object'
+                ? categoryProgressById[cat.id]
+                : {};
+            return Math.max(0, parseInt(snapshot.exposure_total, 10) || 0);
+        }
+
+        function buildCategoryMetrics(category) {
+            const cat = (category && typeof category === 'object') ? category : {};
+            const totalWords = Math.max(0, parseInt(cat.word_count, 10) || 0);
+            let masteredWords = 0;
+            let studiedTotal = 0;
+
+            (Array.isArray(cat.word_ids) ? cat.word_ids : []).forEach(function (wordId) {
+                const row = wordProgressById[wordId] && typeof wordProgressById[wordId] === 'object'
+                    ? wordProgressById[wordId]
+                    : {};
+                const status = String(row.progress_status || '').trim().toLowerCase();
+                if (status === 'mastered') {
+                    masteredWords += 1;
+                    studiedTotal += 1;
+                    return;
+                }
+                if (status === 'studied') {
+                    studiedTotal += 1;
+                }
+            });
+
+            const studiedWords = Math.max(0, studiedTotal - masteredWords);
+            const newWords = Math.max(0, totalWords - studiedTotal);
+            const progressScore = totalWords > 0
+                ? (((masteredWords * 2) + studiedWords) / (totalWords * 2))
+                : 0;
+
+            return {
+                total_words: totalWords,
+                mastered_words: masteredWords,
+                studied_total: studiedTotal,
+                studied_words: studiedWords,
+                new_words: newWords,
+                progress_score: progressScore,
+                exposure_total: getCategoryExposureTotal(cat),
+                last_seen_at: getCategoryLastSeenAt(cat)
+            };
+        }
+
+        function buildCategoryProgressMarkup(category) {
+            const metrics = buildCategoryMetrics(category);
+            const totalWords = Math.max(1, metrics.total_words);
+            const masteredPct = Math.max(0, Math.min(100, (metrics.mastered_words * 100) / totalWords));
+            const studiedPct = Math.max(0, Math.min(100 - masteredPct, (metrics.studied_words * 100) / totalWords));
+            const newPct = Math.max(0, 100 - masteredPct - studiedPct);
+
+            return '' +
+                '<div class="ll-wordset-card__progress" aria-hidden="true">' +
+                    '<span class="ll-wordset-card__progress-track">' +
+                        '<span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: ' + masteredPct.toFixed(2) + '%;"></span>' +
+                        '<span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: ' + studiedPct.toFixed(2) + '%;"></span>' +
+                        '<span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: ' + newPct.toFixed(2) + '%;"></span>' +
+                    '</span>' +
+                '</div>';
+        }
+
+        function getFilteredAndSortedCategories() {
+            const query = searchQuery.trim().toLowerCase();
+            const filtered = categories.filter(function (category) {
+                if (!query) {
+                    return true;
+                }
+                return String(category.search_text || '').indexOf(query) !== -1;
+            });
+
+            return filtered.slice().sort(function (left, right) {
+                const fallbackCompare = function () {
+                    const defaultCompare = (parseInt(left.default_order, 10) || 0) - (parseInt(right.default_order, 10) || 0);
+                    if (defaultCompare !== 0) {
+                        return defaultCompare;
+                    }
+                    return compareCategoryLabels(left.name, right.name);
+                };
+                const normalizedSort = normalizeLauncherSortKey(sortKey);
+
+                if (normalizedSort === 'default') {
+                    return fallbackCompare();
+                }
+
+                if (normalizedSort === 'alpha-asc' || normalizedSort === 'alpha-desc') {
+                    const alphaCompare = compareCategoryLabels(left.name, right.name);
+                    if (alphaCompare !== 0) {
+                        return normalizedSort === 'alpha-desc' ? (-1 * alphaCompare) : alphaCompare;
+                    }
+                    return fallbackCompare();
+                }
+
+                const leftMetrics = buildCategoryMetrics(left);
+                const rightMetrics = buildCategoryMetrics(right);
+
+                if (normalizedSort === 'progress-desc' || normalizedSort === 'progress-asc') {
+                    if (leftMetrics.progress_score !== rightMetrics.progress_score) {
+                        return normalizedSort === 'progress-asc'
+                            ? (leftMetrics.progress_score - rightMetrics.progress_score)
+                            : (rightMetrics.progress_score - leftMetrics.progress_score);
+                    }
+                    if (leftMetrics.mastered_words !== rightMetrics.mastered_words) {
+                        return normalizedSort === 'progress-asc'
+                            ? (leftMetrics.mastered_words - rightMetrics.mastered_words)
+                            : (rightMetrics.mastered_words - leftMetrics.mastered_words);
+                    }
+                    if (leftMetrics.studied_total !== rightMetrics.studied_total) {
+                        return normalizedSort === 'progress-asc'
+                            ? (leftMetrics.studied_total - rightMetrics.studied_total)
+                            : (rightMetrics.studied_total - leftMetrics.studied_total);
+                    }
+                    if (leftMetrics.new_words !== rightMetrics.new_words) {
+                        return normalizedSort === 'progress-asc'
+                            ? (leftMetrics.new_words - rightMetrics.new_words)
+                            : (rightMetrics.new_words - leftMetrics.new_words);
+                    }
+                    const recentCompare = String(rightMetrics.last_seen_at || '').localeCompare(String(leftMetrics.last_seen_at || ''));
+                    if (recentCompare !== 0) {
+                        return normalizedSort === 'progress-asc' ? (-1 * recentCompare) : recentCompare;
+                    }
+                    return fallbackCompare();
+                }
+
+                if (normalizedSort === 'recent-desc' || normalizedSort === 'recent-asc') {
+                    const recentCompare = String(rightMetrics.last_seen_at || '').localeCompare(String(leftMetrics.last_seen_at || ''));
+                    if (recentCompare !== 0) {
+                        return normalizedSort === 'recent-asc' ? (-1 * recentCompare) : recentCompare;
+                    }
+                    if (leftMetrics.exposure_total !== rightMetrics.exposure_total) {
+                        return normalizedSort === 'recent-asc'
+                            ? (leftMetrics.exposure_total - rightMetrics.exposure_total)
+                            : (rightMetrics.exposure_total - leftMetrics.exposure_total);
+                    }
+                }
+
+                return fallbackCompare();
+            });
+        }
+
+        function getVisibleCategories() {
+            return getFilteredAndSortedCategories();
         }
 
         function getRecommendationCategories(activity) {
@@ -2144,6 +2383,68 @@
             }
         }
 
+        function applyProgressPayload(payload) {
+            const source = (payload && typeof payload === 'object') ? payload : {};
+            const nextWordProgress = {};
+            const rawWordProgress = (source.progress_words && typeof source.progress_words === 'object') ? source.progress_words : {};
+            Object.keys(rawWordProgress).forEach(function (wordId) {
+                const normalizedWordId = parseInt(wordId, 10) || 0;
+                if (normalizedWordId > 0 && rawWordProgress[wordId] && typeof rawWordProgress[wordId] === 'object') {
+                    nextWordProgress[normalizedWordId] = rawWordProgress[wordId];
+                }
+            });
+            wordProgressById = nextWordProgress;
+
+            const nextCategoryProgress = {};
+            const rawCategoryProgress = (source.category_progress && typeof source.category_progress === 'object') ? source.category_progress : {};
+            Object.keys(rawCategoryProgress).forEach(function (categoryId) {
+                const normalizedCategoryId = parseInt(categoryId, 10) || 0;
+                if (normalizedCategoryId > 0 && rawCategoryProgress[categoryId] && typeof rawCategoryProgress[categoryId] === 'object') {
+                    nextCategoryProgress[normalizedCategoryId] = rawCategoryProgress[categoryId];
+                }
+            });
+            categoryProgressById = nextCategoryProgress;
+        }
+
+        function closeSortMenu() {
+            if (!sortRootEl || !sortToggleEl || !sortMenuEl) {
+                return;
+            }
+            sortRootEl.classList.remove('is-open');
+            sortToggleEl.setAttribute('aria-expanded', 'false');
+            sortMenuEl.hidden = true;
+        }
+
+        function openSortMenu() {
+            if (!sortRootEl || !sortToggleEl || !sortMenuEl) {
+                return;
+            }
+            sortRootEl.classList.add('is-open');
+            sortToggleEl.setAttribute('aria-expanded', 'true');
+            sortMenuEl.hidden = false;
+        }
+
+        function syncSortUi() {
+            if (!sortRootEl || !sortToggleEl || !sortMenuEl || !sortOptionEls.length) {
+                return;
+            }
+            const normalizedSort = normalizeLauncherSortKey(sortKey);
+            sortRootEl.classList.toggle('has-custom-sort', normalizedSort !== 'default');
+            sortOptionEls.forEach(function (optionEl) {
+                const optionSort = normalizeLauncherSortKey(optionEl.getAttribute('data-ll-offline-sort-option') || 'default');
+                const isActive = optionSort === normalizedSort;
+                optionEl.setAttribute('aria-checked', isActive ? 'true' : 'false');
+                optionEl.classList.toggle('is-active', isActive);
+            });
+        }
+
+        function setSortKey(nextSort) {
+            sortKey = normalizeLauncherSortKey(nextSort);
+            saveOfflineLauncherSortKey(sortKey);
+            syncSortUi();
+            renderCategoryCards();
+        }
+
         function setModeButtonDisabled(buttonEl, disabled) {
             if (!buttonEl) {
                 return;
@@ -2205,19 +2506,41 @@
         }
 
         function setAllSelections(checked) {
-            setSelectedIds(checked
-                ? categories.map(function (category) { return category.id; })
-                : []);
+            const visibleCategoryIds = getVisibleCategories().map(function (category) {
+                return category.id;
+            });
+
+            if (checked) {
+                setSelectedIds(uniqueIntList(selectedIds.concat(visibleCategoryIds)));
+                return;
+            }
+
+            if (searchQuery.trim() !== '') {
+                setSelectedIds(selectedIds.filter(function (categoryId) {
+                    return visibleCategoryIds.indexOf(categoryId) === -1;
+                }));
+                return;
+            }
+
+            setSelectedIds([]);
         }
 
         function syncSelectionUi() {
             const selectedCategories = getSelectedCategories();
+            const visibleCategories = getVisibleCategories();
+            const visibleLookup = {};
+            visibleCategories.forEach(function (category) {
+                visibleLookup[category.id] = true;
+            });
             const selectedCount = selectedCategories.length;
             const selectedWordCount = selectedCategories.reduce(function (total, category) {
                 return total + Math.max(0, parseInt(category.word_count, 10) || 0);
             }, 0);
             const selectionActive = selectedCount > 0;
-            const allSelected = categories.length > 0 && selectedCount === categories.length;
+            const selectedVisibleCount = selectedCategories.reduce(function (total, category) {
+                return total + (visibleLookup[category.id] ? 1 : 0);
+            }, 0);
+            const allSelected = visibleCategories.length > 0 && selectedVisibleCount === visibleCategories.length;
 
             launcherEl.classList.toggle('ll-wordset-selection-active', selectionActive);
             rootEl.classList.toggle('ll-wordset-selection-active', selectionActive);
@@ -2231,16 +2554,18 @@
 
             selectAllButton.textContent = allSelected ? launcherMessages.deselectAll : launcherMessages.selectAll;
             if (selectAllWrap) {
-                selectAllWrap.hidden = categories.length < 2;
+                selectAllWrap.hidden = visibleCategories.length < 2;
             }
-            selectAllButton.hidden = categories.length < 2;
-            selectAllButton.disabled = categories.length < 1;
+            selectAllButton.hidden = visibleCategories.length < 2;
+            selectAllButton.disabled = visibleCategories.length < 1;
             selectAllButton.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
             syncSelectionButtons(selectedCategories);
             renderRecommendationCard();
         }
 
         function renderCategoryCards() {
+            const visibleCategories = getVisibleCategories();
+
             if (!categories.length) {
                 emptyEl.hidden = false;
                 emptyEl.textContent = launcherMessages.noCategories;
@@ -2254,8 +2579,23 @@
                 return;
             }
 
+            if (!visibleCategories.length) {
+                emptyEl.hidden = false;
+                emptyEl.textContent = searchQuery.trim() !== ''
+                    ? launcherMessages.noMatchingCategories
+                    : launcherMessages.noCategories;
+                gridEl.innerHTML = '';
+                if (selectAllWrap) {
+                    selectAllWrap.hidden = true;
+                }
+                selectAllButton.hidden = true;
+                syncSelectionUi();
+                renderRecommendationCard();
+                return;
+            }
+
             emptyEl.hidden = true;
-            gridEl.innerHTML = categories.map(function (category) {
+            gridEl.innerHTML = visibleCategories.map(function (category) {
                 const selectLabel = formatMessage(launcherMessages.selectCategory, [category.name]);
                 const previewStyle = category.preview_aspect_ratio
                     ? ' style="--ll-wordset-preview-aspect: ' + escapeHtml(category.preview_aspect_ratio) + ';"'
@@ -2278,6 +2618,7 @@
                                 renderPreviewMarkup(category) +
                             '</div>' +
                         '</div>' +
+                        buildCategoryProgressMarkup(category) +
                         '<div class="ll-wordset-card__quiz-actions">' +
                             getCardModesForCategory(category, flashData).map(function (mode) {
                                 return buildCategoryActionMarkup(mode, category, flashData);
@@ -2286,6 +2627,7 @@
                     '</article>';
             }).join('');
 
+            setSelectedIds(selectedIds);
             syncSelectionUi();
             renderRecommendationCard();
         }
@@ -2374,12 +2716,58 @@
             syncSelectionUi();
         });
 
-        if ($ && typeof $.fn !== 'undefined') {
-            $(document).on('lltools:remote-sync-snapshot', function (_event, payload) {
-                applyRecommendationPayload(payload);
+        if (searchInputEl) {
+            searchInputEl.addEventListener('input', function (event) {
+                const target = event && event.target ? event.target : null;
+                searchQuery = String(target && target.value ? target.value : '');
+                renderCategoryCards();
             });
         }
 
+        if (sortToggleEl && sortMenuEl) {
+            sortToggleEl.addEventListener('click', function () {
+                if (sortMenuEl.hidden) {
+                    openSortMenu();
+                } else {
+                    closeSortMenu();
+                }
+            });
+        }
+
+        if (sortMenuEl) {
+            sortMenuEl.addEventListener('click', function (event) {
+                const target = event.target;
+                const optionEl = target && typeof target.closest === 'function'
+                    ? target.closest('[data-ll-offline-sort-option]')
+                    : null;
+                if (!optionEl) {
+                    return;
+                }
+                setSortKey(optionEl.getAttribute('data-ll-offline-sort-option') || 'default');
+                closeSortMenu();
+            });
+        }
+
+        documentRef.addEventListener('click', function (event) {
+            if (!sortRootEl) {
+                return;
+            }
+            const target = event.target;
+            if (target && typeof target.closest === 'function' && target.closest('[data-ll-offline-sort-root]')) {
+                return;
+            }
+            closeSortMenu();
+        });
+
+        if ($ && typeof $.fn !== 'undefined') {
+            $(document).on('lltools:remote-sync-snapshot', function (_event, payload) {
+                applyProgressPayload(payload);
+                applyRecommendationPayload(payload);
+                renderCategoryCards();
+            });
+        }
+
+        syncSortUi();
         renderCategoryCards();
         renderRecommendationCard();
     }

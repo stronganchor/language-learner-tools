@@ -456,6 +456,7 @@ function ll_flashcards_get_messages(): array {
         'offlineNextReady'        => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
         'offlineNextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
         'offlineNextWords'        => __('%d words', 'll-tools-text-domain'),
+        'offlineNoMatchingCategories' => __('No categories match your search.', 'll-tools-text-domain'),
         'offlineLearningUnavailable' => __('Learning mode is not available for this selection.', 'll-tools-text-domain'),
         'offlineGenderUnavailable' => __('Gender mode is not available for this selection.', 'll-tools-text-domain'),
         'offlineModeCategoryLabel' => __('%1$s: %2$s', 'll-tools-text-domain'),
