@@ -48,6 +48,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Language', $html);
         $this->assertStringContainsString('ll_wordset_tool=language', $html);
+        $this->assertStringContainsString('Categories', $html);
+        $this->assertStringContainsString('ll_wordset_tool=categories', $html);
         $this->assertStringContainsString('Advanced', $html);
         $this->assertStringContainsString('ll_wordset_tool=advanced', $html);
         $this->assertStringContainsString('Template', $html);
@@ -413,6 +415,149 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_wordset_plurality_options"', $html);
     }
 
+    public function test_categories_tool_renders_create_and_edit_forms_for_wordset_manager(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $_GET = [
+            'll_wordset_tool' => 'categories',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+
+        $this->assertStringContainsString('Categories', $html);
+        $this->assertStringContainsString('name="ll_wordset_categories_action" value="create"', $html);
+        $this->assertStringContainsString('name="ll_wordset_categories_action" value="update"', $html);
+        $this->assertStringContainsString('name="ll_wordset_category_translation"', $html);
+        $this->assertStringContainsString('Delete Empty Category', $html);
+    }
+
+    public function test_categories_settings_action_creates_updates_and_deletes_owned_categories_for_manager(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_settings_action' => 'save',
+            'll_wordset_manager_settings_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_settings_nonce' => wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'categories',
+            'll_wordset_categories_action' => 'create',
+            'll_wordset_category_name' => 'New Manager Category',
+            'll_wordset_category_translation' => 'Yeni Kategori',
+            'll_wordset_category_parent_id' => (string) $fixture['category_id'],
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $create_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+
+        $create_query = $this->parseRedirectQuery($create_redirect);
+        $this->assertSame('categories', (string) ($create_query['ll_wordset_tool'] ?? ''));
+        $this->assertSame('ok', (string) ($create_query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame('Category created.', (string) ($create_query['ll_wordset_manager_settings_message'] ?? ''));
+
+        $created_categories = get_terms([
+            'taxonomy' => 'word-category',
+            'hide_empty' => false,
+            'name' => 'New Manager Category',
+            'meta_query' => [
+                [
+                    'key' => LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY,
+                    'value' => $wordset_id,
+                ],
+            ],
+        ]);
+        $this->assertIsArray($created_categories);
+        $this->assertCount(1, $created_categories);
+        $created_category = $created_categories[0];
+        $this->assertInstanceOf(WP_Term::class, $created_category);
+        $this->assertSame((int) $fixture['category_id'], (int) $created_category->parent);
+        $this->assertSame('Yeni Kategori', (string) get_term_meta((int) $created_category->term_id, 'term_translation', true));
+
+        $_POST = [
+            'll_wordset_manager_settings_action' => 'save',
+            'll_wordset_manager_settings_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_settings_nonce' => wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'categories',
+            'll_wordset_categories_action' => 'update',
+            'll_wordset_category_id' => (string) $created_category->term_id,
+            'll_wordset_category_name' => 'Updated Manager Category',
+            'll_wordset_category_translation' => 'Guncel Kategori',
+            'll_wordset_category_parent_id' => '0',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $update_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+
+        $update_query = $this->parseRedirectQuery($update_redirect);
+        $this->assertSame('categories', (string) ($update_query['ll_wordset_tool'] ?? ''));
+        $this->assertSame('Category updated.', (string) ($update_query['ll_wordset_manager_settings_message'] ?? ''));
+
+        $updated_category = get_term((int) $created_category->term_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $updated_category);
+        $this->assertSame('Updated Manager Category', (string) $updated_category->name);
+        $this->assertSame(0, (int) $updated_category->parent);
+        $this->assertSame('Guncel Kategori', (string) get_term_meta((int) $created_category->term_id, 'term_translation', true));
+
+        $_POST = [
+            'll_wordset_manager_settings_action' => 'save',
+            'll_wordset_manager_settings_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_settings_nonce' => wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'categories',
+            'll_wordset_categories_action' => 'delete',
+            'll_wordset_category_id' => (string) $created_category->term_id,
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $delete_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+
+        $delete_query = $this->parseRedirectQuery($delete_redirect);
+        $this->assertSame('categories', (string) ($delete_query['ll_wordset_tool'] ?? ''));
+        $this->assertSame('Category deleted.', (string) ($delete_query['ll_wordset_manager_settings_message'] ?? ''));
+        $this->assertFalse((bool) term_exists((int) $created_category->term_id, 'word-category'));
+    }
+
     public function test_advanced_settings_action_updates_wordset_meta_and_category_ordering(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -696,6 +841,16 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'word_id' => (int) $word_id,
             'template_image_id' => $template_image_id,
         ];
+    }
+
+    private function ensureWordsetManagerRole(): void
+    {
+        if (function_exists('ll_create_wordset_manager_role')) {
+            ll_create_wordset_manager_role();
+        }
+        if (function_exists('ll_ensure_wordset_manager_has_view_ll_tools_cap')) {
+            ll_ensure_wordset_manager_has_view_ll_tools_cap();
+        }
     }
 
     private function requestUriFromUrl(string $url): string
