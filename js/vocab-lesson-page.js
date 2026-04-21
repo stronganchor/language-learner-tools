@@ -262,6 +262,86 @@
         });
     }
 
+    function setCategorySettingsOpen($wrap, shouldOpen) {
+        if (!$wrap || !$wrap.length) {
+            return;
+        }
+
+        const $panel = $wrap.find('.ll-vocab-lesson-category-settings-panel').first();
+        const $button = $wrap.find('.ll-vocab-lesson-category-settings-trigger').first();
+        if (!$panel.length || !$button.length) {
+            return;
+        }
+
+        const open = !!shouldOpen;
+        $panel.attr('aria-hidden', open ? 'false' : 'true');
+        $button.attr('aria-expanded', open ? 'true' : 'false');
+        $wrap.toggleClass('is-open', open);
+
+        if (open) {
+            queuePanelViewportClamp($panel);
+        } else {
+            resetPanelPosition($panel);
+        }
+    }
+
+    function closeCategorySettings(except) {
+        const $settings = $('.ll-vocab-lesson-category-settings');
+        if (!$settings.length) {
+            return;
+        }
+
+        $settings.each(function () {
+            const $wrap = $(this);
+            if (except && $wrap.is(except)) {
+                return;
+            }
+            setCategorySettingsOpen($wrap, false);
+        });
+    }
+
+    function syncCategoryLineupInput($scope) {
+        if (!$scope || !$scope.length) {
+            return;
+        }
+
+        const $list = $scope.find('[data-ll-category-lineup-list]').first();
+        const $input = $scope.find('[data-ll-category-lineup-order-input]').first();
+        if (!$list.length || !$input.length) {
+            return;
+        }
+
+        const ids = [];
+        $list.children('[data-ll-category-lineup-item]').each(function () {
+            const id = parseInt($(this).attr('data-word-id'), 10);
+            if (id > 0 && ids.indexOf(id) === -1) {
+                ids.push(id);
+            }
+        });
+
+        $input.val(ids.join(','));
+    }
+
+    function moveCategoryLineupItem($item, direction) {
+        if (!$item || !$item.length) {
+            return;
+        }
+
+        if (direction === 'up') {
+            const $prev = $item.prev('[data-ll-category-lineup-item]');
+            if ($prev.length) {
+                $item.insertBefore($prev);
+            }
+        } else if (direction === 'down') {
+            const $next = $item.next('[data-ll-category-lineup-item]');
+            if ($next.length) {
+                $item.insertAfter($next);
+            }
+        }
+
+        syncCategoryLineupInput($item.closest('.ll-vocab-lesson-category-settings-panel'));
+    }
+
     function setTitleStatus($editor, message, state) {
         const $status = $editor.find('[data-ll-vocab-lesson-title-status]').first();
         if (!$status.length) { return; }
@@ -443,6 +523,7 @@
 
     $(function () {
         const $printSettings = $('.ll-vocab-lesson-print-settings');
+        const $categorySettings = $('.ll-vocab-lesson-category-settings');
         const $shells = $('[data-ll-vocab-lesson-grid-shell]');
         if ($shells.length) {
             $shells.each(function () {
@@ -466,6 +547,7 @@
                 const $panel = $wrap.find('.ll-vocab-lesson-print-panel').first();
                 const isOpen = $panel.attr('aria-hidden') === 'false';
 
+                closeCategorySettings();
                 closePrintSettings($wrap);
                 setPrintSettingsOpen($wrap, !isOpen);
             });
@@ -491,6 +573,60 @@
                 $('.ll-vocab-lesson-print-panel[aria-hidden="false"]').each(function () {
                     clampPanelToViewport($(this));
                 });
+            });
+        }
+
+        if ($categorySettings.length) {
+            $categorySettings.on('click', '.ll-vocab-lesson-category-settings-trigger', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                const $wrap = $(this).closest('.ll-vocab-lesson-category-settings');
+                const $panel = $wrap.find('.ll-vocab-lesson-category-settings-panel').first();
+                const isOpen = $panel.attr('aria-hidden') === 'false';
+
+                closePrintSettings();
+                closeCategorySettings($wrap);
+                setCategorySettingsOpen($wrap, !isOpen);
+            });
+
+            $categorySettings.on('click', '.ll-vocab-lesson-category-settings-panel', function (event) {
+                event.stopPropagation();
+            });
+
+            $(document).on('pointerdown.llVocabLessonCategorySettings', function (event) {
+                if ($(event.target).closest('.ll-vocab-lesson-category-settings').length) {
+                    return;
+                }
+                closeCategorySettings();
+            });
+
+            $(document).on('keydown.llVocabLessonCategorySettings', function (event) {
+                if (event.key === 'Escape') {
+                    closeCategorySettings();
+                }
+            });
+
+            $(window).on('resize.llVocabLessonCategorySettings orientationchange.llVocabLessonCategorySettings', function () {
+                $('.ll-vocab-lesson-category-settings-panel[aria-hidden="false"]').each(function () {
+                    clampPanelToViewport($(this));
+                });
+            });
+
+            $categorySettings.each(function () {
+                syncCategoryLineupInput($(this));
+            });
+
+            $categorySettings.on('click', '[data-ll-category-lineup-move]', function (event) {
+                event.preventDefault();
+                moveCategoryLineupItem(
+                    $(this).closest('[data-ll-category-lineup-item]'),
+                    String($(this).attr('data-ll-category-lineup-move') || '')
+                );
+            });
+
+            $categorySettings.on('submit', '.ll-vocab-lesson-category-settings-panel', function () {
+                syncCategoryLineupInput($(this));
             });
         }
 

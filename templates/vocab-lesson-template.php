@@ -110,6 +110,9 @@ if (have_posts()) {
     $can_edit_category_title = $category_id > 0
         && function_exists('ll_tools_user_can_edit_vocab_lesson_title')
         && ll_tools_user_can_edit_vocab_lesson_title($category_id);
+    $can_manage_category_settings = $category_id > 0
+        && function_exists('ll_tools_user_can_manage_vocab_lesson_category_settings')
+        && ll_tools_user_can_manage_vocab_lesson_category_settings($category_id, $wordset_id);
     $title_edit_context = ($can_edit_category_title && function_exists('ll_tools_get_vocab_lesson_category_title_edit_target'))
         ? ll_tools_get_vocab_lesson_category_title_edit_target($category)
         : [
@@ -125,6 +128,13 @@ if (have_posts()) {
     $title_edit_nonce = $can_edit_category_title ? wp_create_nonce('ll_vocab_lesson_title_' . $post_id) : '';
     $title_input_id = 'll-vocab-lesson-title-input-' . $post_id . '-' . $category_id;
     $title_form_id = 'll-vocab-lesson-title-form-' . $post_id . '-' . $category_id;
+    $category_settings_notice = function_exists('ll_tools_get_vocab_lesson_category_settings_notice')
+        ? ll_tools_get_vocab_lesson_category_settings_notice()
+        : null;
+    $category_settings_nonce = $can_manage_category_settings ? wp_create_nonce('ll_vocab_lesson_category_settings_' . $post_id) : '';
+    $category_settings_panel = ($can_manage_category_settings && function_exists('ll_tools_get_vocab_lesson_category_settings_panel_data'))
+        ? ll_tools_get_vocab_lesson_category_settings_panel_data($category, $wordset_id)
+        : [];
 
     $wordset_name = ($wordset && !is_wp_error($wordset)) ? $wordset->name : '';
     $wordset_slug = ($wordset && !is_wp_error($wordset)) ? $wordset->slug : '';
@@ -194,7 +204,7 @@ if (have_posts()) {
         }
         return implode(' ', $parts);
     };
-    if ($defer_grid || $can_edit_category_title || $has_print_settings) {
+    if ($defer_grid || $can_edit_category_title || $can_manage_category_settings || $has_print_settings) {
         if ($defer_grid) {
             $grid_context = ll_tools_word_grid_resolve_context([
                 'category' => $category_slug,
@@ -738,6 +748,224 @@ if (have_posts()) {
                                 </div>
                             </div>
                         <?php endif; ?>
+                        <?php if ($can_manage_category_settings && $wordset_id > 0 && $category_id > 0) : ?>
+                            <?php
+                            $category_panel_quiz_config = is_array($category_settings_panel['quiz_config'] ?? null)
+                                ? $category_settings_panel['quiz_config']
+                                : [
+                                    'prompt_type' => 'audio',
+                                    'option_type' => 'image',
+                                ];
+                            $category_panel_prompt_type = (string) ($category_panel_quiz_config['prompt_type'] ?? 'audio');
+                            $category_panel_option_type = (string) ($category_panel_quiz_config['option_type'] ?? 'image');
+                            $category_panel_presentation_label = function_exists('ll_tools_get_category_quiz_presentation_label')
+                                ? ll_tools_get_category_quiz_presentation_label($category_panel_quiz_config)
+                                : '';
+                            $category_panel_visibility = (string) ($category_settings_panel['lesson_grid_text_visibility'] ?? 'inherit');
+                            switch ($category_panel_visibility) {
+                                case 'show':
+                                    $category_panel_visibility_label = __('Text always visible', 'll-tools-text-domain');
+                                    break;
+                                case 'hide':
+                                    $category_panel_visibility_label = __('Text hidden by default', 'll-tools-text-domain');
+                                    break;
+                                default:
+                                    $category_panel_visibility_label = __('Text uses word set default', 'll-tools-text-domain');
+                                    break;
+                            }
+                            $category_panel_enabled_games = array_fill_keys(array_values(array_map('strval', (array) ($category_settings_panel['enabled_games'] ?? []))), true);
+                            $category_panel_game_definitions = is_array($category_settings_panel['game_definitions'] ?? null)
+                                ? $category_settings_panel['game_definitions']
+                                : [];
+                            $category_panel_recording_type_terms = is_array($category_settings_panel['recording_type_terms'] ?? null)
+                                ? $category_settings_panel['recording_type_terms']
+                                : [];
+                            $category_panel_recording_types = array_values(array_map('strval', (array) ($category_settings_panel['recording_types'] ?? [])));
+                            $category_panel_recording_lookup = array_fill_keys($category_panel_recording_types, true);
+                            $category_panel_recording_disabled = !empty($category_settings_panel['recording_disabled']);
+                            $category_panel_recording_summary = $category_panel_recording_disabled
+                                ? __('Recording off', 'll-tools-text-domain')
+                                : sprintf(
+                                    /* translators: %d is the number of enabled recording types for the category. */
+                                    _n('%d recording type', '%d recording types', count($category_panel_recording_types), 'll-tools-text-domain'),
+                                    count($category_panel_recording_types)
+                                );
+                            $category_panel_prompt_types = function_exists('ll_tools_get_quiz_prompt_types')
+                                ? ll_tools_get_quiz_prompt_types()
+                                : ['audio'];
+                            $category_panel_option_types = function_exists('ll_tools_get_quiz_option_types')
+                                ? ll_tools_get_quiz_option_types()
+                                : ['image'];
+                            $category_panel_lineup = is_array($category_settings_panel['lineup'] ?? null)
+                                ? $category_settings_panel['lineup']
+                                : [
+                                    'direction' => 'auto',
+                                    'word_ids' => [],
+                                ];
+                            $category_panel_lineup_direction = (string) ($category_panel_lineup['direction'] ?? 'auto');
+                            $category_panel_lineup_items = is_array($category_settings_panel['lineup_items'] ?? null)
+                                ? $category_settings_panel['lineup_items']
+                                : [];
+                            $category_panel_lineup_input_id = 'll-vocab-lesson-category-lineup-input-' . $post_id . '-' . $category_id;
+                            ?>
+                            <div class="ll-vocab-lesson-category-settings ll-tools-settings-control" data-ll-vocab-lesson-category-settings>
+                                <button type="button" class="ll-vocab-lesson-category-settings-trigger ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Category settings', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-vocab-lesson-category-settings-trigger-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                                            <path d="M12 3.75 13.7 6.5l3.18.54-.92 3.08 2.22 2.34-2.22 2.34.92 3.08-3.18.54L12 20.25l-1.7-2.73-3.18-.54.92-3.08L5.82 11.56l2.22-2.34-.92-3.08 3.18-.54L12 3.75Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                                            <circle cx="12" cy="12" r="3.15" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                                        </svg>
+                                    </span>
+                                    <span class="ll-vocab-lesson-category-settings-trigger-label"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
+                                </button>
+                                <form
+                                    class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel"
+                                    method="post"
+                                    action="<?php echo esc_url(get_permalink($post_id)); ?>"
+                                    role="dialog"
+                                    aria-label="<?php echo esc_attr__('Category settings', 'll-tools-text-domain'); ?>"
+                                    aria-hidden="true">
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_action" value="save" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_lesson_id" value="<?php echo esc_attr((string) $post_id); ?>" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_category_id" value="<?php echo esc_attr((string) $category_id); ?>" />
+                                    <input type="hidden" name="ll_vocab_lesson_category_settings_nonce" value="<?php echo esc_attr($category_settings_nonce); ?>" />
+                                    <div class="ll-vocab-lesson-category-settings-panel__title-row">
+                                        <div class="ll-vocab-lesson-category-settings-panel__title"><?php echo esc_html__('Category settings', 'll-tools-text-domain'); ?></div>
+                                        <div class="ll-vocab-lesson-category-settings-summary">
+                                            <?php if ($category_panel_presentation_label !== '') : ?>
+                                                <span class="ll-vocab-lesson-category-settings-summary-pill"><?php echo esc_html($category_panel_presentation_label); ?></span>
+                                            <?php endif; ?>
+                                            <span class="ll-vocab-lesson-category-settings-summary-pill"><?php echo esc_html($category_panel_visibility_label); ?></span>
+                                            <span class="ll-vocab-lesson-category-settings-summary-pill"><?php echo esc_html($category_panel_recording_summary); ?></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="ll-vocab-lesson-category-settings-section">
+                                        <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Quiz', 'll-tools-text-domain'); ?></div>
+                                        <label class="ll-vocab-lesson-category-settings-field">
+                                            <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Prompt', 'll-tools-text-domain'); ?></span>
+                                            <select name="ll_vocab_lesson_quiz_prompt_type" class="ll-vocab-lesson-category-settings-select">
+                                                <?php foreach ($category_panel_prompt_types as $prompt_type_option) : ?>
+                                                    <?php $prompt_type_option = sanitize_key((string) $prompt_type_option); ?>
+                                                    <option value="<?php echo esc_attr($prompt_type_option); ?>" <?php selected($category_panel_prompt_type, $prompt_type_option); ?>>
+                                                        <?php echo esc_html(function_exists('ll_tools_get_quiz_prompt_type_label') ? ll_tools_get_quiz_prompt_type_label($prompt_type_option) : $prompt_type_option); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </label>
+                                        <label class="ll-vocab-lesson-category-settings-field">
+                                            <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Answers', 'll-tools-text-domain'); ?></span>
+                                            <select name="ll_vocab_lesson_quiz_option_type" class="ll-vocab-lesson-category-settings-select">
+                                                <?php foreach ($category_panel_option_types as $option_type_option) : ?>
+                                                    <?php $option_type_option = sanitize_key((string) $option_type_option); ?>
+                                                    <option value="<?php echo esc_attr($option_type_option); ?>" <?php selected($category_panel_option_type, $option_type_option); ?>>
+                                                        <?php echo esc_html(function_exists('ll_tools_get_quiz_option_type_label') ? ll_tools_get_quiz_option_type_label($option_type_option) : $option_type_option); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </label>
+                                        <label class="ll-vocab-lesson-category-settings-field">
+                                            <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Lesson text', 'll-tools-text-domain'); ?></span>
+                                            <select name="ll_vocab_lesson_grid_text_visibility" class="ll-vocab-lesson-category-settings-select">
+                                                <option value="inherit" <?php selected($category_panel_visibility, 'inherit'); ?>><?php echo esc_html__('Use word set default', 'll-tools-text-domain'); ?></option>
+                                                <option value="show" <?php selected($category_panel_visibility, 'show'); ?>><?php echo esc_html__('Always show text', 'll-tools-text-domain'); ?></option>
+                                                <option value="hide" <?php selected($category_panel_visibility, 'hide'); ?>><?php echo esc_html__('Always hide text', 'll-tools-text-domain'); ?></option>
+                                            </select>
+                                        </label>
+                                    </div>
+
+                                    <div class="ll-vocab-lesson-category-settings-section">
+                                        <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></div>
+                                        <div class="ll-vocab-lesson-category-settings-checkboxes">
+                                            <?php foreach ($category_panel_game_definitions as $game_slug => $game_definition) : ?>
+                                                <?php
+                                                $game_slug = sanitize_key((string) $game_slug);
+                                                $game_label = (string) ($game_definition['label'] ?? $game_slug);
+                                                if ($game_slug === '') {
+                                                    continue;
+                                                }
+                                                ?>
+                                                <label class="ll-vocab-lesson-category-settings-check">
+                                                    <input type="checkbox" name="ll_vocab_lesson_category_enabled_games[]" value="<?php echo esc_attr($game_slug); ?>" <?php checked(!empty($category_panel_enabled_games[$game_slug])); ?> />
+                                                    <span><?php echo esc_html($game_label); ?></span>
+                                                </label>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+
+                                    <div class="ll-vocab-lesson-category-settings-section">
+                                        <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Recording', 'll-tools-text-domain'); ?></div>
+                                        <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html__('Choose which recording types this category expects. Leave everything unchecked to disable recording for the category.', 'll-tools-text-domain'); ?></p>
+                                        <div class="ll-vocab-lesson-category-settings-checkboxes">
+                                            <?php foreach ($category_panel_recording_type_terms as $recording_type_term) : ?>
+                                                <?php
+                                                if (!($recording_type_term instanceof WP_Term) || is_wp_error($recording_type_term)) {
+                                                    continue;
+                                                }
+                                                $recording_type_slug = sanitize_key((string) $recording_type_term->slug);
+                                                if ($recording_type_slug === '') {
+                                                    continue;
+                                                }
+                                                ?>
+                                                <label class="ll-vocab-lesson-category-settings-check">
+                                                    <input type="checkbox" name="ll_vocab_lesson_desired_recording_types[]" value="<?php echo esc_attr($recording_type_slug); ?>" <?php checked(!$category_panel_recording_disabled && !empty($category_panel_recording_lookup[$recording_type_slug])); ?> />
+                                                    <span><?php echo esc_html($recording_type_term->name); ?></span>
+                                                </label>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+
+                                    <div class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-category-settings-section--lineup" data-ll-category-lineup-ordering>
+                                        <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Line-Up', 'll-tools-text-domain'); ?></div>
+                                        <input type="hidden" name="ll_vocab_lesson_category_lineup_submitted" value="1" />
+                                        <label class="ll-vocab-lesson-category-settings-field">
+                                            <span class="ll-vocab-lesson-category-settings-field__label"><?php echo esc_html__('Direction', 'll-tools-text-domain'); ?></span>
+                                            <select name="ll_vocab_lesson_category_lineup_direction" class="ll-vocab-lesson-category-settings-select" data-ll-category-lineup-direction>
+                                                <option value="auto" <?php selected($category_panel_lineup_direction, 'auto'); ?>><?php echo esc_html__('Auto', 'll-tools-text-domain'); ?></option>
+                                                <option value="ltr" <?php selected($category_panel_lineup_direction, 'ltr'); ?>><?php echo esc_html__('Left to right', 'll-tools-text-domain'); ?></option>
+                                                <option value="rtl" <?php selected($category_panel_lineup_direction, 'rtl'); ?>><?php echo esc_html__('Right to left', 'll-tools-text-domain'); ?></option>
+                                            </select>
+                                        </label>
+                                        <?php if (!empty($category_panel_lineup_items)) : ?>
+                                            <ol class="ll-vocab-lesson-category-lineup-list" data-ll-category-lineup-list>
+                                                <?php foreach ($category_panel_lineup_items as $lineup_item) : ?>
+                                                    <?php
+                                                    $lineup_item_id = isset($lineup_item['id']) ? (int) $lineup_item['id'] : 0;
+                                                    $lineup_item_title = (string) ($lineup_item['title'] ?? '');
+                                                    if ($lineup_item_id <= 0 || $lineup_item_title === '') {
+                                                        continue;
+                                                    }
+                                                    ?>
+                                                    <li class="ll-vocab-lesson-category-lineup-item" data-ll-category-lineup-item data-word-id="<?php echo esc_attr((string) $lineup_item_id); ?>">
+                                                        <span class="ll-vocab-lesson-category-lineup-title" dir="auto"><?php echo esc_html($lineup_item_title); ?></span>
+                                                        <span class="ll-vocab-lesson-category-lineup-actions">
+                                                            <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="up"><?php echo esc_html__('Up', 'll-tools-text-domain'); ?></button>
+                                                            <button type="button" class="ll-vocab-lesson-category-lineup-move" data-ll-category-lineup-move="down"><?php echo esc_html__('Down', 'll-tools-text-domain'); ?></button>
+                                                        </span>
+                                                    </li>
+                                                <?php endforeach; ?>
+                                            </ol>
+                                            <input type="hidden" id="<?php echo esc_attr($category_panel_lineup_input_id); ?>" name="ll_vocab_lesson_category_lineup_word_ids" value="<?php echo esc_attr(implode(',', array_map(static function ($lineup_item): int { return (int) ($lineup_item['id'] ?? 0); }, $category_panel_lineup_items))); ?>" data-ll-category-lineup-order-input />
+                                            <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html__('Move words up or down to set the Line-Up teaching order for this category.', 'll-tools-text-domain'); ?></p>
+                                        <?php else : ?>
+                                            <p class="ll-vocab-lesson-category-settings-help"><?php echo esc_html__('Add words to this category before configuring the Line-Up sequence.', 'll-tools-text-domain'); ?></p>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <div class="ll-vocab-lesson-category-settings-actions">
+                                        <button type="submit" class="ll-study-btn tiny ll-vocab-lesson-category-settings-save">
+                                            <span class="ll-vocab-lesson-category-settings-save-icon" aria-hidden="true">
+                                                <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                                                    <path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                                </svg>
+                                            </span>
+                                            <span><?php echo esc_html__('Save', 'll-tools-text-domain'); ?></span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
                 <?php if ($has_print_settings) : ?>
@@ -904,6 +1132,12 @@ if (have_posts()) {
                 </div>
             </div>
         </header>
+
+        <?php if (is_array($category_settings_notice) && !empty($category_settings_notice['message'])) : ?>
+            <div class="ll-vocab-lesson-notice ll-vocab-lesson-notice--<?php echo esc_attr(($category_settings_notice['type'] ?? 'success') === 'error' ? 'error' : 'success'); ?>" role="status" aria-live="polite">
+                <?php echo esc_html((string) $category_settings_notice['message']); ?>
+            </div>
+        <?php endif; ?>
 
         <div class="ll-vocab-lesson-content">
             <?php
