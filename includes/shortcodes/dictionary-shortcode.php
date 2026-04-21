@@ -2574,6 +2574,10 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
     $search_scope_options = ll_tools_dictionary_get_search_scope_options();
     $search_scope_fieldset_id = 'll-dictionary-scope-group-' . wp_unique_id();
     $has_explicit_scope = array_key_exists('ll_dictionary_scope', $_GET);
+    $toolbar_classes = ['ll-dictionary__toolbar', $has_active_browse_query ? 'is-expanded' : 'is-collapsed'];
+    if ($has_active_browse_query || $has_explicit_scope) {
+        $toolbar_classes[] = 'is-scope-visible';
+    }
 
     ob_start();
     ?>
@@ -2601,7 +2605,7 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
         <?php if ($requested_entry_id > 0) : ?>
             <?php echo ll_tools_dictionary_render_detail_view($requested_entry_id, $base_url, $preferred_languages); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php else : ?>
-            <div class="ll-dictionary__toolbar<?php echo $has_active_browse_query ? ' is-expanded' : ' is-collapsed'; ?>">
+            <div class="<?php echo esc_attr(implode(' ', $toolbar_classes)); ?>">
                 <form class="ll-dictionary__form" method="get" action="<?php echo esc_url($base_url); ?>" data-ll-dictionary-form>
                     <?php echo ll_tools_dictionary_preserve_non_dictionary_query_inputs(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                     <input type="hidden" name="ll_dictionary_letter" value="<?php echo esc_attr($letter); ?>">

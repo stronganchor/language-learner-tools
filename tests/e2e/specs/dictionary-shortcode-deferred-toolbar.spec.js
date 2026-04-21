@@ -18,7 +18,8 @@ function buildMarkup() {
       data-linked-word-limit="4"
       data-gloss-lang=""
       data-base-url="https://example.com/dictionary/"
-      data-ll-dictionary-toolbar-deferred="1">
+      data-ll-dictionary-toolbar-deferred="1"
+      data-ll-dictionary-has-explicit-scope="0">
       <div class="ll-dictionary__toolbar is-collapsed">
         <form class="ll-dictionary__form" method="get" action="https://example.com/dictionary/" data-ll-dictionary-form>
           <input type="hidden" name="ll_dictionary_letter" value="">
@@ -62,6 +63,40 @@ function buildMarkup() {
 async function mountDictionaryHarness(page, options = {}) {
   await page.setContent(buildMarkup(), { waitUntil: 'domcontentloaded' });
   await page.evaluate((config) => {
+    if (config && config.trackScroll) {
+      const initialScrollTop = Number(config.scrollY || 0);
+      Object.defineProperty(window, 'scrollY', {
+        configurable: true,
+        writable: true,
+        value: initialScrollTop
+      });
+      Object.defineProperty(window, 'pageYOffset', {
+        configurable: true,
+        writable: true,
+        value: initialScrollTop
+      });
+      if (typeof config.viewportHeight === 'number') {
+        Object.defineProperty(window, 'innerHeight', {
+          configurable: true,
+          writable: true,
+          value: config.viewportHeight
+        });
+      }
+
+      window.__scrollCalls = [];
+      window.scrollTo = (value, legacyTop) => {
+        const payload = typeof value === 'object' && value !== null
+          ? value
+          : { top: Number(legacyTop || 0), left: Number(value || 0) };
+        window.__scrollCalls.push(payload);
+
+        if (typeof payload.top === 'number') {
+          window.scrollY = payload.top;
+          window.pageYOffset = payload.top;
+        }
+      };
+    }
+
     const store = {};
     if (config && typeof config.storedScope === 'string' && config.storedScope) {
       store['llDictionaryScopePrefs:55'] = config.storedScope;
@@ -154,6 +189,23 @@ async function mountDictionaryHarness(page, options = {}) {
         json: async () => ({ success: false })
       };
     };
+
+    if (config && typeof config.searchRectTop === 'number') {
+      const searchInput = document.querySelector('#ll-dictionary-search');
+      searchInput.getBoundingClientRect = () => ({
+        x: 0,
+        y: config.searchRectTop,
+        width: 320,
+        height: 48,
+        top: config.searchRectTop,
+        right: 320,
+        bottom: config.searchRectTop + 48,
+        left: 0,
+        toJSON() {
+          return this;
+        }
+      });
+    }
   }, options);
 
   await page.addScriptTag({ content: dictionaryScriptSource });
@@ -163,8 +215,10 @@ test('loads deferred dictionary filters on first interaction only once', async (
   await mountDictionaryHarness(page);
 
   await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(0);
+  await expect(page.locator('.ll-dictionary__toolbar')).not.toHaveClass(/is-scope-visible/);
 
   await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('.ll-dictionary__toolbar')).toHaveClass(/is-scope-visible/);
   await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
 
   await page.locator('#ll-dictionary-search').fill('ap');
@@ -224,4 +278,24 @@ test('restores saved checkbox scope preferences on load when the URL has no expl
 
   await expect(page.locator('#ll-dictionary-scope-headword')).toBeChecked();
   await expect(page.locator('#ll-dictionary-scope-tr')).not.toBeChecked();
+});
+
+test('scrolls down once when live search starts so the search field stays visible', async ({ page }) => {
+  await mountDictionaryHarness(page, {
+    trackScroll: true,
+    scrollY: 40,
+    searchRectTop: 420,
+    viewportHeight: 900
+  });
+
+  await page.locator('#ll-dictionary-search').fill('ap');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; POS:all');
+  await page.waitForFunction(() => Array.isArray(window.__scrollCalls) && window.__scrollCalls.length > 0);
+
+  const scrollCalls = await page.evaluate(() => window.__scrollCalls);
+  expect(scrollCalls).toHaveLength(1);
+  expect(scrollCalls[0]).toMatchObject({
+    top: 364,
+    behavior: 'smooth'
+  });
 });

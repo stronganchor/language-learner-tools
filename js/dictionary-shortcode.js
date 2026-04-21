@@ -484,6 +484,7 @@
         const responseCache = new Map();
         const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
         let scopePreferencesRestored = false;
+        let hasScrolledForSearchQuery = false;
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -582,6 +583,10 @@
 
         const updateCurrentScopeState = () => {
             root.dataset.currentScope = getScopeQueryValue();
+        };
+
+        const revealScopeOptions = () => {
+            toolbar.classList.add('is-scope-visible');
         };
 
         const persistScopePreferences = () => {
@@ -958,21 +963,65 @@
             }
         };
 
+        const scrollResultsPreviewIntoView = () => {
+            const query = String(searchInput.value || '').trim();
+            if (query === '' || hasScrolledForSearchQuery || typeof window.scrollTo !== 'function') {
+                if (query === '') {
+                    hasScrolledForSearchQuery = false;
+                }
+                return;
+            }
+
+            hasScrolledForSearchQuery = true;
+            window.requestAnimationFrame(() => {
+                const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+                const searchRect = searchInput.getBoundingClientRect();
+                if (!viewportHeight || !searchRect || typeof searchRect.top !== 'number') {
+                    return;
+                }
+
+                const currentScrollTop = Math.max(0, window.scrollY || window.pageYOffset || 0);
+                const desiredSearchTop = Math.max(20, Math.min(96, Math.round(viewportHeight * 0.16)));
+                const targetTop = Math.max(currentScrollTop, currentScrollTop + searchRect.top - desiredSearchTop);
+
+                if (Math.abs(targetTop - currentScrollTop) < 8) {
+                    return;
+                }
+
+                const prefersReducedMotion = typeof window.matchMedia === 'function'
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+                window.scrollTo({
+                    top: targetTop,
+                    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                });
+            });
+        };
+
         const primeToolbarBootstrap = () => {
             ensureToolbarBootstrap().catch(() => {});
         };
 
-        searchInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
-        searchInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
+        searchInput.addEventListener('focus', () => {
+            revealScopeOptions();
+            primeToolbarBootstrap();
+        }, { passive: true });
+        searchInput.addEventListener('pointerdown', () => {
+            revealScopeOptions();
+            primeToolbarBootstrap();
+        }, { passive: true });
         scopeInputs.forEach((scopeInput) => {
             scopeInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
             scopeInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
         });
 
         searchInput.addEventListener('input', () => {
+            revealScopeOptions();
             primeToolbarBootstrap();
             if (String(searchInput.value || '').trim() !== '') {
                 letterInput.value = '';
+            } else {
+                hasScrolledForSearchQuery = false;
             }
 
             if (!canRunQuery()) {
@@ -981,6 +1030,7 @@
             }
 
             showLoadingState();
+            scrollResultsPreviewIntoView();
             scheduleLiveSearch();
         });
 
@@ -1013,6 +1063,10 @@
             }
 
             event.preventDefault();
+            revealScopeOptions();
+            if (String(searchInput.value || '').trim() !== '') {
+                scrollResultsPreviewIntoView();
+            }
             showLoadingState();
             requestResults(1, true);
         });
@@ -1070,6 +1124,10 @@
             requestResults(getCurrentPageFromLocation(), false);
         } else {
             updateCurrentScopeState();
+        }
+
+        if (hasActiveQuery() || hasExplicitScope) {
+            revealScopeOptions();
         }
     });
 }());

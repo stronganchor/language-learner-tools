@@ -59,12 +59,19 @@
     margin: 0;
     padding: 0;
     border: 0;
+    display: none;
 }
 
 .ll-dictionary__scope-options {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.ll-dictionary__toolbar.is-expanded .ll-dictionary__scope-group,
+.ll-dictionary__toolbar.is-scope-visible .ll-dictionary__scope-group,
+.ll-dictionary__toolbar:focus-within .ll-dictionary__scope-group {
+    display: block;
 }
 
 .ll-dictionary__scope-option {
