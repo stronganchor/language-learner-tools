@@ -87,6 +87,48 @@ function ll_tools_resolve_wordset_term($wordset) {
     return ($term && !is_wp_error($term)) ? $term : null;
 }
 
+/**
+ * Treat the seeded placeholder wordset like an unnamed lessons page until it is renamed.
+ */
+function ll_tools_wordset_page_uses_generic_default_title($wordset): bool {
+    $wordset_term = ll_tools_resolve_wordset_term($wordset);
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return false;
+    }
+
+    $name = trim((string) $wordset_term->name);
+    if ($name === '') {
+        return true;
+    }
+
+    if ((string) $wordset_term->slug !== 'default-word-set') {
+        return false;
+    }
+
+    $name_slug = sanitize_title($name);
+    $placeholder_slugs = array_unique(array_filter([
+        'default-word-set',
+        sanitize_title(__('Default Word Set', 'll-tools-text-domain')),
+    ]));
+
+    return in_array($name_slug, $placeholder_slugs, true);
+}
+
+function ll_tools_get_wordset_page_display_title($wordset): string {
+    $fallback_title = __('Lessons', 'll-tools-text-domain');
+    $wordset_term = ll_tools_resolve_wordset_term($wordset);
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return $fallback_title;
+    }
+
+    $name = trim((string) $wordset_term->name);
+    if ($name === '' || ll_tools_wordset_page_uses_generic_default_title($wordset_term)) {
+        return $fallback_title;
+    }
+
+    return $name;
+}
+
 function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
     $normalized = [];
     foreach ($classes as $class) {
@@ -4351,6 +4393,7 @@ function ll_tools_wordset_page_render_record_icon(string $class = 'll-wordset-sp
 function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term, string $back_url): string {
     $current_user_id = get_current_user_id();
     $current_wordset_id = max(0, (int) $wordset_term->term_id);
+    $wordset_page_title = ll_tools_get_wordset_page_display_title($wordset_term);
     $classes_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
         ? ll_tools_get_teacher_classes_frontend_url([], $wordset_term)
         : ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
@@ -4426,13 +4469,13 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
     ob_start();
     ?>
     <header class="ll-wordset-subpage-head">
-        <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+        <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
             <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                 <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                     <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </span>
-            <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+            <span class="ll-wordset-back__label"><?php echo esc_html($wordset_page_title); ?></span>
         </a>
         <h1 class="ll-wordset-title"><?php echo esc_html__('Classes', 'll-tools-text-domain'); ?></h1>
     </header>
@@ -7902,6 +7945,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ll_tools_get_wordset_page_view_url($wordset_term, 'hidden-categories'),
         $subpage_return_url
     );
+    $wordset_page_title = ll_tools_get_wordset_page_display_title($wordset_term);
     $classes_url = function_exists('ll_tools_get_teacher_classes_frontend_url')
         ? ll_tools_get_teacher_classes_frontend_url([], $wordset_term)
         : ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
@@ -9097,13 +9141,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         <?php endif; ?>
         <?php if ($view === 'progress') : ?>
             <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
                     <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_page_title); ?></span>
                 </a>
                 <h1 class="ll-wordset-title"><?php echo esc_html__('Progress', 'll-tools-text-domain'); ?></h1>
             </header>
@@ -9514,13 +9558,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             <?php echo ll_tools_wordset_page_render_teacher_classes_view($wordset_term, $back_url); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
         <?php elseif ($view === 'hidden-categories') : ?>
             <header class="ll-wordset-subpage-head">
-                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+                <a class="ll-wordset-back ll-vocab-lesson-back" href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
                     <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                         <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                             <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </span>
-                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_term->name); ?></span>
+                    <span class="ll-wordset-back__label"><?php echo esc_html($wordset_page_title); ?></span>
                 </a>
                 <h1 class="ll-wordset-title"><?php echo esc_html__('Hidden Categories', 'll-tools-text-domain'); ?></h1>
             </header>
@@ -9551,10 +9595,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         <?php elseif ($view === 'settings') : ?>
             <?php
             $settings_header_back_url = ($settings_tool !== '') ? $settings_tool_urls['hub'] : $back_url;
-            $settings_header_back_label = ($settings_tool !== '') ? __('Word Set Tools', 'll-tools-text-domain') : $wordset_term->name;
+            $settings_header_back_label = ($settings_tool !== '') ? __('Word Set Tools', 'll-tools-text-domain') : $wordset_page_title;
             $settings_header_back_aria = ($settings_tool !== '')
                 ? __('Back to word set tools', 'll-tools-text-domain')
-                : sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name);
+                : sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title);
             $settings_page_title = ll_tools_wordset_settings_tool_title($settings_tool);
             $settings_notices = [];
             if (is_array($manager_settings_notice) && !empty($manager_settings_notice['message']) && ($settings_tool === '' || in_array($settings_tool, ['study', 'language', 'visibility', 'transcription'], true))) {
@@ -9663,7 +9707,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                             <span class="ll-wordset-hero__dot"></span>
                             <span class="ll-wordset-hero__dot"></span>
                         </div>
-                        <h1 class="ll-wordset-title"><?php echo esc_html($wordset_term->name); ?></h1>
+                        <h1 class="ll-wordset-title"><?php echo esc_html($wordset_page_title); ?></h1>
                     </div>
                     <div class="ll-wordset-hero__tools">
                         <div class="ll-wordset-hero__action-links">
@@ -10212,6 +10256,7 @@ function ll_tools_render_wordset_games_shell(array $args): string {
     if (!$wordset_term instanceof WP_Term) {
         return '';
     }
+    $wordset_page_title = ll_tools_get_wordset_page_display_title($wordset_term);
 
     $games_catalog = is_array($args['games_catalog'] ?? null) ? $args['games_catalog'] : [];
     $speaking_hidden_notice = is_array($args['speaking_hidden_notice'] ?? null) ? $args['speaking_hidden_notice'] : [];
@@ -10242,13 +10287,13 @@ function ll_tools_render_wordset_games_shell(array $args): string {
             <section class="ll-wordset-games-modal__dialog" data-ll-wordset-games-modal-dialog role="dialog" aria-modal="true" aria-labelledby="<?php echo esc_attr($title_id); ?>">
     <?php endif; ?>
         <header class="ll-wordset-subpage-head">
-            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_term->name)); ?>">
+            <a class="ll-wordset-back ll-vocab-lesson-back" data-ll-wordset-games-back href="<?php echo esc_url($back_url); ?>" aria-label="<?php echo esc_attr(sprintf(__('Back to %s', 'll-tools-text-domain'), $wordset_page_title)); ?>">
                 <span class="ll-wordset-back__icon ll-vocab-lesson-back__icon" aria-hidden="true">
                     <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
                         <path d="M9.8 3.2L5 8l4.8 4.8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </span>
-                <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_term->name); ?></span>
+                <span class="ll-wordset-back__label" data-ll-wordset-games-back-label><?php echo esc_html($wordset_page_title); ?></span>
             </a>
             <h1 class="ll-wordset-title" id="<?php echo esc_attr($title_id); ?>" data-ll-wordset-games-page-title><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></h1>
         </header>
