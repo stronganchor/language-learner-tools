@@ -8100,59 +8100,66 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
         'history_context' => ll_tools_import_default_history_context(),
     ];
 
-    $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
-    if (is_wp_error($rows)) {
-        $result['message'] = $rows->get_error_message();
-        return $result;
+    $defer_category_maintenance = function_exists('ll_tools_begin_deferred_category_maintenance')
+        && function_exists('ll_tools_end_deferred_category_maintenance');
+    if ($defer_category_maintenance) {
+        ll_tools_begin_deferred_category_maintenance('metadata_updates');
     }
-
-    if (empty($rows)) {
-        $result['message'] = __('Metadata update import found no non-empty update rows.', 'll-tools-text-domain');
-        return $result;
-    }
-
-    $result['stats']['metadata_files_processed'] = 1;
-    $supported_fields = ll_tools_get_metadata_update_supported_fields();
-    $mark_imported_ipa_review = !array_key_exists('mark_imported_ipa_review', $options)
-        ? true
-        : !empty($options['mark_imported_ipa_review']);
-    $max_messages = 50;
-    $error_overflow = 0;
-    $warning_overflow = 0;
-    $changed_word_ids = [];
-    $changed_recording_ids = [];
-    $touched_category_ids = [];
-
-    $add_error = static function (string $message) use (&$result, &$error_overflow, $max_messages): void {
-        if (count($result['errors']) < $max_messages) {
-            $result['errors'][] = $message;
-            return;
-        }
-        $error_overflow++;
-    };
-    $add_warning = static function (string $message) use (&$result, &$warning_overflow, $max_messages): void {
-        if (count($result['warnings']) < $max_messages) {
-            $result['warnings'][] = $message;
-            return;
-        }
-        $warning_overflow++;
-    };
-
-    $skip_audio_cb = static function ($skip) {
-        return true;
-    };
-    add_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999, 4);
 
     try {
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
+        $rows = ll_tools_parse_metadata_updates_file($file_path, $source_name);
+        if (is_wp_error($rows)) {
+            $result['message'] = $rows->get_error_message();
+            return $result;
+        }
 
-            $result['stats']['metadata_rows_total']++;
-            $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
-            $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
-            $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
+        if (empty($rows)) {
+            $result['message'] = __('Metadata update import found no non-empty update rows.', 'll-tools-text-domain');
+            return $result;
+        }
+
+        $result['stats']['metadata_files_processed'] = 1;
+        $supported_fields = ll_tools_get_metadata_update_supported_fields();
+        $mark_imported_ipa_review = !array_key_exists('mark_imported_ipa_review', $options)
+            ? true
+            : !empty($options['mark_imported_ipa_review']);
+        $max_messages = 50;
+        $error_overflow = 0;
+        $warning_overflow = 0;
+        $changed_word_ids = [];
+        $changed_recording_ids = [];
+        $touched_category_ids = [];
+
+        $add_error = static function (string $message) use (&$result, &$error_overflow, $max_messages): void {
+            if (count($result['errors']) < $max_messages) {
+                $result['errors'][] = $message;
+                return;
+            }
+            $error_overflow++;
+        };
+        $add_warning = static function (string $message) use (&$result, &$warning_overflow, $max_messages): void {
+            if (count($result['warnings']) < $max_messages) {
+                $result['warnings'][] = $message;
+                return;
+            }
+            $warning_overflow++;
+        };
+
+        $skip_audio_cb = static function ($skip) {
+            return true;
+        };
+        add_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999, 4);
+
+        try {
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $result['stats']['metadata_rows_total']++;
+                $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
+                $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
+                $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
 
             $needs_word = false;
             $needs_recording = false;
@@ -8491,69 +8498,74 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                 $result['stats']['metadata_rows_skipped']++;
             }
         }
+        } finally {
+            remove_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999);
+        }
+
+        if ($warning_overflow > 0) {
+            $result['warnings'][] = sprintf(
+                _n(
+                    '%d additional metadata warning was not shown.',
+                    '%d additional metadata warnings were not shown.',
+                    $warning_overflow,
+                    'll-tools-text-domain'
+                ),
+                $warning_overflow
+            );
+        }
+        if ($error_overflow > 0) {
+            $result['errors'][] = sprintf(
+                _n(
+                    '%d additional metadata error was not shown.',
+                    '%d additional metadata errors were not shown.',
+                    $error_overflow,
+                    'll-tools-text-domain'
+                ),
+                $error_overflow
+            );
+        }
+
+        if (!empty($touched_category_ids)) {
+            $category_ids = array_map('intval', array_keys($touched_category_ids));
+            if (function_exists('ll_tools_bump_category_cache_version')) {
+                ll_tools_bump_category_cache_version($category_ids);
+            }
+            if (function_exists('ll_tools_handle_category_sync')) {
+                foreach ($category_ids as $category_id) {
+                    ll_tools_handle_category_sync($category_id);
+                }
+            }
+            if (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+                foreach ($category_ids as $category_id) {
+                    ll_tools_sync_vocab_lessons_for_category($category_id);
+                }
+            }
+        }
+
+        $result['warnings'] = array_values(array_filter(array_unique(array_map('strval', $result['warnings'])), static function (string $warning): bool {
+            return trim($warning) !== '';
+        }));
+        $result['errors'] = array_values(array_filter(array_unique(array_map('strval', $result['errors'])), static function (string $error): bool {
+            return trim($error) !== '';
+        }));
+
+        $result['ok'] = empty($result['errors']);
+        if ($result['stats']['metadata_rows_applied'] <= 0 && empty($result['errors'])) {
+            $result['message'] = __('Metadata update import completed, but no changes were needed.', 'll-tools-text-domain');
+        } elseif (!$result['ok']) {
+            $result['message'] = __('Metadata updates finished with some errors.', 'll-tools-text-domain');
+        } elseif (!empty($result['warnings'])) {
+            $result['message'] = __('Metadata updates complete with warnings.', 'll-tools-text-domain');
+        } else {
+            $result['message'] = __('Metadata updates complete.', 'll-tools-text-domain');
+        }
+
+        return $result;
     } finally {
-        remove_filter('ll_tools_skip_audio_requirement', $skip_audio_cb, 9999);
-    }
-
-    if ($warning_overflow > 0) {
-        $result['warnings'][] = sprintf(
-            _n(
-                '%d additional metadata warning was not shown.',
-                '%d additional metadata warnings were not shown.',
-                $warning_overflow,
-                'll-tools-text-domain'
-            ),
-            $warning_overflow
-        );
-    }
-    if ($error_overflow > 0) {
-        $result['errors'][] = sprintf(
-            _n(
-                '%d additional metadata error was not shown.',
-                '%d additional metadata errors were not shown.',
-                $error_overflow,
-                'll-tools-text-domain'
-            ),
-            $error_overflow
-        );
-    }
-
-    if (!empty($touched_category_ids)) {
-        $category_ids = array_map('intval', array_keys($touched_category_ids));
-        if (function_exists('ll_tools_bump_category_cache_version')) {
-            ll_tools_bump_category_cache_version($category_ids);
-        }
-        if (function_exists('ll_tools_handle_category_sync')) {
-            foreach ($category_ids as $category_id) {
-                ll_tools_handle_category_sync($category_id);
-            }
-        }
-        if (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
-            foreach ($category_ids as $category_id) {
-                ll_tools_sync_vocab_lessons_for_category($category_id);
-            }
+        if ($defer_category_maintenance) {
+            ll_tools_end_deferred_category_maintenance(true);
         }
     }
-
-    $result['warnings'] = array_values(array_filter(array_unique(array_map('strval', $result['warnings'])), static function (string $warning): bool {
-        return trim($warning) !== '';
-    }));
-    $result['errors'] = array_values(array_filter(array_unique(array_map('strval', $result['errors'])), static function (string $error): bool {
-        return trim($error) !== '';
-    }));
-
-    $result['ok'] = empty($result['errors']);
-    if ($result['stats']['metadata_rows_applied'] <= 0 && empty($result['errors'])) {
-        $result['message'] = __('Metadata update import completed, but no changes were needed.', 'll-tools-text-domain');
-    } elseif (!$result['ok']) {
-        $result['message'] = __('Metadata updates finished with some errors.', 'll-tools-text-domain');
-    } elseif (!empty($result['warnings'])) {
-        $result['message'] = __('Metadata updates complete with warnings.', 'll-tools-text-domain');
-    } else {
-        $result['message'] = __('Metadata updates complete.', 'll-tools-text-domain');
-    }
-
-    return $result;
 }
 
 function ll_tools_handle_preview_metadata_updates(): void {
@@ -8840,25 +8852,33 @@ function ll_tools_undo_import_entry(array $entry): array {
         ],
     ];
 
-    $word_audio_ids = ll_tools_import_normalize_id_list((array) ($undo['word_audio_post_ids'] ?? []));
-    $word_ids = ll_tools_import_normalize_id_list((array) ($undo['word_post_ids'] ?? []));
-    $word_image_ids = ll_tools_import_normalize_id_list((array) ($undo['word_image_post_ids'] ?? []));
-    $attachment_ids = ll_tools_import_normalize_id_list((array) ($undo['attachment_ids'] ?? []));
-    $category_ids = ll_tools_import_normalize_id_list((array) ($undo['category_term_ids'] ?? []));
-    $wordset_ids = ll_tools_import_normalize_id_list((array) ($undo['wordset_term_ids'] ?? []));
-    $audio_paths = array_values(array_unique(array_filter(array_map('strval', (array) ($undo['audio_paths'] ?? [])), static function (string $path): bool {
-        return trim($path) !== '';
-    })));
-    $updated_post_snapshots = isset($undo['updated_post_snapshots']) && is_array($undo['updated_post_snapshots'])
-        ? $undo['updated_post_snapshots']
-        : [];
-    $restored_word_ids = ll_tools_import_restore_updated_post_snapshots($updated_post_snapshots, $result);
-    $restored_category_ids = [];
-    foreach ($restored_word_ids as $restored_word_id) {
-        foreach (ll_tools_metadata_update_get_word_category_ids((int) $restored_word_id) as $category_id) {
-            $restored_category_ids[$category_id] = true;
-        }
+    $defer_category_maintenance = function_exists('ll_tools_begin_deferred_category_maintenance')
+        && function_exists('ll_tools_end_deferred_category_maintenance');
+    if ($defer_category_maintenance) {
+        ll_tools_begin_deferred_category_maintenance('undo_import');
     }
+
+    try {
+
+        $word_audio_ids = ll_tools_import_normalize_id_list((array) ($undo['word_audio_post_ids'] ?? []));
+        $word_ids = ll_tools_import_normalize_id_list((array) ($undo['word_post_ids'] ?? []));
+        $word_image_ids = ll_tools_import_normalize_id_list((array) ($undo['word_image_post_ids'] ?? []));
+        $attachment_ids = ll_tools_import_normalize_id_list((array) ($undo['attachment_ids'] ?? []));
+        $category_ids = ll_tools_import_normalize_id_list((array) ($undo['category_term_ids'] ?? []));
+        $wordset_ids = ll_tools_import_normalize_id_list((array) ($undo['wordset_term_ids'] ?? []));
+        $audio_paths = array_values(array_unique(array_filter(array_map('strval', (array) ($undo['audio_paths'] ?? [])), static function (string $path): bool {
+            return trim($path) !== '';
+        })));
+        $updated_post_snapshots = isset($undo['updated_post_snapshots']) && is_array($undo['updated_post_snapshots'])
+            ? $undo['updated_post_snapshots']
+            : [];
+        $restored_word_ids = ll_tools_import_restore_updated_post_snapshots($updated_post_snapshots, $result);
+        $restored_category_ids = [];
+        foreach ($restored_word_ids as $restored_word_id) {
+            foreach (ll_tools_metadata_update_get_word_category_ids((int) $restored_word_id) as $category_id) {
+                $restored_category_ids[$category_id] = true;
+            }
+        }
 
     foreach ($word_audio_ids as $post_id) {
         $post = get_post($post_id);
@@ -8982,12 +9002,17 @@ function ll_tools_undo_import_entry(array $entry): array {
         ll_tools_bump_category_cache_version($category_ids);
     }
 
-    if (!empty($result['errors'])) {
-        $result['ok'] = false;
-        $result['message'] = __('Undo finished with some errors.', 'll-tools-text-domain');
-    }
+        if (!empty($result['errors'])) {
+            $result['ok'] = false;
+            $result['message'] = __('Undo finished with some errors.', 'll-tools-text-domain');
+        }
 
-    return $result;
+        return $result;
+    } finally {
+        if ($defer_category_maintenance) {
+            ll_tools_end_deferred_category_maintenance(true);
+        }
+    }
 }
 
 function ll_tools_handle_undo_import() {
@@ -12686,12 +12711,20 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         'history_context' => ll_tools_import_default_history_context(),
     ];
 
-    if (!array_key_exists('categories', $payload) || !array_key_exists('word_images', $payload)) {
-        $result['message'] = __('Import failed: payload missing categories or word images.', 'll-tools-text-domain');
-        return $result;
+    $defer_category_maintenance = function_exists('ll_tools_begin_deferred_category_maintenance')
+        && function_exists('ll_tools_end_deferred_category_maintenance');
+    if ($defer_category_maintenance) {
+        ll_tools_begin_deferred_category_maintenance('bundle_import');
     }
 
-    ll_tools_import_apply_payload_initial_warnings($payload, $result);
+    try {
+
+        if (!array_key_exists('categories', $payload) || !array_key_exists('word_images', $payload)) {
+            $result['message'] = __('Import failed: payload missing categories or word images.', 'll-tools-text-domain');
+            return $result;
+        }
+
+        ll_tools_import_apply_payload_initial_warnings($payload, $result);
 
     $bundle_type = ll_tools_import_detect_bundle_type($payload);
     if ($bundle_type === 'wordset_template') {
@@ -12749,8 +12782,13 @@ function ll_tools_import_from_payload(array $payload, $extract_dir, array $optio
         }
     }
 
-    $imported_category_ids = array_values(array_unique(array_filter(array_map('intval', array_values($slug_to_term_id)))));
-    return ll_tools_import_finalize_result($payload, $result, $imported_category_ids);
+        $imported_category_ids = array_values(array_unique(array_filter(array_map('intval', array_values($slug_to_term_id)))));
+        return ll_tools_import_finalize_result($payload, $result, $imported_category_ids);
+    } finally {
+        if ($defer_category_maintenance) {
+            ll_tools_end_deferred_category_maintenance(true);
+        }
+    }
 }
 
 /**

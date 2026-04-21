@@ -24,6 +24,31 @@ function ll_flashcards_should_use_translations(array $wordset_ids = []): bool {
     return $enable_translation && strpos($site_language, $target_language) === 0;
 }
 
+function ll_tools_log_missing_flashcard_category_once(string $category_ref): void {
+    $category_ref = trim($category_ref);
+    if ($category_ref === '') {
+        return;
+    }
+
+    static $request_seen = [];
+    $request_key = strtolower($category_ref);
+    if (isset($request_seen[$request_key])) {
+        return;
+    }
+    $request_seen[$request_key] = true;
+
+    $cache_key = 'll_tools_missing_flashcard_category_' . md5($request_key);
+    if (function_exists('get_transient') && get_transient($cache_key)) {
+        return;
+    }
+
+    if (function_exists('set_transient')) {
+        set_transient($cache_key, 1, 15 * MINUTE_IN_SECONDS);
+    }
+
+    error_log("LL Tools: Category '{$category_ref}' not found.");
+}
+
 /**
  * Resolve the effective wordset term IDs for the widget.
  * - If an explicit spec is provided, use only that (no silent fallback).
@@ -258,7 +283,7 @@ function ll_flashcards_build_categories(?string $raw, bool $use_translations, ar
         if (is_array($cat)) {
             $out[] = $cat;
         } else {
-            error_log("LL Tools: Category '$w' not found.");
+            ll_tools_log_missing_flashcard_category_once((string) $w);
         }
     }
     return [$out, true];

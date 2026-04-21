@@ -3569,92 +3569,112 @@ function ll_tools_wordset_page_handle_manager_import_action(): void {
     $skipped_existing = 0;
     $failed = 0;
 
-    foreach ($rows as $row) {
-        if (!is_array($row)) {
-            $skipped_invalid++;
-            continue;
-        }
+    $defer_category_maintenance = function_exists('ll_tools_begin_deferred_category_maintenance')
+        && function_exists('ll_tools_end_deferred_category_maintenance');
+    if ($defer_category_maintenance) {
+        ll_tools_begin_deferred_category_maintenance('wordset_manager_import');
+    }
 
-        $prompt_text = trim((string) ($row['prompt'] ?? ''));
-        $answer_text = trim((string) ($row['answer'] ?? ''));
-        if ($prompt_text === '' || $answer_text === '') {
-            $skipped_invalid++;
-            continue;
-        }
+    try {
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                $skipped_invalid++;
+                continue;
+            }
 
-        // Bulk import pairs are treated as text->text by default:
-        // prompt => word_translation, answer => post_title.
-        $raw_title_text = $answer_text;
-        $normalized_title = function_exists('ll_tools_import_capitalize_word')
-            ? ll_tools_import_capitalize_word($raw_title_text, $wordset_id)
-            : ucfirst($raw_title_text);
-        if ($normalized_title === '') {
-            $skipped_invalid++;
-            continue;
-        }
+            $prompt_text = trim((string) ($row['prompt'] ?? ''));
+            $answer_text = trim((string) ($row['answer'] ?? ''));
+            if ($prompt_text === '' || $answer_text === '') {
+                $skipped_invalid++;
+                continue;
+            }
 
-        $existing_ids = function_exists('ll_tools_find_existing_word_ids_by_title_in_wordset')
-            ? ll_tools_find_existing_word_ids_by_title_in_wordset($normalized_title, $wordset_id)
-            : [];
-        if (!empty($existing_ids) && !$allow_duplicate_titles) {
-            $skipped_existing++;
-            continue;
-        }
-        $is_duplicate_title = !empty($existing_ids);
+            // Bulk import pairs are treated as text->text by default:
+            // prompt => word_translation, answer => post_title.
+            $raw_title_text = $answer_text;
+            $normalized_title = function_exists('ll_tools_import_capitalize_word')
+                ? ll_tools_import_capitalize_word($raw_title_text, $wordset_id)
+                : ucfirst($raw_title_text);
+            if ($normalized_title === '') {
+                $skipped_invalid++;
+                continue;
+            }
 
-        $post_id = wp_insert_post([
-            'post_type' => 'words',
-            'post_status' => 'draft',
-            'post_title' => $normalized_title,
-            'post_author' => get_current_user_id(),
-        ], true);
-        if (is_wp_error($post_id) || (int) $post_id <= 0) {
-            $failed++;
-            continue;
-        }
-        $post_id = (int) $post_id;
+            $existing_ids = function_exists('ll_tools_find_existing_word_ids_by_title_in_wordset')
+                ? ll_tools_find_existing_word_ids_by_title_in_wordset($normalized_title, $wordset_id)
+                : [];
+            if (!empty($existing_ids) && !$allow_duplicate_titles) {
+                $skipped_existing++;
+                continue;
+            }
+            $is_duplicate_title = !empty($existing_ids);
 
-        $wordset_result = wp_set_object_terms($post_id, [$wordset_id], 'wordset', false);
-        if (is_wp_error($wordset_result)) {
-            wp_delete_post($post_id, true);
-            $failed++;
-            continue;
-        }
+            $post_id = wp_insert_post([
+                'post_type' => 'words',
+                'post_status' => 'draft',
+                'post_title' => $normalized_title,
+                'post_author' => get_current_user_id(),
+            ], true);
+            if (is_wp_error($post_id) || (int) $post_id <= 0) {
+                $failed++;
+                continue;
+            }
+            $post_id = (int) $post_id;
 
-        if ($category_id > 0) {
-            $category_result = wp_set_post_terms($post_id, [$category_id], 'word-category', false);
-            if (is_wp_error($category_result)) {
+            $wordset_result = wp_set_object_terms($post_id, [$wordset_id], 'wordset', false);
+            if (is_wp_error($wordset_result)) {
                 wp_delete_post($post_id, true);
                 $failed++;
                 continue;
             }
-        }
 
-        $target_language_text = $prompt_text;
-        $helper_text = $answer_text;
-        update_post_meta($post_id, 'word_translation', $target_language_text);
-        if ($helper_text !== '') {
-            update_post_meta($post_id, 'word_english_meaning', $helper_text);
-        } else {
-            delete_post_meta($post_id, 'word_english_meaning');
-        }
+            if ($category_id > 0) {
+                $category_result = wp_set_post_terms($post_id, [$category_id], 'word-category', false);
+                if (is_wp_error($category_result)) {
+                    wp_delete_post($post_id, true);
+                    $failed++;
+                    continue;
+                }
+            }
 
-        if ($category_id <= 0) {
-            update_post_meta($post_id, '_ll_skip_audio_requirement_once', '1');
-        }
+            $target_language_text = $prompt_text;
+            $helper_text = $answer_text;
+            update_post_meta($post_id, 'word_translation', $target_language_text);
+            if ($helper_text !== '') {
+                update_post_meta($post_id, 'word_english_meaning', $helper_text);
+            } else {
+                delete_post_meta($post_id, 'word_english_meaning');
+            }
 
-        wp_update_post([
-            'ID' => $post_id,
-            'post_status' => 'publish',
-        ]);
-        if (get_post_status($post_id) !== 'publish' && $category_id <= 0) {
-            delete_post_meta($post_id, '_ll_skip_audio_requirement_once');
-        }
+            if ($category_id <= 0) {
+                update_post_meta($post_id, '_ll_skip_audio_requirement_once', '1');
+            }
 
-        if ($is_duplicate_title) {
-            $created_duplicates++;
+            wp_update_post([
+                'ID' => $post_id,
+                'post_status' => 'publish',
+            ]);
+            if (get_post_status($post_id) !== 'publish' && $category_id <= 0) {
+                delete_post_meta($post_id, '_ll_skip_audio_requirement_once');
+            }
+
+            if ($is_duplicate_title) {
+                $created_duplicates++;
+            }
+            $created++;
         }
-        $created++;
+    } finally {
+        if ($defer_category_maintenance) {
+            ll_tools_end_deferred_category_maintenance(false);
+            if ($category_id > 0 && $created > 0) {
+                if (function_exists('ll_tools_schedule_quiz_page_full_sync')) {
+                    ll_tools_schedule_quiz_page_full_sync(5);
+                }
+                if (function_exists('ll_tools_schedule_vocab_lesson_full_sync')) {
+                    ll_tools_schedule_vocab_lesson_full_sync(5);
+                }
+            }
+        }
     }
 
     $status = ($failed > 0) ? 'partial' : 'ok';

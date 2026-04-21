@@ -18,6 +18,142 @@ function ll_qp_is_quiz_page_context() : bool {
     return $post ? (bool) get_post_meta($post->ID, '_ll_tools_word_category_id', true) : false;
 }
 
+if (!defined('LL_TOOLS_QUIZ_PAGE_SYNC_EVENT')) {
+    define('LL_TOOLS_QUIZ_PAGE_SYNC_EVENT', 'll_tools_quiz_page_sync_event');
+}
+
+if (!function_exists('ll_tools_get_category_maintenance_runtime')) {
+    /**
+     * @return array<string,mixed>
+     */
+    function &ll_tools_get_category_maintenance_runtime(): array {
+        static $state = [
+            'defer_depth' => 0,
+            'queued_category_ids' => [],
+            'synced_quiz_category_ids' => [],
+            'synced_vocab_category_ids' => [],
+        ];
+
+        return $state;
+    }
+}
+
+function ll_tools_reset_category_maintenance_runtime(): void {
+    $state = &ll_tools_get_category_maintenance_runtime();
+    $state = [
+        'defer_depth' => 0,
+        'queued_category_ids' => [],
+        'synced_quiz_category_ids' => [],
+        'synced_vocab_category_ids' => [],
+    ];
+}
+
+function ll_tools_category_maintenance_is_deferred(): bool {
+    $state = &ll_tools_get_category_maintenance_runtime();
+    return ((int) ($state['defer_depth'] ?? 0)) > 0;
+}
+
+/**
+ * @param array<int|string> $category_ids
+ * @return int[]
+ */
+function ll_tools_normalize_category_maintenance_ids(array $category_ids): array {
+    $normalized = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+
+    sort($normalized, SORT_NUMERIC);
+    return $normalized;
+}
+
+/**
+ * @param int|array<int|string> $category_ids
+ */
+function ll_tools_queue_deferred_category_maintenance($category_ids): void {
+    $ids = is_array($category_ids) ? $category_ids : [$category_ids];
+    $normalized = ll_tools_normalize_category_maintenance_ids($ids);
+    if (empty($normalized)) {
+        return;
+    }
+
+    $state = &ll_tools_get_category_maintenance_runtime();
+    if (!isset($state['queued_category_ids']) || !is_array($state['queued_category_ids'])) {
+        $state['queued_category_ids'] = [];
+    }
+
+    foreach ($normalized as $category_id) {
+        $state['queued_category_ids'][$category_id] = true;
+    }
+}
+
+function ll_tools_begin_deferred_category_maintenance(string $scope = ''): void {
+    $state = &ll_tools_get_category_maintenance_runtime();
+    $state['defer_depth'] = max(0, (int) ($state['defer_depth'] ?? 0)) + 1;
+
+    if ($scope !== '' && defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('LL Tools: Deferring category maintenance for scope "' . $scope . '".');
+    }
+}
+
+function ll_tools_end_deferred_category_maintenance(bool $flush = true): void {
+    $state = &ll_tools_get_category_maintenance_runtime();
+    $depth = max(0, (int) ($state['defer_depth'] ?? 0));
+    if ($depth <= 0) {
+        return;
+    }
+
+    $state['defer_depth'] = $depth - 1;
+    if ((int) $state['defer_depth'] > 0) {
+        return;
+    }
+
+    if ($flush) {
+        ll_tools_flush_deferred_category_maintenance();
+        return;
+    }
+
+    $state['queued_category_ids'] = [];
+}
+
+/**
+ * @return int[]
+ */
+function ll_tools_flush_deferred_category_maintenance(): array {
+    $state = &ll_tools_get_category_maintenance_runtime();
+    $queued = isset($state['queued_category_ids']) && is_array($state['queued_category_ids'])
+        ? array_keys($state['queued_category_ids'])
+        : [];
+    $state['queued_category_ids'] = [];
+
+    $category_ids = ll_tools_normalize_category_maintenance_ids($queued);
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    foreach ($category_ids as $category_id) {
+        ll_tools_handle_category_sync_immediate($category_id, true);
+    }
+
+    foreach ($category_ids as $category_id) {
+        if (function_exists('ll_tools_sync_vocab_lessons_for_category_immediate')) {
+            ll_tools_sync_vocab_lessons_for_category_immediate($category_id, true);
+        } elseif (function_exists('ll_tools_sync_vocab_lessons_for_category')) {
+            ll_tools_sync_vocab_lessons_for_category($category_id);
+        }
+    }
+
+    return $category_ids;
+}
+
+function ll_tools_schedule_quiz_page_full_sync(int $delay = 30): void {
+    $delay = max(0, $delay);
+    if (wp_next_scheduled(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT)) {
+        return;
+    }
+
+    wp_schedule_single_event(time() + $delay, LL_TOOLS_QUIZ_PAGE_SYNC_EVENT);
+}
+
 function ll_tools_quiz_page_enforce_category_access(): void {
     if (!ll_qp_is_quiz_page_context()) {
         return;
@@ -273,24 +409,45 @@ function ll_tools_get_or_create_quiz_page_for_category($term_id) {
 }
 
 /** Create/update or remove a page when a category changes */
-function ll_tools_handle_category_sync($term_id) {
+function ll_tools_handle_category_sync_immediate($term_id, bool $force = false) {
     $term = get_term($term_id);
     if (!$term || is_wp_error($term) || $term->taxonomy !== 'word-category') return;
 
+    $category_id = (int) $term->term_id;
+    $state = &ll_tools_get_category_maintenance_runtime();
+    if (!$force && isset($state['synced_quiz_category_ids'][$category_id])) {
+        return;
+    }
+    $state['synced_quiz_category_ids'][$category_id] = true;
+
     $ok = function_exists('ll_can_category_generate_quiz') ? ll_can_category_generate_quiz($term, LL_TOOLS_MIN_WORDS_PER_QUIZ) : true;
     if ($ok) {
-        ll_tools_get_or_create_quiz_page_for_category($term_id);
+        ll_tools_get_or_create_quiz_page_for_category($category_id);
     } else {
         $existing = get_posts([
             'post_type'   => 'page',
             'post_status' => ['publish','draft','pending','private'],
             'meta_key'    => '_ll_tools_word_category_id',
-            'meta_value'  => (string) $term_id,
+            'meta_value'  => (string) $category_id,
             'numberposts' => 1,
             'fields'      => 'ids',
         ]);
         if ($existing) wp_trash_post((int) $existing[0]);
     }
+}
+
+function ll_tools_handle_category_sync($term_id) {
+    $category_id = (int) $term_id;
+    if ($category_id <= 0) {
+        return;
+    }
+
+    if (ll_tools_category_maintenance_is_deferred()) {
+        ll_tools_queue_deferred_category_maintenance([$category_id]);
+        return;
+    }
+
+    ll_tools_handle_category_sync_immediate($category_id);
 }
 
 function ll_tools_handle_category_delete($term_id) {
@@ -415,10 +572,11 @@ add_action('admin_init', function () {
 
     $last = (int) get_option('ll_tools_quiz_page_sync_last', 0);
     if ($last < (time() - DAY_IN_SECONDS)) {
-        ll_tools_sync_quiz_pages();
-        update_option('ll_tools_quiz_page_sync_last', time(), false);
+        ll_tools_schedule_quiz_page_full_sync();
     }
 });
+
+add_action(LL_TOOLS_QUIZ_PAGE_SYNC_EVENT, 'll_tools_sync_quiz_pages');
 
 /** Keep pages in sync when content in those categories changes */
 function ll_tools_sync_categories_for_post($post_id, $post, $update) {
@@ -428,6 +586,7 @@ function ll_tools_sync_categories_for_post($post_id, $post, $update) {
 
     $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($term_ids) || empty($term_ids)) return;
+    $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
     foreach ($term_ids as $tid) ll_tools_handle_category_sync((int) $tid);
     ll_tools_bump_category_cache_version($term_ids);
 }
@@ -453,6 +612,7 @@ function ll_tools_sync_categories_on_term_set($object_id, $terms, $tt_ids, $taxo
         return;
     }
 
+    $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
     foreach ($term_ids as $tid) ll_tools_handle_category_sync($tid);
     ll_tools_bump_category_cache_version($term_ids);
 }
@@ -476,6 +636,7 @@ function ll_tools_sync_categories_before_delete($post_id) {
     if (!in_array($post->post_type, ['words','word_images'], true)) return;
     $term_ids = wp_get_post_terms($post_id, 'word-category', ['fields' => 'ids']);
     if (is_wp_error($term_ids)) return;
+    $term_ids = ll_tools_normalize_category_maintenance_ids($term_ids);
     foreach ($term_ids as $tid) ll_tools_handle_category_sync((int) $tid);
     ll_tools_bump_category_cache_version($term_ids);
 }
@@ -661,14 +822,7 @@ function ll_tools_register_autopage_activation($main_file) {
         register_activation_hook($main_file, function() {
             // Set transient to skip aggressive sync until seeding completes
             set_transient('ll_tools_skip_sync_until_seeded', 1, 10 * MINUTE_IN_SECONDS);
-            // Delay sync to after all taxonomies and settings are loaded
-            add_action('init', function() {
-                if (did_action('wp_loaded')) {
-                    ll_tools_sync_quiz_pages();
-                } else {
-                    add_action('wp_loaded', 'll_tools_sync_quiz_pages', 100);
-                }
-            }, 25);
+            ll_tools_schedule_quiz_page_full_sync(60);
         });
     }
 }

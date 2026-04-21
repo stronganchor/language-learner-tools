@@ -27,6 +27,9 @@ if (!defined('LL_TOOLS_VOCAB_LESSON_RECENT_UPDATE_TRANSIENT')) {
 if (!defined('LL_TOOLS_VOCAB_LESSON_TRASH_NOTICE_OPTION')) {
     define('LL_TOOLS_VOCAB_LESSON_TRASH_NOTICE_OPTION', 'll_tools_vocab_lesson_trash_notice');
 }
+if (!defined('LL_TOOLS_VOCAB_LESSON_SYNC_EVENT')) {
+    define('LL_TOOLS_VOCAB_LESSON_SYNC_EVENT', 'll_tools_vocab_lesson_sync_event');
+}
 
 function ll_tools_mark_vocab_lesson_recent_update(): void {
     $ttl = (int) apply_filters('ll_tools_vocab_lesson_recent_update_ttl', 30 * MINUTE_IN_SECONDS);
@@ -1131,6 +1134,34 @@ function ll_tools_sync_vocab_lesson_pages($wordset_ids = null, array $args = [])
 }
 
 function ll_tools_sync_vocab_lessons_for_category(int $category_id) {
+    if ($category_id <= 0) {
+        return;
+    }
+
+    if (function_exists('ll_tools_category_maintenance_is_deferred') && ll_tools_category_maintenance_is_deferred()) {
+        if (function_exists('ll_tools_queue_deferred_category_maintenance')) {
+            ll_tools_queue_deferred_category_maintenance([$category_id]);
+        }
+        return;
+    }
+
+    ll_tools_sync_vocab_lessons_for_category_immediate($category_id);
+}
+
+function ll_tools_sync_vocab_lessons_for_category_immediate(int $category_id, bool $force = false) {
+    $category_id = (int) $category_id;
+    if ($category_id <= 0) {
+        return;
+    }
+
+    if (function_exists('ll_tools_get_category_maintenance_runtime')) {
+        $state = &ll_tools_get_category_maintenance_runtime();
+        if (!$force && isset($state['synced_vocab_category_ids'][$category_id])) {
+            return;
+        }
+        $state['synced_vocab_category_ids'][$category_id] = true;
+    }
+
     $wordset_ids = ll_tools_get_vocab_lesson_wordset_ids();
     if (empty($wordset_ids)) {
         return;
@@ -1167,6 +1198,16 @@ function ll_tools_sync_vocab_lessons_for_word_post($post_id, $post, $update) {
     $enabled_wordsets = ll_tools_get_vocab_lesson_wordset_ids();
     $wordset_ids = array_values(array_intersect($enabled_wordsets, array_map('intval', $wordset_ids)));
     $category_ids = array_values(array_map('intval', (array) $category_ids));
+    if (function_exists('ll_tools_normalize_category_maintenance_ids')) {
+        $category_ids = ll_tools_normalize_category_maintenance_ids($category_ids);
+    }
+
+    if (function_exists('ll_tools_category_maintenance_is_deferred') && ll_tools_category_maintenance_is_deferred()) {
+        if (function_exists('ll_tools_queue_deferred_category_maintenance')) {
+            ll_tools_queue_deferred_category_maintenance($category_ids);
+        }
+        return;
+    }
 
     foreach ($wordset_ids as $wordset_id) {
         ll_tools_get_vocab_lesson_deepest_counts_for_wordset((int) $wordset_id, true);
@@ -1203,6 +1244,16 @@ function ll_tools_sync_vocab_lessons_on_term_set($object_id, $terms, $tt_ids, $t
     $enabled_wordsets = ll_tools_get_vocab_lesson_wordset_ids();
     $wordset_ids = array_values(array_intersect($enabled_wordsets, array_map('intval', $wordset_ids)));
     $category_ids = array_values(array_map('intval', (array) $category_ids));
+    if (function_exists('ll_tools_normalize_category_maintenance_ids')) {
+        $category_ids = ll_tools_normalize_category_maintenance_ids($category_ids);
+    }
+
+    if (function_exists('ll_tools_category_maintenance_is_deferred') && ll_tools_category_maintenance_is_deferred()) {
+        if (function_exists('ll_tools_queue_deferred_category_maintenance')) {
+            ll_tools_queue_deferred_category_maintenance($category_ids);
+        }
+        return;
+    }
 
     foreach ($wordset_ids as $wordset_id) {
         ll_tools_get_vocab_lesson_deepest_counts_for_wordset((int) $wordset_id, true);
@@ -1236,6 +1287,16 @@ function ll_tools_sync_vocab_lessons_before_delete($post_id) {
     $enabled_wordsets = ll_tools_get_vocab_lesson_wordset_ids();
     $wordset_ids = array_values(array_intersect($enabled_wordsets, array_map('intval', $wordset_ids)));
     $category_ids = array_values(array_map('intval', (array) $category_ids));
+    if (function_exists('ll_tools_normalize_category_maintenance_ids')) {
+        $category_ids = ll_tools_normalize_category_maintenance_ids($category_ids);
+    }
+
+    if (function_exists('ll_tools_category_maintenance_is_deferred') && ll_tools_category_maintenance_is_deferred()) {
+        if (function_exists('ll_tools_queue_deferred_category_maintenance')) {
+            ll_tools_queue_deferred_category_maintenance($category_ids);
+        }
+        return;
+    }
 
     foreach ($wordset_ids as $wordset_id) {
         ll_tools_get_vocab_lesson_deepest_counts_for_wordset((int) $wordset_id, true);
@@ -1275,16 +1336,26 @@ function ll_tools_handle_vocab_lesson_wordset_sync($term_id) {
 add_action('edited_wordset', 'll_tools_handle_vocab_lesson_wordset_sync', 10, 1);
 add_action('delete_wordset', 'll_tools_handle_vocab_lesson_wordset_sync', 10, 1);
 
+function ll_tools_schedule_vocab_lesson_full_sync(int $delay = 30): void {
+    $delay = max(0, $delay);
+    if (wp_next_scheduled(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT)) {
+        return;
+    }
+
+    wp_schedule_single_event(time() + $delay, LL_TOOLS_VOCAB_LESSON_SYNC_EVENT);
+}
+
 add_action('admin_init', function () {
     if (!ll_tools_vocab_lessons_enabled()) {
         return;
     }
     $last = (int) get_option('ll_tools_vocab_lesson_sync_last', 0);
     if ($last < (time() - DAY_IN_SECONDS)) {
-        ll_tools_sync_vocab_lesson_pages();
-        update_option('ll_tools_vocab_lesson_sync_last', time(), false);
+        ll_tools_schedule_vocab_lesson_full_sync();
     }
 });
+
+add_action(LL_TOOLS_VOCAB_LESSON_SYNC_EVENT, 'll_tools_sync_vocab_lesson_pages');
 
 function ll_tools_register_vocab_lesson_query_vars($vars) {
     $vars[] = 'll_vocab_lesson_wordset';

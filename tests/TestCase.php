@@ -55,5 +55,8 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
     {
         unset($GLOBALS['ll_tools_active_rest_request']);
         unset($GLOBALS['ll_tools_active_rest_request_depth']);
+        if (function_exists('ll_tools_reset_category_maintenance_runtime')) {
+            ll_tools_reset_category_maintenance_runtime();
+        }
     }
 }
