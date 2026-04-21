@@ -497,6 +497,68 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertSame('', (string) ($config['category'] ?? ''));
     }
 
+    public function test_recorder_invite_registration_rejects_different_email_address(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $wordset = wp_insert_term('Invite Recorder Rejection Wordset', 'wordset', ['slug' => 'invite-recorder-rejection-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $token = ll_tools_recorder_invite_build_token($wordset_id, [
+            'email' => 'expected-recorder@example.org',
+        ]);
+        $this->assertNotSame('', $token);
+
+        $redirect = $this->runRegistrationRequest([
+            'user_login' => 'wronginviteemail',
+            'user_email' => 'different-recorder@example.org',
+            '__request' => [
+                LL_TOOLS_RECORDER_INVITE_QUERY_ARG => $token,
+            ],
+        ]);
+
+        $payload = $this->getFeedbackPayloadFromRedirect($redirect);
+        $this->assertSame('register', (string) ($payload['form'] ?? ''));
+        $this->assertSame('error', (string) ($payload['type'] ?? ''));
+        $this->assertContains('Please use the invited recorder email address for this signup link.', $payload['messages']);
+        $this->assertFalse(email_exists('expected-recorder@example.org'));
+        $this->assertFalse(email_exists('different-recorder@example.org'));
+    }
+
+    public function test_recorder_invite_accept_for_existing_matching_user_promotes_and_assigns_account(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $wordset = wp_insert_term('Invite Existing Recorder Wordset', 'wordset', ['slug' => 'invite-existing-recorder-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $token = ll_tools_recorder_invite_build_token($wordset_id, [
+            'email' => 'existing-recorder@example.org',
+        ]);
+        $this->assertNotSame('', $token);
+
+        $user_id = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_login' => 'existingrecorderaccept',
+            'user_email' => 'existing-recorder@example.org',
+        ]);
+
+        $acceptance = ll_tools_recorder_invite_accept_for_user($token, $user_id);
+
+        $this->assertIsArray($acceptance);
+        $this->assertSame($wordset_id, (int) ($acceptance['wordset_id'] ?? 0));
+        $this->assertFalse((bool) ($acceptance['already_assigned'] ?? true));
+
+        $user = get_userdata($user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+        $this->assertContains('audio_recorder', (array) $user->roles);
+
+        $config = get_user_meta($user_id, 'll_recording_config', true);
+        $this->assertIsArray($config);
+        $this->assertSame('invite-existing-recorder-wordset', (string) ($config['wordset'] ?? ''));
+        $this->assertSame('', (string) ($config['category'] ?? ''));
+    }
+
     private function normalizeMailHeaders($headers): string
     {
         if (is_array($headers)) {
