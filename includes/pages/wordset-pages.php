@@ -2749,6 +2749,9 @@ function ll_tools_wordset_page_manager_settings_notice(): ?array {
     $error = isset($_GET['ll_wordset_manager_settings_error'])
         ? sanitize_key(wp_unslash((string) $_GET['ll_wordset_manager_settings_error']))
         : '';
+    $message = isset($_GET['ll_wordset_manager_settings_message'])
+        ? sanitize_text_field(wp_unslash((string) $_GET['ll_wordset_manager_settings_message']))
+        : '';
 
     if ($error === 'permission') {
         return [
@@ -2766,6 +2769,12 @@ function ll_tools_wordset_page_manager_settings_notice(): ?array {
         return [
             'type' => 'error',
             'message' => __('Unable to find that word set.', 'll-tools-text-domain'),
+        ];
+    }
+    if ($message !== '') {
+        return [
+            'type' => 'error',
+            'message' => $message,
         ];
     }
 
@@ -2875,11 +2884,15 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         ll_tools_wordset_page_resolve_back_url($wordset_term)
     );
 
-    $redirect_error = static function (string $error) use ($base_redirect): void {
-        wp_safe_redirect(add_query_arg([
+    $redirect_error = static function (string $error, string $message = '') use ($base_redirect): void {
+        $args = [
             'll_wordset_manager_settings' => 'error',
             'll_wordset_manager_settings_error' => $error,
-        ], $base_redirect));
+        ];
+        if ($message !== '') {
+            $args['ll_wordset_manager_settings_message'] = $message;
+        }
+        wp_safe_redirect(add_query_arg($args, $base_redirect));
         exit;
     };
 
@@ -2955,6 +2968,18 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $speaking_assemblyai_profile = isset($_POST['ll_wordset_speaking_game_assemblyai_profile'])
             ? ll_tools_sanitize_wordset_speaking_game_assemblyai_profile(wp_unslash((string) $_POST['ll_wordset_speaking_game_assemblyai_profile']))
             : 'wordset_language';
+        if (in_array('hosted_api', [$provider, $speaking_provider], true)) {
+            if ($endpoint === '') {
+                $redirect_error('hosted_api_endpoint', __('Hosted STT API requires an HTTPS endpoint URL.', 'll-tools-text-domain'));
+            }
+            if (function_exists('ll_tools_validate_hosted_stt_endpoint')) {
+                $validated_endpoint = ll_tools_validate_hosted_stt_endpoint($endpoint);
+                if (is_wp_error($validated_endpoint)) {
+                    $redirect_error('hosted_api_endpoint', $validated_endpoint->get_error_message());
+                }
+                $endpoint = (string) $validated_endpoint;
+            }
+        }
 
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_TRANSCRIPTION_PROVIDER_META_KEY, $provider);
         update_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_TARGET_META_KEY, $target);

@@ -240,6 +240,85 @@ function ll_tools_get_default_local_transcription_endpoint(): string {
     return esc_url_raw($default, ['http', 'https']);
 }
 
+function ll_tools_normalize_remote_stt_host(string $host): string {
+    $host = strtolower(trim($host));
+    if ($host === '') {
+        return '';
+    }
+
+    if ($host[0] === '[' && substr($host, -1) === ']') {
+        $host = substr($host, 1, -1);
+    }
+
+    return $host;
+}
+
+function ll_tools_remote_stt_host_is_restricted(string $host): bool {
+    $host = ll_tools_normalize_remote_stt_host($host);
+    if ($host === '') {
+        return true;
+    }
+
+    if (in_array($host, ['localhost', 'localhost.localdomain', 'ip6-localhost', 'ip6-loopback'], true)) {
+        return true;
+    }
+
+    foreach (['.local', '.internal', '.localhost', '.home.arpa'] as $suffix) {
+        if (substr($host, -strlen($suffix)) === $suffix) {
+            return true;
+        }
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+    }
+
+    return false;
+}
+
+function ll_tools_validate_hosted_stt_endpoint($value) {
+    $value = trim((string) $value);
+    if ($value === '') {
+        return new WP_Error(
+            'll_tools_hosted_stt_missing_endpoint',
+            __('Hosted STT API requires an HTTPS endpoint URL.', 'll-tools-text-domain')
+        );
+    }
+
+    $sanitized = esc_url_raw($value, ['https']);
+    if ($sanitized === '') {
+        return new WP_Error(
+            'll_tools_hosted_stt_invalid_endpoint',
+            __('Hosted STT API endpoint must use HTTPS.', 'll-tools-text-domain')
+        );
+    }
+
+    $parts = wp_parse_url($sanitized);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return new WP_Error(
+            'll_tools_hosted_stt_invalid_endpoint',
+            __('Hosted STT API endpoint must include a valid host.', 'll-tools-text-domain')
+        );
+    }
+
+    if (!empty($parts['user']) || !empty($parts['pass'])) {
+        return new WP_Error(
+            'll_tools_hosted_stt_invalid_endpoint',
+            __('Hosted STT API endpoint URLs cannot include embedded credentials.', 'll-tools-text-domain')
+        );
+    }
+
+    $allow_private_hosts = (bool) apply_filters('ll_tools_allow_private_hosted_stt_endpoint', false, $sanitized, $parts);
+    if (!$allow_private_hosts && ll_tools_remote_stt_host_is_restricted((string) $parts['host'])) {
+        return new WP_Error(
+            'll_tools_hosted_stt_private_endpoint',
+            __('Hosted STT API endpoint must use a public host, not localhost or a private network address.', 'll-tools-text-domain')
+        );
+    }
+
+    return $sanitized;
+}
+
 function ll_tools_sanitize_wordset_local_transcription_endpoint($value): string {
     $value = trim((string) $value);
     if ($value === '') {

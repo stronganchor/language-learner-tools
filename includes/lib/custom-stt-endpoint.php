@@ -59,7 +59,7 @@ function ll_tools_remote_stt_normalize_endpoint(string $endpoint, string $mode =
     return $endpoint;
 }
 
-function ll_tools_remote_stt_extract_transcript($payload, string $raw_body = ''): string {
+function ll_tools_remote_stt_extract_transcript($payload): string {
     if (is_string($payload)) {
         return trim($payload);
     }
@@ -80,7 +80,7 @@ function ll_tools_remote_stt_extract_transcript($payload, string $raw_body = '')
         }
     }
 
-    return trim($raw_body);
+    return '';
 }
 
 function ll_tools_remote_stt_extract_error_message($payload, string $fallback): string {
@@ -145,10 +145,17 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
     $endpoint = function_exists('ll_tools_sanitize_wordset_local_transcription_endpoint')
         ? ll_tools_sanitize_wordset_local_transcription_endpoint($endpoint)
         : trim($endpoint);
-    $endpoint = ll_tools_remote_stt_normalize_endpoint($endpoint, 'transcribe');
     if ($endpoint === '') {
         return new WP_Error('stt_missing_endpoint', __('STT endpoint URL is not configured.', 'll-tools-text-domain'));
     }
+    if (function_exists('ll_tools_validate_hosted_stt_endpoint')) {
+        $validated_endpoint = ll_tools_validate_hosted_stt_endpoint($endpoint);
+        if (is_wp_error($validated_endpoint)) {
+            return $validated_endpoint;
+        }
+        $endpoint = (string) $validated_endpoint;
+    }
+    $endpoint = ll_tools_remote_stt_normalize_endpoint($endpoint, 'transcribe');
 
     if ($file_path === '' || !file_exists($file_path) || !is_readable($file_path)) {
         return new WP_Error('stt_missing_audio', __('STT audio file is missing.', 'll-tools-text-domain'));
@@ -217,9 +224,10 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
 
     $status_code = (int) wp_remote_retrieve_response_code($response);
     $raw_body = (string) wp_remote_retrieve_body($response);
+    $content_type = strtolower(trim((string) wp_remote_retrieve_header($response, 'content-type')));
     $payload = json_decode($raw_body, true);
-    if (!is_array($payload)) {
-        $payload = [];
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        $payload = null;
     }
 
     if ($status_code < 200 || $status_code >= 300) {
@@ -243,9 +251,24 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         );
     }
 
-    $transcript = ll_tools_remote_stt_extract_transcript($payload, $raw_body);
+    $transcript = ll_tools_remote_stt_extract_transcript($payload);
     if ($transcript === '') {
-        return new WP_Error('stt_empty_transcript', __('STT endpoint returned an empty transcript.', 'll-tools-text-domain'));
+        $allow_plain_text_response = (bool) apply_filters(
+            'll_tools_remote_stt_allow_plain_text_response',
+            false,
+            $endpoint,
+            $content_type,
+            $response
+        );
+        if ($allow_plain_text_response) {
+            $transcript = trim($raw_body);
+        }
+    }
+    if ($transcript === '') {
+        return new WP_Error(
+            'stt_invalid_response',
+            __('STT endpoint returned a success response without a supported transcript field.', 'll-tools-text-domain')
+        );
     }
 
     return [

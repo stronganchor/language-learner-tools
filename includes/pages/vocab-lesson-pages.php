@@ -2339,6 +2339,10 @@ function ll_tools_handle_enable_vocab_lessons_for_wordset_request() {
 }
 add_action('admin_post_ll_tools_enable_vocab_lessons_for_wordset', 'll_tools_handle_enable_vocab_lessons_for_wordset_request');
 
+function ll_tools_current_user_can_manage_vocab_lesson_settings(): bool {
+    return current_user_can('manage_options');
+}
+
 function ll_tools_handle_vocab_lesson_settings_submit() {
     if (!is_admin()) {
         return;
@@ -2353,7 +2357,7 @@ function ll_tools_handle_vocab_lesson_settings_submit() {
         return;
     }
 
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_manage_vocab_lesson_settings()) {
         wp_die(esc_html__('You do not have permission to update vocab lesson settings.', 'll-tools-text-domain'));
     }
 
@@ -2393,7 +2397,7 @@ function ll_tools_render_vocab_lesson_admin_panel() {
     if (!$screen || $screen->id !== 'edit-ll_vocab_lesson') {
         return;
     }
-    if (!current_user_can('view_ll_tools')) {
+    if (!ll_tools_current_user_can_manage_vocab_lesson_settings()) {
         return;
     }
 

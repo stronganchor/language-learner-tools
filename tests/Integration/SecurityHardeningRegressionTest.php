@@ -243,6 +243,66 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame([], $http_requests);
     }
 
+    public function test_remote_stt_transcribe_rejects_private_endpoint_before_http_request(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'External HTTP call should not be reached for restricted endpoints.');
+        };
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://127.0.0.1/transcribe', $tmp);
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($tmp);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_hosted_stt_private_endpoint', $result->get_error_code());
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_remote_stt_transcribe_rejects_plain_text_success_body_by_default(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $http_filter = static function ($preempt, $args, $url) {
+            return [
+                'headers' => [
+                    'content-type' => 'text/plain; charset=utf-8',
+                ],
+                'body' => 'plain text transcript',
+                'response' => [
+                    'code' => 200,
+                    'message' => 'OK',
+                ],
+                'cookies' => [],
+                'filename' => null,
+            ];
+        };
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://api.example.com/transcribe', $tmp);
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($tmp);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('stt_invalid_response', $result->get_error_code());
+    }
+
     public function test_image_upload_validation_accepts_real_png(): void
     {
         $tmp = $this->create_temp_file_with_suffix('.png');
