@@ -63,6 +63,9 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
         if (!$speaker_uid) {
             $speaker_uid = (int) $audio_post->post_author;
         }
+        $audio_attribution = function_exists('ll_tools_get_audio_attribution_meta')
+            ? ll_tools_get_audio_attribution_meta((int) $audio_post->ID)
+            : [];
 
         $recording_text = '';
         $recording_translation = '';
@@ -84,6 +87,12 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
                 'recording_type'  => $type,
                 'speaker_user_id' => $speaker_uid,
             ];
+            foreach ($audio_attribution as $field_key => $field_value) {
+                $field_value = trim((string) $field_value);
+                if ($field_value !== '') {
+                    $entry[$field_key] = $field_value;
+                }
+            }
             if ($include_meta) {
                 $entry['recording_text'] = $recording_text;
                 $entry['recording_translation'] = $recording_translation;

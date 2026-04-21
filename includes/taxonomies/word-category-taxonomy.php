@@ -1409,6 +1409,16 @@ function ll_tools_is_category_enabled_for_game($term, string $game_slug): bool {
     if ($game_slug === '') {
         return false;
     }
+    if ($game_slug === 'line-up' && !($term instanceof WP_Term)) {
+        $term = get_term($term, 'word-category');
+    }
+    if ($game_slug === 'line-up' && $term instanceof WP_Term) {
+        $term_slug = sanitize_title((string) ($term->slug ?? ''));
+        $term_name = strtolower(trim((string) ($term->name ?? '')));
+        if ($term_slug === 'numbers' || $term_name === 'numbers') {
+            return true;
+        }
+    }
 
     return in_array($game_slug, ll_tools_get_category_enabled_games($term), true);
 }
@@ -4620,6 +4630,9 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                 $recording_text  = trim((string) get_post_meta($audio_post->ID, 'recording_text', true));
                 $recording_translation = trim((string) get_post_meta($audio_post->ID, 'recording_translation', true));
                 $speaker_uid     = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
+                $audio_attribution = function_exists('ll_tools_get_audio_attribution_meta')
+                    ? ll_tools_get_audio_attribution_meta((int) $audio_post->ID)
+                    : [];
                 if (!$speaker_uid) { $speaker_uid = (int) $audio_post->post_author; }
                 if (empty($recording_types)) {
                     $recording_types = ['unknown'];
@@ -4636,13 +4649,20 @@ function ll_get_words_by_category($categoryName, $displayMode = 'image', $wordse
                         $entry_text = ll_tools_trim_isolation_transcript($entry_text);
                     }
 
-                    $audio_files[] = [
+                    $audio_entry = [
                         'url'            => $audio_url,
                         'recording_type' => $recording_type,
                         'speaker_user_id'=> $speaker_uid,
                         'recording_text' => $entry_text,
                         'recording_translation' => $recording_translation,
                     ];
+                    foreach ($audio_attribution as $field_key => $field_value) {
+                        $field_value = trim((string) $field_value);
+                        if ($field_value !== '') {
+                            $audio_entry[$field_key] = $field_value;
+                        }
+                    }
+                    $audio_files[] = $audio_entry;
                     $practice_recording_types[$recording_type] = $recording_type;
 
                     $is_preferred_speaker = ($preferred_speaker > 0 && $speaker_uid === $preferred_speaker);

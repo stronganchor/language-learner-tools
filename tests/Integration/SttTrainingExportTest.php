@@ -111,6 +111,12 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             'recording_ipa' => 'bɹa.vo',
             'needs_review' => '1',
             'recording_type' => 'isolation',
+            'audio_credit' => 'Speaker: Speaker Bravo; Recorder: Example Commons',
+            'audio_source_name' => 'Example Commons',
+            'audio_source_url' => 'https://example.com/audio/bravo',
+            'audio_license' => 'CC BY-SA 4.0',
+            'audio_license_url' => 'https://creativecommons.org/licenses/by-sa/4.0/',
+            'audio_change_note' => 'Normalized for loudness and trimmed for silence',
         ]);
         $speaker_id = self::factory()->user->create([
             'role' => 'administrator',
@@ -135,6 +141,12 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         $this->assertSame((string) $assigned_category_term->name, (string) $entries[0]['category_name']);
         $this->assertSame($speaker_id, (int) $entries[0]['speaker_user_id']);
         $this->assertSame('Speaker Bravo', (string) $entries[0]['speaker_name']);
+        $this->assertSame('Speaker: Speaker Bravo; Recorder: Example Commons', (string) $entries[0]['audio_credit']);
+        $this->assertSame('Example Commons', (string) $entries[0]['audio_source_name']);
+        $this->assertSame('https://example.com/audio/bravo', (string) $entries[0]['audio_source_url']);
+        $this->assertSame('CC BY-SA 4.0', (string) $entries[0]['audio_license']);
+        $this->assertSame('https://creativecommons.org/licenses/by-sa/4.0/', (string) $entries[0]['audio_license_url']);
+        $this->assertSame('Normalized for loudness and trimmed for silence', (string) $entries[0]['audio_change_note']);
         $this->assertSame(
             ll_tools_resolve_audio_file_url($stored_audio_path),
             (string) $entries[0]['audio_url']
@@ -183,6 +195,12 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertSame((string) $assigned_category_term->name, (string) ($csv_entry['category_name'] ?? ''));
             $this->assertSame((string) $speaker_id, (string) ($csv_entry['speaker_user_id'] ?? ''));
             $this->assertSame('Speaker Bravo', (string) ($csv_entry['speaker_name'] ?? ''));
+            $this->assertSame('Speaker: Speaker Bravo; Recorder: Example Commons', (string) ($csv_entry['audio_credit'] ?? ''));
+            $this->assertSame('Example Commons', (string) ($csv_entry['audio_source_name'] ?? ''));
+            $this->assertSame('https://example.com/audio/bravo', (string) ($csv_entry['audio_source_url'] ?? ''));
+            $this->assertSame('CC BY-SA 4.0', (string) ($csv_entry['audio_license'] ?? ''));
+            $this->assertSame('https://creativecommons.org/licenses/by-sa/4.0/', (string) ($csv_entry['audio_license_url'] ?? ''));
+            $this->assertSame('Normalized for loudness and trimmed for silence', (string) ($csv_entry['audio_change_note'] ?? ''));
             $this->assertSame('Bravo text', (string) ($csv_entry['recording_text'] ?? ''));
             $this->assertSame('bɹa.vo', (string) ($csv_entry['recording_ipa'] ?? ''));
             $this->assertSame('needs_review', (string) ($csv_entry['review-status'] ?? ''));
@@ -204,6 +222,12 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
             $this->assertSame((string) $assigned_category_term->name, (string) ($json_entry['category_name'] ?? ''));
             $this->assertSame($speaker_id, (int) ($json_entry['speaker_user_id'] ?? 0));
             $this->assertSame('Speaker Bravo', (string) ($json_entry['speaker_name'] ?? ''));
+            $this->assertSame('Speaker: Speaker Bravo; Recorder: Example Commons', (string) ($json_entry['audio_credit'] ?? ''));
+            $this->assertSame('Example Commons', (string) ($json_entry['audio_source_name'] ?? ''));
+            $this->assertSame('https://example.com/audio/bravo', (string) ($json_entry['audio_source_url'] ?? ''));
+            $this->assertSame('CC BY-SA 4.0', (string) ($json_entry['audio_license'] ?? ''));
+            $this->assertSame('https://creativecommons.org/licenses/by-sa/4.0/', (string) ($json_entry['audio_license_url'] ?? ''));
+            $this->assertSame('Normalized for loudness and trimmed for silence', (string) ($json_entry['audio_change_note'] ?? ''));
             $this->assertSame('needs_review', (string) ($json_entry['review_status'] ?? ''));
             $this->assertTrue((bool) ($json_entry['needs_review'] ?? false));
 
@@ -257,6 +281,24 @@ final class SttTrainingExportTest extends LL_Tools_TestCase
         }
         if (isset($meta['recording_translation'])) {
             update_post_meta($recording_id, 'recording_translation', $meta['recording_translation']);
+        }
+        if (isset($meta['audio_credit'])) {
+            update_post_meta($recording_id, 'audio_credit', (string) $meta['audio_credit']);
+        }
+        if (isset($meta['audio_source_name'])) {
+            update_post_meta($recording_id, 'audio_source_name', (string) $meta['audio_source_name']);
+        }
+        if (isset($meta['audio_source_url'])) {
+            update_post_meta($recording_id, 'audio_source_url', (string) $meta['audio_source_url']);
+        }
+        if (isset($meta['audio_license'])) {
+            update_post_meta($recording_id, 'audio_license', (string) $meta['audio_license']);
+        }
+        if (isset($meta['audio_license_url'])) {
+            update_post_meta($recording_id, 'audio_license_url', (string) $meta['audio_license_url']);
+        }
+        if (isset($meta['audio_change_note'])) {
+            update_post_meta($recording_id, 'audio_change_note', (string) $meta['audio_change_note']);
         }
         if (!empty($meta['needs_review'])) {
             update_post_meta($recording_id, 'll_auto_transcription_needs_review', '1');

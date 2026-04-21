@@ -1,0 +1,119 @@
+.ll-audio-credit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.ll-audio-credit-grid__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1rem;
+    border: 1px solid #d8dee8;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 10px 24px rgba(16, 24, 40, 0.06);
+}
+
+.ll-audio-credit-grid__header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.ll-audio-credit-grid__title {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #182230;
+}
+
+.ll-audio-credit-grid__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.ll-audio-credit-grid__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: #1849a9;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.ll-audio-credit-grid__player {
+    width: 100%;
+}
+
+.ll-audio-credit-grid__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 0;
+}
+
+.ll-audio-credit-grid__meta-row {
+    display: grid;
+    grid-template-columns: minmax(88px, 100px) 1fr;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.ll-audio-credit-grid__meta-row dt {
+    margin: 0;
+    font-weight: 700;
+    color: #344054;
+}
+
+.ll-audio-credit-grid__meta-row dd {
+    margin: 0;
+    color: #475467;
+    overflow-wrap: anywhere;
+}
+
+.ll-audio-credit-grid__meta-row a {
+    color: #1849a9;
+    text-decoration: underline;
+}
+
+.ll-grid-pagination {
+    text-align: center;
+    margin-top: 1rem;
+}
+
+.ll-grid-pagination .page-numbers {
+    display: inline-block;
+    margin: 0 3px;
+    padding: 5px 8px;
+    border: 1px solid #d0d5dd;
+    color: #344054;
+    text-decoration: none;
+    border-radius: 6px;
+}
+
+.ll-grid-pagination .page-numbers.current {
+    background: #1849a9;
+    color: #ffffff;
+    border-color: #1849a9;
+}
+
+.ll-grid-pagination .page-numbers:hover {
+    border-color: #1849a9;
+    color: #1849a9;
+}
+
+@media (max-width: 640px) {
+    .ll-audio-credit-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ll-audio-credit-grid__meta-row {
+        grid-template-columns: 1fr;
+        gap: 0.2rem;
+    }
+}

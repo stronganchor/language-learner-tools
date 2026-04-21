@@ -127,6 +127,7 @@ require_once(__DIR__ . '/shortcodes/word-audio-shortcode.php');
 require_once(__DIR__ . '/shortcodes/word-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/editor-hub-shortcode.php');
 require_once(__DIR__ . '/shortcodes/image-copyright-grid-shortcode.php');
+require_once(__DIR__ . '/shortcodes/audio-credit-grid-shortcode.php');
 require_once(__DIR__ . '/shortcodes/quiz-pages-shortcodes.php');
 require_once(__DIR__ . '/shortcodes/audio-recording-shortcode.php');
 require_once(__DIR__ . '/shortcodes/language-switcher-shortcode.php');

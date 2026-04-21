@@ -336,4 +336,49 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
             @unlink($file_path);
         }
     }
+
+    public function test_process_metadata_update_supports_audio_attribution_fields(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Attribution Word',
+            'post_name' => 'attribution-word',
+        ]);
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Attribution Recording',
+            'post_name' => 'attribution-recording',
+        ]);
+
+        $csv = implode("\n", [
+            'word_id,recording_id,speaker_name,audio_credit,audio_source_name,audio_source_url,audio_license,audio_license_url,audio_change_note',
+            $word_id . ',' . $recording_id . ',Public Speaker,Speaker: Public Speaker; Recorder: Example Archive,Example Archive,https://example.com/audio/source,CC BY 4.0,https://creativecommons.org/licenses/by/4.0/,Normalized for loudness and trimmed for silence',
+        ]) . "\n";
+
+        $file_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-metadata-update-' . wp_generate_password(8, false, false) . '.csv');
+        file_put_contents($file_path, $csv);
+
+        try {
+            $result = ll_tools_process_metadata_updates_file($file_path, 'audio-attribution.csv');
+
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_rows_applied'] ?? 0));
+            $this->assertSame('Public Speaker', (string) get_post_meta($recording_id, 'speaker_name', true));
+            $this->assertSame('Speaker: Public Speaker; Recorder: Example Archive', (string) get_post_meta($recording_id, 'audio_credit', true));
+            $this->assertSame('Example Archive', (string) get_post_meta($recording_id, 'audio_source_name', true));
+            $this->assertSame('https://example.com/audio/source', (string) get_post_meta($recording_id, 'audio_source_url', true));
+            $this->assertSame('CC BY 4.0', (string) get_post_meta($recording_id, 'audio_license', true));
+            $this->assertSame('https://creativecommons.org/licenses/by/4.0/', (string) get_post_meta($recording_id, 'audio_license_url', true));
+            $this->assertSame('Normalized for loudness and trimmed for silence', (string) get_post_meta($recording_id, 'audio_change_note', true));
+        } finally {
+            @unlink($file_path);
+        }
+    }
 }

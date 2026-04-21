@@ -77,6 +77,12 @@ final class WordTextExportTest extends LL_Tools_TestCase
             'recording_ipa' => 'mer.he.ba',
             'recording_type' => 'isolation',
             'speaker_user_id' => (string) $speaker_id,
+            'audio_credit' => 'Speaker: Speaker Export; Recorder: Example Archive',
+            'audio_source_name' => 'Example Archive',
+            'audio_source_url' => 'https://example.com/audio/merheba',
+            'audio_license' => 'CC BY 4.0',
+            'audio_license_url' => 'https://creativecommons.org/licenses/by/4.0/',
+            'audio_change_note' => 'Normalized for loudness and trimmed for silence',
             'audio_filename' => 'word-text-export.mp3',
             'duration_seconds' => '1.234',
         ]);
@@ -108,6 +114,12 @@ final class WordTextExportTest extends LL_Tools_TestCase
             'category_name',
             'speaker_user_id',
             'speaker_name',
+            'audio_credit',
+            'audio_source_name',
+            'audio_source_url',
+            'audio_license',
+            'audio_license_url',
+            'audio_change_note',
             'recording_text',
             'recording_ipa',
             'review-status',
@@ -135,6 +147,12 @@ final class WordTextExportTest extends LL_Tools_TestCase
         $this->assertSame((string) $assigned_category_term->name, (string) $title_row['category_name']);
         $this->assertSame('', (string) $title_row['speaker_user_id']);
         $this->assertSame('', (string) $title_row['speaker_name']);
+        $this->assertSame('', (string) $title_row['audio_credit']);
+        $this->assertSame('', (string) $title_row['audio_source_name']);
+        $this->assertSame('', (string) $title_row['audio_source_url']);
+        $this->assertSame('', (string) $title_row['audio_license']);
+        $this->assertSame('', (string) $title_row['audio_license_url']);
+        $this->assertSame('', (string) $title_row['audio_change_note']);
         $this->assertSame('', (string) $title_row['recording_text']);
         $this->assertSame('', (string) $title_row['recording_ipa']);
         $this->assertSame('', (string) $title_row['review-status']);
@@ -152,6 +170,12 @@ final class WordTextExportTest extends LL_Tools_TestCase
         $this->assertSame((string) $assigned_category_term->name, (string) $recording_row['category_name']);
         $this->assertSame((string) $speaker_id, (string) $recording_row['speaker_user_id']);
         $this->assertSame('Speaker Export', (string) $recording_row['speaker_name']);
+        $this->assertSame('Speaker: Speaker Export; Recorder: Example Archive', (string) $recording_row['audio_credit']);
+        $this->assertSame('Example Archive', (string) $recording_row['audio_source_name']);
+        $this->assertSame('https://example.com/audio/merheba', (string) $recording_row['audio_source_url']);
+        $this->assertSame('CC BY 4.0', (string) $recording_row['audio_license']);
+        $this->assertSame('https://creativecommons.org/licenses/by/4.0/', (string) $recording_row['audio_license_url']);
+        $this->assertSame('Normalized for loudness and trimmed for silence', (string) $recording_row['audio_change_note']);
         $this->assertSame('Merheba sentence', (string) $recording_row['recording_text']);
         $this->assertSame('mer.he.ba', (string) $recording_row['recording_ipa']);
         $this->assertSame('reviewed', (string) $recording_row['review-status']);
@@ -210,6 +234,24 @@ final class WordTextExportTest extends LL_Tools_TestCase
         }
         if (isset($meta['speaker_name'])) {
             update_post_meta($recording_id, 'speaker_name', (string) $meta['speaker_name']);
+        }
+        if (isset($meta['audio_credit'])) {
+            update_post_meta($recording_id, 'audio_credit', (string) $meta['audio_credit']);
+        }
+        if (isset($meta['audio_source_name'])) {
+            update_post_meta($recording_id, 'audio_source_name', (string) $meta['audio_source_name']);
+        }
+        if (isset($meta['audio_source_url'])) {
+            update_post_meta($recording_id, 'audio_source_url', (string) $meta['audio_source_url']);
+        }
+        if (isset($meta['audio_license'])) {
+            update_post_meta($recording_id, 'audio_license', (string) $meta['audio_license']);
+        }
+        if (isset($meta['audio_license_url'])) {
+            update_post_meta($recording_id, 'audio_license_url', (string) $meta['audio_license_url']);
+        }
+        if (isset($meta['audio_change_note'])) {
+            update_post_meta($recording_id, 'audio_change_note', (string) $meta['audio_change_note']);
         }
         if (!empty($meta['audio_filename'])) {
             $file_path = $this->createAudioUploadFile((string) $meta['audio_filename']);

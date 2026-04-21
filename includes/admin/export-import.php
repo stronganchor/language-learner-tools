@@ -2690,7 +2690,7 @@ function ll_tools_render_import_csv_reference_section(): void {
 }
 
 function ll_tools_get_metadata_update_supported_fields(): array {
-    return [
+    $fields = [
         'word_title' => [
             'label' => __('Word title', 'll-tools-text-domain'),
             'target' => 'word',
@@ -2747,23 +2747,59 @@ function ll_tools_get_metadata_update_supported_fields(): array {
             'clearable' => true,
             'sanitize' => 'textarea',
         ],
-        'speaker_name' => [
+    ];
+
+    if (function_exists('ll_tools_get_audio_attribution_fields')) {
+        foreach (ll_tools_get_audio_attribution_fields() as $field_key => $field_config) {
+            $fields[$field_key] = [
+                'label' => (string) ($field_config['label'] ?? $field_key),
+                'target' => 'recording',
+                'storage' => 'meta',
+                'meta_keys' => [$field_key],
+                'clearable' => true,
+                'sanitize' => (string) ($field_config['sanitize'] ?? 'text'),
+            ];
+        }
+    } else {
+        $fields['speaker_name'] = [
             'label' => __('Speaker name', 'll-tools-text-domain'),
             'target' => 'recording',
             'storage' => 'meta',
             'meta_keys' => ['speaker_name'],
             'clearable' => true,
             'sanitize' => 'text',
-        ],
-    ];
+        ];
+    }
+
+    return $fields;
 }
 
 function ll_tools_get_metadata_update_agent_instructions(): string {
+    $recording_fields = [
+        'word_title',
+        'word_translation',
+        'word_example_sentence',
+        'word_example_sentence_translation',
+        'recording_text',
+        'recording_translation',
+        'recording_ipa',
+    ];
+
+    if (function_exists('ll_tools_get_audio_attribution_fields')) {
+        $recording_fields = array_merge($recording_fields, array_keys(ll_tools_get_audio_attribution_fields()));
+    } else {
+        $recording_fields[] = 'speaker_name';
+    }
+
     $lines = [
         __('Build one CSV, JSON, or JSONL file of metadata changes.', 'll-tools-text-domain'),
         __('Keep stable identifiers in every row: use word_id when possible, and use recording_id for recording fields when possible.', 'll-tools-text-domain'),
         __('If recording_id is unavailable, you can identify a recording with recording_slug + word_id/word_slug, or with recording_type + word_id/word_slug when that word has exactly one recording of that type.', 'll-tools-text-domain'),
-        __('The importer accepts these editable fields: word_title, word_translation, word_example_sentence, word_example_sentence_translation, recording_text, recording_translation, recording_ipa, speaker_name.', 'll-tools-text-domain'),
+        sprintf(
+            /* translators: %s: comma-separated field names */
+            __('The importer accepts these editable fields: %s.', 'll-tools-text-domain'),
+            implode(', ', $recording_fields)
+        ),
         __('Blank values mean "leave unchanged". To delete a value, put the field name in clear_fields.', 'll-tools-text-domain'),
         __('Extra columns are ignored, so you can start from an exported STT metadata.csv / metadata.jsonl file and only change the fields you want to fix.', 'll-tools-text-domain'),
         __('If you keep the STT export columns text + text_field, changing text updates whichever field text_field names: recording_text, recording_ipa, recording_translation, word_title, or word_translation.', 'll-tools-text-domain'),
@@ -2777,9 +2813,9 @@ function ll_tools_get_metadata_update_agent_instructions(): string {
 
 function ll_tools_get_metadata_update_csv_template(): string {
     return implode("\n", [
-        'word_id,word_slug,recording_id,recording_slug,recording_type,word_title,word_translation,word_example_sentence,word_example_sentence_translation,recording_text,recording_translation,recording_ipa,speaker_name,clear_fields',
-        '123,merheba,456,,isolation,Merheba,Hello,,,,Merheba,,mer.he.ba,,',
-        '123,merheba,456,,,,,,,,,,,speaker_name',
+        'word_id,word_slug,recording_id,recording_slug,recording_type,word_title,word_translation,word_example_sentence,word_example_sentence_translation,recording_text,recording_translation,recording_ipa,speaker_name,audio_credit,audio_source_name,audio_source_url,audio_license,audio_license_url,audio_change_note,clear_fields',
+        '123,merheba,456,,isolation,Merheba,Hello,,,,Merheba,,mer.he.ba,Speaker Example,Speaker: Speaker Example; Recorder: Wikimedia Commons,Wikimedia Commons,https://commons.wikimedia.org/wiki/File:Example.ogg,CC BY-SA 4.0,https://creativecommons.org/licenses/by-sa/4.0/,Normalized for loudness and trimmed for silence,',
+        '123,merheba,456,,,,,,,,,,,,,,,,,speaker_name|audio_credit',
     ]) . "\n";
 }
 
@@ -2792,11 +2828,18 @@ function ll_tools_get_metadata_update_json_template(): string {
             'word_translation' => 'Hello',
             'recording_text' => 'Merheba',
             'recording_ipa' => 'mer.he.ba',
+            'speaker_name' => 'Speaker Example',
+            'audio_credit' => 'Speaker: Speaker Example; Recorder: Wikimedia Commons',
+            'audio_source_name' => 'Wikimedia Commons',
+            'audio_source_url' => 'https://commons.wikimedia.org/wiki/File:Example.ogg',
+            'audio_license' => 'CC BY-SA 4.0',
+            'audio_license_url' => 'https://creativecommons.org/licenses/by-sa/4.0/',
+            'audio_change_note' => 'Normalized for loudness and trimmed for silence',
         ],
         [
             'word_id' => 123,
             'recording_id' => 456,
-            'clear_fields' => ['speaker_name'],
+            'clear_fields' => ['speaker_name', 'audio_credit', 'audio_change_note'],
         ],
         [
             'audio' => 'audio/456-merheba.mp3',
@@ -7080,6 +7123,12 @@ function ll_tools_get_metadata_update_column_aliases(): array {
         'recording_translation' => ['recording translation', 'audio translation'],
         'recording_ipa' => ['recording ipa', 'recording transcription', 'ipa', 'transcription', 'phonetic'],
         'speaker_name' => ['speaker name', 'speaker'],
+        'audio_credit' => ['audio credit', 'audio attribution', 'credit', 'artist'],
+        'audio_source_name' => ['audio source name', 'source name', 'source site', 'source website'],
+        'audio_source_url' => ['audio source url', 'source page url', 'source page', 'commons page url'],
+        'audio_license' => ['audio license', 'license'],
+        'audio_license_url' => ['audio license url', 'license url'],
+        'audio_change_note' => ['audio change note', 'changes made', 'modified note', 'change note', 'processing note'],
     ];
 
     $map = [];
@@ -7407,6 +7456,9 @@ function ll_tools_metadata_update_sanitize_field_value(string $field_key, string
     $sanitize_mode = (string) ($supported[$field_key]['sanitize'] ?? 'text');
     if ($sanitize_mode === 'textarea') {
         return trim(sanitize_textarea_field($value));
+    }
+    if ($sanitize_mode === 'url') {
+        return trim((string) esc_url_raw($value));
     }
 
     return trim(sanitize_text_field($value));
@@ -11112,6 +11164,43 @@ function ll_tools_export_get_wordset_word_ids(int $wordset_id): array {
     return array_values(array_unique(array_map('intval', $word_ids)));
 }
 
+function ll_tools_export_get_audio_attribution_keys(): array {
+    if (function_exists('ll_tools_get_audio_attribution_fields')) {
+        return array_keys(ll_tools_get_audio_attribution_fields());
+    }
+
+    return ['speaker_name'];
+}
+
+function ll_tools_export_collect_audio_attribution_fields(int $audio_post_id, int $speaker_user_id = 0): array {
+    $audio_post_id = (int) $audio_post_id;
+    $speaker_user_id = (int) $speaker_user_id;
+
+    $raw_meta = function_exists('ll_tools_get_audio_attribution_meta')
+        ? ll_tools_get_audio_attribution_meta($audio_post_id)
+        : [];
+
+    $speaker_name = ll_tools_export_normalize_manifest_text((string) ($raw_meta['speaker_name'] ?? get_post_meta($audio_post_id, 'speaker_name', true)));
+    if ($speaker_name === '' && $speaker_user_id > 0) {
+        $speaker_user = get_userdata($speaker_user_id);
+        if ($speaker_user instanceof WP_User) {
+            $speaker_name = ll_tools_export_normalize_manifest_text((string) $speaker_user->display_name);
+        }
+    }
+
+    $fields = [];
+    foreach (ll_tools_export_get_audio_attribution_keys() as $field_key) {
+        if ($field_key === 'speaker_name') {
+            $fields[$field_key] = $speaker_name;
+            continue;
+        }
+
+        $fields[$field_key] = ll_tools_export_normalize_manifest_text((string) ($raw_meta[$field_key] ?? get_post_meta($audio_post_id, $field_key, true)));
+    }
+
+    return $fields;
+}
+
 function ll_tools_export_collect_audio_entries(array $word_ids): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), function ($id) {
         return $id > 0;
@@ -11143,27 +11232,20 @@ function ll_tools_export_collect_audio_entries(array $word_ids): array {
 
         $stored_audio_path = (string) get_post_meta($audio_post->ID, 'audio_file_path', true);
         $speaker_user_id = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
-        $speaker_name = ll_tools_export_normalize_manifest_text((string) get_post_meta($audio_post->ID, 'speaker_name', true));
-        if ($speaker_name === '' && $speaker_user_id > 0) {
-            $speaker_user = get_userdata($speaker_user_id);
-            if ($speaker_user instanceof WP_User) {
-                $speaker_name = ll_tools_export_normalize_manifest_text((string) $speaker_user->display_name);
-            }
-        }
+        $audio_attribution = ll_tools_export_collect_audio_attribution_fields((int) $audio_post->ID, $speaker_user_id);
         $needs_review = ll_tools_export_recording_ipa_needs_review((int) $audio_post->ID);
 
-        $entry = [
+        $entry = array_merge([
             'recording_id'          => (int) $audio_post->ID,
             'word_audio_id'         => (int) $audio_post->ID,
             'recording_text'        => (string) get_post_meta($audio_post->ID, 'recording_text', true),
             'recording_translation' => (string) get_post_meta($audio_post->ID, 'recording_translation', true),
             'recording_ipa'         => (string) get_post_meta($audio_post->ID, 'recording_ipa', true),
             'speaker_user_id'       => $speaker_user_id,
-            'speaker_name'          => $speaker_name,
             'review_status'         => ll_tools_export_get_stt_review_status($needs_review),
             'audio_url'             => ll_tools_export_get_stt_recording_audio_url($stored_audio_path),
             'duration_seconds'      => ll_tools_export_get_stt_recording_duration_seconds((int) $audio_post->ID, $stored_audio_path),
-        ];
+        ], $audio_attribution);
 
         foreach ($recording_types as $recording_type) {
             $recording_type = sanitize_title($recording_type);
@@ -11214,7 +11296,7 @@ function ll_tools_export_get_word_translation(int $word_id): string {
 }
 
 function ll_tools_export_get_wordset_csv_metadata_headers(): array {
-    return [
+    return array_merge([
         'word_id',
         'recording_id',
         'word_audio_id',
@@ -11222,13 +11304,13 @@ function ll_tools_export_get_wordset_csv_metadata_headers(): array {
         'category_slug',
         'category_name',
         'speaker_user_id',
-        'speaker_name',
+    ], ll_tools_export_get_audio_attribution_keys(), [
         'recording_text',
         'recording_ipa',
         'review-status',
         'audio_url',
         'duration_seconds',
-    ];
+    ]);
 }
 
 function ll_tools_export_build_wordset_csv_header(array $gloss_languages): array {
@@ -11372,13 +11454,15 @@ function ll_tools_export_build_wordset_csv_rows(
                 'word_audio_id' => !empty($recording['word_audio_id']) ? (int) $recording['word_audio_id'] : '',
                 'recording_type' => $recording_type,
                 'speaker_user_id' => !empty($recording['speaker_user_id']) ? (int) $recording['speaker_user_id'] : '',
-                'speaker_name' => trim((string) ($recording['speaker_name'] ?? '')),
                 'recording_text' => $recording_text,
                 'recording_ipa' => $recording_ipa,
                 'review-status' => trim((string) ($recording['review_status'] ?? '')),
                 'audio_url' => trim((string) ($recording['audio_url'] ?? '')),
                 'duration_seconds' => $recording['duration_seconds'] ?? '',
             ]);
+            foreach (ll_tools_export_get_audio_attribution_keys() as $field_key) {
+                $recording_row_metadata[$field_key] = trim((string) ($recording[$field_key] ?? ''));
+            }
 
             if (in_array('text', $recording_sources[$recording_type], true) && $recording_text !== '') {
                 $rows[] = ll_tools_export_build_csv_row($recording_text, $recording_ipa, $recording_translation, $gloss_count, $dialect, $source, $recording_row_metadata);
@@ -11671,13 +11755,7 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
             $recording_translation = ll_tools_export_normalize_manifest_text((string) get_post_meta($audio_post->ID, 'recording_translation', true));
             $recording_ipa = ll_tools_export_normalize_manifest_text((string) get_post_meta($audio_post->ID, 'recording_ipa', true));
             $speaker_user_id = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
-            $speaker_name = ll_tools_export_normalize_manifest_text((string) get_post_meta($audio_post->ID, 'speaker_name', true));
-            if ($speaker_name === '' && $speaker_user_id > 0) {
-                $speaker_user = get_userdata($speaker_user_id);
-                if ($speaker_user instanceof WP_User) {
-                    $speaker_name = ll_tools_export_normalize_manifest_text((string) $speaker_user->display_name);
-                }
-            }
+            $audio_attribution = ll_tools_export_collect_audio_attribution_fields((int) $audio_post->ID, $speaker_user_id);
 
             $entry = [
                 'recording_text' => $recording_text,
@@ -11715,7 +11793,6 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
                 'category_slug' => (string) ($category_fields['category_slug'] ?? ''),
                 'category_name' => (string) ($category_fields['category_name'] ?? ''),
                 'speaker_user_id' => $speaker_user_id,
-                'speaker_name' => $speaker_name,
                 'recording_text' => $recording_text,
                 'recording_translation' => $recording_translation,
                 'recording_ipa' => $recording_ipa,
@@ -11724,7 +11801,7 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
                 'duration_seconds' => $duration_seconds,
                 'mime_type' => $mime_type,
                 'source_path' => $resolved_audio_path,
-            ];
+            ] + $audio_attribution;
         }
     }
 
@@ -11786,7 +11863,7 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
     $text_field = ll_tools_export_normalize_stt_text_field($text_field, $wordset_id);
     $text_field_label = ll_tools_export_get_stt_text_field_label($text_field, $wordset_id);
 
-    $csv_header = [
+    $csv_header = array_merge([
         'audio',
         'audio_url',
         'duration_seconds',
@@ -11806,14 +11883,14 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
         'category_slug',
         'category_name',
         'speaker_user_id',
-        'speaker_name',
+    ], ll_tools_export_get_audio_attribution_keys(), [
         'recording_text',
         'recording_translation',
         'recording_ipa',
         'review-status',
         'needs_review',
         'mime_type',
-    ];
+    ]);
     $csv_rows = [];
     $jsonl_lines = [];
 
@@ -11857,7 +11934,7 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             $review_status = ll_tools_export_get_stt_review_status(!empty($entry['needs_review']));
         }
 
-        $csv_rows[] = [
+        $csv_row = [
             $audio_path,
             trim((string) ($entry['audio_url'] ?? '')),
             $duration_seconds === null ? '' : (string) $duration_seconds,
@@ -11877,14 +11954,19 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             (string) ($entry['category_slug'] ?? ''),
             (string) ($entry['category_name'] ?? ''),
             (int) ($entry['speaker_user_id'] ?? 0),
-            (string) ($entry['speaker_name'] ?? ''),
+        ];
+        foreach (ll_tools_export_get_audio_attribution_keys() as $field_key) {
+            $csv_row[] = (string) ($entry[$field_key] ?? '');
+        }
+        $csv_row = array_merge($csv_row, [
             (string) ($entry['recording_text'] ?? ''),
             (string) ($entry['recording_translation'] ?? ''),
             (string) ($entry['recording_ipa'] ?? ''),
             $review_status,
             !empty($entry['needs_review']) ? '1' : '0',
             (string) ($entry['mime_type'] ?? ''),
-        ];
+        ]);
+        $csv_rows[] = $csv_row;
 
         $json_entry = [
             'audio' => $audio_path,
@@ -11906,7 +11988,6 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             'category_slug' => (string) ($entry['category_slug'] ?? ''),
             'category_name' => (string) ($entry['category_name'] ?? ''),
             'speaker_user_id' => (int) ($entry['speaker_user_id'] ?? 0),
-            'speaker_name' => (string) ($entry['speaker_name'] ?? ''),
             'recording_text' => (string) ($entry['recording_text'] ?? ''),
             'recording_translation' => (string) ($entry['recording_translation'] ?? ''),
             'recording_ipa' => (string) ($entry['recording_ipa'] ?? ''),
@@ -11914,6 +11995,9 @@ function ll_tools_write_stt_training_zip(string $zip_path, array $entries, $word
             'needs_review' => !empty($entry['needs_review']),
             'mime_type' => (string) ($entry['mime_type'] ?? ''),
         ];
+        foreach (ll_tools_export_get_audio_attribution_keys() as $field_key) {
+            $json_entry[$field_key] = (string) ($entry[$field_key] ?? '');
+        }
         $json_line = wp_json_encode($json_entry);
         if (!is_string($json_line) || $json_line === '') {
             $zip->close();

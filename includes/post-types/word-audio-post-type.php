@@ -42,6 +42,67 @@ function ll_tools_register_word_audio_post_type() {
 }
 add_action('init', 'll_tools_register_word_audio_post_type');
 
+function ll_tools_get_audio_attribution_fields(): array {
+    return [
+        'speaker_name' => [
+            'label' => __('Speaker name', 'll-tools-text-domain'),
+            'sanitize' => 'text',
+            'input' => 'text',
+            'description' => __('Use a public speaker name or published username when you want to credit who spoke in the recording.', 'll-tools-text-domain'),
+        ],
+        'audio_credit' => [
+            'label' => __('Audio credit', 'll-tools-text-domain'),
+            'sanitize' => 'textarea',
+            'input' => 'textarea',
+            'description' => __('Use this for fuller attribution text, such as speaker and recorder credit or a generic source note.', 'll-tools-text-domain'),
+        ],
+        'audio_source_name' => [
+            'label' => __('Source name', 'll-tools-text-domain'),
+            'sanitize' => 'text',
+            'input' => 'text',
+            'description' => __('Name the website, collection, or project this recording came from.', 'll-tools-text-domain'),
+        ],
+        'audio_source_url' => [
+            'label' => __('Source page URL', 'll-tools-text-domain'),
+            'sanitize' => 'url',
+            'input' => 'url',
+            'description' => __('Link to the original source page for this audio when available.', 'll-tools-text-domain'),
+        ],
+        'audio_license' => [
+            'label' => __('License', 'll-tools-text-domain'),
+            'sanitize' => 'text',
+            'input' => 'text',
+            'description' => __('Record the license name even if attribution is optional.', 'll-tools-text-domain'),
+        ],
+        'audio_license_url' => [
+            'label' => __('License URL', 'll-tools-text-domain'),
+            'sanitize' => 'url',
+            'input' => 'url',
+            'description' => __('Link to the license terms when available.', 'll-tools-text-domain'),
+        ],
+        'audio_change_note' => [
+            'label' => __('Changes made', 'll-tools-text-domain'),
+            'sanitize' => 'textarea',
+            'input' => 'textarea',
+            'description' => __('Describe any edits you made to the sourced recording before publishing it here, such as loudness normalization or silence trimming.', 'll-tools-text-domain'),
+        ],
+    ];
+}
+
+function ll_tools_get_audio_attribution_meta(int $post_id): array {
+    $post_id = (int) $post_id;
+    if ($post_id <= 0) {
+        return [];
+    }
+
+    $values = [];
+    foreach (ll_tools_get_audio_attribution_fields() as $meta_key => $config) {
+        $values[$meta_key] = trim((string) get_post_meta($post_id, $meta_key, true));
+    }
+
+    return $values;
+}
+
 /**
  * Customize admin columns
  */
@@ -84,6 +145,12 @@ function ll_word_audio_column_content($column, $post_id) {
             break;
 
         case 'speaker':
+            $speaker_name = trim((string) get_post_meta($post_id, 'speaker_name', true));
+            if ($speaker_name !== '') {
+                echo esc_html($speaker_name);
+                break;
+            }
+
             $user_id = get_post_meta($post_id, 'speaker_user_id', true);
             if ($user_id) {
                 $user = get_userdata($user_id);
@@ -93,8 +160,7 @@ function ll_word_audio_column_content($column, $post_id) {
                     echo '—';
                 }
             } else {
-                $speaker_name = get_post_meta($post_id, 'speaker_name', true);
-                echo $speaker_name ? esc_html($speaker_name) : '—';
+                echo '—';
             }
             break;
 
@@ -469,6 +535,7 @@ function ll_word_audio_meta_box_callback($post) {
     $user_id = get_post_meta($post->ID, 'speaker_user_id', true);
     $recording_date = get_post_meta($post->ID, 'recording_date', true);
     $parent_id = $post->post_parent;
+    $audio_attribution = ll_tools_get_audio_attribution_meta((int) $post->ID);
 
     echo '<table class="form-table">';
 
@@ -518,6 +585,37 @@ function ll_word_audio_meta_box_callback($post) {
     echo '</td>';
     echo '</tr>';
 
+    // Public speaker / attribution fields
+    foreach (ll_tools_get_audio_attribution_fields() as $meta_key => $field_config) {
+        $field_id = esc_attr($meta_key);
+        $field_label = isset($field_config['label']) ? (string) $field_config['label'] : $meta_key;
+        $field_value = isset($audio_attribution[$meta_key]) ? (string) $audio_attribution[$meta_key] : '';
+        $field_description = isset($field_config['description']) ? (string) $field_config['description'] : '';
+        $input_type = isset($field_config['input']) ? (string) $field_config['input'] : 'text';
+
+        echo '<tr>';
+        echo '<th><label for="' . $field_id . '">' . esc_html($field_label) . '</label></th>';
+        echo '<td>';
+
+        if ($input_type === 'textarea') {
+            echo '<textarea id="' . $field_id . '" name="' . $field_id . '" rows="3" class="large-text">' . esc_textarea($field_value) . '</textarea>';
+        } else {
+            $html_input_type = ($input_type === 'url') ? 'url' : 'text';
+            $css_class = ($input_type === 'url') ? 'large-text code' : 'regular-text';
+            echo '<input type="' . esc_attr($html_input_type) . '" id="' . $field_id . '" name="' . $field_id . '" value="' . esc_attr($field_value) . '" class="' . esc_attr($css_class) . '">';
+        }
+
+        if ($field_description !== '') {
+            echo '<p class="description">' . esc_html($field_description) . '</p>';
+        }
+        if ($input_type === 'url' && $field_value !== '') {
+            echo '<p><a href="' . esc_url($field_value) . '" target="_blank" rel="noopener noreferrer">' . esc_html__('Open link', 'll-tools-text-domain') . '</a></p>';
+        }
+
+        echo '</td>';
+        echo '</tr>';
+    }
+
     // Recording date
     echo '<tr>';
     echo '<th><label>' . __('Recording Date', 'll-tools-text-domain') . '</label></th>';
@@ -547,8 +645,31 @@ function ll_save_word_audio_meta($post_id) {
         return;
     }
 
-    if (isset($_POST['speaker_name'])) {
-        update_post_meta($post_id, 'speaker_name', sanitize_text_field($_POST['speaker_name']));
+    foreach (ll_tools_get_audio_attribution_fields() as $meta_key => $field_config) {
+        if (!array_key_exists($meta_key, $_POST)) {
+            continue;
+        }
+
+        $raw_value = wp_unslash($_POST[$meta_key]);
+        if (is_array($raw_value)) {
+            continue;
+        }
+
+        $value = trim((string) $raw_value);
+        $sanitize_mode = isset($field_config['sanitize']) ? (string) $field_config['sanitize'] : 'text';
+        if ($sanitize_mode === 'textarea') {
+            $value = trim(sanitize_textarea_field($value));
+        } elseif ($sanitize_mode === 'url') {
+            $value = trim((string) esc_url_raw($value));
+        } else {
+            $value = trim(sanitize_text_field($value));
+        }
+
+        if ($value === '') {
+            delete_post_meta($post_id, $meta_key);
+        } else {
+            update_post_meta($post_id, $meta_key, $value);
+        }
     }
 
     $parent_id = (int) wp_get_post_parent_id($post_id);
