@@ -523,6 +523,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     height: var(--ll-wp-top-chip-height);
     padding: 0 12px;
     gap: 8px;
+    white-space: nowrap;
 }
 
 .ll-wordset-link-chip--games:hover,
@@ -6563,8 +6564,15 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         justify-content: flex-start;
         align-items: center;
         width: 100%;
-        row-gap: 10px;
+        row-gap: 8px;
         column-gap: 8px;
+    }
+
+    .ll-wordset-hero__action-links .ll-wordset-link-chip--games,
+    .ll-wordset-hero__action-links .ll-wordset-link-chip--classes,
+    .ll-wordset-hero__action-links .ll-wordset-link-chip--hidden {
+        flex: 0 0 auto;
+        white-space: nowrap;
     }
 
     .ll-wordset-hero__action-links .ll-wordset-link-chip--games {

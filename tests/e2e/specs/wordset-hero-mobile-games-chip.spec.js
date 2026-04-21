@@ -110,6 +110,14 @@ function buildMarkup({
               <span class="ll-wordset-link-chip__icon" aria-hidden="true"></span>
               <span class="ll-wordset-link-chip__label">Games</span>
             </a>
+            <a
+              class="ll-wordset-link-chip ll-wordset-link-chip--classes"
+              href="#classes"
+              aria-label="Open classes"
+            >
+              <span class="ll-wordset-link-chip__icon" aria-hidden="true"></span>
+              <span class="ll-wordset-link-chip__label">Classes</span>
+            </a>
             <a class="ll-wordset-settings-link ll-tools-settings-button" href="#settings" aria-label="Word set tools">
               <span class="mode-icon" aria-hidden="true">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -411,23 +419,34 @@ async function measureHeroTools(page) {
 
     return {
       toolsDisplay: window.getComputedStyle(document.querySelector('.ll-wordset-hero__tools')).display,
+      actionLinks: readRect('.ll-wordset-hero__action-links'),
       games: readRect('.ll-wordset-link-chip--games'),
+      classes: readRect('.ll-wordset-link-chip--classes'),
       settings: readRect('.ll-wordset-settings-link'),
       progress: readRect('[data-ll-wordset-progress-mini-root]'),
       gamesHref: readAnchorHref('.ll-wordset-link-chip--games'),
+      classesHref: readAnchorHref('.ll-wordset-link-chip--classes'),
       settingsHref: readAnchorHref('.ll-wordset-settings-link')
     };
   });
 }
 
 function expectMobileActionTargets(metrics) {
+  expect(metrics.actionLinks).not.toBeNull();
   expect(metrics.games).not.toBeNull();
+  expect(metrics.classes).not.toBeNull();
   expect(metrics.settings).not.toBeNull();
   expect(metrics.games.height).toBeGreaterThanOrEqual(44);
+  expect(metrics.classes.height).toBeGreaterThanOrEqual(44);
   expect(metrics.settings.width).toBeGreaterThanOrEqual(44);
   expect(metrics.settings.height).toBeGreaterThanOrEqual(44);
-  expect(metrics.settings.top - metrics.games.bottom).toBeGreaterThanOrEqual(8);
+  expect(metrics.games.width).toBeLessThan(metrics.actionLinks.width * 0.75);
+  expect(Math.abs(metrics.classes.top - metrics.games.top)).toBeLessThanOrEqual(2);
+  expect(Math.abs(metrics.settings.top - metrics.games.top)).toBeLessThanOrEqual(2);
+  expect(metrics.classes.left).toBeGreaterThan(metrics.games.left);
+  expect(metrics.settings.left).toBeGreaterThan(metrics.classes.left);
   expect(metrics.gamesHref).toBe('#games');
+  expect(metrics.classesHref).toBe('#classes');
   expect(metrics.settingsHref).toBe('#settings');
 }
 
@@ -442,7 +461,7 @@ test('mobile hero keeps the games chip anchored while progress metrics hydrate',
 
   expect(initial.toolsDisplay).toBe('flex');
   expect(initial.progress).not.toBeNull();
-  expect(initial.progress.top - initial.games.top).toBeGreaterThan(30);
+  expect(initial.progress.top - Math.max(initial.games.bottom, initial.classes.bottom, initial.settings.bottom)).toBeGreaterThan(8);
   expectMobileActionTargets(initial);
 
   await page.evaluate((payload) => {
@@ -454,9 +473,11 @@ test('mobile hero keeps the games chip anchored while progress metrics hydrate',
   await page.waitForTimeout(180);
   const duringAnimation = await measureHeroTools(page);
 
-  expect(duringAnimation.progress.top - duringAnimation.games.top).toBeGreaterThan(30);
+  expect(duringAnimation.progress.top - Math.max(duringAnimation.games.bottom, duringAnimation.classes.bottom, duringAnimation.settings.bottom)).toBeGreaterThan(8);
   expect(Math.abs(duringAnimation.games.top - initial.games.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(duringAnimation.games.left - initial.games.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(duringAnimation.classes.top - initial.classes.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(duringAnimation.classes.left - initial.classes.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(duringAnimation.settings.top - initial.settings.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(duringAnimation.settings.left - initial.settings.left)).toBeLessThanOrEqual(1);
   expectMobileActionTargets(duringAnimation);
@@ -464,9 +485,11 @@ test('mobile hero keeps the games chip anchored while progress metrics hydrate',
   await page.waitForTimeout(1400);
   const settled = await measureHeroTools(page);
 
-  expect(settled.progress.top - settled.games.top).toBeGreaterThan(30);
+  expect(settled.progress.top - Math.max(settled.games.bottom, settled.classes.bottom, settled.settings.bottom)).toBeGreaterThan(8);
   expect(Math.abs(settled.games.top - initial.games.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.games.left - initial.games.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(settled.classes.top - initial.classes.top)).toBeLessThanOrEqual(1);
+  expect(Math.abs(settled.classes.left - initial.classes.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.settings.top - initial.settings.top)).toBeLessThanOrEqual(1);
   expect(Math.abs(settled.settings.left - initial.settings.left)).toBeLessThanOrEqual(1);
   expectMobileActionTargets(settled);
