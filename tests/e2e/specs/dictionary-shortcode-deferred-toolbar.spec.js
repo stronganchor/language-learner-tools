@@ -33,18 +33,24 @@ function buildMarkup() {
                 value=""
                 placeholder="Search dictionary">
             </div>
-            <div class="ll-dictionary__field ll-dictionary__field--select ll-dictionary__field--scope">
-              <label class="screen-reader-text" for="ll-dictionary-scope">Search scope</label>
-              <select id="ll-dictionary-scope" class="ll-dictionary__select" name="ll_dictionary_scope">
-                <option value="all" selected>All fields</option>
-                <option value="title">Words only</option>
-              </select>
-            </div>
             <div class="ll-dictionary__actions ll-dictionary__actions--primary">
               <button class="ll-dictionary__button" type="submit">Search</button>
               <a class="ll-dictionary__button ll-dictionary__button--ghost" data-ll-dictionary-reset href="https://example.com/dictionary/" hidden>Reset</a>
             </div>
           </div>
+          <fieldset class="ll-dictionary__scope-group" aria-labelledby="ll-dictionary-scope-group">
+            <legend id="ll-dictionary-scope-group" class="screen-reader-text">Search scope</legend>
+            <div class="ll-dictionary__scope-options">
+              <label class="ll-dictionary__scope-option" for="ll-dictionary-scope-headword">
+                <input type="checkbox" id="ll-dictionary-scope-headword" class="ll-dictionary__scope-checkbox" name="ll_dictionary_scope[]" value="headword" checked>
+                <span class="ll-dictionary__scope-option-label">Zazaki</span>
+              </label>
+              <label class="ll-dictionary__scope-option" for="ll-dictionary-scope-tr">
+                <input type="checkbox" id="ll-dictionary-scope-tr" class="ll-dictionary__scope-checkbox" name="ll_dictionary_scope[]" value="tr" checked>
+                <span class="ll-dictionary__scope-option-label">Türkçe</span>
+              </label>
+            </div>
+          </fieldset>
           <div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel></div>
         </form>
       </div>
@@ -115,7 +121,7 @@ async function mountDictionaryHarness(page) {
           json: async () => ({
             success: true,
             data: {
-              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; POS:${requestData.ll_dictionary_pos || 'all'}</article>`,
+              html: `<article class="ll-dictionary__entry">Query:${requestData.ll_dictionary_q || ''}; Scope:${requestData.ll_dictionary_scope || 'all'}; POS:${requestData.ll_dictionary_pos || 'all'}</article>`,
               has_active_query: true,
               url: `https://example.com/dictionary/?ll_dictionary_q=${encodeURIComponent(requestData.ll_dictionary_q || '')}`
             }
@@ -142,7 +148,7 @@ test('loads deferred dictionary filters on first interaction only once', async (
   await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
 
   await page.locator('#ll-dictionary-search').fill('ap');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:ap; Scope:all; POS:all');
 
   const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
   const bootstrapCalls = fetchCalls.filter((call) => call.action === 'll_tools_dictionary_toolbar_bootstrap');
@@ -157,16 +163,38 @@ test('live search still reacts to deferred filter controls after bootstrap', asy
   await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
 
   await page.locator('#ll-dictionary-search').fill('apa');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; POS:all');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; POS:all');
 
   await page.locator('select[name="ll_dictionary_pos"]').selectOption('verb');
-  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; POS:verb');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; POS:verb');
 
   const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
   const lastSearchCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_live_search');
 
   expect(lastSearchCall).toMatchObject({
     ll_dictionary_q: 'apa',
+    ll_dictionary_scope: 'all',
     ll_dictionary_pos: 'verb'
+  });
+});
+
+test('live search sends a narrowed checkbox scope when one scope is unchecked', async ({ page }) => {
+  await mountDictionaryHarness(page);
+
+  await page.locator('#ll-dictionary-search').focus();
+  await expect(page.locator('select[name="ll_dictionary_pos"]')).toHaveCount(1);
+
+  await page.locator('#ll-dictionary-search').fill('apa');
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:all; POS:all');
+
+  await page.locator('#ll-dictionary-scope-tr').uncheck();
+  await expect(page.locator('[data-ll-dictionary-results]')).toContainText('Query:apa; Scope:headword; POS:all');
+
+  const fetchCalls = await page.evaluate(() => window.__dictionaryFetchCalls);
+  const lastSearchCall = [...fetchCalls].reverse().find((call) => call.action === 'll_tools_dictionary_live_search');
+
+  expect(lastSearchCall).toMatchObject({
+    ll_dictionary_q: 'apa',
+    ll_dictionary_scope: 'headword'
   });
 });

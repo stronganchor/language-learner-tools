@@ -453,6 +453,15 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'linked_word_limit' => 0,
             'post_status' => ['publish'],
         ]);
+        $mixed_scope_query = ll_tools_dictionary_query_entries([
+            'search' => 'su',
+            'search_scopes' => ['headword', 'tr'],
+            'page' => 1,
+            'per_page' => 10,
+            'sense_limit' => 1,
+            'linked_word_limit' => 0,
+            'post_status' => ['publish'],
+        ]);
 
         $all_titles = array_values(array_map(static function (array $item): string {
             return (string) ($item['title'] ?? '');
@@ -463,18 +472,24 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $headword_titles = array_values(array_map(static function (array $item): string {
             return (string) ($item['title'] ?? '');
         }, (array) ($headword_query['items'] ?? [])));
+        $mixed_scope_titles = array_values(array_map(static function (array $item): string {
+            return (string) ($item['title'] ?? '');
+        }, (array) ($mixed_scope_query['items'] ?? [])));
 
         $this->assertSame(['Su', 'Ava'], array_slice($all_titles, 0, 2));
         $this->assertSame(['Ava'], $translation_titles);
         $this->assertSame(['Su'], $headword_titles);
+        $this->assertSame(['Su', 'Ava'], array_slice($mixed_scope_titles, 0, 2));
 
         $_GET = [
             'll_dictionary_q' => 'su',
-            'll_dictionary_scope' => 'tr',
+            'll_dictionary_scope' => ['headword', 'tr'],
         ];
         $html = do_shortcode('[ll_dictionary]');
-        $this->assertStringContainsString('name="ll_dictionary_scope"', $html);
-        $this->assertStringContainsString('value="tr" selected=\'selected\'', $html);
+        $this->assertStringContainsString('name="ll_dictionary_scope[]"', $html);
+        $this->assertMatchesRegularExpression('/value="headword"[^>]*checked/', $html);
+        $this->assertMatchesRegularExpression('/value="tr"[^>]*checked/', $html);
+        $this->assertDoesNotMatchRegularExpression('/value="en"[^>]*checked/', $html);
     }
 
     public function test_dictionary_import_job_processes_rows_in_batches_with_resume_snapshot(): void

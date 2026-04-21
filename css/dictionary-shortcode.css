@@ -54,6 +54,68 @@
     align-items: center;
 }
 
+.ll-dictionary__scope-group {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.ll-dictionary__scope-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ll-dictionary__scope-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid var(--ll-dictionary-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--ll-dictionary-ink);
+    cursor: pointer;
+    transition: border-color 0.18s ease, background-color 0.18s ease, color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.ll-dictionary__scope-option:hover,
+.ll-dictionary__scope-option:focus-within {
+    border-color: var(--ll-dictionary-accent);
+    background: var(--ll-dictionary-accent-soft);
+    color: var(--ll-dictionary-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px rgba(24, 33, 43, 0.08);
+}
+
+.ll-dictionary__scope-option:has(.ll-dictionary__scope-checkbox:checked) {
+    border-color: var(--ll-dictionary-accent);
+    background: var(--ll-dictionary-accent-soft);
+    color: var(--ll-dictionary-accent);
+}
+
+.ll-dictionary__scope-checkbox {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--ll-dictionary-accent);
+    cursor: pointer;
+}
+
+.ll-dictionary__scope-checkbox:focus {
+    outline: 2px solid rgba(11, 110, 79, 0.22);
+    outline-offset: 2px;
+}
+
+.ll-dictionary__scope-option-label {
+    font-size: 0.94rem;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
 .ll-dictionary__toolbar-panel {
     display: grid;
     gap: 12px;
@@ -104,10 +166,6 @@
 
 .ll-dictionary__field--select {
     flex: 0 1 220px;
-}
-
-.ll-dictionary__field--scope {
-    flex-basis: 170px;
 }
 
 .ll-dictionary__input,
@@ -1090,6 +1148,15 @@
 
     .ll-dictionary__search-row {
         align-items: stretch;
+    }
+
+    .ll-dictionary__scope-options {
+        gap: 7px;
+    }
+
+    .ll-dictionary__scope-option {
+        min-height: 42px;
+        padding: 9px 12px;
     }
 
     .ll-dictionary__field--select,

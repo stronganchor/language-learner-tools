@@ -464,12 +464,12 @@
         const results = root.querySelector('[data-ll-dictionary-results]');
         const toolbar = root.querySelector('.ll-dictionary__toolbar');
         const searchInput = form ? form.querySelector('input[name="ll_dictionary_q"]') : null;
-        const scopeInput = form ? form.querySelector('select[name="ll_dictionary_scope"]') : null;
+        const scopeInputs = form ? Array.from(form.querySelectorAll('input[name="ll_dictionary_scope[]"]')) : [];
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
         const toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
         const toolbarDeferred = root.getAttribute('data-ll-dictionary-toolbar-deferred') === '1';
 
-        if (!form || !results || !toolbar || !searchInput || !scopeInput || !letterInput) {
+        if (!form || !results || !toolbar || !searchInput || !scopeInputs.length || !letterInput) {
             return;
         }
 
@@ -509,6 +509,72 @@
             }
         };
 
+        const getAllScopeValues = () => scopeInputs
+            .map((input) => String(input.value || '').trim())
+            .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+
+        const getSelectedScopeValues = () => {
+            const selected = scopeInputs
+                .filter((input) => !!input.checked)
+                .map((input) => String(input.value || '').trim())
+                .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+
+            return selected.length ? selected : getAllScopeValues();
+        };
+
+        const getScopeQueryValue = () => {
+            const allScopes = getAllScopeValues();
+            const selectedScopes = getSelectedScopeValues();
+            if (!allScopes.length || selectedScopes.length >= allScopes.length) {
+                return 'all';
+            }
+
+            return selectedScopes.join(',');
+        };
+
+        const setScopeValuesFromQueryValue = (rawValue) => {
+            const allScopes = getAllScopeValues();
+            const raw = String(rawValue || '').trim();
+            let selectedScopes = [];
+
+            if (!raw || raw === 'all') {
+                selectedScopes = allScopes;
+            } else {
+                selectedScopes = raw
+                    .split(/[\s,|]+/)
+                    .map((value) => value.trim())
+                    .filter((value, index, values) => value !== '' && values.indexOf(value) === index);
+            }
+
+            if (!selectedScopes.length) {
+                selectedScopes = allScopes;
+            }
+
+            scopeInputs.forEach((input) => {
+                input.checked = selectedScopes.indexOf(String(input.value || '').trim()) !== -1;
+            });
+        };
+
+        const getScopeQueryValueFromUrl = (url) => {
+            if (!url || !url.searchParams) {
+                return 'all';
+            }
+
+            const scalarValue = String(url.searchParams.get('ll_dictionary_scope') || '').trim();
+            if (scalarValue) {
+                return scalarValue;
+            }
+
+            const indexedValues = [];
+            url.searchParams.forEach((value, key) => {
+                if (key === 'll_dictionary_scope[]' || key.indexOf('ll_dictionary_scope[') === 0) {
+                    indexedValues.push(String(value || '').trim());
+                }
+            });
+
+            return indexedValues.length ? indexedValues.join(',') : 'all';
+        };
+
         const hasActiveQuery = () => {
             return [
                 String(searchInput.value || '').trim(),
@@ -539,7 +605,7 @@
             payload.set('nonce', nonce);
             payload.set('wordset_id', root.dataset.wordsetId || '0');
             payload.set('base_url', root.dataset.baseUrl || window.location.href);
-            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_scope', getScopeQueryValue());
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
             payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
             payload.set('ll_dictionary_source', getFieldValue('ll_dictionary_source'));
@@ -710,7 +776,7 @@
             linkedWordLimit: root.dataset.linkedWordLimit || '4',
             glossLang: root.dataset.glossLang || '',
             query: String(searchInput.value || '').trim(),
-            scope: getFieldValue('ll_dictionary_scope') || 'all',
+            scope: getScopeQueryValue(),
             letter: String(letterInput.value || '').trim(),
             pos: getFieldValue('ll_dictionary_pos'),
             source: getFieldValue('ll_dictionary_source'),
@@ -748,7 +814,7 @@
             payload.set('gloss_lang', root.dataset.glossLang || '');
             payload.set('base_url', root.dataset.baseUrl || window.location.href);
             payload.set('ll_dictionary_q', String(searchInput.value || '').trim());
-            payload.set('ll_dictionary_scope', getFieldValue('ll_dictionary_scope') || 'all');
+            payload.set('ll_dictionary_scope', getScopeQueryValue());
             payload.set('ll_dictionary_letter', String(letterInput.value || '').trim());
             payload.set('ll_dictionary_page', String(Math.max(1, page || 1)));
             payload.set('ll_dictionary_pos', getFieldValue('ll_dictionary_pos'));
@@ -838,10 +904,10 @@
 
         searchInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
         searchInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
-        if (scopeInput) {
+        scopeInputs.forEach((scopeInput) => {
             scopeInput.addEventListener('focus', primeToolbarBootstrap, { passive: true });
             scopeInput.addEventListener('pointerdown', primeToolbarBootstrap, { passive: true });
-        }
+        });
 
         searchInput.addEventListener('input', () => {
             primeToolbarBootstrap();
@@ -861,7 +927,7 @@
         form.addEventListener('change', (event) => {
             const target = event.target;
             const name = target && target.name ? String(target.name) : '';
-            if (['ll_dictionary_scope', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
+            if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
                 return;
             }
 
@@ -922,7 +988,7 @@
             event.preventDefault();
 
             searchInput.value = url.searchParams.get('ll_dictionary_q') || '';
-            setFieldValue('ll_dictionary_scope', url.searchParams.get('ll_dictionary_scope') || 'all');
+            setScopeValuesFromQueryValue(getScopeQueryValueFromUrl(url));
             letterInput.value = url.searchParams.get('ll_dictionary_letter') || '';
             setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
             setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
