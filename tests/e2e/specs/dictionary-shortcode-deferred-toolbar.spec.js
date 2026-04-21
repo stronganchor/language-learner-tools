@@ -59,9 +59,29 @@ function buildMarkup() {
   `;
 }
 
-async function mountDictionaryHarness(page) {
+async function mountDictionaryHarness(page, options = {}) {
   await page.setContent(buildMarkup(), { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => {
+  await page.evaluate((config) => {
+    const store = {};
+    if (config && typeof config.storedScope === 'string' && config.storedScope) {
+      store['llDictionaryScopePrefs:55'] = config.storedScope;
+    }
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem(key) {
+          return Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null;
+        },
+        setItem(key, value) {
+          store[key] = String(value);
+        },
+        removeItem(key) {
+          delete store[key];
+        }
+      }
+    });
+
     window.llToolsDictionary = {
       ajaxUrl: '/fake-admin-ajax.php',
       nonce: 'test-nonce',
@@ -134,7 +154,7 @@ async function mountDictionaryHarness(page) {
         json: async () => ({ success: false })
       };
     };
-  });
+  }, options);
 
   await page.addScriptTag({ content: dictionaryScriptSource });
 }
@@ -197,4 +217,11 @@ test('live search sends a narrowed checkbox scope when one scope is unchecked', 
     ll_dictionary_q: 'apa',
     ll_dictionary_scope: 'headword'
   });
+});
+
+test('restores saved checkbox scope preferences on load when the URL has no explicit scope', async ({ page }) => {
+  await mountDictionaryHarness(page, { storedScope: 'headword' });
+
+  await expect(page.locator('#ll-dictionary-scope-headword')).toBeChecked();
+  await expect(page.locator('#ll-dictionary-scope-tr')).not.toBeChecked();
 });

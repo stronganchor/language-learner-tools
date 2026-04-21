@@ -473,6 +473,10 @@
     color: var(--ll-dictionary-muted);
 }
 
+.ll-dictionary__card-translations {
+    margin: 0 0 14px;
+}
+
 .ll-dictionary__text-block {
     display: grid;
     gap: 8px;

@@ -252,6 +252,7 @@
                     update_type: updateType,
                     wordset_id: root.dataset.wordsetId || '0',
                     gloss_lang: root.dataset.glossLang || '',
+                    ll_dictionary_scope: root.dataset.currentScope || 'all',
                 };
                 if (updateType === 'title') {
                     params.title = value;
@@ -409,6 +410,7 @@
                     needs_review: needsReview ? '1' : '0',
                     wordset_id: root.dataset.wordsetId || '0',
                     gloss_lang: root.dataset.glossLang || '',
+                    ll_dictionary_scope: root.dataset.currentScope || 'all',
                 }, true)
                     .then((payloadResponse) => {
                     if (!payloadResponse || payloadResponse.success !== true || !payloadResponse.data) {
@@ -468,6 +470,7 @@
         const letterInput = form ? form.querySelector('input[name="ll_dictionary_letter"]') : null;
         const toolbarPanel = root.querySelector('[data-ll-dictionary-toolbar-panel]');
         const toolbarDeferred = root.getAttribute('data-ll-dictionary-toolbar-deferred') === '1';
+        const hasExplicitScope = root.getAttribute('data-ll-dictionary-has-explicit-scope') === '1';
 
         if (!form || !results || !toolbar || !searchInput || !scopeInputs.length || !letterInput) {
             return;
@@ -479,6 +482,8 @@
         let toolbarBootstrapPromise = null;
         let toolbarReady = !toolbarDeferred;
         const responseCache = new Map();
+        const storageKey = `llDictionaryScopePrefs:${root.dataset.wordsetId || '0'}`;
+        let scopePreferencesRestored = false;
 
         const escapeHtml = (value) => String(value || '').replace(/[&<>"']/g, (char) => {
             switch (char) {
@@ -573,6 +578,51 @@
             });
 
             return indexedValues.length ? indexedValues.join(',') : 'all';
+        };
+
+        const updateCurrentScopeState = () => {
+            root.dataset.currentScope = getScopeQueryValue();
+        };
+
+        const persistScopePreferences = () => {
+            updateCurrentScopeState();
+            if (!window.localStorage) {
+                return;
+            }
+
+            try {
+                if (root.dataset.currentScope && root.dataset.currentScope !== 'all') {
+                    window.localStorage.setItem(storageKey, root.dataset.currentScope);
+                } else {
+                    window.localStorage.removeItem(storageKey);
+                }
+            } catch (error) {
+                // Ignore storage failures and keep the in-memory scope state.
+            }
+        };
+
+        const restoreStoredScopePreferences = () => {
+            updateCurrentScopeState();
+            if (hasExplicitScope || !window.localStorage) {
+                return false;
+            }
+
+            let storedValue = '';
+            try {
+                storedValue = String(window.localStorage.getItem(storageKey) || '').trim();
+            } catch (error) {
+                storedValue = '';
+            }
+
+            if (!storedValue || storedValue === 'all') {
+                return false;
+            }
+
+            const currentScope = root.dataset.currentScope || 'all';
+            setScopeValuesFromQueryValue(storedValue);
+            updateCurrentScopeState();
+
+            return (root.dataset.currentScope || 'all') !== currentScope;
         };
 
         const hasActiveQuery = () => {
@@ -769,6 +819,8 @@
             return !(search === '' && !hasActiveQuery());
         };
 
+        scopePreferencesRestored = restoreStoredScopePreferences();
+
         const buildRequestCacheKey = (page) => JSON.stringify({
             wordsetId: root.dataset.wordsetId || '0',
             perPage: root.dataset.perPage || '20',
@@ -898,6 +950,14 @@
             }, debounceMs);
         };
 
+        const getCurrentPageFromLocation = () => {
+            try {
+                return Number(new URL(window.location.href).searchParams.get('ll_dictionary_page') || '1');
+            } catch (error) {
+                return 1;
+            }
+        };
+
         const primeToolbarBootstrap = () => {
             ensureToolbarBootstrap().catch(() => {});
         };
@@ -929,6 +989,12 @@
             const name = target && target.name ? String(target.name) : '';
             if (['ll_dictionary_scope[]', 'll_dictionary_pos', 'll_dictionary_source', 'll_dictionary_dialect'].indexOf(name) === -1) {
                 return;
+            }
+
+            if (name === 'll_dictionary_scope[]') {
+                persistScopePreferences();
+            } else {
+                updateCurrentScopeState();
             }
 
             if (!canRunQuery()) {
@@ -989,6 +1055,7 @@
 
             searchInput.value = url.searchParams.get('ll_dictionary_q') || '';
             setScopeValuesFromQueryValue(getScopeQueryValueFromUrl(url));
+            persistScopePreferences();
             letterInput.value = url.searchParams.get('ll_dictionary_letter') || '';
             setFieldValue('ll_dictionary_pos', url.searchParams.get('ll_dictionary_pos') || '');
             setFieldValue('ll_dictionary_source', url.searchParams.get('ll_dictionary_source') || '');
@@ -997,5 +1064,12 @@
             showLoadingState();
             requestResults(Number(url.searchParams.get('ll_dictionary_page') || '1'), false);
         });
+
+        if (scopePreferencesRestored && hasActiveQuery()) {
+            showLoadingState();
+            requestResults(getCurrentPageFromLocation(), false);
+        } else {
+            updateCurrentScopeState();
+        }
     });
 }());

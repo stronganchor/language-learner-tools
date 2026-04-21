@@ -490,6 +490,10 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertMatchesRegularExpression('/value="headword"[^>]*checked/', $html);
         $this->assertMatchesRegularExpression('/value="tr"[^>]*checked/', $html);
         $this->assertDoesNotMatchRegularExpression('/value="en"[^>]*checked/', $html);
+        $this->assertStringContainsString('ll-dictionary__translation-label">TR<', $html);
+        $this->assertStringNotContainsString('ll-dictionary__translation-label">EN<', $html);
+        $this->assertStringContainsString('kaynak', $html);
+        $this->assertStringNotContainsString('spring', $html);
     }
 
     public function test_dictionary_import_job_processes_rows_in_batches_with_resume_snapshot(): void

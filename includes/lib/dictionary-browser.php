@@ -2157,6 +2157,9 @@ function ll_tools_dictionary_get_entry_data(int $entry_id, int $sense_limit = 3,
         'linked_word_count' => $linked_word_count,
         'linked_words' => ll_tools_dictionary_get_linked_word_previews($entry_id, $linked_word_limit),
         'preferred_languages' => $normalized_preferred_languages,
+        'translation_groups' => function_exists('ll_tools_dictionary_collect_translation_groups')
+            ? ll_tools_dictionary_collect_translation_groups($senses, $normalized_preferred_languages)
+            : [],
         'sources' => $sources,
         'dialects' => $dialects,
         'senses' => array_slice($senses, 0, max(1, $sense_limit)),
