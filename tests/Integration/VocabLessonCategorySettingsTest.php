@@ -145,6 +145,33 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertSame('', (string) get_term_meta((int) $fixture['category_id'], 'use_word_titles_for_audio', true));
     }
 
+    public function test_success_redirect_uses_surviving_lesson_after_duplicate_cleanup(): void
+    {
+        $manager_id = $this->createManagerUser();
+        $fixture = $this->createManagedLessonFixture($manager_id);
+        $replacement_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Managed Settings Replacement Lesson',
+        ]);
+        update_post_meta($replacement_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (int) $fixture['wordset_id']);
+        update_post_meta($replacement_lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (int) $fixture['category_id']);
+        wp_trash_post((int) $fixture['lesson_id']);
+
+        $redirect_url = ll_tools_get_vocab_lesson_category_settings_success_redirect_url(
+            (int) $fixture['wordset_id'],
+            (int) $fixture['category_id'],
+            (string) get_permalink((int) $fixture['lesson_id'])
+        );
+
+        $query = [];
+        parse_str((string) wp_parse_url($redirect_url, PHP_URL_QUERY), $query);
+
+        $this->assertSame('ok', (string) ($query['ll_vocab_lesson_category_settings'] ?? ''));
+        $this->assertSame(get_permalink($replacement_lesson_id), strtok($redirect_url, '?'));
+        $this->assertSame('publish', get_post_status($replacement_lesson_id));
+    }
+
     public function test_unmanaged_user_cannot_save_category_settings_from_lesson_page(): void
     {
         $manager_id = $this->createManagerUser();

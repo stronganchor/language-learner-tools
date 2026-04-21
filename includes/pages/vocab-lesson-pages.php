@@ -1947,6 +1947,79 @@ function ll_tools_get_vocab_lesson_category_settings_notice(): ?array {
     ];
 }
 
+function ll_tools_get_vocab_lesson_category_settings_success_redirect_url(int $wordset_id, int $category_id, string $fallback_url = ''): string
+{
+    $wordset_id = (int) $wordset_id;
+    $category_id = (int) $category_id;
+    $fallback_url = is_string($fallback_url) ? $fallback_url : '';
+    $fallback_url = remove_query_arg([
+        'll_vocab_lesson_category_settings',
+        'll_vocab_lesson_category_settings_error',
+        'll_vocab_lesson_category_settings_message',
+    ], $fallback_url);
+
+    $category_meta_candidates = function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')
+        ? array_map('strval', ll_tools_get_vocab_lesson_category_meta_candidates($category_id, $wordset_id))
+        : [(string) $category_id];
+    if (empty($category_meta_candidates)) {
+        $category_meta_candidates = [(string) $category_id];
+    }
+
+    $active_lesson_ids = get_posts([
+        'post_type' => 'll_vocab_lesson',
+        'post_status' => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'cache_results' => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query' => [
+            [
+                'key' => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+            [
+                'key' => LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+                'value' => $category_meta_candidates,
+                'compare' => 'IN',
+            ],
+        ],
+    ]);
+
+    if (!empty($active_lesson_ids)) {
+        $active_lesson_permalink = get_permalink((int) $active_lesson_ids[0]);
+        if (is_string($active_lesson_permalink) && $active_lesson_permalink !== '') {
+            return add_query_arg([
+                'll_vocab_lesson_category_settings' => 'ok',
+            ], remove_query_arg([
+                'll_vocab_lesson_category_settings',
+                'll_vocab_lesson_category_settings_error',
+                'll_vocab_lesson_category_settings_message',
+            ], $active_lesson_permalink));
+        }
+    }
+
+    $wordset_term = get_term($wordset_id, 'wordset');
+    $wordset_redirect = ($fallback_url !== '') ? $fallback_url : home_url('/');
+    if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term)) {
+        if (function_exists('ll_tools_get_wordset_settings_tool_url')) {
+            $wordset_redirect = ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories');
+        } else {
+            $wordset_redirect = add_query_arg([
+                'll_wordset_page' => (string) $wordset_term->slug,
+                'll_wordset_view' => 'settings',
+                'll_wordset_tool' => 'categories',
+            ], home_url('/'));
+        }
+    }
+
+    return add_query_arg([
+        'll_wordset_manager_settings' => 'ok',
+        'll_wordset_manager_settings_message' => __('Category settings were saved. This category no longer has a vocab lesson page for the current setup.', 'll-tools-text-domain'),
+    ], $wordset_redirect);
+}
+
 function ll_tools_vocab_lesson_enqueue_assets() {
     if (!is_singular('ll_vocab_lesson')) {
         return;
@@ -2293,9 +2366,8 @@ function ll_tools_handle_vocab_lesson_category_settings_submit(): void {
         }
     }
 
-    $redirect([
-        'll_vocab_lesson_category_settings' => 'ok',
-    ]);
+    wp_safe_redirect(ll_tools_get_vocab_lesson_category_settings_success_redirect_url($wordset_id, $category_id, $base_redirect));
+    exit;
 }
 add_action('template_redirect', 'll_tools_handle_vocab_lesson_category_settings_submit', 6);
 
