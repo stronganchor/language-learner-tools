@@ -254,6 +254,7 @@ Live smoke runner config:
 - Create a local JSON file at `tests/e2e/live-smoke/sites.local.json` by copying `tests/e2e/live-smoke/sites.example.json`.
 - Or point `LL_LIVE_SITES_FILE` at another local JSON file.
 - `tests/bin/run-live-smoke.sh` is serial and intended for anonymous, low-impact public-page checks only.
+- Keep live-site entries read-only. If opening the quiz UI triggers same-origin `POST` traffic or throws client errors on a public site, omit that entry's `interaction` block and limit coverage to shell assertions plus optional search exercises.
 
 You can keep machine-local overrides (especially admin creds) in `tests/.env.local` (gitignored).
 
