@@ -3,6 +3,39 @@ declare(strict_types=1);
 
 final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 {
+    /** @var array<string,mixed> */
+    private $getBackup = [];
+
+    /** @var array<string,mixed> */
+    private $postBackup = [];
+
+    /** @var array<string,mixed> */
+    private $requestBackup = [];
+
+    /** @var array<string,mixed> */
+    private $serverBackup = [];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->getBackup = $_GET;
+        $this->postBackup = $_POST;
+        $this->requestBackup = $_REQUEST;
+        $this->serverBackup = $_SERVER;
+        unset($_GET[LL_TOOLS_RECORDER_INVITE_QUERY_ARG], $_POST[LL_TOOLS_RECORDER_INVITE_QUERY_ARG], $_REQUEST[LL_TOOLS_RECORDER_INVITE_QUERY_ARG]);
+        unset($GLOBALS['ll_tools_recorder_invite_request_context']);
+    }
+
+    protected function tearDown(): void
+    {
+        $_GET = $this->getBackup;
+        $_POST = $this->postBackup;
+        $_REQUEST = $this->requestBackup;
+        $_SERVER = $this->serverBackup;
+        unset($GLOBALS['ll_tools_recorder_invite_request_context']);
+        parent::tearDown();
+    }
+
     public function test_registration_setting_defaults_to_enabled(): void
     {
         delete_option('ll_allow_learner_self_registration');
@@ -432,6 +465,38 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('wp-login.php', $markup);
     }
 
+    public function test_recorder_invite_registration_creates_audio_recorder_and_assigns_wordset(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $wordset = wp_insert_term('Invite Recorder Wordset', 'wordset', ['slug' => 'invite-recorder-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) ($wordset['term_id'] ?? 0);
+        $token = ll_tools_recorder_invite_build_token($wordset_id, [
+            'email' => 'invited-recorder@example.org',
+        ]);
+        $this->assertNotSame('', $token);
+
+        $redirect = $this->runRegistrationRequest([
+            'user_login' => 'invitedrecorder',
+            'user_email' => 'invited-recorder@example.org',
+            '__request' => [
+                LL_TOOLS_RECORDER_INVITE_QUERY_ARG => $token,
+            ],
+        ]);
+
+        $this->assertSame('http://example.org/learn/', $redirect);
+
+        $user = get_user_by('email', 'invited-recorder@example.org');
+        $this->assertInstanceOf(WP_User::class, $user);
+        $this->assertContains('audio_recorder', (array) $user->roles);
+
+        $config = get_user_meta((int) $user->ID, 'll_recording_config', true);
+        $this->assertIsArray($config);
+        $this->assertSame('invite-recorder-wordset', (string) ($config['wordset'] ?? ''));
+        $this->assertSame('', (string) ($config['category'] ?? ''));
+    }
+
     private function normalizeMailHeaders($headers): string
     {
         if (is_array($headers)) {
@@ -449,7 +514,12 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $left = 2;
         $right = 3;
         $timestamp = time() - 5;
+        $request_overrides = isset($overrides['__request']) && is_array($overrides['__request'])
+            ? $overrides['__request']
+            : [];
+        unset($overrides['__request']);
         $previous_post = $_POST;
+        $previous_request = $_REQUEST;
         $previous_server = $_SERVER;
 
         $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -467,6 +537,8 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             'll_tools_register_math_signature' => ll_tools_login_window_sign_registration_challenge($timestamp, $left, $right),
             'll_tools_register_math_answer' => (string) ($left + $right),
         ], $overrides);
+        $_REQUEST = array_merge($_POST, $request_overrides);
+        unset($GLOBALS['ll_tools_recorder_invite_request_context']);
 
         $redirect_url = '';
         $redirect_filter = static function ($location) use (&$redirect_url) {
@@ -483,7 +555,9 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         } finally {
             remove_filter('wp_redirect', $redirect_filter, 10);
             $_POST = $previous_post;
+            $_REQUEST = $previous_request;
             $_SERVER = $previous_server;
+            unset($GLOBALS['ll_tools_recorder_invite_request_context']);
         }
 
         $this->assertNotSame('', $redirect_url);

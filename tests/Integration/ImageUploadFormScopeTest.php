@@ -94,6 +94,36 @@ final class ImageUploadFormScopeTest extends LL_Tools_TestCase
         $this->assertSame($wordset_id, ll_tools_get_category_wordset_owner_id((int) $created_category_id));
     }
 
+    public function test_manager_can_render_new_category_controls_and_create_wordset_scoped_category(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_id = $this->ensureTerm('wordset', 'Manager Category Scope', 'manager-category-scope');
+        $manager_id = self::factory()->user->create(['role' => 'author']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $html = ll_image_upload_form_shortcode();
+        $this->assertStringContainsString('Create new category', $html);
+        $this->assertStringContainsString('name="ll_new_category_title"', $html);
+
+        $_POST = [
+            'll_category_mode' => 'new',
+            'll_new_category_title' => 'Manager Scoped Category',
+            'll_wordset_scope_mode' => 'single',
+            'll_single_wordset_id' => (string) $wordset_id,
+        ];
+
+        $created_category_id = ll_image_upload_create_category_from_request();
+
+        $this->assertIsInt($created_category_id);
+        $this->assertSame($wordset_id, ll_tools_get_category_wordset_owner_id((int) $created_category_id));
+    }
+
     public function test_create_category_from_request_uses_shared_logical_root_for_multiple_scope(): void
     {
         update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);

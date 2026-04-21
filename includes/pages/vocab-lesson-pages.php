@@ -1718,6 +1718,13 @@ function ll_tools_user_can_edit_vocab_lesson_title(int $category_id = 0): bool {
         return true;
     }
 
+    $owner_wordset_id = function_exists('ll_tools_get_category_wordset_owner_id')
+        ? (int) ll_tools_get_category_wordset_owner_id($category_id)
+        : 0;
+    if ($owner_wordset_id > 0 && function_exists('ll_tools_current_user_can_manage_wordset_categories')) {
+        return ll_tools_current_user_can_manage_wordset_categories([$owner_wordset_id]);
+    }
+
     return current_user_can('manage_categories');
 }
 

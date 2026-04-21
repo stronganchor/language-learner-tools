@@ -4768,10 +4768,6 @@ function ll_tools_word_grid_update_word_handler() {
         wp_send_json_error('You must be logged in', 401);
     }
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
-    }
-
     $word_id = (int) ($_POST['word_id'] ?? 0);
     if ($word_id <= 0) {
         wp_send_json_error('Missing word ID', 400);
@@ -5277,10 +5273,6 @@ function ll_tools_word_grid_save_lesson_order_handler() {
         wp_send_json_error('You must be logged in', 401);
     }
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
-    }
-
     $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
     $lesson = $lesson_id > 0 ? get_post($lesson_id) : null;
     if (!$lesson || $lesson->post_type !== 'll_vocab_lesson') {
@@ -5341,8 +5333,8 @@ add_action('wp_ajax_ll_tools_search_dictionary_entries', 'll_tools_search_dictio
 function ll_tools_search_dictionary_entries_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in', 401);
     }
 
     $query = sanitize_text_field($_POST['q'] ?? '');
@@ -5365,6 +5357,9 @@ function ll_tools_search_dictionary_entries_handler() {
     if ($wordset_id > 0 && !ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
         wp_send_json_error('Forbidden', 403);
     }
+    if ($wordset_id <= 0 && !ll_tools_user_can_edit_vocab_words()) {
+        wp_send_json_error('Forbidden', 403);
+    }
 
     $entries = function_exists('ll_tools_search_dictionary_entries')
         ? ll_tools_search_dictionary_entries($query, $limit, $wordset_id)
@@ -5379,10 +5374,10 @@ add_action('wp_ajax_ll_tools_word_grid_update_category_prereqs', 'll_tools_word_
 function ll_tools_word_grid_update_category_prereqs_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
+    if (!is_user_logged_in()) {
         wp_send_json_error([
-            'message' => __('You do not have permission to edit prerequisites.', 'll-tools-text-domain'),
-        ], 403);
+            'message' => __('You must be logged in to edit prerequisites.', 'll-tools-text-domain'),
+        ], 401);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
@@ -5887,8 +5882,8 @@ add_action('wp_ajax_ll_tools_word_grid_bulk_update', 'll_tools_word_grid_bulk_up
 function ll_tools_word_grid_bulk_update_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in', 401);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
@@ -6189,10 +6184,10 @@ add_action('wp_ajax_ll_tools_word_grid_bulk_undo', 'll_tools_word_grid_bulk_undo
 function ll_tools_word_grid_bulk_undo_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
+    if (!is_user_logged_in()) {
         wp_send_json_error([
-            'message' => __('You do not have permission to undo bulk changes.', 'll-tools-text-domain'),
-        ], 403);
+            'message' => __('You must be logged in to undo bulk changes.', 'll-tools-text-domain'),
+        ], 401);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
@@ -6493,8 +6488,8 @@ add_action('wp_ajax_ll_tools_get_lesson_transcribe_queue', 'll_tools_get_lesson_
 function ll_tools_get_lesson_transcribe_queue_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in', 401);
     }
 
     $mode = sanitize_text_field($_POST['mode'] ?? 'missing');
@@ -6589,8 +6584,8 @@ add_action('wp_ajax_ll_tools_clear_lesson_transcriptions', 'll_tools_clear_lesso
 function ll_tools_clear_lesson_transcriptions_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in', 401);
     }
 
     $lesson_id = (int) ($_POST['lesson_id'] ?? 0);
@@ -6809,8 +6804,8 @@ add_action('wp_ajax_ll_tools_transcribe_recording_by_id', 'll_tools_transcribe_r
 function ll_tools_transcribe_recording_by_id_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_user_can_edit_vocab_words()) {
-        wp_send_json_error('Forbidden', 403);
+    if (!is_user_logged_in()) {
+        wp_send_json_error('You must be logged in', 401);
     }
 
     $lesson_id = (int) ($_POST['lesson_id'] ?? 0);

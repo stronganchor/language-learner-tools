@@ -488,7 +488,14 @@ function ll_image_upload_form_shortcode($atts = []) {
         ? ll_tools_get_main_recording_types()
         : ['isolation', 'question', 'introduction'];
 
-    $can_create_categories = current_user_can('manage_categories');
+    $can_create_categories = current_user_can('manage_categories')
+        || (
+            function_exists('ll_tools_current_user_can_manage_wordset_categories')
+            && (
+                ($default_single_wordset_id > 0 && ll_tools_current_user_can_manage_wordset_categories([$default_single_wordset_id]))
+                || (!empty($available_wordset_ids) && ll_tools_current_user_can_manage_wordset_categories($available_wordset_ids))
+            )
+        );
     $translation_context_ids = $default_single_wordset_id > 0 ? [$default_single_wordset_id] : [];
     $show_translation_field = function_exists('ll_tools_is_category_translation_enabled')
         ? ll_tools_is_category_translation_enabled($translation_context_ids)
@@ -973,7 +980,27 @@ add_action('admin_post_process_image_files', 'll_handle_image_file_uploads');
  * @return int|WP_Error New or existing term ID, or WP_Error when validation fails.
  */
 function ll_image_upload_create_category_from_request() {
-    if (!current_user_can('manage_categories')) {
+    $requested_wordset_ids = ll_image_upload_get_requested_wordset_ids_from_request();
+    $parent_id = isset($_POST['ll_new_category_parent']) ? (int) wp_unslash($_POST['ll_new_category_parent']) : 0;
+    if (
+        !current_user_can('manage_categories')
+        && (
+            !function_exists('ll_tools_current_user_can_manage_wordset_categories')
+            || (
+                empty($requested_wordset_ids)
+                && (
+                    $parent_id <= 0
+                    || !function_exists('ll_tools_get_category_wordset_owner_id')
+                    || (int) ll_tools_get_category_wordset_owner_id($parent_id) <= 0
+                    || !ll_tools_current_user_can_manage_wordset_categories([(int) ll_tools_get_category_wordset_owner_id($parent_id)])
+                )
+            )
+            || (
+                !empty($requested_wordset_ids)
+                && !ll_tools_current_user_can_manage_wordset_categories($requested_wordset_ids)
+            )
+        )
+    ) {
         return new WP_Error('ll_image_upload_category_permission', __('You do not have permission to create categories.', 'll-tools-text-domain'));
     }
 
@@ -983,8 +1010,6 @@ function ll_image_upload_create_category_from_request() {
     if ($title === '') {
         return new WP_Error('ll_image_upload_category_title_required', __('Please enter a title for the new category.', 'll-tools-text-domain'));
     }
-
-    $parent_id = isset($_POST['ll_new_category_parent']) ? (int) wp_unslash($_POST['ll_new_category_parent']) : 0;
     if ($parent_id > 0) {
         $parent_term = get_term($parent_id, 'word-category');
         if (!$parent_term || is_wp_error($parent_term)) {
@@ -997,7 +1022,7 @@ function ll_image_upload_create_category_from_request() {
         $insert_args['parent'] = $parent_id;
     }
 
-    $translation_context_ids = ll_image_upload_get_requested_wordset_ids_from_request();
+    $translation_context_ids = $requested_wordset_ids;
     $target_wordset_id = 0;
     if (count($translation_context_ids) === 1) {
         $target_wordset_id = (int) $translation_context_ids[0];

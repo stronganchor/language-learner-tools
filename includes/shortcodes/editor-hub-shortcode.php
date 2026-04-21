@@ -5,7 +5,7 @@
 
 if (!defined('WPINC')) { die; }
 
-function ll_tools_editor_hub_user_can_access(): bool {
+function ll_tools_editor_hub_user_can_access($wordset_id = 0): bool {
     if (!is_user_logged_in()) {
         return false;
     }
@@ -14,22 +14,56 @@ function ll_tools_editor_hub_user_can_access(): bool {
         return true;
     }
 
-    if (function_exists('ll_tools_user_can_edit_vocab_words')) {
-        return ll_tools_user_can_edit_vocab_words();
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id > 0) {
+        if (function_exists('ll_tools_user_can_edit_vocab_words') && ll_tools_user_can_edit_vocab_words($wordset_id)) {
+            return true;
+        }
+        if (function_exists('ll_tools_current_user_can_manage_wordset_content')) {
+            return ll_tools_current_user_can_manage_wordset_content($wordset_id);
+        }
+        return false;
     }
 
-    return current_user_can('view_ll_tools');
+    if (function_exists('ll_tools_user_can_edit_vocab_words')) {
+        if (ll_tools_user_can_edit_vocab_words()) {
+            return true;
+        }
+    }
+
+    if (function_exists('ll_tools_get_user_managed_wordset_ids')) {
+        return !empty(ll_tools_get_user_managed_wordset_ids((int) get_current_user_id()));
+    }
+
+    return false;
 }
 
 function ll_tools_editor_hub_find_first_wordset_id(bool $hide_empty): int {
-    $term_ids = get_terms([
+    $query_args = [
         'taxonomy' => 'wordset',
         'hide_empty' => $hide_empty,
         'fields' => 'ids',
         'orderby' => 'term_id',
         'order' => 'ASC',
         'number' => 1,
-    ]);
+    ];
+
+    if (
+        is_user_logged_in()
+        && !current_user_can('manage_options')
+        && (!function_exists('ll_tools_user_can_edit_vocab_words') || !ll_tools_user_can_edit_vocab_words())
+        && function_exists('ll_tools_get_user_managed_wordset_ids')
+    ) {
+        $managed_wordset_ids = array_values(array_filter(array_map('intval', ll_tools_get_user_managed_wordset_ids((int) get_current_user_id())), static function (int $term_id): bool {
+            return $term_id > 0;
+        }));
+        if (empty($managed_wordset_ids)) {
+            return 0;
+        }
+        $query_args['include'] = $managed_wordset_ids;
+    }
+
+    $term_ids = get_terms($query_args);
 
     if (is_wp_error($term_ids) || empty($term_ids)) {
         return 0;
@@ -47,13 +81,16 @@ function ll_tools_editor_hub_resolve_wordset_id($wordset_spec = ''): int {
             return $id > 0;
         }));
         if (!empty($resolved)) {
-            return (int) $resolved[0];
+            $resolved_wordset_id = (int) $resolved[0];
+            if (ll_tools_editor_hub_user_can_access($resolved_wordset_id)) {
+                return $resolved_wordset_id;
+            }
         }
     }
 
     if (function_exists('ll_tools_get_active_wordset_id')) {
         $active_wordset_id = (int) ll_tools_get_active_wordset_id();
-        if ($active_wordset_id > 0) {
+        if ($active_wordset_id > 0 && ll_tools_editor_hub_user_can_access($active_wordset_id)) {
             return $active_wordset_id;
         }
     }
@@ -925,10 +962,6 @@ function ll_tools_editor_hub_get_category_items_payload(int $wordset_id, string 
 function ll_get_editor_hub_items_handler() {
     check_ajax_referer('ll_word_grid_edit', 'nonce');
 
-    if (!ll_tools_editor_hub_user_can_access()) {
-        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
-    }
-
     $wordset_id = isset($_POST['wordset_id']) ? (int) $_POST['wordset_id'] : 0;
     if ($wordset_id <= 0) {
         $wordset_spec = isset($_POST['wordset']) ? sanitize_text_field(wp_unslash((string) $_POST['wordset'])) : '';
@@ -937,6 +970,9 @@ function ll_get_editor_hub_items_handler() {
 
     if ($wordset_id <= 0) {
         wp_send_json_error(__('Missing word set', 'll-tools-text-domain'), 400);
+    }
+    if (!ll_tools_editor_hub_user_can_access($wordset_id)) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $category_slug = isset($_POST['category']) ? sanitize_text_field(wp_unslash((string) $_POST['category'])) : '';
@@ -973,18 +1009,17 @@ function ll_editor_hub_shortcode($atts) {
         ]);
     }
 
-    if (!ll_tools_editor_hub_user_can_access()) {
-        return $utility_nav_base . '<div class="ll-editor-hub"><p>'
-            . esc_html__('You do not have permission to access Editor Hub.', 'll-tools-text-domain')
-            . '</p></div>';
-    }
-
     $atts = shortcode_atts([
         'wordset' => '',
         'category' => '',
     ], $atts);
 
     $wordset_id = ll_tools_editor_hub_resolve_wordset_id((string) $atts['wordset']);
+    if (!ll_tools_editor_hub_user_can_access($wordset_id)) {
+        return $utility_nav_base . '<div class="ll-editor-hub"><p>'
+            . esc_html__('You do not have permission to access Editor Hub.', 'll-tools-text-domain')
+            . '</p></div>';
+    }
     if ($wordset_id <= 0) {
         return $utility_nav_base . '<div class="ll-editor-hub"><p>'
             . esc_html__('No word set is available for Editor Hub.', 'll-tools-text-domain')

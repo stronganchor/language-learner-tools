@@ -127,6 +127,46 @@ final class VocabLessonTitleEditTest extends LL_Tools_TestCase
         $this->assertSame('Restricted Category', (string) get_term($category_id, 'word-category')->name);
     }
 
+    public function test_wordset_manager_can_update_lesson_category_title_for_owned_category(): void
+    {
+        $manager_id = self::factory()->user->create(['role' => 'author']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+        wp_set_current_user($manager_id);
+
+        $lesson = $this->createLessonFixture('Managed Category', 'managed-category');
+        $lesson_id = $lesson['lesson_id'];
+        $category_id = $lesson['category_id'];
+        $wordset_id = $lesson['wordset_id'];
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+
+        $this->assertTrue(ll_tools_user_can_edit_vocab_lesson_title($category_id));
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_title_' . $lesson_id),
+            'title' => 'Managed Category Updated',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_update_vocab_lesson_category_title_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $updated_category = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $updated_category);
+        $this->assertSame('Managed Category Updated', (string) $updated_category->name);
+    }
+
     /**
      * @return array{wordset_id:int, category_id:int, lesson_id:int}
      */

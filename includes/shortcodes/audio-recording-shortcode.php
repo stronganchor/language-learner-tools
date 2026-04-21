@@ -937,12 +937,18 @@ function ll_audio_recording_interface_shortcode($atts) {
 
     // Require user to be logged in
     if (!is_user_logged_in()) {
+        $is_recorder_invite_signup = function_exists('ll_tools_recorder_invite_current_request_allows_signup_registration')
+            && ll_tools_recorder_invite_current_request_allows_signup_registration();
         return $utility_nav_base . ll_tools_render_login_window([
             'container_class' => 'll-recording-interface ll-login-required',
             'title' => __('Sign in to record', 'll-tools-text-domain'),
             'message' => __('Use an account with recording access to continue.', 'll-tools-text-domain'),
             'submit_label' => __('Continue', 'll-tools-text-domain'),
             'redirect_to' => ll_tools_get_current_request_url(),
+            'show_registration' => $is_recorder_invite_signup,
+            'registration_title' => __('Create recorder account', 'll-tools-text-domain'),
+            'registration_message' => __('This invite can create a recorder account for this word set or connect an existing account with the invited email address.', 'll-tools-text-domain'),
+            'registration_submit_label' => __('Create recorder account', 'll-tools-text-domain'),
         ]);
     }
 

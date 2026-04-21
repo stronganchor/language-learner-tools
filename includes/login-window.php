@@ -61,6 +61,12 @@ if (!function_exists('ll_tools_is_learner_self_registration_available')) {
             return true;
         }
 
+        if (function_exists('ll_tools_recorder_invite_current_request_allows_signup_registration')) {
+            if (ll_tools_recorder_invite_current_request_allows_signup_registration()) {
+                return true;
+            }
+        }
+
         if (function_exists('ll_tools_teacher_class_current_request_allows_signup_registration')) {
             return ll_tools_teacher_class_current_request_allows_signup_registration();
         }
@@ -1108,6 +1114,13 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
     function ll_tools_handle_frontend_learner_registration(): void {
         $raw_redirect = isset($_POST['redirect_to']) ? wp_unslash((string) $_POST['redirect_to']) : '';
         $redirect_to = ll_tools_get_auth_redirect_target($raw_redirect);
+        $recorder_invite_token = function_exists('ll_tools_recorder_invite_get_request_token')
+            ? ll_tools_recorder_invite_get_request_token()
+            : '';
+        $recorder_invite_context = function_exists('ll_tools_recorder_invite_get_request_context')
+            ? ll_tools_recorder_invite_get_request_context()
+            : [];
+        $is_recorder_invite_registration = is_array($recorder_invite_context) && !empty($recorder_invite_context['wordset_id']);
 
         if (is_user_logged_in()) {
             wp_safe_redirect($redirect_to);
@@ -1163,6 +1176,13 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         $errors = ll_tools_login_window_validate_registration_challenge($_POST);
         $errors = array_merge($errors, $email_validation['errors']);
 
+        if ($is_recorder_invite_registration) {
+            $expected_email = strtolower(trim((string) ($recorder_invite_context['email'] ?? '')));
+            if ($expected_email !== '' && strtolower($email) !== $expected_email) {
+                $errors[] = __('Please use the invited recorder email address for this signup link.', 'll-tools-text-domain');
+            }
+        }
+
         $username = $raw_username;
         if ($email !== '') {
             if ($username === '') {
@@ -1205,13 +1225,16 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         if (function_exists('ll_tools_register_or_refresh_learner_role')) {
             ll_tools_register_or_refresh_learner_role();
         }
+        if ($is_recorder_invite_registration && function_exists('ll_tools_register_or_refresh_audio_recorder_role')) {
+            ll_tools_register_or_refresh_audio_recorder_role();
+        }
 
         $insert_args = [
             'user_login' => $username,
             'user_email' => $email,
             'user_pass' => $password,
             'display_name' => $username,
-            'role' => 'll_tools_learner',
+            'role' => $is_recorder_invite_registration ? 'audio_recorder' : 'll_tools_learner',
         ];
         $user_id = wp_insert_user($insert_args);
 
@@ -1244,7 +1267,10 @@ if (!function_exists('ll_tools_handle_frontend_learner_registration')) {
         $user_id = (int) $user_id;
         $user = get_user_by('id', $user_id);
         if ($user instanceof WP_User) {
-            $user->set_role('ll_tools_learner');
+            $user->set_role($is_recorder_invite_registration ? 'audio_recorder' : 'll_tools_learner');
+        }
+        if ($is_recorder_invite_registration && $recorder_invite_token !== '' && function_exists('ll_tools_recorder_invite_accept_for_user')) {
+            ll_tools_recorder_invite_accept_for_user($recorder_invite_token, $user_id);
         }
 
         ll_tools_maybe_send_registration_admin_notification($user_id);
@@ -1449,6 +1475,24 @@ if (!function_exists('ll_tools_render_login_window')) {
         $prefill_email = isset($prefill['email']) ? sanitize_email((string) $prefill['email']) : '';
         $prefill_register_remember = !isset($prefill['register_remember']) || ((string) $prefill['register_remember'] !== '0');
         $prefill_username_is_custom = isset($prefill['username_is_custom']) && ((string) $prefill['username_is_custom'] === '1');
+        $recorder_invite_context = function_exists('ll_tools_recorder_invite_get_request_context')
+            ? ll_tools_recorder_invite_get_request_context()
+            : [];
+        if ($registration_enabled && is_array($recorder_invite_context) && !empty($recorder_invite_context['wordset_id'])) {
+            $recorder_wordset_name = trim((string) ($recorder_invite_context['wordset_name'] ?? ''));
+            $registration_title = __('Create recorder account', 'll-tools-text-domain');
+            $registration_message = $recorder_wordset_name !== ''
+                ? sprintf(
+                    /* translators: %s: word set name */
+                    __('Create a recorder account to record for %s.', 'll-tools-text-domain'),
+                    $recorder_wordset_name
+                )
+                : __('Create a recorder account for this word set.', 'll-tools-text-domain');
+            $registration_submit_label = __('Create recorder account', 'll-tools-text-domain');
+            if ($prefill_email === '' && !empty($recorder_invite_context['email'])) {
+                $prefill_email = sanitize_email((string) $recorder_invite_context['email']);
+            }
+        }
 
         $challenge_left = random_int(1, 5);
         $challenge_right = random_int(1, 5);

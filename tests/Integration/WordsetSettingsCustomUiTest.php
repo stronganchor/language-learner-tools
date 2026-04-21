@@ -48,6 +48,8 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Language', $html);
         $this->assertStringContainsString('ll_wordset_tool=language', $html);
+        $this->assertStringContainsString('Advanced', $html);
+        $this->assertStringContainsString('ll_wordset_tool=advanced', $html);
         $this->assertStringContainsString('Template', $html);
         $this->assertStringContainsString('ll_wordset_tool=template', $html);
         $this->assertStringContainsString('Recorder Queues', $html);
@@ -384,6 +386,235 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('hosted_api_endpoint', (string) ($query['ll_wordset_manager_settings_error'] ?? ''));
         $this->assertStringContainsString('public host', (string) ($query['ll_wordset_manager_settings_message'] ?? ''));
         $this->assertSame('', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_LOCAL_TRANSCRIPTION_ENDPOINT_META_KEY, true));
+    }
+
+    public function test_advanced_tool_renders_category_ordering_and_grammar_controls(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [
+            'll_wordset_tool' => 'advanced',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'advanced'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+
+        $this->assertStringContainsString('Advanced Settings', $html);
+        $this->assertStringContainsString('name="ll_wordset_category_ordering_mode"', $html);
+        $this->assertStringContainsString('name="ll_wordset_games_image_size"', $html);
+        $this->assertStringContainsString('name="ll_wordset_has_gender"', $html);
+        $this->assertStringContainsString('name="ll_wordset_plurality_options"', $html);
+    }
+
+    public function test_advanced_settings_action_updates_wordset_meta_and_category_ordering(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $category_id = (int) $fixture['category_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_settings_action' => 'save',
+            'll_wordset_manager_settings_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_settings_nonce' => wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'advanced',
+            'll_wordset_games_image_size' => 'large',
+            'll_wordset_answer_option_text_font_weight' => '500',
+            'll_wordset_answer_option_text_font_size_px' => '36',
+            'll_wordset_category_ordering_mode' => 'manual',
+            'll_wordset_category_order_category_ids' => (string) $category_id,
+            'll_wordset_category_manual_order' => (string) $category_id,
+            'll_wordset_category_prereqs_compact_mode' => 'json-v1',
+            'll_wordset_category_prereqs_compact' => '{}',
+            'll_wordset_has_gender' => '1',
+            'll_wordset_gender_options' => "Masc\nFem",
+            'll_wordset_gender_symbol_masculine' => 'M',
+            'll_wordset_gender_symbol_feminine' => 'F',
+            'll_wordset_gender_color_masculine' => '#123456',
+            'll_wordset_gender_color_feminine' => '#654321',
+            'll_wordset_gender_color_other' => '#888888',
+            'll_wordset_has_plurality' => '1',
+            'll_wordset_plurality_options' => "Singular\nPlural",
+            'll_wordset_has_verb_tense' => '1',
+            'll_wordset_verb_tense_options' => "Present\nPast",
+            'll_wordset_has_verb_mood' => '1',
+            'll_wordset_verb_mood_options' => "Indicative\nImperative",
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('advanced', (string) ($query['ll_wordset_tool'] ?? ''));
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame('large', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true));
+        $this->assertSame('500', (string) get_term_meta($wordset_id, ll_tools_wordset_answer_option_font_weight_primary_meta_key(), true));
+        $this->assertSame('36', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, true));
+        $this->assertSame('manual', (string) get_term_meta($wordset_id, 'll_wordset_category_ordering_mode', true));
+        $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_has_gender', true));
+        $this->assertSame(['Masc', 'Fem'], array_values((array) get_term_meta($wordset_id, 'll_wordset_gender_options', true)));
+        $this->assertSame('M', (string) get_term_meta($wordset_id, ll_tools_wordset_get_gender_symbol_meta_key('masculine'), true));
+        $this->assertSame('#123456', strtolower((string) get_term_meta($wordset_id, 'll_wordset_gender_color_masculine', true)));
+        $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_has_plurality', true));
+        $this->assertSame(['Singular', 'Plural'], array_values((array) get_term_meta($wordset_id, 'll_wordset_plurality_options', true)));
+        $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_has_verb_tense', true));
+        $this->assertSame(['Present', 'Past'], array_values((array) get_term_meta($wordset_id, 'll_wordset_verb_tense_options', true)));
+        $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_has_verb_mood', true));
+        $this->assertSame(['Indicative', 'Imperative'], array_values((array) get_term_meta($wordset_id, 'll_wordset_verb_mood_options', true)));
+    }
+
+    public function test_recorder_tool_renders_upgrade_and_invite_forms(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [
+            'll_wordset_tool' => 'recorder',
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
+
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_action" value="upgrade"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_identifier"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_action" value="invite"', $html);
+        $this->assertStringContainsString('name="ll_wordset_manager_recorder_email"', $html);
+    }
+
+    public function test_recorder_upgrade_action_promotes_existing_user_and_assigns_wordset(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $manager_id = self::factory()->user->create(['role' => 'author']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $target_user_id = self::factory()->user->create([
+            'role' => 'subscriber',
+            'user_login' => 'existingrecorder',
+            'user_email' => 'existing-recorder@example.org',
+        ]);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_recorder_action' => 'upgrade',
+            'll_wordset_manager_recorder_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_recorder_identifier' => 'existing-recorder@example.org',
+            'll_wordset_manager_recorder_nonce' => wp_create_nonce('ll_wordset_manager_recorder_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'recorder',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_recorder_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_recorder'] ?? ''));
+        $this->assertSame('upgraded', (string) ($query['ll_wordset_manager_recorder_result'] ?? ''));
+
+        $updated_user = get_userdata($target_user_id);
+        $this->assertInstanceOf(WP_User::class, $updated_user);
+        $this->assertContains('audio_recorder', (array) $updated_user->roles);
+        $config = get_user_meta($target_user_id, 'll_recording_config', true);
+        $this->assertIsArray($config);
+        $this->assertSame((string) $wordset_term->slug, (string) ($config['wordset'] ?? ''));
+        $this->assertSame('', (string) ($config['category'] ?? ''));
+    }
+
+    public function test_recorder_invite_action_sends_email_and_redirects_with_success_state(): void
+    {
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $manager_id = self::factory()->user->create(['role' => 'author']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $captured = [];
+        $mail_filter = static function ($pre, $atts) use (&$captured) {
+            $captured[] = $atts;
+            return true;
+        };
+        add_filter('pre_wp_mail', $mail_filter, 10, 2);
+
+        try {
+            $_GET = [];
+            $_POST = [
+                'll_wordset_manager_recorder_action' => 'invite',
+                'll_wordset_manager_recorder_wordset_id' => (string) $wordset_id,
+                'll_wordset_manager_recorder_email' => 'new-recorder@example.org',
+                'll_wordset_manager_recorder_nonce' => wp_create_nonce('ll_wordset_manager_recorder_' . $wordset_id),
+                'll_wordset_page' => $wordset_slug,
+                'll_wordset_view' => 'settings',
+                'll_wordset_tool' => 'recorder',
+            ];
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'recorder'));
+            set_query_var('ll_wordset_page', $wordset_slug);
+            set_query_var('ll_wordset_view', 'settings');
+
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_wordset_page_handle_manager_recorder_action();
+            });
+        } finally {
+            remove_filter('pre_wp_mail', $mail_filter, 10);
+        }
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('ok', (string) ($query['ll_wordset_manager_recorder'] ?? ''));
+        $this->assertSame('invited', (string) ($query['ll_wordset_manager_recorder_result'] ?? ''));
+        $this->assertSame('new-recorder@example.org', (string) ($query['ll_wordset_manager_recorder_email'] ?? ''));
+        $this->assertCount(1, $captured);
+        $this->assertSame('new-recorder@example.org', (string) ($captured[0]['to'] ?? ''));
+        $this->assertStringContainsString((string) $wordset_term->name, (string) ($captured[0]['subject'] ?? ''));
+        $this->assertStringContainsString('ll_tools_recorder_invite=', (string) ($captured[0]['message'] ?? ''));
     }
 
     public function test_offline_app_tool_renders_frontend_export_form_for_current_wordset(): void

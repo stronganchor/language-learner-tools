@@ -112,6 +112,29 @@ final class AudioUploadFormScopeTest extends LL_Tools_TestCase
         $this->assertSame($expected_category_ids, $assigned_category_ids);
     }
 
+    public function test_audio_upload_form_manager_sees_new_category_controls_for_managed_wordset(): void
+    {
+        update_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, '1', false);
+
+        $wordset_id = $this->ensureTerm('wordset', 'Audio Manager Category Scope', 'audio-manager-category-scope');
+        $manager_id = self::factory()->user->create(['role' => 'author']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $html = ll_audio_upload_form_shortcode([
+            'wordset_id' => (string) $wordset_id,
+            'lock_wordset' => '1',
+        ]);
+
+        $this->assertStringContainsString('Create new category', $html);
+        $this->assertStringContainsString('name="ll_new_category_title"', $html);
+        $this->assertStringContainsString('The new category will be created inside the selected word set scope.', $html);
+    }
+
     private function ensureTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = term_exists($slug, $taxonomy);

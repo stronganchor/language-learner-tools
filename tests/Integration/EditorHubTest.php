@@ -163,6 +163,29 @@ final class EditorHubTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_editor_hub_user_can_access());
     }
 
+    public function test_wordset_manager_like_user_can_access_only_managed_wordset(): void
+    {
+        $managed_term = wp_insert_term('Editor Hub Managed Set', 'wordset', ['slug' => 'editor-hub-managed-set']);
+        $this->assertIsArray($managed_term);
+        $managed_wordset_id = (int) $managed_term['term_id'];
+
+        $other_term = wp_insert_term('Editor Hub Other Set', 'wordset', ['slug' => 'editor-hub-other-set']);
+        $this->assertIsArray($other_term);
+        $other_wordset_id = (int) $other_term['term_id'];
+
+        $manager_id = self::factory()->user->create(['role' => 'author']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+        update_term_meta($managed_wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $this->assertTrue(ll_tools_editor_hub_user_can_access($managed_wordset_id));
+        $this->assertFalse(ll_tools_editor_hub_user_can_access($other_wordset_id));
+        $this->assertSame($managed_wordset_id, ll_tools_editor_hub_find_first_wordset_id(false));
+    }
+
     public function test_wordset_resolver_falls_back_to_non_empty_wordset(): void
     {
         delete_option('ll_default_wordset_id');

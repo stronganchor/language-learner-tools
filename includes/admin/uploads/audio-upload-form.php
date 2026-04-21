@@ -285,7 +285,14 @@ function ll_audio_upload_form_shortcode($atts = []) {
     $default_recording_types = function_exists('ll_tools_get_main_recording_types')
         ? ll_tools_get_main_recording_types()
         : ['isolation', 'question', 'introduction'];
-    $can_create_categories = current_user_can('manage_categories');
+    $can_create_categories = current_user_can('manage_categories')
+        || (
+            function_exists('ll_tools_current_user_can_manage_wordset_categories')
+            && (
+                ($default_single_wordset_id > 0 && ll_tools_current_user_can_manage_wordset_categories([$default_single_wordset_id]))
+                || (!empty($available_wordset_ids) && ll_tools_current_user_can_manage_wordset_categories($available_wordset_ids))
+            )
+        );
     $translation_context_ids = $default_single_wordset_id > 0 ? [$default_single_wordset_id] : [];
     $show_translation_field = function_exists('ll_tools_is_category_translation_enabled')
         ? ll_tools_is_category_translation_enabled($translation_context_ids)

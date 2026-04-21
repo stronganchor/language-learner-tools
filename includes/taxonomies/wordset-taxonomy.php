@@ -387,6 +387,50 @@ function ll_tools_current_user_can_manage_wordset_content($wordset): bool {
     return ll_tools_user_can_manage_wordset_content($wordset, (int) get_current_user_id());
 }
 
+function ll_tools_user_can_manage_wordset_categories($wordsets = [], int $user_id = 0): bool {
+    $user_id = $user_id > 0 ? (int) $user_id : (int) get_current_user_id();
+    if ($user_id <= 0) {
+        return false;
+    }
+
+    $user = get_userdata($user_id);
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return false;
+    }
+
+    if (user_can($user, 'manage_options') || user_can($user, 'manage_categories')) {
+        return true;
+    }
+
+    if (!user_can($user, 'view_ll_tools')) {
+        return false;
+    }
+
+    $wordset_ids = [];
+    foreach ((array) $wordsets as $wordset) {
+        $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+        if ($wordset_id > 0) {
+            $wordset_ids[$wordset_id] = true;
+        }
+    }
+
+    if (empty($wordset_ids)) {
+        return false;
+    }
+
+    foreach (array_keys($wordset_ids) as $wordset_id) {
+        if (!ll_tools_user_can_manage_wordset_content((int) $wordset_id, $user_id)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_current_user_can_manage_wordset_categories($wordsets = []): bool {
+    return ll_tools_user_can_manage_wordset_categories($wordsets, (int) get_current_user_id());
+}
+
 function ll_tools_user_can_view_wordset($wordset, int $user_id = 0): bool {
     $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
     if ($wordset_id <= 0) {
