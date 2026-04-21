@@ -614,6 +614,12 @@
     display: inline-flex;
     align-items: center;
     --ll-tools-fab-size: 36px;
+    isolation: isolate;
+    z-index: 20;
+}
+
+.ll-vocab-lesson-category-settings.is-open {
+    z-index: 10020;
 }
 
 .ll-vocab-lesson-category-settings-trigger.ll-tools-settings-button {
@@ -668,12 +674,17 @@
     width: min(460px, 95vw) !important;
     max-height: min(72vh, 760px);
     overflow: auto;
-    padding: 16px !important;
+    padding: 16px 16px 0 !important;
     display: grid;
     gap: 14px;
     background: #ffffff !important;
     background-image: none !important;
     text-shadow: none !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable both-edges;
+    scroll-padding-top: 16px;
+    scroll-padding-bottom: 92px;
+    z-index: 10030 !important;
 }
 
 .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel,
@@ -872,6 +883,15 @@
 .ll-vocab-lesson-category-settings-actions {
     display: flex;
     justify-content: flex-end;
+    position: sticky;
+    bottom: 0;
+    margin: 0 -16px;
+    padding: 12px 16px 16px;
+    border-top: 1px solid #edf2f7;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #ffffff 28%);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 -10px 18px rgba(15, 23, 42, 0.06);
+    z-index: 2;
 }
 
 .ll-vocab-lesson-category-settings-save {
@@ -1842,6 +1862,8 @@
 .ll-vocab-lesson-content {
     max-width: 1100px;
     margin: 0 auto;
+    position: relative;
+    z-index: 1;
 }
 
 .ll-vocab-lesson-content .word-grid {
@@ -2330,6 +2352,7 @@
 
     .ll-vocab-lesson-category-settings-panel.ll-tools-settings-panel {
         width: min(100vw - 32px, 460px) !important;
+        max-height: min(78vh, 760px);
     }
 
     .ll-vocab-lesson-category-settings-checkboxes {
@@ -2344,6 +2367,7 @@
         width: 100%;
         justify-content: flex-end;
     }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
