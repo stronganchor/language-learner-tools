@@ -1143,6 +1143,34 @@
             };
     }
 
+    function selectLineupCardAudioSource(word, preferredTypes) {
+        const bestCorrectAudio = String(word && word.speaking_best_correct_audio_url || '').trim();
+        if (bestCorrectAudio) {
+            return {
+                url: bestCorrectAudio,
+                recordingType: ''
+            };
+        }
+
+        const promptAudio = selectPromptAudio(word, preferredTypes);
+        if (promptAudio && promptAudio.url) {
+            return promptAudio;
+        }
+
+        const fallbackAudio = String(word && word.audio || '').trim();
+        if (fallbackAudio) {
+            return {
+                url: fallbackAudio,
+                recordingType: 'audio'
+            };
+        }
+
+        return {
+            url: '',
+            recordingType: ''
+        };
+    }
+
     function buildStageMetrics(run) {
         const width = Math.max(280, run.width || 720);
         const height = Math.max(360, run.height || 720);
@@ -4249,6 +4277,63 @@
         ctx.transientAudioInstances.length = 0;
     }
 
+    function stopLineupCardAudio(ctx) {
+        const currentAudio = ctx && ctx.lineupCardAudio;
+        const currentButton = ctx && ctx.lineupCardAudioButton;
+        if (currentAudio && typeof currentAudio.pause === 'function') {
+            try {
+                currentAudio.pause();
+            } catch (_) { /* no-op */ }
+        }
+        if (currentAudio && typeof currentAudio.currentTime !== 'undefined') {
+            try {
+                currentAudio.currentTime = 0;
+            } catch (_) { /* no-op */ }
+        }
+        if (currentButton && currentButton.length) {
+            updateAudioButtonUi(currentButton, false);
+        }
+        if (ctx) {
+            ctx.lineupCardAudio = null;
+            ctx.lineupCardAudioButton = null;
+        }
+    }
+
+    function playLineupCardAudio(ctx, word, $button) {
+        if (!ctx || !$button || !$button.length || !ctx.run || !isLineupRun(ctx, ctx.run)) {
+            return Promise.resolve(false);
+        }
+
+        const source = selectLineupCardAudioSource(word);
+        if (!source.url) {
+            return Promise.resolve(false);
+        }
+
+        stopLineupCardAudio(ctx);
+
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.src = source.url;
+        ctx.lineupCardAudio = audio;
+        ctx.lineupCardAudioButton = $button;
+
+        bindAudioElementButtonUi(audio, $button);
+        registerTransientAudioInstance(ctx, audio);
+        updateAudioButtonUi($button, false);
+
+        const playAttempt = audio.play();
+        if (playAttempt && typeof playAttempt.catch === 'function') {
+            return playAttempt.then(function () {
+                return true;
+            }).catch(function () {
+                updateAudioButtonUi($button, false);
+                return false;
+            });
+        }
+
+        return Promise.resolve(true);
+    }
+
     function registerTransientAudioInstance(ctx, audio) {
         if (!ctx || !audio) {
             return;
@@ -6313,6 +6398,7 @@
         run.paused = true;
         clearPromptTimer(run, opts.preservePromptTimer !== false);
         pausePromptAudio(ctx);
+        stopLineupCardAudio(ctx);
         stopFeedbackAudio(ctx);
         resetRunControls(run);
         clearControlUi(ctx);
@@ -6409,6 +6495,7 @@
         resetRunControls(run);
         clearControlUi(ctx);
         pausePromptAudio(ctx);
+        stopLineupCardAudio(ctx);
         stopFeedbackAudio(ctx);
         stopTransientAudio(ctx);
         updatePauseUi(ctx);
@@ -6460,6 +6547,7 @@
         run.pauseReason = '';
         clearPromptTimer(run, false);
         pausePromptAudio(ctx);
+        stopLineupCardAudio(ctx);
         stopFeedbackAudio(ctx);
         stopTransientAudio(ctx);
         resetRunControls(run);
@@ -6552,6 +6640,7 @@
             return;
         }
         teardownUnscrambleDrag(ctx);
+        stopLineupCardAudio(ctx);
         if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
             ctx.$lineupProgress.text('');
         }
@@ -6913,6 +7002,55 @@
         return run.lineupPromptState[wordId];
     }
 
+    function getLineupCardText(word) {
+        const candidates = [
+            word && word.title,
+            word && word.label,
+            word && word.prompt_label,
+            word && word.translation,
+            word && word.recording_text,
+            word && word.recording_ipa
+        ];
+
+        for (let index = 0; index < candidates.length; index += 1) {
+            const candidate = String(candidates[index] || '').trim();
+            if (candidate) {
+                return candidate;
+            }
+        }
+
+        return '';
+    }
+
+    function getLineupCardWordForButton(ctx, $button) {
+        const run = ctx && ctx.run;
+        if (!run || !isLineupRun(ctx, run) || !run.currentOrder) {
+            return null;
+        }
+
+        const $card = $button.closest('[data-ll-wordset-lineup-card]');
+        if (!$card || !$card.length) {
+            return null;
+        }
+
+        const words = Array.isArray(run.currentOrder) ? run.currentOrder : [];
+        const wordId = toInt($card.attr('data-word-id'));
+        if (wordId > 0) {
+            for (let index = 0; index < words.length; index += 1) {
+                if (toInt(words[index] && words[index].id) === wordId) {
+                    return words[index];
+                }
+            }
+        }
+
+        const cardIndex = toInt($card.attr('data-lineup-index')) - 1;
+        if (!isFinite(cardIndex) || cardIndex < 0 || cardIndex >= words.length) {
+            return null;
+        }
+
+        return words[cardIndex];
+    }
+
     function renderLineupSequence(ctx) {
         const run = ctx && ctx.run;
         if (!run || !isLineupRun(ctx, run) || !run.currentSequence) {
@@ -6924,6 +7062,7 @@
         const direction = normalizeLineupDirection(sequence.direction);
         const words = Array.isArray(run.currentOrder) ? run.currentOrder.slice() : [];
         const checkState = (run.lineupCheck && typeof run.lineupCheck === 'object') ? run.lineupCheck : null;
+        stopLineupCardAudio(ctx);
 
         if (ctx.$lineupProgress && ctx.$lineupProgress.length) {
             ctx.$lineupProgress.text(formatMessage(
@@ -6946,6 +7085,8 @@
                 const isIncorrect = !!(checkState && checkState.incorrectWordIds && checkState.incorrectWordIds[wordId]);
                 const canMoveEarlier = !run.sequenceLocked && index > 0;
                 const canMoveLater = !run.sequenceLocked && index < (words.length - 1);
+                const cardText = getLineupCardText(word);
+                const hasCardAudio = !!selectLineupCardAudioSource(word).url;
 
                 return '' +
                     '<li class="ll-wordset-lineup-stage__card'
@@ -6954,7 +7095,26 @@
                         + '" data-ll-wordset-lineup-card data-lineup-index="' + escapeHtml(String(index + 1)) + '" data-word-id="' + escapeHtml(String(wordId)) + '">' +
                         '<div class="ll-wordset-lineup-stage__card-order" aria-hidden="true">' + escapeHtml(String(index + 1)) + '</div>' +
                         '<div class="ll-wordset-lineup-stage__card-body">' +
-                            '<p class="ll-wordset-lineup-stage__card-text" dir="auto">' + escapeHtml(String(word.title || word.label || '')) + '</p>' +
+                            '<p class="ll-wordset-lineup-stage__card-text" dir="auto">' + escapeHtml(String(cardText || '')) + '</p>' +
+                            '<button type="button" class="ll-wordset-lineup-stage__card-audio ll-prompt-audio-button" data-ll-wordset-lineup-audio aria-label="' + escapeHtml(String(ctx.i18n.gamesReplayRun || 'Replay')) + '"' + (hasCardAudio ? '' : ' disabled') + '>' +
+                                '<span class="ll-repeat-audio-ui">' +
+                                    '<span class="ll-repeat-icon-wrap" aria-hidden="true">' +
+                                        '<span class="ll-audio-play-icon" aria-hidden="true">' +
+                                            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="7 6 11 12" focusable="false" aria-hidden="true">' +
+                                                '<path d="M9.2 6.5c-.8-.5-1.8.1-1.8 1v9c0 .9 1 1.5 1.8 1l8.3-4.5c.8-.4.8-1.6 0-2L9.2 6.5z" fill="currentColor"/>' +
+                                            '</svg>' +
+                                        '</span>' +
+                                    '</span>' +
+                                    '<span class="ll-audio-mini-visualizer" aria-hidden="true">' +
+                                        '<span class="bar" data-bar="1"></span>' +
+                                        '<span class="bar" data-bar="2"></span>' +
+                                        '<span class="bar" data-bar="3"></span>' +
+                                        '<span class="bar" data-bar="4"></span>' +
+                                        '<span class="bar" data-bar="5"></span>' +
+                                        '<span class="bar" data-bar="6"></span>' +
+                                    '</span>' +
+                                '</span>' +
+                            '</button>' +
                             '<div class="ll-wordset-lineup-stage__card-actions">' +
                                 '<button type="button" class="ll-wordset-lineup-stage__move" data-ll-wordset-lineup-move="earlier"' + (canMoveEarlier ? '' : ' disabled') + '>' +
                                     '<span aria-hidden="true">' + escapeHtml(getLineupMoveArrow(direction, 'earlier')) + '</span>' +
@@ -7142,6 +7302,7 @@
         run.ended = true;
         run.sequenceLocked = true;
         pausePromptAudio(ctx);
+        stopLineupCardAudio(ctx);
         stopFeedbackAudio(ctx);
         stopTransientAudio(ctx);
         resetRunControls(run);
@@ -11297,6 +11458,20 @@
             }
         });
 
+        ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-audio]', function (event) {
+            event.preventDefault();
+            const $button = $(this);
+            if (!$button.length || !ctx.run || !isLineupRun(ctx, ctx.run) || ctx.run.ended || $button.prop('disabled')) {
+                return;
+            }
+            const word = getLineupCardWordForButton(ctx, $button);
+            if (!word) {
+                return;
+            }
+            markRunActivity(ctx);
+            playLineupCardAudio(ctx, word, $button);
+        });
+
         ctx.$page.on('click' + MODULE_NS, '[data-ll-wordset-lineup-check]', function (event) {
             event.preventDefault();
             if (!ctx.run || ctx.run.ended) {
@@ -11799,6 +11974,8 @@
             audioPreloadCache: {},
             promptAudio: null,
             feedbackAudio: null,
+            lineupCardAudio: null,
+            lineupCardAudioButton: null,
             feedbackQueue: Promise.resolve(),
             feedbackQueueVersion: 0,
             feedbackPlaying: false,
