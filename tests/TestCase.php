@@ -12,6 +12,7 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->resetLlToolsRuntimeState();
         $this->original_user_id = get_current_user_id();
         if (!$this->enforce_audio_publish_requirement) {
             $this->audio_requirement_bypass_filter = static function (): bool {
@@ -36,6 +37,7 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
             remove_filter('ll_tools_skip_audio_requirement', $this->audio_requirement_bypass_filter);
             $this->audio_requirement_bypass_filter = null;
         }
+        $this->resetLlToolsRuntimeState();
         if (function_exists('ll_tools_teacher_class_reset_invite_request_context')) {
             ll_tools_teacher_class_reset_invite_request_context();
         }
@@ -47,5 +49,11 @@ abstract class LL_Tools_TestCase extends WP_UnitTestCase
         }
         wp_set_current_user($this->original_user_id);
         parent::tearDown();
+    }
+
+    protected function resetLlToolsRuntimeState(): void
+    {
+        unset($GLOBALS['ll_tools_active_rest_request']);
+        unset($GLOBALS['ll_tools_active_rest_request_depth']);
     }
 }

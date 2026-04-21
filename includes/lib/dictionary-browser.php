@@ -1727,6 +1727,15 @@ function ll_tools_dictionary_upsert_entry_from_rows(array $rows, array $options 
     if ($entry_id <= 0) {
         $entry_id = ll_tools_dictionary_find_entry_by_title($title, $wordset_id);
     }
+    if (
+        $entry_id > 0
+        && (
+            (function_exists('ll_tools_is_dictionary_entry_id') && !ll_tools_is_dictionary_entry_id($entry_id))
+            || (!function_exists('ll_tools_is_dictionary_entry_id') && get_post_type($entry_id) !== 'll_dictionary_entry')
+        )
+    ) {
+        $entry_id = 0;
+    }
 
     $existing_senses = [];
     if ($entry_id > 0 && !$replace_existing_senses) {

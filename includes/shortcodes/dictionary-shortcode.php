@@ -203,8 +203,23 @@ function ll_tools_dictionary_shortcode_resolve_display_languages(array $search_s
     $scope_languages = function_exists('ll_tools_dictionary_search_scopes_translation_languages')
         ? ll_tools_dictionary_search_scopes_translation_languages($search_scopes)
         : [];
+    $preferred_languages = ll_tools_dictionary_shortcode_resolve_preferred_languages($wordset_id, $raw_gloss_langs);
 
     $resolved_languages = [];
+    foreach ($preferred_languages as $language) {
+        $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
+            ? ll_tools_dictionary_normalize_language_key((string) $language)
+            : strtolower(trim((string) $language));
+        if ($language_key === '' || in_array($language_key, $resolved_languages, true)) {
+            continue;
+        }
+        if (!empty($scope_languages) && !in_array($language_key, $scope_languages, true)) {
+            continue;
+        }
+
+        $resolved_languages[] = $language_key;
+    }
+
     foreach ($scope_languages as $language) {
         $language_key = function_exists('ll_tools_dictionary_normalize_language_key')
             ? ll_tools_dictionary_normalize_language_key((string) $language)
@@ -220,7 +235,7 @@ function ll_tools_dictionary_shortcode_resolve_display_languages(array $search_s
         return $resolved_languages;
     }
 
-    return ll_tools_dictionary_shortcode_resolve_preferred_languages($wordset_id, $raw_gloss_langs);
+    return $preferred_languages;
 }
 
 /**
@@ -1341,9 +1356,7 @@ function ll_tools_dictionary_render_translation_groups(array $translation_groups
         $html .= '<article class="ll-dictionary__translation-group">';
         $html .= '<div class="ll-dictionary__translation-label">' . esc_html($label) . '</div>';
         $html .= '<div class="ll-dictionary__translation-values">';
-        foreach ($values as $value) {
-            $html .= '<div class="ll-dictionary__translation-chip">' . nl2br(esc_html($value)) . '</div>';
-        }
+        $html .= ll_tools_dictionary_render_text_block(implode('; ', $values), 'translation', 220);
         $html .= '</div></article>';
     }
     $html .= '</div>';

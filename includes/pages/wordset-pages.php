@@ -8960,6 +8960,10 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
 
     ll_tools_wordset_page_enqueue_styles();
     ll_tools_wordset_page_enqueue_scripts();
+    $wordset_page_scripts = wp_scripts();
+    if ($wordset_page_scripts instanceof WP_Scripts && isset($wordset_page_scripts->registered['ll-wordset-pages-js'])) {
+        unset($wordset_page_scripts->registered['ll-wordset-pages-js']->extra['data']);
+    }
     wp_localize_script('ll-wordset-pages-js', 'llWordsetPageData', [
         'ajaxUrl' => admin_url('admin-ajax.php'),
         'nonce' => $is_study_user ? wp_create_nonce('ll_user_study') : '',

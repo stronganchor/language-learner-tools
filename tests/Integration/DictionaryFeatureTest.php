@@ -58,7 +58,6 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         unset($_COOKIE[LL_TOOLS_I18N_COOKIE]);
         delete_option(LL_TOOLS_DICTIONARY_SOURCES_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_IMPORT_HISTORY_OPTION);
-        delete_option(LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_VERSION_OPTION);
         delete_option(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_STATE_OPTION);
         delete_transient(LL_TOOLS_DICTIONARY_LOOKUP_REBUILD_LOCK_KEY);
