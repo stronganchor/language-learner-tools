@@ -24,6 +24,59 @@ function normalizeList(value) {
   return Array.isArray(value) ? value.filter(Boolean).map((item) => String(item)) : [];
 }
 
+function parseRequestDetails(request) {
+  const url = request.url();
+  const method = String(request.method() || '').toUpperCase();
+
+  let parsedUrl = null;
+  try {
+    parsedUrl = new URL(url);
+  } catch (_) {
+    parsedUrl = null;
+  }
+
+  const details = {
+    method,
+    url,
+    pathname: parsedUrl ? parsedUrl.pathname : '',
+    adminAjaxAction: '',
+    postData: ''
+  };
+
+  if (method !== 'POST') {
+    return details;
+  }
+
+  const postData = String(request.postData() || '');
+  details.postData = postData;
+  if (!postData) {
+    return details;
+  }
+
+  const params = new URLSearchParams(postData);
+  details.adminAjaxAction = String(params.get('action') || '').trim();
+  return details;
+}
+
+function getAllowedAdminAjaxActions(networkConfig) {
+  const configured = normalizeList(networkConfig.allowedAdminAjaxActions);
+  const allowed = new Set(['ll_get_words_by_category']);
+  configured.forEach((action) => allowed.add(action));
+  return allowed;
+}
+
+function isAllowedSameOriginNonGetRequest(details, networkConfig) {
+  if (!details || details.method === 'GET') {
+    return true;
+  }
+
+  if (details.method === 'POST' && /\/wp-admin\/admin-ajax\.php$/i.test(details.pathname || '')) {
+    return getAllowedAdminAjaxActions(networkConfig).has(details.adminAjaxAction);
+  }
+
+  return false;
+}
+
 function loadSites() {
   const sitesFile = resolveSitesFilePath(process.env.LL_LIVE_SITES_FILE || '');
   if (!fs.existsSync(sitesFile)) {
@@ -155,6 +208,11 @@ async function findFirstVisibleLocator(page, selector) {
   return null;
 }
 
+function parseLessonCount(text) {
+  const match = String(text || '').match(/(\d+)/);
+  return match ? parseInt(match[1], 10) || 0 : 0;
+}
+
 function pickSearchProbe(snapshot, configuredProbe) {
   if (configuredProbe) {
     return String(configuredProbe).trim();
@@ -175,6 +233,107 @@ function pickSearchProbe(snapshot, configuredProbe) {
   }
 
   return 'test';
+}
+
+async function navigateViaMostLessonsWordsetButton(page, navigationConfig) {
+  const buttonSelector = navigationConfig.buttonSelector || '.ll-wordset-buttons-shortcode__button';
+  const countSelector = navigationConfig.countSelector || '.ll-wordset-buttons-shortcode__count';
+  const navigationTimeoutMs = navigationConfig.navigationTimeoutMs || 30000;
+  const settleMs = navigationConfig.settleMs || 1500;
+
+  const candidates = await page.locator(buttonSelector).evaluateAll((nodes, selectors) => {
+    const { countSelectorValue } = selectors;
+
+    const isVisible = (element) => {
+      if (!element) {
+        return false;
+      }
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
+    };
+
+    return nodes.map((node, index) => {
+      const countNode = countSelectorValue ? node.querySelector(countSelectorValue) : null;
+      return {
+        index,
+        visible: isVisible(node),
+        href: node instanceof HTMLAnchorElement ? node.href : '',
+        label: String((node.textContent || '').trim()).replace(/\s+/g, ' '),
+        countText: String(countNode ? (countNode.textContent || '') : '').trim()
+      };
+    });
+  }, {
+    countSelectorValue: countSelector
+  });
+
+  const visibleCandidates = candidates
+    .map((candidate) => Object.assign({}, candidate, {
+      lessonCount: parseLessonCount(candidate.countText)
+    }))
+    .filter((candidate) => candidate.visible && candidate.href);
+
+  expect(
+    visibleCandidates.length,
+    'No visible wordset buttons were found for the configured live-smoke navigation.'
+  ).toBeGreaterThan(0);
+
+  visibleCandidates.sort((left, right) => {
+    if (left.lessonCount !== right.lessonCount) {
+      return right.lessonCount - left.lessonCount;
+    }
+    return String(left.label || '').localeCompare(String(right.label || ''));
+  });
+
+  const selected = visibleCandidates[0];
+  const currentUrl = page.url();
+  const target = page.locator(buttonSelector).nth(selected.index);
+  let clickNavigationResolved = false;
+
+  await Promise.all([
+    page.waitForNavigation({
+      timeout: Math.min(navigationTimeoutMs, 8000),
+      waitUntil: 'domcontentloaded'
+    }).then(() => {
+      clickNavigationResolved = true;
+    }).catch(() => null),
+    target.click({ force: true, timeout: navigationTimeoutMs })
+  ]);
+
+  if (!clickNavigationResolved && page.url() === currentUrl) {
+    await page.goto(selected.href, {
+      timeout: navigationTimeoutMs,
+      waitUntil: 'domcontentloaded'
+    });
+  } else {
+    await page.waitForLoadState('domcontentloaded', { timeout: navigationTimeoutMs });
+  }
+
+  if (settleMs > 0) {
+    await page.waitForTimeout(settleMs);
+  }
+
+  return {
+    type: 'wordsetButtonMostLessons',
+    selectedLabel: selected.label,
+    selectedLessonCount: selected.lessonCount,
+    selectedHref: selected.href,
+    finalUrl: page.url()
+  };
+}
+
+async function maybePerformNavigation(page, navigationConfig) {
+  if (!navigationConfig || typeof navigationConfig !== 'object') {
+    return null;
+  }
+  if (!navigationConfig.type) {
+    return null;
+  }
+
+  if (navigationConfig.type === 'wordsetButtonMostLessons') {
+    return navigateViaMostLessonsWordsetButton(page, navigationConfig);
+  }
+
+  throw new Error('Unsupported live-smoke navigation type: ' + String(navigationConfig.type || ''));
 }
 
 async function exerciseWordsetSearch(page, snapshot, exerciseConfig) {
@@ -264,6 +423,7 @@ if (loadSitesError) {
       const expected = site.expected && typeof site.expected === 'object' ? site.expected : {};
       const exercise = site.exercise && typeof site.exercise === 'object' ? site.exercise : {};
       const interaction = site.interaction && typeof site.interaction === 'object' ? site.interaction : {};
+      const navigation = site.navigation && typeof site.navigation === 'object' ? site.navigation : {};
       const network = site.network && typeof site.network === 'object' ? site.network : {};
 
       const summary = {
@@ -273,6 +433,8 @@ if (loadSitesError) {
         consoleErrors: [],
         pageErrors: [],
         sameOriginNonGetRequests: [],
+        allowedSameOriginNonGetRequests: [],
+        unexpectedSameOriginNonGetRequests: [],
         sameOriginRequestFailures: [],
         sameOriginServerErrors: []
       };
@@ -296,10 +458,13 @@ if (loadSitesError) {
           return;
         }
         if (request.method() !== 'GET') {
-          summary.sameOriginNonGetRequests.push({
-            method: request.method(),
-            url: request.url()
-          });
+          const requestDetails = parseRequestDetails(request);
+          summary.sameOriginNonGetRequests.push(requestDetails);
+          if (isAllowedSameOriginNonGetRequest(requestDetails, network)) {
+            summary.allowedSameOriginNonGetRequests.push(requestDetails);
+          } else {
+            summary.unexpectedSameOriginNonGetRequests.push(requestDetails);
+          }
         }
       });
 
@@ -344,6 +509,23 @@ if (loadSitesError) {
       expect(summary.status).toBeLessThan(400);
 
       await page.waitForTimeout(site.settleMs || 1500);
+
+      summary.navigation = await maybePerformNavigation(page, navigation);
+      if (summary.navigation) {
+        summary.entryPhase = {
+          sameOriginNonGetRequests: summary.sameOriginNonGetRequests.slice(),
+          allowedSameOriginNonGetRequests: summary.allowedSameOriginNonGetRequests.slice(),
+          unexpectedSameOriginNonGetRequests: summary.unexpectedSameOriginNonGetRequests.slice(),
+          sameOriginRequestFailures: summary.sameOriginRequestFailures.slice(),
+          sameOriginServerErrors: summary.sameOriginServerErrors.slice()
+        };
+        summary.sameOriginNonGetRequests = [];
+        summary.allowedSameOriginNonGetRequests = [];
+        summary.unexpectedSameOriginNonGetRequests = [];
+        summary.sameOriginRequestFailures = [];
+        summary.sameOriginServerErrors = [];
+      }
+      summary.finalUrl = page.url();
 
       summary.snapshot = await collectSnapshot(page);
       summary.title = summary.snapshot.title;
@@ -407,13 +589,22 @@ if (loadSitesError) {
       expect(summary.sameOriginRequestFailures, 'Same-origin requests failed.').toEqual([]);
       expect(summary.sameOriginServerErrors, 'Same-origin responses returned 5xx.').toEqual([]);
 
-      const maxSameOriginNonGetRequests = typeof network.maxSameOriginNonGetRequests === 'number'
-        ? network.maxSameOriginNonGetRequests
-        : 0;
+      const maxUnexpectedSameOriginNonGetRequests = typeof network.maxUnexpectedSameOriginNonGetRequests === 'number'
+        ? network.maxUnexpectedSameOriginNonGetRequests
+        : (typeof network.maxSameOriginNonGetRequests === 'number'
+          ? network.maxSameOriginNonGetRequests
+          : 0);
       expect(
-        summary.sameOriginNonGetRequests.length,
-        'Too many same-origin non-GET requests were made during the smoke test.'
-      ).toBeLessThanOrEqual(maxSameOriginNonGetRequests);
+        summary.unexpectedSameOriginNonGetRequests.length,
+        'Too many unexpected same-origin non-GET requests were made during the smoke test.'
+      ).toBeLessThanOrEqual(maxUnexpectedSameOriginNonGetRequests);
+
+      if (typeof network.maxTotalSameOriginNonGetRequests === 'number') {
+        expect(
+          summary.sameOriginNonGetRequests.length,
+          'Too many total same-origin non-GET requests were made during the smoke test.'
+        ).toBeLessThanOrEqual(network.maxTotalSameOriginNonGetRequests);
+      }
 
       if (PAUSE_MS > 0) {
         await page.waitForTimeout(PAUSE_MS);

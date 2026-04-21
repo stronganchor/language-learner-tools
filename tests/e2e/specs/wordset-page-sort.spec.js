@@ -496,6 +496,59 @@ test('wordset page sort menu reorders categories by alpha, progress, and recency
   await expect.poll(() => getRenderedCategoryOrder(page)).toEqual(['Travel', 'Fruit', 'Animals']);
 });
 
+test('wordset page sort menu closes on outside click without throwing page errors', async ({ page }) => {
+  const categories = [
+    {
+      id: 11,
+      slug: 'fruit',
+      name: 'Fruit',
+      translation: 'Fruit',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'apple pear banana',
+      preview: []
+    },
+    {
+      id: 22,
+      slug: 'animals',
+      name: 'Animals',
+      translation: 'Animals',
+      count: 10,
+      url: '#',
+      mode: 'image',
+      prompt_type: 'audio',
+      option_type: 'image',
+      learning_supported: true,
+      gender_supported: false,
+      aspect_bucket: 'ratio:1_1',
+      hidden: false,
+      search_text: 'cat dog bird',
+      preview: []
+    }
+  ];
+
+  const pageErrors = [];
+  page.on('pageerror', (error) => {
+    pageErrors.push(String(error));
+  });
+
+  await mountWordsetPage(page, { categories });
+  await page.click('[data-ll-wordset-main-sort-toggle]');
+  await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeVisible();
+
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+
+  await expect(page.locator('[data-ll-wordset-main-sort-menu]')).toBeHidden();
+  expect(pageErrors).toEqual([]);
+});
+
 test('deferred metrics apply an active progress sort after analytics loads', async ({ page }) => {
   const categories = [
     {

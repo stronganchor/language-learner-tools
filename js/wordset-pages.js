@@ -12786,7 +12786,7 @@
         $(document)
             .off('click.llWordsetMainSort')
             .on('click.llWordsetMainSort', function (event) {
-                if (!$mainCategorySortMenuOpen) {
+                if (!mainCategorySortMenuOpen) {
                     return;
                 }
                 const target = event && event.target ? event.target : null;
