@@ -60,6 +60,7 @@ require_once(__DIR__ . '/privacy.php');
 // Include API integrations (used by recorder flows on public pages)
 require_once(__DIR__ . '/admin/api/deepl-api.php');
 require_once(__DIR__ . '/admin/api/assemblyai-api.php');
+require_once(__DIR__ . '/api/automation-rest.php');
 // Word option rules now power a lesson-side modal as well as the admin screen.
 require_once(__DIR__ . '/admin/word-option-rules-admin.php');
 

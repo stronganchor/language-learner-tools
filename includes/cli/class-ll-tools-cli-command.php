@@ -65,6 +65,9 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
             }
 
             $created_wordset_id = (int) ($result['wordset_id'] ?? 0);
+            if ($manager_id > 0) {
+                ll_tools_cli_assign_wordset_manager($created_wordset_id, $manager_id);
+            }
             $created_term = get_term($created_wordset_id, 'wordset');
             $payload = [
                 'wordset_id' => $created_wordset_id,

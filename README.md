@@ -143,6 +143,28 @@ From this plugin checkout you can also use `bash bin/ll-wp.sh ...` as a convenie
 
 See [docs/CLI_AUTOMATION.md](docs/CLI_AUTOMATION.md) for the recommended workflow, supported update fields, dry-run/resume usage, and reporting details.
 
+## REST Automation
+
+If you want to keep a temp WordPress admin or manager user workflow instead of
+server shell access, LL Tools also exposes REST automation routes under
+`/wp-json/ll-tools/v1/...`.
+
+These routes support:
+
+- logged-in browser sessions with REST nonce
+- WordPress Application Passwords
+- LL Tools password-based Basic auth using the site's normal WordPress username and password
+
+Examples:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD https://example.com/wp-json/ll-tools/v1/automation/status
+curl -u codex-temp:YOUR_PASSWORD https://example.com/wp-json/ll-tools/v1/wordsets/spanish/report
+curl -u codex-temp:YOUR_PASSWORD "https://example.com/wp-json/ll-tools/v1/wordsets/spanish/missing-meta?fields=part_of_speech,grammatical_gender"
+```
+
+See [docs/REST_AUTOMATION.md](docs/REST_AUTOMATION.md) for the full route list, request bodies, auth notes, and bulk-update/resume examples.
+
 ---
 
 ## Shortcodes (details)
