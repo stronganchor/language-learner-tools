@@ -7,6 +7,30 @@ This is the better fit when you want to keep the current workflow of giving
 Codex a temporary WordPress admin or manager account instead of SSH access to
 the server.
 
+## Recommended workflow
+
+For a normal Codex session against a live LL Tools site:
+
+1. Create a temporary WordPress user.
+2. Prefer `administrator` when Codex needs to create wordsets, change sitewide
+   settings, or work across multiple wordsets.
+3. Use `wordset_manager` when Codex only needs to work inside one assigned
+   wordset.
+4. Assign the manager to the correct wordset before starting the session.
+5. Give Codex the site URL plus the temporary username and password.
+6. First call `GET /automation/status` to confirm authentication and capability
+   scope.
+7. Then call `GET /wordsets/{wordset}/report` to confirm the exact target
+   wordset and current coverage.
+8. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
+9. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
+   write operation.
+10. Re-run the same request without `dry_run` to apply changes.
+11. Delete or downgrade the temporary user when the session is complete.
+
+This sequence keeps the workflow close to how Codex already operates in
+wp-admin, but removes nonce scraping and form replay.
+
 ## Authentication
 
 The LL Tools automation routes support three auth paths:
@@ -38,6 +62,13 @@ bash bin/ll-rest-local.sh /wp-json/ll-tools/v1/automation/status -u codex-temp:Y
 
 The wrapper resolves the Local site URL with `wp option get home` and sends the
 request through Windows `curl.exe`, which can reach the Local listener reliably.
+
+Example:
+
+```bash
+bash bin/ll-rest-local.sh /wp-json/ll-tools/v1/wordsets/english/report \
+  -u codex-temp:YOUR_PASSWORD
+```
 
 ## Endpoints
 
@@ -124,6 +155,21 @@ curl -u codex-temp:YOUR_PASSWORD \
   }'
 ```
 
+Dry-run a part-of-speech backfill for only two words:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/bulk-update \
+  -d '{
+    "set": { "field": "part_of_speech", "value": "noun" },
+    "where_missing": ["part_of_speech"],
+    "dry_run": true,
+    "limit": 2
+  }'
+```
+
 ## Route behavior
 
 ### `GET /automation/status`
@@ -142,6 +188,9 @@ Body fields:
 - `template` optional wordset slug, name, or ID
 - `manager` optional user login, email, or ID
 
+Use this route when Codex needs to create a fresh working copy from a reusable
+template without logging into wp-admin taxonomy screens first.
+
 ### `GET /wordsets/{wordset}/missing-meta`
 
 Returns the machine-readable missing-metadata report.
@@ -150,6 +199,9 @@ Query params:
 
 - `category` optional category slug or name
 - `fields` optional comma-separated list or repeated array
+
+Use this route before a metadata-editing session so Codex can see the exact
+remaining rows instead of inferring gaps from the UI.
 
 ### `POST /wordsets/{wordset}/bulk-update`
 
@@ -183,10 +235,20 @@ Supported update fields:
 back the response's `resume_state` object on the next request to skip words that
 were already processed successfully.
 
+Typical uses:
+
+- backfilling `part_of_speech`
+- backfilling `grammatical_gender`
+- attaching `dictionary_entry_title`
+- updating `word_note` without resending the entire word row
+
 ### `GET /wordsets/{wordset}/report`
 
 Returns the full machine-readable wordset report with settings, coverage, and
 per-category counts.
+
+Use this route at the start and end of a session to confirm the target scope and
+to capture a before/after snapshot for later auditing.
 
 ## Permissions
 
@@ -198,3 +260,28 @@ The routes still respect LL Tools permissions:
 
 That means a `wordset_manager` can use these routes for their assigned wordset
 but not for unrelated wordsets.
+
+## Quick decision guide
+
+Use REST automation when:
+
+- Codex only has WordPress credentials, not SSH
+- you want to preserve the existing temp-user workflow
+- the task is wordset creation, metadata cleanup, or reporting
+
+Use WP-CLI instead when:
+
+- Codex has shell access to the server
+- the task needs local filesystem operations or direct command chaining
+- you are running large maintenance flows entirely inside a trusted server shell
+
+## Common failure cases
+
+- `401` on `/automation/status`
+  - The username/password are wrong, or the request is not sending Basic auth.
+- `403` with a wordset manager account
+  - The user is authenticated but is not assigned to that specific wordset.
+- `403` for password-based auth on a live site
+  - The request is probably plain HTTP instead of HTTPS.
+- Local WSL `curl` connection failures
+  - Use `bash bin/ll-rest-local.sh ...` instead of Linux `curl`.
