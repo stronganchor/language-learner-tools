@@ -2024,6 +2024,9 @@ function ll_tools_vocab_lesson_enqueue_assets() {
     if (!is_singular('ll_vocab_lesson')) {
         return;
     }
+    if (function_exists('ll_qp_enqueue_popup_assets')) {
+        ll_qp_enqueue_popup_assets();
+    }
     ll_enqueue_asset_by_timestamp('/css/flashcard/base.css', 'll-tools-flashcard-style');
     if (ll_tools_vocab_lesson_should_preload_flashcards()) {
         if (function_exists('ll_tools_enqueue_confetti_asset')) {
