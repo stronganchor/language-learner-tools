@@ -123,6 +123,25 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 ---
 
+## Command-Line Automation
+
+For Codex/operator workflows, LL Tools now exposes plugin-owned WP-CLI commands under `wp ll-tools ...` so common maintenance no longer has to drive `wp-admin` forms or AJAX.
+
+Examples:
+
+```bash
+wp --path=/path/to/site/public ll-tools wordset-create "Spanish Travel" --template=travel-template
+wp --path=/path/to/site/public ll-tools wordset-missing-meta spanish --fields=part_of_speech,grammatical_gender --format=json
+wp --path=/path/to/site/public ll-tools word-bulk-update spanish --where-missing=grammatical_gender --set=grammatical_gender=Feminine --dry-run
+wp --path=/path/to/site/public ll-tools wordset-report spanish --summary-file=tmp/spanish-report.json
+```
+
+From this plugin checkout you can also use `bash bin/ll-wp.sh ...` as a convenience wrapper when `wp` is already installed in `PATH`.
+
+See [docs/CLI_AUTOMATION.md](docs/CLI_AUTOMATION.md) for the recommended workflow, supported update fields, dry-run/resume usage, and reporting details.
+
+---
+
 ## Shortcodes (details)
 
 ### `[flashcard_widget]`

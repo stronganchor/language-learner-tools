@@ -105,6 +105,15 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
 }
 
+if (defined('WP_CLI') && WP_CLI) {
+    require_once __DIR__ . '/cli/cli-support.php';
+    require_once __DIR__ . '/cli/class-ll-tools-cli-command.php';
+
+    if (class_exists('WP_CLI') && class_exists('LL_Tools_CLI_Command')) {
+        WP_CLI::add_command('ll-tools', 'LL_Tools_CLI_Command');
+    }
+}
+
 // Include pages
 require_once(__DIR__ . '/pages/quiz-pages.php');
 if (function_exists('ll_tools_register_autopage_activation') && defined('LL_TOOLS_MAIN_FILE')) {
