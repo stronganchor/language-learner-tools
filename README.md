@@ -165,6 +165,9 @@ curl -u codex-temp:YOUR_PASSWORD "https://example.com/wp-json/ll-tools/v1/wordse
 
 See [docs/REST_AUTOMATION.md](docs/REST_AUTOMATION.md) for the full route list, request bodies, auth notes, and bulk-update/resume examples.
 
+For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
+`curl` cannot reach the Windows-hosted Local listener directly.
+
 ---
 
 ## Shortcodes (details)

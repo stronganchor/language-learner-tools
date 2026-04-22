@@ -26,6 +26,19 @@ Security notes:
   request is clearly local development.
 - Prefer temporary users and remove them when the automation session is done.
 
+## Local WSL helper
+
+On this machine, the Local site listener can be reachable from Windows but not
+from WSL's Linux networking stack. When Codex is running in WSL, use the helper
+wrapper instead of Linux `curl`:
+
+```bash
+bash bin/ll-rest-local.sh /wp-json/ll-tools/v1/automation/status -u codex-temp:YOUR_PASSWORD
+```
+
+The wrapper resolves the Local site URL with `wp option get home` and sends the
+request through Windows `curl.exe`, which can reach the Local listener reliably.
+
 ## Endpoints
 
 Base namespace:
