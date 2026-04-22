@@ -210,11 +210,16 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="user_login"', $markup);
         $this->assertStringContainsString('name="user_pass"', $markup);
         $this->assertStringContainsString('id="ll-tools-register-remember-', $markup);
+        $this->assertStringContainsString('data-ll-auth-layout="toggle"', $markup);
+        $this->assertStringContainsString('data-ll-auth-mode="login"', $markup);
+        $this->assertStringContainsString('data-ll-auth-toggle="1"', $markup);
+        $this->assertStringContainsString('Create a new account', $markup);
         $this->assertStringContainsString('data-ll-register-email="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password="1"', $markup);
         $this->assertStringContainsString('data-ll-register-password-toggle="1"', $markup);
         $this->assertStringContainsString('ll_tools_register_math_answer', $markup);
         $this->assertStringNotContainsString('ll-tools-login-window__register-message', $markup);
+        $this->assertStringNotContainsString('ll-tools-login-window__divider', $markup);
         $this->assertMatchesRegularExpression('/type="text"\s+id="ll-tools-register-password-[^"]+"\s+name="user_pass"[\s\S]*?autocomplete="new-password"/', $markup);
         $this->assertMatchesRegularExpression('/>\s*[1-5] \+ [1-5] =\s*<\/label>/', $markup);
         $this->assertStringContainsString('action="http://example.org/wp-admin/admin-post.php"', $markup);
@@ -256,6 +261,7 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 
         $this->assertStringNotContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('New account registration is currently disabled.', $markup);
+        $this->assertStringNotContainsString('data-ll-auth-toggle="1"', $markup);
     }
 
     public function test_registration_availability_requires_wordpress_user_registration(): void
@@ -284,9 +290,10 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
 
         $this->assertStringNotContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('New account registration is currently disabled.', $markup);
+        $this->assertStringNotContainsString('data-ll-auth-toggle="1"', $markup);
     }
 
-    public function test_register_auth_request_renders_signup_only_screen(): void
+    public function test_register_auth_request_defaults_the_combined_window_to_signup_mode(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
         update_option('users_can_register', 1);
@@ -305,19 +312,22 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             unset($_GET['ll_tools_auth']);
         }
 
-        $this->assertStringNotContainsString('name="log"', $markup);
-        $this->assertStringNotContainsString('name="pwd"', $markup);
+        $this->assertStringContainsString('data-ll-auth-layout="toggle"', $markup);
+        $this->assertStringContainsString('data-ll-auth-mode="register"', $markup);
+        $this->assertMatchesRegularExpression('/<input[^>]*data-ll-auth-toggle="1"[^>]*checked/', $markup);
+        $this->assertStringContainsString('name="log"', $markup);
+        $this->assertStringContainsString('name="pwd"', $markup);
         $this->assertStringContainsString('name="user_email"', $markup);
         $this->assertStringContainsString('name="user_login"', $markup);
         $this->assertStringContainsString('id="ll-tools-register-remember-', $markup);
         $this->assertStringContainsString('Create learner account', $markup);
-        $this->assertStringContainsString('Already have an account?', $markup);
-        $this->assertStringContainsString('ll_tools_auth=login', $markup);
-        $this->assertStringNotContainsString('Use an account to save your progress and keep learning from this page.', $markup);
+        $this->assertStringContainsString('Use an account to save your progress and keep learning from this page.', $markup);
+        $this->assertStringNotContainsString('Already have an account?', $markup);
+        $this->assertStringNotContainsString('Need an account?', $markup);
         $this->assertStringNotContainsString('ll-tools-login-window__divider', $markup);
     }
 
-    public function test_login_auth_request_renders_login_only_screen_with_signup_link(): void
+    public function test_login_auth_request_defaults_the_combined_window_to_login_mode(): void
     {
         update_option('ll_allow_learner_self_registration', 1);
         update_option('users_can_register', 1);
@@ -333,11 +343,13 @@ final class LoginWindowRegistrationTest extends LL_Tools_TestCase
             unset($_GET['ll_tools_auth']);
         }
 
+        $this->assertStringContainsString('data-ll-auth-layout="toggle"', $markup);
+        $this->assertStringContainsString('data-ll-auth-mode="login"', $markup);
+        $this->assertMatchesRegularExpression('/<input[^>]*data-ll-auth-toggle="1"(?![^>]*checked)/', $markup);
         $this->assertStringContainsString('name="log"', $markup);
         $this->assertStringContainsString('name="pwd"', $markup);
-        $this->assertStringNotContainsString('name="user_email"', $markup);
-        $this->assertStringContainsString('Need an account?', $markup);
-        $this->assertStringContainsString('ll_tools_auth=register', $markup);
+        $this->assertStringContainsString('name="user_email"', $markup);
+        $this->assertStringNotContainsString('Need an account?', $markup);
         $this->assertStringNotContainsString('ll-tools-login-window__divider', $markup);
     }
 

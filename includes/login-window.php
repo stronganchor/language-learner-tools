@@ -1415,12 +1415,10 @@ if (!function_exists('ll_tools_render_login_window')) {
         $explicit_mode = $feedback_form !== '' ? $feedback_form : $requested_mode;
 
         if ($requested_screen_mode === 'auto') {
-            if ($explicit_mode === 'register' && $supports_registration_screen) {
-                $screen_mode = 'register';
-            } elseif ($explicit_mode === 'login') {
-                $screen_mode = 'login';
-            } else {
+            if ($show_registration && ($registration_enabled || $registration_disabled)) {
                 $screen_mode = 'combined';
+            } else {
+                $screen_mode = 'login';
             }
         } else {
             $screen_mode = $requested_screen_mode;
@@ -1435,9 +1433,12 @@ if (!function_exists('ll_tools_render_login_window')) {
 
         $show_login_screen = ($screen_mode !== 'register');
         $show_registration_screen = ($screen_mode !== 'login');
-        $show_auth_divider = ($screen_mode === 'combined') && ($registration_enabled || $registration_disabled);
-        $show_registration_intro = $registration_enabled && ($screen_mode === 'combined');
+        $use_auth_toggle = ($screen_mode === 'combined') && $registration_enabled;
+        $show_registration_intro = $registration_enabled && $use_auth_toggle;
         $active_mode = ($screen_mode === 'register' && $supports_registration_screen) ? 'register' : 'login';
+        if ($use_auth_toggle && $explicit_mode === 'register') {
+            $active_mode = 'register';
+        }
 
         $login_feedback = ($feedback_form === 'login') ? $feedback_messages : [];
         $registration_feedback = ($feedback_form === 'register') ? $feedback_messages : [];
@@ -1458,6 +1459,7 @@ if (!function_exists('ll_tools_render_login_window')) {
         $login_identifier_id = 'll-tools-user-login-' . $suffix;
         $login_password_id = 'll-tools-user-pass-' . $suffix;
         $login_remember_id = 'll-tools-user-remember-' . $suffix;
+        $login_section_id = 'll-tools-login-section-' . $suffix;
 
         $registration_form_id = 'll-tools-register-form-' . $suffix;
         $registration_email_id = 'll-tools-register-email-' . $suffix;
@@ -1466,6 +1468,8 @@ if (!function_exists('ll_tools_render_login_window')) {
         $registration_remember_id = 'll-tools-register-remember-' . $suffix;
         $registration_math_id = 'll-tools-register-math-' . $suffix;
         $registration_honeypot_id = 'll-tools-register-website-' . $suffix;
+        $registration_section_id = 'll-tools-register-section-' . $suffix;
+        $auth_toggle_id = 'll-tools-auth-toggle-' . $suffix;
 
         $prefill_login_identifier = isset($prefill['login_identifier'])
             ? ll_tools_login_window_trimmed_identifier($prefill['login_identifier'])
@@ -1530,7 +1534,13 @@ if (!function_exists('ll_tools_render_login_window')) {
 
         ob_start();
         ?>
-        <div id="ll-tools-auth-window" class="<?php echo esc_attr($container_class); ?>" data-ll-tools-login-window="1" data-ll-auth-focus="<?php echo esc_attr($active_mode); ?>">
+        <div
+            id="ll-tools-auth-window"
+            class="<?php echo esc_attr($container_class); ?>"
+            data-ll-tools-login-window="1"
+            data-ll-auth-layout="<?php echo esc_attr($use_auth_toggle ? 'toggle' : $screen_mode); ?>"
+            data-ll-auth-mode="<?php echo esc_attr($active_mode); ?>"
+            data-ll-auth-focus="<?php echo esc_attr($active_mode); ?>">
             <div class="ll-tools-login-window" role="group" aria-label="<?php echo esc_attr($title); ?>">
                 <span class="ll-tools-login-window__icon" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
@@ -1544,8 +1554,27 @@ if (!function_exists('ll_tools_render_login_window')) {
                     <p class="ll-tools-login-window__message"><?php echo esc_html($message); ?></p>
                 <?php endif; ?>
 
+                <?php if ($use_auth_toggle): ?>
+                    <div class="ll-tools-login-window__toggle-grid">
+                        <input
+                            type="checkbox"
+                            id="<?php echo esc_attr($auth_toggle_id); ?>"
+                            class="ll-tools-login-window__toggle-checkbox"
+                            data-ll-auth-toggle="1"
+                            aria-controls="<?php echo esc_attr($login_section_id . ' ' . $registration_section_id); ?>"
+                            aria-expanded="<?php echo $active_mode === 'register' ? 'true' : 'false'; ?>"
+                            <?php checked($active_mode === 'register'); ?> />
+                        <label class="ll-tools-login-window__toggle-label" for="<?php echo esc_attr($auth_toggle_id); ?>">
+                            <?php esc_html_e('Create a new account', 'll-tools-text-domain'); ?>
+                        </label>
+                <?php endif; ?>
+
+                <div class="ll-tools-login-window__panes">
                 <?php if ($show_login_screen): ?>
-                    <div class="ll-tools-login-window__form" data-ll-auth-section="login">
+                    <div
+                        id="<?php echo esc_attr($login_section_id); ?>"
+                        class="ll-tools-login-window__form"
+                        data-ll-auth-section="login">
                         <?php echo ll_tools_render_login_window_notice($login_feedback, $feedback_type); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
                         <form id="<?php echo esc_attr($login_form_id); ?>" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
@@ -1588,14 +1617,11 @@ if (!function_exists('ll_tools_render_login_window')) {
                     </div>
                 <?php endif; ?>
 
-                <?php if ($show_auth_divider): ?>
-                    <div class="ll-tools-login-window__divider" role="presentation">
-                        <span><?php esc_html_e('or', 'll-tools-text-domain'); ?></span>
-                    </div>
-                <?php endif; ?>
-
                 <?php if ($registration_enabled && $show_registration_screen): ?>
-                    <div class="ll-tools-login-window__register" data-ll-auth-section="register">
+                    <div
+                        id="<?php echo esc_attr($registration_section_id); ?>"
+                        class="ll-tools-login-window__register"
+                        data-ll-auth-section="register">
                         <?php if ($show_registration_intro && $registration_title !== ''): ?>
                             <h3 class="ll-tools-login-window__register-title"><?php echo esc_html($registration_title); ?></h3>
                         <?php endif; ?>
@@ -1717,15 +1743,20 @@ if (!function_exists('ll_tools_render_login_window')) {
                         <?php echo esc_html($registration_disabled_message); ?>
                     </p>
                 <?php endif; ?>
+                </div>
 
-                <?php if ($screen_mode === 'login' && $register_screen_url !== ''): ?>
+                <?php if ($use_auth_toggle): ?>
+                    </div>
+                <?php endif; ?>
+
+                <?php if (!$use_auth_toggle && $screen_mode === 'login' && $register_screen_url !== ''): ?>
                     <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
                         <?php esc_html_e('Need an account?', 'll-tools-text-domain'); ?>
                         <a href="<?php echo esc_url($register_screen_url); ?>">
                             <?php esc_html_e('Sign up', 'll-tools-text-domain'); ?>
                         </a>
                     </p>
-                <?php elseif ($screen_mode === 'register' && $login_screen_url !== ''): ?>
+                <?php elseif (!$use_auth_toggle && $screen_mode === 'register' && $login_screen_url !== ''): ?>
                     <p class="ll-tools-login-window__assist ll-tools-login-window__assist--muted">
                         <?php esc_html_e('Already have an account?', 'll-tools-text-domain'); ?>
                         <a href="<?php echo esc_url($login_screen_url); ?>">

@@ -183,6 +183,48 @@
   color: var(--ll-login-accent-hover);
 }
 
+.ll-tools-login-window__toggle-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.4rem 0.65rem;
+  align-items: start;
+  text-align: left;
+}
+
+.ll-tools-login-window__toggle-checkbox {
+  margin: 0.08rem 0 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--ll-login-accent);
+  cursor: pointer;
+}
+
+.ll-tools-login-window__toggle-label {
+  margin: 0;
+  color: var(--ll-login-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.ll-tools-login-window__toggle-checkbox:checked + .ll-tools-login-window__toggle-label {
+  color: var(--ll-login-accent);
+}
+
+.ll-tools-login-window__panes {
+  grid-column: 1 / -1;
+  text-align: left;
+}
+
+.ll-tools-login-window__toggle-checkbox:not(:checked) ~ .ll-tools-login-window__panes .ll-tools-login-window__register {
+  display: none;
+}
+
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__form {
+  display: none;
+}
+
 .ll-tools-login-window__divider {
   display: flex;
   align-items: center;
@@ -324,6 +366,22 @@
   background: #eef2f7;
   border-color: #9aa4b2;
   color: #0f172a;
+}
+
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__register button[type="submit"],
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__register input[type="submit"] {
+  border-color: var(--ll-login-accent);
+  background: var(--ll-login-accent);
+  color: #ffffff;
+}
+
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__register button[type="submit"]:hover,
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__register button[type="submit"]:focus,
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__register input[type="submit"]:hover,
+.ll-tools-login-window__toggle-checkbox:checked ~ .ll-tools-login-window__panes .ll-tools-login-window__register input[type="submit"]:focus {
+  background: var(--ll-login-accent-hover);
+  border-color: var(--ll-login-accent-hover);
+  color: #ffffff;
 }
 
 .ll-tools-login-window__password-toggle-icon {

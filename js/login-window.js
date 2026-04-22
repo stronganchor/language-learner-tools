@@ -78,6 +78,22 @@
     syncPasswordToggle();
   }
 
+  function focusModeField(root, focusMode) {
+    var focusTarget = null;
+
+    if (focusMode === "register") {
+      focusTarget = root.querySelector("[data-ll-register-email]");
+    } else {
+      focusTarget = root.querySelector('input[name="log"]');
+    }
+
+    if (focusTarget && typeof focusTarget.focus === "function") {
+      window.setTimeout(function () {
+        focusTarget.focus();
+      }, 30);
+    }
+  }
+
   function initUsernameSuggestion(root) {
     var emailInput = root.querySelector("[data-ll-register-email]");
     var usernameInput = root.querySelector("[data-ll-register-username]");
@@ -180,29 +196,52 @@
     }
   }
 
+  function initAuthToggle(root) {
+    var toggle = root.querySelector("[data-ll-auth-toggle]");
+    var loginSection = root.querySelector('[data-ll-auth-section="login"]');
+    var registerSection = root.querySelector('[data-ll-auth-section="register"]');
+
+    if (!toggle || !loginSection || !registerSection) {
+      return;
+    }
+
+    function syncMode(shouldFocus) {
+      var isRegister = !!toggle.checked;
+      var nextMode = isRegister ? "register" : "login";
+
+      root.setAttribute("data-ll-auth-mode", nextMode);
+      root.setAttribute("data-ll-auth-focus", nextMode);
+      toggle.setAttribute("aria-expanded", isRegister ? "true" : "false");
+      loginSection.hidden = isRegister;
+      registerSection.hidden = !isRegister;
+      loginSection.setAttribute("aria-hidden", isRegister ? "true" : "false");
+      registerSection.setAttribute("aria-hidden", isRegister ? "false" : "true");
+
+      if (shouldFocus) {
+        focusModeField(root, nextMode);
+      }
+    }
+
+    toggle.addEventListener("change", function () {
+      syncMode(true);
+    });
+
+    syncMode(false);
+  }
+
   function initFocus(root) {
     var focusMode;
-    var focusTarget;
 
     if (!shouldFocusWindow()) {
       return;
     }
 
-    focusMode = root.getAttribute("data-ll-auth-focus") || "login";
-    if (focusMode === "register") {
-      focusTarget = root.querySelector("[data-ll-register-email]");
-    } else {
-      focusTarget = root.querySelector('input[name="log"]');
-    }
-
-    if (focusTarget && typeof focusTarget.focus === "function") {
-      window.setTimeout(function () {
-        focusTarget.focus();
-      }, 30);
-    }
+    focusMode = root.getAttribute("data-ll-auth-mode") || root.getAttribute("data-ll-auth-focus") || "login";
+    focusModeField(root, focusMode);
   }
 
   function initLoginWindow(root) {
+    initAuthToggle(root);
     initPasswordField(root);
     initUsernameSuggestion(root);
     initFocus(root);
