@@ -656,17 +656,42 @@ function ll_tools_vocab_lesson_category_requires_images($category): bool {
 }
 
 function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, bool $force_refresh = false): array {
+    static $request_cache = [];
+
     $wordset_id = (int) $wordset_id;
     if ($wordset_id <= 0) {
         return ['all' => [], 'with_images' => []];
     }
 
-    $cache_key = 'll_vocab_lesson_deep_counts_' . $wordset_id;
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+    $cache_key = 'll_vocab_lesson_deep_counts_' . md5((string) wp_json_encode([
+        'schema' => 1,
+        'wordset_id' => $wordset_id,
+        'category_epoch' => $category_epoch,
+        'wordset_epoch' => $wordset_epoch,
+    ]));
+    $cache_ttl = (int) apply_filters('ll_tools_vocab_lesson_deepest_counts_cache_ttl', HOUR_IN_SECONDS, $wordset_id);
+    if ($cache_ttl < MINUTE_IN_SECONDS) {
+        $cache_ttl = MINUTE_IN_SECONDS;
+    }
     if ($force_refresh) {
+        unset($request_cache[$cache_key]);
         wp_cache_delete($cache_key, 'll_tools');
+        delete_transient($cache_key);
+    } elseif (array_key_exists($cache_key, $request_cache)) {
+        return $request_cache[$cache_key];
     } else {
         $cached = wp_cache_get($cache_key, 'll_tools');
-        if ($cached !== false) {
+        if ($cached === false) {
+            $cached = get_transient($cache_key);
+        }
+        if (is_array($cached)) {
+            $request_cache[$cache_key] = $cached;
             return $cached;
         }
     }
@@ -677,6 +702,9 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
         'posts_per_page' => -1,
         'fields'         => 'ids',
         'no_found_rows'  => true,
+        'cache_results'  => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
         'tax_query'      => [
             [
                 'taxonomy' => 'wordset',
@@ -692,14 +720,18 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     }
     if (empty($word_ids)) {
         $result = ['all' => [], 'with_images' => []];
-        wp_cache_set($cache_key, $result, 'll_tools', HOUR_IN_SECONDS);
+        $request_cache[$cache_key] = $result;
+        wp_cache_set($cache_key, $result, 'll_tools', $cache_ttl);
+        set_transient($cache_key, $result, $cache_ttl);
         return $result;
     }
 
     $terms = wp_get_object_terms($word_ids, 'word-category', ['fields' => 'all_with_object_id']);
     if (is_wp_error($terms)) {
         $result = ['all' => [], 'with_images' => []];
-        wp_cache_set($cache_key, $result, 'll_tools', HOUR_IN_SECONDS);
+        $request_cache[$cache_key] = $result;
+        wp_cache_set($cache_key, $result, 'll_tools', $cache_ttl);
+        set_transient($cache_key, $result, $cache_ttl);
         return $result;
     }
 
@@ -717,6 +749,10 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     $depth_cache = [];
     $get_depth = function (int $term_id) use (&$depth_cache, &$get_depth): int {
         if (isset($depth_cache[$term_id])) {
+            return $depth_cache[$term_id];
+        }
+        if (function_exists('ll_get_category_depth')) {
+            $depth_cache[$term_id] = (int) ll_get_category_depth($term_id);
             return $depth_cache[$term_id];
         }
         $term = get_term($term_id, 'word-category');
@@ -770,7 +806,9 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
     }
 
     $result = ['all' => $all_counts, 'with_images' => $image_counts];
-    wp_cache_set($cache_key, $result, 'll_tools', HOUR_IN_SECONDS);
+    $request_cache[$cache_key] = $result;
+    wp_cache_set($cache_key, $result, 'll_tools', $cache_ttl);
+    set_transient($cache_key, $result, $cache_ttl);
     return $result;
 }
 

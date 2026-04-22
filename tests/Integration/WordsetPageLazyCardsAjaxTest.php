@@ -99,6 +99,65 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Lazy Ajax Category B', (string) ($data['html'] ?? ''));
     }
 
+    public function test_guest_main_view_reuses_shared_lazy_cards_token_for_same_payload(): void
+    {
+        $fixture = $this->createWordsetFixture(7);
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $original_get = $_GET;
+        $original_wordset_page = get_query_var('ll_wordset_page');
+        $original_wordset_view = get_query_var('ll_wordset_view');
+        $batch_size_filter = static function (): int {
+            return 6;
+        };
+        $bootstrap_filter = static function ($should_bootstrap, $view, $filter_wordset_id): bool {
+            if ((int) $filter_wordset_id === 0) {
+                return (bool) $should_bootstrap;
+            }
+
+            return (string) $view === 'progress';
+        };
+
+        add_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+        add_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10, 4);
+
+        $_GET = [];
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', '');
+
+        try {
+            ll_tools_render_wordset_page_content($wordset_id, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+            $first_config = $this->extractLocalizedConfig((string) wp_scripts()->get_data('ll-wordset-pages-js', 'data'));
+            $first_token = (string) ($first_config['lazyCards']['token'] ?? '');
+
+            ll_tools_render_wordset_page_content($wordset_id, [
+                'show_title' => false,
+                'wrapper_tag' => 'div',
+            ]);
+            $second_config = $this->extractLocalizedConfig((string) wp_scripts()->get_data('ll-wordset-pages-js', 'data'));
+            $second_token = (string) ($second_config['lazyCards']['token'] ?? '');
+
+            $this->assertStringStartsWith('shared_', $first_token);
+            $this->assertSame($first_token, $second_token);
+
+            $payload = ll_tools_wordset_page_get_lazy_cards_payload($first_token);
+            $this->assertIsArray($payload);
+            $this->assertSame(0, (int) ($payload['user_id'] ?? -1));
+        } finally {
+            $_GET = $original_get;
+            set_query_var('ll_wordset_page', $original_wordset_page);
+            set_query_var('ll_wordset_view', $original_wordset_view);
+            remove_filter('ll_tools_wordset_page_lazy_card_batch_size', $batch_size_filter);
+            remove_filter('ll_tools_wordset_page_bootstrap_analytics', $bootstrap_filter, 10);
+        }
+    }
+
     /**
      * @return array{wordset_id:int}
      */
