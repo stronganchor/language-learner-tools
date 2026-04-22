@@ -10,5 +10,6 @@
 /scripts export-ignore
 /test-results export-ignore
 /tests export-ignore
+/tests/.phpunit.cache export-ignore
 /xampp-lltools.code-workspace export-ignore
 /languages/*.po~ export-ignore

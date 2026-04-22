@@ -8,4 +8,5 @@
 /languages/*.po~
 /languages/*.pot_
 /tests/.env.local
+/tests/.phpunit.cache/
 /dist/

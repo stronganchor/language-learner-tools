@@ -17,6 +17,7 @@ This directory contains the plugin test framework:
 - `bin/run-tests.sh`: installs test deps (if needed), repairs missing WordPress test libraries when possible, and runs PHPUnit.
   - When this repo is inside a Local site and `local-site.json` is available, it now auto-applies `bin/setup-local-env.sh` before bootstrap so stale `.env` DB ports do not keep pointing at an old Local runtime.
   - On PHPUnit 12+, it also patches the local `wordpress-tests-lib` bootstrap to replace WordPress' removed legacy annotation-parser calls.
+  - It also runs PHPUnit with a temporary cache directory outside the repo and cleans stale `tests/.phpunit.cache` leftovers so test runs do not dirty the plugin worktree.
 - `bin/bootstrap-and-test.sh`: end-to-end helper (`setup -> install -> test`).
 - `bin/setup-local-http-env.sh`: detects the current Local HTTP port for this site path and exports Playwright URL vars.
 - `bin/run-e2e.sh`: installs Playwright deps/browsers (if needed) and runs browser E2E tests.

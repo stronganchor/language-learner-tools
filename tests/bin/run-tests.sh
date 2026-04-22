@@ -100,6 +100,19 @@ get_windows_temp_dir_for_bootstrap() {
     wslpath -u "$win_temp"
 }
 
+get_phpunit_runtime_cache_root() {
+    if [[ "${php_family:-}" == "Windows" ]]; then
+        local win_temp
+        win_temp="$(get_windows_temp_dir_for_bootstrap || true)"
+        if [[ -n "$win_temp" && -d "$win_temp" ]]; then
+            printf '%s\n' "$win_temp"
+            return 0
+        fi
+    fi
+
+    printf '%s\n' "${TMPDIR:-/tmp}"
+}
+
 normalize_windows_php_bootstrap_paths() {
     if [[ "$php_family" != "Windows" ]]; then
         return
@@ -285,13 +298,23 @@ if ! mkdir "$lock_dir" 2>/dev/null; then
     echo "Run PHPUnit serially to avoid wptests database deadlocks." >&2
     exit 1
 fi
-cleanup_ll_tools_test_lock() {
+legacy_phpunit_cache_dir="$TESTS_DIR/.phpunit.cache"
+phpunit_cache_dir=""
+
+cleanup_ll_tools_test_state() {
+    rm -f "$legacy_phpunit_cache_dir/test-results" >/dev/null 2>&1 || true
+    rmdir "$legacy_phpunit_cache_dir" >/dev/null 2>&1 || true
+    if [[ -n "$phpunit_cache_dir" ]]; then
+        rm -rf "$phpunit_cache_dir" >/dev/null 2>&1 || true
+    fi
     rmdir "$lock_dir" >/dev/null 2>&1 || true
 }
-trap cleanup_ll_tools_test_lock EXIT
+trap cleanup_ll_tools_test_state EXIT
 
 php_family="$("$PHP_LOCAL" -r "echo PHP_OS_FAMILY;")"
 normalize_windows_php_bootstrap_paths
+rm -f "$legacy_phpunit_cache_dir/test-results" >/dev/null 2>&1 || true
+rmdir "$legacy_phpunit_cache_dir" >/dev/null 2>&1 || true
 
 normalize_phpunit_arg() {
     local arg="$1"
@@ -318,10 +341,11 @@ done
 phpunit_options=()
 phpunit_targets=()
 phpunit_option_expects_value=0
+user_specified_cache_directory=0
 
 phpunit_option_requires_value() {
     case "$1" in
-        -c|--configuration|--bootstrap|--filter|--testsuite|--group|--exclude-group|--printer|--order-by|--random-order-seed|--cache-result-file|--coverage-clover|--coverage-cobertura|--coverage-crap4j|--coverage-html|--coverage-php|--coverage-text|--coverage-xml|--log-junit|--testdox-html|--testdox-text)
+        -c|--configuration|--bootstrap|--filter|--testsuite|--group|--exclude-group|--printer|--order-by|--random-order-seed|--cache-directory|--cache-result-file|--coverage-clover|--coverage-cobertura|--coverage-crap4j|--coverage-html|--coverage-php|--coverage-text|--coverage-xml|--log-junit|--testdox-html|--testdox-text)
             return 0
             ;;
         *)
@@ -339,6 +363,9 @@ for arg in "${normalized_args[@]}"; do
 
     if [[ "$arg" == -* ]]; then
         phpunit_options+=("$arg")
+        if [[ "$arg" == "--cache-directory" || "$arg" == --cache-directory=* ]]; then
+            user_specified_cache_directory=1
+        fi
         if [[ "$arg" != *=* ]] && phpunit_option_requires_value "$arg"; then
             phpunit_option_expects_value=1
         fi
@@ -346,6 +373,14 @@ for arg in "${normalized_args[@]}"; do
         phpunit_targets+=("$arg")
     fi
 done
+
+phpunit_runtime_args=()
+if [[ "$user_specified_cache_directory" != "1" ]]; then
+    phpunit_cache_root="$(get_phpunit_runtime_cache_root)"
+    mkdir -p "$phpunit_cache_root"
+    phpunit_cache_dir="$(mktemp -d "$phpunit_cache_root/ll-tools-phpunit-cache.XXXXXX")"
+    phpunit_runtime_args+=(--cache-directory "$phpunit_cache_dir")
+fi
 
 append_wslenv_var() {
     local entry="$1"
@@ -398,7 +433,7 @@ run_phpunit_once() {
     local phpunit_bin="$1"
     local target="$2"
 
-    "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_options[@]}" "$target"
+    "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${phpunit_options[@]}" "$target"
 }
 
 phpunit_bin=""
@@ -419,10 +454,17 @@ if [[ "${#phpunit_targets[@]}" -gt 1 ]]; then
     for target in "${phpunit_targets[@]}"; do
         if run_phpunit_once "$phpunit_bin" "$target"; then
             continue
+        else
+            status=$?
+            exit "$status"
         fi
-        exit $?
     done
     exit 0
 fi
 
-exec "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${normalized_args[@]}"
+if "$PHP_LOCAL" "$phpunit_bin" -c "$TESTS_DIR/phpunit.xml.dist" "${phpunit_runtime_args[@]}" "${normalized_args[@]}"; then
+    exit 0
+else
+    status=$?
+    exit "$status"
+fi
