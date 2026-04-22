@@ -92,6 +92,9 @@ class LL_Tools_CLI_Command extends WP_CLI_Command {
             }
 
             $created_wordset_id = (int) ($inserted['term_id'] ?? 0);
+            if (function_exists('ll_tools_ensure_vocab_lessons_enabled_for_wordset')) {
+                ll_tools_ensure_vocab_lessons_enabled_for_wordset($created_wordset_id, false);
+            }
             if ($manager_id > 0) {
                 ll_tools_cli_assign_wordset_manager($created_wordset_id, $manager_id);
             }

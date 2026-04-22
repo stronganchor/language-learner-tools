@@ -280,6 +280,10 @@ function ll_tools_create_wordset_from_template(int $source_wordset_id, array $ar
         return new WP_Error('ll_wordset_template_create_failed', __('Unable to create the new word set right now.', 'll-tools-text-domain'));
     }
 
+    if (function_exists('ll_tools_ensure_vocab_lessons_enabled_for_wordset')) {
+        ll_tools_ensure_vocab_lessons_enabled_for_wordset($target_wordset_id, false);
+    }
+
     if ($manager_user_id > 0) {
         update_term_meta($target_wordset_id, 'manager_user_id', $manager_user_id);
     }

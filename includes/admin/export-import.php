@@ -559,6 +559,7 @@ function ll_tools_detect_preview_media_mime_type(string $relative_path): string 
         'wav' => 'audio/wav',
         'ogg' => 'audio/ogg',
         'oga' => 'audio/ogg',
+        'opus' => 'audio/ogg',
         'm4a' => 'audio/mp4',
         'aac' => 'audio/aac',
         'flac' => 'audio/flac',
@@ -14104,13 +14105,25 @@ function ll_tools_validate_import_audio_file($file_path) {
         return new WP_Error('ll_tools_invalid_audio', __('Imported audio file is missing or unreadable.', 'll-tools-text-domain'));
     }
 
-    $file_info = wp_check_filetype_and_ext($file_path, basename($file_path));
+    $allowed_mimes = function_exists('ll_tools_get_allowed_recording_upload_mimes')
+        ? ll_tools_get_allowed_recording_upload_mimes()
+        : [];
+    $allowed_mimes = is_array($allowed_mimes) ? $allowed_mimes : [];
+
+    $file_info = wp_check_filetype_and_ext($file_path, basename($file_path), $allowed_mimes);
     $mime_type = '';
     if (!empty($file_info['type'])) {
         $mime_type = (string) $file_info['type'];
     } else {
-        $fallback = wp_check_filetype(basename($file_path), null);
+        $fallback = wp_check_filetype(basename($file_path), $allowed_mimes);
         $mime_type = isset($fallback['type']) ? (string) $fallback['type'] : '';
+    }
+
+    if (function_exists('ll_tools_normalize_recording_upload_mime')) {
+        $mime_type = ll_tools_normalize_recording_upload_mime($mime_type);
+    }
+    if ($mime_type === 'application/ogg' || $mime_type === 'audio/opus') {
+        $mime_type = 'audio/ogg';
     }
 
     if ($mime_type === '') {

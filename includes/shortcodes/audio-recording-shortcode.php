@@ -361,6 +361,7 @@ function ll_tools_get_allowed_recording_upload_mimes(): array {
         'mp4'  => 'audio/mp4|video/mp4',
         'ogg'  => 'audio/ogg|application/ogg',
         'oga'  => 'audio/ogg|application/ogg',
+        'opus' => 'audio/ogg|application/ogg|audio/opus',
         'webm' => 'audio/webm|video/webm|audio/x-webm|video/x-webm',
     ];
 

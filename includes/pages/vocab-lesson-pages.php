@@ -31,6 +31,20 @@ if (!defined('LL_TOOLS_VOCAB_LESSON_SYNC_EVENT')) {
     define('LL_TOOLS_VOCAB_LESSON_SYNC_EVENT', 'll_tools_vocab_lesson_sync_event');
 }
 
+function ll_tools_invalidate_wordset_page_lesson_cache(): void {
+    static $did_bump_epoch = false;
+
+    if ($did_bump_epoch) {
+        return;
+    }
+
+    $did_bump_epoch = true;
+
+    if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+        ll_tools_bump_wordset_cache_epoch();
+    }
+}
+
 function ll_tools_mark_vocab_lesson_recent_update(): void {
     $ttl = (int) apply_filters('ll_tools_vocab_lesson_recent_update_ttl', 30 * MINUTE_IN_SECONDS);
     if ($ttl < MINUTE_IN_SECONDS) {
@@ -416,6 +430,8 @@ function ll_tools_handle_trashed_vocab_lesson_post($post_id): void {
         return;
     }
 
+    ll_tools_invalidate_wordset_page_lesson_cache();
+
     $context = [];
     if (!empty($GLOBALS['ll_tools_vocab_lesson_trash_context'][$post_id]) && is_array($GLOBALS['ll_tools_vocab_lesson_trash_context'][$post_id])) {
         $context = $GLOBALS['ll_tools_vocab_lesson_trash_context'][$post_id];
@@ -514,20 +530,48 @@ function ll_tools_get_vocab_lesson_wordset_ids(): array {
     return $ids;
 }
 
-function ll_tools_enable_vocab_lessons_for_new_wordset($term_id): void {
-    $term_id = (int) $term_id;
-    if ($term_id <= 0 || !term_exists($term_id, 'wordset')) {
-        return;
+function ll_tools_ensure_vocab_lessons_enabled_for_wordset(int $wordset_id, bool $sync = false): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !term_exists($wordset_id, 'wordset')) {
+        return false;
     }
 
     $enabled_wordset_ids = ll_tools_get_vocab_lesson_wordset_ids();
-    if (in_array($term_id, $enabled_wordset_ids, true)) {
-        return;
+    $did_change = false;
+    if (!in_array($wordset_id, $enabled_wordset_ids, true)) {
+        $enabled_wordset_ids[] = $wordset_id;
+        sort($enabled_wordset_ids, SORT_NUMERIC);
+
+        $previous_skip_auto_sync = !empty($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
+        $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
+        update_option('ll_vocab_lesson_wordsets', array_values($enabled_wordset_ids), false);
+        if ($previous_skip_auto_sync) {
+            $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
+        } else {
+            unset($GLOBALS['ll_tools_vocab_lesson_skip_auto_sync']);
+        }
+
+        set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 5 * MINUTE_IN_SECONDS);
+        ll_tools_invalidate_wordset_page_lesson_cache();
+        $did_change = true;
     }
 
-    $enabled_wordset_ids[] = $term_id;
-    sort($enabled_wordset_ids, SORT_NUMERIC);
-    update_option('ll_vocab_lesson_wordsets', array_values($enabled_wordset_ids), false);
+    if ($sync) {
+        $result = ll_tools_sync_vocab_lesson_pages($enabled_wordset_ids, [
+            'manual' => true,
+        ]);
+        set_transient('ll_tools_vocab_lesson_sync_notice', $result, 30);
+        if ($did_change || ((int) ($result['created'] ?? 0)) > 0 || ((int) ($result['removed'] ?? 0)) > 0) {
+            ll_tools_invalidate_wordset_page_lesson_cache();
+        }
+    }
+
+    return true;
+}
+
+function ll_tools_enable_vocab_lessons_for_new_wordset($term_id): void {
+    $term_id = (int) $term_id;
+    ll_tools_ensure_vocab_lessons_enabled_for_wordset($term_id, false);
 }
 add_action('created_wordset', 'll_tools_enable_vocab_lessons_for_new_wordset', 20, 1);
 
@@ -1011,6 +1055,7 @@ function ll_tools_get_or_create_vocab_lesson_page(int $category_id, int $wordset
     if ($post_id && !is_wp_error($post_id)) {
         update_post_meta($post_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category->term_id);
         update_post_meta($post_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset->term_id);
+        ll_tools_invalidate_wordset_page_lesson_cache();
     }
 
     return [
@@ -3038,21 +3083,7 @@ function ll_tools_handle_enable_vocab_lessons_for_wordset_request() {
         $redirect_with_status('error', 'nonce');
     }
 
-    $enabled_wordset_ids = ll_tools_get_vocab_lesson_wordset_ids();
-    if (!in_array($wordset_id, $enabled_wordset_ids, true)) {
-        $enabled_wordset_ids[] = $wordset_id;
-        sort($enabled_wordset_ids, SORT_NUMERIC);
-    }
-
-    $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = true;
-    update_option('ll_vocab_lesson_wordsets', array_values($enabled_wordset_ids), false);
-    $GLOBALS['ll_tools_vocab_lesson_skip_auto_sync'] = false;
-
-    set_transient('ll_tools_vocab_lesson_flush_rewrite', 1, 5 * MINUTE_IN_SECONDS);
-    $result = ll_tools_sync_vocab_lesson_pages($enabled_wordset_ids, [
-        'manual' => true,
-    ]);
-    set_transient('ll_tools_vocab_lesson_sync_notice', $result, 30);
+    ll_tools_ensure_vocab_lessons_enabled_for_wordset($wordset_id, true);
 
     $redirect_with_status('ok');
 }
