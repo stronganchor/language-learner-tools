@@ -535,32 +535,90 @@ function ll_render_ipa_keyboard_admin_page() {
 }
 
 function ll_tools_ipa_keyboard_get_transcription_config(int $wordset_id = 0): array {
-    if (function_exists('ll_tools_get_wordset_recording_transcription_config')) {
-        return ll_tools_get_wordset_recording_transcription_config($wordset_id > 0 ? [$wordset_id] : [], true);
+    $config = function_exists('ll_tools_get_wordset_recording_transcription_config')
+        ? ll_tools_get_wordset_recording_transcription_config($wordset_id > 0 ? [$wordset_id] : [], true)
+        : [
+            'mode' => 'ipa',
+            'label' => __('IPA', 'll-tools-text-domain'),
+            'display_format' => 'brackets',
+            'uses_ipa_font' => true,
+            'supports_superscript' => true,
+            'common_chars' => ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'],
+            'common_chars_label' => __('Common IPA symbols', 'll-tools-text-domain'),
+            'wordset_chars_label' => __('Wordset IPA symbols', 'll-tools-text-domain'),
+            'special_chars_heading' => __('IPA Special Characters', 'll-tools-text-domain'),
+            'special_chars_empty' => __('No IPA symbols found for this word set.', 'll-tools-text-domain'),
+            'special_chars_add_label' => __('Add symbols', 'll-tools-text-domain'),
+            'special_chars_add_placeholder' => __('e.g. IPA symbols', 'll-tools-text-domain'),
+            'special_chars_description' => __('Symbols used in this word set. Update recordings or add new symbols to the keyboard.', 'll-tools-text-domain'),
+            'symbols_column_label' => __('IPA', 'll-tools-text-domain'),
+            'map_heading' => __('Letter to IPA Map', 'll-tools-text-domain'),
+            'map_description' => __('Mappings inferred from transcriptions. Add manual overrides to fix suggestion mistakes.', 'll-tools-text-domain'),
+            'map_sample_value_label' => __('IPA:', 'll-tools-text-domain'),
+            'map_add_symbols_label' => __('IPA symbols', 'll-tools-text-domain'),
+            'map_add_symbols_placeholder' => __('IPA symbols (e.g. r)', 'll-tools-text-domain'),
+            'map_add_missing' => __('Enter letters and IPA symbols to add.', 'll-tools-text-domain'),
+            'keyboard_aria_label' => __('IPA symbols', 'll-tools-text-domain'),
+        ];
+
+    $mode = sanitize_key((string) ($config['mode'] ?? 'ipa'));
+    if (!in_array($mode, ['ipa', 'transliteration', 'transcription'], true)) {
+        $mode = 'ipa';
+    }
+    $config['mode'] = $mode;
+    $config['supports_superscript'] = !empty($config['supports_superscript']) && $mode === 'ipa';
+
+    $common_chars = [];
+    foreach ((array) ($config['common_chars'] ?? []) as $symbol) {
+        $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
+        if ($normalized === '' || in_array($normalized, $common_chars, true)) {
+            continue;
+        }
+        $common_chars[] = $normalized;
+    }
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $common_chars = ll_tools_sort_secondary_text_symbols($common_chars, $mode);
+    }
+    $config['common_chars'] = $common_chars;
+
+    if (empty($config['keyboard_aria_label'])) {
+        $config['keyboard_aria_label'] = __('IPA symbols', 'll-tools-text-domain');
     }
 
-    return [
-        'mode' => 'ipa',
-        'label' => __('IPA', 'll-tools-text-domain'),
-        'display_format' => 'brackets',
-        'uses_ipa_font' => true,
-        'supports_superscript' => true,
-        'common_chars' => ['t͡ʃ', 'd͡ʒ', 'ʃ', 'ˈ'],
-        'common_chars_label' => __('Common IPA symbols', 'll-tools-text-domain'),
-        'wordset_chars_label' => __('Wordset IPA symbols', 'll-tools-text-domain'),
-        'special_chars_heading' => __('IPA Special Characters', 'll-tools-text-domain'),
-        'special_chars_empty' => __('No IPA symbols found for this word set.', 'll-tools-text-domain'),
-        'special_chars_add_label' => __('Add symbols', 'll-tools-text-domain'),
-        'special_chars_add_placeholder' => __('e.g. IPA symbols', 'll-tools-text-domain'),
-        'special_chars_description' => __('Symbols used in this word set. Update recordings or add new symbols to the keyboard.', 'll-tools-text-domain'),
-        'symbols_column_label' => __('IPA', 'll-tools-text-domain'),
-        'map_heading' => __('Letter to IPA Map', 'll-tools-text-domain'),
-        'map_description' => __('Mappings inferred from transcriptions. Add manual overrides to fix suggestion mistakes.', 'll-tools-text-domain'),
-        'map_sample_value_label' => __('IPA:', 'll-tools-text-domain'),
-        'map_add_symbols_label' => __('IPA symbols', 'll-tools-text-domain'),
-        'map_add_symbols_placeholder' => __('IPA symbols (e.g. r)', 'll-tools-text-domain'),
-        'map_add_missing' => __('Enter letters and IPA symbols to add.', 'll-tools-text-domain'),
-    ];
+    $config['keyboard_symbols'] = ll_tools_ipa_keyboard_get_keyboard_symbols($wordset_id, $mode);
+
+    return $config;
+}
+
+function ll_tools_ipa_keyboard_get_keyboard_symbols(int $wordset_id = 0, string $transcription_mode = ''): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !function_exists('ll_tools_word_grid_get_wordset_ipa_special_chars')) {
+        return [];
+    }
+
+    $mode = $transcription_mode !== ''
+        ? sanitize_key($transcription_mode)
+        : (function_exists('ll_tools_get_wordset_recording_transcription_mode')
+            ? sanitize_key((string) ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true))
+            : 'ipa');
+    if (!in_array($mode, ['ipa', 'transliteration', 'transcription'], true)) {
+        $mode = 'ipa';
+    }
+
+    $symbols = [];
+    foreach ((array) ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id) as $symbol) {
+        $normalized = ll_tools_ipa_keyboard_normalize_ipa_token((string) $symbol, $mode);
+        if ($normalized === '' || in_array($normalized, $symbols, true)) {
+            continue;
+        }
+        $symbols[] = $normalized;
+    }
+
+    if (function_exists('ll_tools_sort_secondary_text_symbols')) {
+        $symbols = ll_tools_sort_secondary_text_symbols($symbols, $mode);
+    }
+
+    return $symbols;
 }
 
 function ll_tools_ipa_keyboard_get_word_ids_for_wordset(int $wordset_id): array {
@@ -4269,6 +4327,7 @@ function ll_tools_ipa_keyboard_update_recording_fields(
         'recording_text' => $recording_text,
         'recording_ipa' => $recording_ipa,
         'recording' => $recording_payload,
+        'keyboard_symbols' => ll_tools_ipa_keyboard_get_keyboard_symbols($wordset_id, $transcription_mode),
         'previous_symbols' => array_keys($previous_symbol_counts),
         'previous_symbol_counts' => $previous_symbol_counts,
         'symbols' => array_keys($symbol_counts),

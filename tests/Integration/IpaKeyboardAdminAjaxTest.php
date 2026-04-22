@@ -67,6 +67,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $data = (array) ($response['data'] ?? []);
         $this->assertSame($recording_id, (int) ($data['recording_id'] ?? 0));
         $this->assertSame('ʒ', (string) ($data['recording_ipa'] ?? ''));
+        $this->assertSame(['ʒ'], array_values((array) ($data['keyboard_symbols'] ?? [])));
         $this->assertSame(['ʃ'], array_values((array) ($data['previous_symbols'] ?? [])));
         $this->assertSame(['ʒ'], array_values((array) ($data['symbols'] ?? [])));
         $this->assertSame(2, (int) (($data['previous_symbol_counts']['ʃ'] ?? 0)));
@@ -111,6 +112,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
     {
         $user_id = $this->create_viewer_user();
         $wordset_id = $this->create_wordset('Search Pagination Wordset');
+        update_term_meta($wordset_id, 'll_wordset_ipa_special_chars', ['ɬ']);
 
         foreach (['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'] as $title) {
             $word_id = self::factory()->post->create([
@@ -160,6 +162,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             $this->assertSame(3, (int) ($data['page_start'] ?? 0));
             $this->assertSame(4, (int) ($data['page_end'] ?? 0));
             $this->assertTrue((bool) ($data['has_more'] ?? false));
+            $this->assertSame(['ɬ'], array_values((array) (($data['transcription'] ?? [])['keyboard_symbols'] ?? [])));
 
             $results = array_values((array) ($data['results'] ?? []));
             $this->assertCount(2, $results);

@@ -59,6 +59,10 @@
     let letterMapRefreshTimer = null;
     let letterMapRefreshRequestId = 0;
     let pendingSearchReviewState = {};
+    let currentKeyboardSymbols = [];
+    let activeIpaKeyboardInput = null;
+    let $activeIpaKeyboard = $();
+    let suppressSearchBlurSave = false;
 
     function t(key, fallback) {
         if (Object.prototype.hasOwnProperty.call(i18n, key) && typeof i18n[key] === 'string' && i18n[key] !== '') {
@@ -113,6 +117,20 @@
         return formatText(template, [count]);
     }
 
+    function uniqueStringList(values) {
+        const list = [];
+        const seen = {};
+        (Array.isArray(values) ? values : []).forEach(function (value) {
+            const text = (value == null ? '' : String(value)).trim();
+            if (!text || Object.prototype.hasOwnProperty.call(seen, text)) {
+                return;
+            }
+            seen[text] = true;
+            list.push(text);
+        });
+        return list;
+    }
+
     function normalizeSearchPage(page) {
         const parsed = parseInt(page, 10) || 0;
         return parsed > 0 ? parsed : 1;
@@ -122,6 +140,12 @@
         return {
             mode: 'transcription',
             uses_ipa_font: false,
+            supports_superscript: false,
+            common_chars: [],
+            common_chars_label: '',
+            wordset_chars_label: '',
+            keyboard_symbols: [],
+            keyboard_aria_label: '',
             special_chars_heading: ($symbolsHeading.text() || '').toString().trim(),
             special_chars_description: ($symbolsDescription.text() || '').toString().trim(),
             special_chars_add_label: ($addLabel.text() || '').toString().trim(),
@@ -144,8 +168,163 @@
         return currentTranscription;
     }
 
+    function canShowIpaKeyboard() {
+        const transcription = getTranscription();
+        return !!currentCanEdit
+            && !!currentWordsetId
+            && !!transcription
+            && String(transcription.mode || '') === 'ipa';
+    }
+
+    function hideIpaKeyboard() {
+        if ($activeIpaKeyboard.length) {
+            $activeIpaKeyboard.remove();
+        }
+        $activeIpaKeyboard = $();
+        activeIpaKeyboardInput = null;
+        suppressSearchBlurSave = false;
+    }
+
+    function cleanupDetachedIpaKeyboard() {
+        if (!activeIpaKeyboardInput) {
+            return;
+        }
+
+        if (document.body.contains(activeIpaKeyboardInput)) {
+            return;
+        }
+
+        hideIpaKeyboard();
+    }
+
+    function applyKeyboardSymbols(symbols) {
+        currentKeyboardSymbols = uniqueStringList(symbols);
+        cleanupDetachedIpaKeyboard();
+
+        if (!canShowIpaKeyboard()) {
+            hideIpaKeyboard();
+            return;
+        }
+
+        if (activeIpaKeyboardInput && document.body.contains(activeIpaKeyboardInput)) {
+            showIpaKeyboardForInput($(activeIpaKeyboardInput));
+        }
+    }
+
+    function getIpaKeyboardGroups() {
+        const transcription = getTranscription();
+        const common = uniqueStringList(transcription.common_chars);
+        const wordset = uniqueStringList(currentKeyboardSymbols).filter(function (symbol) {
+            return common.indexOf(symbol) === -1;
+        });
+        const groups = [];
+
+        if (common.length) {
+            groups.push({
+                label: (transcription.common_chars_label || '').toString(),
+                symbols: common
+            });
+        }
+
+        if (wordset.length) {
+            groups.push({
+                label: (transcription.wordset_chars_label || '').toString(),
+                symbols: wordset
+            });
+        }
+
+        return groups;
+    }
+
+    function buildIpaKeyboardKey(symbol) {
+        return $('<button>', {
+            type: 'button',
+            class: 'll-ipa-inline-key',
+            text: symbol,
+            'data-ipa-char': symbol,
+            'aria-label': symbol
+        });
+    }
+
+    function showIpaKeyboardForInput($input) {
+        const $field = $input && $input.length ? $input.first() : $();
+        if (!$field.length) {
+            hideIpaKeyboard();
+            return;
+        }
+
+        cleanupDetachedIpaKeyboard();
+        if (!canShowIpaKeyboard()) {
+            hideIpaKeyboard();
+            return;
+        }
+
+        const groups = getIpaKeyboardGroups();
+        if (!groups.length) {
+            hideIpaKeyboard();
+            return;
+        }
+
+        hideIpaKeyboard();
+
+        const transcription = getTranscription();
+        const $panel = $('<div>', {
+            class: 'll-ipa-inline-keyboard',
+            'data-ll-ipa-inline-keyboard': '1',
+            'aria-label': transcription.keyboard_aria_label || transcription.symbols_column_label || t('pronunciationLabel', 'Pronunciation')
+        });
+
+        groups.forEach(function (group) {
+            const $group = $('<div>', { class: 'll-ipa-inline-keyboard-group' });
+            if (group.label) {
+                $group.append($('<div>', {
+                    class: 'll-ipa-inline-keyboard-label',
+                    text: group.label
+                }));
+            }
+
+            const $row = $('<div>', { class: 'll-ipa-inline-keyboard-row' });
+            group.symbols.forEach(function (symbol) {
+                $row.append(buildIpaKeyboardKey(symbol));
+            });
+            $group.append($row);
+            $panel.append($group);
+        });
+
+        $activeIpaKeyboard = $('<div>', {
+            class: 'll-ipa-inline-keyboard-wrap',
+            'data-ll-ipa-inline-keyboard-wrap': '1'
+        }).append($panel);
+        $field.after($activeIpaKeyboard);
+        activeIpaKeyboardInput = $field.get(0);
+    }
+
+    function insertIpaKeyboardChar(input, symbol) {
+        if (!input || !symbol) {
+            return;
+        }
+
+        const value = (input.value || '').toString();
+        const start = typeof input.selectionStart === 'number' ? input.selectionStart : value.length;
+        const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : value.length;
+        const nextValue = value.slice(0, start) + symbol + value.slice(end);
+        const nextCursor = start + symbol.length;
+
+        input.value = nextValue;
+        if (typeof input.setSelectionRange === 'function') {
+            input.setSelectionRange(nextCursor, nextCursor);
+        }
+
+        $(input).trigger('input');
+    }
+
     function applyTranscriptionConfig(config) {
         currentTranscription = $.extend({}, buildDefaultTranscription(), config || {});
+        currentTranscription.common_chars = uniqueStringList(currentTranscription.common_chars);
+        currentTranscription.keyboard_symbols = uniqueStringList(currentTranscription.keyboard_symbols);
+        currentTranscription.supports_superscript = !!currentTranscription.supports_superscript
+            && String(currentTranscription.mode || '') === 'ipa';
+        applyKeyboardSymbols(currentTranscription.keyboard_symbols);
         $admin.attr('data-ll-secondary-text-mode', currentTranscription.mode || 'transcription');
         $addLabel.text(currentTranscription.special_chars_add_label || 'Add characters');
         $addInput.attr('placeholder', currentTranscription.special_chars_add_placeholder || 'e.g. IPA symbols');
@@ -379,6 +558,7 @@
     }
 
     function setTab(tabName) {
+        hideIpaKeyboard();
         const nextTab = normalizeTabName(tabName);
         currentTab = nextTab;
         rememberTab(nextTab);
@@ -406,12 +586,15 @@
 
     function setCanEdit(canEdit) {
         currentCanEdit = !!canEdit;
+        if (!currentCanEdit) {
+            hideIpaKeyboard();
+        }
     }
 
     function handleWordsetResponse(response) {
         const data = response && response.data ? response.data : {};
-        applyTranscriptionConfig(data.transcription || null);
         setCanEdit(!!data.can_edit);
+        applyTranscriptionConfig(data.transcription || null);
     }
 
     function getSelectedWordsetId() {
@@ -419,6 +602,7 @@
     }
 
     function clearCurrentTab() {
+        hideIpaKeyboard();
         if (currentTab === 'map') {
             $letterMap.empty();
         } else if (currentTab === 'symbols') {
@@ -465,6 +649,7 @@
     function selectWordset(wordsetId, options) {
         const settings = $.extend({ forceLoad: false }, options || {});
         const safeWordsetId = parseInt(wordsetId, 10) || 0;
+        hideIpaKeyboard();
         currentWordsetId = safeWordsetId;
         currentSearchPage = 1;
         if ($wordset.val() !== String(safeWordsetId)) {
@@ -539,6 +724,7 @@
             return;
         }
 
+        hideIpaKeyboard();
         const searchState = getSearchState();
         const requestedPage = normalizeSearchPage(settings.page || currentSearchPage);
         currentSearchPage = requestedPage;
@@ -2228,6 +2414,8 @@
             const occurrenceDelta = nextCount - previousCount;
             setSymbolSummaryCounts($details, currentRecordingCount + recordingDelta, currentOccurrenceCount + occurrenceDelta);
         });
+
+        applyKeyboardSymbols(data && data.keyboard_symbols ? data.keyboard_symbols : currentKeyboardSymbols);
     }
 
     function updateSearchRowValidation($row, validation) {
@@ -2243,6 +2431,7 @@
     function replaceSearchRow($row, rec) {
         const $newRow = buildSearchRow(rec);
         $row.replaceWith($newRow);
+        cleanupDetachedIpaKeyboard();
         return $newRow;
     }
 
@@ -2408,6 +2597,7 @@
                 setSearchRowSaveState($row, 'saved', t('saved', 'Saved.'));
                 setSearchRowInputsDisabled($row, false);
             }
+            applyKeyboardSymbols(data.keyboard_symbols || currentKeyboardSymbols);
 
             if (Object.prototype.hasOwnProperty.call(pendingSearchReviewState, String(values.recordingId))) {
                 flushPendingSearchReviewState(values.recordingId);
@@ -2826,6 +3016,35 @@
         }
     });
 
+    $symbols.on('focus click', '.ll-ipa-input', function () {
+        showIpaKeyboardForInput($(this));
+    });
+
+    $searchResults.on('focus click', '.ll-ipa-search-ipa-input', function () {
+        showIpaKeyboardForInput($(this));
+    });
+
+    $admin.on('mousedown', '.ll-ipa-inline-key', function (event) {
+        suppressSearchBlurSave = true;
+        event.preventDefault();
+    });
+
+    $admin.on('click', '.ll-ipa-inline-key', function (event) {
+        const input = activeIpaKeyboardInput;
+        const symbol = ($(this).attr('data-ipa-char') || '').toString();
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (!input || !symbol) {
+            suppressSearchBlurSave = false;
+            return;
+        }
+
+        insertIpaKeyboardChar(input, symbol);
+        input.focus();
+        suppressSearchBlurSave = false;
+    });
+
     $searchResults.on('click', '.ll-ipa-search-page-button', function () {
         const $btn = $(this);
         const targetPage = normalizeSearchPage($btn.attr('data-page') || 0);
@@ -2851,6 +3070,11 @@
     $searchResults.on('focusout', '.ll-ipa-search-text-input, .ll-ipa-search-ipa-input', function () {
         const $row = $(this).closest('tr');
         if (!$row.length) {
+            return;
+        }
+
+        if (suppressSearchBlurSave) {
+            suppressSearchBlurSave = false;
             return;
         }
 
@@ -3002,6 +3226,26 @@
 
     $searchRules.on('toggle', '.ll-ipa-rules-disclosure', function () {
         searchRulesExpanded = !!this.open;
+    });
+
+    $(document).on('mousedown.llIpaKeyboardAdmin', function (event) {
+        if (!activeIpaKeyboardInput) {
+            return;
+        }
+
+        if ($(event.target).closest('[data-ll-ipa-inline-keyboard-wrap], .ll-ipa-search-ipa-input, .ll-ipa-input').length) {
+            return;
+        }
+
+        hideIpaKeyboard();
+    });
+
+    $(document).on('keydown.llIpaKeyboardAdmin', function (event) {
+        if (!activeIpaKeyboardInput || !event || event.key !== 'Escape') {
+            return;
+        }
+
+        hideIpaKeyboard();
     });
 
     function init() {
