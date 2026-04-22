@@ -111,6 +111,20 @@ if (defined('WP_CLI') && WP_CLI) {
 
     if (class_exists('WP_CLI') && class_exists('LL_Tools_CLI_Command')) {
         WP_CLI::add_command('ll-tools', 'LL_Tools_CLI_Command');
+
+        $ll_tools_cli_aliases = [
+            'll-tools wordset-create' => 'wordset_create',
+            'll-tools wordset-missing-meta' => 'wordset_missing_meta',
+            'll-tools word-bulk-update' => 'word_bulk_update',
+            'll-tools wordset-report' => 'wordset_report',
+        ];
+        $ll_tools_cli_command = new LL_Tools_CLI_Command();
+
+        foreach ($ll_tools_cli_aliases as $command_name => $method_name) {
+            if (is_callable([$ll_tools_cli_command, $method_name])) {
+                WP_CLI::add_command($command_name, [$ll_tools_cli_command, $method_name]);
+            }
+        }
     }
 }
 

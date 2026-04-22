@@ -127,6 +127,9 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
 
 For Codex/operator workflows, LL Tools now exposes plugin-owned WP-CLI commands under `wp ll-tools ...` so common maintenance no longer has to drive `wp-admin` forms or AJAX.
 
+Use hyphenated subcommands such as `wordset-report`; underscore variants remain
+available as compatibility aliases.
+
 Examples:
 
 ```bash

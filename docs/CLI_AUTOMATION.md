@@ -4,6 +4,10 @@ Language Learner Tools now exposes a small WP-CLI surface for the workflows that
 
 Use these commands when you want stable, scriptable access to wordset setup and word metadata maintenance.
 
+Use hyphenated subcommands in automation, for example `wordset-report` and
+`word-bulk-update`. The older underscore forms remain available as compatibility
+aliases.
+
 ## Why this is better than browser automation
 
 - No admin login flow required.
