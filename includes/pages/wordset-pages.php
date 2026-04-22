@@ -129,6 +129,44 @@ function ll_tools_get_wordset_page_display_title($wordset): string {
     return $name;
 }
 
+/**
+ * Fill the default browser title for wordset pages without clobbering manual overrides.
+ *
+ * WordPress appends the site name on non-front-page requests, so we only need to
+ * provide the missing page-specific title part here.
+ *
+ * @param array<string, string> $parts
+ * @param mixed                 $wordset Optional explicit wordset for direct calls/tests.
+ * @return array<string, string>
+ */
+function ll_tools_filter_wordset_page_document_title_parts(array $parts, $wordset = null): array {
+    if (is_admin() || is_404()) {
+        return $parts;
+    }
+
+    $wordset_term = ($wordset !== null)
+        ? ll_tools_resolve_wordset_term($wordset)
+        : ll_tools_get_wordset_page_term();
+
+    if (!$wordset_term || is_wp_error($wordset_term)) {
+        return $parts;
+    }
+
+    if (function_exists('ll_tools_user_can_view_wordset') && !ll_tools_user_can_view_wordset($wordset_term)) {
+        return $parts;
+    }
+
+    $current_title = trim(wp_strip_all_tags((string) ($parts['title'] ?? '')));
+    if ($current_title !== '') {
+        return $parts;
+    }
+
+    $parts['title'] = ll_tools_get_wordset_page_display_title($wordset_term);
+
+    return $parts;
+}
+add_filter('document_title_parts', 'll_tools_filter_wordset_page_document_title_parts', 20);
+
 function ll_tools_wordset_page_sanitize_class_list(array $classes): array {
     $normalized = [];
     foreach ($classes as $class) {

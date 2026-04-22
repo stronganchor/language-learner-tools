@@ -32,6 +32,34 @@ final class WordsetPageTitleTest extends LL_Tools_TestCase
         $this->assertStringContainsString('<h1 class="ll-wordset-title">Spanish Lessons</h1>', $html);
     }
 
+    public function test_document_title_parts_fill_in_wordset_name_without_touching_site_name(): void
+    {
+        $wordset = $this->upsertDefaultWordset('Spanish Lessons');
+        $site_name = trim(wp_strip_all_tags((string) get_bloginfo('name')));
+
+        $parts = ll_tools_filter_wordset_page_document_title_parts([
+            'title' => '',
+            'site' => $site_name,
+        ], $wordset);
+
+        $this->assertSame('Spanish Lessons', $parts['title']);
+        $this->assertSame($site_name, $parts['site']);
+        $this->assertNotFalse(has_filter('document_title_parts', 'll_tools_filter_wordset_page_document_title_parts'));
+    }
+
+    public function test_document_title_parts_do_not_override_existing_manual_title(): void
+    {
+        $wordset = $this->upsertDefaultWordset('Spanish Lessons');
+
+        $parts = ll_tools_filter_wordset_page_document_title_parts([
+            'title' => 'Custom Browser Title',
+            'site' => 'Example Site',
+        ], $wordset);
+
+        $this->assertSame('Custom Browser Title', $parts['title']);
+        $this->assertSame('Example Site', $parts['site']);
+    }
+
     private function upsertDefaultWordset(string $name): WP_Term
     {
         $existing = get_term_by('slug', 'default-word-set', 'wordset');

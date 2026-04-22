@@ -45,13 +45,6 @@ if ($wp_query) {
 }
 status_header(200);
 
-$page_title = function_exists('ll_tools_get_wordset_page_display_title')
-    ? ll_tools_get_wordset_page_display_title($wordset)
-    : __('Lessons', 'll-tools-text-domain');
-add_filter('pre_get_document_title', function () use ($page_title) {
-    return $page_title;
-});
-
 get_header();
 if (function_exists('ll_tools_render_wordset_page_content')) {
     echo ll_tools_render_wordset_page_content($wordset);
