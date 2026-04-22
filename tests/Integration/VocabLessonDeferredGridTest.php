@@ -122,6 +122,104 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('height="1"', $html);
     }
 
+    public function test_text_answer_lesson_grid_renders_images_when_every_visible_word_has_an_image(): void
+    {
+        $wordset = wp_insert_term('Deferred Text Image Wordset', 'wordset', ['slug' => 'deferred-text-image-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Text Image Category', 'word-category', ['slug' => 'deferred-text-image-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+
+        $word_id = $this->createWordWithThumbnail('Kedi', $category_id, $wordset_id, 'deferred-text-image-kedi.png');
+        update_post_meta($word_id, 'word_translation', 'Cat');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Text Image Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $context = ll_tools_word_grid_resolve_context([
+            'category' => 'deferred-text-image-category',
+            'wordset' => 'deferred-text-image-wordset',
+            'deepest_only' => true,
+            'lesson_id' => $lesson_id,
+        ]);
+        $spec = ll_tools_word_grid_get_shell_spec($context);
+
+        $this->assertTrue((bool) ($spec['show_media'] ?? false));
+        $this->assertStringNotContainsString('ll-word-grid--text', (string) ($spec['class'] ?? ''));
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('class="word-image', $html);
+        $this->assertStringNotContainsString('ll-word-grid--text', $html);
+    }
+
+    public function test_text_answer_lesson_grid_stays_text_only_when_visible_words_lack_images(): void
+    {
+        $wordset = wp_insert_term('Deferred Text Only Wordset', 'wordset', ['slug' => 'deferred-text-only-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Text Only Category', 'word-category', ['slug' => 'deferred-text-only-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Metin',
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', 'Text');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Text Only Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $context = ll_tools_word_grid_resolve_context([
+            'category' => 'deferred-text-only-category',
+            'wordset' => 'deferred-text-only-wordset',
+            'deepest_only' => true,
+            'lesson_id' => $lesson_id,
+        ]);
+        $spec = ll_tools_word_grid_get_shell_spec($context);
+
+        $this->assertFalse((bool) ($spec['show_media'] ?? true));
+        $this->assertStringContainsString('ll-word-grid--text', (string) ($spec['class'] ?? ''));
+    }
+
     public function test_lesson_grid_naturally_sorts_visible_word_titles(): void
     {
         $wordset = wp_insert_term('Deferred Sort Wordset', 'wordset', ['slug' => 'deferred-sort-wordset']);

@@ -2238,7 +2238,84 @@ function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$displ
 }
 
 function ll_tools_word_grid_is_lesson_context(array $context): bool {
-    return is_singular('ll_vocab_lesson') || !empty($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+    return !empty($context['lesson_id']) || is_singular('ll_vocab_lesson') || !empty($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+}
+
+function ll_tools_word_grid_should_force_media_for_lesson_context(array $context): bool {
+    if (!ll_tools_word_grid_is_lesson_context($context) || empty($context['is_text_based'])) {
+        return false;
+    }
+    if (!function_exists('ll_tools_filter_word_ids_with_effective_images')) {
+        return false;
+    }
+
+    $category_term = $context['category_term'] ?? null;
+    $category_id = ($category_term instanceof WP_Term && !is_wp_error($category_term))
+        ? (int) $category_term->term_id
+        : 0;
+    $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return false;
+    }
+
+    $specific_word_ids = array_values(array_filter(array_map('intval', (array) ($context['specific_word_ids'] ?? [])), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+    $deepest_only = !empty($context['deepest_only']);
+
+    static $request_cache = [];
+    $cache_key = $category_id . ':' . $wordset_id . ':' . ($deepest_only ? '1' : '0') . ':' . md5(wp_json_encode($specific_word_ids));
+    if (array_key_exists($cache_key, $request_cache)) {
+        return $request_cache[$cache_key];
+    }
+
+    if (!empty($specific_word_ids)) {
+        $word_ids = $specific_word_ids;
+    } else {
+        $word_ids = array_values(array_filter(array_map('intval', (array) get_posts([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'fields' => 'ids',
+            'no_found_rows' => true,
+            'orderby' => 'date',
+            'order' => 'ASC',
+            'suppress_filters' => true,
+            'tax_query' => [
+                [
+                    'taxonomy' => 'word-category',
+                    'field' => 'term_id',
+                    'terms' => [$category_id],
+                ],
+                [
+                    'taxonomy' => 'wordset',
+                    'field' => 'term_id',
+                    'terms' => [$wordset_id],
+                ],
+            ],
+        ])), static function (int $word_id): bool {
+            return $word_id > 0;
+        }));
+    }
+
+    if ($deepest_only && !empty($word_ids)) {
+        $word_ids = ll_tools_word_grid_filter_word_ids_to_deepest_category($word_ids, $category_id);
+    }
+    if (!empty($word_ids) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+        $word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($word_ids);
+    }
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        $request_cache[$cache_key] = false;
+        return false;
+    }
+
+    $image_backed_word_ids = ll_tools_filter_word_ids_with_effective_images($word_ids, true);
+    $should_force = !empty($image_backed_word_ids) && count($image_backed_word_ids) === count($word_ids);
+    $request_cache[$cache_key] = $should_force;
+    return $should_force;
 }
 
 function ll_tools_word_grid_should_sort_visible_titles(array $context): bool {
@@ -2431,6 +2508,16 @@ function ll_tools_word_grid_resolve_context($atts): array {
 
     if ($category_term && !is_wp_error($category_term) && function_exists('ll_tools_should_hide_lesson_grid_text')) {
         $hide_lesson_grid_text = ll_tools_should_hide_lesson_grid_text($category_term, $wordset_id);
+    }
+    if ($is_text_based && ll_tools_word_grid_should_force_media_for_lesson_context([
+        'category_term' => $category_term,
+        'wordset_id' => $wordset_id,
+        'deepest_only' => $deepest_only,
+        'specific_word_ids' => $specific_word_ids,
+        'lesson_id' => $lesson_id,
+        'is_text_based' => $is_text_based,
+    ])) {
+        $is_text_based = false;
     }
 
     $wordset_has_gender = false;
