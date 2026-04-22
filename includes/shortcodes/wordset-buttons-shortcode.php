@@ -220,6 +220,12 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                     continue;
                 }
 
+                $button_image = function_exists('ll_tools_get_wordset_button_image_preview_data')
+                    ? ll_tools_get_wordset_button_image_preview_data($term, 'medium', true)
+                    : ['attachment_id' => 0, 'url' => ''];
+                $button_image_url = trim((string) ($button_image['url'] ?? ''));
+                $has_button_image = ($button_image_url !== '');
+
                 $count_label = sprintf(
                     /* translators: %d: number of lesson pages in the word set. */
                     _n('%d lesson', '%d lessons', $lesson_count, 'll-tools-text-domain'),
@@ -233,7 +239,12 @@ function ll_tools_wordset_buttons_shortcode($atts = [], $content = null, string 
                 );
                 ?>
                 <li class="ll-wordset-buttons-shortcode__item">
-                    <a class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-buttons-shortcode__button" href="<?php echo esc_url($url); ?>" aria-label="<?php echo esc_attr($link_aria_label); ?>">
+                    <a class="ll-study-btn ll-vocab-lesson-mode-button ll-wordset-buttons-shortcode__button<?php echo $has_button_image ? ' ll-wordset-buttons-shortcode__button--has-image' : ''; ?>" href="<?php echo esc_url($url); ?>" aria-label="<?php echo esc_attr($link_aria_label); ?>">
+                        <?php if ($has_button_image) : ?>
+                            <span class="ll-wordset-buttons-shortcode__media" aria-hidden="true">
+                                <img class="ll-wordset-buttons-shortcode__image" src="<?php echo esc_url($button_image_url); ?>" alt="" loading="lazy" decoding="async" />
+                            </span>
+                        <?php endif; ?>
                         <span class="ll-wordset-buttons-shortcode__label"><?php echo esc_html($term->name); ?></span>
                         <span class="ll-wordset-buttons-shortcode__count"><?php echo esc_html($count_label); ?></span>
                     </a>

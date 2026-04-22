@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 {
+    private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=';
+
     /** @var array<string,mixed> */
     private $getBackup = [];
 
@@ -410,6 +412,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Advanced Settings', $html);
         $this->assertStringContainsString('name="ll_wordset_category_ordering_mode"', $html);
+        $this->assertStringContainsString('name="ll_wordset_button_image_attachment_id"', $html);
         $this->assertStringContainsString('name="ll_wordset_games_image_size"', $html);
         $this->assertStringContainsString('name="ll_wordset_has_gender"', $html);
         $this->assertStringContainsString('name="ll_wordset_plurality_options"', $html);
@@ -569,6 +572,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $category_id = (int) $fixture['category_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $button_image_attachment_id = $this->createImageAttachment('advanced-wordset-button-image.png');
 
         $_GET = [];
         $_POST = [
@@ -578,6 +582,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_page' => $wordset_slug,
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'advanced',
+            'll_wordset_button_image_attachment_id' => (string) $button_image_attachment_id,
             'll_wordset_games_image_size' => 'large',
             'll_wordset_answer_option_text_font_weight' => '500',
             'll_wordset_answer_option_text_font_size_px' => '36',
@@ -612,6 +617,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = $this->parseRedirectQuery($redirect_url);
         $this->assertSame('advanced', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame((string) $button_image_attachment_id, (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
         $this->assertSame('large', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true));
         $this->assertSame('500', (string) get_term_meta($wordset_id, ll_tools_wordset_answer_option_font_weight_primary_meta_key(), true));
         $this->assertSame('36', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, true));
@@ -637,6 +643,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $category_id = (int) $fixture['category_id'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $button_image_attachment_id = $this->createImageAttachment('manager-wordset-button-image.png');
 
         $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
         update_term_meta($wordset_id, 'manager_user_id', $manager_id);
@@ -650,6 +657,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_page' => $wordset_slug,
             'll_wordset_view' => 'settings',
             'll_wordset_tool' => 'advanced',
+            'll_wordset_button_image_attachment_id' => (string) $button_image_attachment_id,
             'll_wordset_games_image_size' => 'large',
             'll_wordset_answer_option_text_font_weight' => '500',
             'll_wordset_answer_option_text_font_size_px' => '34',
@@ -671,6 +679,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = $this->parseRedirectQuery($redirect_url);
         $this->assertSame('advanced', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame((string) $button_image_attachment_id, (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
         $this->assertSame('large', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true));
         $this->assertSame('500', (string) get_term_meta($wordset_id, ll_tools_wordset_answer_option_font_weight_primary_meta_key(), true));
         $this->assertSame('34', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, true));
@@ -1021,6 +1030,48 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertIsArray($created);
 
         return (int) ($created['term_id'] ?? 0);
+    }
+
+    private function createImageAttachment(string $filename): int
+    {
+        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($bytes);
+
+        $upload = wp_upload_bits($filename, null, $bytes);
+        $this->assertIsArray($upload);
+        $this->assertSame('', (string) ($upload['error'] ?? ''));
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        $filetype = wp_check_filetype(basename($file_path), null);
+        $attachment_id = wp_insert_attachment([
+            'post_mime_type' => (string) ($filetype['type'] ?? 'image/png'),
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+            'post_content' => '',
+            'post_status' => 'inherit',
+        ], $file_path);
+
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        $metadata = function_exists('wp_generate_attachment_metadata')
+            ? wp_generate_attachment_metadata($attachment_id, $file_path)
+            : [];
+        if (is_array($metadata) && !empty($metadata)) {
+            wp_update_attachment_metadata($attachment_id, $metadata);
+        }
+
+        $relative_path = function_exists('_wp_relative_upload_path')
+            ? (string) _wp_relative_upload_path($file_path)
+            : '';
+        if ($relative_path === '') {
+            $relative_path = ltrim((string) wp_normalize_path($file_path), '/');
+        }
+        update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
+
+        return (int) $attachment_id;
     }
 
     /**

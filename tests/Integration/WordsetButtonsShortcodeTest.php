@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
 {
+    private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=';
+
     public function test_shortcode_renders_viewable_wordsets_with_published_lesson_counts_only(): void
     {
         $public_term = wp_insert_term('Buttons Public Wordset', 'wordset');
@@ -98,6 +100,32 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('1 lesson', $html);
     }
 
+    public function test_shortcode_renders_configured_wordset_images(): void
+    {
+        $image_term = wp_insert_term('Buttons Image Wordset', 'wordset');
+        $plain_term = wp_insert_term('Buttons Plain Wordset', 'wordset');
+
+        $this->assertIsArray($image_term);
+        $this->assertIsArray($plain_term);
+        $this->assertFalse(is_wp_error($image_term));
+        $this->assertFalse(is_wp_error($plain_term));
+
+        $image_term_id = (int) ($image_term['term_id'] ?? 0);
+        $plain_term_id = (int) ($plain_term['term_id'] ?? 0);
+        $this->createPublishedLessonForWordset($image_term_id, 'Buttons Image Lesson');
+        $this->createPublishedLessonForWordset($plain_term_id, 'Buttons Plain Lesson');
+
+        $attachment_id = $this->createImageAttachment('wordset-button-image.png');
+        update_term_meta($image_term_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, $attachment_id);
+
+        $html = do_shortcode('[ll_wordset_buttons]');
+
+        $this->assertStringContainsString('Buttons Image Wordset', $html);
+        $this->assertStringContainsString('Buttons Plain Wordset', $html);
+        $this->assertStringContainsString('ll-wordset-buttons-shortcode__image', $html);
+        $this->assertSame(1, substr_count($html, 'll-wordset-buttons-shortcode__media'));
+    }
+
     private function createPublishedLessonForWordset(int $wordset_id, string $title): int
     {
         $lesson_id = self::factory()->post->create([
@@ -109,5 +137,47 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
 
         return (int) $lesson_id;
+    }
+
+    private function createImageAttachment(string $filename): int
+    {
+        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($bytes);
+
+        $upload = wp_upload_bits($filename, null, $bytes);
+        $this->assertIsArray($upload);
+        $this->assertSame('', (string) ($upload['error'] ?? ''));
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        $filetype = wp_check_filetype(basename($file_path), null);
+        $attachment_id = wp_insert_attachment([
+            'post_mime_type' => (string) ($filetype['type'] ?? 'image/png'),
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+            'post_content' => '',
+            'post_status' => 'inherit',
+        ], $file_path);
+
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        $metadata = function_exists('wp_generate_attachment_metadata')
+            ? wp_generate_attachment_metadata($attachment_id, $file_path)
+            : [];
+        if (is_array($metadata) && !empty($metadata)) {
+            wp_update_attachment_metadata($attachment_id, $metadata);
+        }
+
+        $relative_path = function_exists('_wp_relative_upload_path')
+            ? (string) _wp_relative_upload_path($file_path)
+            : '';
+        if ($relative_path === '') {
+            $relative_path = ltrim((string) wp_normalize_path($file_path), '/');
+        }
+        update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
+
+        return (int) $attachment_id;
     }
 }

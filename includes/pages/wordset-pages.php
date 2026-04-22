@@ -862,6 +862,54 @@ function ll_tools_get_wordset_preview_attachment_visual_hash(int $attachment_id)
     return $cache[$attachment_id];
 }
 
+function ll_tools_get_wordset_button_image_preview_data($wordset, string $size = 'medium', bool $masked = false): array {
+    $attachment_id = function_exists('ll_tools_get_wordset_button_image_attachment_id')
+        ? ll_tools_get_wordset_button_image_attachment_id($wordset)
+        : 0;
+    if ($attachment_id <= 0) {
+        return [
+            'attachment_id' => 0,
+            'url' => '',
+            'title' => '',
+        ];
+    }
+
+    $url = '';
+    if ($masked && function_exists('ll_tools_get_masked_image_url')) {
+        $url = (string) ll_tools_get_masked_image_url($attachment_id, $size);
+    }
+    if ($url === '') {
+        $url = (string) (wp_get_attachment_image_url($attachment_id, $size) ?: '');
+    }
+    if ($url === '') {
+        $url = (string) (wp_get_attachment_image_url($attachment_id, 'full') ?: '');
+    }
+    if ($url === '') {
+        $url = (string) (wp_get_attachment_url($attachment_id) ?: '');
+    }
+    if ($url === '') {
+        return [
+            'attachment_id' => 0,
+            'url' => '',
+            'title' => '',
+        ];
+    }
+
+    $title = trim((string) get_the_title($attachment_id));
+    if ($title === '') {
+        $attached_file = trim((string) get_post_meta($attachment_id, '_wp_attached_file', true));
+        if ($attached_file !== '') {
+            $title = wp_basename($attached_file);
+        }
+    }
+
+    return [
+        'attachment_id' => $attachment_id,
+        'url' => $url,
+        'title' => $title,
+    ];
+}
+
 function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id, int $limit = 2, ?bool $requires_images = null): array {
     static $request_cache = [];
 
@@ -2846,6 +2894,19 @@ function ll_tools_wordset_page_manager_offline_export_notice(): ?array {
 function ll_tools_wordset_page_save_advanced_settings(int $term_id) {
     if ($term_id <= 0) {
         return new WP_Error('wordset', __('Unable to find that word set.', 'll-tools-text-domain'));
+    }
+
+    if (array_key_exists('ll_wordset_button_image_attachment_id', $_POST)) {
+        $button_image_attachment_id = function_exists('ll_tools_sanitize_wordset_button_image_attachment_id')
+            ? ll_tools_sanitize_wordset_button_image_attachment_id(
+                wp_unslash((string) $_POST['ll_wordset_button_image_attachment_id'])
+            )
+            : absint(wp_unslash((string) $_POST['ll_wordset_button_image_attachment_id']));
+        if ($button_image_attachment_id <= 0) {
+            delete_term_meta($term_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY);
+        } else {
+            update_term_meta($term_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, $button_image_attachment_id);
+        }
     }
 
     if (array_key_exists('ll_wordset_games_image_size', $_POST)) {
@@ -6454,6 +6515,7 @@ function ll_tools_wordset_page_enqueue_scripts(): void {
         if (function_exists('ll_tools_enqueue_jquery_ui_autocomplete_assets')) {
             ll_tools_enqueue_jquery_ui_autocomplete_assets();
         }
+        wp_enqueue_media();
         wp_enqueue_style('dashicons');
         ll_enqueue_asset_by_timestamp(
             '/js/manage-wordsets.js',
@@ -6461,6 +6523,20 @@ function ll_tools_wordset_page_enqueue_scripts(): void {
             ['jquery', 'jquery-ui-autocomplete', 'jquery-ui-sortable', 'll-tools-locale-sort'],
             true
         );
+        ll_enqueue_asset_by_timestamp(
+            '/js/wordset-settings-media.js',
+            'll-wordset-settings-media-js',
+            [],
+            true
+        );
+        $wordset_media_scripts = wp_scripts();
+        if ($wordset_media_scripts instanceof WP_Scripts && isset($wordset_media_scripts->registered['ll-wordset-settings-media-js'])) {
+            unset($wordset_media_scripts->registered['ll-wordset-settings-media-js']->extra['data']);
+        }
+        wp_localize_script('ll-wordset-settings-media-js', 'llWordsetSettingsMediaData', [
+            'chooseTitle' => __('Choose word set button image', 'll-tools-text-domain'),
+            'chooseButton' => __('Use image', 'll-tools-text-domain'),
+        ]);
         $deps[] = 'manage-wordsets-script';
     }
     ll_enqueue_asset_by_timestamp('/js/wordset-pages.js', 'll-wordset-pages-js', $deps, true);
@@ -6911,7 +6987,7 @@ function ll_tools_wordset_settings_tool_description(string $tool): string {
         return __('Create, rename, translate, re-parent, and safely delete categories in this word set.', 'll-tools-text-domain');
     }
     if ($tool === 'advanced') {
-        return __('Category ordering, answer text styling, grammar options, and game image sizing.', 'll-tools-text-domain');
+        return __('Category ordering, button images, answer text styling, grammar options, and game image sizing.', 'll-tools-text-domain');
     }
     if ($tool === 'import') {
         return __('Create words quickly from pasted prompt and answer pairs.', 'll-tools-text-domain');
@@ -7320,6 +7396,9 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
     $games_image_size = function_exists('ll_tools_get_wordset_games_image_size')
         ? ll_tools_get_wordset_games_image_size($wordset_id)
         : 'default';
+    $button_image_preview = function_exists('ll_tools_get_wordset_button_image_preview_data')
+        ? ll_tools_get_wordset_button_image_preview_data($wordset_id, 'medium', false)
+        : ['attachment_id' => 0, 'url' => '', 'title' => ''];
     $has_gender = (bool) get_term_meta($wordset_id, 'll_wordset_has_gender', true);
     $has_plurality = (bool) get_term_meta($wordset_id, 'll_wordset_has_plurality', true);
     $has_verb_tense = (bool) get_term_meta($wordset_id, 'll_wordset_has_verb_tense', true);
@@ -7372,6 +7451,9 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
 
     return [
         'games_image_size' => $games_image_size,
+        'button_image_attachment_id' => isset($button_image_preview['attachment_id']) ? (int) $button_image_preview['attachment_id'] : 0,
+        'button_image_preview_url' => (string) ($button_image_preview['url'] ?? ''),
+        'button_image_label' => (string) ($button_image_preview['title'] ?? ''),
         'category_ordering_mode' => function_exists('ll_tools_wordset_get_category_ordering_mode')
             ? ll_tools_wordset_get_category_ordering_mode($wordset_id)
             : 'none',
@@ -7403,6 +7485,9 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
 function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $settings): string {
     $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'advanced', $back_url);
     $games_image_size = ll_tools_normalize_wordset_games_image_size((string) ($settings['games_image_size'] ?? 'default'));
+    $button_image_attachment_id = max(0, (int) ($settings['button_image_attachment_id'] ?? 0));
+    $button_image_preview_url = trim((string) ($settings['button_image_preview_url'] ?? ''));
+    $button_image_label = trim((string) ($settings['button_image_label'] ?? ''));
     $category_ordering_mode = function_exists('ll_tools_wordset_normalize_category_ordering_mode')
         ? ll_tools_wordset_normalize_category_ordering_mode((string) ($settings['category_ordering_mode'] ?? 'none'))
         : sanitize_key((string) ($settings['category_ordering_mode'] ?? 'none'));
@@ -7472,6 +7557,47 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
                         <?php echo esc_html__('These controls affect lesson order, recommended study flow, and prerequisite gating for this word set only.', 'll-tools-text-domain'); ?>
                     </p>
                     <?php echo ll_tools_wordset_render_category_ordering_field_html($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Navigation', 'll-tools-text-domain'); ?></h3>
+                    <div class="ll-wordset-button-image-field" data-ll-wordset-button-image-picker>
+                        <label for="ll-wordset-button-image-attachment-id">
+                            <span><?php echo esc_html__('Word set button image', 'll-tools-text-domain'); ?></span>
+                            <input
+                                id="ll-wordset-button-image-attachment-id"
+                                type="hidden"
+                                name="ll_wordset_button_image_attachment_id"
+                                value="<?php echo esc_attr((string) $button_image_attachment_id); ?>"
+                                data-ll-wordset-button-image-input
+                            />
+                        </label>
+                        <div class="ll-wordset-button-image-field__preview">
+                            <div class="ll-wordset-button-image-field__frame" data-ll-wordset-button-image-frame <?php if ($button_image_preview_url === '') : ?>hidden<?php endif; ?>>
+                                <img
+                                    class="ll-wordset-button-image-field__image"
+                                    src="<?php echo esc_url($button_image_preview_url); ?>"
+                                    alt=""
+                                    data-ll-wordset-button-image-preview
+                                />
+                            </div>
+                            <p class="ll-wordset-button-image-field__empty" data-ll-wordset-button-image-empty <?php if ($button_image_preview_url !== '') : ?>hidden<?php endif; ?>>
+                                <?php echo esc_html__('No image selected yet.', 'll-tools-text-domain'); ?>
+                            </p>
+                            <p class="ll-wordset-button-image-field__selected" data-ll-wordset-button-image-selected <?php if ($button_image_label === '') : ?>hidden<?php endif; ?>>
+                                <?php echo esc_html($button_image_label); ?>
+                            </p>
+                        </div>
+                        <div class="ll-wordset-button-image-field__actions">
+                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-wordset-button-image-choose>
+                                <?php echo esc_html__('Choose image', 'll-tools-text-domain'); ?>
+                            </button>
+                            <button type="button" class="ll-study-btn ll-vocab-lesson-mode-button" data-ll-wordset-button-image-clear <?php disabled($button_image_attachment_id <= 0); ?>>
+                                <?php echo esc_html__('Remove image', 'll-tools-text-domain'); ?>
+                            </button>
+                        </div>
+                        <p class="description"><?php echo esc_html__('Optional image used by [ll_wordset_buttons] when this word set appears in button lists.', 'll-tools-text-domain'); ?></p>
+                    </div>
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
@@ -10973,6 +11099,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                 _n('%d grammar feature', '%d grammar features', $advanced_grammar_count, 'll-tools-text-domain'),
                 $advanced_grammar_count
             );
+        }
+        if (!empty($advanced_settings['button_image_attachment_id'])) {
+            $advanced_status_parts[] = __('Button image', 'll-tools-text-domain');
         }
         if (($advanced_settings['games_image_size'] ?? 'default') === 'large') {
             $advanced_status_parts[] = __('Large images', 'll-tools-text-domain');

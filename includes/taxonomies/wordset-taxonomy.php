@@ -20,6 +20,9 @@ if (!defined('LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY')) {
 if (!defined('LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY')) {
     define('LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY', 'll_wordset_games_image_size');
 }
+if (!defined('LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY')) {
+    define('LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY', 'll_wordset_button_image_attachment_id');
+}
 
 function ll_tools_normalize_wordset_visibility($value): string {
     $visibility = sanitize_key((string) $value);
@@ -90,6 +93,35 @@ function ll_tools_get_wordset_games_image_size(int $wordset_id): string {
 
 function ll_tools_wordset_get_image_game_card_count(int $wordset_id): int {
     return ll_tools_get_wordset_games_image_size($wordset_id) === 'large' ? 3 : 4;
+}
+
+function ll_tools_sanitize_wordset_button_image_attachment_id($value): int {
+    $attachment_id = absint($value);
+    if ($attachment_id <= 0) {
+        return 0;
+    }
+
+    $attachment = get_post($attachment_id);
+    if (!($attachment instanceof WP_Post) || $attachment->post_type !== 'attachment') {
+        return 0;
+    }
+
+    if (!function_exists('wp_attachment_is_image') || !wp_attachment_is_image($attachment_id)) {
+        return 0;
+    }
+
+    return $attachment_id;
+}
+
+function ll_tools_get_wordset_button_image_attachment_id($wordset): int {
+    $wordset_id = ll_tools_resolve_wordset_term_id($wordset);
+    if ($wordset_id <= 0) {
+        return 0;
+    }
+
+    return ll_tools_sanitize_wordset_button_image_attachment_id(
+        get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true)
+    );
 }
 
 function ll_tools_should_autoplay_text_audio_answer_options($wordset_ids = []): bool {
