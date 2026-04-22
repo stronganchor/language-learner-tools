@@ -2087,17 +2087,35 @@ function ll_word_requires_audio_to_publish($post_id) {
  * @return bool
  */
 function ll_tools_word_has_published_audio($word_id): bool {
-    $published_audio = get_posts([
-        'post_type'        => 'word_audio',
-        'post_parent'      => (int) $word_id,
-        'post_status'      => 'publish',
-        'posts_per_page'   => 1,
-        'fields'           => 'ids',
-        'no_found_rows'    => true,
-        'suppress_filters' => true,
-    ]);
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return false;
+    }
 
-    return !empty($published_audio);
+    global $wpdb;
+
+    $audio_post_id = (int) $wpdb->get_var(
+        $wpdb->prepare(
+            "
+            SELECT p.ID
+            FROM {$wpdb->posts} p
+            INNER JOIN {$wpdb->postmeta} pm
+                ON pm.post_id = p.ID
+               AND pm.meta_key = %s
+               AND pm.meta_value <> ''
+            WHERE p.post_type = %s
+              AND p.post_status = %s
+              AND p.post_parent = %d
+            LIMIT 1
+            ",
+            'audio_file_path',
+            'word_audio',
+            'publish',
+            $word_id
+        )
+    );
+
+    return $audio_post_id > 0;
 }
 
 /**
