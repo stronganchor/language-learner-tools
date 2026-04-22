@@ -10214,6 +10214,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         ll_tools_get_wordset_page_view_url($wordset_term, 'progress'),
         $subpage_return_url
     );
+    $show_games_link = function_exists('ll_tools_wordset_games_has_enabled_categories')
+        ? ll_tools_wordset_games_has_enabled_categories($wordset_id)
+        : true;
     $games_url = ll_tools_wordset_page_with_back_url(
         ll_tools_get_wordset_page_view_url($wordset_term, 'games'),
         $subpage_return_url
@@ -12058,15 +12061,17 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                 </span>
                                 <span class="ll-wordset-link-chip__count" data-ll-wordset-hidden-count><?php echo (int) $hidden_category_count; ?></span>
                             </a>
-                            <a
-                                class="ll-wordset-link-chip ll-wordset-link-chip--games"
-                                href="<?php echo esc_url($games_url); ?>"
-                                aria-label="<?php echo esc_attr__('Open games', 'll-tools-text-domain'); ?>">
-                                <span class="ll-wordset-link-chip__icon" aria-hidden="true">
-                                    <?php echo function_exists('ll_tools_wordset_games_render_page_icon') ? ll_tools_wordset_games_render_page_icon('ll-wordset-games-link-icon') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                </span>
-                                <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
-                            </a>
+                            <?php if ($show_games_link) : ?>
+                                <a
+                                    class="ll-wordset-link-chip ll-wordset-link-chip--games"
+                                    href="<?php echo esc_url($games_url); ?>"
+                                    aria-label="<?php echo esc_attr__('Open games', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-wordset-link-chip__icon" aria-hidden="true">
+                                        <?php echo function_exists('ll_tools_wordset_games_render_page_icon') ? ll_tools_wordset_games_render_page_icon('ll-wordset-games-link-icon') : ''; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    </span>
+                                    <span class="ll-wordset-link-chip__label"><?php echo esc_html__('Games', 'll-tools-text-domain'); ?></span>
+                                </a>
+                            <?php endif; ?>
                             <?php if ($can_manage_classes_frontend) : ?>
                                 <a
                                     class="ll-wordset-link-chip ll-wordset-link-chip--classes"

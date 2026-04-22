@@ -144,21 +144,18 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey('ll_tools_vocab_lesson_request', $GLOBALS);
     }
 
-    public function test_wordset_page_render_outputs_games_navigation_and_games_view_shell(): void
+    public function test_wordset_page_render_outputs_games_navigation_and_games_view_shell_when_games_are_enabled(): void
     {
-        $term = wp_insert_term('Rendered Games Wordset ' . wp_generate_password(6, false), 'wordset');
-        $this->assertFalse(is_wp_error($term));
-        $this->assertIsArray($term);
-
-        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $fixture = $this->createGamesFixture(5);
+        $wordset = get_term((int) $fixture['wordset_id'], 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset);
         $this->setValidWordsetRewriteRules((string) $wordset->slug);
-        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        wp_set_current_user((int) $fixture['user_id']);
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset));
         set_query_var('ll_wordset_page', (string) $wordset->slug);
 
         set_query_var('ll_wordset_view', '');
-        $mainHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $mainHtml = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
         $expectedBack = ll_tools_get_wordset_page_view_url($wordset);
         $expectedGamesUrl = ll_tools_wordset_page_with_back_url(
             ll_tools_get_wordset_page_view_url($wordset, 'games'),
@@ -181,7 +178,7 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         );
 
         set_query_var('ll_wordset_view', 'games');
-        $gamesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+        $gamesHtml = ll_tools_render_wordset_page_content((int) $fixture['wordset_id']);
         $this->assertStringContainsString('data-ll-wordset-games-root', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-game-run-modal', $gamesHtml);
         $this->assertStringContainsString('data-ll-wordset-games-back', $gamesHtml);
@@ -191,6 +188,44 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-game-slug="space-shooter"', $gamesHtml);
         $this->assertStringContainsString('data-game-slug="bubble-pop"', $gamesHtml);
         $this->assertStringNotContainsString('data-ll-wordset-game-close', $gamesHtml);
+    }
+
+    public function test_wordset_page_hides_games_navigation_when_no_category_has_games_enabled(): void
+    {
+        $wordset = wp_insert_term('Hidden Games Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Hidden Games Category ' . wp_generate_password(6, false), 'word-category');
+
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+
+        $wordsetId = (int) $wordset['term_id'];
+        $categoryId = (int) $category['term_id'];
+        update_term_meta($categoryId, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($categoryId, 'll_quiz_option_type', 'image');
+        $this->setCategoryEnabledGames($categoryId, []);
+        $this->createWordWithGameMedia(
+            'Hidden Games Word',
+            'Hidden Games Translation',
+            $categoryId,
+            $wordsetId,
+            true,
+            ['isolation' => 'Hidden games isolation']
+        );
+
+        $wordsetTerm = get_term($wordsetId, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordsetTerm);
+        $this->setValidWordsetRewriteRules((string) $wordsetTerm->slug);
+        wp_set_current_user(self::factory()->user->create(['role' => 'subscriber']));
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordsetTerm));
+        set_query_var('ll_wordset_page', (string) $wordsetTerm->slug);
+        set_query_var('ll_wordset_view', '');
+
+        $mainHtml = ll_tools_render_wordset_page_content($wordsetId);
+
+        $this->assertFalse(ll_tools_wordset_games_has_enabled_categories($wordsetId));
+        $this->assertStringNotContainsString('ll-wordset-link-chip--games', $mainHtml);
     }
 
     public function test_teacher_classes_view_renders_frontend_management_ui(): void

@@ -454,6 +454,46 @@ function ll_tools_wordset_games_visible_categories(int $wordset_id, int $user_id
     return $categories_payload;
 }
 
+function ll_tools_wordset_games_has_enabled_categories(int $wordset_id, int $user_id = 0): bool {
+    static $request_cache = [];
+
+    $wordset_id = max(0, $wordset_id);
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    $cache_key = $wordset_id . ':' . $uid;
+    if (array_key_exists($cache_key, $request_cache)) {
+        return (bool) $request_cache[$cache_key];
+    }
+
+    if (!function_exists('ll_tools_get_category_game_slugs') || !function_exists('ll_tools_is_category_enabled_for_game')) {
+        $request_cache[$cache_key] = false;
+        return false;
+    }
+
+    $categories_payload = ll_tools_wordset_games_categories_for_wordset($wordset_id);
+    $game_slugs = array_values(array_filter(array_map('sanitize_key', ll_tools_get_category_game_slugs())));
+
+    foreach ($categories_payload as $row) {
+        $category_id = is_array($row) ? (int) ($row['id'] ?? 0) : 0;
+        if ($category_id <= 0) {
+            continue;
+        }
+
+        foreach ($game_slugs as $game_slug) {
+            if ($game_slug !== '' && ll_tools_is_category_enabled_for_game($category_id, $game_slug)) {
+                $request_cache[$cache_key] = true;
+                return true;
+            }
+        }
+    }
+
+    $request_cache[$cache_key] = false;
+    return false;
+}
+
 function ll_tools_wordset_games_visible_category_ids(int $wordset_id, int $user_id = 0, string $game_slug = ''): array {
     return array_values(array_filter(array_map(static function ($row): int {
         return is_array($row) ? (int) ($row['id'] ?? 0) : 0;
