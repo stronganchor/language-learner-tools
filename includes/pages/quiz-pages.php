@@ -215,6 +215,91 @@ function ll_tools_get_quiz_title_for_term($term, bool $include_site_name = false
 }
 
 /**
+ * Resolve the effective category + wordset context for an embed request.
+ *
+ * Legacy embed URLs may still point at the source category slug even after the
+ * real quiz content moved into a wordset-isolated copy. When no explicit
+ * wordset is provided, discover the default wordset first, then re-resolve the
+ * category within that wordset so the flashcard widget receives the right slug.
+ *
+ * @param string $embed_category Embed route category slug or term reference.
+ * @param string $wordset_spec   Optional wordset slug|id from the query string.
+ * @return array{term:?WP_Term,wordset_term:?WP_Term,wordset:string}
+ */
+function ll_tools_resolve_embed_quiz_context(string $embed_category, string $wordset_spec = ''): array {
+    $embed_category = trim($embed_category);
+    $wordset_spec = trim($wordset_spec);
+
+    $resolve_wordset_term = static function (string $raw_wordset): ?WP_Term {
+        if ($raw_wordset === '') {
+            return null;
+        }
+
+        $wordset_field = ctype_digit($raw_wordset) ? 'term_id' : 'slug';
+        $wordset_value = ctype_digit($raw_wordset) ? (int) $raw_wordset : sanitize_title($raw_wordset);
+        $wordset_term = get_term_by($wordset_field, $wordset_value, 'wordset');
+
+        return ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term))
+            ? $wordset_term
+            : null;
+    };
+
+    $resolve_category_term = static function (string $category_ref, ?WP_Term $wordset_term): ?WP_Term {
+        if ($category_ref === '') {
+            return null;
+        }
+
+        if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
+            return ll_tools_resolve_word_category_term_for_wordsets(
+                $category_ref,
+                $wordset_term ? [(int) $wordset_term->term_id] : []
+            );
+        }
+
+        $term = get_term_by('slug', $category_ref, 'word-category');
+        return ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null;
+    };
+
+    $wordset_term = $resolve_wordset_term($wordset_spec);
+    if ($wordset_term instanceof WP_Term) {
+        $wordset_spec = (string) $wordset_term->slug;
+    }
+
+    $term = $resolve_category_term($embed_category, $wordset_term);
+
+    if (
+        $wordset_term === null
+        && $term instanceof WP_Term
+        && function_exists('ll_get_default_wordset_id_for_category')
+    ) {
+        $min_word_count = (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ);
+        if ($min_word_count < 1) {
+            $min_word_count = 1;
+        }
+
+        $default_wordset_id = ll_get_default_wordset_id_for_category($term, $min_word_count);
+        if ($default_wordset_id > 0) {
+            $default_wordset_term = get_term($default_wordset_id, 'wordset');
+            if ($default_wordset_term instanceof WP_Term && !is_wp_error($default_wordset_term)) {
+                $wordset_term = $default_wordset_term;
+                $wordset_spec = (string) $default_wordset_term->slug;
+
+                $resolved_term = $resolve_category_term($embed_category, $wordset_term);
+                if ($resolved_term instanceof WP_Term) {
+                    $term = $resolved_term;
+                }
+            }
+        }
+    }
+
+    return [
+        'term' => ($term instanceof WP_Term && !is_wp_error($term)) ? $term : null,
+        'wordset_term' => ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term)) ? $wordset_term : null,
+        'wordset' => $wordset_spec,
+    ];
+}
+
+/**
  * Ensure the parent "/quiz" page exists and return its ID.
  * If a page with slug "quiz" is in the Trash, automatically restore it
  * (so we never end up with /quiz-2, /quiz-3 duplicates).

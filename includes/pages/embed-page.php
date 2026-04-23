@@ -8,22 +8,20 @@ $embed_category = get_query_var('embed_category');
 $wordset = isset($_GET['wordset']) ? sanitize_text_field($_GET['wordset']) : '';
 $mode = isset($_GET['mode']) ? sanitize_text_field($_GET['mode']) : 'practice';
 
-$wordset_term = null;
-if ($wordset !== '') {
-    $wordset_field = ctype_digit($wordset) ? 'term_id' : 'slug';
-    $wordset_value = ctype_digit($wordset) ? (int) $wordset : sanitize_title($wordset);
-    $wordset_term = get_term_by($wordset_field, $wordset_value, 'wordset');
-    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
-        $wordset_term = null;
-    }
-}
+$embed_context = function_exists('ll_tools_resolve_embed_quiz_context')
+    ? ll_tools_resolve_embed_quiz_context((string) $embed_category, (string) $wordset)
+    : [
+        'term' => null,
+        'wordset_term' => null,
+        'wordset' => $wordset,
+    ];
 
-$term = $embed_category
-    ? (
-        function_exists('ll_tools_resolve_word_category_term_for_wordsets')
-            ? ll_tools_resolve_word_category_term_for_wordsets($embed_category, $wordset_term ? [(int) $wordset_term->term_id] : [])
-            : get_term_by('slug', $embed_category, 'word-category')
-    )
+$wordset = isset($embed_context['wordset']) ? (string) $embed_context['wordset'] : $wordset;
+$wordset_term = (isset($embed_context['wordset_term']) && $embed_context['wordset_term'] instanceof WP_Term)
+    ? $embed_context['wordset_term']
+    : null;
+$term = (isset($embed_context['term']) && $embed_context['term'] instanceof WP_Term)
+    ? $embed_context['term']
     : null;
 $term_is_accessible = $term && !is_wp_error($term) && (!function_exists('ll_tools_user_can_view_category') || ll_tools_user_can_view_category($term));
 $term = $term_is_accessible ? $term : null;
@@ -95,15 +93,6 @@ if ($term && !is_wp_error($term)) {
     <div class="entry-content" style="display: flex; justify-content: center; align-items: center; min-height: 90vh;">
         <?php
         if ($term && !is_wp_error($term)) {
-            if (empty($wordset) && function_exists('ll_get_default_wordset_id_for_category')) {
-                $default_ws_id = ll_get_default_wordset_id_for_category($term, LL_TOOLS_MIN_WORDS_PER_QUIZ);
-                if ($default_ws_id > 0) {
-                    $ws_term = get_term($default_ws_id, 'wordset');
-                    if ($ws_term && !is_wp_error($ws_term)) {
-                        $wordset = $ws_term->slug;
-                    }
-                }
-            }
             $shortcode = '[flashcard_widget category="' . esc_attr((string) $term->slug) . '" embed="true"';
             if (!empty($wordset)) {
                 $shortcode .= ' wordset="' . esc_attr($wordset) . '"';
