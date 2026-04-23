@@ -159,4 +159,43 @@ final class QuizPromptCombinationSupportTest extends LL_Tools_TestCase
         $this->assertSame('', (string) ($rows[0]['translation'] ?? ''));
         $this->assertNotEmpty((string) ($rows[0]['image'] ?? ''));
     }
+
+    public function test_image_audio_prompt_with_audio_answers_requires_both_assets_and_keeps_audio_option(): void
+    {
+        $category = wp_insert_term('Image Audio Prompt Category', 'word-category');
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'image_audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'audio');
+
+        $complete_word_id = $this->createWord($category_id, 'Bird', 'Bird');
+        $this->addImage($complete_word_id, '-image');
+        $this->addAudio($complete_word_id, '-audio');
+
+        $image_only_word_id = $this->createWord($category_id, 'Nest', 'Nest');
+        $this->addImage($image_only_word_id, '-image');
+
+        $audio_only_word_id = $this->createWord($category_id, 'Feather', 'Feather');
+        $this->addAudio($audio_only_word_id, '-audio');
+
+        $term = get_term($category_id, 'word-category');
+        $this->assertInstanceOf(WP_Term::class, $term);
+
+        $config = ll_tools_get_category_quiz_config($term);
+        $rows = ll_get_words_by_category('Image Audio Prompt Category', 'audio', null, $config);
+        $count = ll_get_words_by_category_count('Image Audio Prompt Category', 'audio', null, $config);
+
+        $this->assertContains('image_audio', ll_tools_get_quiz_prompt_types());
+        $this->assertSame('image_audio', (string) ($config['prompt_type'] ?? ''));
+        $this->assertSame('audio', (string) ($config['option_type'] ?? ''));
+        $this->assertTrue(ll_tools_quiz_requires_audio($config, 'audio'));
+        $this->assertTrue(ll_tools_quiz_requires_image($config, 'audio'));
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, $count);
+        $this->assertSame($complete_word_id, (int) ($rows[0]['id'] ?? 0));
+        $this->assertNotEmpty((string) ($rows[0]['audio'] ?? ''));
+        $this->assertNotEmpty((string) ($rows[0]['image'] ?? ''));
+    }
 }

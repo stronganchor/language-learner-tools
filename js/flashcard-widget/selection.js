@@ -28,7 +28,10 @@
             return !!Util.promptTypeHasAudio(promptType);
         }
         const normalized = normalizePromptType(promptType);
-        return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+        return normalized === 'audio'
+            || normalized === 'audio_text_translation'
+            || normalized === 'audio_text_title'
+            || normalized === 'image_audio';
     }
 
     function promptTypeHasImage(promptType) {
@@ -36,7 +39,10 @@
             return !!Util.promptTypeHasImage(promptType);
         }
         const normalized = normalizePromptType(promptType);
-        return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+        return normalized === 'image'
+            || normalized === 'image_audio'
+            || normalized === 'image_text_translation'
+            || normalized === 'image_text_title';
     }
 
     function optionTypeHasImage(optionType) {

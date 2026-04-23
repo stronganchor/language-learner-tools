@@ -120,11 +120,17 @@
         },
         promptTypeHasAudio(promptType) {
             const normalized = Util.normalizePromptType(promptType);
-            return normalized === 'audio' || normalized === 'audio_text_translation' || normalized === 'audio_text_title';
+            return normalized === 'audio'
+                || normalized === 'audio_text_translation'
+                || normalized === 'audio_text_title'
+                || normalized === 'image_audio';
         },
         promptTypeHasImage(promptType) {
             const normalized = Util.normalizePromptType(promptType);
-            return normalized === 'image' || normalized === 'image_text_translation' || normalized === 'image_text_title';
+            return normalized === 'image'
+                || normalized === 'image_audio'
+                || normalized === 'image_text_translation'
+                || normalized === 'image_text_title';
         },
         optionTypeHasImage(optionType) {
             const normalized = Util.normalizeOptionType(optionType);

@@ -1045,6 +1045,7 @@ function ll_tools_get_quiz_prompt_types(): array {
         'audio_text_translation',
         'audio_text_title',
         'image',
+        'image_audio',
         'image_text_translation',
         'image_text_title',
         'text_translation',
@@ -1083,6 +1084,7 @@ function ll_tools_quiz_prompt_type_has_audio($prompt_type): bool {
         case 'audio':
         case 'audio_text_translation':
         case 'audio_text_title':
+        case 'image_audio':
             return true;
         default:
             return false;
@@ -1092,6 +1094,7 @@ function ll_tools_quiz_prompt_type_has_audio($prompt_type): bool {
 function ll_tools_quiz_prompt_type_has_image($prompt_type): bool {
     switch (sanitize_key((string) $prompt_type)) {
         case 'image':
+        case 'image_audio':
         case 'image_text_translation':
         case 'image_text_title':
             return true;
@@ -1108,6 +1111,8 @@ function ll_tools_get_quiz_prompt_type_label(string $prompt_type): string {
             return __('Play audio + show text (title)', 'll-tools-text-domain');
         case 'image':
             return __('Show image', 'll-tools-text-domain');
+        case 'image_audio':
+            return __('Show image + play audio', 'll-tools-text-domain');
         case 'image_text_translation':
             return __('Show image + text (translation)', 'll-tools-text-domain');
         case 'image_text_title':
@@ -1828,6 +1833,7 @@ function ll_add_quiz_prompt_option_fields($term) {
             <option value="audio_text_translation" <?php selected($defaults['prompt_type'], 'audio_text_translation'); ?>><?php esc_html_e('Play audio + show text (translation)', 'll-tools-text-domain'); ?></option>
             <option value="audio_text_title" <?php selected($defaults['prompt_type'], 'audio_text_title'); ?>><?php esc_html_e('Play audio + show text (title)', 'll-tools-text-domain'); ?></option>
             <option value="image" <?php selected($defaults['prompt_type'], 'image'); ?>><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+            <option value="image_audio" <?php selected($defaults['prompt_type'], 'image_audio'); ?>><?php esc_html_e('Show image + play audio', 'll-tools-text-domain'); ?></option>
             <option value="image_text_translation" <?php selected($defaults['prompt_type'], 'image_text_translation'); ?>><?php esc_html_e('Show image + text (translation)', 'll-tools-text-domain'); ?></option>
             <option value="image_text_title" <?php selected($defaults['prompt_type'], 'image_text_title'); ?>><?php esc_html_e('Show image + text (title)', 'll-tools-text-domain'); ?></option>
             <option value="text_translation" <?php selected($defaults['prompt_type'], 'text_translation'); ?>><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
@@ -1863,15 +1869,18 @@ function ll_add_quiz_prompt_option_fields($term) {
         const option = document.getElementById('ll_quiz_option_type');
         if (!prompt || !option) return;
         function promptHasAudio(value){
-          return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title';
+          return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title' || value === 'image_audio';
         }
         function promptHasImage(value){
-          return value === 'image' || value === 'image_text_translation' || value === 'image_text_title';
+          return value === 'image' || value === 'image_audio' || value === 'image_text_translation' || value === 'image_text_title';
         }
         function getPromptTextType(value){
           if (value === 'text_translation' || value === 'audio_text_translation' || value === 'image_text_translation') return 'text_translation';
           if (value === 'text_title' || value === 'audio_text_title' || value === 'image_text_title') return 'text_title';
           return '';
+        }
+        function promptBlocksAudioOptions(value){
+          return promptHasAudio(value) && !promptHasImage(value);
         }
         function getFallbackOption(value){
           const promptTextType = getPromptTextType(value);
@@ -1888,7 +1897,7 @@ function ll_add_quiz_prompt_option_fields($term) {
             });
             if (option.value === 'image' || option.value === 'image_text_translation') { option.value = getFallbackOption(prompt.value); }
           }
-          if (promptHasAudio(prompt.value)) {
+          if (promptBlocksAudioOptions(prompt.value)) {
             const opt = option.querySelector('option[value="audio"]');
             if (opt) { opt.disabled = true; if (option.value === 'audio') { option.value = getFallbackOption(prompt.value); } }
           }
@@ -1926,6 +1935,7 @@ function ll_edit_quiz_prompt_option_fields($term) {
                 <option value="audio_text_translation" <?php selected($config['prompt_type'], 'audio_text_translation'); ?>><?php esc_html_e('Play audio + show text (translation)', 'll-tools-text-domain'); ?></option>
                 <option value="audio_text_title" <?php selected($config['prompt_type'], 'audio_text_title'); ?>><?php esc_html_e('Play audio + show text (title)', 'll-tools-text-domain'); ?></option>
                 <option value="image" <?php selected($config['prompt_type'], 'image'); ?>><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+                <option value="image_audio" <?php selected($config['prompt_type'], 'image_audio'); ?>><?php esc_html_e('Show image + play audio', 'll-tools-text-domain'); ?></option>
                 <option value="image_text_translation" <?php selected($config['prompt_type'], 'image_text_translation'); ?>><?php esc_html_e('Show image + text (translation)', 'll-tools-text-domain'); ?></option>
                 <option value="image_text_title" <?php selected($config['prompt_type'], 'image_text_title'); ?>><?php esc_html_e('Show image + text (title)', 'll-tools-text-domain'); ?></option>
                 <option value="text_translation" <?php selected($config['prompt_type'], 'text_translation'); ?>><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
@@ -1970,15 +1980,18 @@ function ll_edit_quiz_prompt_option_fields($term) {
         const option = document.getElementById('ll_quiz_option_type');
         if (!prompt || !option) return;
         function promptHasAudio(value){
-          return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title';
+          return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title' || value === 'image_audio';
         }
         function promptHasImage(value){
-          return value === 'image' || value === 'image_text_translation' || value === 'image_text_title';
+          return value === 'image' || value === 'image_audio' || value === 'image_text_translation' || value === 'image_text_title';
         }
         function getPromptTextType(value){
           if (value === 'text_translation' || value === 'audio_text_translation' || value === 'image_text_translation') return 'text_translation';
           if (value === 'text_title' || value === 'audio_text_title' || value === 'image_text_title') return 'text_title';
           return '';
+        }
+        function promptBlocksAudioOptions(value){
+          return promptHasAudio(value) && !promptHasImage(value);
         }
         function getFallbackOption(value){
           const promptTextType = getPromptTextType(value);
@@ -1995,7 +2008,7 @@ function ll_edit_quiz_prompt_option_fields($term) {
             });
             if (option.value === 'image' || option.value === 'image_text_translation') { option.value = getFallbackOption(prompt.value); }
           }
-          if (promptHasAudio(prompt.value)) {
+          if (promptBlocksAudioOptions(prompt.value)) {
             const opt = option.querySelector('option[value="audio"]');
             if (opt) { opt.disabled = true; if (option.value === 'audio') { option.value = getFallbackOption(prompt.value); } }
           }

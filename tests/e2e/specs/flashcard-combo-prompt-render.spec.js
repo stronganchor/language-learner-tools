@@ -99,3 +99,35 @@ test('image + text prompt stacks image and text together', async ({ page }) => {
   expect(rendered.text).toBe('Kitap');
   expect(rendered.imageCount).toBe(1);
 });
+
+test('image + audio prompt is treated as both an image prompt and an audio prompt', async ({ page }) => {
+  await mountPromptHarness(page, {
+    prompt_type: 'image_audio',
+    option_type: 'audio'
+  });
+
+  const rendered = await page.evaluate(() => {
+    window.LLFlashcards.Selection.renderPrompt({
+      id: 33,
+      title: 'Kuş',
+      label: 'Bird',
+      image: 'https://example.com/bird.jpg',
+      audio: 'https://example.com/bird.mp3'
+    }, {
+      prompt_type: 'image_audio',
+      option_type: 'audio'
+    });
+
+    return {
+      hasAudio: window.LLFlashcards.Util.promptTypeHasAudio('image_audio'),
+      hasImage: window.LLFlashcards.Util.promptTypeHasImage('image_audio'),
+      text: document.querySelector('#ll-tools-prompt .ll-prompt-text')?.textContent?.trim() || '',
+      imageCount: document.querySelectorAll('#ll-tools-prompt img').length
+    };
+  });
+
+  expect(rendered.hasAudio).toBe(true);
+  expect(rendered.hasImage).toBe(true);
+  expect(rendered.text).toBe('');
+  expect(rendered.imageCount).toBe(1);
+});

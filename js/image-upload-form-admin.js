@@ -32,11 +32,11 @@
         }
 
         function promptHasAudio(value) {
-            return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title';
+            return value === 'audio' || value === 'audio_text_translation' || value === 'audio_text_title' || value === 'image_audio';
         }
 
         function promptHasImage(value) {
-            return value === 'image' || value === 'image_text_translation' || value === 'image_text_title';
+            return value === 'image' || value === 'image_audio' || value === 'image_text_translation' || value === 'image_text_title';
         }
 
         function getPromptTextType(value) {
@@ -47,6 +47,10 @@
                 return 'text_title';
             }
             return '';
+        }
+
+        function promptBlocksAudioOptions(value) {
+            return promptHasAudio(value) && !promptHasImage(value);
         }
 
         function getFallbackOption(value) {
@@ -69,7 +73,7 @@
             }
         }
 
-        if (promptHasAudio($prompt.val())) {
+        if (promptBlocksAudioOptions($prompt.val())) {
             $option.find('option[value="audio"]').prop('disabled', true);
             if ($option.val() === 'audio') {
                 $option.val(getFallbackOption($prompt.val()));
@@ -95,7 +99,7 @@
             return false;
         }
 
-        var promptIsImage = (prompt === 'image' || prompt === 'image_text_translation' || prompt === 'image_text_title');
+        var promptIsImage = (prompt === 'image' || prompt === 'image_audio' || prompt === 'image_text_translation' || prompt === 'image_text_title');
         var promptIsText = (prompt === 'text_translation' || prompt === 'text_title' || prompt === 'audio_text_translation' || prompt === 'audio_text_title' || prompt === 'image_text_translation' || prompt === 'image_text_title');
         var optionIsImage = (option === 'image');
         var optionIsText = (option === 'text' || option === 'text_translation' || option === 'text_title');

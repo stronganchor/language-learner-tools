@@ -662,6 +662,7 @@ function ll_image_upload_form_shortcode($atts = []) {
                         <option value="audio_text_translation"><?php esc_html_e('Play audio + show text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="audio_text_title"><?php esc_html_e('Play audio + show text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="image"><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+                        <option value="image_audio"><?php esc_html_e('Show image + play audio', 'll-tools-text-domain'); ?></option>
                         <option value="image_text_translation"><?php esc_html_e('Show image + text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="image_text_title"><?php esc_html_e('Show image + text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="text_translation"><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
@@ -1097,7 +1098,7 @@ function ll_image_upload_create_category_from_request() {
     $prompt = function_exists('ll_tools_normalize_quiz_prompt_type')
         ? ll_tools_normalize_quiz_prompt_type($prompt_raw)
         : (
-            in_array($prompt_raw, ['audio', 'audio_text_translation', 'audio_text_title', 'image', 'image_text_translation', 'image_text_title', 'text_translation', 'text_title'], true)
+            in_array($prompt_raw, ['audio', 'audio_text_translation', 'audio_text_title', 'image', 'image_audio', 'image_text_translation', 'image_text_title', 'text_translation', 'text_title'], true)
                 ? $prompt_raw
                 : 'audio'
         );
@@ -1124,17 +1125,17 @@ function ll_image_upload_create_category_from_request() {
         : (($prompt_text_type === 'text_title') ? 'text_translation' : (($prompt_text_type === 'text_translation') ? 'text_title' : 'text_translation'));
     $prompt_has_image = function_exists('ll_tools_quiz_prompt_type_has_image')
         ? ll_tools_quiz_prompt_type_has_image($prompt)
-        : in_array($prompt, ['image', 'image_text_translation', 'image_text_title'], true);
+        : in_array($prompt, ['image', 'image_audio', 'image_text_translation', 'image_text_title'], true);
     $prompt_has_audio = function_exists('ll_tools_quiz_prompt_type_has_audio')
         ? ll_tools_quiz_prompt_type_has_audio($prompt)
-        : in_array($prompt, ['audio', 'audio_text_translation', 'audio_text_title'], true);
+        : in_array($prompt, ['audio', 'audio_text_translation', 'audio_text_title', 'image_audio'], true);
 
     if ($prompt_has_image && function_exists('ll_tools_quiz_option_type_has_image') && ll_tools_quiz_option_type_has_image($option)) {
         $option = $fallback_text_option;
     } elseif ($prompt_has_image && $option === 'image') {
         $option = $fallback_text_option;
     }
-    if ($prompt_has_audio && $option === 'audio') {
+    if ($prompt_has_audio && !$prompt_has_image && $option === 'audio') {
         $option = $fallback_text_option;
     }
     if ($prompt_text_type !== '' && $option === $prompt_text_type) {
@@ -1211,7 +1212,7 @@ function ll_image_upload_category_supports_autocreate($term_id) {
     $option_type = isset($cfg['option_type']) ? (string) $cfg['option_type'] : '';
     $prompt_is_image = function_exists('ll_tools_quiz_prompt_type_has_image')
         ? ll_tools_quiz_prompt_type_has_image($prompt_type)
-        : in_array($prompt_type, ['image', 'image_text_translation', 'image_text_title'], true);
+        : in_array($prompt_type, ['image', 'image_audio', 'image_text_translation', 'image_text_title'], true);
     $prompt_is_text = function_exists('ll_tools_quiz_prompt_type_has_text')
         ? ll_tools_quiz_prompt_type_has_text($prompt_type)
         : in_array($prompt_type, ['text_translation', 'text_title', 'audio_text_translation', 'audio_text_title', 'image_text_translation', 'image_text_title'], true);

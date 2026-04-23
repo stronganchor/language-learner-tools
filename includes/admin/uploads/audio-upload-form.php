@@ -505,6 +505,7 @@ function ll_audio_upload_form_shortcode($atts = []) {
                         <option value="audio_text_translation"><?php esc_html_e('Play audio + show text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="audio_text_title"><?php esc_html_e('Play audio + show text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="image"><?php esc_html_e('Show image', 'll-tools-text-domain'); ?></option>
+                        <option value="image_audio"><?php esc_html_e('Show image + play audio', 'll-tools-text-domain'); ?></option>
                         <option value="image_text_translation"><?php esc_html_e('Show image + text (translation)', 'll-tools-text-domain'); ?></option>
                         <option value="image_text_title"><?php esc_html_e('Show image + text (title)', 'll-tools-text-domain'); ?></option>
                         <option value="text_translation"><?php esc_html_e('Show text (translation)', 'll-tools-text-domain'); ?></option>
