@@ -1364,7 +1364,7 @@ function ll_tools_get_admin_maintenance_tasks(): array {
         }
     }
 
-    return $tasks;
+    return (array) apply_filters('ll_tools_admin_maintenance_tasks', $tasks);
 }
 
 /**

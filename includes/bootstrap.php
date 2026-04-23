@@ -102,6 +102,7 @@ if (ll_tools_should_load_admin_modules()) {
     require_once(__DIR__ . '/admin/ipa-keyboard-admin.php');
     require_once(__DIR__ . '/admin/image-aspect-normalizer-admin.php');
     require_once(__DIR__ . '/admin/image-webp-optimizer-admin.php');
+    require_once(__DIR__ . '/admin/orphan-media-admin.php');
     require_once(__DIR__ . '/admin/split-word-admin.php');
     require_once(__DIR__ . '/admin/duplicate-category-words-admin.php');
 }
