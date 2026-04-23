@@ -812,8 +812,8 @@ if (have_posts()) {
                                 <button type="button" class="ll-vocab-lesson-category-settings-trigger ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Category settings', 'll-tools-text-domain'); ?>">
                                     <span class="ll-vocab-lesson-category-settings-trigger-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                                            <path d="M12 3.75 13.7 6.5l3.18.54-.92 3.08 2.22 2.34-2.22 2.34.92 3.08-3.18.54L12 20.25l-1.7-2.73-3.18-.54.92-3.08L5.82 11.56l2.22-2.34-.92-3.08 3.18-.54L12 3.75Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                                            <circle cx="12" cy="12" r="3.15" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                                            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M19.4 12.98c.04-.32.06-.65.06-.98 0-.33-.02-.66-.06-.98l1.73-1.35a.5.5 0 0 0 .12-.64l-1.64-2.84a.5.5 0 0 0-.6-.22l-2.04.82a7.1 7.1 0 0 0-1.7-.98l-.26-2.17A.5.5 0 0 0 14.5 3h-5a.5.5 0 0 0-.5.43l-.26 2.17c-.6.24-1.17.55-1.7.93l-2.04-.82a.5.5 0 0 0-.6.22L2.76 8.58a.5.5 0 0 0 .12.64L4.6 10.57c-.04.32-.06.65-.06.98 0 .33.02.66.06.98l-1.73 1.35a.5.5 0 0 0-.12.64l1.64 2.84a.5.5 0 0 0 .6.22l2.04-.82c.53.38 1.1.69 1.7.93l.26 2.17a.5.5 0 0 0 .5.43h5a.5.5 0 0 0 .5-.43l.26-2.17c.6-.24 1.17-.55 1.7-.93l2.04.82a.5.5 0 0 0 .6-.22l1.64-2.84a.5.5 0 0 0-.12-.64l-1.73-1.35Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
                                     </span>
                                     <span class="ll-vocab-lesson-category-settings-trigger-label"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>

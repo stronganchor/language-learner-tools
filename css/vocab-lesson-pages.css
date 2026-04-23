@@ -448,6 +448,10 @@
 }
 
 .ll-vocab-lesson-print-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
     white-space: nowrap;
 }
 
@@ -475,7 +479,12 @@
     background-color: #eef4ff !important;
     color: #1d4d99 !important;
     border: 1px solid #c7d7ef !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    line-height: 1.2 !important;
     text-decoration: none !important;
+    text-transform: none !important;
     box-shadow: 0 6px 14px rgba(29, 77, 153, 0.12);
 }
 
@@ -631,39 +640,48 @@
     border-radius: 999px !important;
     padding: 6px 12px !important;
     gap: 8px;
-    background: #fff6e8 !important;
-    background-color: #fff6e8 !important;
-    color: #9a4d00 !important;
-    border: 1px solid #f3c98b !important;
+    background: #f2f4f7 !important;
+    background-color: #f2f4f7 !important;
+    color: #475467 !important;
+    border: 1px solid #d0d5dd !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+    line-height: 1.2 !important;
     text-decoration: none !important;
-    box-shadow: 0 6px 14px rgba(154, 77, 0, 0.12);
+    text-transform: none !important;
+    box-shadow: 0 6px 14px rgba(71, 84, 103, 0.12);
 }
 
 .ll-vocab-lesson-category-settings-trigger.ll-tools-settings-button:hover,
 .ll-vocab-lesson-category-settings-trigger.ll-tools-settings-button:focus-visible {
-    background: #ffecc8 !important;
-    background-color: #ffecc8 !important;
-    border-color: #e4ae5f !important;
-    color: #7c3b00 !important;
-    box-shadow: 0 10px 20px rgba(154, 77, 0, 0.18);
+    background: #eaecf0 !important;
+    background-color: #eaecf0 !important;
+    border-color: #98a2b3 !important;
+    color: #344054 !important;
+    box-shadow: 0 10px 20px rgba(71, 84, 103, 0.16);
 }
 
 .ll-vocab-lesson-category-settings-trigger-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 17px;
-    height: 17px;
+    width: 18px;
+    height: 18px;
     color: inherit;
 }
 
 .ll-vocab-lesson-category-settings-trigger-icon svg {
-    width: 17px;
-    height: 17px;
+    width: 18px;
+    height: 18px;
     display: block;
 }
 
 .ll-vocab-lesson-category-settings-trigger-label {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
     white-space: nowrap;
 }
 
