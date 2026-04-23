@@ -3354,26 +3354,7 @@ function ll_verify_recording_handler() {
     $latest = get_posts($args);
     $audio_post_id = !empty($latest) ? (int) $latest[0] : 0;
 
-    // Remaining types (computed with the same filtered list)
-    // Recompute remaining types, respecting desired types and only applying single-speaker logic
-    // when the full main set is requested.
-    $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
-    $desired_word = ll_sort_recording_type_slugs($desired_word);
-    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
-
-    $main_types = ll_tools_get_main_recording_types();
-    $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
-
-    if ($types_equal_main) {
-        if (ll_tools_get_preferred_speaker_for_word($word_id)) {
-            $remaining_missing = [];
-        } else {
-            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, get_current_user_id());
-        }
-    } else {
-        // For subset requests (e.g., isolation-only), consider any existing recording sufficient
-        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
-    }
+    $remaining_missing = ll_tools_get_recorder_remaining_recording_types($word_id, $filtered_types, get_current_user_id());
 
     // If this exact type was requested and it still appears in remaining, then treat as not found.
     $found = 0;
@@ -4436,6 +4417,256 @@ function ll_get_user_missing_recording_types_for_word(int $word_id, array $filte
 }
 
 /**
+ * Remaining recorder-facing types for this word in the current shortcode context.
+ */
+function ll_tools_get_recorder_remaining_recording_types(int $word_id, array $filtered_types, int $user_id): array {
+    $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
+    $desired_word = ll_sort_recording_type_slugs($desired_word);
+    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
+
+    $main_types = ll_tools_get_main_recording_types();
+    $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
+
+    if ($types_equal_main) {
+        if (ll_tools_get_preferred_speaker_for_word($word_id)) {
+            return [];
+        }
+
+        return ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $user_id);
+    }
+
+    return ll_get_missing_recording_types_for_word($word_id, $filtered_types);
+}
+
+function ll_tools_get_recording_upload_sha1_meta_key(): string {
+    return '_ll_recording_upload_sha1';
+}
+
+function ll_tools_get_recording_upload_sha1_for_file(string $path): string {
+    $path = trim($path);
+    if ($path === '' || !is_file($path) || !is_readable($path)) {
+        return '';
+    }
+
+    $hash = @hash_file('sha1', $path);
+    if (!is_string($hash)) {
+        return '';
+    }
+
+    $hash = strtolower(trim($hash));
+    return preg_match('/^[a-f0-9]{40}$/', $hash) ? $hash : '';
+}
+
+function ll_tools_resolve_recording_upload_absolute_path(string $audio_path): string {
+    $audio_path = trim($audio_path);
+    if ($audio_path === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_export_resolve_audio_source_path')) {
+        $resolved = (string) ll_tools_export_resolve_audio_source_path($audio_path);
+        if ($resolved !== '') {
+            return $resolved;
+        }
+    }
+
+    $candidate = wp_normalize_path($audio_path);
+    if ($candidate !== '' && is_file($candidate)) {
+        return $candidate;
+    }
+
+    $upload_dir = wp_get_upload_dir();
+    $base_url = isset($upload_dir['baseurl']) ? (string) $upload_dir['baseurl'] : '';
+    $base_dir = isset($upload_dir['basedir']) ? (string) $upload_dir['basedir'] : '';
+
+    if (preg_match('#^https?://#i', $audio_path)) {
+        if ($base_url !== '' && strpos($audio_path, $base_url) === 0) {
+            $relative = ltrim(substr($audio_path, strlen($base_url)), '/');
+            $candidate = wp_normalize_path(trailingslashit($base_dir) . $relative);
+            if ($candidate !== '' && is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $url_path = wp_parse_url($audio_path, PHP_URL_PATH);
+        if (!is_string($url_path) || $url_path === '') {
+            return '';
+        }
+
+        $audio_path = $url_path;
+    }
+
+    $audio_path = wp_normalize_path($audio_path);
+    if ($audio_path === '') {
+        return '';
+    }
+
+    if ($audio_path[0] === '/') {
+        $candidate = wp_normalize_path(untrailingslashit(ABSPATH) . $audio_path);
+    } else {
+        $candidate = wp_normalize_path(untrailingslashit(ABSPATH) . '/' . ltrim($audio_path, '/'));
+    }
+
+    return is_file($candidate) ? $candidate : '';
+}
+
+function ll_tools_get_recording_upload_sha1_for_audio_post(int $audio_post_id): string {
+    $audio_post_id = (int) $audio_post_id;
+    if ($audio_post_id <= 0) {
+        return '';
+    }
+
+    $meta_key = ll_tools_get_recording_upload_sha1_meta_key();
+    $stored_hash = strtolower(trim((string) get_post_meta($audio_post_id, $meta_key, true)));
+    if (preg_match('/^[a-f0-9]{40}$/', $stored_hash)) {
+        return $stored_hash;
+    }
+
+    $audio_path = (string) get_post_meta($audio_post_id, 'audio_file_path', true);
+    $absolute_path = ll_tools_resolve_recording_upload_absolute_path($audio_path);
+    if ($absolute_path === '') {
+        return '';
+    }
+
+    $hash = ll_tools_get_recording_upload_sha1_for_file($absolute_path);
+    if ($hash !== '') {
+        update_post_meta($audio_post_id, $meta_key, $hash);
+    }
+
+    return $hash;
+}
+
+function ll_tools_find_matching_recording_upload(int $word_id, string $recording_type, int $speaker_user_id, string $upload_sha1): int {
+    $word_id = (int) $word_id;
+    $recording_type = sanitize_key($recording_type);
+    $speaker_user_id = (int) $speaker_user_id;
+    $upload_sha1 = strtolower(trim($upload_sha1));
+
+    if ($word_id <= 0 || !preg_match('/^[a-f0-9]{40}$/', $upload_sha1)) {
+        return 0;
+    }
+
+    $query_args = [
+        'post_type'      => 'word_audio',
+        'post_status'    => ['draft', 'pending', 'publish', 'private', 'future', 'inherit'],
+        'perm'           => 'any',
+        'posts_per_page' => -1,
+        'post_parent'    => $word_id,
+        'no_found_rows'  => true,
+    ];
+
+    if ($recording_type !== '') {
+        $query_args['tax_query'] = [[
+            'taxonomy' => 'recording_type',
+            'field'    => 'slug',
+            'terms'    => [$recording_type],
+        ]];
+    }
+
+    $candidate_posts = get_posts($query_args);
+    if (empty($candidate_posts)) {
+        return 0;
+    }
+
+    foreach ((array) $candidate_posts as $candidate_post) {
+        if (!($candidate_post instanceof WP_Post)) {
+            continue;
+        }
+
+        $candidate_post_id = (int) $candidate_post->ID;
+        if ($candidate_post_id <= 0) {
+            continue;
+        }
+
+        $candidate_speaker_user_id = (int) get_post_meta($candidate_post_id, 'speaker_user_id', true);
+        if ($candidate_speaker_user_id <= 0) {
+            $candidate_speaker_user_id = (int) $candidate_post->post_author;
+        }
+
+        if ($speaker_user_id > 0 && $candidate_speaker_user_id !== $speaker_user_id) {
+            continue;
+        }
+
+        $candidate_sha1 = ll_tools_get_recording_upload_sha1_for_audio_post($candidate_post_id);
+        if ($candidate_sha1 !== '' && hash_equals($candidate_sha1, $upload_sha1)) {
+            return $candidate_post_id;
+        }
+    }
+
+    return 0;
+}
+
+function ll_tools_build_recording_upload_dedupe_signature(int $word_id, string $recording_type, int $speaker_user_id, string $upload_sha1): string {
+    $word_id = (int) $word_id;
+    $recording_type = sanitize_key($recording_type);
+    $speaker_user_id = (int) $speaker_user_id;
+    $upload_sha1 = strtolower(trim($upload_sha1));
+
+    if ($word_id <= 0 || !preg_match('/^[a-f0-9]{40}$/', $upload_sha1)) {
+        return '';
+    }
+
+    return implode('|', [
+        (string) $word_id,
+        $recording_type !== '' ? $recording_type : '__none__',
+        (string) max(0, $speaker_user_id),
+        $upload_sha1,
+    ]);
+}
+
+function ll_tools_get_recording_upload_lock_option_name(string $signature): string {
+    return 'll_recording_upload_lock_' . substr(md5($signature), 0, 24);
+}
+
+function ll_tools_acquire_recording_upload_lock(string $signature, int $stale_after_seconds = 180): bool {
+    $signature = trim($signature);
+    if ($signature === '') {
+        return false;
+    }
+
+    $option_name = ll_tools_get_recording_upload_lock_option_name($signature);
+    $now = time();
+    if (add_option($option_name, (string) $now, '', false)) {
+        return true;
+    }
+
+    $existing = (int) get_option($option_name, 0);
+    if ($existing > 0 && ($now - $existing) < max(30, $stale_after_seconds)) {
+        return false;
+    }
+
+    delete_option($option_name);
+    return add_option($option_name, (string) $now, '', false);
+}
+
+function ll_tools_release_recording_upload_lock(string $signature): void {
+    $signature = trim($signature);
+    if ($signature === '') {
+        return;
+    }
+
+    delete_option(ll_tools_get_recording_upload_lock_option_name($signature));
+}
+
+function ll_tools_wait_for_matching_recording_upload(int $word_id, string $recording_type, int $speaker_user_id, string $upload_sha1, int $attempts = 8, int $sleep_microseconds = 250000): int {
+    $attempts = max(1, $attempts);
+    $sleep_microseconds = max(0, $sleep_microseconds);
+
+    for ($attempt = 0; $attempt < $attempts; $attempt++) {
+        $existing_audio_post_id = ll_tools_find_matching_recording_upload($word_id, $recording_type, $speaker_user_id, $upload_sha1);
+        if ($existing_audio_post_id > 0) {
+            return $existing_audio_post_id;
+        }
+
+        if ($attempt < ($attempts - 1) && $sleep_microseconds > 0) {
+            usleep($sleep_microseconds);
+        }
+    }
+
+    return 0;
+}
+
+/**
  * Enqueue recording interface assets
  */
 function ll_enqueue_recording_assets($auto_process_recordings = false) {
@@ -4526,23 +4757,7 @@ function ll_skip_recording_type_handler() {
         }
     }
 
-    // Remaining types, applying single-speaker logic only when collecting the full main set
-    $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
-    $desired_word = ll_sort_recording_type_slugs($desired_word);
-    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
-
-    $main_types = ll_tools_get_main_recording_types();
-    $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
-
-    if ($types_equal_main) {
-        if (ll_tools_get_preferred_speaker_for_word($word_id)) {
-            $remaining_missing = [];
-        } else {
-            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, get_current_user_id());
-        }
-    } else {
-        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
-    }
+    $remaining_missing = ll_tools_get_recorder_remaining_recording_types($word_id, $filtered_types, get_current_user_id());
     // Drop the skipped type for this session so the UI can move on, but do not persist anything.
     if ($recording_type) {
         $remaining_missing = array_values(array_diff($remaining_missing, [$recording_type]));
@@ -5221,6 +5436,42 @@ function ll_handle_recording_upload() {
     }
 
     $file       = (array) $_FILES['audio'];
+    $upload_sha1 = ll_tools_get_recording_upload_sha1_for_file((string) ($file['tmp_name'] ?? ''));
+    $upload_lock_signature = ll_tools_build_recording_upload_dedupe_signature($word_id, $recording_type, $current_user_id, $upload_sha1);
+    $upload_lock_acquired = false;
+
+    if ($upload_lock_signature !== '') {
+        $upload_lock_acquired = ll_tools_acquire_recording_upload_lock($upload_lock_signature);
+        if (!$upload_lock_acquired) {
+            $existing_audio_post_id = ll_tools_wait_for_matching_recording_upload($word_id, $recording_type, $current_user_id, $upload_sha1);
+            if ($existing_audio_post_id > 0) {
+                $remaining_missing = ll_tools_get_recorder_remaining_recording_types($word_id, $filtered_types, $current_user_id);
+                wp_send_json_success([
+                    'audio_post_id'   => (int) $existing_audio_post_id,
+                    'word_id'         => (int) $word_id,
+                    'recording_type'  => $recording_type,
+                    'remaining_types' => $remaining_missing,
+                    'deduped'         => true,
+                ]);
+            }
+
+            wp_send_json_error(__('This recording is already uploading. Please wait a moment and try again.', 'll-tools-text-domain'), 409);
+        }
+
+        $existing_audio_post_id = ll_tools_find_matching_recording_upload($word_id, $recording_type, $current_user_id, $upload_sha1);
+        if ($existing_audio_post_id > 0) {
+            ll_tools_release_recording_upload_lock($upload_lock_signature);
+            $remaining_missing = ll_tools_get_recorder_remaining_recording_types($word_id, $filtered_types, $current_user_id);
+            wp_send_json_success([
+                'audio_post_id'   => (int) $existing_audio_post_id,
+                'word_id'         => (int) $word_id,
+                'recording_type'  => $recording_type,
+                'remaining_types' => $remaining_missing,
+                'deduped'         => true,
+            ]);
+        }
+    }
+
     $safe_title = sanitize_file_name($title);
     // Extra hardening for edge-case titles (quotes, exotic punctuation)
     $safe_title = str_replace(array("'", '"'), '', $safe_title);
@@ -5254,6 +5505,9 @@ function ll_handle_recording_upload() {
         'mimes' => ll_tools_get_allowed_recording_upload_mimes(),
     ]);
     if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
+        if ($upload_lock_acquired) {
+            ll_tools_release_recording_upload_lock($upload_lock_signature);
+        }
         $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
         error_log('Upload step: Failed to save file' . ($upload_error !== '' ? ': ' . $upload_error : ''));
         $status = ($upload_error !== '' && stripos($upload_error, 'file type') !== false) ? 415 : 400;
@@ -5285,6 +5539,9 @@ function ll_handle_recording_upload() {
         'post_author' => $current_user_id,
     ]);
     if (is_wp_error($audio_post_id) || !$audio_post_id) {
+        if ($upload_lock_acquired) {
+            ll_tools_release_recording_upload_lock($upload_lock_signature);
+        }
         $err_msg = is_wp_error($audio_post_id) ? $audio_post_id->get_error_message() : 'Unknown insert failure';
         if (is_string($filepath) && $filepath !== '' && file_exists($filepath)) {
             @unlink($filepath);
@@ -5304,6 +5561,9 @@ function ll_handle_recording_upload() {
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
     update_post_meta($audio_post_id, 'speaker_user_id', $current_user_id);
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
+    if ($upload_sha1 !== '') {
+        update_post_meta($audio_post_id, ll_tools_get_recording_upload_sha1_meta_key(), $upload_sha1);
+    }
     if ($auto_publish) {
         update_post_meta($audio_post_id, '_ll_processed_audio_date', current_time('mysql'));
     } else {
@@ -5325,24 +5585,7 @@ function ll_handle_recording_upload() {
         }
     }
 
-    // Recompute remaining types using the same rules as the UI: honor desired types
-    // and only apply single-speaker gating when the full main set is being collected.
-    $desired_word = ll_tools_get_desired_recording_types_for_word($word_id);
-    $desired_word = ll_sort_recording_type_slugs($desired_word);
-    $filtered_types = ll_sort_recording_type_slugs(array_values(array_intersect($filtered_types, $desired_word)));
-
-    $main_types = ll_tools_get_main_recording_types();
-    $types_equal_main = empty(array_diff($filtered_types, $main_types)) && empty(array_diff($main_types, $filtered_types));
-
-    if ($types_equal_main) {
-        if (ll_tools_get_preferred_speaker_for_word($word_id)) {
-            $remaining_missing = [];
-        } else {
-            $remaining_missing = ll_get_user_missing_recording_types_for_word($word_id, $filtered_types, $current_user_id);
-        }
-    } else {
-        $remaining_missing = ll_get_missing_recording_types_for_word($word_id, $filtered_types);
-    }
+    $remaining_missing = ll_tools_get_recorder_remaining_recording_types($word_id, $filtered_types, $current_user_id);
 
     if (function_exists('ll_remove_missing_audio_instance')) {
         $title_wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
@@ -5400,6 +5643,10 @@ function ll_handle_recording_upload() {
     );
     if ($should_notify) {
         ll_tools_queue_recording_upload_notification((int) $audio_post_id, (int) $current_user_id);
+    }
+
+    if ($upload_lock_acquired) {
+        ll_tools_release_recording_upload_lock($upload_lock_signature);
     }
 
     wp_send_json_success([
