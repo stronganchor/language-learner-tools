@@ -405,48 +405,60 @@ function ll_get_all_quiz_pages_data($opts = []) {
 }
 
 /**
- * Finds the wordset ID with the earliest creation date (lowest term_id) that has enough published words for a category.
+ * Finds the earliest wordset that can still generate a quiz for a category.
+ *
+ * Source categories may now be isolated into per-wordset copies, so the lookup
+ * must respect the effective category for each candidate wordset instead of
+ * counting only direct term membership on the source category itself.
+ *
  * @param mixed $category
- * @param int $min_word_count Minimum words required
+ * @param int   $min_word_count Minimum words required
  * @return int Wordset ID or 0 if none found
  */
 function ll_get_default_wordset_id_for_category($category, int $min_word_count = 5): int {
-    global $wpdb;
     $cat_term = function_exists('ll_tools_resolve_word_category_term')
         ? ll_tools_resolve_word_category_term($category)
         : get_term($category, 'word-category');
     if (!($cat_term instanceof WP_Term) || is_wp_error($cat_term)) {
         return 0;
     }
-    $cat_id = (int) $cat_term->term_id;
 
-    // Get all wordset IDs ordered by term_id (assuming lower IDs are older)
+    // If this category is already an isolated copy, keep its owner wordset as
+    // the preferred default when it can generate a quiz.
+    $owner_wordset_id = function_exists('ll_tools_get_category_wordset_owner_id')
+        ? (int) ll_tools_get_category_wordset_owner_id($cat_term)
+        : 0;
+    if (
+        $owner_wordset_id > 0
+        && function_exists('ll_can_category_generate_quiz')
+        && ll_can_category_generate_quiz($cat_term, $min_word_count, [$owner_wordset_id])
+    ) {
+        return $owner_wordset_id;
+    }
+
+    // Get all wordset IDs ordered by term_id (assuming lower IDs are older).
     $wordsets = get_terms([
-        'taxonomy' => 'wordset',
+        'taxonomy'   => 'wordset',
         'hide_empty' => false,
-        'orderby' => 'term_id',
-        'order' => 'ASC',
-        'fields' => 'ids',
+        'orderby'    => 'term_id',
+        'order'      => 'ASC',
+        'fields'     => 'ids',
     ]);
-    if (empty($wordsets) || is_wp_error($wordsets)) return 0;
+    if (empty($wordsets) || is_wp_error($wordsets)) {
+        return 0;
+    }
 
     foreach ($wordsets as $ws_id) {
-        $count = (int)$wpdb->get_var($wpdb->prepare("
-            SELECT COUNT(DISTINCT p.ID)
-            FROM {$wpdb->posts} p
-            INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
-            INNER JOIN {$wpdb->term_taxonomy} tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
-            INNER JOIN {$wpdb->term_relationships} tr_ws ON tr_ws.object_id = p.ID
-            INNER JOIN {$wpdb->term_taxonomy} tt_ws ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
-            WHERE p.post_type = 'words'
-              AND p.post_status = 'publish'
-              AND tt_cat.term_id = %d
-              AND tt_ws.term_id = %d
-              AND tt_cat.taxonomy = 'word-category'
-              AND tt_ws.taxonomy = 'wordset'
-        ", $cat_id, $ws_id));
-        if ($count >= $min_word_count) return (int)$ws_id;
+        $ws_id = (int) $ws_id;
+        if ($ws_id <= 0 || $ws_id === $owner_wordset_id) {
+            continue;
+        }
+
+        if (function_exists('ll_can_category_generate_quiz') && ll_can_category_generate_quiz($cat_term, $min_word_count, [$ws_id])) {
+            return $ws_id;
+        }
     }
+
     return 0;
 }
 
