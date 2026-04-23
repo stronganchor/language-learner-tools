@@ -714,7 +714,7 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
     $cache_key = 'll_vocab_lesson_deep_counts_' . md5((string) wp_json_encode([
-        'schema' => 1,
+        'schema' => 2,
         'wordset_id' => $wordset_id,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
@@ -757,12 +757,36 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
             ],
         ],
     ]);
-
-    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids), function ($id) { return $id > 0; }));
+    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
     if (function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
         $word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids($word_ids);
     }
-    if (empty($word_ids)) {
+    $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+    $prompt_card_ids = get_posts([
+        'post_type'      => $prompt_card_post_type,
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'cache_results'  => false,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'tax_query'      => [
+            [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ],
+        ],
+    ]);
+    $prompt_card_ids = array_values(array_filter(array_map('intval', (array) $prompt_card_ids), static function (int $id): bool {
+        return $id > 0;
+    }));
+
+    $object_ids = array_values(array_unique(array_merge($word_ids, $prompt_card_ids)));
+    if (empty($object_ids)) {
         $result = ['all' => [], 'with_images' => []];
         $request_cache[$cache_key] = $result;
         wp_cache_set($cache_key, $result, 'll_tools', $cache_ttl);
@@ -770,7 +794,7 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
         return $result;
     }
 
-    $terms = wp_get_object_terms($word_ids, 'word-category', ['fields' => 'all_with_object_id']);
+    $terms = wp_get_object_terms($object_ids, 'word-category', ['fields' => 'all_with_object_id']);
     if (is_wp_error($terms)) {
         $result = ['all' => [], 'with_images' => []];
         $request_cache[$cache_key] = $result;
@@ -779,16 +803,43 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
         return $result;
     }
 
-    $terms_by_word = [];
+    $terms_by_object = [];
     foreach ($terms as $term) {
-        $word_id = isset($term->object_id) ? (int) $term->object_id : 0;
-        if ($word_id <= 0) {
+        $object_id = isset($term->object_id) ? (int) $term->object_id : 0;
+        if ($object_id <= 0) {
             continue;
         }
-        $terms_by_word[$word_id][] = $term;
+        $terms_by_object[$object_id][] = $term;
     }
 
-    update_meta_cache('post', $word_ids);
+    if (!empty($word_ids)) {
+        update_meta_cache('post', $word_ids);
+    }
+
+    $prompt_card_image_lookup = [];
+    if (!empty($prompt_card_ids) && function_exists('ll_tools_get_prompt_card_data')) {
+        foreach ($prompt_card_ids as $prompt_card_id) {
+            $card = ll_tools_get_prompt_card_data($prompt_card_id);
+            if (empty($card)) {
+                continue;
+            }
+
+            $answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+            if ($answer_word_id <= 0) {
+                continue;
+            }
+
+            $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+            $image_word_id = $prompt_image_word_id > 0 ? $prompt_image_word_id : $answer_word_id;
+            if ($image_word_id <= 0) {
+                continue;
+            }
+
+            $prompt_card_image_lookup[$prompt_card_id] = function_exists('ll_tools_word_has_effective_image')
+                ? ll_tools_word_has_effective_image($image_word_id, true)
+                : has_post_thumbnail($image_word_id);
+        }
+    }
 
     $depth_cache = [];
     $get_depth = function (int $term_id) use (&$depth_cache, &$get_depth): int {
@@ -812,20 +863,19 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
 
     $all_counts = [];
     $image_counts = [];
-
-    foreach ($word_ids as $word_id) {
-        $word_terms = $terms_by_word[$word_id] ?? [];
-        if (empty($word_terms)) {
-            continue;
+    $count_deepest_terms = static function (array $object_terms, bool $has_image) use (&$all_counts, &$image_counts, $get_depth): void {
+        if (empty($object_terms)) {
+            return;
         }
 
         $max_depth = -1;
         $deepest_ids = [];
-        foreach ($word_terms as $term) {
-            $term_id = (int) $term->term_id;
+        foreach ($object_terms as $term) {
+            $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
             if ($term_id <= 0) {
                 continue;
             }
+
             $depth = $get_depth($term_id);
             if ($depth > $max_depth) {
                 $max_depth = $depth;
@@ -834,19 +884,31 @@ function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, b
                 $deepest_ids[] = $term_id;
             }
         }
+
         if (empty($deepest_ids)) {
-            continue;
+            return;
         }
 
-        $has_image = function_exists('ll_tools_word_has_effective_image')
-            ? ll_tools_word_has_effective_image($word_id, true)
-            : has_post_thumbnail($word_id);
-        foreach ($deepest_ids as $term_id) {
+        foreach (array_values(array_unique($deepest_ids)) as $term_id) {
             $all_counts[$term_id] = ($all_counts[$term_id] ?? 0) + 1;
             if ($has_image) {
                 $image_counts[$term_id] = ($image_counts[$term_id] ?? 0) + 1;
             }
         }
+    };
+
+    foreach ($word_ids as $word_id) {
+        $has_image = function_exists('ll_tools_word_has_effective_image')
+            ? ll_tools_word_has_effective_image($word_id, true)
+            : has_post_thumbnail($word_id);
+        $count_deepest_terms($terms_by_object[$word_id] ?? [], $has_image);
+    }
+
+    foreach ($prompt_card_ids as $prompt_card_id) {
+        $count_deepest_terms(
+            $terms_by_object[$prompt_card_id] ?? [],
+            !empty($prompt_card_image_lookup[$prompt_card_id])
+        );
     }
 
     $result = ['all' => $all_counts, 'with_images' => $image_counts];
