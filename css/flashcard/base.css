@@ -487,6 +487,10 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
+#ll-tools-close-flashcard {
+    z-index: 1000003;
+}
+
 #ll-tools-close-category-selection::before,
 #ll-tools-close-flashcard::before {
     content: "\00d7";
@@ -2240,19 +2244,30 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 }
 
 /* Quiz audio pause overlay */
-#ll-tools-flashcard-content {
-    position: relative !important;
-}
-
 .ll-tools-autoplay-overlay {
     position: absolute !important;
     inset: 0 !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    padding:
+        max(24px, env(safe-area-inset-top, 0px))
+        24px
+        max(24px, env(safe-area-inset-bottom, 0px)) !important;
     background: rgba(6, 13, 24, 0.72) !important;
     backdrop-filter: blur(4px) !important;
-    z-index: 10000 !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    z-index: 1000002 !important;
+}
+
+.ll-tools-sound-gate-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 14px !important;
+    width: min(280px, calc(100vw - 48px)) !important;
+    text-align: center !important;
 }
 
 .ll-tools-autoplay-button {
@@ -2261,8 +2276,8 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 116px !important;
-    height: 116px !important;
+    width: 124px !important;
+    height: 124px !important;
     padding: 0 !important;
     margin: 0 !important;
     border: 2px solid rgba(255, 255, 255, 0.82) !important;
@@ -2303,39 +2318,47 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     display: block;
 }
 
-.ll-tools-sound-gate-ring,
-.ll-tools-sound-gate-speaker,
-.ll-tools-sound-gate-wave,
-.ll-tools-sound-gate-slash {
-    fill: none;
-    stroke: currentColor;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
 .ll-tools-sound-gate-ring {
+    fill: rgba(255, 255, 255, 0.08);
+    stroke: rgba(255, 255, 255, 0.42);
     stroke-width: 2.6;
-    opacity: 0.32;
 }
 
-.ll-tools-sound-gate-speaker {
-    stroke-width: 4.2;
+.ll-tools-sound-gate-play {
+    fill: currentColor;
 }
 
-.ll-tools-sound-gate-wave {
-    stroke-width: 4;
-    opacity: 0.95;
-    animation: ll-sound-gate-wave 1.2s ease-in-out infinite;
+.ll-tools-sound-gate-button-label {
+    display: block !important;
+    font-size: 17px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    color: #f8fafc !important;
+    letter-spacing: 0.01em !important;
 }
 
-.ll-tools-sound-gate-wave.wave-2 {
-    animation-delay: 0.16s;
+.ll-tools-sound-gate-message {
+    margin: 0 !important;
+    max-width: 26ch !important;
+    font-size: 14px !important;
+    line-height: 1.45 !important;
+    color: rgba(248, 250, 252, 0.9) !important;
 }
 
-.ll-tools-sound-gate-slash {
-    stroke: #f97316;
-    stroke-width: 4.4;
-    filter: drop-shadow(0 0 6px rgba(249, 115, 22, 0.35));
+@media (max-width: 640px) {
+    .ll-tools-autoplay-button {
+        width: 112px !important;
+        height: 112px !important;
+    }
+
+    .ll-tools-sound-gate-icon {
+        width: 66px;
+        height: 66px;
+    }
+
+    .ll-tools-sound-gate-message {
+        max-width: 22ch !important;
+    }
 }
 
 @keyframes ll-sound-gate-pulse {
@@ -2348,29 +2371,6 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
     50% {
         transform: scale(1.07);
         box-shadow: 0 22px 48px rgba(2, 8, 23, 0.54), 0 0 0 16px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.18);
-    }
-}
-
-@keyframes ll-sound-gate-wave {
-    0%,
-    100% {
-        opacity: 0.28;
-    }
-
-    50% {
-        opacity: 1;
-    }
-}
-
-@media (max-width: 640px) {
-    .ll-tools-autoplay-button {
-        width: 96px !important;
-        height: 96px !important;
-    }
-
-    .ll-tools-sound-gate-icon {
-        width: 60px;
-        height: 60px;
     }
 }
 

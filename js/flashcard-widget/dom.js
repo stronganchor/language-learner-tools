@@ -87,10 +87,7 @@
             '<span class="ll-tools-sound-gate-icon" aria-hidden="true">',
             '<svg viewBox="0 0 80 80" focusable="false" aria-hidden="true">',
             '<circle class="ll-tools-sound-gate-ring" cx="40" cy="40" r="31"></circle>',
-            '<path class="ll-tools-sound-gate-speaker" d="M22 47h9l14 11V22L31 33h-9z"></path>',
-            '<path class="ll-tools-sound-gate-wave wave-1" d="M50 33c4 3 6 7 6 11s-2 8-6 11"></path>',
-            '<path class="ll-tools-sound-gate-wave wave-2" d="M56 27c6 5 9 11 9 17s-3 12-9 17"></path>',
-            '<path class="ll-tools-sound-gate-slash" d="M21 59L59 21"></path>',
+            '<path class="ll-tools-sound-gate-play" d="M32 25.5L54 40 32 54.5z"></path>',
             '</svg>',
             '</span>'
         ].join('');
@@ -120,16 +117,26 @@
     function syncSoundGateButtonLabel() {
         const messages = getMessages();
         const label = String(messages.soundRequiredContinue || messages.soundRequiredResume || 'Turn on sound to continue the quiz.');
-        const buttonLabel = String(messages.soundRequiredResume || 'Resume audio');
+        const buttonLabel = String(messages.playAudio || messages.soundRequiredResume || 'Play audio');
         const $overlay = $('#ll-tools-autoplay-overlay');
         if (!$overlay.length) {
             return;
         }
         $overlay.find('.ll-tools-autoplay-button')
             .attr('aria-label', buttonLabel)
-            .find('.screen-reader-text')
+            .find('.ll-tools-sound-gate-screen-reader')
             .text(label);
+        $overlay.find('.ll-tools-sound-gate-button-label').text(buttonLabel);
+        $overlay.find('.ll-tools-sound-gate-message').text(label);
         $overlay.find('.ll-tools-sound-gate-live').text(label);
+    }
+
+    function getSoundGateOverlayHost() {
+        const $popup = $('#ll-tools-flashcard-quiz-popup');
+        if ($popup.length) {
+            return $popup;
+        }
+        return $('#ll-tools-flashcard-content');
     }
 
     function ensureSoundGateOverlay() {
@@ -141,7 +148,7 @@
 
         const messages = getMessages();
         const label = String(messages.soundRequiredContinue || messages.soundRequiredResume || 'Turn on sound to continue the quiz.');
-        const buttonLabel = String(messages.soundRequiredResume || 'Resume audio');
+        const buttonLabel = String(messages.playAudio || messages.soundRequiredResume || 'Play audio');
 
         $overlay = $('<div>', {
             id: 'll-tools-autoplay-overlay',
@@ -156,11 +163,30 @@
             text: label
         });
 
+        const $panel = $('<div>', {
+            class: 'll-tools-sound-gate-panel'
+        });
+
         const $button = $('<button>', {
             type: 'button',
             class: 'll-tools-autoplay-button ll-tools-sound-gate-button',
-            'aria-label': buttonLabel,
-            html: createSoundGateIcon() + '<span class="screen-reader-text">' + label + '</span>'
+            'aria-label': buttonLabel
+        });
+
+        $button.append(createSoundGateIcon());
+        $button.append($('<span>', {
+            class: 'll-tools-sound-gate-screen-reader screen-reader-text',
+            text: label
+        }));
+
+        const $buttonLabel = $('<div>', {
+            class: 'll-tools-sound-gate-button-label',
+            text: buttonLabel
+        });
+
+        const $message = $('<p>', {
+            class: 'll-tools-sound-gate-message',
+            text: label
         });
 
         const haltPropagation = function (event) {
@@ -212,8 +238,9 @@
         $button.on('pointerdown.llAutoOverlay keydown.llAutoOverlay', haltPropagation);
         $button.on('click.llAutoOverlay', resumeQuizAudio);
 
-        $overlay.append($live, $button);
-        $('#ll-tools-flashcard-content').prepend($overlay);
+        $panel.append($button, $buttonLabel, $message);
+        $overlay.append($live, $panel);
+        getSoundGateOverlayHost().append($overlay);
         return $overlay;
     }
 
