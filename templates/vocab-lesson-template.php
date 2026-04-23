@@ -138,9 +138,9 @@ if (have_posts()) {
 
     $wordset_name = ($wordset && !is_wp_error($wordset)) ? $wordset->name : '';
     $wordset_slug = ($wordset && !is_wp_error($wordset)) ? $wordset->slug : '';
-    $wordset_url = ($wordset_slug !== '')
-        ? trailingslashit(home_url($wordset_slug))
-        : '';
+    $wordset_url = ($wordset instanceof WP_Term && !is_wp_error($wordset) && function_exists('ll_tools_get_wordset_page_view_url'))
+        ? (string) ll_tools_get_wordset_page_view_url($wordset)
+        : (($wordset_slug !== '') ? trailingslashit(home_url($wordset_slug)) : '');
     $print_view_available = function_exists('ll_tools_vocab_lesson_print_view_is_available')
         ? ll_tools_vocab_lesson_print_view_is_available($wordset_id, $category)
         : true;
