@@ -421,17 +421,18 @@
         try { $card.find('.ll-audio-mini-visualizer').toggleClass('active', !!isPlaying); } catch (_) { /* no-op */ }
     }
 
-    function playOptionAudio(word, $card) {
+    function playAudioUrl(audioUrl, $card) {
         const audioApi = root.FlashcardAudio;
         return new Promise((resolve) => {
-            if (!audioApi || !word || !word.audio) { resolve(); return; }
+            const resolvedAudioUrl = String(audioUrl || '').trim();
+            if (!audioApi || !resolvedAudioUrl) { resolve(); return; }
 
             try { audioApi.pauseAllAudio(); } catch (_) { /* ignore */ }
             try {
                 $('.flashcard-container.audio-option').removeClass('playing');
                 $('.ll-audio-mini-visualizer').removeClass('active');
             } catch (_) { /* ignore */ }
-            const audioEl = audioApi.createAudio ? audioApi.createAudio(word.audio, { type: 'option' }) : new Audio(word.audio);
+            const audioEl = audioApi.createAudio ? audioApi.createAudio(resolvedAudioUrl, { type: 'option' }) : new Audio(resolvedAudioUrl);
             if (!audioEl) { resolve(); return; }
             const vizApi = root.LLFlashcards && root.LLFlashcards.AudioVisualizer;
             if (vizApi && typeof vizApi.createMiniVisualizer === 'function') {
@@ -475,6 +476,20 @@
         });
     }
 
+    function playOptionAudio(word, $card) {
+        const answerAudio = Util && typeof Util.getAnswerAudioUrl === 'function'
+            ? Util.getAnswerAudioUrl(word)
+            : String((word && word.audio) || '').trim();
+        return playAudioUrl(answerAudio, $card);
+    }
+
+    function playPromptAudio(word, $card) {
+        const promptAudio = Util && typeof Util.getPromptAudioUrl === 'function'
+            ? Util.getPromptAudioUrl(word)
+            : String((word && word.audio) || '').trim();
+        return playAudioUrl(promptAudio, $card);
+    }
+
     function createAudioCard(word, includeText, promptType) {
         const sizeClass = 'flashcard-size-' + root.llToolsFlashcardsData.imageSize;
         const isImagePrompt = Util.promptTypeHasImage ? Util.promptTypeHasImage(promptType) : (promptType === 'image');
@@ -485,7 +500,7 @@
             class: classes.join(' '),
             'data-word': word.title,
             'data-word-id': word.id,
-            'data-audio-url': word.audio || '',
+            'data-audio-url': (Util && typeof Util.getAnswerAudioUrl === 'function') ? Util.getAnswerAudioUrl(word) : (word.audio || ''),
             css: { display: 'none' }
         });
 
@@ -657,6 +672,7 @@
         appendWordToContainer,
         addClickEventToCard,
         playOptionAudio,
+        playPromptAudio,
         refitTextAnswerOptionCards,
         prepareTextAnswerOptionCardsForReveal,
         applyAnswerOptionContainerCssVars,

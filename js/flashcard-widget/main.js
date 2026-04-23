@@ -2078,6 +2078,10 @@
                 hide();
                 return;
             }
+            if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(word)) {
+                hide();
+                return;
+            }
             const retryAttempt = parseInt((options && options.retryAttempt) || 0, 10) || 0;
             const variant = options && options.variant === 'listening' ? 'listening' : 'content';
             if (!word || !word.id || (!Array.isArray(prefs.starredWordIds) && !prefs.starMode)) {
@@ -2398,6 +2402,22 @@
         };
     }
 
+    function getPromptCardIdForProgress(targetWord) {
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(targetWord)) {
+            return (Util && typeof Util.getPromptCardId === 'function')
+                ? Util.getPromptCardId(targetWord)
+                : (parseInt(targetWord && targetWord.id, 10) || 0);
+        }
+        return 0;
+    }
+
+    function getProgressWordIdForProgress(targetWord) {
+        if (Util && typeof Util.getProgressWordId === 'function') {
+            return Util.getProgressWordId(targetWord);
+        }
+        return parseInt(targetWord && targetWord.id, 10) || 0;
+    }
+
     function updateProgressTrackerContext(modeOverride, categoryNamesOverride) {
         const tracker = getProgressTracker();
         if (!tracker || typeof tracker.setContext !== 'function') {
@@ -2424,7 +2444,9 @@
     }
 
     function trackWordExposureForProgress(targetWord, fallbackCategoryName) {
-        if (!targetWord || !targetWord.id) {
+        const promptCardId = getPromptCardIdForProgress(targetWord);
+        const progressWordId = getProgressWordIdForProgress(targetWord);
+        if (!targetWord || (!progressWordId && !promptCardId)) {
             return;
         }
 
@@ -2435,15 +2457,17 @@
             return;
         }
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
+        const payload = promptCardId > 0 ? { prompt_card_id: promptCardId } : {};
         tracker.trackWordExposure({
             mode: getCurrentModeKey(),
             word: targetWord,
-            wordId: targetWord.id,
+            wordId: progressWordId,
             categoryId: cat.category_id,
             categoryName: cat.category_name,
-            wordsetId: resolveWordsetIdForProgress()
+            wordsetId: resolveWordsetIdForProgress(),
+            payload: payload
         });
-        if (typeof tracker.hydrateWords === 'function') {
+        if (!promptCardId && typeof tracker.hydrateWords === 'function') {
             tracker.hydrateWords([targetWord]);
         }
     }
@@ -2500,11 +2524,16 @@
 
     function trackWordOutcomeForProgress(targetWord, isCorrect, hadWrongBefore, fallbackCategoryName, payload) {
         const tracker = getProgressTracker();
-        if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || !targetWord.id) {
+        const promptCardId = getPromptCardIdForProgress(targetWord);
+        const progressWordId = getProgressWordIdForProgress(targetWord);
+        if (!tracker || typeof tracker.trackWordOutcome !== 'function' || !targetWord || (!progressWordId && !promptCardId)) {
             return;
         }
         const cat = resolveCategoryForWordProgress(targetWord, fallbackCategoryName);
         const nextPayload = (payload && typeof payload === 'object') ? Object.assign({}, payload) : {};
+        if (promptCardId > 0) {
+            nextPayload.prompt_card_id = promptCardId;
+        }
         if (getCurrentModeKey() === 'practice') {
             const recordingType = normalizePracticeRecordingTypeForProgress(targetWord.__practiceRecordingType);
             const availableRecordingTypes = getPracticeRecordingTypesForProgress(targetWord);
@@ -2519,7 +2548,7 @@
         tracker.trackWordOutcome({
             mode: getCurrentModeKey(),
             word: targetWord,
-            wordId: targetWord.id,
+            wordId: progressWordId,
             categoryId: cat.category_id,
             categoryName: cat.category_name,
             wordsetId: resolveWordsetIdForProgress(),
@@ -2527,7 +2556,7 @@
             hadWrongBefore: !!hadWrongBefore,
             payload: nextPayload
         });
-        if (typeof tracker.hydrateWords === 'function') {
+        if (!promptCardId && typeof tracker.hydrateWords === 'function') {
             tracker.hydrateWords([targetWord]);
         }
     }
@@ -3851,12 +3880,15 @@
     }
 
     function retryPromptAudioForRound(targetWord) {
-        if (!targetWord || !targetWord.audio || !root.FlashcardLoader || typeof root.FlashcardLoader.loadAudio !== 'function') {
+        const promptAudioUrl = (Util && typeof Util.getPromptAudioUrl === 'function')
+            ? Util.getPromptAudioUrl(targetWord)
+            : String((targetWord && targetWord.audio) || '').trim();
+        if (!targetWord || !promptAudioUrl || !root.FlashcardLoader || typeof root.FlashcardLoader.loadAudio !== 'function') {
             return Promise.resolve(false);
         }
 
         return Promise.resolve(
-            root.FlashcardLoader.loadAudio(targetWord.audio, {
+            root.FlashcardLoader.loadAudio(promptAudioUrl, {
                 forceRetry: true,
                 maxRetries: 2,
                 timeoutMs: 7600
@@ -4074,6 +4106,7 @@
         };
 
         if (target && typeof target === 'object') {
+            delete target.__runtimePromptAudio;
             delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;
@@ -4083,7 +4116,9 @@
             modeModule.configureTargetAudio(target);
         }
 
-        root.FlashcardLoader.loadResourcesForWord(target, displayMode, categoryNameForRound, categoryConfig).then(function (targetMediaStatus) {
+        root.FlashcardLoader.loadResourcesForWord(target, displayMode, categoryNameForRound, categoryConfig, {
+            audioSource: 'prompt'
+        }).then(function (targetMediaStatus) {
             if (isStaleRound()) { return; }
             if (modeModule && typeof modeModule.beforeOptionsFill === 'function') {
                 modeModule.beforeOptionsFill(target);
@@ -4150,7 +4185,11 @@
                 }
             };
 
-            const needsPromptAudio = promptTypeHasAudio(promptType) && !!(target && target.audio);
+                const needsPromptAudio = promptTypeHasAudio(promptType) && !!(
+                    Util && typeof Util.getPromptAudioUrl === 'function'
+                        ? Util.getPromptAudioUrl(target)
+                        : String((target && target.audio) || '').trim()
+                );
             Promise.all([
                 optionMediaPromise,
                 waitForRoundMediaReadiness(promptType, {

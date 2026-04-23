@@ -1280,13 +1280,20 @@
         if (State.isIntroducingWord || !target) return;
         const promptType = State.currentPromptType || 'audio';
         if (!(Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))) {
+            delete target.__runtimePromptAudio;
+            delete target.__promptRecordingType;
+            return;
+        }
+
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(target) && typeof Util.getPromptAudioUrl === 'function' && Util.getPromptAudioUrl(target)) {
+            target.__runtimePromptAudio = Util.getPromptAudioUrl(target);
             delete target.__promptRecordingType;
             return;
         }
 
         const questionAudio = selectPromptAudioEntry(target, ['question', 'isolation', 'introduction']);
         if (questionAudio && questionAudio.url) {
-            target.audio = questionAudio.url;
+            target.__runtimePromptAudio = questionAudio.url;
         }
 
         if (questionAudio && questionAudio.type) {

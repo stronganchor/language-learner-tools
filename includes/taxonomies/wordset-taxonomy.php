@@ -1024,7 +1024,7 @@ function ll_tools_register_wordset_taxonomy() {
             'assign_terms' => 'edit_wordsets',
         ],
     ];
-    register_taxonomy("wordset", ["words"], $args);
+    register_taxonomy("wordset", ["words", LL_TOOLS_PROMPT_CARD_POST_TYPE], $args);
 }
 add_action('init', 'll_tools_register_wordset_taxonomy');
 

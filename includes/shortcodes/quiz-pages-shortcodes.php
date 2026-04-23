@@ -164,7 +164,9 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
         return array_values(array_map('intval', $cached));
     }
 
-    // First, get word counts per category for this wordset
+    // First, get playable item counts per category for this wordset.
+    // Prompt cards are first-class quiz items here, so they should surface the
+    // category even when the lesson mostly reuses answer words from elsewhere.
     $sql = $wpdb->prepare("
         SELECT tt_cat.term_id, COUNT(DISTINCT p.ID) as word_count
         FROM {$wpdb->posts}                p
@@ -172,14 +174,14 @@ function ll_collect_wc_ids_for_wordset_term_ids(array $wordset_term_ids) {
         INNER JOIN {$wpdb->term_taxonomy}      tt_ws  ON tt_ws.term_taxonomy_id = tr_ws.term_taxonomy_id
         INNER JOIN {$wpdb->term_relationships} tr_cat ON tr_cat.object_id = p.ID
         INNER JOIN {$wpdb->term_taxonomy}      tt_cat ON tt_cat.term_taxonomy_id = tr_cat.term_taxonomy_id
-        WHERE p.post_type   = %s
+        WHERE p.post_type IN (%s, %s)
           AND p.post_status = %s
           AND tt_ws.taxonomy  = %s
           AND tt_ws.term_id  IN ($placeholders)
           AND tt_cat.taxonomy = %s
         GROUP BY tt_cat.term_id
         HAVING word_count >= %d
-    ", array_merge(['words','publish','wordset'], $wordset_term_ids, ['word-category', $min_words]));
+    ", array_merge(['words', defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card', 'publish', 'wordset'], $wordset_term_ids, ['word-category', $min_words]));
 
     $cat_ids = array_map('intval', (array) $wpdb->get_col($sql));
     if (empty($cat_ids)) {

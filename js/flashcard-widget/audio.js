@@ -5,6 +5,7 @@
      * Manages audio sessions, playback, and cleanup with promise-based operations
      */
     var FlashcardAudio = (function () {
+        var Util = (window.LLFlashcards = window.LLFlashcards || {}).Util || {};
         // Session tracking
         var currentSession = 0;
         var activeAudioElements = new Map(); // Map<Audio, sessionId>
@@ -643,6 +644,12 @@
         function setTargetWordAudio(targetWord, options) {
             options = options || {};
             var shouldAutoplay = options.autoplay !== false;
+            var promptAudioUrl = String(
+                options.audioUrl
+                || (Util && typeof Util.getPromptAudioUrl === 'function'
+                    ? Util.getPromptAudioUrl(targetWord)
+                    : ((targetWord && targetWord.audio) || ''))
+            ).trim();
             // Always clear any previous target audio to avoid stale playback
             try {
                 if (currentTargetAudio) {
@@ -654,7 +661,7 @@
             } catch (_) { /* swallow */ }
 
             // If no audio exists for this word, mark as satisfied so UI isn't blocked
-            if (!targetWord || !targetWord.audio) {
+            if (!targetWord || !promptAudioUrl) {
                 warn('Audio: No audio for word');
                 currentTargetAudio = null;
                 // Treat as "played" so feedback and interactions aren't gated
@@ -668,7 +675,7 @@
                 return Promise.resolve();
             }
 
-            var audioSrc = normalizeUrlToPageOrigin(targetWord.audio);
+            var audioSrc = normalizeUrlToPageOrigin(promptAudioUrl);
 
             // Build with crossOrigin set before src so analyser access is reliable.
             var mount = document.getElementById('ll-tools-flashcard');

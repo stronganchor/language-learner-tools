@@ -787,6 +787,15 @@
         if (!target) return true;
         const promptType = State.currentPromptType || 'audio';
         if (!(Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio'))) {
+            delete target.__runtimePromptAudio;
+            delete target.__promptRecordingType;
+            delete target.__practiceRecordingType;
+            delete target.__practiceRecordingText;
+            return true;
+        }
+
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(target) && typeof Util.getPromptAudioUrl === 'function' && Util.getPromptAudioUrl(target)) {
+            target.__runtimePromptAudio = Util.getPromptAudioUrl(target);
             delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;
@@ -795,7 +804,7 @@
 
         const resolved = resolvePracticePromptAudio(target);
         if (resolved.entry && resolved.entry.url) {
-            target.audio = resolved.entry.url;
+            target.__runtimePromptAudio = resolved.entry.url;
         }
 
         if (resolved.selectedType) {

@@ -1615,9 +1615,12 @@
             return;
         }
         const labelText = showText ? getPromptTextValue(targetWord, promptType) : '';
+        const promptAudioUrl = (Util && typeof Util.getPromptAudioUrl === 'function')
+            ? Util.getPromptAudioUrl(targetWord)
+            : String((targetWord && targetWord.audio) || '').trim();
         const hasImage = showImage && !!targetWord.image;
         const hasText = showText && !!labelText;
-        const hasAudio = showAudio && !!targetWord.audio;
+        const hasAudio = showAudio && !!promptAudioUrl;
         if (!hasImage && !hasText && !hasAudio) {
             if (!patchPromptWithinStarRow(null, true)) {
                 $prompt.hide().empty();
@@ -1663,8 +1666,8 @@
             $btn.append($ui);
             $btn.on('click', function (e) {
                 e.stopPropagation();
-                if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.playOptionAudio === 'function') {
-                    root.LLFlashcards.Cards.playOptionAudio(targetWord, $btn);
+                if (root.LLFlashcards && root.LLFlashcards.Cards && typeof root.LLFlashcards.Cards.playPromptAudio === 'function') {
+                    root.LLFlashcards.Cards.playPromptAudio(targetWord, $btn);
                 }
             });
             $stack.append($btn);
@@ -2205,7 +2208,9 @@
                 });
             }
             const promise = Promise.resolve(
-                root.FlashcardLoader.loadResourcesForWord(word, mode, targetCategoryName, config)
+                root.FlashcardLoader.loadResourcesForWord(word, mode, targetCategoryName, config, {
+                    audioSource: 'answer'
+                })
             ).catch(function () {
                 return {
                     ready: false,

@@ -24,6 +24,7 @@ require_once(__DIR__ . '/post-types/words-post-type.php');
 require_once(__DIR__ . '/post-types/dictionary-entry-post-type.php');
 require_once(__DIR__ . '/post-types/word-image-post-type.php');
 require_once(__DIR__ . '/post-types/word-audio-post-type.php');
+require_once(__DIR__ . '/post-types/prompt-card-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
 require_once(__DIR__ . '/post-types/content-lesson-post-type.php');
 require_once(__DIR__ . '/lib/dictionary-sources.php');

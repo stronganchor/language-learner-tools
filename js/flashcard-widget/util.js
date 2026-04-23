@@ -27,6 +27,65 @@
 
             return fallbackText;
         },
+        parseBooleanFlag(value) {
+            if (typeof value === 'boolean') {
+                return value;
+            }
+            if (typeof value === 'number') {
+                return value > 0;
+            }
+            if (typeof value === 'string') {
+                const normalized = value.trim().toLowerCase();
+                if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+                    return true;
+                }
+                if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off' || normalized === '') {
+                    return false;
+                }
+            }
+            return !!value;
+        },
+        isPromptCard(word) {
+            if (!word || typeof word !== 'object') {
+                return false;
+            }
+            return Util.parseBooleanFlag(word.is_prompt_card) || ((parseInt(word.prompt_card_id, 10) || 0) > 0);
+        },
+        getPromptCardId(word) {
+            if (!word || typeof word !== 'object') {
+                return 0;
+            }
+            return Math.max(0, parseInt(word.prompt_card_id || word.id, 10) || 0);
+        },
+        getProgressWordId(word) {
+            if (!word || typeof word !== 'object') {
+                return 0;
+            }
+            if (Object.prototype.hasOwnProperty.call(word, 'progress_word_id')) {
+                return Math.max(0, parseInt(word.progress_word_id, 10) || 0);
+            }
+            return Math.max(0, parseInt(word.id, 10) || 0);
+        },
+        getAnswerAudioUrl(word) {
+            if (!word || typeof word !== 'object') {
+                return '';
+            }
+            return String(word.audio || '').trim();
+        },
+        getPromptAudioUrl(word) {
+            if (!word || typeof word !== 'object') {
+                return '';
+            }
+            const runtimeAudio = String(word.__runtimePromptAudio || '').trim();
+            if (runtimeAudio) {
+                return runtimeAudio;
+            }
+            const promptAudio = String(word.prompt_audio || '').trim();
+            if (promptAudio) {
+                return promptAudio;
+            }
+            return Util.getAnswerAudioUrl(word);
+        },
         normalizeCategoryKey(value) {
             return String(value || '').trim().toLowerCase();
         },

@@ -7,6 +7,7 @@
     const State = (root.LLFlashcards.State = root.LLFlashcards.State || {});
     const Selection = (root.LLFlashcards.Selection = root.LLFlashcards.Selection || {});
     const Results = (root.LLFlashcards.Results = root.LLFlashcards.Results || {});
+    const Util = (root.LLFlashcards.Util = root.LLFlashcards.Util || {});
     const STATES = State.STATES || {};
     const SelfCheckShared = root.LLToolsSelfCheckShared || {};
     const $ = root.jQuery;
@@ -119,6 +120,9 @@
 
     function isPromptEligibleWord(word) {
         if (!word || typeof word !== 'object') {
+            return false;
+        }
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(word)) {
             return false;
         }
         const selectionApi = root.LLFlashcards && root.LLFlashcards.Selection;

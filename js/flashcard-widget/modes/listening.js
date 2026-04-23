@@ -99,6 +99,29 @@
         return true;
     }
 
+    function isPromptCard(word) {
+        return !!(Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(word));
+    }
+
+    function getListeningPromptAudioUrl(target, preferredTypes) {
+        if (!target) {
+            return '';
+        }
+        if (isPromptCard(target) && Util && typeof Util.getPromptAudioUrl === 'function') {
+            return String(Util.getPromptAudioUrl(target) || '').trim();
+        }
+        if (FlashcardAudio && typeof FlashcardAudio.selectBestAudio === 'function') {
+            const selected = FlashcardAudio.selectBestAudio(target, preferredTypes || ['isolation', 'question', 'introduction']);
+            if (selected) {
+                return String(selected).trim();
+            }
+        }
+        if (Util && typeof Util.getPromptAudioUrl === 'function') {
+            return String(Util.getPromptAudioUrl(target) || '').trim();
+        }
+        return '';
+    }
+
     function getJQuery() {
         if (root.jQuery) return root.jQuery;
         if (typeof window !== 'undefined' && window.jQuery) return window.jQuery;
@@ -801,7 +824,8 @@
 
                 return Promise.resolve(
                     loader.loadResourcesForWord(word, optionType, categoryName, categoryConfig, {
-                        skipImagePreload: skipImagePreload
+                        skipImagePreload: skipImagePreload,
+                        audioSource: 'prompt'
                     })
                 ).catch(function () {
                     return [];
@@ -1430,10 +1454,12 @@
         State.currentOptionType = optionType;
         State.currentPromptType = promptType;
 
-        const audioUrl = audioApi && typeof audioApi.selectBestAudio === 'function'
-            ? audioApi.selectBestAudio(target, ['isolation', 'question', 'introduction'])
-            : null;
-        if (audioUrl) target.audio = audioUrl;
+        const audioUrl = getListeningPromptAudioUrl(target, ['isolation', 'question', 'introduction']);
+        if (audioUrl) {
+            target.__runtimePromptAudio = audioUrl;
+        } else {
+            delete target.__runtimePromptAudio;
+        }
 
         State.isFirstRound = false;
 
@@ -1541,7 +1567,8 @@
         const prefetchRoundSerial = (listeningPrefetchRoundSerial += 1);
         loader.loadResourcesForWord(target, optionType, State.currentCategoryName, categoryConfig, {
             skipImagePreload: deferImagePreload,
-            skipAudioPreload: skipCurrentWordAudioPreload
+            skipAudioPreload: skipCurrentWordAudioPreload,
+            audioSource: 'prompt'
         }).then(function () {
             if (isStartupRound) {
                 const startupBulkQueueId = scheduleTimeout(utils, function () {
@@ -1595,18 +1622,15 @@
             State.addTimeout && State.addTimeout(prefetchDelayId);
 
             // Determine sequence. For image->audio (or audio+text), play intro then isolation only.
-            const isoUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
-                ? audioApi.selectBestAudio(target, ['isolation']) : null;
-            const introUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
-                ? audioApi.selectBestAudio(target, ['introduction']) : null;
+            const isoUrl = getListeningPromptAudioUrl(target, ['isolation']);
+            const introUrl = getListeningPromptAudioUrl(target, ['introduction']);
+            const questionUrl = getListeningPromptAudioUrl(target, ['question']);
 
             let sequence = [];
             const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
             const isAudioPromptFlow = (!promptIsImage && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
             if (isAudioPromptFlow) {
-                const isolationClip = isoUrl || introUrl || ((audioApi && typeof audioApi.selectBestAudio === 'function')
-                    ? audioApi.selectBestAudio(target, ['question'])
-                    : (target && target.audio) || null);
+                const isolationClip = isoUrl || introUrl || questionUrl || (target && target.__runtimePromptAudio) || null;
                 const introClip = introUrl || isolationClip;
                 if (isolationClip) sequence.push(isolationClip);
                 if (introClip) sequence.push(introClip);
@@ -1621,9 +1645,7 @@
                 } else if (isoUrl) {
                     sequence = [isoUrl, isoUrl];
                 } else {
-                    const fallbackUrl = (audioApi && typeof audioApi.selectBestAudio === 'function')
-                        ? audioApi.selectBestAudio(target, ['question'])
-                        : (target && target.audio) || null;
+                    const fallbackUrl = questionUrl || (target && target.__runtimePromptAudio) || null;
                     if (fallbackUrl) sequence = [fallbackUrl, fallbackUrl];
                 }
             }
@@ -1655,10 +1677,10 @@
             };
 
             const setAndPlayUntilEnd = function (url) {
-                target.audio = url;
+                target.__runtimePromptAudio = String(url || '').trim();
                 return Promise.resolve(releaseRoundLoading()).then(function () {
                     const p = (audioApi && typeof audioApi.setTargetWordAudio === 'function')
-                        ? audioApi.setTargetWordAudio(target, { autoplay: false })
+                        ? audioApi.setTargetWordAudio(target, { autoplay: false, audioUrl: url })
                         : Promise.resolve();
                     return Promise.resolve(p).then(function () {
                         const a = followCurrentTarget();

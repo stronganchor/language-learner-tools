@@ -184,6 +184,20 @@ if (!function_exists('ll_tools_privacy_word_label')) {
     }
 }
 
+if (!function_exists('ll_tools_privacy_prompt_card_label')) {
+    function ll_tools_privacy_prompt_card_label(int $prompt_card_id): string {
+        static $cache = [];
+
+        if (isset($cache[$prompt_card_id])) {
+            return $cache[$prompt_card_id];
+        }
+
+        $label = $prompt_card_id > 0 ? get_the_title($prompt_card_id) : '';
+        $cache[$prompt_card_id] = sanitize_text_field((string) $label);
+        return $cache[$prompt_card_id];
+    }
+}
+
 if (!function_exists('ll_tools_privacy_export_data_pair')) {
     function ll_tools_privacy_export_data_pair(string $name, $value): array {
         if (is_bool($value)) {
@@ -210,6 +224,10 @@ if (!function_exists('ll_tools_privacy_register_exporters')) {
         $exporters['ll-tools-study-progress'] = [
             'exporter_friendly_name' => __('LL Tools Study Progress', 'll-tools-text-domain'),
             'callback' => 'll_tools_privacy_export_study_progress_rows',
+        ];
+        $exporters['ll-tools-prompt-card-progress'] = [
+            'exporter_friendly_name' => __('LL Tools Prompt Card Progress', 'll-tools-text-domain'),
+            'callback' => 'll_tools_privacy_export_prompt_card_progress_rows',
         ];
         $exporters['ll-tools-study-events'] = [
             'exporter_friendly_name' => __('LL Tools Study Activity', 'll-tools-text-domain'),
@@ -404,6 +422,83 @@ if (!function_exists('ll_tools_privacy_export_study_progress_rows')) {
     }
 }
 
+if (!function_exists('ll_tools_privacy_export_prompt_card_progress_rows')) {
+    function ll_tools_privacy_export_prompt_card_progress_rows(string $email_address, int $page = 1): array {
+        $user = ll_tools_privacy_get_user_by_email($email_address);
+        if (!($user instanceof WP_User)) {
+            return [
+                'data' => [],
+                'done' => true,
+            ];
+        }
+
+        $page = max(1, (int) $page);
+        $number = 100;
+        $offset = ($page - 1) * $number;
+        $all_rows = function_exists('ll_tools_get_user_prompt_card_progress')
+            ? array_values(ll_tools_get_user_prompt_card_progress((int) $user->ID))
+            : [];
+        if (empty($all_rows)) {
+            return [
+                'data' => [],
+                'done' => true,
+            ];
+        }
+
+        usort($all_rows, static function (array $left, array $right): int {
+            return strcmp((string) ($right['last_seen_at'] ?? ''), (string) ($left['last_seen_at'] ?? ''));
+        });
+
+        $rows = array_slice($all_rows, $offset, $number);
+        $export_items = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $prompt_card_id = (int) ($row['prompt_card_id'] ?? 0);
+            $category_id = (int) ($row['category_id'] ?? 0);
+            $wordset_id = (int) ($row['wordset_id'] ?? 0);
+            $card = function_exists('ll_tools_get_prompt_card_data')
+                ? ll_tools_get_prompt_card_data($prompt_card_id)
+                : [];
+            $correct_answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+
+            $export_items[] = [
+                'group_id' => 'll-tools-prompt-card-progress',
+                'group_label' => __('LL Tools Prompt Card Progress', 'll-tools-text-domain'),
+                'item_id' => 'll-tools-prompt-card-progress-' . $prompt_card_id,
+                'data' => [
+                    ll_tools_privacy_export_data_pair(__('Prompt card ID', 'll-tools-text-domain'), $prompt_card_id),
+                    ll_tools_privacy_export_data_pair(__('Prompt card', 'll-tools-text-domain'), ll_tools_privacy_prompt_card_label($prompt_card_id)),
+                    ll_tools_privacy_export_data_pair(__('Prompt text', 'll-tools-text-domain'), (string) ($card['prompt_text'] ?? '')),
+                    ll_tools_privacy_export_data_pair(__('Correct answer word ID', 'll-tools-text-domain'), $correct_answer_word_id),
+                    ll_tools_privacy_export_data_pair(__('Correct answer word', 'll-tools-text-domain'), ll_tools_privacy_word_label($correct_answer_word_id)),
+                    ll_tools_privacy_export_data_pair(__('Category ID', 'll-tools-text-domain'), $category_id),
+                    ll_tools_privacy_export_data_pair(__('Category', 'll-tools-text-domain'), ll_tools_privacy_term_label($category_id, 'word-category')),
+                    ll_tools_privacy_export_data_pair(__('Word set ID', 'll-tools-text-domain'), $wordset_id),
+                    ll_tools_privacy_export_data_pair(__('Word set', 'll-tools-text-domain'), ll_tools_privacy_term_label($wordset_id, 'wordset')),
+                    ll_tools_privacy_export_data_pair(__('First seen at (UTC)', 'll-tools-text-domain'), (string) ($row['first_seen_at'] ?? '')),
+                    ll_tools_privacy_export_data_pair(__('Last seen at (UTC)', 'll-tools-text-domain'), (string) ($row['last_seen_at'] ?? '')),
+                    ll_tools_privacy_export_data_pair(__('Last mode', 'll-tools-text-domain'), (string) ($row['last_mode'] ?? '')),
+                    ll_tools_privacy_export_data_pair(__('Status', 'll-tools-text-domain'), function_exists('ll_tools_user_prompt_card_progress_status') ? ll_tools_user_prompt_card_progress_status($row) : ''),
+                    ll_tools_privacy_export_data_pair(__('Exposure total', 'll-tools-text-domain'), (int) ($row['exposure_total'] ?? 0)),
+                    ll_tools_privacy_export_data_pair(__('Correct on first try', 'll-tools-text-domain'), (int) ($row['correct_clean'] ?? 0)),
+                    ll_tools_privacy_export_data_pair(__('Correct after retry', 'll-tools-text-domain'), (int) ($row['correct_after_retry'] ?? 0)),
+                    ll_tools_privacy_export_data_pair(__('Incorrect answers', 'll-tools-text-domain'), (int) ($row['incorrect'] ?? 0)),
+                    ll_tools_privacy_export_data_pair(__('Current streak', 'll-tools-text-domain'), (int) ($row['current_correct_streak'] ?? 0)),
+                    ll_tools_privacy_export_data_pair(__('Mastery unlocked', 'll-tools-text-domain'), !empty($row['mastery_unlocked'])),
+                ],
+            ];
+        }
+
+        return [
+            'data' => $export_items,
+            'done' => ($offset + count($rows)) >= count($all_rows),
+        ];
+    }
+}
+
 if (!function_exists('ll_tools_privacy_export_study_event_rows')) {
     function ll_tools_privacy_export_study_event_rows(string $email_address, int $page = 1): array {
         global $wpdb;
@@ -447,6 +542,7 @@ if (!function_exists('ll_tools_privacy_export_study_event_rows')) {
                     $payload = $decoded;
                 }
             }
+            $prompt_card_id = isset($payload['prompt_card_id']) ? (int) $payload['prompt_card_id'] : 0;
 
             $export_items[] = [
                 'group_id' => 'll-tools-study-activity',
@@ -458,6 +554,8 @@ if (!function_exists('ll_tools_privacy_export_study_event_rows')) {
                     ll_tools_privacy_export_data_pair(__('Mode', 'll-tools-text-domain'), (string) ($row['mode'] ?? '')),
                     ll_tools_privacy_export_data_pair(__('Word ID', 'll-tools-text-domain'), $word_id),
                     ll_tools_privacy_export_data_pair(__('Word', 'll-tools-text-domain'), ll_tools_privacy_word_label($word_id)),
+                    ll_tools_privacy_export_data_pair(__('Prompt card ID', 'll-tools-text-domain'), $prompt_card_id),
+                    ll_tools_privacy_export_data_pair(__('Prompt card', 'll-tools-text-domain'), ll_tools_privacy_prompt_card_label($prompt_card_id)),
                     ll_tools_privacy_export_data_pair(__('Category ID', 'll-tools-text-domain'), $category_id),
                     ll_tools_privacy_export_data_pair(__('Category', 'll-tools-text-domain'), ll_tools_privacy_term_label($category_id, 'word-category')),
                     ll_tools_privacy_export_data_pair(__('Word set ID', 'll-tools-text-domain'), $wordset_id),
@@ -555,6 +653,7 @@ if (!function_exists('ll_tools_privacy_delete_user_personal_data')) {
             defined('LL_TOOLS_USER_FAST_TRANSITIONS_META') ? LL_TOOLS_USER_FAST_TRANSITIONS_META : 'll_user_fast_transitions',
             defined('LL_TOOLS_USER_GOALS_META') ? LL_TOOLS_USER_GOALS_META : 'll_user_study_goals',
             defined('LL_TOOLS_USER_CATEGORY_PROGRESS_META') ? LL_TOOLS_USER_CATEGORY_PROGRESS_META : 'll_user_study_category_progress',
+            defined('LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META') ? LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META : 'll_user_study_prompt_card_progress',
             defined('LL_TOOLS_USER_RECOMMENDATION_QUEUE_META') ? LL_TOOLS_USER_RECOMMENDATION_QUEUE_META : 'll_user_study_recommendation_queue',
             defined('LL_TOOLS_USER_LAST_RECOMMENDATION_META') ? LL_TOOLS_USER_LAST_RECOMMENDATION_META : 'll_user_study_last_recommendation',
             defined('LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META') ? LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META : 'll_user_study_recommendation_dismissed',

@@ -75,6 +75,53 @@
         return String(value).trim();
     }
 
+    function isPromptCardWord(word) {
+        if (!word || typeof word !== 'object') {
+            return false;
+        }
+        if (Object.prototype.hasOwnProperty.call(word, 'is_prompt_card')) {
+            return parseBool(word.is_prompt_card, false);
+        }
+        return toInt(word.prompt_card_id || word.promptCardId) > 0;
+    }
+
+    function wordIdFromWord(word) {
+        if (!word || typeof word !== 'object') {
+            return 0;
+        }
+        const progressWordId = toInt(word.progress_word_id || word.progressWordId);
+        if (progressWordId > 0) {
+            return progressWordId;
+        }
+        if (isPromptCardWord(word)) {
+            return 0;
+        }
+        return toInt(word.id);
+    }
+
+    function promptCardIdFromWord(word) {
+        if (!word || typeof word !== 'object') {
+            return 0;
+        }
+        const explicit = toInt(word.prompt_card_id || word.promptCardId);
+        if (explicit > 0) {
+            return explicit;
+        }
+        return isPromptCardWord(word) ? toInt(word.id) : 0;
+    }
+
+    function resolvePromptCardId(rawEntry, word, payload) {
+        const entry = (rawEntry && typeof rawEntry === 'object') ? rawEntry : {};
+        const data = (payload && typeof payload === 'object') ? payload : {};
+        return toInt(
+            entry.prompt_card_id
+            || entry.promptCardId
+            || data.prompt_card_id
+            || data.promptCardId
+            || promptCardIdFromWord(word)
+        );
+    }
+
     function normalizeMode(mode) {
         let value = sanitizeString(mode).toLowerCase();
         if (value === 'self_check') {
@@ -230,6 +277,7 @@
             profile_id: buildId('ll-profile'),
             queue: [],
             words: {},
+            prompt_cards: {},
             study_state: {},
             last_synced_at: '',
             last_sync_error: ''
@@ -247,6 +295,7 @@
             localStoreCache.profile_id = sanitizeString(decoded.profile_id || '') || localStoreCache.profile_id;
             localStoreCache.queue = Array.isArray(decoded.queue) ? decoded.queue.slice(-MAX_QUEUE) : [];
             localStoreCache.words = (decoded.words && typeof decoded.words === 'object') ? decoded.words : {};
+            localStoreCache.prompt_cards = (decoded.prompt_cards && typeof decoded.prompt_cards === 'object') ? decoded.prompt_cards : {};
             localStoreCache.study_state = (decoded.study_state && typeof decoded.study_state === 'object') ? decoded.study_state : {};
             localStoreCache.last_synced_at = sanitizeString(decoded.last_synced_at || '');
             localStoreCache.last_sync_error = sanitizeString(decoded.last_sync_error || '');
@@ -256,6 +305,7 @@
                 profile_id: buildId('ll-profile'),
                 queue: [],
                 words: {},
+                prompt_cards: {},
                 study_state: {},
                 last_synced_at: '',
                 last_sync_error: ''
@@ -526,6 +576,18 @@
         return store.words[String(wid)];
     }
 
+    function getLocalPromptCardRow(promptCardId) {
+        const store = getLocalStore();
+        if (!store) {
+            return null;
+        }
+        const cardId = toInt(promptCardId);
+        if (!cardId || !store.prompt_cards || typeof store.prompt_cards[String(cardId)] !== 'object') {
+            return null;
+        }
+        return store.prompt_cards[String(cardId)];
+    }
+
     function isStudied(row) {
         if (!row || typeof row !== 'object') {
             return false;
@@ -603,6 +665,24 @@
         }
     }
 
+    function applyPromptCardRowToWord(word, row) {
+        if (!word || typeof word !== 'object' || !row || typeof row !== 'object') {
+            return;
+        }
+        const clean = Math.max(0, parseInt(row.correct_clean, 10) || 0);
+        const retry = Math.max(0, parseInt(row.correct_after_retry, 10) || 0);
+        const incorrect = Math.max(0, parseInt(row.incorrect, 10) || 0);
+        const exposure = Math.max(0, parseInt(row.exposure_total, 10) || 0);
+        let status = 'new';
+        if (parseBool(row.mastery_unlocked, false) || clean >= MASTERED_CLEAN_THRESHOLD) {
+            status = 'mastered';
+        } else if (exposure > 0 || clean > 0 || retry > 0 || incorrect > 0) {
+            status = 'studied';
+        }
+        word.prompt_card_progress = cloneValue(row);
+        word.prompt_card_progress_status = status;
+    }
+
     function updateLoadedWords(wordId) {
         const row = getLocalRow(wordId);
         if (!row) {
@@ -644,14 +724,60 @@
         }
     }
 
+    function updateLoadedPromptCards(promptCardId) {
+        const row = getLocalPromptCardRow(promptCardId);
+        if (!row) {
+            return;
+        }
+        const cardId = toInt(promptCardId);
+        const applyToCollection = function (collection) {
+            if (!collection || typeof collection !== 'object') {
+                return;
+            }
+            Object.keys(collection).forEach(function (key) {
+                const words = collection[key];
+                if (!Array.isArray(words)) {
+                    return;
+                }
+                words.forEach(function (word) {
+                    const wordPromptCardId = promptCardIdFromWord(word);
+                    if (wordPromptCardId === cardId) {
+                        applyPromptCardRowToWord(word, row);
+                    }
+                });
+            });
+        };
+
+        applyToCollection(root.wordsByCategory);
+        applyToCollection(root.optionWordsByCategory);
+        if (root.LLFlashcards && root.LLFlashcards.State) {
+            applyToCollection(root.LLFlashcards.State.wordsByCategory);
+        }
+        const flash = getFlashData();
+        if (Array.isArray(flash.firstCategoryData)) {
+            flash.firstCategoryData.forEach(function (word) {
+                if (promptCardIdFromWord(word) === cardId) {
+                    applyPromptCardRowToWord(word, row);
+                }
+            });
+        }
+        if (flash.offlineCategoryData && typeof flash.offlineCategoryData === 'object') {
+            applyToCollection(flash.offlineCategoryData);
+        }
+    }
+
     function applyLocalProgressToWords(words) {
         if (!Array.isArray(words) || !words.length || !canPersistLocally()) {
             return words;
         }
         words.forEach(function (word) {
-            const row = getLocalRow(word && word.id);
+            const row = getLocalRow(wordIdFromWord(word));
             if (row) {
                 applyRowToWord(word, row);
+            }
+            const promptCardRow = getLocalPromptCardRow(promptCardIdFromWord(word));
+            if (promptCardRow) {
+                applyPromptCardRowToWord(word, promptCardRow);
             }
         });
         return words;
@@ -664,17 +790,22 @@
         }
         const timingMs = parseTimestampMs(rawEvent.client_created_at_ms || rawEvent.client_created_at || rawEvent.created_at, Date.now());
         const word = (rawEvent.word && typeof rawEvent.word === 'object') ? rawEvent.word : null;
+        const payload = (rawEvent.payload && typeof rawEvent.payload === 'object') ? cloneValue(rawEvent.payload) : {};
+        const promptCardId = resolvePromptCardId(rawEvent, word, payload);
+        if (promptCardId > 0) {
+            payload.prompt_card_id = promptCardId;
+        }
         const event = {
             event_uuid: sanitizeString(rawEvent.event_uuid || rawEvent.uuid || buildId('llp')).slice(0, 64),
             event_type: eventType,
             mode: normalizeMode(rawEvent.mode || context.mode || 'practice'),
-            word_id: toInt(rawEvent.word_id || rawEvent.wordId || (word && word.id)),
+            word_id: toInt(rawEvent.word_id || rawEvent.wordId || wordIdFromWord(word)),
             category_id: toInt(rawEvent.category_id || rawEvent.categoryId || (word && categoryIdForWord(word))),
             category_name: sanitizeString(rawEvent.category_name || rawEvent.categoryName || (word && word.__categoryName) || ''),
             wordset_id: resolveWordsetId(rawEvent.wordset_id || rawEvent.wordsetId),
             client_created_at: isoFromMs(timingMs),
             client_created_at_ms: timingMs,
-            payload: (rawEvent.payload && typeof rawEvent.payload === 'object') ? cloneValue(rawEvent.payload) : {}
+            payload: payload
         };
         if (eventType === 'word_outcome') {
             if (typeof rawEvent.is_correct !== 'undefined') {
@@ -686,7 +817,7 @@
             }
             event.had_wrong_before = parseBool(rawEvent.had_wrong_before ?? rawEvent.hadWrongBefore, false);
         }
-        if ((eventType === 'word_outcome' || eventType === 'word_exposure') && !event.word_id) {
+        if ((eventType === 'word_outcome' || eventType === 'word_exposure') && !event.word_id && !promptCardId) {
             return null;
         }
         if (eventType === 'category_study' && !event.category_id && !event.category_name) {
@@ -702,12 +833,74 @@
 
     function applyEventToLocalProgress(event) {
         const store = getLocalStore();
-        if (!store || !event || !toInt(event.word_id)) {
+        if (!store || !event) {
             return;
         }
         const wordId = toInt(event.word_id);
-        const key = String(wordId);
+        const payload = (event.payload && typeof event.payload === 'object') ? event.payload : {};
+        const promptCardId = toInt(payload.prompt_card_id);
         const eventMs = parseTimestampMs(event.client_created_at_ms || event.client_created_at, Date.now());
+        if (!wordId && !promptCardId) {
+            return;
+        }
+
+        if (promptCardId > 0) {
+            const promptCardKey = String(promptCardId);
+            const promptCardRow = Object.assign({
+                prompt_card_id: promptCardId,
+                category_id: 0,
+                wordset_id: 0,
+                first_seen_at: '',
+                last_seen_at: '',
+                last_mode: 'practice',
+                exposure_total: 0,
+                correct_clean: 0,
+                correct_after_retry: 0,
+                incorrect: 0,
+                current_correct_streak: 0,
+                mastery_unlocked: false,
+                updated_at: ''
+            }, cloneValue(store.prompt_cards[promptCardKey] || {}));
+
+            promptCardRow.category_id = toInt(event.category_id || promptCardRow.category_id);
+            promptCardRow.wordset_id = resolveWordsetId(event.wordset_id || promptCardRow.wordset_id);
+            promptCardRow.last_mode = normalizeMode(event.mode);
+            promptCardRow.last_seen_at = mysqlUtcFromMs(eventMs);
+            promptCardRow.updated_at = promptCardRow.last_seen_at;
+            if (!sanitizeString(promptCardRow.first_seen_at)) {
+                promptCardRow.first_seen_at = promptCardRow.last_seen_at;
+            }
+
+            if (event.event_type === 'word_exposure') {
+                promptCardRow.exposure_total = Math.max(0, parseInt(promptCardRow.exposure_total, 10) || 0) + 1;
+            } else if (event.event_type === 'word_outcome') {
+                if (event.is_correct === true) {
+                    if (parseBool(event.had_wrong_before, false)) {
+                        promptCardRow.correct_after_retry = Math.max(0, parseInt(promptCardRow.correct_after_retry, 10) || 0) + 1;
+                    } else {
+                        promptCardRow.correct_clean = Math.max(0, parseInt(promptCardRow.correct_clean, 10) || 0) + 1;
+                    }
+                    promptCardRow.current_correct_streak = Math.max(0, parseInt(promptCardRow.current_correct_streak, 10) || 0) + 1;
+                } else if (event.is_correct === false) {
+                    promptCardRow.incorrect = Math.max(0, parseInt(promptCardRow.incorrect, 10) || 0) + 1;
+                    promptCardRow.current_correct_streak = 0;
+                }
+
+                if ((parseInt(promptCardRow.correct_clean, 10) || 0) >= MASTERED_CLEAN_THRESHOLD) {
+                    promptCardRow.mastery_unlocked = true;
+                }
+            }
+
+            store.prompt_cards[promptCardKey] = promptCardRow;
+        }
+
+        if (!wordId) {
+            saveLocalStore();
+            updateLoadedPromptCards(promptCardId);
+            return;
+        }
+
+        const key = String(wordId);
         const row = Object.assign({
             total_coverage: 0,
             coverage_learning: 0,
@@ -737,7 +930,6 @@
             const modeColumn = progressModeColumn(row.last_mode);
             row[modeColumn] = Math.max(0, parseInt(row[modeColumn], 10) || 0) + 1;
         } else if (event.event_type === 'word_outcome') {
-            const payload = (event.payload && typeof event.payload === 'object') ? event.payload : {};
             if (row.last_mode === 'gender' && payload.gender && typeof payload.gender === 'object') {
                 row.gender_progress = cloneValue(payload.gender);
             }
@@ -805,6 +997,9 @@
         store.words[key] = row;
         saveLocalStore();
         updateLoadedWords(wordId);
+        if (promptCardId > 0) {
+            updateLoadedPromptCards(promptCardId);
+        }
     }
 
     function mergeRemoteProgressRows(rows) {
@@ -1079,9 +1274,14 @@
     function trackWordExposure(raw) {
         const entry = raw || {};
         const word = (entry.word && typeof entry.word === 'object') ? entry.word : null;
-        const wordId = toInt(entry.wordId || entry.word_id || (word && word.id));
-        if (!wordId) {
+        const payload = cloneValue((entry.payload && typeof entry.payload === 'object') ? entry.payload : {});
+        const promptCardId = resolvePromptCardId(entry, word, payload);
+        const wordId = toInt(entry.wordId || entry.word_id || wordIdFromWord(word));
+        if (!wordId && !promptCardId) {
             return null;
+        }
+        if (promptCardId > 0) {
+            payload.prompt_card_id = promptCardId;
         }
         const eventId = enqueue({
             event_type: 'word_exposure',
@@ -1091,7 +1291,8 @@
             category_id: entry.categoryId || entry.category_id || (word && categoryIdForWord(word)),
             category_name: entry.categoryName || entry.category_name || (word && word.__categoryName) || '',
             wordset_id: entry.wordsetId || entry.wordset_id,
-            payload: entry.payload || {}
+            prompt_card_id: promptCardId,
+            payload: payload
         });
         if (eventId) {
             scheduleFlush(entry.flushDelay || 1400);
@@ -1102,10 +1303,15 @@
     function trackWordOutcome(raw) {
         const entry = raw || {};
         const word = (entry.word && typeof entry.word === 'object') ? entry.word : null;
-        const wordId = toInt(entry.wordId || entry.word_id || (word && word.id));
+        const payload = cloneValue((entry.payload && typeof entry.payload === 'object') ? entry.payload : {});
+        const promptCardId = resolvePromptCardId(entry, word, payload);
+        const wordId = toInt(entry.wordId || entry.word_id || wordIdFromWord(word));
         const hasCorrect = (typeof entry.isCorrect !== 'undefined' || typeof entry.is_correct !== 'undefined');
-        if (!wordId || !hasCorrect) {
+        if ((!wordId && !promptCardId) || !hasCorrect) {
             return null;
+        }
+        if (promptCardId > 0) {
+            payload.prompt_card_id = promptCardId;
         }
         const eventId = enqueue({
             event_type: 'word_outcome',
@@ -1117,7 +1323,8 @@
             wordset_id: entry.wordsetId || entry.wordset_id,
             is_correct: typeof entry.isCorrect !== 'undefined' ? entry.isCorrect : entry.is_correct,
             had_wrong_before: entry.hadWrongBefore ?? entry.had_wrong_before,
-            payload: entry.payload || {}
+            prompt_card_id: promptCardId,
+            payload: payload
         });
         if (eventId) {
             scheduleFlush(entry.flushDelay || 900);
@@ -1126,7 +1333,8 @@
                     $(document).trigger('lltools:flashcard-word-outcome-queued', [{
                         event_id: eventId,
                         mode: normalizeMode(entry.mode || context.mode),
-                        word_id: wordId
+                        word_id: wordId,
+                        prompt_card_id: promptCardId
                     }]);
                 }
             } catch (_) { /* no-op */ }

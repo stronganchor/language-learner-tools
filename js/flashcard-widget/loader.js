@@ -718,8 +718,13 @@
                 return w;
             }).filter(function (w) {
                 if (needsAudio && !w.audio) {
+                    const allowPromptOnly = !optionRequiresAudio && !!(
+                        Util && typeof Util.getPromptAudioUrl === 'function'
+                            ? Util.getPromptAudioUrl(w)
+                            : String((w && w.audio) || '').trim()
+                    );
                     const allowWrongOnlyNoAudio = !optionRequiresAudio && isSpecificWrongOnlyWord(w);
-                    if (!allowWrongOnlyNoAudio) return false;
+                    if (!allowWrongOnlyNoAudio && !allowPromptOnly) return false;
                 }
                 if (hasWordsetFilter) {
                     const ids = Array.isArray(w.wordset_ids) ? w.wordset_ids : [];
@@ -1157,7 +1162,14 @@
             const needsImage = categoryRequiresImage(cfg, displayMode);
             const shouldPreloadAudio = needsAudio && !opts.skipAudioPreload;
             const shouldPreloadImage = needsImage && !opts.skipImagePreload;
-            const audioURL = (typeof word.audio === 'string') ? word.audio : '';
+            const audioSource = String(opts.audioSource || 'answer').trim().toLowerCase();
+            const audioURL = audioSource === 'prompt'
+                ? ((Util && typeof Util.getPromptAudioUrl === 'function')
+                    ? Util.getPromptAudioUrl(word)
+                    : ((typeof word.audio === 'string') ? word.audio : ''))
+                : ((Util && typeof Util.getAnswerAudioUrl === 'function')
+                    ? Util.getAnswerAudioUrl(word)
+                    : ((typeof word.audio === 'string') ? word.audio : ''));
             const imageURL = (typeof word.image === 'string') ? word.image : '';
             const audioPromise = shouldPreloadAudio
                 ? (audioURL

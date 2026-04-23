@@ -534,6 +534,9 @@
 
     function isPromptEligibleWord(word) {
         if (!word || typeof word !== 'object') return false;
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(word)) {
+            return false;
+        }
         if (Selection && typeof Selection.isWordBlockedFromPromptRounds === 'function') {
             try {
                 if (Selection.isWordBlockedFromPromptRounds(word)) return false;
@@ -2743,7 +2746,9 @@
         const preferredOrder = ['isolation', 'question', 'introduction'];
         const best = FlashcardAudio.selectBestAudio(target, preferredOrder);
         if (best) {
-            target.audio = best;
+            target.__runtimePromptAudio = best;
+        } else {
+            delete target.__runtimePromptAudio;
         }
         return true;
     }

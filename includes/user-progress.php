@@ -25,6 +25,9 @@ if (!defined('LL_TOOLS_USER_RECOMMENDATION_DISMISSED_META')) {
 if (!defined('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META')) {
     define('LL_TOOLS_USER_RECOMMENDATION_DEFERRALS_META', 'll_user_study_recommendation_deferrals');
 }
+if (!defined('LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META')) {
+    define('LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META', 'll_user_study_prompt_card_progress');
+}
 
 /**
  * Minimal access helper shared by dashboard AJAX endpoints.
@@ -1129,6 +1132,266 @@ function ll_tools_record_category_exposure($user_id, int $category_id, string $m
     update_user_meta($uid, LL_TOOLS_USER_CATEGORY_PROGRESS_META, $progress);
 }
 
+function ll_tools_prompt_card_progress_mastery_clean_threshold(): int {
+    $threshold = (int) apply_filters('ll_tools_prompt_card_progress_mastery_clean_threshold', 3);
+    return max(1, $threshold);
+}
+
+function ll_tools_get_user_prompt_card_progress($user_id = 0): array {
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if ($uid <= 0) {
+        return [];
+    }
+
+    $raw = get_user_meta($uid, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, true);
+    if (!is_array($raw)) {
+        return [];
+    }
+
+    $out = [];
+    foreach ($raw as $prompt_card_id => $entry) {
+        $card_id = (int) $prompt_card_id;
+        if ($card_id <= 0 || !is_array($entry)) {
+            continue;
+        }
+
+        $out[$card_id] = [
+            'prompt_card_id' => $card_id,
+            'category_id' => max(0, (int) ($entry['category_id'] ?? 0)),
+            'wordset_id' => max(0, (int) ($entry['wordset_id'] ?? 0)),
+            'first_seen_at' => isset($entry['first_seen_at']) ? (string) $entry['first_seen_at'] : '',
+            'last_seen_at' => isset($entry['last_seen_at']) ? (string) $entry['last_seen_at'] : '',
+            'last_mode' => ll_tools_normalize_progress_mode((string) ($entry['last_mode'] ?? 'practice')),
+            'exposure_total' => max(0, (int) ($entry['exposure_total'] ?? 0)),
+            'correct_clean' => max(0, (int) ($entry['correct_clean'] ?? 0)),
+            'correct_after_retry' => max(0, (int) ($entry['correct_after_retry'] ?? 0)),
+            'incorrect' => max(0, (int) ($entry['incorrect'] ?? 0)),
+            'current_correct_streak' => max(0, (int) ($entry['current_correct_streak'] ?? 0)),
+            'mastery_unlocked' => !empty($entry['mastery_unlocked']),
+            'updated_at' => isset($entry['updated_at']) ? (string) $entry['updated_at'] : '',
+        ];
+    }
+
+    return $out;
+}
+
+function ll_tools_user_prompt_card_progress_status(array $row): string {
+    $exposure_total = max(0, (int) ($row['exposure_total'] ?? 0));
+    $clean = max(0, (int) ($row['correct_clean'] ?? 0));
+    $retry = max(0, (int) ($row['correct_after_retry'] ?? 0));
+    $incorrect = max(0, (int) ($row['incorrect'] ?? 0));
+
+    if (!empty($row['mastery_unlocked']) || $clean >= ll_tools_prompt_card_progress_mastery_clean_threshold()) {
+        return 'mastered';
+    }
+
+    if ($exposure_total > 0 || $clean > 0 || $retry > 0 || $incorrect > 0) {
+        return 'studied';
+    }
+
+    return 'new';
+}
+
+function ll_tools_apply_prompt_card_progress_event(int $user_id, array $event, string $now_mysql): bool {
+    if (!function_exists('ll_tools_get_prompt_card_data')) {
+        return false;
+    }
+
+    $payload = isset($event['payload']) && is_array($event['payload']) ? $event['payload'] : [];
+    $prompt_card_id = isset($payload['prompt_card_id']) ? (int) $payload['prompt_card_id'] : 0;
+    if ($prompt_card_id <= 0) {
+        return false;
+    }
+
+    $card = ll_tools_get_prompt_card_data($prompt_card_id);
+    if (empty($card)) {
+        return false;
+    }
+
+    $progress = ll_tools_get_user_prompt_card_progress($user_id);
+    $row = isset($progress[$prompt_card_id]) && is_array($progress[$prompt_card_id])
+        ? $progress[$prompt_card_id]
+        : [
+            'prompt_card_id' => $prompt_card_id,
+            'category_id' => 0,
+            'wordset_id' => 0,
+            'first_seen_at' => $now_mysql,
+            'last_seen_at' => $now_mysql,
+            'last_mode' => ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice')),
+            'exposure_total' => 0,
+            'correct_clean' => 0,
+            'correct_after_retry' => 0,
+            'incorrect' => 0,
+            'current_correct_streak' => 0,
+            'mastery_unlocked' => false,
+            'updated_at' => $now_mysql,
+        ];
+
+    $category_id = max(0, (int) ($event['category_id'] ?? 0));
+    if ($category_id <= 0) {
+        $card_categories = function_exists('ll_tools_get_object_term_ids_map')
+            ? ll_tools_get_object_term_ids_map([$prompt_card_id], 'word-category')
+            : [];
+        $card_category_ids = isset($card_categories[$prompt_card_id]) && is_array($card_categories[$prompt_card_id])
+            ? array_values(array_filter(array_map('intval', $card_categories[$prompt_card_id]), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+        $category_id = !empty($card_category_ids) ? (int) $card_category_ids[0] : 0;
+    }
+
+    $wordset_id = max(0, (int) ($event['wordset_id'] ?? 0));
+    if ($wordset_id <= 0) {
+        $card_wordsets = function_exists('ll_tools_get_object_term_ids_map')
+            ? ll_tools_get_object_term_ids_map([$prompt_card_id], 'wordset')
+            : [];
+        $card_wordset_ids = isset($card_wordsets[$prompt_card_id]) && is_array($card_wordsets[$prompt_card_id])
+            ? array_values(array_filter(array_map('intval', $card_wordsets[$prompt_card_id]), static function (int $id): bool {
+                return $id > 0;
+            }))
+            : [];
+        $wordset_id = !empty($card_wordset_ids) ? (int) $card_wordset_ids[0] : 0;
+    }
+
+    $row['last_seen_at'] = $now_mysql;
+    $row['updated_at'] = $now_mysql;
+    $row['last_mode'] = ll_tools_normalize_progress_mode((string) ($event['mode'] ?? 'practice'));
+    if ($category_id > 0) {
+        $row['category_id'] = $category_id;
+    }
+    if ($wordset_id > 0) {
+        $row['wordset_id'] = $wordset_id;
+    }
+
+    $event_type = (string) ($event['event_type'] ?? 'word_exposure');
+    if ($event_type === 'word_exposure') {
+        $row['exposure_total'] = max(0, (int) $row['exposure_total']) + 1;
+        if ((int) ($event['word_id'] ?? 0) <= 0 && $category_id > 0) {
+            ll_tools_record_category_exposure($user_id, $category_id, $row['last_mode'], $wordset_id, 1);
+        }
+    } elseif ($event_type === 'word_outcome') {
+        $is_correct = $event['is_correct'] ?? null;
+        $had_wrong_before = !empty($event['had_wrong_before']);
+        if ($is_correct === true) {
+            if ($had_wrong_before) {
+                $row['correct_after_retry'] = max(0, (int) $row['correct_after_retry']) + 1;
+            } else {
+                $row['correct_clean'] = max(0, (int) $row['correct_clean']) + 1;
+            }
+            $row['current_correct_streak'] = max(0, (int) $row['current_correct_streak']) + 1;
+        } elseif ($is_correct === false) {
+            $row['incorrect'] = max(0, (int) $row['incorrect']) + 1;
+            $row['current_correct_streak'] = 0;
+        }
+
+        if (max(0, (int) $row['correct_clean']) >= ll_tools_prompt_card_progress_mastery_clean_threshold()) {
+            $row['mastery_unlocked'] = true;
+        }
+    }
+
+    $progress[$prompt_card_id] = $row;
+    update_user_meta($user_id, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, $progress);
+    return true;
+}
+
+function ll_tools_get_prompt_card_progress_summary_by_category($user_id = 0, int $wordset_id = 0, array $category_ids = []): array {
+    if (!function_exists('ll_tools_get_prompt_card_ids_for_category_context')) {
+        return [];
+    }
+
+    $uid = (int) ($user_id ?: get_current_user_id());
+    if ($uid <= 0) {
+        return [];
+    }
+
+    $category_ids = array_values(array_filter(array_map('intval', $category_ids), static function (int $category_id): bool {
+        return $category_id > 0;
+    }));
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $progress = ll_tools_get_user_prompt_card_progress($uid);
+    $summary = [];
+    foreach ($category_ids as $category_id) {
+        $summary[$category_id] = [
+            'total' => 0,
+            'mastered' => 0,
+            'studied' => 0,
+            'new' => 0,
+            'last_seen_at' => '',
+        ];
+    }
+
+    $tax_query = [
+        [
+            'taxonomy' => 'word-category',
+            'field' => 'term_id',
+            'terms' => $category_ids,
+        ],
+    ];
+    if ($wordset_id > 0) {
+        $tax_query[] = [
+            'taxonomy' => 'wordset',
+            'field' => 'term_id',
+            'terms' => [$wordset_id],
+        ];
+        $tax_query['relation'] = 'AND';
+    }
+
+    $prompt_card_ids = get_posts([
+        'post_type' => defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'suppress_filters' => true,
+        'tax_query' => $tax_query,
+        'no_found_rows' => true,
+    ]);
+    $prompt_card_ids = array_values(array_filter(array_map('intval', (array) $prompt_card_ids), static function (int $card_id): bool {
+        return $card_id > 0;
+    }));
+    if (empty($prompt_card_ids)) {
+        return $summary;
+    }
+
+    $card_categories = function_exists('ll_tools_get_object_term_ids_map')
+        ? ll_tools_get_object_term_ids_map($prompt_card_ids, 'word-category')
+        : [];
+
+    foreach ($prompt_card_ids as $prompt_card_id) {
+        $row = isset($progress[$prompt_card_id]) && is_array($progress[$prompt_card_id]) ? $progress[$prompt_card_id] : [];
+        $status = ll_tools_user_prompt_card_progress_status($row);
+        $card_category_ids = isset($card_categories[$prompt_card_id]) && is_array($card_categories[$prompt_card_id])
+            ? array_values(array_filter(array_map('intval', $card_categories[$prompt_card_id]), static function (int $category_id): bool {
+                return $category_id > 0;
+            }))
+            : [];
+
+        foreach ($card_category_ids as $category_id) {
+            if (!isset($summary[$category_id])) {
+                continue;
+            }
+
+            $summary[$category_id]['total']++;
+            if ($status === 'mastered') {
+                $summary[$category_id]['mastered']++;
+            } elseif ($status === 'studied') {
+                $summary[$category_id]['studied']++;
+            } else {
+                $summary[$category_id]['new']++;
+            }
+
+            $last_seen_at = isset($row['last_seen_at']) ? (string) $row['last_seen_at'] : '';
+            if ($last_seen_at !== '' && strcmp($last_seen_at, (string) ($summary[$category_id]['last_seen_at'] ?? '')) > 0) {
+                $summary[$category_id]['last_seen_at'] = $last_seen_at;
+            }
+        }
+    }
+
+    return $summary;
+}
+
 function ll_tools_progress_due_intervals_days(): array {
     return [
         0 => 0,
@@ -1351,8 +1614,19 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         $profile_id = '';
     }
 
+    $prompt_card_id = isset($payload['prompt_card_id']) ? max(0, (int) $payload['prompt_card_id']) : 0;
+    if ($prompt_card_id > 0) {
+        $payload['prompt_card_id'] = $prompt_card_id;
+    }
+
     if ($wordset_id <= 0 && $word_id > 0) {
         $wordset_id = ll_tools_resolve_wordset_id_for_word($word_id);
+    }
+    if ($wordset_id <= 0 && $prompt_card_id > 0) {
+        $prompt_card_wordsets = wp_get_post_terms($prompt_card_id, 'wordset', ['fields' => 'ids']);
+        if (!is_wp_error($prompt_card_wordsets) && !empty($prompt_card_wordsets)) {
+            $wordset_id = max(0, (int) $prompt_card_wordsets[0]);
+        }
     }
     if ($wordset_id > 0 && $category_id > 0 && function_exists('ll_tools_get_effective_category_id_for_wordset')) {
         $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($category_id, $wordset_id, true);
@@ -1365,6 +1639,10 @@ function ll_tools_sanitize_progress_event(array $raw): ?array {
         if (!empty($repaired_payload_category_ids)) {
             $payload['category_ids'] = $repaired_payload_category_ids;
         }
+    }
+
+    if (($type === 'word_outcome' || $type === 'word_exposure') && $word_id <= 0 && $prompt_card_id <= 0) {
+        return null;
     }
 
     return [
@@ -1748,7 +2026,19 @@ function ll_tools_process_progress_events_batch(int $user_id, array $events): ar
 
         $ok = true;
         if ($event['event_type'] === 'word_outcome' || $event['event_type'] === 'word_exposure') {
-            $ok = ll_tools_apply_word_progress_event($user_id, $event, $event_created_at);
+            $expects_word_progress = !empty($event['word_id']);
+            $expects_prompt_card_progress = !empty($event['payload']['prompt_card_id']);
+
+            if ($expects_word_progress) {
+                $ok = ll_tools_apply_word_progress_event($user_id, $event, $event_created_at);
+            } else {
+                $ok = false;
+            }
+
+            if ($expects_prompt_card_progress) {
+                $prompt_card_ok = ll_tools_apply_prompt_card_progress_event($user_id, $event, $event_created_at);
+                $ok = $expects_word_progress ? ($ok && $prompt_card_ok) : $prompt_card_ok;
+            }
         } elseif ($event['event_type'] === 'category_study') {
             if (!empty($event['category_id'])) {
                 $delta = isset($event['payload']['units']) ? max(1, (int) $event['payload']['units']) : 1;
@@ -5904,6 +6194,7 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
         'deleted_word_rows' => 0,
         'deleted_event_rows' => 0,
         'cleared_category_meta_entries' => 0,
+        'cleared_prompt_card_meta_entries' => 0,
     ];
 
     if ($uid <= 0) {
@@ -6020,6 +6311,46 @@ function ll_tools_reset_user_progress(int $user_id, array $args = []): array {
         }
     }
 
+    $prompt_card_progress = ll_tools_get_user_prompt_card_progress($uid);
+    if (!empty($prompt_card_progress)) {
+        $prompt_card_progress_lookup = $prompt_card_progress;
+        $query_category_lookup = !empty($query_category_ids) ? array_fill_keys($query_category_ids, true) : [];
+
+        foreach ($prompt_card_progress as $prompt_card_id => $entry) {
+            $card_id = (int) $prompt_card_id;
+            if ($card_id <= 0 || !is_array($entry)) {
+                continue;
+            }
+
+            $entry_category_id = max(0, (int) ($entry['category_id'] ?? 0));
+            $entry_wordset_id = max(0, (int) ($entry['wordset_id'] ?? 0));
+            $matches_scope = false;
+
+            if (empty($category_ids) && $wordset_id <= 0) {
+                $matches_scope = true;
+            } elseif (!empty($query_category_lookup) && !empty($query_category_lookup[$entry_category_id])) {
+                $matches_scope = true;
+            } elseif ($wordset_id > 0 && $entry_wordset_id === $wordset_id) {
+                $matches_scope = true;
+            }
+
+            if (!$matches_scope) {
+                continue;
+            }
+
+            unset($prompt_card_progress_lookup[$card_id]);
+            $result['cleared_prompt_card_meta_entries']++;
+        }
+
+        if ($result['cleared_prompt_card_meta_entries'] > 0) {
+            if (empty($prompt_card_progress_lookup)) {
+                delete_user_meta($uid, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META);
+            } else {
+                update_user_meta($uid, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META, $prompt_card_progress_lookup);
+            }
+        }
+    }
+
     if ($wordset_id > 0) {
         ll_tools_save_user_recommendation_queue([], $uid, $wordset_id);
         ll_tools_save_user_last_recommendation_activity(null, $uid, $wordset_id);
@@ -6042,6 +6373,7 @@ function ll_tools_cleanup_user_progress_for_deleted_user($user_id): void {
     $tables = ll_tools_user_progress_table_names();
     $wpdb->delete($tables['words'], ['user_id' => $uid], ['%d']);
     $wpdb->delete($tables['events'], ['user_id' => $uid], ['%d']);
+    delete_user_meta($uid, LL_TOOLS_USER_PROMPT_CARD_PROGRESS_META);
 }
 add_action('delete_user', 'll_tools_cleanup_user_progress_for_deleted_user');
 
