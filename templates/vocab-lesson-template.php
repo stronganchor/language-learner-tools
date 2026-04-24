@@ -171,6 +171,16 @@ if (have_posts()) {
         : [];
     $lesson_learning_supported = !array_key_exists('learning_supported', $lesson_quiz_config) || !empty($lesson_quiz_config['learning_supported']);
     $lesson_self_check_supported = !array_key_exists('self_check_supported', $lesson_quiz_config) || !empty($lesson_quiz_config['self_check_supported']);
+    $lesson_prompt_card_posts = [];
+    if (
+        $wordset_id > 0
+        && $category instanceof WP_Term
+        && !is_wp_error($category)
+        && function_exists('ll_tools_get_vocab_lesson_prompt_card_posts')
+    ) {
+        $lesson_prompt_card_posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
+    }
+    $lesson_uses_prompt_cards = !empty($lesson_prompt_card_posts);
     $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
         $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
         if (!empty($cfg['svg'])) {
@@ -247,6 +257,21 @@ if (have_posts()) {
         ]);
         if ($defer_grid) {
             $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
+            if ($lesson_uses_prompt_cards) {
+                $prompt_shell_count = max(1, min(3, count($lesson_prompt_card_posts)));
+                $grid_shell_spec['prompt_card_shell'] = true;
+                $grid_shell_spec['cards'] = array_fill(0, $prompt_shell_count, [
+                    'media_aspect_ratio' => '4 / 3',
+                    'title_width' => '72%',
+                    'recording_count' => 2,
+                ]);
+                $grid_shell_spec['show_media'] = true;
+                $grid_shell_spec['show_title'] = false;
+                $grid_shell_attributes = (array) ($grid_shell_spec['attributes'] ?? []);
+                $grid_shell_attributes['class'] = trim((string) ($grid_shell_attributes['class'] ?? 'word-grid ll-word-grid') . ' ll-vocab-prompt-card-grid ll-vocab-prompt-card-grid--skeleton');
+                $grid_shell_attributes['data-ll-prompt-card-lesson-grid'] = '1';
+                $grid_shell_spec['attributes'] = $grid_shell_attributes;
+            }
             $grid_shell_nonce = wp_create_nonce('ll_vocab_lesson_grid_' . $post_id);
         }
     }
@@ -1168,8 +1193,15 @@ if (have_posts()) {
             }
             ?>
             <?php if ($defer_grid && is_array($grid_shell_spec)) : ?>
+                <?php
+                $is_prompt_card_shell = !empty($grid_shell_spec['prompt_card_shell']);
+                $grid_shell_classes = 'll-vocab-lesson-grid-shell is-loading';
+                if ($is_prompt_card_shell) {
+                    $grid_shell_classes .= ' ll-vocab-lesson-grid-shell--prompt-cards';
+                }
+                ?>
                 <div
-                    class="ll-vocab-lesson-grid-shell is-loading"
+                    class="<?php echo esc_attr($grid_shell_classes); ?>"
                     data-ll-vocab-lesson-grid-shell
                     data-lesson-id="<?php echo esc_attr($post_id); ?>"
                     data-nonce="<?php echo esc_attr($grid_shell_nonce); ?>"
@@ -1195,7 +1227,7 @@ if (have_posts()) {
                         <?php foreach ($shell_cards as $shell_card) : ?>
                             <?php
                             $card_attributes = [
-                                'class' => 'word-item ll-vocab-lesson-skeleton-card',
+                                'class' => 'word-item ll-vocab-lesson-skeleton-card' . ($is_prompt_card_shell ? ' ll-vocab-lesson-skeleton-card--prompt-card' : ''),
                                 'aria-hidden' => 'true',
                             ];
                             $card_style_parts = [];
@@ -1213,13 +1245,33 @@ if (have_posts()) {
                             $recording_count = max(0, (int) ($shell_card['recording_count'] ?? 3));
                             ?>
                             <article <?php echo $render_html_attributes($card_attributes); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-                                <?php if ($show_shell_media) : ?>
+                                <?php if ($is_prompt_card_shell) : ?>
+                                    <div class="ll-vocab-lesson-skeleton-media"></div>
+                                    <div class="ll-vocab-lesson-skeleton-prompt-card-body">
+                                        <div class="ll-vocab-lesson-skeleton-prompt-box">
+                                            <span class="ll-vocab-lesson-skeleton-dot"></span>
+                                            <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--prompt"></span>
+                                            <span class="ll-vocab-lesson-skeleton-recording-button"></span>
+                                            <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--prompt-secondary"></span>
+                                        </div>
+                                        <div class="ll-vocab-lesson-skeleton-answer-list">
+                                            <?php for ($answer_index = 0; $answer_index < 2; $answer_index++) : ?>
+                                                <div class="ll-vocab-lesson-skeleton-answer">
+                                                    <span class="ll-vocab-lesson-skeleton-dot"></span>
+                                                    <span class="ll-vocab-lesson-skeleton-recording-button"></span>
+                                                    <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--answer"></span>
+                                                    <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--answer-secondary"></span>
+                                                </div>
+                                            <?php endfor; ?>
+                                        </div>
+                                    </div>
+                                <?php elseif ($show_shell_media) : ?>
                                     <div class="ll-vocab-lesson-skeleton-media"></div>
                                 <?php endif; ?>
-                                <?php if ($show_shell_title) : ?>
+                                <?php if (!$is_prompt_card_shell && $show_shell_title) : ?>
                                     <div class="ll-vocab-lesson-skeleton-title"></div>
                                 <?php endif; ?>
-                                <?php if ($recording_count > 0) : ?>
+                                <?php if (!$is_prompt_card_shell && $recording_count > 0) : ?>
                                     <div class="ll-vocab-lesson-skeleton-recordings">
                                         <?php for ($recording_index = 0; $recording_index < $recording_count; $recording_index++) : ?>
                                             <span class="ll-vocab-lesson-skeleton-recording-button"></span>

@@ -136,3 +136,69 @@ test('hidden lesson feedback stays invisible when theme overrides hidden styling
   await expect(feedback).toBeHidden();
   expect(await feedback.evaluate((node) => window.getComputedStyle(node).display)).toBe('none');
 });
+
+test('prompt-card loading shell renders full-row skeleton cards', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div class="ll-vocab-lesson-page">
+      <div class="ll-vocab-lesson-content">
+        <div class="ll-vocab-lesson-grid-shell is-loading ll-vocab-lesson-grid-shell--prompt-cards" data-ll-vocab-lesson-grid-shell>
+          <div id="word-grid" class="word-grid ll-word-grid ll-vocab-prompt-card-grid ll-vocab-prompt-card-grid--skeleton" data-ll-word-grid data-ll-prompt-card-lesson-grid="1">
+            <article class="word-item ll-vocab-lesson-skeleton-card ll-vocab-lesson-skeleton-card--prompt-card" aria-hidden="true">
+              <div class="ll-vocab-lesson-skeleton-media"></div>
+              <div class="ll-vocab-lesson-skeleton-prompt-card-body">
+                <div class="ll-vocab-lesson-skeleton-prompt-box">
+                  <span class="ll-vocab-lesson-skeleton-dot"></span>
+                  <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--prompt"></span>
+                  <span class="ll-vocab-lesson-skeleton-recording-button"></span>
+                  <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--prompt-secondary"></span>
+                </div>
+                <div class="ll-vocab-lesson-skeleton-answer-list">
+                  <div class="ll-vocab-lesson-skeleton-answer">
+                    <span class="ll-vocab-lesson-skeleton-dot"></span>
+                    <span class="ll-vocab-lesson-skeleton-recording-button"></span>
+                    <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--answer"></span>
+                    <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--answer-secondary"></span>
+                  </div>
+                </div>
+              </div>
+            </article>
+            <article class="word-item ll-vocab-lesson-skeleton-card ll-vocab-lesson-skeleton-card--prompt-card" aria-hidden="true">
+              <div class="ll-vocab-lesson-skeleton-media"></div>
+              <div class="ll-vocab-lesson-skeleton-prompt-card-body">
+                <div class="ll-vocab-lesson-skeleton-prompt-box">
+                  <span class="ll-vocab-lesson-skeleton-dot"></span>
+                  <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--prompt"></span>
+                  <span class="ll-vocab-lesson-skeleton-recording-button"></span>
+                  <span class="ll-vocab-lesson-skeleton-line ll-vocab-lesson-skeleton-line--prompt-secondary"></span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.addStyleTag({ content: vocabLessonCssSource });
+
+  const metrics = await page.evaluate(() => {
+    const grid = document.querySelector('#word-grid');
+    const cards = Array.from(document.querySelectorAll('.ll-vocab-lesson-skeleton-card--prompt-card'));
+    const firstRect = cards[0].getBoundingClientRect();
+    const secondRect = cards[1].getBoundingClientRect();
+    const firstStyle = window.getComputedStyle(cards[0]);
+
+    return {
+      gridColumns: window.getComputedStyle(grid).gridTemplateColumns,
+      firstCardColumns: firstStyle.gridTemplateColumns,
+      firstWidth: firstRect.width,
+      verticalGap: secondRect.top - firstRect.top
+    };
+  });
+
+  expect(metrics.gridColumns.trim().split(/\s+/)).toHaveLength(1);
+  expect(metrics.firstCardColumns.trim().split(/\s+/).length).toBeGreaterThan(1);
+  expect(metrics.firstWidth).toBeGreaterThan(800);
+  expect(metrics.verticalGap).toBeGreaterThan(80);
+});

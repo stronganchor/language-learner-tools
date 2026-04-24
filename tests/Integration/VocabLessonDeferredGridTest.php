@@ -161,6 +161,71 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('No words found', $html);
     }
 
+    public function test_prompt_card_lesson_shell_uses_full_row_loading_cards(): void
+    {
+        $wordset = wp_insert_term('Prompt Card Shell Wordset', 'wordset', ['slug' => 'prompt-card-shell-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $prompt_category = wp_insert_term('Prompt Card Shell Category', 'word-category', ['slug' => 'prompt-card-shell-category']);
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+
+        $asset_category = wp_insert_term('Prompt Card Shell Assets', 'word-category', ['slug' => 'prompt-card-shell-assets']);
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'image_audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+
+        $image_word_id = $this->createWordWithThumbnail('Shell Prompt Image', $asset_category_id, $wordset_id, 'prompt-card-shell-image.png');
+        $correct_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Hippos',
+        ]);
+        $wrong_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Camels',
+        ]);
+        wp_set_post_terms($correct_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($wrong_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($correct_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($wrong_word_id, [$wordset_id], 'wordset', false);
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Shell Prompt Card',
+            'prompt_text' => 'Is this a hippo or a camel?',
+            'prompt_audio_url' => 'https://example.com/shell-question.mp3',
+            'prompt_image_word_id' => $image_word_id,
+            'correct_answer_word_id' => $correct_word_id,
+            'wrong_answer_word_ids' => [$wrong_word_id],
+        ]);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Prompt Card Shell Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $prompt_category_id);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $lesson_id);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('ll-vocab-lesson-grid-shell--prompt-cards', $html);
+        $this->assertStringContainsString('ll-vocab-prompt-card-grid--skeleton', $html);
+        $this->assertStringContainsString('data-ll-prompt-card-lesson-grid="1"', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-skeleton-card--prompt-card', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-skeleton-prompt-box', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-skeleton-answer-list', $html);
+    }
+
     public function test_lesson_grid_ajax_strips_broken_one_pixel_thumbnail_dimensions(): void
     {
         $wordset = wp_insert_term('Deferred Grid Image Wordset', 'wordset', ['slug' => 'deferred-grid-image-wordset']);

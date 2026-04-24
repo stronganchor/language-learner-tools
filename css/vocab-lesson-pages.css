@@ -2230,6 +2230,16 @@
     min-height: 320px;
 }
 
+.ll-vocab-lesson-grid-shell--prompt-cards.is-loading [data-ll-word-grid] {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 18px !important;
+    align-items: stretch !important;
+    width: min(100%, 980px) !important;
+    min-height: 420px;
+    margin: 0 auto !important;
+}
+
 .ll-vocab-lesson-skeleton-card {
     display: grid;
     justify-items: center;
@@ -2241,6 +2251,8 @@
 
 .ll-vocab-lesson-skeleton-media,
 .ll-vocab-lesson-skeleton-title,
+.ll-vocab-lesson-skeleton-line,
+.ll-vocab-lesson-skeleton-dot,
 .ll-vocab-lesson-skeleton-recording-button {
     position: relative;
     overflow: hidden;
@@ -2283,6 +2295,108 @@
     border-radius: 8px;
     border: 1px solid rgba(203, 213, 225, 0.8);
     box-sizing: border-box;
+}
+
+.ll-vocab-lesson-skeleton-card--prompt-card {
+    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+    justify-items: stretch;
+    width: 100%;
+    min-width: 0;
+    padding: 16px;
+    overflow: hidden;
+    text-align: left;
+    border: 1px solid #dbe3ea;
+    border-radius: 8px;
+    background: #ffffff;
+    box-shadow: 0 12px 24px rgba(46, 42, 36, 0.08);
+    box-sizing: border-box;
+}
+
+.ll-vocab-lesson-skeleton-card--prompt-card .ll-vocab-lesson-skeleton-media {
+    width: 100%;
+    max-width: 240px;
+    aspect-ratio: 4 / 3;
+    justify-self: start;
+    margin: 0;
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.ll-vocab-lesson-skeleton-prompt-card-body {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+    width: 100%;
+}
+
+.ll-vocab-lesson-skeleton-prompt-box {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #dbeafe;
+    border-radius: 8px;
+    background: #f8fbff;
+}
+
+.ll-vocab-lesson-skeleton-dot {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    border-radius: 50%;
+}
+
+.ll-vocab-lesson-skeleton-line {
+    display: block;
+    height: 16px;
+    border-radius: 999px;
+}
+
+.ll-vocab-lesson-skeleton-line--prompt {
+    width: min(100%, 320px);
+}
+
+.ll-vocab-lesson-skeleton-line--prompt-secondary {
+    grid-column: 2 / 4;
+    width: min(78%, 240px);
+    height: 12px;
+}
+
+.ll-vocab-lesson-skeleton-answer-list {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.ll-vocab-lesson-skeleton-answer {
+    display: grid;
+    grid-template-columns: 30px auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.ll-vocab-lesson-skeleton-answer .ll-vocab-lesson-skeleton-dot {
+    background: linear-gradient(100deg, #e3ebf2 16%, #f4f8fb 34%, #e3ebf2 52%);
+    background-size: 220% 100%;
+}
+
+.ll-vocab-lesson-skeleton-line--answer {
+    width: min(100%, 260px);
+}
+
+.ll-vocab-lesson-skeleton-line--answer-secondary {
+    grid-column: 3;
+    width: min(80%, 210px);
+    height: 12px;
 }
 
 .ll-vocab-lesson-grid-feedback {
@@ -2605,9 +2719,34 @@
         grid-template-columns: 1fr;
     }
 
+    .ll-vocab-lesson-skeleton-card--prompt-card {
+        grid-template-columns: 1fr;
+    }
+
+    .ll-vocab-lesson-skeleton-card--prompt-card .ll-vocab-lesson-skeleton-media {
+        max-width: 100%;
+        justify-self: stretch;
+    }
+
     .ll-vocab-prompt-card__prompt-content {
         grid-template-columns: minmax(0, 1fr);
         justify-items: start;
+    }
+
+    .ll-vocab-lesson-skeleton-prompt-box,
+    .ll-vocab-lesson-skeleton-answer {
+        grid-template-columns: 30px minmax(0, 1fr);
+    }
+
+    .ll-vocab-lesson-skeleton-prompt-box .ll-vocab-lesson-skeleton-recording-button,
+    .ll-vocab-lesson-skeleton-answer .ll-vocab-lesson-skeleton-recording-button {
+        grid-column: 2;
+    }
+
+    .ll-vocab-lesson-skeleton-line--prompt-secondary,
+    .ll-vocab-lesson-skeleton-line--answer,
+    .ll-vocab-lesson-skeleton-line--answer-secondary {
+        grid-column: 2;
     }
 
     .ll-vocab-prompt-card-answer {
@@ -2638,7 +2777,9 @@
     .ll-vocab-lesson-skeleton-media,
     .ll-vocab-lesson-skeleton-line,
     .ll-vocab-lesson-skeleton-pill,
-    .ll-vocab-lesson-skeleton-dot {
+    .ll-vocab-lesson-skeleton-dot,
+    .ll-vocab-lesson-skeleton-title,
+    .ll-vocab-lesson-skeleton-recording-button {
         animation: none;
         background-position: 50% 0;
     }
