@@ -150,6 +150,28 @@
         return text.replace(/\u2060*\u05BE\u2060*/gu, '\u2060\u05BE\u2060');
     }
 
+    function normalizeSearchText(value) {
+        let text = (value === null || value === undefined) ? '' : String(value);
+        text = text.trim().toLowerCase();
+        if (!text) { return ''; }
+        try {
+            text = text.normalize('NFD');
+        } catch (_) { /* Keep the raw string if Unicode normalization is unavailable. */ }
+        text = text.replace(/[\u0300-\u036f]/g, '');
+        return text.replace(/[ıłđðþæœß]/g, function (match) {
+            return {
+                'ı': 'i',
+                'ł': 'l',
+                'đ': 'd',
+                'ð': 'd',
+                'þ': 'th',
+                'æ': 'ae',
+                'œ': 'oe',
+                'ß': 'ss'
+            }[match] || match;
+        });
+    }
+
     function stopProgressWordAudio() {
         const audio = progressWordAudio;
         const button = progressWordAudioButton;
@@ -1629,8 +1651,10 @@
                 audio_recording_type: String(row.audio_recording_type || ''),
                 category_id: parseInt(row.category_id, 10) || 0,
                 category_label: String(row.category_label || ''),
+                category_url: String(row.category_url || ''),
                 category_ids: uniqueIntList(row.category_ids || []),
                 category_labels: Array.isArray(row.category_labels) ? row.category_labels.map(function (label) { return String(label || ''); }).filter(Boolean) : [],
+                category_urls: Array.isArray(row.category_urls) ? row.category_urls.map(function (url) { return String(url || ''); }) : [],
                 part_of_speech_slug: String(row.part_of_speech_slug || '').trim().toLowerCase(),
                 part_of_speech_label: String(row.part_of_speech_label || ''),
                 part_of_speech_abbreviation: String(row.part_of_speech_abbreviation || ''),
@@ -2748,6 +2772,19 @@
                 };
             }
         }
+        const rows = Array.isArray(analytics.categories) ? analytics.categories : [];
+        for (let idx = 0; idx < rows.length; idx += 1) {
+            const row = rows[idx] || {};
+            if ((parseInt(row.id, 10) || 0) === cid) {
+                return {
+                    id: cid,
+                    label: String(row.label || ''),
+                    name: String(row.label || ''),
+                    url: String(row.url || ''),
+                    preview: []
+                };
+            }
+        }
         return null;
     }
 
@@ -3799,30 +3836,30 @@
     }
 
     function analyticsApplyWordSearch(rows) {
-        const query = String(analyticsWordSearchQuery || '').trim().toLowerCase();
+        const query = normalizeSearchText(analyticsWordSearchQuery || '');
         if (!query) {
             return Array.isArray(rows) ? rows.slice() : [];
         }
         return (Array.isArray(rows) ? rows : []).filter(function (row) {
-            const title = String(row && row.title || '').toLowerCase();
-            const translation = String(row && row.translation || '').toLowerCase();
-            const partOfSpeech = analyticsWordPartOfSpeechLabel(row).toLowerCase();
+            const title = normalizeSearchText(row && row.title);
+            const translation = normalizeSearchText(row && row.translation);
+            const partOfSpeech = normalizeSearchText(analyticsWordPartOfSpeechLabel(row));
             return title.indexOf(query) !== -1 || translation.indexOf(query) !== -1 || partOfSpeech.indexOf(query) !== -1;
         });
     }
 
     function analyticsApplyCategorySearch(rows) {
-        const query = String(analyticsCategorySearchQuery || '').trim().toLowerCase();
+        const query = normalizeSearchText(analyticsCategorySearchQuery || '');
         if (!query) {
             return Array.isArray(rows) ? rows.slice() : [];
         }
         return (Array.isArray(rows) ? rows : []).filter(function (row) {
-            const label = String(row && row.label || '').toLowerCase();
+            const label = normalizeSearchText(row && row.label);
             if (label.indexOf(query) !== -1) {
                 return true;
             }
             const meta = categoryMetaById(row && row.id);
-            const name = String(meta && meta.name || '').toLowerCase();
+            const name = normalizeSearchText(meta && meta.name);
             return name.indexOf(query) !== -1;
         });
     }
@@ -5357,6 +5394,7 @@
         const $categoryCell = $('<td>');
         const categoryIds = Array.isArray(row.category_ids) ? row.category_ids : [];
         const categoryLabels = Array.isArray(row.category_labels) ? row.category_labels : [];
+        const categoryUrls = Array.isArray(row.category_urls) ? row.category_urls : [];
         let renderedCategories = 0;
         categoryIds.forEach(function (categoryId, index) {
             const cid = parseInt(categoryId, 10) || 0;
@@ -5367,7 +5405,7 @@
             if (renderedCategories > 0) {
                 $categoryCell.append(document.createTextNode(', '));
             }
-            const url = String(meta && meta.url || '').trim();
+            const url = String(categoryUrls[index] || (meta && meta.url) || '').trim();
             if (url) {
                 $('<a>', {
                     class: 'll-wordset-progress-category-link',
@@ -5381,7 +5419,18 @@
             renderedCategories += 1;
         });
         if (!renderedCategories) {
-            $('<span>', { dir: 'auto', text: row.category_label || '' }).appendTo($categoryCell);
+            const fallbackLabel = String(row.category_label || '').trim();
+            const fallbackUrl = String(row.category_url || '').trim();
+            if (fallbackLabel && fallbackUrl) {
+                $('<a>', {
+                    class: 'll-wordset-progress-category-link',
+                    href: fallbackUrl,
+                    dir: 'auto',
+                    text: fallbackLabel
+                }).appendTo($categoryCell);
+            } else {
+                $('<span>', { dir: 'auto', text: fallbackLabel }).appendTo($categoryCell);
+            }
         }
         $categoryCell.appendTo($tr);
 
@@ -6439,20 +6488,20 @@
     }
 
     function mainCategoryMatchesSearch(category, query) {
-        const normalizedQuery = String(query || '').trim().toLowerCase();
+        const normalizedQuery = normalizeSearchText(query || '');
         if (!normalizedQuery) {
             return true;
         }
         const cat = (category && typeof category === 'object') ? category : {};
-        const searchText = String(cat.search_text || '').toLowerCase();
+        const searchText = normalizeSearchText(cat.search_text || '');
         if (searchText.indexOf(normalizedQuery) !== -1) {
             return true;
         }
-        const label = String(cat.translation || cat.name || '').toLowerCase();
+        const label = normalizeSearchText(cat.translation || cat.name || '');
         if (label.indexOf(normalizedQuery) !== -1) {
             return true;
         }
-        const rawName = String(cat.name || '').toLowerCase();
+        const rawName = normalizeSearchText(cat.name || '');
         return rawName.indexOf(normalizedQuery) !== -1;
     }
 

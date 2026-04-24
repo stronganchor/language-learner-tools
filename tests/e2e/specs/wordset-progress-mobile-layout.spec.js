@@ -731,6 +731,53 @@ async function mountProgressPage(page, viewport = { width: 344, height: 844 }, c
   await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(expectedWordCount);
 }
 
+test('progress word search matches words when only diacritics differ', async ({ page }) => {
+  const analytics = buildProgressAnalytics();
+  analytics.words = analytics.words.map((row, index) => ({
+    ...row,
+    title: index === 0 ? 'cirûn' : row.title
+  }));
+
+  await mountProgressPage(page, { width: 390, height: 844 }, {
+    analytics
+  });
+
+  await page.locator('[data-ll-wordset-progress-search]').fill('cirun');
+
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toHaveCount(1);
+  await expect(page.locator('[data-ll-wordset-progress-words-body] tr')).toContainText('cirûn');
+});
+
+test('progress word category labels link from analytics URLs when category metadata is absent', async ({ page }) => {
+  const analytics = buildProgressAnalytics();
+  analytics.scope.category_ids = [44];
+  analytics.categories = [{
+    ...analytics.categories[0],
+    id: 44,
+    label: 'Private Cat',
+    url: '/wordsets/test-wordset/private-cat/'
+  }];
+  analytics.words = [{
+    ...analytics.words[0],
+    category_id: 44,
+    category_label: 'Private Cat',
+    category_url: '/wordsets/test-wordset/private-cat/',
+    category_ids: [44],
+    category_labels: ['Private Cat'],
+    category_urls: ['/wordsets/test-wordset/private-cat/']
+  }];
+
+  await mountProgressPage(page, { width: 390, height: 844 }, {
+    categories: [],
+    visibleCategoryIds: [44],
+    analytics
+  });
+
+  const categoryLink = page.locator('[data-ll-wordset-progress-words-body] .ll-wordset-progress-category-link');
+  await expect(categoryLink).toHaveText('Private Cat');
+  await expect(categoryLink).toHaveAttribute('href', '/wordsets/test-wordset/private-cat/');
+});
+
 test('progress practice launch skips selected categories that cannot form a valid option pool', async ({ page }) => {
   await mountProgressPage(page, { width: 390, height: 844 }, {
     categories: [

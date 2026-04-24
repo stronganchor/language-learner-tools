@@ -181,7 +181,7 @@ function buildConfig() {
         gender_supported: false,
         aspect_bucket: 'ratio:1_1',
         hidden: false,
-        search_text: 'plane ucak train tren hotel otel',
+        search_text: 'plane ucak train tren cirûn otel',
         preview: []
       }
     ],
@@ -317,4 +317,18 @@ test('main wordset search filters category cards by matching words and clears hi
   }).toEqual([]);
 
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeVisible();
+});
+
+test('main wordset search matches words when only diacritics differ', async ({ page }) => {
+  await mountWordsetPage(page);
+
+  await setSearchValue(page, 'cirun');
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([33]);
+
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
 });

@@ -101,6 +101,71 @@ final class UserStudyAnalyticsTest extends LL_Tools_TestCase
         $this->assertSame('isolation', (string) ($words_by_id[$word_a]['audio_recording_type'] ?? ''));
     }
 
+    public function test_analytics_payload_includes_vocab_lesson_urls_for_private_categories(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+
+        $wordset = wp_insert_term('Analytics Private Wordset ' . wp_generate_password(6, false), 'wordset');
+        $category = wp_insert_term('Analytics Private Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertFalse(is_wp_error($category));
+        $this->assertIsArray($wordset);
+        $this->assertIsArray($category);
+        $wordset_id = (int) $wordset['term_id'];
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$user_id]);
+
+        for ($index = 1; $index <= 5; $index++) {
+            $this->createWordWithAudio(
+                'Analytics Private Word ' . $index,
+                'Analytics Private Translation ' . $index,
+                $category_id,
+                $wordset_id,
+                'analytics-private-' . $index . '.mp3'
+            );
+        }
+
+        $category_id = $this->resolveEffectiveCategoryId($category_id, $wordset_id);
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_VISIBILITY_META_KEY, 'private');
+        update_term_meta($category_id, LL_TOOLS_CATEGORY_ACCESS_USER_IDS_META_KEY, [$user_id]);
+
+        $lesson = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
+        $this->assertIsArray($lesson);
+        $lesson_id = (int) ($lesson['post_id'] ?? 0);
+        $this->assertGreaterThan(0, $lesson_id);
+        $lesson_url = (string) get_permalink($lesson_id);
+        $this->assertNotSame('', $lesson_url);
+
+        $analytics = ll_tools_build_user_study_analytics_payload($user_id, $wordset_id, [$category_id], 14, true);
+
+        $category_rows_by_id = [];
+        foreach ((array) ($analytics['categories'] ?? []) as $row) {
+            if (is_array($row)) {
+                $category_rows_by_id[(int) ($row['id'] ?? 0)] = $row;
+            }
+        }
+        $this->assertArrayHasKey($category_id, $category_rows_by_id);
+        $this->assertSame($lesson_url, (string) ($category_rows_by_id[$category_id]['url'] ?? ''));
+
+        $word_rows = (array) ($analytics['words'] ?? []);
+        $this->assertNotEmpty($word_rows);
+        $first_word_row = null;
+        foreach ($word_rows as $row) {
+            if (is_array($row) && in_array($category_id, array_map('intval', (array) ($row['category_ids'] ?? [])), true)) {
+                $first_word_row = $row;
+                break;
+            }
+        }
+        $this->assertIsArray($first_word_row);
+        $this->assertSame($lesson_url, (string) ($first_word_row['category_url'] ?? ''));
+        $this->assertContains($lesson_url, array_map('strval', (array) ($first_word_row['category_urls'] ?? [])));
+    }
+
     public function test_daily_activity_counts_answered_rounds_instead_of_all_logged_events(): void
     {
         $user_id = self::factory()->user->create(['role' => 'subscriber']);

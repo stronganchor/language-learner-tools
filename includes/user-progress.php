@@ -2700,6 +2700,71 @@ function ll_tools_user_progress_empty_gender_analytics(bool $enabled = false): a
     ];
 }
 
+function ll_tools_user_progress_get_vocab_lesson_url_map(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+    if (
+        !defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')
+        || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')
+    ) {
+        return [];
+    }
+
+    $lesson_ids = get_posts([
+        'post_type' => 'll_vocab_lesson',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'update_post_meta_cache' => false,
+        'update_post_term_cache' => false,
+        'meta_query' => [
+            [
+                'key' => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+        ],
+    ]);
+
+    $map = [];
+    foreach ((array) $lesson_ids as $lesson_id) {
+        $lesson_id = (int) $lesson_id;
+        if ($lesson_id <= 0) {
+            continue;
+        }
+
+        $stored_category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        if ($stored_category_id <= 0) {
+            continue;
+        }
+
+        $category_ids = [$stored_category_id];
+        if (function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')) {
+            $category_ids = ll_tools_get_vocab_lesson_category_meta_candidates($stored_category_id, $wordset_id);
+        } elseif (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_category_id, $wordset_id, false);
+            if ($effective_category_id > 0) {
+                $category_ids[] = $effective_category_id;
+            }
+        }
+
+        $url = (string) get_permalink($lesson_id);
+        if ($url === '') {
+            continue;
+        }
+
+        foreach (array_values(array_unique(array_filter(array_map('intval', (array) $category_ids)))) as $category_id) {
+            if ($category_id > 0 && empty($map[$category_id])) {
+                $map[$category_id] = $url;
+            }
+        }
+    }
+
+    return $map;
+}
+
 /**
  * Build analytics used by learner-facing study surfaces.
  *
@@ -2815,6 +2880,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
     $part_of_speech_by_word = ll_tools_get_word_part_of_speech_map($all_word_ids);
     $progress_rows = ll_tools_get_user_word_progress_rows($uid, $all_word_ids);
     $category_progress = ll_tools_get_user_category_progress($uid);
+    $category_url_map = ll_tools_user_progress_get_vocab_lesson_url_map($scope_wordset_id);
 
     $study_state = function_exists('ll_tools_get_user_study_state') ? ll_tools_get_user_study_state($uid) : [];
     $starred_lookup = [];
@@ -2913,6 +2979,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         );
 
         $word_category_labels = [];
+        $word_category_urls = [];
         foreach ($word_category_ids as $cid) {
             $meta = $category_lookup[$cid] ?? [];
             $label = '';
@@ -2925,6 +2992,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
                 $label = (string) ll_tools_get_category_display_name($cid);
             }
             $word_category_labels[] = $label;
+            $word_category_urls[] = (string) ($category_url_map[$cid] ?? '');
 
             if ($status !== 'new') {
                 if (!isset($category_studied_lookup[$cid])) {
@@ -2998,8 +3066,10 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
             'audio_files_count' => max(0, (int) ($word['audio_files_count'] ?? 0)),
             'category_ids' => $word_category_ids,
             'category_labels' => $word_category_labels,
+            'category_urls' => $word_category_urls,
             'category_id' => !empty($word_category_ids) ? (int) $word_category_ids[0] : 0,
             'category_label' => !empty($word_category_labels) ? (string) $word_category_labels[0] : '',
+            'category_url' => !empty($word_category_urls) ? (string) $word_category_urls[0] : '',
             'part_of_speech_slug' => $part_of_speech_slug,
             'part_of_speech_label' => $part_of_speech_label,
             'part_of_speech_abbreviation' => $part_of_speech_abbreviation,
@@ -3110,6 +3180,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         $category_rows[] = [
             'id' => $cid,
             'label' => $cat_label,
+            'url' => (string) ($category_url_map[$cid] ?? ''),
             'word_count' => $cat_word_total,
             'studied_words' => $cat_studied,
             'mastered_words' => $cat_mastered,
@@ -3156,6 +3227,7 @@ function ll_tools_build_user_study_analytics_payload($user_id = 0, $wordset_id =
         $gender_progress['categories'][] = [
             'id' => $cid,
             'label' => $cat_label,
+            'url' => (string) ($category_url_map[$cid] ?? ''),
             'tracked_word_total' => $tracked_total,
             'not_started_words' => max(0, (int) ($counts['not_started_words'] ?? 0)),
             'level_1_words' => max(0, (int) ($counts['level_1_words'] ?? 0)),
