@@ -935,7 +935,7 @@
         if (raw === null || raw === undefined) return '';
         const key = String(raw).trim().toLowerCase().replace(/[^a-z0-9:_-]/g, '');
         if (!key) return '';
-        if (key.startsWith('word:') || key.startsWith('image:') || key.startsWith('title:')) {
+        if (key.startsWith('word:') || key.startsWith('image:') || key.startsWith('title:') || key.startsWith('prompt_card:')) {
             return key;
         }
         return '';
@@ -959,9 +959,11 @@
         return `t${Math.abs(hash)}`;
     }
 
-    function buildHideKey(wordId, imageId, title) {
+    function buildHideKey(wordId, imageId, title, promptCardId) {
+        const pcid = Number.isFinite(promptCardId) ? Number(promptCardId) : parseInt(promptCardId, 10) || 0;
         const wid = Number.isFinite(wordId) ? Number(wordId) : parseInt(wordId, 10) || 0;
         const iid = Number.isFinite(imageId) ? Number(imageId) : parseInt(imageId, 10) || 0;
+        if (pcid > 0) return `prompt_card:${pcid}`;
         if (wid > 0) return `word:${wid}`;
         if (iid > 0) return `image:${iid}`;
         const normalizedTitle = normalizeHideTitle(title || '');
@@ -974,8 +976,10 @@
         const explicit = sanitizeHideKey(item.hide_key);
         if (explicit) keys.push(explicit);
 
+        const promptCardId = parseInt(item.prompt_card_id, 10) || 0;
         const wordId = parseInt(item.word_id, 10) || 0;
         const imageId = parseInt(item.id || item.image_id, 10) || 0;
+        if (promptCardId > 0) keys.push(`prompt_card:${promptCardId}`);
         if (wordId > 0) keys.push(`word:${wordId}`);
         if (imageId > 0) keys.push(`image:${imageId}`);
 
@@ -996,6 +1000,7 @@
 
     function normalizeHiddenWordEntry(entry) {
         if (!entry || typeof entry !== 'object') return null;
+        const promptCardId = parseInt(entry.prompt_card_id, 10) || 0;
         const wordId = parseInt(entry.word_id, 10) || 0;
         const imageId = parseInt(entry.image_id, 10) || 0;
         const title = decodeEntities(entry.title || '');
@@ -1003,12 +1008,13 @@
         const categorySlug = String(entry.category_slug || '').trim();
         let key = sanitizeHideKey(entry.key || '');
         if (!key) {
-            key = buildHideKey(wordId, imageId, title);
+            key = buildHideKey(wordId, imageId, title, promptCardId);
         }
         if (!key) return null;
 
         return {
             key,
+            prompt_card_id: promptCardId,
             word_id: wordId,
             image_id: imageId,
             title: title || key.replace(/^title:/, '').replace(/-/g, ' '),
@@ -3991,6 +3997,7 @@
         formData.append('hide_key', hideKey);
         formData.append('image_id', img.id || 0);
         formData.append('word_id', img.word_id || 0);
+        formData.append('prompt_card_id', img.prompt_card_id || 0);
         formData.append('title', img.word_title || img.title || '');
         formData.append('category_name', img.category_name || '');
         formData.append('category_slug', img.category_slug || '');
@@ -4123,6 +4130,7 @@
         appendRequestLocale(formData);
         formData.append('image_id', img.id || 0);
         formData.append('word_id', img.word_id || 0);
+        formData.append('prompt_card_id', img.prompt_card_id || 0);
         formData.append('recording_type', recordingType);
         formData.append('wordset_ids', JSON.stringify(wordsetIds));
         formData.append('wordset', wordsetLegacy);
@@ -4156,7 +4164,7 @@
                     img.word_id = data.data.word_id;
                 }
                 const remaining = Array.isArray(data.data?.remaining_types) ? data.data.remaining_types : [];
-                handleSuccessfulUpload(recordingType, remaining, autoProcessed);
+                handleSuccessfulUpload(data.data?.recording_type || recordingType, remaining, autoProcessed);
                 return;
             }
 
@@ -4204,6 +4212,7 @@
             appendRequestLocale(fd);
             fd.append('image_id', img.id || 0);
             fd.append('word_id', img.word_id || 0);
+            fd.append('prompt_card_id', img.prompt_card_id || 0);
             fd.append('recording_type', recordingType);
             fd.append('wordset_ids', JSON.stringify(wordsetIds));
             fd.append('wordset', wordsetLegacy);
@@ -4219,7 +4228,7 @@
             if (verifyData?.success && verifyData.data?.found_audio_post_id) {
                 endUploadLock();
                 const remaining = Array.isArray(verifyData.data.remaining_types) ? verifyData.data.remaining_types : [];
-                handleSuccessfulUpload(recordingType, remaining, autoProcessed);
+                handleSuccessfulUpload(verifyData.data?.recording_type || recordingType, remaining, autoProcessed);
                 return;
             }
 

@@ -13,6 +13,15 @@ if (!defined('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_ATTACHMENT_ID_META_KEY')) {
 if (!defined('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY')) {
     define('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY', '_ll_prompt_card_prompt_audio_url');
 }
+if (!defined('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_RECORDED_BY_META_KEY')) {
+    define('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_RECORDED_BY_META_KEY', '_ll_prompt_card_prompt_audio_recorded_by');
+}
+if (!defined('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_RECORDED_AT_META_KEY')) {
+    define('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_RECORDED_AT_META_KEY', '_ll_prompt_card_prompt_audio_recorded_at');
+}
+if (!defined('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_UPLOAD_SHA1_META_KEY')) {
+    define('LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_UPLOAD_SHA1_META_KEY', '_ll_prompt_card_prompt_audio_upload_sha1');
+}
 if (!defined('LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY')) {
     define('LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY', '_ll_prompt_card_prompt_image_word_id');
 }
@@ -139,6 +148,15 @@ function ll_tools_get_prompt_card_prompt_audio_url(int $post_id): string {
 
     $url = trim((string) get_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, true));
     return $url !== '' ? esc_url_raw($url) : '';
+}
+
+function ll_tools_prompt_card_needs_prompt_audio(int $post_id): bool {
+    $post = get_post($post_id);
+    if (!($post instanceof WP_Post) || $post->post_type !== LL_TOOLS_PROMPT_CARD_POST_TYPE) {
+        return false;
+    }
+
+    return ll_tools_get_prompt_card_prompt_audio_url($post_id) === '';
 }
 
 function ll_tools_prompt_card_tracks_answer_word_progress(int $post_id): bool {
