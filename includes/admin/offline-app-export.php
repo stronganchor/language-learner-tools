@@ -2675,6 +2675,7 @@ function ll_tools_offline_app_build_categories(int $wordset_id, array $category_
             'prompt_type'        => $prompt_type,
             'requires_images'    => $requires_image,
             'learning_supported' => !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']),
+            'self_check_supported' => !array_key_exists('self_check_supported', $config) || !empty($config['self_check_supported']),
             'use_titles'         => !empty($config['use_titles']),
             'word_count'         => $word_count,
             'gender_word_count'  => $gender_word_count,

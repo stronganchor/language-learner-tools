@@ -4153,15 +4153,27 @@ function ll_tools_recommendation_category_rank_lookup(array $category_ids): arra
     return $out;
 }
 
+function ll_tools_category_meta_supports_progress_mode(string $mode, array $category_meta): bool {
+    $mode = ll_tools_normalize_progress_mode($mode);
+    if ($mode === 'gender') {
+        return !empty($category_meta['gender_supported']);
+    }
+    if ($mode === 'learning') {
+        return !array_key_exists('learning_supported', $category_meta) || !empty($category_meta['learning_supported']);
+    }
+    if ($mode === 'self-check') {
+        return !array_key_exists('self_check_supported', $category_meta) || !empty($category_meta['self_check_supported']);
+    }
+    return $mode !== '';
+}
+
 function ll_tools_pick_recommendation_mode(array $enabled_modes, array $category_ids, array $category_lookup): string {
     $ordered_modes = ll_tools_recommendation_ordered_modes($enabled_modes);
     foreach ($ordered_modes as $mode) {
-        if ($mode !== 'gender') {
-            return $mode;
-        }
         foreach ($category_ids as $cid) {
-            if (!empty($category_lookup[$cid]['gender_supported'])) {
-                return 'gender';
+            $meta = $category_lookup[$cid] ?? [];
+            if (ll_tools_category_meta_supports_progress_mode($mode, is_array($meta) ? $meta : [])) {
+                return $mode;
             }
         }
     }
@@ -4169,11 +4181,18 @@ function ll_tools_pick_recommendation_mode(array $enabled_modes, array $category
 }
 
 function ll_tools_category_pipeline_sequence(array $category_meta): array {
-    $sequence = ['learning', 'listening', 'practice'];
+    $sequence = [];
+    if (ll_tools_category_meta_supports_progress_mode('learning', $category_meta)) {
+        $sequence[] = 'learning';
+    }
+    $sequence[] = 'listening';
+    $sequence[] = 'practice';
     if (!empty($category_meta['gender_supported'])) {
         $sequence[] = 'gender';
     }
-    $sequence[] = 'self-check';
+    if (ll_tools_category_meta_supports_progress_mode('self-check', $category_meta)) {
+        $sequence[] = 'self-check';
+    }
     return $sequence;
 }
 
@@ -5254,12 +5273,25 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                 $supports_learning = false;
                 foreach ($candidate_category_ids as $cid) {
                     $meta = $category_lookup[$cid] ?? [];
-                    if (!array_key_exists('learning_supported', $meta) || !empty($meta['learning_supported'])) {
+                    if (ll_tools_category_meta_supports_progress_mode('learning', is_array($meta) ? $meta : [])) {
                         $supports_learning = true;
                         break;
                     }
                 }
                 if (!$supports_learning) {
+                    $mode = isset($enabled_lookup['practice']) ? 'practice' : ll_tools_pick_recommendation_mode($enabled_modes, $candidate_category_ids, $category_lookup);
+                }
+            }
+            if ($mode === 'self-check') {
+                $supports_self_check = false;
+                foreach ($candidate_category_ids as $cid) {
+                    $meta = $category_lookup[$cid] ?? [];
+                    if (ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
+                        $supports_self_check = true;
+                        break;
+                    }
+                }
+                if (!$supports_self_check) {
                     $mode = isset($enabled_lookup['practice']) ? 'practice' : ll_tools_pick_recommendation_mode($enabled_modes, $candidate_category_ids, $category_lookup);
                 }
             }
@@ -5285,6 +5317,9 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                 if ($preferred_mode === 'learning' && array_key_exists('learning_supported', $meta) && !$meta['learning_supported']) {
                     continue;
                 }
+                if ($preferred_mode === 'self-check' && !ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
+                    continue;
+                }
                 $progress_for_cat = isset($category_progress[$cid]['exposure_by_mode']) && is_array($category_progress[$cid]['exposure_by_mode'])
                     ? $category_progress[$cid]['exposure_by_mode']
                     : [];
@@ -5296,6 +5331,9 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                         continue;
                     }
                     if ($mode === 'learning' && array_key_exists('learning_supported', $meta) && !$meta['learning_supported']) {
+                        continue;
+                    }
+                    if ($mode === 'self-check' && !ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
                         continue;
                     }
                     $seen = max(0, (int) ($progress_for_cat[$mode] ?? 0));
@@ -5423,6 +5461,9 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
             if ($preferred_mode === 'learning' && array_key_exists('learning_supported', $meta) && !$meta['learning_supported']) {
                 continue;
             }
+            if ($preferred_mode === 'self-check' && !ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
+                continue;
+            }
             $progress_for_cat = isset($category_progress[$cid]['exposure_by_mode']) && is_array($category_progress[$cid]['exposure_by_mode'])
                 ? $category_progress[$cid]['exposure_by_mode']
                 : [];
@@ -5434,6 +5475,9 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
                     continue;
                 }
                 if ($mode === 'learning' && array_key_exists('learning_supported', $meta) && !$meta['learning_supported']) {
+                    continue;
+                }
+                if ($mode === 'self-check' && !ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
                     continue;
                 }
                 $seen = max(0, (int) ($progress_for_cat[$mode] ?? 0));
@@ -5505,7 +5549,17 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
     $mode = ($preferred_mode !== '') ? $preferred_mode : ll_tools_pick_recommendation_mode($enabled_modes, $session_category_ids, $category_lookup);
     if ($preferred_mode === '' && $all_session_categories_placement_known && isset($enabled_lookup['self-check'])) {
         // When categories are marked known via placement, bias first recommendation to recall checks.
-        $mode = 'self-check';
+        $self_check_allowed = false;
+        foreach ($session_category_ids as $cid) {
+            $meta = $category_lookup[$cid] ?? [];
+            if (ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
+                $self_check_allowed = true;
+                break;
+            }
+        }
+        if ($self_check_allowed) {
+            $mode = 'self-check';
+        }
     }
     if ($mode === 'gender') {
         $supports_gender = false;
@@ -5523,12 +5577,25 @@ function ll_tools_build_next_activity_recommendation_core($user_id = 0, $wordset
         $supports_learning = false;
         foreach ($session_category_ids as $cid) {
             $meta = $category_lookup[$cid] ?? [];
-            if (!array_key_exists('learning_supported', $meta) || !empty($meta['learning_supported'])) {
+            if (ll_tools_category_meta_supports_progress_mode('learning', is_array($meta) ? $meta : [])) {
                 $supports_learning = true;
                 break;
             }
         }
         if (!$supports_learning) {
+            $mode = isset($enabled_lookup['practice']) ? 'practice' : ll_tools_pick_recommendation_mode($enabled_modes, $session_category_ids, $category_lookup);
+        }
+    }
+    if ($mode === 'self-check') {
+        $supports_self_check = false;
+        foreach ($session_category_ids as $cid) {
+            $meta = $category_lookup[$cid] ?? [];
+            if (ll_tools_category_meta_supports_progress_mode('self-check', is_array($meta) ? $meta : [])) {
+                $supports_self_check = true;
+                break;
+            }
+        }
+        if (!$supports_self_check) {
             $mode = isset($enabled_lookup['practice']) ? 'practice' : ll_tools_pick_recommendation_mode($enabled_modes, $session_category_ids, $category_lookup);
         }
     }

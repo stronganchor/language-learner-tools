@@ -1442,6 +1442,9 @@
                 learning_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'learning_supported')
                     ? !!cat.learning_supported
                     : true,
+                self_check_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'self_check_supported')
+                    ? !!cat.self_check_supported
+                    : true,
                 gender_supported: !!(cat && cat.gender_supported),
                 hidden: !!(cat && cat.hidden),
                 has_images: !!(cat && cat.has_images),
@@ -6614,11 +6617,17 @@
         const hideAria = formatTemplate(i18n.hideCategoryAria || 'Hide %s', [catName]);
         const starredAria = formatTemplate(i18n.starredWordsCategoryAria || 'Starred words in %s', [catName]);
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || 'Quiz modes for %s', [catName]);
-        const cardModes = ['learning', 'practice', 'listening'];
+        const cardModes = [];
+        if (cat.learning_supported !== false) {
+            cardModes.push('learning');
+        }
+        cardModes.push('practice', 'listening');
         if (!!genderCfg.enabled && !!cat.gender_supported) {
             cardModes.push('gender');
         }
-        cardModes.push('self-check');
+        if (cat.self_check_supported !== false) {
+            cardModes.push('self-check');
+        }
 
         let html = '<article class="ll-wordset-card" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '"';
         if (temporarySearchCard) {
@@ -11162,6 +11171,9 @@
         }
         if (key === 'learning') {
             return cat.learning_supported !== false;
+        }
+        if (key === 'self-check') {
+            return cat.self_check_supported !== false;
         }
         return true;
     }

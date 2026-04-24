@@ -2187,6 +2187,27 @@
         return isLearningSupportedForCategories(State.categoryNames);
     }
 
+    function isSelfCheckSupportedForCategories(categoryNames) {
+        const names = Array.isArray(categoryNames) ? categoryNames : [];
+        try {
+            if (Selection && typeof Selection.isSelfCheckSupportedForCategories === 'function') {
+                return Selection.isSelfCheckSupportedForCategories(names);
+            }
+            if (!Selection || typeof Selection.getCategoryConfig !== 'function') return true;
+            if (!names.length) return true;
+            return names.every(function (name) {
+                const cfg = Selection.getCategoryConfig(name);
+                return cfg.self_check_supported !== false;
+            });
+        } catch (e) {
+            return true;
+        }
+    }
+
+    function isSelfCheckSupportedForCurrentSelection() {
+        return isSelfCheckSupportedForCategories(State.categoryNames);
+    }
+
     function isGenderSupportedForSelection(categoryNames) {
         try {
             if (Selection && typeof Selection.isGenderSupportedForCategories === 'function') {
@@ -3067,6 +3088,7 @@
         const $menu = $('#ll-tools-mode-menu');
         if (!$wrap.length || !$menu.length) return;
         const learningAllowed = isLearningSupportedForCurrentSelection();
+        const selfCheckAllowed = isSelfCheckSupportedForCurrentSelection();
         const genderAllowed = isGenderSupportedForCurrentSelection();
 
         // Ensure wrapper is visible when widget active
@@ -3103,6 +3125,7 @@
             // Active vs inactive
             const isActive = (mode === current);
             const isDisabled = (mode === 'learning' && !learningAllowed)
+                || (mode === 'self-check' && !selfCheckAllowed)
                 || (mode === 'gender' && !genderAllowed);
             $btn.toggleClass('active', isActive);
             $btn.toggleClass('disabled', isDisabled);
@@ -3167,6 +3190,10 @@
 
         if (newMode === 'learning' && !isLearningSupportedForCurrentSelection()) {
             console.warn('Learning mode is disabled for the selected categories. Falling back to practice.');
+            newMode = 'practice';
+        }
+        if (isSelfCheckMode(newMode) && !isSelfCheckSupportedForCurrentSelection()) {
+            console.warn('Self-check mode is disabled for the selected categories. Falling back to practice.');
             newMode = 'practice';
         }
         if (isSelfCheckMode(newMode)) {
@@ -4393,6 +4420,10 @@
                     });
                 if (requestedMode === 'learning' && !isLearningSupportedForCategories(requestedCategories)) {
                     console.warn('Learning mode is disabled for the selected categories. Using practice mode instead.');
+                    requestedMode = 'practice';
+                }
+                if (isSelfCheckMode(requestedMode) && !isSelfCheckSupportedForCategories(requestedCategories)) {
+                    console.warn('Self-check mode is disabled for the selected categories. Using practice mode instead.');
                     requestedMode = 'practice';
                 }
                 if (requestedMode === 'gender' && !isGenderSupportedForSelection(requestedCategories)) {

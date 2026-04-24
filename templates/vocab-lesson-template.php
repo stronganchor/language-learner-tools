@@ -166,6 +166,11 @@ if (have_posts()) {
         'gender'    => __('Gender', 'll-tools-text-domain'),
         'listening' => __('Listen', 'll-tools-text-domain'),
     ];
+    $lesson_quiz_config = ($category instanceof WP_Term && function_exists('ll_tools_get_category_quiz_config'))
+        ? ll_tools_get_category_quiz_config($category)
+        : [];
+    $lesson_learning_supported = !array_key_exists('learning_supported', $lesson_quiz_config) || !empty($lesson_quiz_config['learning_supported']);
+    $lesson_self_check_supported = !array_key_exists('self_check_supported', $lesson_quiz_config) || !empty($lesson_quiz_config['self_check_supported']);
     $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
         $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
         if (!empty($cfg['svg'])) {
@@ -1094,7 +1099,18 @@ if (have_posts()) {
                 <div class="ll-vocab-lesson-actions">
                     <div class="ll-vocab-lesson-modes" role="group" aria-label="<?php echo esc_attr__('Quiz modes', 'll-tools-text-domain'); ?>">
                         <?php
-                        $lesson_modes = ll_tools_get_study_launch_mode_order($gender_quiz_available);
+                        $lesson_modes = array_values(array_filter(
+                            ll_tools_get_study_launch_mode_order($gender_quiz_available),
+                            static function (string $mode) use ($lesson_learning_supported, $lesson_self_check_supported): bool {
+                                if ($mode === 'learning') {
+                                    return $lesson_learning_supported;
+                                }
+                                if ($mode === 'self-check') {
+                                    return $lesson_self_check_supported;
+                                }
+                                return true;
+                            }
+                        ));
                         $fallback_icons = [
                             'learning' => '🎓',
                             'practice' => '❓',
@@ -1122,6 +1138,7 @@ if (have_posts()) {
                                     data-category="<?php echo esc_attr($category_name); ?>"
                                     data-url="<?php echo esc_url($mode_url); ?>"
                                     data-mode="<?php echo esc_attr($mode); ?>"
+                                    data-self-check-supported="<?php echo $lesson_self_check_supported ? '1' : '0'; ?>"
                                     data-wordset="<?php echo esc_attr($wordset_slug); ?>"
                                     data-wordset-id="<?php echo esc_attr($wordset_id); ?>">
                                 <?php $render_mode_icon($mode, $fallback_icons[$mode] ?? '❓'); ?>

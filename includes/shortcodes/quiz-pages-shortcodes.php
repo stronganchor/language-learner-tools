@@ -291,7 +291,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
         }
         $config = function_exists('ll_tools_get_category_quiz_config')
             ? ll_tools_get_category_quiz_config($term)
-            : ['prompt_type' => 'audio', 'option_type' => 'image', 'learning_supported' => true, 'use_titles' => false];
+            : ['prompt_type' => 'audio', 'option_type' => 'image', 'learning_supported' => true, 'self_check_supported' => true, 'use_titles' => false];
         $option_type = $config['option_type'] ?? 'image';
         $prompt_type = $config['prompt_type'] ?? 'audio';
 
@@ -389,6 +389,7 @@ function ll_get_all_quiz_pages_data($opts = []) {
             'option_type'  => $option_type,
             'prompt_type'  => $prompt_type,
             'learning_supported' => $config['learning_supported'] ?? true,
+            'self_check_supported' => $config['self_check_supported'] ?? true,
             'gender_enabled' => $gender_enabled,
             'gender_options' => $gender_options,
             'gender_visual_config' => $gender_visual_config,
@@ -526,6 +527,7 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             var promptTypeHint = a.getAttribute('data-prompt-type') || '';
             var optionTypeHint = a.getAttribute('data-option-type') || '';
             var autoplayTextAudioAnswerOptionsAttr = a.getAttribute('data-autoplay-text-audio-answer-options');
+            var selfCheckSupportedAttr = a.getAttribute('data-self-check-supported');
             var genderEnabledAttr = a.getAttribute('data-gender-enabled');
             var genderSupportedAttr = a.getAttribute('data-gender-supported');
             var genderOptionsAttr = a.getAttribute('data-gender-options') || '';
@@ -533,6 +535,9 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
             if (!cat) return;
 
             var autoplayTextAudioAnswerOptions = (autoplayTextAudioAnswerOptionsAttr === '1' || autoplayTextAudioAnswerOptionsAttr === 'true');
+            var selfCheckSupported = (selfCheckSupportedAttr === null)
+                ? true
+                : (selfCheckSupportedAttr === '1' || selfCheckSupportedAttr === 'true');
             var genderEnabled = (genderEnabledAttr === '1' || genderEnabledAttr === 'true');
             var genderSupported = (genderSupportedAttr === '1' || genderSupportedAttr === 'true');
             var genderOptions = [];
@@ -572,12 +577,14 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
                             mode: displayModeHint || 'image',
                             option_type: optionTypeHint || displayModeHint || 'image',
                             prompt_type: promptTypeHint || 'audio',
+                            self_check_supported: selfCheckSupported,
                             gender_supported: genderSupported
                         });
                     } else {
                         if (displayModeHint) { found.mode = displayModeHint; }
                         if (optionTypeHint) { found.option_type = optionTypeHint; }
                         if (promptTypeHint) { found.prompt_type = promptTypeHint; }
+                        found.self_check_supported = selfCheckSupported;
                         found.gender_supported = genderSupported;
                     }
                 }
@@ -591,6 +598,7 @@ function ll_qpg_bootstrap_flashcards_for_grid($wordset_spec = '') {
                     genderOptions: genderOptions,
                     genderVisualConfig: genderVisualConfig,
                     autoplayTextAudioAnswerOptions: autoplayTextAudioAnswerOptions,
+                    selfCheckSupported: selfCheckSupported,
                     triggerEl: a
                 };
                 if (wordsetId) {
@@ -897,6 +905,7 @@ function ll_qpg_print_flashcard_shell_once() {
             var autoplayTextAudioAnswerOptions = (opts && typeof opts.autoplayTextAudioAnswerOptions !== 'undefined')
                 ? !!opts.autoplayTextAudioAnswerOptions
                 : null;
+            var selfCheckSupported = (opts && typeof opts.selfCheckSupported !== 'undefined') ? !!opts.selfCheckSupported : null;
             if (opts && opts.triggerEl && opts.triggerEl.getAttribute) {
                 if (autoplayTextAudioAnswerOptions === null) {
                     var ataAttr = opts.triggerEl.getAttribute('data-autoplay-text-audio-answer-options');
@@ -908,6 +917,12 @@ function ll_qpg_print_flashcard_shell_once() {
                     var geAttr = opts.triggerEl.getAttribute('data-gender-enabled');
                     if (geAttr !== null) {
                         genderEnabled = (geAttr === '1' || geAttr === 'true');
+                    }
+                }
+                if (selfCheckSupported === null) {
+                    var scAttr = opts.triggerEl.getAttribute('data-self-check-supported');
+                    if (scAttr !== null) {
+                        selfCheckSupported = (scAttr === '1' || scAttr === 'true');
                     }
                 }
                 if (genderSupported === null) {
@@ -963,6 +978,15 @@ function ll_qpg_print_flashcard_shell_once() {
                         var cat = window.llToolsFlashcardsData.categories[i];
                         if (cat && cat.name === catName) {
                             cat.gender_supported = genderSupported;
+                            break;
+                        }
+                    }
+                }
+                if (selfCheckSupported !== null && window.llToolsFlashcardsData.categories) {
+                    for (var i = 0; i < window.llToolsFlashcardsData.categories.length; i++) {
+                        var cat = window.llToolsFlashcardsData.categories[i];
+                        if (cat && cat.name === catName) {
+                            cat.self_check_supported = selfCheckSupported;
                             break;
                         }
                     }
@@ -1082,6 +1106,9 @@ function ll_quiz_pages_grid_shortcode($atts) {
             $mode_attr = ' data-mode="' . esc_attr($quiz_mode) . '"';
             $prompt_attr = (!empty($it['prompt_type'])) ? ' data-prompt-type="' . esc_attr($it['prompt_type']) . '"' : '';
             $option_attr = (!empty($it['option_type'])) ? ' data-option-type="' . esc_attr($it['option_type']) . '"' : '';
+            $self_check_attr = array_key_exists('self_check_supported', $it)
+                ? ' data-self-check-supported="' . (!empty($it['self_check_supported']) ? '1' : '0') . '"'
+                : '';
             $gender_enabled_attr = ' data-gender-enabled="' . (!empty($it['gender_enabled']) ? '1' : '0') . '"';
             $gender_supported_attr = ' data-gender-supported="' . (!empty($it['gender_supported']) ? '1' : '0') . '"';
             $gender_options_attr = ' data-gender-options="' . esc_attr(wp_json_encode($it['gender_options'] ?? [])) . '"';
@@ -1100,6 +1127,7 @@ function ll_quiz_pages_grid_shortcode($atts) {
             . $mode_attr
             . $prompt_attr
             . $option_attr
+            . $self_check_attr
             . $gender_enabled_attr
             . $gender_supported_attr
             . $gender_options_attr

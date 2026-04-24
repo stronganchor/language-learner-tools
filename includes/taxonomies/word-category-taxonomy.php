@@ -1216,7 +1216,7 @@ function ll_tools_normalize_quiz_option_type($value, bool $use_titles = false, s
  * Resolve defaults + persisted settings for how a category should quiz.
  *
  * @param int|WP_Term $term Term id or object.
- * @return array { prompt_type, option_type, use_titles, learning_supported }
+ * @return array { prompt_type, option_type, use_titles, learning_supported, self_check_supported }
  */
 function ll_tools_get_category_quiz_config($term): array {
     $fallback = [
@@ -1224,6 +1224,7 @@ function ll_tools_get_category_quiz_config($term): array {
         'option_type'        => 'image',
         'use_titles'         => false,
         'learning_supported' => true,
+        'self_check_supported' => true,
     ];
 
     if (!($term instanceof WP_Term)) {
@@ -1254,7 +1255,7 @@ function ll_tools_get_category_quiz_config($term): array {
         'use_titles_legacy' => $use_titles_legacy ? 1 : 0,
         'stored_option_type' => $stored_option_type,
         'stored_prompt_type' => $stored_prompt_type,
-        'schema' => 1,
+        'schema' => 2,
     ]));
     $cache_group = 'll_tools_quiz_category';
     $cache_ttl = 6 * HOUR_IN_SECONDS;
@@ -1285,14 +1286,22 @@ function ll_tools_get_category_quiz_config($term): array {
         $option_type = 'text_title';
     }
 
+    $is_prompt_card_question_style = ll_tools_quiz_prompt_type_has_image($prompt_type)
+        && ll_tools_quiz_prompt_type_has_audio($prompt_type)
+        && in_array($option_type, ['audio', 'text_audio'], true);
+
     // Learning mode is tricky when prompting with an image but only text answers exist.
     $learning_supported = !(ll_tools_quiz_prompt_type_has_image($prompt_type) && in_array($option_type, ['text_title', 'text_translation'], true));
+    if ($is_prompt_card_question_style) {
+        $learning_supported = false;
+    }
 
     $result = [
         'prompt_type'        => $prompt_type,
         'option_type'        => $option_type,
         'use_titles'         => ($option_type === 'text_title') || $use_titles_legacy,
         'learning_supported' => $learning_supported,
+        'self_check_supported' => !$is_prompt_card_question_style,
     ];
 
     $request_cache[$cache_key] = $result;

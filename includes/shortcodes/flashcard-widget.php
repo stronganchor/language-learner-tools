@@ -991,6 +991,7 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
             'prompt_type' => 'audio',
             'option_type' => 'image',
             'learning_supported' => true,
+            'self_check_supported' => true,
             'use_titles' => false,
             'word_count' => 0,
         ];
@@ -1000,6 +1001,7 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
     $prompt_type = isset($config['prompt_type']) ? (string) $config['prompt_type'] : 'audio';
     $option_type = isset($config['option_type']) ? (string) $config['option_type'] : 'image';
     $learning_supported = !array_key_exists('learning_supported', $config) || !empty($config['learning_supported']);
+    $self_check_supported = !array_key_exists('self_check_supported', $config) || !empty($config['self_check_supported']);
     $word_count = ll_get_words_by_category_count($category, $option_type, $wordset_ids, $config);
 
     if ($word_count < $min_word_count && in_array($option_type, ['audio', 'text_audio'], true)) {
@@ -1011,6 +1013,7 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
             $learning_supported = (function_exists('ll_tools_quiz_prompt_type_has_image') && ll_tools_quiz_prompt_type_has_image($prompt_type))
                 ? false
                 : (($prompt_type === 'image') ? false : $learning_supported);
+            $self_check_supported = true;
             $word_count = $fallback_count;
         }
     }
@@ -1018,6 +1021,7 @@ function ll_tools_resolve_effective_category_quiz_config($category, int $min_wor
     $config['prompt_type'] = $prompt_type;
     $config['option_type'] = $option_type;
     $config['learning_supported'] = $learning_supported;
+    $config['self_check_supported'] = $self_check_supported;
     $config['word_count'] = (int) $word_count;
 
     return $config;
@@ -1046,6 +1050,7 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
 
         $config = ll_tools_resolve_effective_category_quiz_config($category, $min_word_count, $wordset_ids);
         $learning_supported = !empty($config['learning_supported']);
+        $self_check_supported = !array_key_exists('self_check_supported', $config) || !empty($config['self_check_supported']);
         $option_type = (string) ($config['option_type'] ?? 'image');
         $word_count = (int) ($config['word_count'] ?? 0);
         if ($word_count < $min_word_count) {
@@ -1080,6 +1085,7 @@ function ll_process_categories($categories, $use_translations, $min_word_count =
             'option_type' => $option_type,
             'prompt_type' => $config['prompt_type'],
             'learning_supported' => $learning_supported,
+            'self_check_supported' => $self_check_supported,
             'use_titles'  => $config['use_titles'],
             'word_count'  => $word_count,
             'gender_word_count' => $gender_word_count,

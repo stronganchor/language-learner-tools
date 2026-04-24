@@ -84,6 +84,9 @@
             if (promptAudio) {
                 return promptAudio;
             }
+            if (Util.isPromptCard(word)) {
+                return '';
+            }
             return Util.getAnswerAudioUrl(word);
         },
         normalizeCategoryKey(value) {

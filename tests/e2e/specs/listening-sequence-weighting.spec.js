@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const listeningScriptPath = path.resolve(__dirname, '../../../js/flashcard-widget/modes/listening.js');
+const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
 
 test('listening initialize defers bulk category loads until after startup', async ({ page }) => {
   await page.goto('about:blank');
@@ -340,4 +341,184 @@ test('listening sequence keeps category words grouped in contiguous blocks', asy
     const max = Math.max(...positions);
     expect((max - min + 1)).toBe(positions.length);
   });
+});
+
+test('prompt-card listening plays question, countdown, then one answer audio', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent('<div id="ll-tools-flashcard-content"><div id="ll-tools-flashcard"></div></div>');
+  await page.addScriptTag({ content: jquerySource });
+
+  const listeningSource = fs.readFileSync(listeningScriptPath, 'utf8');
+
+  await page.evaluate(() => {
+    const nativeSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (fn, delay, ...args) => nativeSetTimeout(fn, delay > 20 ? 2 : delay, ...args);
+    window.__playedListeningUrls = [];
+    window.__listeningTransitions = [];
+
+    const target = {
+      id: 7001,
+      title: 'Horse',
+      label: 'Horse',
+      image: 'https://example.com/horse.jpg',
+      audio: 'https://example.com/horse-answer.mp3',
+      prompt_audio: 'https://example.com/is-this-horse-or-donkey.mp3',
+      is_prompt_card: true,
+      prompt_card_id: 9001,
+      __categoryName: 'Prompt Cards'
+    };
+
+    window.llToolsFlashcardsData = {
+      categories: [{
+        name: 'Prompt Cards',
+        prompt_type: 'image_audio',
+        option_type: 'audio',
+        learning_supported: false,
+        self_check_supported: false
+      }]
+    };
+    window.llToolsStudyPrefs = { starredWordIds: [], starMode: 'normal', star_mode: 'normal' };
+
+    window.LLFlashcards = {
+      State: {
+        STATES: {
+          QUIZ_READY: 'quiz_ready',
+          SHOWING_QUESTION: 'showing_question',
+          SHOWING_RESULTS: 'showing_results'
+        },
+        isListeningMode: true,
+        isFirstRound: false,
+        listeningPaused: false,
+        listeningLoop: false,
+        categoryNames: ['Prompt Cards'],
+        currentCategoryName: 'Prompt Cards',
+        currentCategory: [target],
+        wordsByCategory: { 'Prompt Cards': [target] },
+        wordsLinear: [target],
+        listeningHistory: [],
+        listenIndex: 0,
+        addTimeout() {},
+        transitionTo(state, reason) {
+          window.__listeningTransitions.push({ state, reason });
+          return true;
+        },
+        forceTransitionTo(state, reason) {
+          window.__listeningTransitions.push({ state, reason, forced: true });
+          return true;
+        },
+        onStateChange() { return function () {}; }
+      },
+      Dom: {
+        showLoading() {},
+        hideLoading() { return Promise.resolve(); },
+        updateCategoryNameDisplay() {},
+        disableRepeatButton() {},
+        enableRepeatButton() {},
+        bindRepeatButtonAudio() {},
+        setRepeatButton() {}
+      },
+      Cards: {
+        applyAnswerOptionTextStyle() {}
+      },
+      Results: {
+        showResults() {
+          window.__listeningResultsShown = true;
+        }
+      },
+      Util: {
+        isPromptCard(word) { return !!(word && (word.is_prompt_card || word.prompt_card_id)); },
+        getAnswerAudioUrl(word) { return String((word && word.audio) || '').trim(); },
+        promptTypeHasImage(type) { return String(type || '') === 'image_audio' || String(type || '') === 'image'; },
+        promptTypeHasAudio(type) { return String(type || '') === 'image_audio' || String(type || '') === 'audio'; },
+        getEffectiveOptionLabel(word) { return String((word && (word.label || word.title)) || ''); }
+      },
+      Selection: {
+        getCategoryConfig() { return window.llToolsFlashcardsData.categories[0]; }
+      },
+      AudioVisualizer: {
+        prepareForListening() {},
+        followAudio() {},
+        stop() {}
+      },
+      StarManager: {
+        updateForWord() {}
+      },
+      Modes: {}
+    };
+
+    let currentAudio = null;
+    window.FlashcardLoader = {
+      loadedCategories: ['Prompt Cards'],
+      isCategoryLoaded() { return true; },
+      isCategoryLoading() { return false; },
+      loadResourcesForWord() {
+        return Promise.resolve({ ready: true, audioReady: true, imageReady: true });
+      },
+      loadResourcesForCategory(categoryName, callback) {
+        if (typeof callback === 'function') callback();
+        return Promise.resolve({ ready: true, categoryName });
+      }
+    };
+    window.FlashcardAudio = {
+      selectBestAudio(word) { return String((word && word.audio) || '').trim(); },
+      setTargetWordAudio(word, options) {
+        const listeners = {};
+        currentAudio = {
+          src: String((options && options.audioUrl) || ''),
+          paused: true,
+          ended: false,
+          currentTime: 0,
+          readyState: 4,
+          addEventListener(type, callback) { listeners[type] = callback; },
+          removeEventListener(type) { delete listeners[type]; },
+          __listeners: listeners
+        };
+        return Promise.resolve(currentAudio);
+      },
+      getCurrentTargetAudio() { return currentAudio; },
+      playAudio(audio) {
+        window.__playedListeningUrls.push(audio.src);
+        audio.paused = false;
+        audio.currentTime = 1;
+        setTimeout(() => {
+          audio.paused = true;
+          audio.ended = true;
+          if (audio.__listeners && typeof audio.__listeners.ended === 'function') {
+            audio.__listeners.ended();
+          }
+        }, 1);
+        return Promise.resolve();
+      },
+      pauseAllAudio() {}
+    };
+  });
+
+  await page.addScriptTag({ content: listeningSource });
+
+  await page.evaluate(() => {
+    window.LLFlashcards.Modes.Listening.runRound({
+      FlashcardLoader: window.FlashcardLoader,
+      FlashcardAudio: window.FlashcardAudio,
+      Dom: window.LLFlashcards.Dom,
+      Results: window.LLFlashcards.Results,
+      flashcardContainer: window.jQuery('#ll-tools-flashcard'),
+      setGuardedTimeout: window.setTimeout.bind(window),
+      runQuizRound() {}
+    });
+  });
+
+  await page.waitForFunction(() => window.__playedListeningUrls && window.__playedListeningUrls.length >= 2);
+
+  const result = await page.evaluate(() => ({
+    played: window.__playedListeningUrls.slice(),
+    hasImage: !!document.querySelector('#ll-tools-flashcard .quiz-image'),
+    transitions: window.__listeningTransitions.slice()
+  }));
+
+  expect(result.played).toEqual([
+    'https://example.com/is-this-horse-or-donkey.mp3',
+    'https://example.com/horse-answer.mp3'
+  ]);
+  expect(result.hasImage).toBe(true);
+  expect(result.transitions.some((row) => row.state === 'showing_question')).toBe(true);
 });

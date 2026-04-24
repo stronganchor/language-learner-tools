@@ -105,6 +105,24 @@
         return true;
     }
 
+    function isSelfCheckSupportedForResults() {
+        try {
+            const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
+            const categories = State && State.categoryNames;
+            if (Selection && typeof Selection.isSelfCheckSupportedForCategories === 'function') {
+                return Selection.isSelfCheckSupportedForCategories(categories);
+            }
+            if (Selection && typeof Selection.getCategoryConfig === 'function' &&
+                Array.isArray(categories) && categories.length) {
+                return categories.every(function (name) {
+                    const cfg = Selection.getCategoryConfig(name);
+                    return cfg.self_check_supported !== false;
+                });
+            }
+        } catch (_) { /* no-op */ }
+        return true;
+    }
+
     function isGenderSupportedForResults() {
         try {
             const Selection = root.LLFlashcards && root.LLFlashcards.Selection;
@@ -433,12 +451,12 @@
         return context === 'vocab_lesson';
     }
 
-    function getNextModeInLessonSequence(currentMode, genderAllowed) {
+    function getNextModeInLessonSequence(currentMode, genderAllowed, selfCheckAllowed) {
         const key = normalizeProgressMode(currentMode) || 'practice';
         if (key === 'learning') { return 'practice'; }
         if (key === 'practice') { return genderAllowed ? 'gender' : 'listening'; }
         if (key === 'gender') { return 'listening'; }
-        if (key === 'listening') { return 'self-check'; }
+        if (key === 'listening') { return selfCheckAllowed ? 'self-check' : 'practice'; }
         if (key === 'self-check') { return 'practice'; }
         return 'practice';
     }
@@ -475,7 +493,7 @@
         }
 
         const normalizedCurrentMode = normalizeProgressMode(currentMode) || 'practice';
-        const nextMode = getNextModeInLessonSequence(normalizedCurrentMode, !!genderAllowed);
+        const nextMode = getNextModeInLessonSequence(normalizedCurrentMode, !!genderAllowed, isSelfCheckSupportedForResults());
         const categoryLabel = summarizeCategoryLabel(categoryNamesForLabel);
         const $same = $('#ll-study-results-same-chunk');
         const $different = $('#ll-study-results-different-chunk');

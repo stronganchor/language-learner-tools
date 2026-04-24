@@ -107,8 +107,8 @@
         if (!target) {
             return '';
         }
-        if (isPromptCard(target) && Util && typeof Util.getPromptAudioUrl === 'function') {
-            return String(Util.getPromptAudioUrl(target) || '').trim();
+        if (isPromptCard(target)) {
+            return String((target && target.prompt_audio) || '').trim();
         }
         if (FlashcardAudio && typeof FlashcardAudio.selectBestAudio === 'function') {
             const selected = FlashcardAudio.selectBestAudio(target, preferredTypes || ['isolation', 'question', 'introduction']);
@@ -118,6 +118,25 @@
         }
         if (Util && typeof Util.getPromptAudioUrl === 'function') {
             return String(Util.getPromptAudioUrl(target) || '').trim();
+        }
+        return '';
+    }
+
+    function getListeningAnswerAudioUrl(target, preferredTypes) {
+        if (!target) {
+            return '';
+        }
+        const answerAudio = (Util && typeof Util.getAnswerAudioUrl === 'function')
+            ? String(Util.getAnswerAudioUrl(target) || '').trim()
+            : String((target && target.audio) || '').trim();
+        if (answerAudio) {
+            return answerAudio;
+        }
+        if (FlashcardAudio && typeof FlashcardAudio.selectBestAudio === 'function') {
+            const selected = FlashcardAudio.selectBestAudio(target, preferredTypes || ['isolation', 'introduction', 'question']);
+            if (selected) {
+                return String(selected).trim();
+            }
         }
         return '';
     }
@@ -1455,6 +1474,9 @@
         State.currentPromptType = promptType;
 
         const audioUrl = getListeningPromptAudioUrl(target, ['isolation', 'question', 'introduction']);
+        const promptCardAnswerAudioUrl = isPromptCard(target)
+            ? getListeningAnswerAudioUrl(target, ['isolation', 'introduction', 'question'])
+            : '';
         if (audioUrl) {
             target.__runtimePromptAudio = audioUrl;
         } else {
@@ -1628,8 +1650,13 @@
 
             let sequence = [];
             const isImageAudioFlow = hasImage && (optionType === 'audio' || optionType === 'text_audio');
+            const isPromptCardImageAudioFlow = isPromptCard(target) && isImageAudioFlow && !!promptIsImage;
             const isAudioPromptFlow = (!promptIsImage && (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(promptType) : (promptType === 'audio')));
-            if (isAudioPromptFlow) {
+            if (isPromptCardImageAudioFlow) {
+                if (promptCardAnswerAudioUrl) {
+                    sequence = [promptCardAnswerAudioUrl];
+                }
+            } else if (isAudioPromptFlow) {
                 const isolationClip = isoUrl || introUrl || questionUrl || (target && target.__runtimePromptAudio) || null;
                 const introClip = introUrl || isolationClip;
                 if (isolationClip) sequence.push(isolationClip);
@@ -1676,8 +1703,11 @@
                 return a;
             };
 
-            const setAndPlayUntilEnd = function (url) {
-                target.__runtimePromptAudio = String(url || '').trim();
+            const setAndPlayUntilEnd = function (url, playbackOptions) {
+                const playOpts = (playbackOptions && typeof playbackOptions === 'object') ? playbackOptions : {};
+                if (playOpts.asPrompt !== false) {
+                    target.__runtimePromptAudio = String(url || '').trim();
+                }
                 return Promise.resolve(releaseRoundLoading()).then(function () {
                     const p = (audioApi && typeof audioApi.setTargetWordAudio === 'function')
                         ? audioApi.setTargetWordAudio(target, { autoplay: false, audioUrl: url })
@@ -1999,7 +2029,48 @@
                 }
             };
 
-            if (promptIsImage || !sequence.length) {
+            if (isPromptCardImageAudioFlow) {
+                const $viz = $jq ? $jq('#ll-tools-listening-visualizer') : null;
+                if ($viz && $viz.length) {
+                    const $bars = $viz.find('.ll-tools-visualizer-bar');
+                    if ($bars && $bars.length) { $bars.css({ opacity: 1, display: '' }); }
+                }
+
+                Promise.resolve(releaseRoundLoading()).catch(function () { return; }).then(function () {
+                    revealContent();
+                    if (!audioUrl) {
+                        return Promise.resolve();
+                    }
+                    return setAndPlayUntilEnd(audioUrl, { asPrompt: true });
+                }).then(function () {
+                    return startCountdown();
+                }).then(function () {
+                    const playAnswer = function () {
+                        if (State.listeningPaused) {
+                            setRoundResume(function () { playAnswer(); });
+                            return;
+                        }
+                        if (sequence.length) {
+                            setAndPlayUntilEnd(sequence[0], { asPrompt: false }).then(function () {
+                                const finishPromptCardRound = function () {
+                                    Dom.setRepeatButton && Dom.setRepeatButton('play');
+                                    scheduleAdvance();
+                                };
+                                const t = scheduleTimeout(utils, finishPromptCardRound, 300);
+                                State.addTimeout && State.addTimeout(t);
+                                setRoundResume(function () {
+                                    const tid = scheduleTimeout(utils, finishPromptCardRound, 200);
+                                    State.addTimeout && State.addTimeout(tid);
+                                });
+                            });
+                            return;
+                        }
+                        Dom.setRepeatButton && Dom.setRepeatButton('play');
+                        scheduleAdvance();
+                    };
+                    playAnswer();
+                });
+            } else if (promptIsImage || !sequence.length) {
                 const $viz = $jq ? $jq('#ll-tools-listening-visualizer') : null;
                 if ($viz && $viz.length) {
                     const $bars = $viz.find('.ll-tools-visualizer-bar');

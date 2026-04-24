@@ -109,6 +109,7 @@
             prompt_type: 'audio',
             option_type: State.DEFAULT_DISPLAY_MODE,
             learning_supported: true,
+            self_check_supported: true,
         };
         if (!name) return base;
         const found = (Util && typeof Util.getCategoryConfig === 'function')
@@ -1540,6 +1541,19 @@
         }
     }
 
+    function isSelfCheckSupportedForCategories(categoryNames) {
+        try {
+            const names = Array.isArray(categoryNames) && categoryNames.length ? categoryNames : State.categoryNames;
+            if (!Array.isArray(names) || !names.length) return true;
+            return names.every(function (name) {
+                const cfg = getCategoryConfig(name);
+                return cfg.self_check_supported !== false;
+            });
+        } catch (_) {
+            return true;
+        }
+    }
+
     function isGenderSupportedForCategories(categoryNames) {
         if (!isGenderModeEnabled()) return false;
         try {
@@ -2581,7 +2595,7 @@
     window.LLFlashcards = window.LLFlashcards || {};
     root.LLFlashcards = root.LLFlashcards || {};
     root.LLFlashcards.Selection = {
-        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isGenderSupportedForCategories,
+        getCategoryConfig, getCategoryDisplayMode, getCurrentDisplayMode, getCategoryPromptType, getTargetCategoryName, categoryRequiresAudio, isLearningSupportedForCategories, isSelfCheckSupportedForCategories, isGenderSupportedForCategories,
         selectTargetWordAndCategory, fillQuizOptions, wordsConflictForOptions,
         getGenderOptions, normalizeGenderValue, getGenderVisualForOption, buildGenderSymbolMarkup, applyGenderStyleVariables,
         selectLearningModeWord, initializeLearningMode, renderPrompt,

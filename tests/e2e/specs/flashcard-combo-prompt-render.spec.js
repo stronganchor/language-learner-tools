@@ -36,7 +36,8 @@ async function mountPromptHarness(page, categoryConfig) {
         name: 'Combo Category',
         prompt_type: String(cfg.prompt_type || 'audio'),
         option_type: String(cfg.option_type || 'image'),
-        learning_supported: true
+        learning_supported: cfg.learning_supported !== false,
+        self_check_supported: cfg.self_check_supported !== false
       }]
     };
   }, categoryConfig);
@@ -130,4 +131,52 @@ test('image + audio prompt is treated as both an image prompt and an audio promp
   expect(rendered.hasImage).toBe(true);
   expect(rendered.text).toBe('');
   expect(rendered.imageCount).toBe(1);
+});
+
+test('prompt-card prompt audio does not fall back to answer isolation audio', async ({ page }) => {
+  await mountPromptHarness(page, {
+    prompt_type: 'image_audio',
+    option_type: 'audio'
+  });
+
+  const result = await page.evaluate(() => {
+    const promptCardWithoutQuestion = {
+      id: 44,
+      is_prompt_card: true,
+      prompt_card_id: 44,
+      audio: 'https://example.com/answer-isolation.mp3'
+    };
+    const promptCardWithQuestion = Object.assign({}, promptCardWithoutQuestion, {
+      id: 45,
+      prompt_card_id: 45,
+      prompt_audio: 'https://example.com/question.mp3'
+    });
+
+    return {
+      missingPromptAudio: window.LLFlashcards.Util.getPromptAudioUrl(promptCardWithoutQuestion),
+      explicitPromptAudio: window.LLFlashcards.Util.getPromptAudioUrl(promptCardWithQuestion),
+      answerAudio: window.LLFlashcards.Util.getAnswerAudioUrl(promptCardWithoutQuestion)
+    };
+  });
+
+  expect(result.missingPromptAudio).toBe('');
+  expect(result.explicitPromptAudio).toBe('https://example.com/question.mp3');
+  expect(result.answerAudio).toBe('https://example.com/answer-isolation.mp3');
+});
+
+test('prompt-card-style categories report learn and self-check as unsupported', async ({ page }) => {
+  await mountPromptHarness(page, {
+    prompt_type: 'image_audio',
+    option_type: 'audio',
+    learning_supported: false,
+    self_check_supported: false
+  });
+
+  const support = await page.evaluate(() => ({
+    learning: window.LLFlashcards.Selection.isLearningSupportedForCategories(['Combo Category']),
+    selfCheck: window.LLFlashcards.Selection.isSelfCheckSupportedForCategories(['Combo Category'])
+  }));
+
+  expect(support.learning).toBe(false);
+  expect(support.selfCheck).toBe(false);
 });

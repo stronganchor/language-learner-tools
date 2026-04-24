@@ -1424,6 +1424,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         $prompt_type = (string) ($quiz_config['prompt_type'] ?? 'audio');
         $option_type = (string) ($quiz_config['option_type'] ?? 'image');
         $learning_supported = !array_key_exists('learning_supported', $quiz_config) || !empty($quiz_config['learning_supported']);
+        $self_check_supported = !array_key_exists('self_check_supported', $quiz_config) || !empty($quiz_config['self_check_supported']);
         $aspect_bucket = function_exists('ll_tools_get_category_aspect_bucket_key')
             ? (string) ll_tools_get_category_aspect_bucket_key((int) $category->term_id)
             : '';
@@ -1460,6 +1461,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'prompt_type' => $prompt_type,
             'option_type' => $option_type,
             'learning_supported' => $learning_supported,
+            'self_check_supported' => $self_check_supported,
             'gender_supported' => !empty($gender_support_map[(int) $category->term_id]),
             'aspect_bucket' => $aspect_bucket,
             'count'      => (int) ($row['word_count'] ?? 0),
@@ -1795,6 +1797,13 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             $enhanced['learning_supported'] = !empty($cat['learning_supported']);
         } else {
             $enhanced['learning_supported'] = true;
+        }
+        if (array_key_exists('self_check_supported', $study_cat)) {
+            $enhanced['self_check_supported'] = !empty($study_cat['self_check_supported']);
+        } elseif (array_key_exists('self_check_supported', $cat)) {
+            $enhanced['self_check_supported'] = !empty($cat['self_check_supported']);
+        } else {
+            $enhanced['self_check_supported'] = true;
         }
         $enhanced['gender_supported'] = array_key_exists('gender_supported', $study_cat)
             ? !empty($study_cat['gender_supported'])
@@ -10875,6 +10884,13 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         } else {
             $enhanced['learning_supported'] = true;
         }
+        if (array_key_exists('self_check_supported', $study_cat)) {
+            $enhanced['self_check_supported'] = !empty($study_cat['self_check_supported']);
+        } elseif (array_key_exists('self_check_supported', $cat)) {
+            $enhanced['self_check_supported'] = !empty($cat['self_check_supported']);
+        } else {
+            $enhanced['self_check_supported'] = true;
+        }
         $enhanced['gender_supported'] = array_key_exists('gender_supported', $study_cat)
             ? !empty($study_cat['gender_supported'])
             : !empty($cat['gender_supported']);
@@ -11573,6 +11589,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'prompt_type' => (string) ($cat['prompt_type'] ?? ''),
             'option_type' => (string) ($cat['option_type'] ?? ''),
             'learning_supported' => !empty($cat['learning_supported']),
+            'self_check_supported' => !array_key_exists('self_check_supported', $cat) || !empty($cat['self_check_supported']),
             'gender_supported' => !empty($cat['gender_supported']),
             'aspect_bucket' => (string) ($cat['aspect_bucket'] ?? 'no-image'),
             'hidden' => !empty($cat['hidden']),

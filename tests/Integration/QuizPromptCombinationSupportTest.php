@@ -190,6 +190,8 @@ final class QuizPromptCombinationSupportTest extends LL_Tools_TestCase
         $this->assertContains('image_audio', ll_tools_get_quiz_prompt_types());
         $this->assertSame('image_audio', (string) ($config['prompt_type'] ?? ''));
         $this->assertSame('audio', (string) ($config['option_type'] ?? ''));
+        $this->assertFalse((bool) ($config['learning_supported'] ?? true));
+        $this->assertFalse((bool) ($config['self_check_supported'] ?? true));
         $this->assertTrue(ll_tools_quiz_requires_audio($config, 'audio'));
         $this->assertTrue(ll_tools_quiz_requires_image($config, 'audio'));
         $this->assertCount(1, $rows);
