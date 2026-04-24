@@ -42,7 +42,7 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
 
   <div id="ll-tools-flashcard-popup" style="display:none;">
     <div id="ll-tools-category-selection-popup" style="display:none;">
-      <h3><?php echo esc_html__('Select Categories', 'll-tools-text-domain'); ?></h3>
+      <h3 class="ll-tools-category-selection-title"><?php echo esc_html__('Select Categories', 'll-tools-text-domain'); ?></h3>
       <div class="ll-tools-category-selection-buttons">
         <button id="ll-tools-uncheck-all"><?php echo esc_html__('Uncheck All', 'll-tools-text-domain'); ?></button>
         <button id="ll-tools-check-all"><?php echo esc_html__('Check All', 'll-tools-text-domain'); ?></button>
@@ -114,7 +114,7 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
       <div id="quiz-results" style="display:none;">
         <h2 id="quiz-results-title"><?php echo esc_html__('Quiz Results', 'll-tools-text-domain'); ?></h2>
         <p id="quiz-results-message" style="display:none;"></p>
-        <p>
+        <p class="ll-quiz-results-score">
           <strong><?php echo esc_html__('Correct:', 'll-tools-text-domain'); ?></strong>
           <span id="correct-count">0</span> / <span id="total-questions">0</span>
         </p>

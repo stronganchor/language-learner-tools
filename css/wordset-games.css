@@ -209,11 +209,22 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     min-width: 0;
 }
 
-.ll-wordset-game-card__title {
-    margin: 0 0 6px;
-    color: var(--ll-games-ink);
-    font-size: clamp(1.16rem, 2.4vw, 1.45rem);
-    line-height: 1.1;
+/* The inert ID in :is() raises specificity against late theme rules like #content h2. */
+:is(#ll-wordset-games-theme-guard, .ll-wordset-games-page) .ll-wordset-game-card__title {
+    margin: 0 0 6px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--ll-games-ink) !important;
+    font-family: inherit !important;
+    font-size: clamp(1.16rem, 2.4vw, 1.45rem) !important;
+    font-style: normal !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+    text-shadow: none !important;
+    text-transform: none !important;
 }
 
 .ll-wordset-game-card__description {
@@ -795,17 +806,40 @@ body.ll-tools-wordset-game-guard-active .ll-wordset-game-stage__canvas-wrap {
     box-shadow: 0 20px 48px rgba(15, 23, 42, 0.22);
 }
 
-.ll-wordset-game-stage__overlay-title {
-    margin: 0 0 8px;
-    font-size: clamp(1.25rem, 3vw, 1.6rem);
-    line-height: 1.1;
+.ll-wordset-game-stage__overlay-title,
+:is(#ll-wordset-games-theme-guard, .ll-wordset-games-page) [data-ll-wordset-game-overlay-title] {
+    margin: 0 0 8px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--ll-games-ink) !important;
+    font-family: inherit !important;
+    font-size: clamp(1.25rem, 3vw, 1.6rem) !important;
+    font-style: normal !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+    text-shadow: none !important;
+    text-transform: none !important;
 }
 
-.ll-wordset-game-stage__overlay-summary {
-    margin: 0;
-    color: rgba(15, 23, 42, 0.76);
-    font-size: 0.98rem;
-    line-height: 1.45;
+.ll-wordset-game-stage__overlay-summary,
+:is(#ll-wordset-games-theme-guard, .ll-wordset-games-page) [data-ll-wordset-game-overlay-summary] {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: rgba(15, 23, 42, 0.76) !important;
+    font-family: inherit !important;
+    font-size: 0.98rem !important;
+    font-style: normal !important;
+    font-weight: 400 !important;
+    line-height: 1.45 !important;
+    letter-spacing: 0 !important;
+    text-shadow: none !important;
+    text-transform: none !important;
 }
 
 .ll-wordset-game-stage__overlay-actions {
