@@ -783,6 +783,13 @@
         return true;
     }
 
+    function getConfiguredPromptCardAudio(target) {
+        if (!target || typeof target !== 'object') {
+            return '';
+        }
+        return String(target.prompt_audio || '').trim();
+    }
+
     function configureTargetAudio(target) {
         if (!target) return true;
         const promptType = State.currentPromptType || 'audio';
@@ -794,8 +801,13 @@
             return true;
         }
 
-        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(target) && typeof Util.getPromptAudioUrl === 'function' && Util.getPromptAudioUrl(target)) {
-            target.__runtimePromptAudio = Util.getPromptAudioUrl(target);
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(target)) {
+            const promptCardAudio = getConfiguredPromptCardAudio(target);
+            if (promptCardAudio) {
+                target.__runtimePromptAudio = promptCardAudio;
+            } else {
+                delete target.__runtimePromptAudio;
+            }
             delete target.__promptRecordingType;
             delete target.__practiceRecordingType;
             delete target.__practiceRecordingText;

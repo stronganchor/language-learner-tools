@@ -37,6 +37,11 @@
             window.console.error.apply(window.console, arguments);
         }
 
+        function getUtil() {
+            var liveUtil = window.LLFlashcards && window.LLFlashcards.Util;
+            return (liveUtil && typeof liveUtil === 'object') ? liveUtil : Util;
+        }
+
         /**
          * Normalize a media URL to the current page origin/protocol when possible.
          * Prevents CORS errors when assets are the same host but a different scheme.
@@ -644,10 +649,11 @@
         function setTargetWordAudio(targetWord, options) {
             options = options || {};
             var shouldAutoplay = options.autoplay !== false;
+            var util = getUtil();
             var promptAudioUrl = String(
                 options.audioUrl
-                || (Util && typeof Util.getPromptAudioUrl === 'function'
-                    ? Util.getPromptAudioUrl(targetWord)
+                || (util && typeof util.getPromptAudioUrl === 'function'
+                    ? util.getPromptAudioUrl(targetWord)
                     : ((targetWord && targetWord.audio) || ''))
             ).trim();
             // Always clear any previous target audio to avoid stale playback

@@ -3906,10 +3906,22 @@
         });
     }
 
+    function getExplicitPromptCardAudioUrl(targetWord) {
+        if (!targetWord || typeof targetWord !== 'object') {
+            return '';
+        }
+        const isPromptCard = !!(Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(targetWord));
+        if (!isPromptCard) {
+            return '';
+        }
+        return String(targetWord.__runtimePromptAudio || targetWord.prompt_audio || '').trim();
+    }
+
     function retryPromptAudioForRound(targetWord) {
-        const promptAudioUrl = (Util && typeof Util.getPromptAudioUrl === 'function')
+        const explicitPromptAudioUrl = getExplicitPromptCardAudioUrl(targetWord);
+        const promptAudioUrl = explicitPromptAudioUrl || ((Util && typeof Util.getPromptAudioUrl === 'function')
             ? Util.getPromptAudioUrl(targetWord)
-            : String((targetWord && targetWord.audio) || '').trim();
+            : String((targetWord && targetWord.audio) || '').trim());
         if (!targetWord || !promptAudioUrl || !root.FlashcardLoader || typeof root.FlashcardLoader.loadAudio !== 'function') {
             return Promise.resolve(false);
         }
@@ -3925,7 +3937,11 @@
             if (!root.FlashcardAudio || typeof root.FlashcardAudio.setTargetWordAudio !== 'function') {
                 return true;
             }
-            return Promise.resolve(root.FlashcardAudio.setTargetWordAudio(targetWord, { autoplay: false }))
+            const audioOptions = { autoplay: false };
+            if (explicitPromptAudioUrl) {
+                audioOptions.audioUrl = explicitPromptAudioUrl;
+            }
+            return Promise.resolve(root.FlashcardAudio.setTargetWordAudio(targetWord, audioOptions))
                 .then(function () {
                     try {
                         const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio
@@ -4177,7 +4193,12 @@
 
             if (promptTypeHasAudio(promptType)) {
                 root.FlashcardAudio.setTargetAudioHasPlayed(false);
-                root.FlashcardAudio.setTargetWordAudio(target, { autoplay: false });
+                const targetAudioOptions = { autoplay: false };
+                const explicitPromptAudioUrl = getExplicitPromptCardAudioUrl(target);
+                if (explicitPromptAudioUrl) {
+                    targetAudioOptions.audioUrl = explicitPromptAudioUrl;
+                }
+                root.FlashcardAudio.setTargetWordAudio(target, targetAudioOptions);
                 Dom.enableRepeatButton();
                 try {
                     const targetAudioEl = root.FlashcardAudio.getCurrentTargetAudio

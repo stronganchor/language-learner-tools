@@ -2476,6 +2476,17 @@
             );
         }
 
+        if (Util && typeof Util.isPromptCard === 'function' && Util.isPromptCard(targetWord)) {
+            const $renderedCards = jQuery('#ll-tools-flashcard .flashcard-container');
+            if ($renderedCards.length > 1) {
+                const cards = $renderedCards.toArray();
+                const shuffledCards = (typeof Util.randomlySort === 'function')
+                    ? Util.randomlySort(cards)
+                    : cards.sort(function () { return Math.random() - 0.5; });
+                jQuery('#ll-tools-flashcard').append(shuffledCards);
+            }
+        }
+
         jQuery('.flashcard-container').each(function (idx) {
             root.LLFlashcards.Cards.addClickEventToCard(jQuery(this), idx, targetWord, mode, promptType);
         });

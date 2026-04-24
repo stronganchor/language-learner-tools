@@ -28,6 +28,11 @@
         const IMAGE_LOAD_TIMEOUT_MS = 3500;
         const IMAGE_LOAD_MAX_RETRIES = 1;
 
+        function getUtil() {
+            const liveUtil = window.LLFlashcards && window.LLFlashcards.Util;
+            return (liveUtil && typeof liveUtil === 'object') ? liveUtil : Util;
+        }
+
         function normalizeCategoryLookupKey(value) {
             return String(value || '').trim().toLowerCase();
         }
@@ -113,23 +118,26 @@
         }
 
         function getCategoryConfig(name) {
-            const found = (Util && typeof Util.getCategoryConfig === 'function')
-                ? (Util.getCategoryConfig(name) || findCategoryConfigFallback(name))
+            const util = getUtil();
+            const found = (util && typeof util.getCategoryConfig === 'function')
+                ? (util.getCategoryConfig(name) || findCategoryConfigFallback(name))
                 : findCategoryConfigFallback(name);
             return Object.assign({}, defaultConfig, found || {});
         }
 
         function categoryRequiresAudio(config) {
+            const util = getUtil();
             const opt = config.option_type || config.mode;
-            return (Util.promptTypeHasAudio ? Util.promptTypeHasAudio(config.prompt_type) : (config.prompt_type === 'audio'))
+            return (util.promptTypeHasAudio ? util.promptTypeHasAudio(config.prompt_type) : (config.prompt_type === 'audio'))
                 || opt === 'audio'
                 || opt === 'text_audio';
         }
 
         function categoryRequiresImage(config, displayMode) {
+            const util = getUtil();
             const opt = displayMode || config.option_type || config.mode;
-            return (Util.promptTypeHasImage ? Util.promptTypeHasImage(config.prompt_type) : (config.prompt_type === 'image'))
-                || (Util.optionTypeHasImage ? Util.optionTypeHasImage(opt) : (opt === 'image'));
+            return (util.promptTypeHasImage ? util.promptTypeHasImage(config.prompt_type) : (config.prompt_type === 'image'))
+                || (util.optionTypeHasImage ? util.optionTypeHasImage(opt) : (opt === 'image'));
         }
 
         function getWordsetKey() {
@@ -718,9 +726,10 @@
                 return w;
             }).filter(function (w) {
                 if (needsAudio && !w.audio) {
+                    const util = getUtil();
                     const allowPromptOnly = !optionRequiresAudio && !!(
-                        Util && typeof Util.getPromptAudioUrl === 'function'
-                            ? Util.getPromptAudioUrl(w)
+                        util && typeof util.getPromptAudioUrl === 'function'
+                            ? util.getPromptAudioUrl(w)
                             : String((w && w.audio) || '').trim()
                     );
                     const allowWrongOnlyNoAudio = !optionRequiresAudio && isSpecificWrongOnlyWord(w);
@@ -1163,12 +1172,13 @@
             const shouldPreloadAudio = needsAudio && !opts.skipAudioPreload;
             const shouldPreloadImage = needsImage && !opts.skipImagePreload;
             const audioSource = String(opts.audioSource || 'answer').trim().toLowerCase();
+            const util = getUtil();
             const audioURL = audioSource === 'prompt'
-                ? ((Util && typeof Util.getPromptAudioUrl === 'function')
-                    ? Util.getPromptAudioUrl(word)
+                ? ((util && typeof util.getPromptAudioUrl === 'function')
+                    ? util.getPromptAudioUrl(word)
                     : ((typeof word.audio === 'string') ? word.audio : ''))
-                : ((Util && typeof Util.getAnswerAudioUrl === 'function')
-                    ? Util.getAnswerAudioUrl(word)
+                : ((util && typeof util.getAnswerAudioUrl === 'function')
+                    ? util.getAnswerAudioUrl(word)
                     : ((typeof word.audio === 'string') ? word.audio : ''));
             const imageURL = (typeof word.image === 'string') ? word.image : '';
             const audioPromise = shouldPreloadAudio

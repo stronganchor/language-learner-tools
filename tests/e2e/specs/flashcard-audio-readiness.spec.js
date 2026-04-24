@@ -139,3 +139,29 @@ test('playAudio falls back to available current data after the readiness wait wi
   expect(result.paused).toBe(false);
   expect(result.elapsedMs).toBeGreaterThanOrEqual(110);
 });
+
+test('target audio uses live prompt helpers loaded after the audio module', async ({ page }) => {
+  await mountAudioHarness(page);
+
+  const result = await page.evaluate(async () => {
+    window.LLFlashcards.Util = {
+      getPromptAudioUrl: function (word) {
+        return String((word && word.prompt_audio) || '').trim();
+      }
+    };
+
+    const audio = await window.FlashcardAudio.setTargetWordAudio({
+      id: 1001,
+      audio: 'https://cdn.test/answer-isolation.mp3',
+      prompt_audio: 'https://cdn.test/question-prompt.mp3'
+    }, {
+      autoplay: false
+    });
+
+    return {
+      src: audio ? audio.src : ''
+    };
+  });
+
+  expect(result.src).toBe('https://cdn.test/question-prompt.mp3');
+});

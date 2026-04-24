@@ -349,13 +349,61 @@ test('practice mode rotates logged-in prompts by exposure count', async ({ page 
 
     return {
       type: target.__practiceRecordingType,
-      audio: target.audio
+      audio: target.__runtimePromptAudio
     };
   });
 
   expect(outcome).toEqual({
     type: 'isolation',
     audio: 'https://audio.test/isolation.mp3'
+  });
+});
+
+test('practice mode uses prompt-card question audio instead of stale answer audio', async ({ page }) => {
+  await mountPracticeModeHarness(page, {
+    state: {
+      currentPromptType: 'image_audio'
+    }
+  });
+
+  const outcome = await page.evaluate(() => {
+    Object.assign(window.LLFlashcards.Util, {
+      isPromptCard: function (word) {
+        return !!(word && (word.is_prompt_card || word.prompt_card_id));
+      },
+      promptTypeHasAudio: function (promptType) {
+        return promptType === 'audio' || promptType === 'image_audio';
+      },
+      getPromptAudioUrl: function (word) {
+        if (!word) return '';
+        if (word.__runtimePromptAudio) return String(word.__runtimePromptAudio);
+        if (word.prompt_audio) return String(word.prompt_audio);
+        return word.is_prompt_card ? '' : String(word.audio || '');
+      }
+    });
+
+    const target = {
+      id: 911,
+      title: 'Horse or donkey',
+      is_prompt_card: true,
+      audio: 'https://audio.test/horse-answer.mp3',
+      prompt_audio: 'https://audio.test/is-this-horse-or-donkey.mp3',
+      __runtimePromptAudio: 'https://audio.test/stale-answer.mp3'
+    };
+
+    window.LLFlashcards.Modes.Practice.configureTargetAudio(target);
+
+    return {
+      runtimePromptAudio: target.__runtimePromptAudio,
+      answerAudio: target.audio,
+      promptRecordingType: target.__promptRecordingType || ''
+    };
+  });
+
+  expect(outcome).toEqual({
+    runtimePromptAudio: 'https://audio.test/is-this-horse-or-donkey.mp3',
+    answerAudio: 'https://audio.test/horse-answer.mp3',
+    promptRecordingType: ''
   });
 });
 
@@ -1498,6 +1546,58 @@ test('specific wrong-answer list overrides normal distractors', async ({ page })
 
   expect(pickedIds).toEqual([401, 402, 403]);
   expect(pickedIds.includes(404)).toBe(false);
+});
+
+test('prompt-card specific answer options are rendered in randomized order', async ({ page }) => {
+  const category = 'Prompt card override category';
+  const targetWord = {
+    id: 411,
+    title: 'Horse',
+    label: 'Horse',
+    is_prompt_card: true,
+    prompt_card_id: 411,
+    image: 'https://img.test/horse.jpg',
+    audio: 'https://audio.test/horse-answer.mp3',
+    prompt_audio: 'https://audio.test/is-this-horse-or-donkey.mp3',
+    specific_wrong_answer_ids: [412]
+  };
+  const specifiedWrong = {
+    id: 412,
+    title: 'Donkey',
+    label: 'Donkey',
+    image: 'https://img.test/donkey.jpg',
+    audio: 'https://audio.test/donkey-answer.mp3'
+  };
+
+  await mountSelectionHarness(page, {
+    categories: [{ name: category, prompt_type: 'image_audio', option_type: 'audio' }],
+    targetCategoryName: category,
+    desiredCount: 2,
+    wordsByCategory: {
+      [category]: [targetWord, specifiedWrong]
+    },
+    optionWordsByCategory: {
+      [category]: [targetWord, specifiedWrong]
+    }
+  });
+
+  const pickedIds = await page.evaluate((word) => {
+    Object.assign(window.LLFlashcards.Util, {
+      isPromptCard: function (candidate) {
+        return !!(candidate && (candidate.is_prompt_card || candidate.prompt_card_id));
+      },
+      randomlySort: function (items) {
+        return Array.isArray(items) ? items.slice().reverse() : [];
+      }
+    });
+    const target = Object.assign({ __categoryName: 'Prompt card override category' }, word);
+    window.LLFlashcards.Selection.fillQuizOptions(target);
+    return Array.from(document.querySelectorAll('#ll-tools-flashcard .flashcard-container'))
+      .map((el) => Number(el.getAttribute('data-word-id')) || 0)
+      .filter((id) => id > 0);
+  }, targetWord);
+
+  expect(pickedIds).toEqual([412, 411]);
 });
 
 test('specific wrong-answer list respects card-cap and shows as many as fit', async ({ page }) => {
