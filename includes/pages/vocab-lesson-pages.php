@@ -699,6 +699,467 @@ function ll_tools_vocab_lesson_category_requires_images($category): bool {
         : (($prompt_type === 'image') || ($option_type === 'image'));
 }
 
+function ll_tools_get_vocab_lesson_prompt_card_posts(int $wordset_id, $category, bool $deepest_only = true): array {
+    if (
+        $wordset_id <= 0
+        || !function_exists('ll_tools_get_prompt_card_posts_for_category_context')
+        || !function_exists('ll_tools_get_prompt_card_data')
+    ) {
+        return [];
+    }
+
+    $original_category_id = 0;
+    if ($category instanceof WP_Term) {
+        $original_category_id = (int) $category->term_id;
+    } elseif (is_numeric($category)) {
+        $original_category_id = (int) $category;
+    }
+
+    $resolved_category = ll_tools_resolve_vocab_lesson_category_for_wordset($category, $wordset_id);
+    if (!($resolved_category instanceof WP_Term) || is_wp_error($resolved_category)) {
+        return [];
+    }
+
+    if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($resolved_category)) {
+        return [];
+    }
+
+    $category_ids = ll_tools_get_vocab_lesson_category_meta_candidates((int) $resolved_category->term_id, $wordset_id);
+    if ($original_category_id > 0 && $original_category_id !== (int) $resolved_category->term_id) {
+        $category_ids = array_merge($category_ids, ll_tools_get_vocab_lesson_category_meta_candidates($original_category_id, $wordset_id));
+    }
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if (empty($category_ids)) {
+        return [];
+    }
+
+    $category_context = [
+        'term' => $resolved_category,
+        'term_id' => (int) $resolved_category->term_id,
+        'slug' => (string) $resolved_category->slug,
+        'label' => (string) $resolved_category->name,
+        'query_field' => 'term_id',
+        'query_terms' => $category_ids,
+    ];
+
+    $posts = ll_tools_get_prompt_card_posts_for_category_context($category_context, [$wordset_id]);
+    if (!$deepest_only || empty($posts) || !function_exists('ll_get_deepest_categories')) {
+        return $posts;
+    }
+
+    $category_lookup = array_fill_keys($category_ids, true);
+    return array_values(array_filter($posts, static function ($post) use ($category_lookup): bool {
+        if (!($post instanceof WP_Post) || empty($post->ID)) {
+            return false;
+        }
+
+        $deepest_terms = ll_get_deepest_categories((int) $post->ID);
+        foreach ((array) $deepest_terms as $term) {
+            $term_id = isset($term->term_id) ? (int) $term->term_id : 0;
+            if ($term_id > 0 && isset($category_lookup[$term_id])) {
+                return true;
+            }
+        }
+
+        return false;
+    }));
+}
+
+function ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(int $wordset_id, $category, int $limit = 2): array {
+    $limit = max(1, (int) $limit);
+    $posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
+    if (empty($posts)) {
+        return [];
+    }
+
+    $word_ids = [];
+    $seen = [];
+    foreach ($posts as $post) {
+        $card = ll_tools_get_prompt_card_data((int) $post->ID);
+        if (empty($card)) {
+            continue;
+        }
+
+        $image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+        if ($image_word_id <= 0) {
+            $image_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+        }
+        if ($image_word_id <= 0 || isset($seen[$image_word_id])) {
+            continue;
+        }
+
+        $seen[$image_word_id] = true;
+        $word_ids[] = $image_word_id;
+        if (count($word_ids) >= $limit) {
+            break;
+        }
+    }
+
+    return $word_ids;
+}
+
+function ll_tools_vocab_lesson_get_prompt_card_optional_meta(int $prompt_card_id, array $meta_keys): string {
+    foreach ($meta_keys as $meta_key) {
+        $meta_key = trim((string) $meta_key);
+        if ($meta_key === '') {
+            continue;
+        }
+
+        $value = trim((string) get_post_meta($prompt_card_id, $meta_key, true));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_vocab_lesson_get_word_display_parts(int $word_id, array $audio_entry = [], string $transcription_mode = 'ipa'): array {
+    if ($word_id <= 0) {
+        return [
+            'text' => '',
+            'translation' => '',
+            'transcription' => '',
+        ];
+    }
+
+    $display_values = function_exists('ll_tools_word_grid_resolve_display_text')
+        ? ll_tools_word_grid_resolve_display_text($word_id)
+        : [];
+
+    $text = trim((string) ($display_values['word_text'] ?? ''));
+    $translation = trim((string) ($display_values['translation_text'] ?? ''));
+    if ($text === '') {
+        $text = trim((string) ($audio_entry['recording_text'] ?? ''));
+    }
+    if ($translation === '') {
+        $translation = trim((string) ($audio_entry['recording_translation'] ?? ''));
+    }
+    if ($text === '') {
+        $text = trim((string) get_the_title($word_id));
+    }
+
+    $transcription = trim((string) ($audio_entry['recording_ipa'] ?? ''));
+    if ($transcription !== '' && function_exists('ll_tools_word_grid_normalize_ipa_output')) {
+        $transcription = ll_tools_word_grid_normalize_ipa_output($transcription, $transcription_mode);
+    }
+
+    return [
+        'text' => $text,
+        'translation' => $translation,
+        'transcription' => $transcription,
+    ];
+}
+
+function ll_tools_vocab_lesson_select_prompt_card_audio_entry(array $audio_files, array $preferred_types = []): array {
+    if (empty($audio_files)) {
+        return [];
+    }
+
+    $main_recording_types = function_exists('ll_tools_get_main_recording_types')
+        ? ll_tools_get_main_recording_types()
+        : ['isolation', 'question', 'introduction'];
+    $preferred_speaker = function_exists('ll_tools_word_grid_get_preferred_speaker')
+        ? ll_tools_word_grid_get_preferred_speaker($audio_files, $main_recording_types)
+        : 0;
+
+    $preferred_types = array_values(array_filter(array_map('sanitize_key', $preferred_types), static function (string $type): bool {
+        return $type !== '';
+    }));
+    if (empty($preferred_types)) {
+        $preferred_types = ['isolation', 'question', 'introduction'];
+    }
+
+    if (function_exists('ll_tools_word_grid_select_audio_entry')) {
+        foreach ($preferred_types as $type) {
+            $entry = ll_tools_word_grid_select_audio_entry($audio_files, $type, $preferred_speaker);
+            if (!empty($entry['url'])) {
+                return $entry;
+            }
+        }
+    }
+
+    foreach ($audio_files as $entry) {
+        if (is_array($entry) && !empty($entry['url'])) {
+            return $entry;
+        }
+    }
+
+    return [];
+}
+
+function ll_tools_vocab_lesson_render_prompt_card_audio_button(string $audio_url, string $label, string $button_type = 'answer', int $recording_id = 0): string {
+    $audio_url = trim($audio_url);
+    if ($audio_url === '') {
+        return '';
+    }
+
+    $button_type = sanitize_html_class($button_type !== '' ? $button_type : 'answer');
+    $recording_id_attr = $recording_id > 0 ? ' data-recording-id="' . esc_attr((string) $recording_id) . '"' : '';
+
+    $html  = '<button type="button" class="ll-study-recording-btn ll-word-grid-recording-btn ll-vocab-prompt-card-audio-btn ll-study-recording-btn--' . esc_attr($button_type) . '" data-audio-url="' . esc_url($audio_url) . '" data-recording-type="' . esc_attr($button_type) . '"' . $recording_id_attr . ' aria-label="' . esc_attr($label) . '" title="' . esc_attr($label) . '">';
+    $html .= '<span class="ll-study-recording-icon ll-vocab-prompt-card-audio-btn__icon" aria-hidden="true">';
+    $html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+    $html .= '</span>';
+    $html .= '<span class="ll-study-recording-visualizer" aria-hidden="true">';
+    for ($i = 0; $i < 4; $i++) {
+        $html .= '<span class="bar"></span>';
+    }
+    $html .= '</span>';
+    $html .= '</button>';
+
+    return $html;
+}
+
+function ll_tools_vocab_lesson_render_prompt_card_text_stack(array $parts, string $class_name): string {
+    $text = trim((string) ($parts['text'] ?? ''));
+    $translation = trim((string) ($parts['translation'] ?? ''));
+    $transcription = trim((string) ($parts['transcription'] ?? ''));
+
+    if ($text === '' && $translation === '' && $transcription === '') {
+        return '';
+    }
+
+    $html = '<span class="' . esc_attr($class_name) . '">';
+    if ($text !== '') {
+        $html .= '<span class="' . esc_attr($class_name . '-main') . '" dir="auto">' . ll_tools_esc_html_display($text) . '</span>';
+    }
+    if ($translation !== '') {
+        $html .= '<span class="' . esc_attr($class_name . '-translation') . '" dir="auto">' . ll_tools_esc_html_display($translation) . '</span>';
+    }
+    if ($transcription !== '') {
+        $html .= '<span class="' . esc_attr($class_name . '-transcription') . '">' . ll_tools_esc_html_display($transcription) . '</span>';
+    }
+    $html .= '</span>';
+
+    return $html;
+}
+
+function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $category, int $lesson_id = 0): string {
+    $posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
+    if (empty($posts)) {
+        return '';
+    }
+
+    $word_ids = [];
+    $cards = [];
+    foreach ($posts as $post) {
+        $card = ll_tools_get_prompt_card_data((int) $post->ID);
+        if (empty($card) || empty($card['correct_answer_word_id'])) {
+            continue;
+        }
+
+        $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+        if ($prompt_image_word_id <= 0) {
+            $prompt_image_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+        }
+        $answer_ids = array_values(array_filter(array_unique(array_merge(
+            [(int) ($card['correct_answer_word_id'] ?? 0)],
+            array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? []))
+        )), static function (int $word_id): bool {
+            return $word_id > 0;
+        }));
+        if (empty($answer_ids)) {
+            continue;
+        }
+
+        $card['prompt_image_word_id'] = $prompt_image_word_id;
+        $card['answer_word_ids'] = $answer_ids;
+        $cards[] = $card;
+        if ($prompt_image_word_id > 0) {
+            $word_ids[] = $prompt_image_word_id;
+        }
+        $word_ids = array_merge($word_ids, $answer_ids);
+    }
+
+    if (empty($cards)) {
+        return '';
+    }
+
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    if (!empty($word_ids)) {
+        update_meta_cache('post', $word_ids);
+    }
+
+    $audio_by_word = function_exists('ll_tools_word_grid_collect_audio_files')
+        ? ll_tools_word_grid_collect_audio_files($word_ids, true)
+        : [];
+    $transcription_config = function_exists('ll_tools_get_wordset_recording_transcription_config')
+        ? ll_tools_get_wordset_recording_transcription_config([$wordset_id], true)
+        : [
+            'mode' => 'ipa',
+            'display_format' => 'brackets',
+            'uses_ipa_font' => true,
+        ];
+    $transcription_mode = (string) ($transcription_config['mode'] ?? 'ipa');
+    $transcription_format = (string) ($transcription_config['display_format'] ?? 'plain');
+    $transcription_uses_ipa_font = !empty($transcription_config['uses_ipa_font']);
+
+    $grid_attrs = [
+        'id' => 'word-grid',
+        'class' => 'word-grid ll-word-grid ll-vocab-prompt-card-grid',
+        'data-ll-word-grid' => '',
+        'data-ll-prompt-card-lesson-grid' => '1',
+        'data-ll-secondary-text-mode' => $transcription_mode,
+        'data-ll-secondary-text-format' => $transcription_format,
+        'data-ll-secondary-text-uses-ipa-font' => $transcription_uses_ipa_font ? '1' : '0',
+    ];
+    if ($lesson_id > 0) {
+        $grid_attrs['data-ll-lesson-id'] = (string) $lesson_id;
+    }
+    if ($wordset_id > 0) {
+        $grid_attrs['data-ll-wordset-id'] = (string) $wordset_id;
+    }
+    if ($category instanceof WP_Term && !is_wp_error($category)) {
+        $grid_attrs['data-ll-category-id'] = (string) ((int) $category->term_id);
+    }
+
+    $render_attrs = static function (array $attrs): string {
+        $parts = [];
+        foreach ($attrs as $name => $value) {
+            $name = trim((string) $name);
+            if ($name === '') {
+                continue;
+            }
+            if ($value === '') {
+                $parts[] = esc_attr($name);
+            } else {
+                $parts[] = esc_attr($name) . '="' . esc_attr((string) $value) . '"';
+            }
+        }
+        return implode(' ', $parts);
+    };
+
+    ob_start();
+    ?>
+    <div <?php echo $render_attrs($grid_attrs); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
+        <?php foreach ($cards as $card) : ?>
+            <?php
+            $prompt_card_id = (int) ($card['id'] ?? 0);
+            $prompt_image_word_id = (int) ($card['prompt_image_word_id'] ?? 0);
+            $correct_answer_word_id = (int) ($card['correct_answer_word_id'] ?? 0);
+            $wrong_answer_word_ids = array_values(array_filter(array_map('intval', (array) ($card['wrong_answer_word_ids'] ?? [])), static function (int $word_id) use ($correct_answer_word_id): bool {
+                return $word_id > 0 && $word_id !== $correct_answer_word_id;
+            }));
+            $prompt_text = trim((string) ($card['prompt_text'] ?? ''));
+            if ($prompt_text === '') {
+                $prompt_text = trim((string) ($card['title'] ?? ''));
+            }
+            $prompt_parts = [
+                'text' => $prompt_text,
+                'translation' => ll_tools_vocab_lesson_get_prompt_card_optional_meta($prompt_card_id, [
+                    '_ll_prompt_card_prompt_translation',
+                    '_ll_prompt_card_prompt_text_translation',
+                    'prompt_translation',
+                ]),
+                'transcription' => ll_tools_vocab_lesson_get_prompt_card_optional_meta($prompt_card_id, [
+                    '_ll_prompt_card_prompt_transcription',
+                    '_ll_prompt_card_prompt_ipa',
+                    'prompt_transcription',
+                    'recording_ipa',
+                ]),
+            ];
+            if ($prompt_parts['transcription'] !== '' && function_exists('ll_tools_word_grid_normalize_ipa_output')) {
+                $prompt_parts['transcription'] = ll_tools_word_grid_normalize_ipa_output((string) $prompt_parts['transcription'], $transcription_mode);
+            }
+
+            $prompt_audio_url = trim((string) ($card['prompt_audio_url'] ?? ''));
+            $prompt_image_data = ($prompt_image_word_id > 0 && function_exists('ll_tools_get_effective_word_image_data_for_word'))
+                ? ll_tools_get_effective_word_image_data_for_word($prompt_image_word_id, 'medium_large', true)
+                : [];
+            $prompt_image_url = (string) ($prompt_image_data['url'] ?? '');
+            $prompt_image_alt = trim((string) ($prompt_image_data['alt'] ?? ''));
+            if ($prompt_image_alt === '' && $prompt_image_word_id > 0) {
+                $prompt_image_alt = trim((string) get_the_title($prompt_image_word_id));
+            }
+            $answer_rows = array_merge(
+                [['word_id' => $correct_answer_word_id, 'is_correct' => true]],
+                array_map(static function (int $word_id): array {
+                    return [
+                        'word_id' => $word_id,
+                        'is_correct' => false,
+                    ];
+                }, $wrong_answer_word_ids)
+            );
+            ?>
+            <article class="ll-vocab-prompt-card" data-prompt-card-id="<?php echo esc_attr((string) $prompt_card_id); ?>">
+                <?php if ($prompt_image_url !== '') : ?>
+                    <div class="ll-vocab-prompt-card__image">
+                        <img src="<?php echo esc_url($prompt_image_url); ?>" alt="<?php echo esc_attr($prompt_image_alt); ?>" loading="lazy" decoding="async" fetchpriority="low" />
+                    </div>
+                <?php endif; ?>
+                <div class="ll-vocab-prompt-card__body">
+                    <div class="ll-vocab-prompt-card__prompt">
+                        <span class="ll-vocab-prompt-card__question-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M9.5 8.3a3.2 3.2 0 0 1 5.2-2.5 3 3 0 0 1 .6 4.4c-.5.6-1.1 1-1.8 1.4-.8.5-1.2 1.1-1.2 2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12.3 17.8h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+                        </span>
+                        <div class="ll-vocab-prompt-card__prompt-content">
+                            <?php echo ll_tools_vocab_lesson_render_prompt_card_text_stack($prompt_parts, 'll-vocab-prompt-card__prompt-text'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            <?php
+                            echo ll_tools_vocab_lesson_render_prompt_card_audio_button(
+                                $prompt_audio_url,
+                                __('Play prompt recording', 'll-tools-text-domain'),
+                                'prompt'
+                            ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                            ?>
+                        </div>
+                    </div>
+
+                    <div class="ll-vocab-prompt-card__answers" aria-label="<?php echo esc_attr__('Answer options', 'll-tools-text-domain'); ?>">
+                        <?php foreach ($answer_rows as $answer_row) : ?>
+                            <?php
+                            $answer_word_id = (int) ($answer_row['word_id'] ?? 0);
+                            if ($answer_word_id <= 0) {
+                                continue;
+                            }
+                            $is_correct = !empty($answer_row['is_correct']);
+                            $answer_audio_files = isset($audio_by_word[$answer_word_id]) && is_array($audio_by_word[$answer_word_id])
+                                ? $audio_by_word[$answer_word_id]
+                                : [];
+                            $answer_audio = ll_tools_vocab_lesson_select_prompt_card_audio_entry($answer_audio_files, ['isolation', 'question', 'introduction']);
+                            $answer_parts = ll_tools_vocab_lesson_get_word_display_parts($answer_word_id, $answer_audio, $transcription_mode);
+                            $answer_label = $is_correct
+                                ? __('Play correct answer recording', 'll-tools-text-domain')
+                                : __('Play wrong answer recording', 'll-tools-text-domain');
+                            $answer_classes = 'll-vocab-prompt-card-answer';
+                            $answer_classes .= $is_correct ? ' is-correct' : ' is-wrong';
+                            $state_label = $is_correct
+                                ? __('Correct answer', 'll-tools-text-domain')
+                                : __('Wrong answer', 'll-tools-text-domain');
+                            ?>
+                            <div class="<?php echo esc_attr($answer_classes); ?>">
+                                <span class="ll-vocab-prompt-card-answer__state" aria-label="<?php echo esc_attr($state_label); ?>" title="<?php echo esc_attr($state_label); ?>">
+                                    <?php if ($is_correct) : ?>
+                                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                                    <?php else : ?>
+                                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+                                    <?php endif; ?>
+                                </span>
+                                <?php
+                                echo ll_tools_vocab_lesson_render_prompt_card_audio_button(
+                                    (string) ($answer_audio['url'] ?? ''),
+                                    $answer_label,
+                                    'answer',
+                                    (int) ($answer_audio['id'] ?? 0)
+                                ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                                ?>
+                                <?php echo ll_tools_vocab_lesson_render_prompt_card_text_stack($answer_parts, 'll-vocab-prompt-card-answer__text'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </article>
+        <?php endforeach; ?>
+    </div>
+    <?php
+
+    return trim((string) ob_get_clean());
+}
+
 function ll_tools_get_vocab_lesson_deepest_counts_for_wordset(int $wordset_id, bool $force_refresh = false): array {
     static $request_cache = [];
 
@@ -2897,16 +3358,19 @@ function ll_tools_get_vocab_lesson_grid_handler() {
         wp_send_json_error(['message' => __('Lesson terms are missing.', 'll-tools-text-domain')], 400);
     }
 
-    $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
-    try {
-        $html = ll_tools_word_grid_shortcode([
-            'category' => (string) $category->slug,
-            'wordset' => (string) $wordset->slug,
-            'deepest_only' => true,
-            'lesson_id' => $lesson_id,
-        ]);
-    } finally {
-        unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+    $html = ll_tools_render_vocab_lesson_prompt_cards_grid($wordset_id, $category, $lesson_id);
+    if ($html === '') {
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+        try {
+            $html = ll_tools_word_grid_shortcode([
+                'category' => (string) $category->slug,
+                'wordset' => (string) $wordset->slug,
+                'deepest_only' => true,
+                'lesson_id' => $lesson_id,
+            ]);
+        } finally {
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        }
     }
 
     wp_send_json_success([

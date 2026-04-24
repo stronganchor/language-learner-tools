@@ -93,6 +93,59 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         $this->assertCount(1, $duplicate_matches, 'Only one of the duplicate-content attachments should appear in the preview.');
     }
 
+    public function test_preview_uses_prompt_card_prompt_images_when_category_has_no_words(): void
+    {
+        $wordset = wp_insert_term('Prompt Preview Wordset ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $prompt_category = wp_insert_term('Prompt Preview Category ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($prompt_category));
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'image_audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+
+        $asset_category = wp_insert_term('Prompt Preview Assets ' . wp_generate_password(6, false), 'word-category');
+        $this->assertFalse(is_wp_error($asset_category));
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        $first_attachment_id = $this->createImageAttachment('prompt-preview-first.png');
+        $second_attachment_id = $this->createImageAttachment('prompt-preview-second.png', self::ALT_PIXEL_PNG_BASE64);
+        $first_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $first_attachment_id, 'Prompt Preview First Image');
+        $second_image_word_id = $this->createWordWithThumbnail($asset_category_id, $wordset_id, $second_attachment_id, 'Prompt Preview Second Image');
+
+        $correct_answer_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Prompt Preview Correct',
+        ]);
+
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Prompt Preview First Card',
+            'prompt_image_word_id' => $first_image_word_id,
+            'correct_answer_word_id' => $correct_answer_id,
+        ]);
+        $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'Prompt Preview Second Card',
+            'prompt_image_word_id' => $second_image_word_id,
+            'correct_answer_word_id' => $correct_answer_id,
+        ]);
+
+        $preview = ll_tools_get_wordset_category_preview($wordset_id, $prompt_category_id, 2, true);
+        $this->assertIsArray($preview);
+        $this->assertTrue((bool) ($preview['has_images'] ?? false));
+
+        $image_attachment_ids = $this->extractPreviewImageAttachmentIds($preview);
+        sort($image_attachment_ids, SORT_NUMERIC);
+        $expected_attachment_ids = [$first_attachment_id, $second_attachment_id];
+        sort($expected_attachment_ids, SORT_NUMERIC);
+
+        $this->assertSame($expected_attachment_ids, $image_attachment_ids);
+    }
+
     private function createWordWithThumbnail(int $category_id, int $wordset_id, int $attachment_id, string $title, string $post_date = ''): int
     {
         $post_data = [
@@ -112,6 +165,27 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         set_post_thumbnail($word_id, $attachment_id);
 
         return (int) $word_id;
+    }
+
+    /**
+     * @param array<string,mixed> $args
+     */
+    private function createPromptCard(int $category_id, int $wordset_id, array $args): int
+    {
+        $post_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => (string) ($args['title'] ?? 'Prompt Preview Card'),
+        ]);
+
+        wp_set_post_terms($post_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($post_id, [$wordset_id], 'wordset', false);
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, (string) ($args['prompt_text'] ?? ''));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY, (int) ($args['prompt_image_word_id'] ?? 0));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, (int) ($args['correct_answer_word_id'] ?? 0));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, array_values(array_map('intval', (array) ($args['wrong_answer_word_ids'] ?? []))));
+
+        return (int) $post_id;
     }
 
     private function createImageAttachment(string $filename, string $base64 = self::ONE_PIXEL_PNG_BASE64): int
@@ -168,5 +242,24 @@ final class WordsetCategoryPreviewDedupTest extends LL_Tools_TestCase
         return array_values(array_filter(array_map(static function (array $item): string {
             return (string) ($item['url'] ?? '');
         }, $image_items)));
+    }
+
+    /**
+     * @return array<int,int>
+     */
+    private function extractPreviewImageAttachmentIds(array $preview): array
+    {
+        $items = array_values((array) ($preview['items'] ?? []));
+        $image_items = array_values(array_filter($items, static function ($item): bool {
+            return is_array($item)
+                && (($item['type'] ?? '') === 'image')
+                && !empty($item['attachment_id']);
+        }));
+
+        return array_values(array_filter(array_map(static function (array $item): int {
+            return (int) ($item['attachment_id'] ?? 0);
+        }, $image_items), static function (int $attachment_id): bool {
+            return $attachment_id > 0;
+        }));
     }
 }

@@ -58,6 +58,109 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('River', $html);
     }
 
+    public function test_lesson_grid_ajax_renders_prompt_card_question_and_audio_answers(): void
+    {
+        $wordset = wp_insert_term('Deferred Prompt Card Wordset', 'wordset', ['slug' => 'deferred-prompt-card-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $prompt_category = wp_insert_term('Deferred Prompt Card Category', 'word-category', ['slug' => 'deferred-prompt-card-category']);
+        $this->assertIsArray($prompt_category);
+        $prompt_category_id = (int) $prompt_category['term_id'];
+
+        $asset_category = wp_insert_term('Deferred Prompt Card Assets', 'word-category', ['slug' => 'deferred-prompt-card-assets']);
+        $this->assertIsArray($asset_category);
+        $asset_category_id = (int) $asset_category['term_id'];
+
+        update_term_meta($prompt_category_id, 'll_quiz_prompt_type', 'image_audio');
+        update_term_meta($prompt_category_id, 'll_quiz_option_type', 'audio');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $image_word_id = $this->createWordWithThumbnail('Prompt Image', $asset_category_id, $wordset_id, 'deferred-prompt-card-image.png');
+        $correct_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Logos',
+        ]);
+        $wrong_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Doron',
+        ]);
+        wp_set_post_terms($correct_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($wrong_word_id, [$asset_category_id], 'word-category', false);
+        wp_set_post_terms($correct_word_id, [$wordset_id], 'wordset', false);
+        wp_set_post_terms($wrong_word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($correct_word_id, 'word_translation', 'Word');
+        update_post_meta($wrong_word_id, 'word_translation', 'Gift');
+
+        $this->createAudioRecording($correct_word_id, 'isolation', 'prompt-card-logos.mp3', [
+            'recording_text' => 'logos',
+            'recording_translation' => 'word',
+            'recording_ipa' => 'logos ipa',
+        ]);
+        $this->createAudioRecording($wrong_word_id, 'isolation', 'prompt-card-doron.mp3', [
+            'recording_text' => 'doron',
+            'recording_translation' => 'gift',
+            'recording_ipa' => 'doron ipa',
+        ]);
+
+        $prompt_card_id = $this->createPromptCard($prompt_category_id, $wordset_id, [
+            'title' => 'What is in the picture?',
+            'prompt_text' => 'What is this?',
+            'prompt_translation' => 'Identify the picture.',
+            'prompt_transcription' => 'prompt ipa',
+            'prompt_audio_url' => 'https://example.com/prompt-card-question.mp3',
+            'prompt_image_word_id' => $image_word_id,
+            'correct_answer_word_id' => $correct_word_id,
+            'wrong_answer_word_ids' => [$wrong_word_id],
+        ]);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Prompt Card Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $prompt_category_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($response['success']);
+        $html = (string) (($response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('ll-vocab-prompt-card-grid', $html);
+        $this->assertStringContainsString('data-prompt-card-id="' . $prompt_card_id . '"', $html);
+        $this->assertStringContainsString('ll-vocab-prompt-card__question-icon', $html);
+        $this->assertStringContainsString('What is this?', $html);
+        $this->assertStringContainsString('Identify the picture.', $html);
+        $this->assertStringContainsString('prompt ipa', $html);
+        $this->assertStringContainsString('https://example.com/prompt-card-question.mp3', $html);
+        $this->assertStringContainsString('class="ll-vocab-prompt-card-answer is-correct"', $html);
+        $this->assertStringContainsString('class="ll-vocab-prompt-card-answer is-wrong"', $html);
+        $this->assertStringContainsString('Logos', $html);
+        $this->assertStringContainsString('Word', $html);
+        $this->assertStringContainsString('logos ipa', $html);
+        $this->assertStringContainsString('Doron', $html);
+        $this->assertStringContainsString('Gift', $html);
+        $this->assertStringContainsString('doron ipa', $html);
+        $this->assertStringContainsString('prompt-card-logos.mp3', $html);
+        $this->assertStringContainsString('prompt-card-doron.mp3', $html);
+        $this->assertStringNotContainsString('No words found', $html);
+    }
+
     public function test_lesson_grid_ajax_strips_broken_one_pixel_thumbnail_dimensions(): void
     {
         $wordset = wp_insert_term('Deferred Grid Image Wordset', 'wordset', ['slug' => 'deferred-grid-image-wordset']);
@@ -514,7 +617,10 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         return (int) $word_id;
     }
 
-    private function createAudioRecording(int $word_id, string $recording_type, string $audio_file_name): int
+    /**
+     * @param array<string,string> $meta
+     */
+    private function createAudioRecording(int $word_id, string $recording_type, string $audio_file_name, array $meta = []): int
     {
         $audio_post_id = self::factory()->post->create([
             'post_type' => 'word_audio',
@@ -524,8 +630,37 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         ]);
         update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
         wp_set_post_terms($audio_post_id, [$recording_type], 'recording_type', false);
+        foreach (['recording_text', 'recording_translation', 'recording_ipa'] as $meta_key) {
+            if (array_key_exists($meta_key, $meta)) {
+                update_post_meta($audio_post_id, $meta_key, (string) $meta[$meta_key]);
+            }
+        }
 
         return (int) $audio_post_id;
+    }
+
+    /**
+     * @param array<string,mixed> $args
+     */
+    private function createPromptCard(int $category_id, int $wordset_id, array $args): int
+    {
+        $post_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => (string) ($args['title'] ?? 'Prompt Card'),
+        ]);
+
+        wp_set_post_terms($post_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($post_id, [$wordset_id], 'wordset', false);
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, (string) ($args['prompt_text'] ?? ''));
+        update_post_meta($post_id, '_ll_prompt_card_prompt_translation', (string) ($args['prompt_translation'] ?? ''));
+        update_post_meta($post_id, '_ll_prompt_card_prompt_transcription', (string) ($args['prompt_transcription'] ?? ''));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_AUDIO_URL_META_KEY, (string) ($args['prompt_audio_url'] ?? ''));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_PROMPT_IMAGE_WORD_ID_META_KEY, (int) ($args['prompt_image_word_id'] ?? 0));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, (int) ($args['correct_answer_word_id'] ?? 0));
+        update_post_meta($post_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, array_values(array_map('intval', (array) ($args['wrong_answer_word_ids'] ?? []))));
+
+        return (int) $post_id;
     }
 
     private function createRecordingType(string $slug, string $label): void

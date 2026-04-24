@@ -989,6 +989,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
     $category_version = function_exists('ll_tools_get_category_cache_version')
         ? max(1, (int) ll_tools_get_category_cache_version($category_id))
         : 1;
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
     $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
         ? max(1, (int) ll_tools_get_wordset_cache_epoch())
         : 1;
@@ -1001,7 +1004,9 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
         'image_size' => $image_size,
         'deepest_only' => $deepest_only ? 1 : 0,
         'category_version' => $category_version,
+        'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
+        'prompt_card_preview_schema' => 1,
     ]);
     $cached_preview = ll_tools_wordset_page_get_cached_payload($preview_cache_key, $request_cache);
     if (is_array($cached_preview)) {
@@ -1138,6 +1143,7 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                     'ratio' => $ratio,
                     'width' => $width,
                     'height' => $height,
+                    'attachment_id' => $image_id,
                 ];
                 $items[] = $item;
                 $seen_preview_word_ids[(int) $word_id] = true;
@@ -1145,6 +1151,90 @@ function ll_tools_get_wordset_category_preview(int $wordset_id, int $category_id
                 if (count($items) >= $limit) {
                     break;
                 }
+            }
+        }
+    }
+
+    if ($use_images && count($items) < $limit && function_exists('ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids')) {
+        $prompt_image_word_ids = ll_tools_get_vocab_lesson_prompt_card_preview_image_word_ids(
+            $wordset_id,
+            $category_id,
+            max($limit * 4, $limit)
+        );
+        $existing_image_urls = [];
+        $existing_attachment_ids = [];
+        foreach ($items as $item) {
+            if (!is_array($item) || ($item['type'] ?? '') !== 'image') {
+                continue;
+            }
+            $url = trim((string) ($item['url'] ?? ''));
+            if ($url !== '') {
+                $existing_image_urls[$url] = true;
+            }
+            $attachment_id = isset($item['attachment_id']) ? (int) $item['attachment_id'] : 0;
+            if ($attachment_id > 0) {
+                $existing_attachment_ids[$attachment_id] = true;
+            }
+        }
+
+        foreach ($prompt_image_word_ids as $word_id) {
+            $word_id = (int) $word_id;
+            if ($word_id <= 0 || isset($seen_preview_word_ids[$word_id])) {
+                continue;
+            }
+
+            $image_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+                ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+                : (int) get_post_thumbnail_id($word_id);
+            if ($image_id <= 0 || isset($existing_attachment_ids[$image_id])) {
+                continue;
+            }
+
+            $size_info = ll_tools_select_wordset_preview_image_size($image_id, $image_size);
+            $resolved_image_size = (string) ($size_info['size'] ?? $image_size);
+            if ($resolved_image_size === '') {
+                $resolved_image_size = $image_size;
+            }
+            $dimensions = (array) ($size_info['dimensions'] ?? []);
+
+            $image_url = function_exists('ll_tools_get_masked_image_url')
+                ? ll_tools_get_masked_image_url($image_id, $resolved_image_size)
+                : '';
+            if ($image_url === '') {
+                $image_url = wp_get_attachment_image_url($image_id, $resolved_image_size) ?: '';
+            }
+            if ($image_url === '' || isset($existing_image_urls[$image_url])) {
+                continue;
+            }
+
+            if (empty($dimensions)) {
+                $dimensions = ll_tools_get_image_dimensions_for_size($image_id, $resolved_image_size);
+            }
+            $ratio = (string) ($dimensions['ratio'] ?? '');
+            $width = (int) ($dimensions['width'] ?? 0);
+            $height = (int) ($dimensions['height'] ?? 0);
+            if ($preview_aspect_ratio === '' && $ratio !== '') {
+                $preview_aspect_ratio = $ratio;
+            }
+            if ($ratio === '' && $preview_aspect_ratio !== '') {
+                $ratio = $preview_aspect_ratio;
+            }
+
+            $items[] = [
+                'type' => 'image',
+                'url' => $image_url,
+                'alt' => get_the_title($word_id),
+                'ratio' => $ratio,
+                'width' => $width,
+                'height' => $height,
+                'attachment_id' => $image_id,
+            ];
+            $seen_preview_word_ids[$word_id] = true;
+            $existing_image_urls[$image_url] = true;
+            $existing_attachment_ids[$image_id] = true;
+
+            if (count($items) >= $limit) {
+                break;
             }
         }
     }
