@@ -158,6 +158,162 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($resume_data['matched_count'] ?? 0));
     }
 
+    public function test_report_summary_route_returns_lightweight_counts(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Summary Wordset', 'rest-summary-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Summary Category', 'rest-summary-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Summary Word', 'Summary Translation');
+
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'REST Summary Image',
+        ]);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $image_id);
+
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'REST Summary Audio',
+        ]);
+        update_post_meta($audio_id, 'audio_file_path', 'audio/rest-summary.mp3');
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-summary-wordset/report-summary');
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame($wordset_id, (int) (($data['wordset']['id'] ?? 0)));
+        $this->assertSame(1, (int) (($data['counts']['words_total'] ?? 0)));
+        $this->assertSame(1, (int) (($data['counts']['categories_total'] ?? 0)));
+        $this->assertSame(1, (int) (($data['counts']['words_with_audio'] ?? 0)));
+        $this->assertSame(1, (int) (($data['counts']['audio_records_total'] ?? 0)));
+        $this->assertSame(1, (int) (($data['counts']['words_with_images'] ?? 0)));
+    }
+
+    public function test_import_rest_routes_preview_start_process_and_expose_result_with_basic_auth(): void
+    {
+        if (!class_exists('ZipArchive')) {
+            $this->markTestSkipped('ZipArchive is not available in this test environment.');
+        }
+
+        $admin_id = self::factory()->user->create([
+            'role' => 'administrator',
+            'user_login' => 'lltools-import-rest-admin',
+            'user_pass' => 'TempPass!456',
+        ]);
+
+        update_option(ll_tools_import_history_option_name(), [], false);
+        delete_transient('ll_tools_import_result');
+        delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+        delete_user_meta($admin_id, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+
+        $bundle = $this->create_minimal_server_import_bundle_zip();
+        $zip_path = (string) ($bundle['zip_path'] ?? '');
+        $zip_filename = (string) ($bundle['zip_filename'] ?? '');
+        $category_slug = (string) ($bundle['category_slug'] ?? '');
+        $this->assertNotSame('', $zip_path);
+        $this->assertNotSame('', $zip_filename);
+        $this->assertNotSame('', $category_slug);
+
+        $auth_server = [
+            'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-import-rest-admin:TempPass!456'),
+            'HTTP_HOST' => '127.0.0.1:10036',
+        ];
+        $job_id = '';
+        $preview_token = '';
+
+        try {
+            $preview = $this->dispatch_ll_tools_rest_request(
+                'POST',
+                '/ll-tools/v1/imports/preview',
+                ['existing' => $zip_filename],
+                $auth_server,
+                true
+            );
+            $this->assertSame(200, $preview->get_status());
+            $preview_data = $preview->get_data();
+            $this->assertIsArray($preview_data);
+            $preview_token = (string) ($preview_data['preview_token'] ?? '');
+            $this->assertNotSame('', $preview_token);
+            $this->assertSame(1, (int) (($preview_data['summary']['categories'] ?? 0)));
+            $this->assertSame($zip_filename, (string) (($preview_data['source']['zip_name'] ?? '')));
+
+            $start = $this->dispatch_ll_tools_rest_request(
+                'POST',
+                '/ll-tools/v1/imports/start',
+                ['preview_token' => $preview_token],
+                $auth_server,
+                true
+            );
+            $this->assertSame(200, $start->get_status());
+            $start_data = $start->get_data();
+            $this->assertIsArray($start_data);
+            $job = is_array($start_data['job'] ?? null) ? $start_data['job'] : [];
+            $job_id = (string) ($job['id'] ?? '');
+            $this->assertNotSame('', $job_id);
+            $this->assertSame('running', (string) ($job['status'] ?? ''));
+
+            $completed_job = [];
+            for ($attempt = 0; $attempt < 12; $attempt++) {
+                $process = $this->dispatch_ll_tools_rest_request(
+                    'POST',
+                    '/ll-tools/v1/imports/' . rawurlencode($job_id) . '/process',
+                    [],
+                    $auth_server,
+                    true
+                );
+                $this->assertSame(200, $process->get_status());
+                $process_data = $process->get_data();
+                $this->assertIsArray($process_data);
+                $completed_job = is_array($process_data['job'] ?? null) ? $process_data['job'] : [];
+                if ((string) ($completed_job['status'] ?? '') === 'completed') {
+                    break;
+                }
+            }
+
+            $this->assertSame('completed', (string) ($completed_job['status'] ?? ''));
+            $this->assertArrayHasKey('result', $completed_job);
+            $this->assertTrue((bool) (($completed_job['result']['ok'] ?? false)), implode(' | ', (array) (($completed_job['result']['errors'] ?? []))));
+            $this->assertNotSame('', (string) (($completed_job['result']['historyEntryId'] ?? '')));
+            $this->assertTrue((bool) (($completed_job['result']['hasUndo'] ?? false)));
+
+            $result_response = $this->dispatch_ll_tools_rest_request(
+                'GET',
+                '/ll-tools/v1/imports/' . rawurlencode($job_id) . '/result',
+                [],
+                $auth_server,
+                true
+            );
+            $this->assertSame(200, $result_response->get_status());
+            $result_data = $result_response->get_data();
+            $this->assertIsArray($result_data);
+            $this->assertTrue((bool) (($result_data['result']['ok'] ?? false)));
+            $this->assertSame(
+                (string) (($completed_job['result']['historyEntryId'] ?? '')),
+                (string) (($result_data['result']['historyEntryId'] ?? ''))
+            );
+
+            $imported_category = get_term_by('slug', $category_slug, 'word-category');
+            $this->assertInstanceOf(WP_Term::class, $imported_category);
+        } finally {
+            if ($job_id !== '') {
+                ll_tools_import_job_delete($job_id, $admin_id);
+            }
+            if ($preview_token !== '') {
+                ll_tools_delete_import_preview_data($preview_token);
+            }
+            @unlink($zip_path);
+            delete_transient('ll_tools_import_result');
+            delete_option(LL_TOOLS_IMPORT_ACTIVE_JOB_OPTION);
+            delete_user_meta($admin_id, LL_TOOLS_IMPORT_LAST_JOB_META_KEY);
+        }
+    }
+
     /**
      * @param array<string,mixed> $params
      * @param array<string,string> $server_overrides
@@ -173,7 +329,11 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         if ($reset_current_user) {
             global $current_user;
+            wp_set_current_user(0);
             $current_user = null;
+            if (function_exists('ll_tools_rest_automation_clear_auth_runtime_state')) {
+                ll_tools_rest_automation_clear_auth_runtime_state();
+            }
         }
 
         $request = new WP_REST_Request($method, $route);
@@ -259,5 +419,58 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    /**
+     * @return array{zip_path:string,zip_filename:string,category_slug:string}
+     */
+    private function create_minimal_server_import_bundle_zip(): array
+    {
+        $import_dir = ll_tools_get_import_dir();
+        $this->assertTrue(ll_tools_ensure_import_dir($import_dir));
+
+        $suffix = strtolower(wp_generate_password(8, false, false));
+        $category_slug = 'import-rest-cat-' . $suffix;
+        $payload = [
+            'bundle_type' => 'images',
+            'categories' => [
+                [
+                    'slug' => $category_slug,
+                    'name' => 'Import REST Category ' . $suffix,
+                    'description' => 'REST automation import test bundle',
+                    'parent_slug' => '',
+                    'meta' => [
+                        'display_color' => ['green'],
+                    ],
+                ],
+            ],
+            'word_images' => [],
+            'wordsets' => [],
+            'words' => [],
+            'media_estimate' => [
+                'attachment_count' => 0,
+                'attachment_bytes' => 0,
+            ],
+        ];
+
+        $json = wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->assertIsString($json);
+
+        $zip_filename = 'll-tools-rest-import-' . $suffix . '.zip';
+        $zip_path = trailingslashit($import_dir) . $zip_filename;
+        @unlink($zip_path);
+
+        $zip = new ZipArchive();
+        $opened = $zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $this->assertTrue($opened === true, 'Failed to create REST import test zip.');
+        $this->assertTrue($zip->addFromString('data.json', $json));
+        $this->assertTrue($zip->close());
+        $this->assertFileExists($zip_path);
+
+        return [
+            'zip_path' => wp_normalize_path($zip_path),
+            'zip_filename' => $zip_filename,
+            'category_slug' => $category_slug,
+        ];
     }
 }

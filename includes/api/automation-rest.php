@@ -5,6 +5,12 @@ if (!defined('WPINC')) {
 
 require_once LL_TOOLS_BASE_PATH . 'includes/cli/cli-support.php';
 
+function ll_tools_rest_automation_load_import_helpers(): void {
+    if (!function_exists('ll_tools_import_job_get_snapshot')) {
+        require_once LL_TOOLS_BASE_PATH . 'includes/admin/export-import.php';
+    }
+}
+
 function ll_tools_rest_automation_get_route_path(): string {
     $rest_route = isset($_GET['rest_route']) ? wp_unslash((string) $_GET['rest_route']) : '';
     if ($rest_route !== '') {
@@ -268,6 +274,24 @@ function ll_tools_rest_automation_require_wordset_create_access() {
     return true;
 }
 
+function ll_tools_rest_automation_require_import_access() {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    ll_tools_rest_automation_load_import_helpers();
+    if (!function_exists('ll_tools_current_user_can_export_import') || !ll_tools_current_user_can_export_import()) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_import_forbidden',
+            __('You cannot import LL Tools bundles through automation.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_automation_request_string(WP_REST_Request $request, string $key): string {
     $value = $request->get_param($key);
     if (!is_scalar($value)) {
@@ -417,6 +441,13 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
+            'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
+            'import_preview' => '/ll-tools/v1/imports/preview',
+            'import_start' => '/ll-tools/v1/imports/start',
+            'import_status' => '/ll-tools/v1/imports/{job_id}',
+            'import_process' => '/ll-tools/v1/imports/{job_id}/process',
+            'import_discard' => '/ll-tools/v1/imports/{job_id}/discard',
+            'import_result' => '/ll-tools/v1/imports/{job_id}/result',
         ],
     ]);
 }
@@ -681,6 +712,463 @@ function ll_tools_rest_automation_wordset_report(WP_REST_Request $request) {
     return rest_ensure_response($report);
 }
 
+function ll_tools_rest_automation_prepare_id_list(array $ids): array {
+    return array_values(array_unique(array_filter(array_map('intval', $ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+}
+
+function ll_tools_rest_automation_prepare_sql(string $sql, array $args): string {
+    global $wpdb;
+
+    if (empty($args)) {
+        return $sql;
+    }
+
+    return (string) call_user_func_array([$wpdb, 'prepare'], array_merge([$sql], $args));
+}
+
+function ll_tools_rest_automation_count_words_with_audio(array $word_ids): int {
+    global $wpdb;
+
+    $word_ids = ll_tools_rest_automation_prepare_id_list($word_ids);
+    if (empty($word_ids)) {
+        return 0;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($word_ids), '%d'));
+    $sql = "
+        SELECT COUNT(DISTINCT p.post_parent)
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->postmeta} pm
+            ON pm.post_id = p.ID
+            AND pm.meta_key = 'audio_file_path'
+            AND pm.meta_value <> ''
+        WHERE p.post_type = 'word_audio'
+            AND p.post_status = 'publish'
+            AND p.post_parent IN ({$placeholders})
+    ";
+
+    return max(0, (int) $wpdb->get_var(ll_tools_rest_automation_prepare_sql($sql, $word_ids)));
+}
+
+function ll_tools_rest_automation_count_audio_records(array $word_ids): int {
+    global $wpdb;
+
+    $word_ids = ll_tools_rest_automation_prepare_id_list($word_ids);
+    if (empty($word_ids)) {
+        return 0;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($word_ids), '%d'));
+    $sql = "
+        SELECT COUNT(DISTINCT p.ID)
+        FROM {$wpdb->posts} p
+        INNER JOIN {$wpdb->postmeta} pm
+            ON pm.post_id = p.ID
+            AND pm.meta_key = 'audio_file_path'
+            AND pm.meta_value <> ''
+        WHERE p.post_type = 'word_audio'
+            AND p.post_status = 'publish'
+            AND p.post_parent IN ({$placeholders})
+    ";
+
+    return max(0, (int) $wpdb->get_var(ll_tools_rest_automation_prepare_sql($sql, $word_ids)));
+}
+
+function ll_tools_rest_automation_count_words_with_images(array $word_ids): int {
+    global $wpdb;
+
+    $word_ids = ll_tools_rest_automation_prepare_id_list($word_ids);
+    if (empty($word_ids)) {
+        return 0;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($word_ids), '%d'));
+    $sql = "
+        SELECT COUNT(DISTINCT pm.post_id)
+        FROM {$wpdb->postmeta} pm
+        WHERE pm.post_id IN ({$placeholders})
+            AND pm.meta_key IN ('_ll_autopicked_image_id', '_thumbnail_id')
+            AND pm.meta_value <> ''
+            AND pm.meta_value <> '0'
+    ";
+
+    return max(0, (int) $wpdb->get_var(ll_tools_rest_automation_prepare_sql($sql, $word_ids)));
+}
+
+function ll_tools_rest_automation_get_category_ids_for_words(array $word_ids): array {
+    global $wpdb;
+
+    $word_ids = ll_tools_rest_automation_prepare_id_list($word_ids);
+    if (empty($word_ids)) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($word_ids), '%d'));
+    $sql = "
+        SELECT DISTINCT tt.term_id
+        FROM {$wpdb->term_relationships} tr
+        INNER JOIN {$wpdb->term_taxonomy} tt
+            ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            AND tt.taxonomy = 'word-category'
+        WHERE tr.object_id IN ({$placeholders})
+    ";
+
+    return ll_tools_rest_automation_prepare_id_list((array) $wpdb->get_col(ll_tools_rest_automation_prepare_sql($sql, $word_ids)));
+}
+
+function ll_tools_rest_automation_wordset_report_summary(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $category_spec = ll_tools_rest_automation_request_string($request, 'category');
+    $word_ids = ll_tools_cli_get_word_ids_for_scope((int) $wordset_term->term_id, $category_spec, '');
+    if (is_wp_error($word_ids)) {
+        return ll_tools_rest_automation_with_status($word_ids, 400);
+    }
+    $word_ids = ll_tools_rest_automation_prepare_id_list((array) $word_ids);
+
+    $category_ids = ll_tools_rest_automation_get_category_ids_for_words($word_ids);
+    $words_with_audio = ll_tools_rest_automation_count_words_with_audio($word_ids);
+    $words_with_images = ll_tools_rest_automation_count_words_with_images($word_ids);
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'wordset' => [
+            'id' => (int) $wordset_term->term_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'filters' => [
+            'category' => $category_spec,
+        ],
+        'settings' => [
+            'visibility' => function_exists('ll_tools_get_wordset_visibility')
+                ? (string) ll_tools_get_wordset_visibility((int) $wordset_term->term_id)
+                : '',
+            'target_language' => function_exists('ll_tools_get_wordset_target_language')
+                ? (string) ll_tools_get_wordset_target_language([(int) $wordset_term->term_id], true)
+                : '',
+            'translation_language' => function_exists('ll_tools_get_wordset_translation_language')
+                ? (string) ll_tools_get_wordset_translation_language([(int) $wordset_term->term_id], true)
+                : '',
+            'word_title_language_role' => function_exists('ll_tools_get_wordset_title_language_role')
+                ? (string) ll_tools_get_wordset_title_language_role([(int) $wordset_term->term_id], true)
+                : '',
+            'category_translation_enabled' => function_exists('ll_tools_is_wordset_category_translation_enabled')
+                ? (bool) ll_tools_is_wordset_category_translation_enabled([(int) $wordset_term->term_id], true)
+                : false,
+            'category_translation_source' => function_exists('ll_tools_get_wordset_category_translation_source')
+                ? (string) ll_tools_get_wordset_category_translation_source([(int) $wordset_term->term_id], true)
+                : '',
+            'recording_transcription_mode' => function_exists('ll_tools_get_wordset_recording_transcription_mode')
+                ? (string) ll_tools_get_wordset_recording_transcription_mode([(int) $wordset_term->term_id], true)
+                : '',
+        ],
+        'counts' => [
+            'words_total' => count($word_ids),
+            'categories_total' => count($category_ids),
+            'words_with_audio' => $words_with_audio,
+            'words_without_audio' => max(0, count($word_ids) - $words_with_audio),
+            'words_with_images' => $words_with_images,
+            'words_without_images' => max(0, count($word_ids) - $words_with_images),
+            'audio_records_total' => ll_tools_rest_automation_count_audio_records($word_ids),
+        ],
+    ]);
+}
+
+function ll_tools_rest_automation_resolve_import_zip(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_import_helpers();
+
+    $files = $request->get_file_params();
+    $uploaded_file = [];
+    foreach (['ll_import_file', 'file'] as $file_key) {
+        if (!empty($files[$file_key]) && is_array($files[$file_key])) {
+            $uploaded_file = $files[$file_key];
+            break;
+        }
+    }
+
+    if (!empty($uploaded_file['name'])) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+
+        $source_name = sanitize_file_name(wp_unslash((string) $uploaded_file['name']));
+        $upload = wp_handle_upload($uploaded_file, [
+            'test_form' => false,
+            'mimes' => ['zip' => 'application/zip'],
+        ]);
+        if (isset($upload['error'])) {
+            return new WP_Error('ll_tools_rest_import_upload_failed', (string) $upload['error']);
+        }
+
+        return [
+            'zip_path' => (string) $upload['file'],
+            'cleanup_zip' => true,
+            'uploaded_file' => true,
+            'zip_name' => $source_name !== '' ? $source_name : basename((string) $upload['file']),
+        ];
+    }
+
+    $existing_file = ll_tools_rest_automation_request_string($request, 'existing');
+    if ($existing_file === '') {
+        $existing_file = ll_tools_rest_automation_request_string($request, 'filename');
+    }
+    if ($existing_file === '') {
+        $existing_file = ll_tools_rest_automation_request_string($request, 'll_import_existing');
+    }
+    $existing_file = sanitize_file_name($existing_file);
+    if ($existing_file === '') {
+        return new WP_Error('ll_tools_rest_import_missing', __('Import failed: provide an uploaded zip file or a server import filename.', 'll-tools-text-domain'));
+    }
+
+    $import_dir = ll_tools_get_import_dir();
+    if (!ll_tools_ensure_import_dir($import_dir)) {
+        return new WP_Error('ll_tools_import_dir_unavailable', __('Import failed: server import folder is not available.', 'll-tools-text-domain'));
+    }
+
+    $existing_path = ll_tools_get_existing_import_zip_path($existing_file, $import_dir);
+    if (is_wp_error($existing_path)) {
+        return $existing_path;
+    }
+
+    return [
+        'zip_path' => (string) $existing_path,
+        'cleanup_zip' => false,
+        'uploaded_file' => false,
+        'zip_name' => $existing_file !== '' ? $existing_file : basename((string) $existing_path),
+    ];
+}
+
+function ll_tools_rest_automation_prepare_preview_response(array $preview): array {
+    $preview_data = isset($preview['preview_data']) && is_array($preview['preview_data']) ? $preview['preview_data'] : [];
+    $options = isset($preview_data['options']) && is_array($preview_data['options']) ? $preview_data['options'] : [];
+    $target_wordset_id = isset($options['target_wordset_id']) ? (int) $options['target_wordset_id'] : 0;
+    $target_wordset = null;
+    if ($target_wordset_id > 0) {
+        $term = get_term($target_wordset_id, 'wordset');
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            $target_wordset = [
+                'id' => (int) $term->term_id,
+                'slug' => (string) $term->slug,
+                'name' => (string) $term->name,
+            ];
+        }
+    }
+
+    return [
+        'preview_token' => isset($preview['preview_token']) ? (string) $preview['preview_token'] : '',
+        'bundle_type' => sanitize_key((string) ($preview_data['bundle_type'] ?? '')),
+        'summary' => isset($preview_data['summary']) && is_array($preview_data['summary']) ? $preview_data['summary'] : [],
+        'warnings' => isset($preview_data['warnings']) && is_array($preview_data['warnings']) ? array_values(array_map('strval', $preview_data['warnings'])) : [],
+        'category_names' => isset($preview_data['category_names']) && is_array($preview_data['category_names']) ? array_values(array_map('strval', $preview_data['category_names'])) : [],
+        'wordsets' => isset($preview_data['wordsets']) && is_array($preview_data['wordsets']) ? array_values($preview_data['wordsets']) : [],
+        'sample_word' => isset($preview_data['sample_word']) && is_array($preview_data['sample_word']) ? $preview_data['sample_word'] : [],
+        'options' => [
+            'wordset_mode' => isset($options['wordset_mode']) ? sanitize_key((string) $options['wordset_mode']) : 'create_from_export',
+            'target_wordset_id' => $target_wordset_id,
+            'target_wordset' => $target_wordset,
+            'wordset_name_overrides' => isset($options['wordset_name_overrides']) && is_array($options['wordset_name_overrides'])
+                ? $options['wordset_name_overrides']
+                : [],
+        ],
+        'source' => [
+            'type' => isset($preview_data['source_type']) ? sanitize_key((string) $preview_data['source_type']) : '',
+            'zip_name' => isset($preview_data['zip_name']) ? sanitize_file_name((string) $preview_data['zip_name']) : '',
+            'cleanup_zip' => !empty($preview_data['cleanup_zip']),
+        ],
+    ];
+}
+
+function ll_tools_rest_automation_import_preview(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_import_helpers();
+    if (!class_exists('ZipArchive')) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_import_zip_missing',
+            __('ZipArchive is not available on this server.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    $zip_info = ll_tools_rest_automation_resolve_import_zip($request);
+    if (is_wp_error($zip_info)) {
+        return ll_tools_rest_automation_with_status($zip_info, 400);
+    }
+
+    $preview = ll_tools_prepare_import_preview_from_zip_info($zip_info);
+    if (is_wp_error($preview)) {
+        return ll_tools_rest_automation_with_status($preview, 400);
+    }
+
+    return rest_ensure_response(ll_tools_rest_automation_prepare_preview_response($preview));
+}
+
+function ll_tools_rest_automation_import_request_params(WP_REST_Request $request): array {
+    $params = $request->get_params();
+    $normalized = is_array($params) ? $params : [];
+
+    $preview_token = '';
+    foreach (['preview_token', 'll_import_preview_token', 'll_import_preview'] as $key) {
+        if ($preview_token === '' && isset($normalized[$key]) && is_scalar($normalized[$key])) {
+            $preview_token = sanitize_text_field((string) $normalized[$key]);
+        }
+    }
+    if ($preview_token !== '') {
+        $normalized['ll_import_preview_token'] = $preview_token;
+    }
+
+    if (isset($normalized['wordset_mode']) && !isset($normalized['ll_import_wordset_mode'])) {
+        $normalized['ll_import_wordset_mode'] = sanitize_key((string) $normalized['wordset_mode']);
+    }
+    if (isset($normalized['target_wordset_id']) && !isset($normalized['ll_import_target_wordset'])) {
+        $normalized['ll_import_target_wordset'] = (string) (int) $normalized['target_wordset_id'];
+    }
+    if (isset($normalized['wordset_names']) && is_array($normalized['wordset_names']) && !isset($normalized['ll_import_wordset_names'])) {
+        $normalized['ll_import_wordset_names'] = $normalized['wordset_names'];
+    }
+
+    return $normalized;
+}
+
+function ll_tools_rest_automation_get_import_job_from_request(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_import_helpers();
+
+    $job_id = sanitize_text_field(ll_tools_rest_automation_request_string($request, 'job_id'));
+    if ($job_id === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_import_missing_job_id',
+            __('The requested import job could not be identified.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $job = ll_tools_import_job_get($job_id);
+    if (!is_array($job)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_import_job_not_found',
+            __('The requested import job could not be found.', 'll-tools-text-domain'),
+            404
+        );
+    }
+
+    return $job;
+}
+
+function ll_tools_rest_automation_import_start(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_import_helpers();
+
+    $active_job_id = ll_tools_import_job_get_active_id();
+    if ($active_job_id !== '') {
+        $active_job = ll_tools_import_job_get($active_job_id);
+        if (is_array($active_job) && in_array((string) ($active_job['status'] ?? ''), ['running', 'paused'], true)) {
+            return new WP_Error(
+                'll_tools_rest_import_job_active',
+                __('Another import job is already active. Resume or finish it before starting a new one.', 'll-tools-text-domain'),
+                [
+                    'status' => 409,
+                    'job' => ll_tools_import_job_get_snapshot($active_job),
+                ]
+            );
+        }
+
+        ll_tools_import_job_clear_active_id($active_job_id);
+    }
+
+    $job = ll_tools_import_job_create_from_request(ll_tools_rest_automation_import_request_params($request));
+    if (is_wp_error($job)) {
+        return ll_tools_rest_automation_with_status($job, 400);
+    }
+
+    return rest_ensure_response([
+        'job' => ll_tools_import_job_get_snapshot($job),
+    ]);
+}
+
+function ll_tools_rest_automation_import_status(WP_REST_Request $request) {
+    $job = ll_tools_rest_automation_get_import_job_from_request($request);
+    if (is_wp_error($job)) {
+        return $job;
+    }
+
+    return rest_ensure_response([
+        'job' => ll_tools_import_job_get_snapshot($job),
+    ]);
+}
+
+function ll_tools_rest_automation_import_process(WP_REST_Request $request) {
+    $job = ll_tools_rest_automation_get_import_job_from_request($request);
+    if (is_wp_error($job)) {
+        return $job;
+    }
+
+    $job_id = (string) ($job['id'] ?? '');
+    $status = sanitize_key((string) ($job['status'] ?? 'running'));
+    if ($status === 'completed') {
+        return rest_ensure_response(['job' => ll_tools_import_job_get_snapshot($job)]);
+    }
+
+    if ($status === 'paused') {
+        $job['status'] = 'running';
+        $job['error_message'] = '';
+    }
+
+    $processed_job = ll_tools_import_job_process($job);
+    if (is_wp_error($processed_job)) {
+        $job = ll_tools_import_job_pause($job, $processed_job->get_error_message());
+        $job = ll_tools_import_job_save($job_id, $job);
+
+        return new WP_Error(
+            'll_tools_rest_import_process_failed',
+            $processed_job->get_error_message(),
+            [
+                'status' => 500,
+                'job' => ll_tools_import_job_get_snapshot($job),
+            ]
+        );
+    }
+
+    $saved_job = ll_tools_import_job_save($job_id, $processed_job);
+    return rest_ensure_response([
+        'job' => ll_tools_import_job_get_snapshot($saved_job),
+    ]);
+}
+
+function ll_tools_rest_automation_import_discard(WP_REST_Request $request) {
+    $job = ll_tools_rest_automation_get_import_job_from_request($request);
+    if (is_wp_error($job)) {
+        return $job;
+    }
+
+    $discarded = ll_tools_import_job_discard($job);
+    if (is_wp_error($discarded)) {
+        return new WP_Error(
+            'll_tools_rest_import_discard_failed',
+            $discarded->get_error_message(),
+            [
+                'status' => 409,
+                'job' => ll_tools_import_job_get_snapshot($job),
+            ]
+        );
+    }
+
+    return rest_ensure_response($discarded);
+}
+
+function ll_tools_rest_automation_import_result(WP_REST_Request $request) {
+    $job = ll_tools_rest_automation_get_import_job_from_request($request);
+    if (is_wp_error($job)) {
+        return $job;
+    }
+
+    $snapshot = ll_tools_import_job_get_snapshot($job);
+    return rest_ensure_response([
+        'job' => $snapshot,
+        'result' => isset($snapshot['result']) && is_array($snapshot['result']) ? $snapshot['result'] : null,
+    ]);
+}
+
 function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/automation/status', [
         'methods' => WP_REST_Server::READABLE,
@@ -728,6 +1216,48 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_wordset_report',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/report-summary', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_automation_wordset_report_summary',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/imports/preview', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_import_preview',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/imports/start', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_import_start',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_automation_import_status',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)/process', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_import_process',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)/discard', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_import_discard',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/imports/(?P<job_id>[A-Za-z0-9_-]+)/result', [
+        'methods' => WP_REST_Server::READABLE,
+        'callback' => 'll_tools_rest_automation_import_result',
+        'permission_callback' => 'll_tools_rest_automation_require_import_access',
     ]);
 }
 add_action('rest_api_init', 'll_tools_rest_register_automation_routes');

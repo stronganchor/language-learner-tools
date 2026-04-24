@@ -1102,10 +1102,12 @@ function ll_tools_import_write_history(array $entries): void {
     );
 }
 
-function ll_tools_import_append_history_entry(array $entry): void {
+function ll_tools_import_append_history_entry(array $entry): string {
     if (empty($entry['id'])) {
         $entry['id'] = wp_generate_uuid4();
     }
+    $entry_id = sanitize_text_field((string) $entry['id']);
+    $entry['id'] = $entry_id;
 
     if (isset($entry['history_context']) && is_array($entry['history_context'])) {
         $entry['history_context'] = ll_tools_import_normalize_history_context($entry['history_context']);
@@ -1116,6 +1118,8 @@ function ll_tools_import_append_history_entry(array $entry): void {
     $entries = ll_tools_import_read_history();
     array_unshift($entries, $entry);
     ll_tools_import_write_history($entries);
+
+    return $entry_id;
 }
 
 function ll_tools_import_get_recent_history_entries(): array {
@@ -1629,8 +1633,15 @@ function ll_tools_import_job_get_snapshot(array $job): array {
     $status = sanitize_key((string) ($job['status'] ?? 'running'));
     $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : ll_tools_import_job_default_result();
     $undo = isset($result['undo']) && is_array($result['undo']) ? $result['undo'] : ll_tools_import_default_undo_payload();
+    $include_result = in_array($status, ['completed', 'paused'], true);
+    $undo_counts = [];
+    foreach ($undo as $bucket => $values) {
+        if (is_array($values)) {
+            $undo_counts[(string) $bucket] = count($values);
+        }
+    }
 
-    return [
+    $snapshot = [
         'id' => (string) ($job['id'] ?? ''),
         'status' => $status,
         'statusLabel' => ll_tools_import_job_get_status_label($status),
@@ -1644,6 +1655,21 @@ function ll_tools_import_job_get_snapshot(array $job): array {
         'redirectUrl' => ll_tools_get_export_import_page_url(ll_tools_get_import_page_slug()),
         'updatedAt' => max(0, (int) ($job['updated_at'] ?? 0)),
     ];
+
+    if ($include_result) {
+        $snapshot['result'] = [
+            'ok' => !empty($result['ok']),
+            'message' => trim((string) ($result['message'] ?? '')),
+            'stats' => isset($result['stats']) && is_array($result['stats']) ? $result['stats'] : [],
+            'warnings' => isset($result['warnings']) && is_array($result['warnings']) ? array_values(array_map('strval', $result['warnings'])) : [],
+            'errors' => isset($result['errors']) && is_array($result['errors']) ? array_values(array_map('strval', $result['errors'])) : [],
+            'hasUndo' => ll_tools_import_has_undo_targets($undo),
+            'undoCounts' => $undo_counts,
+            'historyEntryId' => isset($result['history_entry_id']) ? sanitize_text_field((string) $result['history_entry_id']) : '',
+        ];
+    }
+
+    return $snapshot;
 }
 
 function ll_tools_import_job_delete(string $job_id, int $user_id = 0): void {
@@ -7064,11 +7090,14 @@ function ll_tools_handle_import_bundle() {
         ll_tools_delete_import_preview_data($preview_token);
     }
 
-    ll_tools_import_append_result_history(
+    $history_entry_id = ll_tools_import_append_result_history(
         $processed,
         $history_source_type,
         $history_source_zip !== '' ? $history_source_zip : basename($zip_path)
     );
+    if ($history_entry_id !== '') {
+        $processed['history_entry_id'] = $history_entry_id;
+    }
 
     ll_tools_store_import_result_and_redirect($processed);
 }
@@ -9421,9 +9450,8 @@ function ll_tools_import_store_result(array $result): void {
     set_transient('ll_tools_import_result', $result, 5 * MINUTE_IN_SECONDS);
 }
 
-function ll_tools_import_append_result_history(array $processed, string $history_source_type, string $history_source_zip): void {
-    ll_tools_import_append_history_entry([
-        'id' => wp_generate_uuid4(),
+function ll_tools_import_append_result_history(array $processed, string $history_source_type, string $history_source_zip): string {
+    return ll_tools_import_append_history_entry([
         'finished_at' => time(),
         'user_id' => get_current_user_id(),
         'ok' => !empty($processed['ok']),
@@ -9597,12 +9625,16 @@ function ll_tools_import_job_finalize_completion(array $job): array {
     $job['finalize_step'] = 3;
 
     $result = isset($job['result']) && is_array($job['result']) ? $job['result'] : ll_tools_import_job_default_result();
-    ll_tools_import_store_result($result);
-    ll_tools_import_append_result_history(
+    $history_entry_id = ll_tools_import_append_result_history(
         $result,
         (string) ($job['source_type'] ?? 'server'),
         (string) ($job['source_zip'] ?? '')
     );
+    if ($history_entry_id !== '') {
+        $result['history_entry_id'] = $history_entry_id;
+    }
+    $job['result'] = $result;
+    ll_tools_import_store_result($result);
 
     $preview_token = isset($job['preview_token']) ? sanitize_text_field((string) $job['preview_token']) : '';
     if ($preview_token !== '') {

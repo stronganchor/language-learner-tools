@@ -20,13 +20,18 @@ For a normal Codex session against a live LL Tools site:
 5. Give Codex the site URL plus the temporary username and password.
 6. First call `GET /automation/status` to confirm authentication and capability
    scope.
-7. Then call `GET /wordsets/{wordset}/report` to confirm the exact target
-   wordset and current coverage.
+7. Then call `GET /wordsets/{wordset}/report-summary` to confirm the exact
+   target wordset and current coverage without running the heavier full report.
 8. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
 9. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
    write operation.
 10. Re-run the same request without `dry_run` to apply changes.
-11. Delete or downgrade the temporary user when the session is complete.
+11. For bundle imports, preview with `POST /imports/preview`, start with
+    `POST /imports/start`, then poll `POST /imports/{job_id}/process` until the
+    job is completed.
+12. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
+    undo availability, and the import history entry ID.
+13. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -85,6 +90,13 @@ Routes:
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
 - `GET /wordsets/{wordset}/report`
+- `GET /wordsets/{wordset}/report-summary`
+- `POST /imports/preview`
+- `POST /imports/start`
+- `GET /imports/{job_id}`
+- `POST /imports/{job_id}/process`
+- `POST /imports/{job_id}/discard`
+- `GET /imports/{job_id}/result`
 
 `{wordset}` can be a stable wordset slug such as `spanish` or `genc-palu`.
 
@@ -101,7 +113,7 @@ Dump a live report:
 
 ```bash
 curl -u codex-temp:YOUR_PASSWORD \
-  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/report
+  https://example.com/wp-json/ll-tools/v1/wordsets/spanish/report-summary
 ```
 
 List words that are still missing metadata:
@@ -153,6 +165,41 @@ curl -u codex-temp:YOUR_PASSWORD \
     "template": "travel-template",
     "manager": "codex-temp"
   }'
+```
+
+Preview a server-side bundle from the LL Tools import folder:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/imports/preview \
+  -d '{ "existing": "ll-tools-export-spanish.zip" }'
+```
+
+Start the previewed import:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/imports/start \
+  -d '{ "preview_token": "PREVIEW_TOKEN_FROM_PREVIOUS_RESPONSE" }'
+```
+
+Advance the import job until `job.status` is `completed`:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  https://example.com/wp-json/ll-tools/v1/imports/JOB_ID/process
+```
+
+Fetch the durable machine-readable result:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  https://example.com/wp-json/ll-tools/v1/imports/JOB_ID/result
 ```
 
 Dry-run a part-of-speech backfill for only two words:
@@ -247,8 +294,67 @@ Typical uses:
 Returns the full machine-readable wordset report with settings, coverage, and
 per-category counts.
 
-Use this route at the start and end of a session to confirm the target scope and
-to capture a before/after snapshot for later auditing.
+Use this route when you need the detailed missing-metadata and per-category
+breakdown. On large live wordsets it can be slower than the summary route.
+
+### `GET /wordsets/{wordset}/report-summary`
+
+Returns fast live-verification counts without building every word row:
+
+- wordset id, slug, and name
+- key wordset language/settings values
+- word count and category count
+- words with audio and image coverage
+- total audio record count
+
+Use this route for live smoke tests after imports.
+
+### `POST /imports/preview`
+
+Prepares a bundle preview without wp-admin nonce scraping.
+
+Body fields:
+
+- `existing` optional server-side zip filename from the LL Tools import folder
+- `filename` or `ll_import_existing` accepted as aliases for `existing`
+- multipart upload field `file` or `ll_import_file` for direct zip uploads
+
+Returns `preview_token`, bundle summary, warnings, source zip metadata, and the
+default wordset import options.
+
+### `POST /imports/start`
+
+Starts an import job from a preview token.
+
+Body fields:
+
+- `preview_token` required
+- `wordset_mode` optional, or legacy `ll_import_wordset_mode`
+- `target_wordset_id` optional, or legacy `ll_import_target_wordset`
+- `wordset_names` optional map, or legacy `ll_import_wordset_names`
+
+Returns the created job snapshot.
+
+### `GET /imports/{job_id}`
+
+Returns the current job snapshot. Completed and paused snapshots include
+`result` with final or partial stats, warnings, errors, undo availability, and
+`historyEntryId` when the job has created an import history entry.
+
+### `POST /imports/{job_id}/process`
+
+Processes one import batch and returns the updated job snapshot. Keep calling it
+until `job.status` is `completed`.
+
+### `POST /imports/{job_id}/discard`
+
+Discards a paused partial import and returns the cleanup result. This is only
+valid for paused jobs.
+
+### `GET /imports/{job_id}/result`
+
+Returns the durable per-job result for completed or paused jobs. This is the
+machine-readable replacement for parsing the short-lived wp-admin notice.
 
 ## Permissions
 
@@ -257,6 +363,9 @@ The routes still respect LL Tools permissions:
 - Any automation caller must pass the `view_ll_tools` gate.
 - Wordset-scoped routes also require access to manage that specific wordset.
 - Wordset creation requires `edit_wordsets`.
+- Import routes require the same capability as the LL Tools import admin page
+  (`manage_options` by default, filterable through
+  `ll_tools_export_import_capability`).
 
 That means a `wordset_manager` can use these routes for their assigned wordset
 but not for unrelated wordsets.
