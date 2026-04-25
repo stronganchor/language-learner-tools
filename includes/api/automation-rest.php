@@ -11,6 +11,12 @@ function ll_tools_rest_automation_load_import_helpers(): void {
     }
 }
 
+function ll_tools_rest_automation_load_word_option_rules_helpers(): void {
+    if (!function_exists('ll_tools_update_word_option_rules')) {
+        require_once LL_TOOLS_BASE_PATH . 'includes/lib/word-option-rules.php';
+    }
+}
+
 function ll_tools_rest_automation_get_route_path(): string {
     $rest_route = isset($_GET['rest_route']) ? wp_unslash((string) $_GET['rest_route']) : '';
     if ($rest_route !== '') {
@@ -440,6 +446,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
+            'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
             'import_preview' => '/ll-tools/v1/imports/preview',
@@ -816,6 +823,459 @@ function ll_tools_rest_automation_get_category_ids_for_words(array $word_ids): a
     ";
 
     return ll_tools_rest_automation_prepare_id_list((array) $wpdb->get_col(ll_tools_rest_automation_prepare_sql($sql, $word_ids)));
+}
+
+function ll_tools_rest_automation_array_is_list(array $value): bool {
+    if (empty($value)) {
+        return true;
+    }
+
+    return array_keys($value) === range(0, count($value) - 1);
+}
+
+function ll_tools_rest_automation_term_summary(WP_Term $term): array {
+    return [
+        'id' => (int) $term->term_id,
+        'slug' => (string) $term->slug,
+        'name' => (string) $term->name,
+    ];
+}
+
+function ll_tools_rest_automation_get_word_option_category_spec(WP_REST_Request $request): string {
+    foreach (['category', 'category_id', 'category_slug'] as $key) {
+        $value = ll_tools_rest_automation_request_string($request, $key);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_rest_automation_resolve_word_option_category(WP_Term $wordset_term, string $category_spec, bool $create_missing) {
+    $category_spec = trim($category_spec);
+    if ($category_spec === '') {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_word_option_rules_missing_category',
+            __('Provide category, category_id, or category_slug for the word-option rules update.', 'll-tools-text-domain'),
+            400
+        );
+    }
+
+    $term = null;
+    if ($create_missing && function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
+        $term = ll_tools_resolve_word_category_term_for_wordsets($category_spec, [(int) $wordset_term->term_id]);
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        $term = function_exists('ll_tools_resolve_word_category_term')
+            ? ll_tools_resolve_word_category_term($category_spec)
+            : null;
+    }
+    if (!($term instanceof WP_Term) || is_wp_error($term)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_word_option_rules_category_not_found',
+            sprintf(
+                /* translators: %s: category identifier */
+                __('Unable to resolve word category: %s', 'll-tools-text-domain'),
+                $category_spec
+            ),
+            404
+        );
+    }
+
+    $source_term = $term;
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset((int) $term->term_id, (int) $wordset_term->term_id, $create_missing);
+        if ($effective_category_id > 0 && $effective_category_id !== (int) $term->term_id) {
+            $effective_term = get_term($effective_category_id, 'word-category');
+            if ($effective_term instanceof WP_Term && !is_wp_error($effective_term)) {
+                $term = $effective_term;
+            }
+        }
+    }
+
+    if (function_exists('ll_tools_get_category_wordset_owner_id')) {
+        $owner_wordset_id = (int) ll_tools_get_category_wordset_owner_id($term);
+        if ($owner_wordset_id > 0 && $owner_wordset_id !== (int) $wordset_term->term_id) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_word_option_rules_category_forbidden',
+                __('That word category belongs to a different word set.', 'll-tools-text-domain'),
+                403
+            );
+        }
+    }
+
+    return [
+        'term' => $term,
+        'source_term' => $source_term,
+    ];
+}
+
+function ll_tools_rest_automation_word_ref_preview($ref): string {
+    if (is_scalar($ref)) {
+        return trim((string) $ref);
+    }
+
+    if (is_array($ref)) {
+        foreach (['id', 'word_id', 'slug', 'word_slug', 'word', 'title', 'text'] as $key) {
+            if (isset($ref[$key]) && is_scalar($ref[$key])) {
+                return trim((string) $ref[$key]);
+            }
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_rest_automation_collect_word_refs($raw): array {
+    if (!is_array($raw)) {
+        return is_scalar($raw) ? [$raw] : [];
+    }
+
+    foreach ([['a', 'b'], ['word_a', 'word_b'], ['left', 'right']] as $pair_keys) {
+        if (array_key_exists($pair_keys[0], $raw) && array_key_exists($pair_keys[1], $raw)) {
+            return [$raw[$pair_keys[0]], $raw[$pair_keys[1]]];
+        }
+    }
+
+    $refs = [];
+    foreach (['word_ids', 'words', 'word_slugs', 'slugs', 'ids'] as $key) {
+        if (!array_key_exists($key, $raw)) {
+            continue;
+        }
+
+        $value = $raw[$key];
+        if (is_array($value)) {
+            foreach ($value as $item) {
+                $refs[] = $item;
+            }
+        } elseif (is_scalar($value)) {
+            $refs[] = $value;
+        }
+    }
+
+    if (empty($refs) && ll_tools_rest_automation_array_is_list($raw)) {
+        foreach ($raw as $item) {
+            $refs[] = $item;
+        }
+    }
+
+    return $refs;
+}
+
+function ll_tools_rest_automation_prepare_word_summary(int $word_id): array {
+    $post = get_post($word_id);
+
+    return [
+        'id' => $word_id,
+        'slug' => $post instanceof WP_Post ? (string) $post->post_name : '',
+        'title' => $post instanceof WP_Post ? (string) get_the_title($post) : '',
+    ];
+}
+
+function ll_tools_rest_automation_add_missing_word(array &$missing_words, $ref, string $context, string $reason, int $word_id = 0): void {
+    $entry = [
+        'context' => $context,
+        'ref' => ll_tools_rest_automation_word_ref_preview($ref),
+        'reason' => $reason,
+    ];
+    if ($word_id > 0) {
+        $entry['word'] = ll_tools_rest_automation_prepare_word_summary($word_id);
+    }
+
+    $missing_words[] = $entry;
+}
+
+function ll_tools_rest_automation_resolve_word_option_word_ref(int $wordset_id, int $category_id, $ref, string $context, array &$missing_words): int {
+    $word_ref = ll_tools_rest_automation_word_ref_preview($ref);
+    if ($word_ref === '') {
+        ll_tools_rest_automation_add_missing_word($missing_words, $ref, $context, 'empty_ref');
+        return 0;
+    }
+
+    if (ctype_digit($word_ref)) {
+        $word_id = (int) $word_ref;
+        if ($word_id <= 0 || get_post_type($word_id) !== 'words' || !has_term($wordset_id, 'wordset', $word_id)) {
+            ll_tools_rest_automation_add_missing_word($missing_words, $ref, $context, 'not_found_in_wordset');
+            return 0;
+        }
+    } else {
+        $resolved_word_id = ll_tools_cli_resolve_word_id($wordset_id, $word_ref);
+        if (is_wp_error($resolved_word_id)) {
+            ll_tools_rest_automation_add_missing_word($missing_words, $ref, $context, 'not_found_in_wordset');
+            return 0;
+        }
+        $word_id = (int) $resolved_word_id;
+    }
+
+    if ($category_id > 0 && !has_term($category_id, 'word-category', $word_id)) {
+        ll_tools_rest_automation_add_missing_word($missing_words, $ref, $context, 'not_in_category', $word_id);
+        return 0;
+    }
+
+    return $word_id;
+}
+
+function ll_tools_rest_automation_resolve_word_refs(int $wordset_id, int $category_id, array $refs, string $context, array &$missing_words): array {
+    $word_ids = [];
+    foreach ($refs as $index => $ref) {
+        $word_id = ll_tools_rest_automation_resolve_word_option_word_ref(
+            $wordset_id,
+            $category_id,
+            $ref,
+            $context . '[' . $index . ']',
+            $missing_words
+        );
+        if ($word_id > 0) {
+            $word_ids[] = $word_id;
+        }
+    }
+
+    return ll_tools_rest_automation_prepare_id_list($word_ids);
+}
+
+function ll_tools_rest_automation_normalize_word_option_groups_for_rest($groups_raw, int $wordset_id, int $category_id, array &$missing_words, array &$errors): array {
+    if (!is_array($groups_raw)) {
+        $errors[] = [
+            'context' => 'groups',
+            'message' => __('Groups must be an array.', 'll-tools-text-domain'),
+        ];
+        return [];
+    }
+
+    $groups = [];
+    foreach ($groups_raw as $index => $group_raw) {
+        $context = 'groups[' . (is_scalar($index) ? (string) $index : '') . ']';
+        $label = '';
+        if (is_array($group_raw) && isset($group_raw['label']) && is_scalar($group_raw['label'])) {
+            $label = trim(sanitize_text_field((string) $group_raw['label']));
+        } elseif (is_string($index) && !is_numeric($index)) {
+            $label = trim(sanitize_text_field($index));
+        }
+
+        if ($label === '') {
+            $errors[] = [
+                'context' => $context,
+                'message' => __('Every word-option group needs a label.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $word_ids = ll_tools_rest_automation_resolve_word_refs(
+            $wordset_id,
+            $category_id,
+            ll_tools_rest_automation_collect_word_refs($group_raw),
+            $context . '.words',
+            $missing_words
+        );
+        if (empty($word_ids)) {
+            $errors[] = [
+                'context' => $context,
+                'message' => __('Word-option groups must contain at least one resolved word.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $groups[] = [
+            'label' => $label,
+            'word_ids' => $word_ids,
+        ];
+    }
+
+    return $groups;
+}
+
+function ll_tools_rest_automation_normalize_word_option_pairs_for_rest($pairs_raw, int $wordset_id, int $category_id, array &$missing_words, array &$errors, bool $include_recording_types): array {
+    ll_tools_rest_automation_load_word_option_rules_helpers();
+
+    if (!is_array($pairs_raw)) {
+        $errors[] = [
+            'context' => $include_recording_types ? 'pairs' : 'similar_image_overrides',
+            'message' => __('Word-option pairs must be an array.', 'll-tools-text-domain'),
+        ];
+        return [];
+    }
+
+    $pairs = [];
+    foreach ($pairs_raw as $index => $pair_raw) {
+        $context = ($include_recording_types ? 'pairs' : 'similar_image_overrides') . '[' . (is_scalar($index) ? (string) $index : '') . ']';
+        $word_ids = ll_tools_rest_automation_resolve_word_refs(
+            $wordset_id,
+            $category_id,
+            ll_tools_rest_automation_collect_word_refs($pair_raw),
+            $context . '.words',
+            $missing_words
+        );
+        if (count($word_ids) < 2) {
+            $errors[] = [
+                'context' => $context,
+                'message' => __('Word-option pairs must contain two resolved words.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $pair = [
+            'word_ids' => array_slice($word_ids, 0, 2),
+        ];
+        if ($include_recording_types && is_array($pair_raw)) {
+            $pair['unblocked_recording_types'] = function_exists('ll_tools_normalize_word_option_pair_recording_type_list')
+                ? ll_tools_normalize_word_option_pair_recording_type_list($pair_raw['unblocked_recording_types'] ?? [])
+                : [];
+        }
+        $pairs[] = $pair;
+    }
+
+    return function_exists('ll_tools_normalize_word_option_pair_list')
+        ? ll_tools_normalize_word_option_pair_list($pairs)
+        : $pairs;
+}
+
+function ll_tools_rest_automation_request_has_any_param(WP_REST_Request $request, array $keys): bool {
+    $params = $request->get_params();
+    foreach ($keys as $key) {
+        if (is_array($params) && array_key_exists($key, $params)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_rest_automation_first_request_param(WP_REST_Request $request, array $keys) {
+    $params = $request->get_params();
+    foreach ($keys as $key) {
+        if (is_array($params) && array_key_exists($key, $params)) {
+            return $params[$key];
+        }
+    }
+
+    return null;
+}
+
+function ll_tools_rest_automation_word_option_rules(WP_REST_Request $request) {
+    ll_tools_rest_automation_load_word_option_rules_helpers();
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $category_result = ll_tools_rest_automation_resolve_word_option_category(
+        $wordset_term,
+        ll_tools_rest_automation_get_word_option_category_spec($request),
+        !$dry_run
+    );
+    if (is_wp_error($category_result)) {
+        return $category_result;
+    }
+
+    $category_term = $category_result['term'];
+    $source_category_term = $category_result['source_term'];
+    $wordset_id = (int) $wordset_term->term_id;
+    $category_id = (int) $category_term->term_id;
+    $current_rules = function_exists('ll_tools_get_word_option_rules')
+        ? ll_tools_get_word_option_rules($wordset_id, $category_id)
+        : ['groups' => [], 'pairs' => [], 'similar_image_overrides' => []];
+
+    $errors = [];
+    $missing_words = [];
+    $groups = (array) ($current_rules['groups'] ?? []);
+    $pairs = (array) ($current_rules['pairs'] ?? []);
+    $similar_image_overrides = (array) ($current_rules['similar_image_overrides'] ?? []);
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['groups', 'word_option_groups'])) {
+        $groups = ll_tools_rest_automation_normalize_word_option_groups_for_rest(
+            ll_tools_rest_automation_first_request_param($request, ['groups', 'word_option_groups']),
+            $wordset_id,
+            $category_id,
+            $missing_words,
+            $errors
+        );
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['pairs', 'blocked_pairs'])) {
+        $pairs = ll_tools_rest_automation_normalize_word_option_pairs_for_rest(
+            ll_tools_rest_automation_first_request_param($request, ['pairs', 'blocked_pairs']),
+            $wordset_id,
+            $category_id,
+            $missing_words,
+            $errors,
+            true
+        );
+    }
+
+    if (ll_tools_rest_automation_request_has_any_param($request, ['similar_image_overrides'])) {
+        $similar_image_overrides = ll_tools_rest_automation_normalize_word_option_pairs_for_rest(
+            ll_tools_rest_automation_first_request_param($request, ['similar_image_overrides']),
+            $wordset_id,
+            $category_id,
+            $missing_words,
+            $errors,
+            false
+        );
+    }
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'valid' => empty($errors) && empty($missing_words),
+        'wordset' => ll_tools_rest_automation_term_summary($wordset_term),
+        'category' => ll_tools_rest_automation_term_summary($category_term),
+        'source_category' => ll_tools_rest_automation_term_summary($source_category_term),
+        'rules' => [
+            'groups' => $groups,
+            'pairs' => $pairs,
+            'similar_image_overrides' => $similar_image_overrides,
+        ],
+        'counts' => [
+            'groups' => count($groups),
+            'pairs' => count($pairs),
+            'similar_image_overrides' => count($similar_image_overrides),
+            'missing_words' => count($missing_words),
+            'errors' => count($errors),
+        ],
+        'missing_words' => $missing_words,
+        'errors' => $errors,
+        'updated' => false,
+    ];
+
+    if (!$summary['valid']) {
+        if ($dry_run) {
+            return rest_ensure_response($summary);
+        }
+
+        return new WP_Error(
+            'll_tools_rest_word_option_rules_invalid',
+            __('Word-option rules were not saved because the payload did not validate. Review missing_words and errors in the response data.', 'll-tools-text-domain'),
+            [
+                'status' => 400,
+                'summary' => $summary,
+                'missing_words' => $missing_words,
+                'errors' => $errors,
+            ]
+        );
+    }
+
+    if ($dry_run) {
+        return rest_ensure_response($summary);
+    }
+
+    $updated = ll_tools_update_word_option_rules($wordset_id, $category_id, $groups, $pairs, $similar_image_overrides);
+    if (!$updated) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_word_option_rules_update_failed',
+            __('Word-option rules could not be saved for this word set and category.', 'll-tools-text-domain'),
+            500
+        );
+    }
+
+    $summary['updated'] = true;
+    $summary['rules'] = function_exists('ll_tools_get_word_option_rules')
+        ? ll_tools_get_word_option_rules($wordset_id, $category_id)
+        : $summary['rules'];
+
+    return rest_ensure_response($summary);
 }
 
 function ll_tools_rest_automation_wordset_report_summary(WP_REST_Request $request) {
@@ -1209,6 +1669,12 @@ function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/bulk-update', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_bulk_update',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/word-option-rules', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_word_option_rules',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
     ]);
 

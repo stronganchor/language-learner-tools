@@ -26,12 +26,15 @@ For a normal Codex session against a live LL Tools site:
 9. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
    write operation.
 10. Re-run the same request without `dry_run` to apply changes.
-11. For bundle imports, preview with `POST /imports/preview`, start with
+11. For word-option groups, call
+    `POST /wordsets/{wordset}/word-option-rules` with `dry_run=true` before
+    applying the same payload without `dry_run`.
+12. For bundle imports, preview with `POST /imports/preview`, start with
     `POST /imports/start`, then poll `POST /imports/{job_id}/process` until the
     job is completed.
-12. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
+13. Fetch `GET /imports/{job_id}/result` for final stats, warnings, errors,
     undo availability, and the import history entry ID.
-13. Delete or downgrade the temporary user when the session is complete.
+14. Delete or downgrade the temporary user when the session is complete.
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
@@ -89,6 +92,7 @@ Routes:
 - `POST /wordsets`
 - `GET /wordsets/{wordset}/missing-meta`
 - `POST /wordsets/{wordset}/bulk-update`
+- `POST /wordsets/{wordset}/word-option-rules`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
 - `POST /imports/preview`
@@ -97,6 +101,10 @@ Routes:
 - `POST /imports/{job_id}/process`
 - `POST /imports/{job_id}/discard`
 - `GET /imports/{job_id}/result`
+
+Word-option-rule updates should use `POST
+/wordsets/{wordset}/word-option-rules` instead of wp-admin form replay around
+`ll_tools_save_word_option_rules_async`.
 
 `{wordset}` can be a stable wordset slug such as `spanish` or `genc-palu`.
 
@@ -151,6 +159,32 @@ curl -u codex-temp:YOUR_PASSWORD \
     "set": { "field": "grammatical_gender", "value": "feminine" }
   }'
 ```
+
+Dry-run staged word-option groups by category slug and word slugs:
+
+```bash
+curl -u codex-temp:YOUR_PASSWORD \
+  -X POST \
+  -H "Content-Type: application/json" \
+  https://example.com/wp-json/ll-tools/v1/wordsets/biblical-greek/word-option-rules \
+  -d '{
+    "category_slug": "awa-lesson-01-2-masculine-big-and-small",
+    "dry_run": true,
+    "groups": [
+      {
+        "label": "size small",
+        "word_slugs": [
+          "awa-phrase-kamelos-mikros",
+          "awa-phrase-bous-mikros",
+          "awa-phrase-hippos-mikros",
+          "awa-phrase-onos-mikros"
+        ]
+      }
+    ]
+  }'
+```
+
+Apply the same word-option groups for real by removing `"dry_run": true`.
 
 Create a wordset from a template:
 
@@ -394,3 +428,40 @@ Use WP-CLI instead when:
   - The request is probably plain HTTP instead of HTTPS.
 - Local WSL `curl` connection failures
   - Use `bash bin/ll-rest-local.sh ...` instead of Linux `curl`.
+
+### `POST /wordsets/{wordset}/word-option-rules`
+
+Saves word-option groups and optional blocked-pair rules for one category without
+loading wp-admin HTML.
+
+Body fields:
+
+- `category`, `category_id`, or `category_slug` required
+- `groups` or `word_option_groups` optional; omitted groups preserve existing groups
+- `pairs` or `blocked_pairs` optional; omitted pairs preserve existing pairs
+- `similar_image_overrides` optional; omitted overrides preserve existing overrides
+- `dry_run` optional boolean
+
+Group entries can use word IDs or slugs:
+
+```json
+{
+  "category_slug": "awa-lesson-01-2-masculine-big-and-small",
+  "dry_run": true,
+  "groups": [
+    {
+      "label": "noun donkey",
+      "word_slugs": [
+        "awa-phrase-onos-megas",
+        "awa-phrase-onos-mikros"
+      ]
+    }
+  ]
+}
+```
+
+The response includes the resolved wordset, category, normalized groups,
+normalized pairs, `missing_words`, and validation `errors`. Dry-runs return the
+same structure without writing. Non-dry-run validation failures return structured
+JSON with the same `missing_words` and `errors` data instead of relying on a
+nonce/form timeout.
