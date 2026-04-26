@@ -235,6 +235,38 @@ function ll_tools_wordset_page_get_main_sort_label(array $category): string {
     return trim($label);
 }
 
+function ll_tools_wordset_page_category_is_public_for_main_order(array $category): bool {
+    return !array_key_exists('is_public', $category) || !empty($category['is_public']);
+}
+
+function ll_tools_wordset_page_compare_public_status_for_main_order(array $left, array $right): int {
+    $left_rank = ll_tools_wordset_page_category_is_public_for_main_order($left) ? 0 : 1;
+    $right_rank = ll_tools_wordset_page_category_is_public_for_main_order($right) ? 0 : 1;
+
+    return $left_rank <=> $right_rank;
+}
+
+function ll_tools_wordset_page_order_inactive_categories_last(array $categories): array {
+    if (count($categories) < 2) {
+        return array_values($categories);
+    }
+
+    $public_categories = [];
+    $inactive_categories = [];
+    foreach (array_values($categories) as $category) {
+        if (!is_array($category)) {
+            continue;
+        }
+        if (ll_tools_wordset_page_category_is_public_for_main_order($category)) {
+            $public_categories[] = $category;
+        } else {
+            $inactive_categories[] = $category;
+        }
+    }
+
+    return array_merge($public_categories, $inactive_categories);
+}
+
 function ll_tools_wordset_page_get_main_sort_progress_values(array $category): array {
     $total_words = max(0, (int) ($category['count'] ?? 0));
     $mastered_words = max(0, (int) ($category['mastered_words'] ?? 0));
@@ -257,6 +289,11 @@ function ll_tools_wordset_page_get_main_sort_progress_values(array $category): a
 
 function ll_tools_wordset_page_compare_categories_for_main_sort(array $left, array $right, string $sort_key): int {
     $sort_key = ll_tools_wordset_page_normalize_main_sort($sort_key);
+    $public_status_cmp = ll_tools_wordset_page_compare_public_status_for_main_order($left, $right);
+    if ($public_status_cmp !== 0) {
+        return $public_status_cmp;
+    }
+
     $compare_default = static function () use ($left, $right): int {
         $left_order = max(0, (int) ($left['default_order'] ?? 0));
         $right_order = max(0, (int) ($right['default_order'] ?? 0));
@@ -380,8 +417,12 @@ function ll_tools_wordset_page_sort_categories_for_main_sort(array $categories, 
         $prepared[] = $category;
     }
 
-    if (count($prepared) < 2 || $sort_key === 'default') {
+    if (count($prepared) < 2) {
         return $prepared;
+    }
+
+    if ($sort_key === 'default') {
+        return ll_tools_wordset_page_order_inactive_categories_last($prepared);
     }
 
     usort($prepared, static function (array $left, array $right) use ($sort_key): int {
@@ -2659,6 +2700,7 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
             $visible_categories[] = $enhanced;
         }
     }
+    $enhanced_categories = ll_tools_wordset_page_order_inactive_categories_last($enhanced_categories);
 
     $wordset_content_lessons = function_exists('ll_tools_get_content_lessons_for_wordset')
         ? ll_tools_get_content_lessons_for_wordset($wordset_id)
@@ -11938,6 +11980,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             $visible_categories[] = $enhanced;
         }
     }
+    $enhanced_categories = ll_tools_wordset_page_order_inactive_categories_last($enhanced_categories);
     $hidden_category_count = count($hidden_categories);
     $saved_main_category_sort = $is_main_view
         ? ll_tools_wordset_page_get_saved_main_sort($wordset_id)

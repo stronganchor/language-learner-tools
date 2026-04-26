@@ -959,6 +959,10 @@
         return Math.max(0, parseInt(category && category.default_order, 10) || 0);
     }
 
+    function mainCategoryPublicOrder(category) {
+        return categoryIsPublic(category) ? 0 : 1;
+    }
+
     function mainCategoryProgressValues(category) {
         const cat = (category && typeof category === 'object') ? category : {};
         const totalWords = Math.max(0, parseInt(cat.count, 10) || 0);
@@ -992,6 +996,10 @@
         const compareDefault = function () {
             return mainCategoryDefaultOrder(left) - mainCategoryDefaultOrder(right);
         };
+        const publicCompare = mainCategoryPublicOrder(left) - mainCategoryPublicOrder(right);
+        if (publicCompare !== 0) {
+            return publicCompare;
+        }
 
         const currentNeedsMetrics = mainCategorySortRequiresMetrics(currentSort);
         if (currentNeedsMetrics && !mainCategoryMetricsReady) {

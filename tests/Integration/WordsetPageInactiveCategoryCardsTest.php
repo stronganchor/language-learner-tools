@@ -28,6 +28,9 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Inactive Staff Only Category', $staff_html);
         $this->assertStringContainsString('Empty Owned Staff Category', $staff_html);
         $this->assertStringContainsString('Image Only Staff Category', $staff_html);
+        $this->assertCategoryAppearsBefore($staff_html, 'Public Staff Visible Category', 'Inactive Staff Only Category');
+        $this->assertCategoryAppearsBefore($staff_html, 'Public Staff Visible Category', 'Empty Owned Staff Category');
+        $this->assertCategoryAppearsBefore($staff_html, 'Public Staff Visible Category', 'Image Only Staff Category');
         $this->assertStringContainsString('ll-wordset-card--inactive', $inactive_card);
         $this->assertStringContainsString('data-ll-wordset-public="0"', $inactive_card);
         $this->assertStringContainsString('Not public', $inactive_card);
@@ -217,10 +220,25 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
 
     private function extractCategoryCardMarkupByText(string $html, string $needle): string
     {
-        $pattern = '/<article\b[^>]*>.*?' . preg_quote($needle, '/') . '.*?<\/article>/s';
+        $pattern = '/<article\b[^>]*>.*?<\/article>/s';
         $matches = [];
-        $found = preg_match($pattern, $html, $matches);
-        $this->assertSame(1, $found, 'Expected wordset card markup containing ' . $needle . '.');
-        return isset($matches[0]) ? (string) $matches[0] : '';
+        $found = preg_match_all($pattern, $html, $matches);
+        $this->assertGreaterThan(0, $found, 'Expected wordset card markup.');
+        foreach ((array) ($matches[0] ?? []) as $match) {
+            if (strpos((string) $match, $needle) !== false) {
+                return (string) $match;
+            }
+        }
+
+        $this->fail('Expected wordset card markup containing ' . $needle . '.');
+    }
+
+    private function assertCategoryAppearsBefore(string $html, string $first, string $second): void
+    {
+        $first_position = strpos($html, $first);
+        $second_position = strpos($html, $second);
+        $this->assertNotFalse($first_position, 'Expected markup containing ' . $first . '.');
+        $this->assertNotFalse($second_position, 'Expected markup containing ' . $second . '.');
+        $this->assertLessThan($second_position, $first_position, $first . ' should render before ' . $second . '.');
     }
 }
