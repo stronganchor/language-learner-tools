@@ -316,6 +316,17 @@ async function mountWordsetPage(page, options = {}) {
     window.confirm = function () { return true; };
     window.__llLazyAjaxCalls = [];
     window.__llInactiveActionAjaxCalls = [];
+    window.__llInactivePreviewSubmits = [];
+    document.addEventListener('submit', (event) => {
+      if (event.target && event.target.matches('[data-ll-wordset-inactive-preview-form]')) {
+        event.preventDefault();
+        const formData = new FormData(event.target);
+        window.__llInactivePreviewSubmits.push({
+          action: formData.get('ll_wordset_inactive_category_action'),
+          categoryId: Number.parseInt(formData.get('ll_wordset_inactive_category_id'), 10) || 0
+        });
+      }
+    }, true);
 
     const $ = window.jQuery;
     const normalizeAjaxData = function (raw) {
@@ -480,6 +491,32 @@ test('client-rendered inactive categories include hide and trash controls', asyn
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--hide')).toHaveCount(1);
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeDisabled();
   await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
+  await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-trigger]')).toHaveCount(2);
+  await expect(inactiveCard.locator('[data-ll-wordset-inactive-preview-form]')).toHaveCount(1);
+  await expect(inactiveCard.locator('.ll-wordset-card__staff-action--preview')).toHaveCount(0);
+});
+
+test('inactive category card body submits preview form without a visible preview button', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], inactiveCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 2,
+      remaining: 0
+    }
+  });
+
+  await page.fill('[data-ll-wordset-page-search]', 'matematik');
+  const inactiveCard = page.locator('.ll-wordset-card--inactive[data-cat-id="44"]');
+  await inactiveCard.locator('.ll-wordset-card__lesson-link--inactive-preview').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llInactivePreviewSubmits);
+  }).toEqual([{ action: 'preview', categoryId: 44 }]);
+  await expect(page.locator('.ll-wordset-card__staff-action--preview')).toHaveCount(0);
 });
 
 test('legacy inactive cards missing action controls are repaired on init', async ({ page }) => {

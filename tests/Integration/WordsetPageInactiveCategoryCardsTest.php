@@ -35,7 +35,12 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-wordset-public="0"', $inactive_card);
         $this->assertStringContainsString('Not public', $inactive_card);
         $this->assertStringContainsString('Needs more quiz-ready words.', $inactive_card);
+        $this->assertStringContainsString('data-ll-wordset-inactive-preview-card="true"', $inactive_card);
+        $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $inactive_card);
+        $this->assertStringNotContainsString('ll-wordset-card__staff-actions', $inactive_card);
+        $this->assertStringNotContainsString('ll-wordset-card__staff-action--preview', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--hide', $inactive_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $inactive_card);
@@ -46,13 +51,21 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('href="', $inactive_card);
 
         $this->assertStringContainsString('No words yet.', $empty_card);
+        $this->assertStringNotContainsString('data-ll-wordset-inactive-preview-card="true"', $empty_card);
+        $this->assertStringNotContainsString('data-ll-wordset-inactive-preview-trigger', $empty_card);
+        $this->assertStringNotContainsString('ll-wordset-card__inactive-preview-form', $empty_card);
         $this->assertStringNotContainsString('ll_wordset_inactive_category_action" value="preview"', $empty_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="delete"', $empty_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $empty_card);
         $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $empty_card);
 
         $this->assertStringContainsString('Needs word records.', $image_card);
+        $this->assertStringContainsString('data-ll-wordset-inactive-preview-card="true"', $image_card);
+        $this->assertStringContainsString('data-ll-wordset-inactive-preview-trigger', $image_card);
+        $this->assertStringContainsString('ll-wordset-card__inactive-preview-form', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $image_card);
+        $this->assertStringNotContainsString('ll-wordset-card__staff-actions', $image_card);
+        $this->assertStringNotContainsString('ll-wordset-card__staff-action--preview', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $image_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $image_card);
         $this->assertStringContainsString('ll-wordset-trash-icon', $image_card);
@@ -152,6 +165,8 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-wordset-card__inactive-action--hide', $html);
         $this->assertStringContainsString('ll-wordset-trash-icon', $html);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete" disabled', $html);
+        $this->assertStringNotContainsString('data-ll-wordset-inactive-preview-trigger', $html);
+        $this->assertStringNotContainsString('ll-wordset-card__inactive-preview-form', $html);
     }
 
     public function test_inactive_category_action_process_hides_category_for_logged_in_viewer(): void

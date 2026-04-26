@@ -2440,70 +2440,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-width: 0;
 }
 
-.ll-wordset-card__staff-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-    gap: 6px;
-    min-height: 34px;
-}
-
-.ll-wordset-card__staff-action-form {
-    display: inline-flex;
-    margin: 0;
-    padding: 0;
-}
-
-.ll-wordset-page .ll-wordset-card__staff-action,
-.ll-wordset-card__staff-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 32px;
-    padding: 6px 10px;
-    border: 1px solid #cfd6df !important;
-    border-radius: 8px !important;
-    background: #ffffff !important;
-    color: #374151 !important;
-    font-size: 0.76rem !important;
-    font-weight: 700 !important;
-    line-height: 1 !important;
-    text-decoration: none !important;
-    box-shadow: none !important;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.ll-wordset-page .ll-wordset-card__staff-action:hover,
-.ll-wordset-page .ll-wordset-card__staff-action:focus-visible,
-.ll-wordset-card__staff-action:hover,
-.ll-wordset-card__staff-action:focus-visible {
-    border-color: #8a98a8 !important;
-    color: #111827 !important;
-    box-shadow: 0 0 0 3px rgba(77, 93, 113, 0.14) !important;
-    outline: none !important;
-}
-
-.ll-wordset-page .ll-wordset-card__staff-action--preview,
-.ll-wordset-card__staff-action--preview {
-    border-color: #9fb6d6 !important;
-    color: #1f4f82 !important;
-}
-
-.ll-wordset-page .ll-wordset-card__staff-action--delete,
-.ll-wordset-card__staff-action--delete {
-    border-color: #e2b8b8 !important;
-    color: #9f1d1d !important;
-}
-
-.ll-wordset-page .ll-wordset-card__staff-action:disabled,
-.ll-wordset-card__staff-action:disabled {
-    opacity: 0.48;
-    cursor: not-allowed;
-    box-shadow: none !important;
-}
-
 .ll-wordset-card__lesson-link {
     text-decoration: none !important;
     color: inherit !important;
@@ -2512,6 +2448,17 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 .ll-wordset-card__lesson-link--inactive {
     cursor: default;
+}
+
+.ll-wordset-card__heading--inactive-preview,
+.ll-wordset-card__lesson-link--inactive-preview {
+    cursor: pointer;
+}
+
+.ll-wordset-card__heading--inactive-preview:focus-visible,
+.ll-wordset-card__lesson-link--inactive-preview:focus-visible {
+    outline: 3px solid rgba(77, 93, 113, 0.22);
+    outline-offset: 3px;
 }
 
 .ll-wordset-card__preview {

@@ -6712,33 +6712,23 @@
         return '<svg class="ll-wordset-trash-icon" viewBox="0 0 875 1000" width="18" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M0 281.296l0 -68.355q1.953 -37.107 29.295 -62.496t64.449 -25.389l93.744 0l0 -31.248q0 -39.06 27.342 -66.402t66.402 -27.342l312.48 0q39.06 0 66.402 27.342t27.342 66.402l0 31.248l93.744 0q37.107 0 64.449 25.389t29.295 62.496l0 68.355q0 25.389 -18.553 43.943t-43.943 18.553l0 531.216q0 52.731 -36.13 88.862t-88.862 36.13l-499.968 0q-52.731 0 -88.862 -36.13t-36.13 -88.862l0 -531.216q-25.389 0 -43.943 -18.553t-18.553 -43.943zm62.496 0l749.952 0l0 -62.496q0 -13.671 -8.789 -22.46t-22.46 -8.789l-687.456 0q-13.671 0 -22.46 8.789t-8.789 22.46l0 62.496zm62.496 593.712q0 25.389 18.553 43.943t43.943 18.553l499.968 0q25.389 0 43.943 -18.553t18.553 -43.943l0 -531.216l-624.96 0l0 531.216zm62.496 -31.248l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224zm31.248 -718.704l374.976 0l0 -31.248q0 -13.671 -8.789 -22.46t-22.46 -8.789l-312.48 0q-13.671 0 -22.46 8.789t-8.789 22.46l0 31.248zm124.992 718.704l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224zm156.24 0l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224z"></path></svg>';
     }
 
-    function buildInactiveCategoryActionForm(category, action, label, enabled, modifier, disabledReason, confirmMessage) {
+    function buildInactiveCategoryHiddenActionForm(category, action, formClass) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
         const wordsetId = parseInt(cat.wordset_id, 10) || 0;
         const nonce = String(cat.inactive_action_nonce || '').trim();
         const actionUrl = String(cat.inactive_action_url || '').trim();
         const actionName = String(action || '').trim();
-        const buttonClass = 'll-wordset-card__staff-action' + (modifier ? ' ll-wordset-card__staff-action--' + String(modifier).replace(/[^A-Za-z0-9_-]/g, '') : '');
-        const buttonLabel = String(label || '').trim();
-        const disabledTitle = String(disabledReason || '').trim();
-        if (!categoryId || !wordsetId || !actionName || !buttonLabel) {
+        const className = String(formClass || 'll-wordset-card__inactive-preview-form').replace(/[^A-Za-z0-9_-]/g, '');
+        if (!categoryId || !wordsetId || !actionName || !nonce || !actionUrl || !className) {
             return '';
         }
-        if (!enabled || !nonce || !actionUrl) {
-            return '<button type="button" class="' + escapeHtml(buttonClass) + '" disabled'
-                + (disabledTitle ? ' title="' + escapeHtml(disabledTitle) + '"' : '')
-                + '>' + escapeHtml(buttonLabel) + '</button>';
-        }
 
-        return '<form class="ll-wordset-card__staff-action-form" method="post" action="' + escapeHtml(actionUrl) + '" data-ll-wordset-card-action-form'
-            + (confirmMessage ? ' data-ll-wordset-card-confirm="' + escapeHtml(String(confirmMessage)) + '"' : '')
-            + '>'
+        return '<form class="' + escapeHtml(className) + '" method="post" action="' + escapeHtml(actionUrl) + '" data-ll-wordset-card-action-form data-ll-wordset-inactive-preview-form hidden>'
             + '<input type="hidden" name="ll_wordset_inactive_category_action" value="' + escapeHtml(actionName) + '" />'
             + '<input type="hidden" name="ll_wordset_inactive_category_wordset_id" value="' + wordsetId + '" />'
             + '<input type="hidden" name="ll_wordset_inactive_category_id" value="' + categoryId + '" />'
             + '<input type="hidden" name="ll_wordset_inactive_category_nonce" value="' + escapeHtml(nonce) + '" />'
-            + '<button type="submit" class="' + escapeHtml(buttonClass) + '">' + escapeHtml(buttonLabel) + '</button>'
             + '</form>';
     }
 
@@ -6820,6 +6810,7 @@
         const catName = String(cat.name || cat.translation || '').trim();
         const catUrl = String(cat.url || '#').trim() || '#';
         const isPublic = categoryIsPublic(cat);
+        const canPreviewInactive = !isPublic && canRenderInactiveCategoryActions(cat) && !!cat.can_preview;
         const publicNote = String(cat.public_note || i18n.categoryNotPublicDefaultNote || 'Not public yet.').trim();
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
@@ -6842,7 +6833,10 @@
             }
         }
 
-        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
+        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + (canPreviewInactive ? ' ll-wordset-card--inactive-previewable' : '') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
+        if (canPreviewInactive) {
+            html += ' data-ll-wordset-inactive-preview-card="true"';
+        }
         if (temporarySearchCard) {
             html += ' data-ll-wordset-search-rendered="true"';
         }
@@ -6858,7 +6852,9 @@
             html += '  </a>';
         } else {
             html += '  <span class="ll-wordset-card__select ll-wordset-card__select--inactive" aria-hidden="true"><span class="ll-wordset-card__select-box"></span></span>';
-            html += '  <div class="ll-wordset-card__heading" aria-label="' + escapeHtml(catName) + '">';
+            html += '  <div class="ll-wordset-card__heading' + (canPreviewInactive ? ' ll-wordset-card__heading--inactive-preview' : '') + '" aria-label="' + escapeHtml(catName) + '"'
+                + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
+                + '>';
             html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
             html += '  </div>';
         }
@@ -6875,7 +6871,9 @@
         if (isPublic) {
             html += '<a class="ll-wordset-card__lesson-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
         } else {
-            html += '<div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive" aria-label="' + escapeHtml(catName) + '">';
+            html += '<div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive' + (canPreviewInactive ? ' ll-wordset-card__lesson-link--inactive-preview' : '') + '" aria-label="' + escapeHtml(catName) + '"'
+                + (canPreviewInactive ? ' role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger' : '')
+                + '>';
         }
         html += '  <div class="ll-wordset-card__preview ' + (cat.has_images ? 'has-images' : 'has-text') + '">';
         if (isPublic && starredCount > 0) {
@@ -6892,10 +6890,8 @@
                 + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(i18n.notPublicLabel || 'Not public') + '</span>'
                 + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
                 + '</div>';
-            if (canRenderInactiveCategoryActions(cat) && !!cat.can_preview) {
-                html += '<div class="ll-wordset-card__staff-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
-                html += buildInactiveCategoryActionForm(cat, 'preview', i18n.inactivePreviewLabel || 'Preview', true, 'preview', '', '');
-                html += '</div>';
+            if (canPreviewInactive) {
+                html += buildInactiveCategoryHiddenActionForm(cat, 'preview', 'll-wordset-card__inactive-preview-form');
             }
             html += '</article>';
             return html;
@@ -7019,6 +7015,26 @@
                 renderMainCategorySearch();
             }
         }, prefersReducedMotion() ? 0 : 120);
+    }
+
+    function getInactiveCategoryPreviewForm($trigger) {
+        const $source = ($trigger && $trigger.length) ? $trigger.first() : $();
+        if (!$source.length) {
+            return $();
+        }
+        return $source.closest('.ll-wordset-card--inactive[data-cat-id]').find('[data-ll-wordset-inactive-preview-form]').first();
+    }
+
+    function submitInactiveCategoryPreviewForm($form) {
+        const formEl = ($form && $form.length) ? $form.get(0) : null;
+        if (!formEl) {
+            return;
+        }
+        if (typeof formEl.requestSubmit === 'function') {
+            formEl.requestSubmit();
+            return;
+        }
+        $form.trigger('submit');
     }
 
     function applyInactiveCategoryActionResult(payload, fallbackAction, fallbackCategoryId) {
@@ -13346,6 +13362,20 @@
         $root.on('click', '[data-ll-wordset-hide]', function (e) {
             e.preventDefault();
             hideCategory($(this).attr('data-cat-id'));
+        });
+
+        $root.on('click', '[data-ll-wordset-inactive-preview-trigger]', function (e) {
+            e.preventDefault();
+            submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($(this)));
+        });
+
+        $root.on('keydown', '[data-ll-wordset-inactive-preview-trigger]', function (e) {
+            const key = e.key || '';
+            if (key !== 'Enter' && key !== ' ') {
+                return;
+            }
+            e.preventDefault();
+            submitInactiveCategoryPreviewForm(getInactiveCategoryPreviewForm($(this)));
         });
 
         $root.on('submit', '[data-ll-wordset-card-action-form]', function (e) {

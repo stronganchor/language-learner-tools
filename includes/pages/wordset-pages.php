@@ -2988,34 +2988,24 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
     ];
 }
 
-function ll_tools_wordset_page_render_inactive_category_action_form(array $cat, string $action, string $label, bool $enabled, string $modifier = '', string $disabled_reason = '', string $confirm = ''): string {
+function ll_tools_wordset_page_render_inactive_category_hidden_action_form(array $cat, string $action, string $class_name = 'll-wordset-card__inactive-preview-form'): string {
     $category_id = isset($cat['id']) ? (int) $cat['id'] : 0;
     $wordset_id = isset($cat['wordset_id']) ? (int) $cat['wordset_id'] : 0;
     $nonce = isset($cat['inactive_action_nonce']) ? (string) $cat['inactive_action_nonce'] : '';
     $action_url = isset($cat['inactive_action_url']) ? (string) $cat['inactive_action_url'] : '';
     $action = sanitize_key($action);
-    if ($category_id <= 0 || $wordset_id <= 0 || $action === '') {
+    if ($category_id <= 0 || $wordset_id <= 0 || $action === '' || $nonce === '' || $action_url === '') {
         return '';
     }
 
-    $button_classes = trim('ll-wordset-card__staff-action ' . ($modifier !== '' ? 'll-wordset-card__staff-action--' . sanitize_html_class($modifier) : ''));
-    if (!$enabled || $nonce === '' || $action_url === '') {
-        return sprintf(
-            '<button type="button" class="%1$s" disabled%2$s>%3$s</button>',
-            esc_attr($button_classes),
-            $disabled_reason !== '' ? ' title="' . esc_attr($disabled_reason) . '"' : '',
-            esc_html($label)
-        );
-    }
-
+    $class_name = sanitize_html_class($class_name);
     ob_start();
     ?>
-    <form class="ll-wordset-card__staff-action-form" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-card-action-form<?php echo $confirm !== '' ? ' data-ll-wordset-card-confirm="' . esc_attr($confirm) . '"' : ''; ?>>
+    <form class="<?php echo esc_attr($class_name); ?>" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-card-action-form data-ll-wordset-inactive-preview-form hidden>
         <input type="hidden" name="ll_wordset_inactive_category_action" value="<?php echo esc_attr($action); ?>" />
         <input type="hidden" name="ll_wordset_inactive_category_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
         <input type="hidden" name="ll_wordset_inactive_category_id" value="<?php echo esc_attr($category_id); ?>" />
         <input type="hidden" name="ll_wordset_inactive_category_nonce" value="<?php echo esc_attr($nonce); ?>" />
-        <button type="submit" class="<?php echo esc_attr($button_classes); ?>"><?php echo esc_html($label); ?></button>
     </form>
     <?php
 
@@ -3110,6 +3100,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
         && !empty($cat['can_manage_inactive'])
         && !empty($cat['inactive_action_nonce'])
         && !empty($cat['inactive_action_url']);
+    $can_preview_inactive = $can_manage_inactive_actions && !empty($cat['can_preview']);
     $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
     if ($current_preview_limit < 1) {
         $current_preview_limit = 1;
@@ -3117,7 +3108,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
 
     ob_start();
     ?>
-    <article class="ll-wordset-card<?php echo $is_public ? '' : ' ll-wordset-card--inactive'; ?>" role="listitem" data-cat-id="<?php echo esc_attr($cat_id); ?>" data-word-count="<?php echo esc_attr((int) ($cat['count'] ?? 0)); ?>" data-ll-wordset-public="<?php echo $is_public ? '1' : '0'; ?>">
+    <article class="ll-wordset-card<?php echo $is_public ? '' : ' ll-wordset-card--inactive'; ?><?php echo $can_preview_inactive ? ' ll-wordset-card--inactive-previewable' : ''; ?>" role="listitem" data-cat-id="<?php echo esc_attr($cat_id); ?>" data-word-count="<?php echo esc_attr((int) ($cat['count'] ?? 0)); ?>" data-ll-wordset-public="<?php echo $is_public ? '1' : '0'; ?>"<?php echo $can_preview_inactive ? ' data-ll-wordset-inactive-preview-card="true"' : ''; ?>>
         <div class="ll-wordset-card__top">
             <?php if ($is_public) : ?>
                 <label class="ll-wordset-card__select" aria-label="<?php echo esc_attr(sprintf(__('Select %s', 'll-tools-text-domain'), $cat_name)); ?>">
@@ -3133,6 +3124,10 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                 <a class="ll-wordset-card__heading" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
                     <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
                 </a>
+            <?php elseif ($can_preview_inactive) : ?>
+                <div class="ll-wordset-card__heading ll-wordset-card__heading--inactive-preview" aria-label="<?php echo esc_attr($cat_name); ?>" role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger>
+                    <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
+                </div>
             <?php else : ?>
                 <div class="ll-wordset-card__heading" aria-label="<?php echo esc_attr($cat_name); ?>">
                     <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
@@ -3171,6 +3166,8 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
         </div>
         <?php if ($is_public && $cat_url !== '') : ?>
             <a class="ll-wordset-card__lesson-link" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
+        <?php elseif ($can_preview_inactive) : ?>
+            <div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive ll-wordset-card__lesson-link--inactive-preview" aria-label="<?php echo esc_attr($cat_name); ?>" role="button" tabindex="0" data-ll-wordset-inactive-preview-trigger>
         <?php else : ?>
             <div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive" aria-label="<?php echo esc_attr($cat_name); ?>">
         <?php endif; ?>
@@ -3230,12 +3227,8 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                 <span class="ll-wordset-card__public-note-label"><?php echo esc_html__('Not public', 'll-tools-text-domain'); ?></span>
                 <span class="ll-wordset-card__public-note-text"><?php echo esc_html($public_note); ?></span>
             </div>
-            <?php if ($can_manage_inactive_actions && !empty($cat['can_preview'])) : ?>
-                <div class="ll-wordset-card__staff-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Category management for %s', 'll-tools-text-domain'), $cat_name)); ?>">
-                    <?php
-                    echo ll_tools_wordset_page_render_inactive_category_action_form($cat, 'preview', __('Preview', 'll-tools-text-domain'), true, 'preview'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    ?>
-                </div>
+            <?php if ($can_preview_inactive) : ?>
+                <?php echo ll_tools_wordset_page_render_inactive_category_hidden_action_form($cat, 'preview'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
             <?php endif; ?>
         <?php else : ?>
             <div class="ll-wordset-card__progress" aria-hidden="true">
@@ -12965,7 +12958,6 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'categoriesLabel' => __('Categories', 'll-tools-text-domain'),
             'notPublicLabel' => __('Not public', 'll-tools-text-domain'),
             'categoryNotPublicDefaultNote' => __('Not public yet.', 'll-tools-text-domain'),
-            'inactivePreviewLabel' => __('Preview', 'll-tools-text-domain'),
             'inactiveHideLabel' => __('Hide', 'll-tools-text-domain'),
             'inactiveDeleteLabel' => __('Delete', 'll-tools-text-domain'),
             'inactiveDeleteConfirm' => __('Delete this category? This cannot be undone.', 'll-tools-text-domain'),
