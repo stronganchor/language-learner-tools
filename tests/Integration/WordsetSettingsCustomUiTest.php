@@ -413,6 +413,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Advanced Settings', $html);
         $this->assertStringContainsString('name="ll_wordset_category_ordering_mode"', $html);
         $this->assertStringContainsString('name="ll_wordset_button_image_attachment_id"', $html);
+        $this->assertStringContainsString('name="ll_wordset_keep_original_audio"', $html);
         $this->assertStringContainsString('name="ll_wordset_games_image_size"', $html);
         $this->assertStringContainsString('name="ll_wordset_has_gender"', $html);
         $this->assertStringContainsString('name="ll_wordset_plurality_options"', $html);
@@ -584,6 +585,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
             'll_wordset_tool' => 'advanced',
             'll_wordset_button_image_attachment_id' => (string) $button_image_attachment_id,
             'll_wordset_games_image_size' => 'large',
+            'll_wordset_keep_original_audio' => '1',
             'll_wordset_answer_option_text_font_weight' => '500',
             'll_wordset_answer_option_text_font_size_px' => '36',
             'll_wordset_category_ordering_mode' => 'manual',
@@ -619,6 +621,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('ok', (string) ($query['ll_wordset_manager_settings'] ?? ''));
         $this->assertSame((string) $button_image_attachment_id, (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_BUTTON_IMAGE_ATTACHMENT_ID_META_KEY, true));
         $this->assertSame('large', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_GAMES_IMAGE_SIZE_META_KEY, true));
+        $this->assertSame('1', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY, true));
         $this->assertSame('500', (string) get_term_meta($wordset_id, ll_tools_wordset_answer_option_font_weight_primary_meta_key(), true));
         $this->assertSame('36', (string) get_term_meta($wordset_id, LL_TOOLS_WORDSET_ANSWER_OPTION_FONT_SIZE_META_KEY, true));
         $this->assertSame('manual', (string) get_term_meta($wordset_id, 'll_wordset_category_ordering_mode', true));

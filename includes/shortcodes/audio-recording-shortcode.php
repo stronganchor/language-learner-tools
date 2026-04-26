@@ -1115,6 +1115,9 @@ function ll_audio_recording_interface_shortcode($atts) {
         'include_types'    => $atts['include_recording_types'],
         'exclude_types'    => $atts['exclude_recording_types'],
         'auto_process_recordings' => $auto_process_recordings,
+        'preserve_original_audio' => function_exists('ll_tools_should_keep_original_audio_for_wordsets')
+            ? ll_tools_should_keep_original_audio_for_wordsets($wordset_term_ids)
+            : false,
         'stop_delay_ms'    => max(0, (int) apply_filters('ll_tools_recorder_stop_delay_ms', 500)),
         'transcribe_poll_attempts' => (int) apply_filters('ll_tools_recorder_transcribe_poll_attempts', 20),
         'transcribe_poll_interval_ms' => (int) apply_filters('ll_tools_recorder_transcribe_poll_interval_ms', 1200),
@@ -5816,6 +5819,64 @@ add_action('ll_tools_send_recording_notification_event', 'll_tools_send_recordin
  */
 add_action('wp_ajax_ll_upload_recording', 'll_handle_recording_upload');
 
+function ll_tools_save_preserved_original_recording_upload(array $file, string $safe_title, int $timestamp) {
+    $upload_validation = ll_tools_validate_recording_upload_file($file);
+    if (empty($upload_validation['valid'])) {
+        $message = (string) ($upload_validation['error'] ?? '');
+        if ($message === '') {
+            $message = __('Invalid original audio upload.', 'll-tools-text-domain');
+        }
+        return new WP_Error('invalid_original_audio', $message, [
+            'status' => max(400, (int) ($upload_validation['status'] ?? 400)),
+        ]);
+    }
+
+    $validated_ext = sanitize_key((string) ($upload_validation['ext'] ?? ''));
+    if ($validated_ext === '') {
+        $validated_ext = 'webm';
+    }
+
+    $file['name'] = $safe_title . '_' . $timestamp . '_original.' . $validated_ext;
+    if (!empty($upload_validation['mime'])) {
+        $file['type'] = (string) $upload_validation['mime'];
+    }
+
+    if (!function_exists('wp_handle_upload')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+    }
+
+    $upload_result = wp_handle_upload($file, [
+        'test_form' => false,
+        'test_type' => false,
+        'mimes' => ll_tools_get_allowed_recording_upload_mimes(),
+    ]);
+    if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
+        $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
+        $message = $upload_error !== ''
+            ? sprintf(
+                /* translators: %s: upload subsystem error message */
+                __('Failed to save original audio: %s', 'll-tools-text-domain'),
+                $upload_error
+            )
+            : __('Failed to save original audio.', 'll-tools-text-domain');
+        return new WP_Error('original_audio_save_failed', $message, [
+            'status' => ($upload_error !== '' && stripos($upload_error, 'file type') !== false) ? 415 : 400,
+        ]);
+    }
+
+    $filepath = (string) $upload_result['file'];
+    $relative_path = str_replace(
+        wp_normalize_path(untrailingslashit(ABSPATH)),
+        '',
+        wp_normalize_path($filepath)
+    );
+
+    return [
+        'file_path' => $filepath,
+        'relative_path' => $relative_path,
+    ];
+}
+
 function ll_handle_recording_upload() {
     check_ajax_referer('ll_upload_recording', 'nonce');
     ll_tools_recorder_apply_ajax_locale();
@@ -5985,6 +6046,43 @@ function ll_handle_recording_upload() {
     }
     $timestamp  = time();
 
+    $word_wordset_ids = function_exists('ll_tools_get_post_wordset_ids')
+        ? ll_tools_get_post_wordset_ids((int) $word_id)
+        : [];
+    $original_audio_wordset_ids = !empty($posted_ids)
+        ? array_merge($posted_ids, $word_wordset_ids)
+        : $word_wordset_ids;
+    $original_audio_wordset_ids = function_exists('ll_tools_normalize_wordset_setting_ids')
+        ? ll_tools_normalize_wordset_setting_ids($original_audio_wordset_ids)
+        : array_values(array_unique(array_filter(array_map('intval', (array) $original_audio_wordset_ids), static function (int $id): bool {
+            return $id > 0;
+        })));
+    $preserve_original_audio = function_exists('ll_tools_should_keep_original_audio_for_wordsets')
+        && ll_tools_should_keep_original_audio_for_wordsets($original_audio_wordset_ids);
+    $original_upload_result = null;
+    if ($preserve_original_audio && $auto_publish) {
+        if (empty($_FILES['original_audio'])) {
+            if ($upload_lock_acquired) {
+                ll_tools_release_recording_upload_lock($upload_lock_signature);
+            }
+            wp_send_json_error(__('Original audio source was not included with the processed upload.', 'll-tools-text-domain'), 400);
+        }
+
+        $original_upload_result = ll_tools_save_preserved_original_recording_upload(
+            (array) $_FILES['original_audio'],
+            $safe_title,
+            $timestamp
+        );
+        if (is_wp_error($original_upload_result)) {
+            if ($upload_lock_acquired) {
+                ll_tools_release_recording_upload_lock($upload_lock_signature);
+            }
+            $error_data = $original_upload_result->get_error_data();
+            $status = is_array($error_data) ? (int) ($error_data['status'] ?? 400) : 400;
+            wp_send_json_error($original_upload_result->get_error_message(), max(400, $status));
+        }
+    }
+
     $validated_ext = sanitize_key((string) ($upload_validation['ext'] ?? ''));
     if ($validated_ext === '') {
         $validated_ext = 'webm';
@@ -6010,6 +6108,9 @@ function ll_handle_recording_upload() {
     if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
         if ($upload_lock_acquired) {
             ll_tools_release_recording_upload_lock($upload_lock_signature);
+        }
+        if (is_array($original_upload_result) && !empty($original_upload_result['file_path']) && file_exists((string) $original_upload_result['file_path'])) {
+            @unlink((string) $original_upload_result['file_path']);
         }
         $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
         error_log('Upload step: Failed to save file' . ($upload_error !== '' ? ': ' . $upload_error : ''));
@@ -6049,6 +6150,9 @@ function ll_handle_recording_upload() {
         if (is_string($filepath) && $filepath !== '' && file_exists($filepath)) {
             @unlink($filepath);
         }
+        if (is_array($original_upload_result) && !empty($original_upload_result['file_path']) && file_exists((string) $original_upload_result['file_path'])) {
+            @unlink((string) $original_upload_result['file_path']);
+        }
         error_log('Upload step: Failed to create word_audio post: ' . $err_msg);
         wp_send_json_error(sprintf(
             __('Failed to create word_audio post: %s', 'll-tools-text-domain'),
@@ -6062,6 +6166,13 @@ function ll_handle_recording_upload() {
     }
 
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+    if ($preserve_original_audio && function_exists('ll_tools_store_original_audio_file_path')) {
+        if ($auto_publish && is_array($original_upload_result) && !empty($original_upload_result['relative_path'])) {
+            ll_tools_store_original_audio_file_path((int) $audio_post_id, (string) $original_upload_result['relative_path'], 'recorder_raw');
+        } elseif (!$auto_publish) {
+            ll_tools_store_original_audio_file_path((int) $audio_post_id, $relative_path, 'recorder_upload');
+        }
+    }
     update_post_meta($audio_post_id, 'speaker_user_id', $current_user_id);
     update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
     if ($upload_sha1 !== '') {

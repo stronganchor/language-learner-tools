@@ -916,6 +916,13 @@ function ll_update_existing_post_audio($post_id, $relative_path, $post_data = []
 
     // Store file + review flags on the word_audio child
     update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+    if (function_exists('ll_tools_store_original_audio_if_enabled')) {
+        $requested_wordset_ids = ll_audio_upload_get_requested_wordset_ids_from_post_data((array) $post_data);
+        $source_wordset_ids = !empty($requested_wordset_ids)
+            ? $requested_wordset_ids
+            : (function_exists('ll_tools_get_post_wordset_ids') ? ll_tools_get_post_wordset_ids((int) $post_id) : []);
+        ll_tools_store_original_audio_if_enabled((int) $audio_post_id, (string) $relative_path, $source_wordset_ids, 'manual_upload');
+    }
     if ($speaker_user_id > 0) {
         update_post_meta($audio_post_id, 'speaker_user_id', $speaker_user_id);
     }
@@ -975,6 +982,9 @@ function ll_create_new_word_post($title, $relative_path, $post_data, $selected_c
 
         if (!is_wp_error($audio_post_id)) {
             update_post_meta($audio_post_id, 'audio_file_path', $relative_path);
+            if (function_exists('ll_tools_store_original_audio_if_enabled')) {
+                ll_tools_store_original_audio_if_enabled((int) $audio_post_id, (string) $relative_path, $wordset_ids, 'manual_upload');
+            }
             update_post_meta($audio_post_id, 'recording_date', current_time('mysql'));
             update_post_meta($audio_post_id, '_ll_needs_audio_processing', '1');
 

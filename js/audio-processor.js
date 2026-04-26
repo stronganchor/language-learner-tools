@@ -2117,6 +2117,14 @@
 
         const recordingType = data.selectedRecordingType || data.recording.recordingType || '';
         formData.append('recording_type', recordingType);
+        formData.append('trim_start', Math.max(0, parseInt(data.trimStart, 10) || 0));
+        formData.append('trim_end', Math.max(0, parseInt(data.trimEnd, 10) || 0));
+        formData.append('source_samples', data.originalBuffer ? Math.max(0, parseInt(data.originalBuffer.length, 10) || 0) : 0);
+        formData.append('sample_rate', data.originalBuffer ? Math.max(0, parseInt(data.originalBuffer.sampleRate, 10) || 0) : 0);
+        formData.append('enable_trim', data.options && data.options.enableTrim ? '1' : '0');
+        formData.append('enable_noise', data.options && data.options.enableNoise ? '1' : '0');
+        formData.append('enable_loudness', data.options && data.options.enableLoudness ? '1' : '0');
+        formData.append('used_original_source', data.recording && data.recording.usesOriginalAudio ? '1' : '0');
 
         const response = await fetch(window.llAudioProcessor.ajaxUrl, {
             method: 'POST',

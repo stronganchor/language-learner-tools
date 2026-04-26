@@ -192,6 +192,7 @@ function ll_tools_get_wordset_template_setting_meta_keys(): array {
         'LL_TOOLS_WORDSET_SPEAKING_GAME_ACCESS_META_KEY',
         'LL_TOOLS_WORDSET_SPEAKING_GAME_TARGET_META_KEY',
         'LL_TOOLS_WORDSET_SPEAKING_GAME_ASSEMBLYAI_PROFILE_META_KEY',
+        'LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY',
     ];
 
     foreach ($constant_names as $constant_name) {

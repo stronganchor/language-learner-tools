@@ -72,6 +72,7 @@
             }
         };
     const autoProcessEnabled = !!window.ll_recorder_data?.auto_process_recordings;
+    const preserveOriginalAudio = !!window.ll_recorder_data?.preserve_original_audio;
     const hasAssemblyAI = !!window.ll_recorder_data?.assembly_enabled;
     const hasDeepl = !!window.ll_recorder_data?.deepl_enabled;
     const recordingTypeOrder = Array.isArray(window.ll_recorder_data?.recording_type_order)
@@ -4145,6 +4146,9 @@
         formData.append('audio', uploadBlob, `${img.title}${extension}`);
         if (autoProcessed) {
             formData.append('auto_processed', '1');
+            if (preserveOriginalAudio && currentBlob) {
+                formData.append('original_audio', currentBlob, `${img.title}_original${getBlobExtension(currentBlob.type)}`);
+            }
         }
 
         try {

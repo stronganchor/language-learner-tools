@@ -3146,6 +3146,15 @@ function ll_tools_wordset_page_save_advanced_settings(int $term_id) {
         }
     }
 
+    if (defined('LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY')) {
+        $keep_original_audio = isset($_POST['ll_wordset_keep_original_audio']) ? 1 : 0;
+        if ($keep_original_audio === 1) {
+            update_term_meta($term_id, LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY, '1');
+        } else {
+            delete_term_meta($term_id, LL_TOOLS_WORDSET_KEEP_ORIGINAL_AUDIO_META_KEY);
+        }
+    }
+
     $answer_style_defaults = ll_tools_wordset_get_answer_option_text_style_defaults();
     if (array_key_exists('ll_wordset_answer_option_text_font_family', $_POST)) {
         $answer_font_family = ll_tools_wordset_sanitize_answer_option_font_family_choice(
@@ -7686,6 +7695,9 @@ function ll_tools_wordset_page_get_advanced_settings(int $wordset_id): array {
         'category_ordering_count' => function_exists('ll_tools_wordset_get_admin_category_ordering_rows')
             ? count(ll_tools_wordset_get_admin_category_ordering_rows($wordset_id))
             : 0,
+        'keep_original_audio' => function_exists('ll_tools_should_keep_original_audio_for_wordset')
+            ? ll_tools_should_keep_original_audio_for_wordset($wordset_id)
+            : false,
         'has_gender' => $has_gender,
         'has_plurality' => $has_plurality,
         'has_verb_tense' => $has_verb_tense,
@@ -7728,6 +7740,7 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
         ? $settings['answer_option_available_fonts']
         : [];
     $answer_option_font_family_missing_from_available = !empty($settings['answer_option_font_family_missing_from_available']);
+    $keep_original_audio = !empty($settings['keep_original_audio']);
     $saved_answer_option_font_family = trim((string) ($settings['saved_answer_option_font_family'] ?? ''));
     $answer_option_preview_html = (string) ($settings['answer_option_preview_html'] ?? '');
     $grammar_enabled_count = count(array_filter([
@@ -7767,6 +7780,11 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
                     ));
                     ?>
                 </span>
+                <?php if ($keep_original_audio) : ?>
+                    <span class="ll-wordset-settings-card__pill">
+                        <?php echo esc_html__('Original audio kept', 'll-tools-text-domain'); ?>
+                    </span>
+                <?php endif; ?>
             </div>
             <form method="post" action="<?php echo esc_url($action_url); ?>">
                 <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
@@ -7824,6 +7842,17 @@ function ll_tools_wordset_page_render_settings_advanced_tool(WP_Term $wordset_te
                         </div>
                         <p class="description"><?php echo esc_html__('Optional image used by [ll_wordset_buttons] when this word set appears in button lists.', 'll-tools-text-domain'); ?></p>
                     </div>
+                </div>
+
+                <div class="ll-wordset-settings-card__group">
+                    <h3 class="ll-wordset-settings-card__subtitle"><?php echo esc_html__('Audio Processing', 'll-tools-text-domain'); ?></h3>
+                    <label class="ll-wordset-settings-card__checkbox-item" for="ll-wordset-keep-original-audio">
+                        <input type="checkbox" id="ll-wordset-keep-original-audio" name="ll_wordset_keep_original_audio" value="1" <?php checked($keep_original_audio); ?> />
+                        <span><?php echo esc_html__('Keep original audio for reprocessing', 'll-tools-text-domain'); ?></span>
+                    </label>
+                    <p class="description">
+                        <?php echo esc_html__('Stores the unprocessed source for new recorder and audio-upload recordings so the Audio Processor can rerun trimming, noise reduction, and loudness from the original source later.', 'll-tools-text-domain'); ?>
+                    </p>
                 </div>
 
                 <div class="ll-wordset-settings-card__group">
@@ -11362,6 +11391,9 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         }
         if (($advanced_settings['games_image_size'] ?? 'default') === 'large') {
             $advanced_status_parts[] = __('Large images', 'll-tools-text-domain');
+        }
+        if (!empty($advanced_settings['keep_original_audio'])) {
+            $advanced_status_parts[] = __('Original audio kept', 'll-tools-text-domain');
         }
         $settings_hub_cards[] = [
             'tool' => 'advanced',
