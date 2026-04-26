@@ -1016,64 +1016,100 @@ function ll_audio_recording_interface_shortcode($atts) {
     $allow_new_words = !empty($atts['allow_new_words']);
     $auto_process_recordings = !empty($atts['auto_process_recordings']);
 
-    // Build the recorder dataset once to avoid repeated full scans on initial page load.
-    $all_images_needing_audio = ll_tools_get_recording_queue_items('', $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
-    $available_categories = ll_tools_get_recording_categories_from_items($all_images_needing_audio);
-    $available_category_counts = ll_tools_get_recording_category_counts_from_items($all_images_needing_audio);
-
-    // If no categories available, provide helpful diagnostics
-    if (empty($available_categories)) {
-        if (!$allow_new_words && !$has_hidden_recording_words) {
-            $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
-            return $utility_nav_context . '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
+    $requested_category = sanitize_title((string) ($atts['category'] ?? ''));
+    if ($requested_category !== '') {
+        $images_needing_audio = ll_tools_get_recording_queue_items($requested_category, $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+        if ($start_word_id > 0) {
+            $images_needing_audio = ll_tools_prioritize_recording_item_by_word_id($images_needing_audio, $start_word_id);
         }
-        $available_categories = [
-            'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
-        ];
-        $available_category_counts = [
-            'uncategorized' => 0,
-        ];
+        $available_categories = ll_tools_get_recording_categories_from_items($images_needing_audio);
+        $available_category_counts = ll_tools_get_recording_category_counts_from_items($images_needing_audio);
+
+        if (!empty($available_categories)) {
+            $initial_category = isset($available_categories[$requested_category])
+                ? $requested_category
+                : (string) key($available_categories);
+        } else {
+            $initial_category = $requested_category;
+            $category_label = __('Uncategorized', 'll-tools-text-domain');
+            if ($requested_category !== 'uncategorized') {
+                $requested_term = function_exists('ll_tools_recorder_resolve_category_term_for_wordsets')
+                    ? ll_tools_recorder_resolve_category_term_for_wordsets($requested_category, $wordset_term_ids, false)
+                    : get_term_by('slug', $requested_category, 'word-category');
+                if ($requested_term instanceof WP_Term && !is_wp_error($requested_term)) {
+                    $initial_category = (string) $requested_term->slug;
+                    $category_label = ll_tools_recorder_get_category_label($requested_term, $wordset_term_ids);
+                } else {
+                    $category_label = $requested_category;
+                }
+            }
+            $available_categories = [
+                $initial_category => $category_label,
+            ];
+            $available_category_counts = [
+                $initial_category => 0,
+            ];
+        }
+    } else {
+        // Build the recorder dataset once to avoid repeated full scans on initial page load.
+        $all_images_needing_audio = ll_tools_get_recording_queue_items('', $wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+        $available_categories = ll_tools_get_recording_categories_from_items($all_images_needing_audio);
+        $available_category_counts = ll_tools_get_recording_category_counts_from_items($all_images_needing_audio);
+
+        // If no categories available, provide helpful diagnostics
+        if (empty($available_categories)) {
+            if (!$allow_new_words && !$has_hidden_recording_words) {
+                $diagnostic_msg = ll_diagnose_no_categories($wordset_term_ids, $atts['include_recording_types'], $atts['exclude_recording_types']);
+                return $utility_nav_context . '<div class="ll-recording-interface"><div class="ll-diagnostic-message">' . $diagnostic_msg . '</div></div>';
+            }
+            $available_categories = [
+                'uncategorized' => __('Uncategorized', 'll-tools-text-domain'),
+            ];
+            $available_category_counts = [
+                'uncategorized' => 0,
+            ];
+        }
+
+        $start_word_category = '';
+        if ($start_word_id > 0) {
+            $start_word_item = ll_tools_get_recording_item_for_word_id($all_images_needing_audio, $start_word_id);
+            if (is_array($start_word_item)) {
+                $start_word_category = sanitize_title((string) ($start_word_item['category_slug'] ?? ''));
+                if ($start_word_category === '') {
+                    $start_word_category = 'uncategorized';
+                }
+            }
+        }
+
+        // Get images for the initial category (or first if none specified)
+        $initial_category = isset($available_categories[$requested_category]) ? $requested_category : key($available_categories);
+        if ($start_word_category !== '' && !isset($available_categories[$requested_category])) {
+            $initial_category = $start_word_category;
+        }
+        // Prefer showing uncategorized first when present so missing-audio words are surfaced
+        if ($requested_category === '' && $start_word_category === '' && isset($available_categories['uncategorized'])) {
+            $initial_category = 'uncategorized';
+        }
+        $images_needing_audio = ll_tools_filter_recording_items_by_category($all_images_needing_audio, $initial_category);
+        // If the preferred initial category is empty (e.g., stale uncategorized records), fall back to the first category with work.
+        if (empty($images_needing_audio) && count($available_categories) > 1) {
+            foreach ($available_categories as $slug => $name) {
+                if ($slug === $initial_category) {
+                    continue;
+                }
+                $maybe = ll_tools_filter_recording_items_by_category($all_images_needing_audio, $slug);
+                if (!empty($maybe)) {
+                    $images_needing_audio = $maybe;
+                    $initial_category = $slug;
+                    break;
+                }
+            }
+        }
+        if ($start_word_id > 0) {
+            $images_needing_audio = ll_tools_prioritize_recording_item_by_word_id($images_needing_audio, $start_word_id);
+        }
     }
     $available_category_labels = ll_tools_get_recording_category_dropdown_labels($available_categories, $available_category_counts);
-
-    $start_word_category = '';
-    if ($start_word_id > 0) {
-        $start_word_item = ll_tools_get_recording_item_for_word_id($all_images_needing_audio, $start_word_id);
-        if (is_array($start_word_item)) {
-            $start_word_category = sanitize_title((string) ($start_word_item['category_slug'] ?? ''));
-            if ($start_word_category === '') {
-                $start_word_category = 'uncategorized';
-            }
-        }
-    }
-
-    // Get images for the initial category (or first if none specified)
-    $initial_category = !empty($atts['category']) && isset($available_categories[$atts['category']]) ? $atts['category'] : key($available_categories);
-    if ($start_word_category !== '' && (empty($atts['category']) || !isset($available_categories[$atts['category']]))) {
-        $initial_category = $start_word_category;
-    }
-    // Prefer showing uncategorized first when present so missing-audio words are surfaced
-    if (empty($atts['category']) && $start_word_category === '' && isset($available_categories['uncategorized'])) {
-        $initial_category = 'uncategorized';
-    }
-    $images_needing_audio = ll_tools_filter_recording_items_by_category($all_images_needing_audio, $initial_category);
-    // If the preferred initial category is empty (e.g., stale uncategorized records), fall back to the first category with work.
-    if (empty($images_needing_audio) && count($available_categories) > 1) {
-        foreach ($available_categories as $slug => $name) {
-            if ($slug === $initial_category) {
-                continue;
-            }
-            $maybe = ll_tools_filter_recording_items_by_category($all_images_needing_audio, $slug);
-            if (!empty($maybe)) {
-                $images_needing_audio = $maybe;
-                $initial_category = $slug;
-                break;
-            }
-        }
-    }
-    if ($start_word_id > 0) {
-        $images_needing_audio = ll_tools_prioritize_recording_item_by_word_id($images_needing_audio, $start_word_id);
-    }
 
     if (empty($images_needing_audio) && !$allow_new_words && !$has_hidden_recording_words) {
         return $utility_nav_context . '<div class="ll-recording-interface"><p>' .
@@ -3941,8 +3977,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     if (!empty($category_slug) && !$is_uncategorized_request) {
         $image_args['tax_query'] = [[
             'taxonomy' => 'word-category',
-            'field'    => 'slug',
-            'terms'    => $category_slug,
+            'field'    => $active_category_term_id > 0 ? 'term_id' : 'slug',
+            'terms'    => $active_category_term_id > 0 ? [$active_category_term_id] : $category_slug,
         ]];
     }
 
@@ -3972,8 +4008,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
             'tax_query'      => [
                 [
                     'taxonomy' => 'word-category',
-                    'field'    => 'slug',
-                    'terms'    => [$category_slug],
+                    'field'    => $active_category_term_id > 0 ? 'term_id' : 'slug',
+                    'terms'    => $active_category_term_id > 0 ? [$active_category_term_id] : [$category_slug],
                 ],
             ],
         ];
@@ -4044,6 +4080,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     }
     if (!empty($image_word_ids_to_prime)) {
         ll_prime_recording_type_cache_for_words(array_values($image_word_ids_to_prime), $current_uid);
+        if (function_exists('ll_tools_prime_preferred_speaker_cache_for_words')) {
+            ll_tools_prime_preferred_speaker_cache_for_words(array_values($image_word_ids_to_prime));
+        }
     }
 
     foreach ($image_posts as $img_id) {
@@ -4259,8 +4298,8 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
         }
         $word_args['tax_query'][] = [
             'taxonomy' => 'word-category',
-            'field'    => 'slug',
-            'terms'    => $category_slug,
+            'field'    => $active_category_term_id > 0 ? 'term_id' : 'slug',
+            'terms'    => $active_category_term_id > 0 ? [$active_category_term_id] : $category_slug,
         ];
         if (count($word_args['tax_query']) > 1) {
             $word_args['tax_query']['relation'] = 'AND';
@@ -4270,6 +4309,9 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     $text_words = get_posts($word_args);
     if (!empty($text_words)) {
         ll_prime_recording_type_cache_for_words((array) $text_words, $current_uid);
+        if (function_exists('ll_tools_prime_preferred_speaker_cache_for_words')) {
+            ll_tools_prime_preferred_speaker_cache_for_words((array) $text_words);
+        }
     }
 
     foreach ($text_words as $word_id) {

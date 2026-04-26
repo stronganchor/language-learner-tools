@@ -2424,6 +2424,120 @@ function ll_tools_get_desired_recording_types_for_word($word_id): array {
     return ll_tools_get_uncategorized_desired_recording_types();
 }
 
+function &ll_tools_preferred_speaker_cache_store(): array {
+    static $cache = [];
+    return $cache;
+}
+
+function ll_tools_prime_preferred_speaker_cache_for_words(array $word_ids): void {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function ($word_id): bool {
+        return $word_id > 0;
+    })));
+    if (empty($word_ids)) {
+        return;
+    }
+
+    $cache =& ll_tools_preferred_speaker_cache_store();
+    $words_to_prime = [];
+    foreach ($word_ids as $word_id) {
+        if (!array_key_exists($word_id, $cache)) {
+            $words_to_prime[] = $word_id;
+            $cache[$word_id] = 0;
+        }
+    }
+
+    if (empty($words_to_prime)) {
+        return;
+    }
+
+    $word_lookup = array_fill_keys($words_to_prime, true);
+    $main = ll_tools_get_main_recording_types();
+    $audio_posts = get_posts([
+        'post_type'      => 'word_audio',
+        'post_status'    => ['publish','pending','draft'],
+        'post_parent__in'=> $words_to_prime,
+        'posts_per_page' => -1,
+        'suppress_filters' => true,
+        'no_found_rows'  => true,
+    ]);
+    if (empty($audio_posts)) {
+        return;
+    }
+
+    $audio_post_ids = [];
+    foreach ((array) $audio_posts as $audio_post) {
+        if ($audio_post instanceof WP_Post) {
+            $audio_post_ids[] = (int) $audio_post->ID;
+        }
+    }
+    $audio_post_ids = array_values(array_unique(array_filter($audio_post_ids)));
+    if (empty($audio_post_ids)) {
+        return;
+    }
+
+    if (function_exists('update_meta_cache')) {
+        update_meta_cache('post', $audio_post_ids);
+    }
+
+    $term_rows = wp_get_object_terms($audio_post_ids, 'recording_type', ['fields' => 'all_with_object_id']);
+    if (is_wp_error($term_rows) || empty($term_rows)) {
+        return;
+    }
+
+    $recording_types_by_audio = [];
+    foreach ((array) $term_rows as $term_row) {
+        $audio_id = (int) ($term_row->object_id ?? 0);
+        $type_slug = sanitize_key((string) ($term_row->slug ?? ''));
+        if ($audio_id <= 0 || $type_slug === '') {
+            continue;
+        }
+        if (!isset($recording_types_by_audio[$audio_id])) {
+            $recording_types_by_audio[$audio_id] = [];
+        }
+        $recording_types_by_audio[$audio_id][$type_slug] = true;
+    }
+
+    $speaker_types_by_word = [];
+    foreach ((array) $audio_posts as $audio_post) {
+        if (!($audio_post instanceof WP_Post)) {
+            continue;
+        }
+
+        $word_id = (int) $audio_post->post_parent;
+        $audio_id = (int) $audio_post->ID;
+        if ($word_id <= 0 || $audio_id <= 0 || empty($word_lookup[$word_id]) || empty($recording_types_by_audio[$audio_id])) {
+            continue;
+        }
+
+        $speaker = (int) get_post_meta($audio_id, 'speaker_user_id', true);
+        if (!$speaker) {
+            $speaker = (int) $audio_post->post_author;
+        }
+        if (!$speaker) {
+            continue;
+        }
+
+        if (!isset($speaker_types_by_word[$word_id])) {
+            $speaker_types_by_word[$word_id] = [];
+        }
+        if (!isset($speaker_types_by_word[$word_id][$speaker])) {
+            $speaker_types_by_word[$word_id][$speaker] = [];
+        }
+        foreach (array_keys($recording_types_by_audio[$audio_id]) as $type_slug) {
+            $speaker_types_by_word[$word_id][$speaker][$type_slug] = true;
+        }
+    }
+
+    foreach ($words_to_prime as $word_id) {
+        foreach (($speaker_types_by_word[$word_id] ?? []) as $uid => $type_map) {
+            if (!array_diff($main, array_keys($type_map))) {
+                $cache[$word_id] = (int) $uid;
+                break;
+            }
+        }
+    }
+}
+
 /**
  * Helper: find a preferred speaker for a word — a user who recorded all 3 main types
  * Returns user_id or 0 if none.
@@ -2434,35 +2548,12 @@ function ll_tools_get_preferred_speaker_for_word($word_id): int {
         return 0;
     }
 
-    static $cache = [];
-    if (array_key_exists($word_id, $cache)) {
-        return (int) $cache[$word_id];
+    $cache =& ll_tools_preferred_speaker_cache_store();
+    if (!array_key_exists($word_id, $cache)) {
+        ll_tools_prime_preferred_speaker_cache_for_words([$word_id]);
     }
 
-    $main = ll_tools_get_main_recording_types();
-    $audio_posts = get_posts([
-        'post_type'      => 'word_audio',
-        'post_parent'    => $word_id,
-        'post_status'    => ['publish','pending','draft'],
-        'posts_per_page' => -1,
-        'suppress_filters' => true,
-        'fields'         => 'ids',
-        'no_found_rows'  => true,
-    ]);
-    if (empty($audio_posts)) {
-        $cache[$word_id] = 0;
-        return 0;
-    }
-    $by_speaker = ll_tools_get_speaker_recording_type_map_from_audio_posts($audio_posts);
-    foreach ($by_speaker as $uid => $typeMap) {
-        $has_all = !array_diff($main, array_keys($typeMap));
-        if ($has_all) {
-            $cache[$word_id] = (int) $uid;
-            return (int) $uid;
-        }
-    }
-    $cache[$word_id] = 0;
-    return 0;
+    return (int) ($cache[$word_id] ?? 0);
 }
 
 /**
