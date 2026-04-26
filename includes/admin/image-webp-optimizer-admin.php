@@ -820,6 +820,15 @@ function ll_tools_webp_optimizer_parse_post_id_list($raw): array {
 
     $ids = [];
     foreach ($raw as $value) {
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '' || !preg_match('/^\d+$/', $value)) {
+                continue;
+            }
+        } elseif (!is_int($value)) {
+            continue;
+        }
+
         $id = (int) $value;
         if ($id > 0) {
             $ids[] = $id;
