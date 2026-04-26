@@ -6705,6 +6705,15 @@
             }
         });
 
+        $grids.on('click', '[data-ll-internal-review-note-summary]', function () {
+            const $wrap = $(this).closest('[data-ll-internal-review-note]');
+            window.setTimeout(function () {
+                if ($wrap.prop('open')) {
+                    $wrap.find('[data-ll-internal-review-note-input]').first().trigger('focus');
+                }
+            }, 0);
+        });
+
         $grids.on('input', '[data-ll-internal-review-note-input]', function () {
             const $input = $(this);
             getInternalNoteOriginalValue($input);

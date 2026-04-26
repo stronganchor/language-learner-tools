@@ -3,6 +3,26 @@ declare(strict_types=1);
 
 final class InternalReviewNotesTest extends LL_Tools_TestCase
 {
+    public function test_internal_review_note_field_collapses_when_empty_and_opens_when_populated(): void
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Compact note',
+        ]);
+
+        $empty_output = ll_tools_render_internal_review_note_field($word_id, 'word', 0);
+        $this->assertStringContainsString('<details', $empty_output);
+        $this->assertStringContainsString('data-ll-internal-review-note-summary', $empty_output);
+        $this->assertStringContainsString('Add internal review note', $empty_output);
+        $this->assertStringNotContainsString(' open', $empty_output);
+
+        update_post_meta($word_id, ll_tools_internal_review_note_meta_key(), 'Already needs review.');
+        $filled_output = ll_tools_render_internal_review_note_field($word_id, 'word', 0);
+        $this->assertStringContainsString(' open', $filled_output);
+        $this->assertStringContainsString('Already needs review.', $filled_output);
+    }
+
     public function test_lesson_word_grid_shows_internal_review_note_only_to_ll_tools_staff(): void
     {
         $wordset_id = $this->createTerm('wordset', 'Internal Notes Wordset', 'internal-notes-wordset');

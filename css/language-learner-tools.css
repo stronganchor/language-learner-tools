@@ -536,6 +536,66 @@ p:has(.ll-word-audio) {
     text-align: left !important;
 }
 
+.word-grid.ll-word-grid .ll-internal-review-note:not([open]) {
+    display: inline-block;
+    width: auto;
+    max-width: 100%;
+    margin-top: 8px;
+    padding: 0;
+    border-style: dashed;
+    background: #ffffff;
+}
+
+.word-grid.ll-word-grid .ll-internal-review-note__summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    max-width: 100%;
+    padding: 6px 10px;
+    color: #334155 !important;
+    cursor: pointer;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0 !important;
+    list-style: none;
+    text-align: center !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    box-sizing: border-box;
+}
+
+.word-grid.ll-word-grid .ll-internal-review-note__summary::-webkit-details-marker {
+    display: none;
+}
+
+.word-grid.ll-word-grid .ll-internal-review-note__summary::before {
+    content: "+";
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    border: 1px solid #94a3b8;
+    border-radius: 50%;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.word-grid.ll-word-grid .ll-internal-review-note__summary:focus-visible {
+    outline: 2px solid rgba(100, 116, 139, 0.35);
+    outline-offset: 2px;
+}
+
+.word-grid.ll-word-grid .ll-internal-review-note[open] > .ll-internal-review-note__summary {
+    display: none;
+}
+
 .word-grid.ll-word-grid .ll-internal-review-note__label {
     display: block;
     margin: 0 0 4px;

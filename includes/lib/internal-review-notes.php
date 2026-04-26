@@ -153,18 +153,24 @@ function ll_tools_render_internal_review_note_field(int $object_id, string $obje
     $note = ll_tools_get_internal_review_note($object_id);
     $field_id = 'll-internal-review-note-' . $object_type . '-' . $object_id;
     $status_id = $field_id . '-status';
+    $has_note = $note !== '';
     $label = __('Internal review note', 'll-tools-text-domain');
+    $empty_label = __('Add internal review note', 'll-tools-text-domain');
     $description = __('For staff-only review instructions, such as image fixes, split requests, or cleanup notes. This is not shown to learners.', 'll-tools-text-domain');
 
     ob_start();
     ?>
-    <div
+    <details
         class="ll-internal-review-note"
         data-ll-internal-review-note
         data-object-type="<?php echo esc_attr($object_type); ?>"
         data-object-id="<?php echo esc_attr((string) $object_id); ?>"
         data-wordset-id="<?php echo esc_attr((string) max(0, $wordset_id)); ?>"
+        <?php if ($has_note) : ?>open<?php endif; ?>
     >
+        <summary class="ll-internal-review-note__summary" data-ll-internal-review-note-summary>
+            <span class="ll-internal-review-note__summary-label ll-internal-review-note__summary-label--empty"><?php echo esc_html($empty_label); ?></span>
+        </summary>
         <label class="ll-internal-review-note__label" for="<?php echo esc_attr($field_id); ?>">
             <?php echo esc_html($label); ?>
         </label>
@@ -179,7 +185,7 @@ function ll_tools_render_internal_review_note_field(int $object_id, string $obje
             aria-describedby="<?php echo esc_attr($field_id); ?>-description <?php echo esc_attr($status_id); ?>"
         ><?php echo esc_textarea($note); ?></textarea>
         <div class="ll-internal-review-note__status" id="<?php echo esc_attr($status_id); ?>" data-ll-internal-review-note-status aria-live="polite"></div>
-    </div>
+    </details>
     <?php
 
     return trim((string) ob_get_clean());
