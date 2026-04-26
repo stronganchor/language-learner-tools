@@ -1124,6 +1124,46 @@ function ll_tools_wordset_page_get_inactive_category_action_state(WP_Term $categ
     ];
 }
 
+function ll_tools_wordset_page_ensure_inactive_category_actions(array $cat): array {
+    $is_public = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+    if ($is_public) {
+        return $cat;
+    }
+
+    $category_id = isset($cat['id']) ? (int) $cat['id'] : (int) ($cat['term_id'] ?? 0);
+    $wordset_id = isset($cat['wordset_id']) ? (int) $cat['wordset_id'] : 0;
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return $cat;
+    }
+
+    if (!empty($cat['can_manage_inactive']) && !empty($cat['inactive_action_nonce']) && !empty($cat['inactive_action_url'])) {
+        return $cat;
+    }
+
+    $category = get_term($category_id, 'word-category');
+    if (!($category instanceof WP_Term) || is_wp_error($category)) {
+        return $cat;
+    }
+
+    $summary = [];
+    foreach (['word_image_count', 'prompt_card_count', 'content_count'] as $summary_key) {
+        if (array_key_exists($summary_key, $cat)) {
+            $summary[$summary_key] = max(0, (int) $cat[$summary_key]);
+        }
+    }
+
+    $action_state = ll_tools_wordset_page_get_inactive_category_action_state($category, $wordset_id, $summary);
+    $cat['can_manage_inactive'] = !empty($action_state['can_manage']);
+    $cat['can_hide'] = !empty($action_state['can_hide']);
+    $cat['can_preview'] = !empty($action_state['can_preview']);
+    $cat['can_delete'] = !empty($action_state['can_delete']);
+    $cat['delete_reason'] = (string) ($action_state['delete_reason'] ?? '');
+    $cat['inactive_action_nonce'] = (string) ($action_state['nonce'] ?? '');
+    $cat['inactive_action_url'] = (string) ($action_state['action_url'] ?? '');
+
+    return $cat;
+}
+
 /**
  * @return array{word_ids:int[],image_count:int,created_count:int,error_count:int}|WP_Error
  */
@@ -2313,7 +2353,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             $requires_images
         );
 
-        $items[] = [
+        $item = [
             'id'         => (int) $category->term_id,
             'slug'       => $category->slug,
             'raw_name'   => html_entity_decode((string) $category->name, ENT_QUOTES, 'UTF-8'),
@@ -2345,6 +2385,11 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'inactive_action_nonce' => (string) ($row['inactive_action_nonce'] ?? ''),
             'inactive_action_url' => (string) ($row['inactive_action_url'] ?? ''),
         ];
+        if (!$is_public) {
+            $item = ll_tools_wordset_page_ensure_inactive_category_actions($item);
+        }
+
+        $items[] = $item;
     }
 
     $items = apply_filters('ll_tools_wordset_page_categories', $items, $wordset_id);
@@ -2967,6 +3012,9 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     $cat_name = isset($cat['name']) ? (string) $cat['name'] : '';
     $cat_url = isset($cat['url']) ? (string) $cat['url'] : '';
     $is_public = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+    if (!$is_public) {
+        $cat = ll_tools_wordset_page_ensure_inactive_category_actions($cat);
+    }
     $public_note = isset($cat['public_note']) ? trim((string) $cat['public_note']) : '';
     if (!$is_public && $public_note === '') {
         $public_note = __('Not public yet.', 'll-tools-text-domain');
@@ -12681,6 +12729,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
     }
 
     $script_categories = array_map(function (array $cat) use ($category_search_index, $category_metrics_lookup): array {
+        $cat = ll_tools_wordset_page_ensure_inactive_category_actions($cat);
         $preview_items = array_values((array) ($cat['preview'] ?? []));
         $preview_items = array_slice($preview_items, 0, 2);
         $preview_payload = [];

@@ -89,8 +89,46 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertTrue(ll_tools_vocab_lesson_is_preview_only($lesson_id));
     }
 
+    public function test_inactive_card_backfills_action_icons_when_action_state_is_missing(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $inactive_category_id = (int) $fixture['inactive_category_id'];
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $categories = ll_tools_get_wordset_page_categories($wordset_id, 2);
+        $inactive_category = null;
+        foreach ($categories as $category) {
+            if ((int) ($category['id'] ?? 0) === $inactive_category_id) {
+                $inactive_category = $category;
+                break;
+            }
+        }
+        $this->assertIsArray($inactive_category);
+
+        unset(
+            $inactive_category['can_manage_inactive'],
+            $inactive_category['can_hide'],
+            $inactive_category['can_preview'],
+            $inactive_category['can_delete'],
+            $inactive_category['delete_reason'],
+            $inactive_category['inactive_action_nonce'],
+            $inactive_category['inactive_action_url']
+        );
+
+        $html = ll_tools_wordset_page_render_category_card($inactive_category, ['is_study_user' => true]);
+
+        $this->assertStringContainsString('ll-wordset-card__inactive-actions', $html);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--hide', $html);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $html);
+        $this->assertStringContainsString('ll-wordset-trash-icon', $html);
+        $this->assertStringContainsString('ll_wordset_inactive_category_nonce', $html);
+    }
+
     /**
-     * @return array{wordset_id:int,image_only_category_id:int,image_id:int}
+     * @return array{wordset_id:int,inactive_category_id:int,image_only_category_id:int,image_id:int}
      */
     private function createWordsetFixture(): array
     {
@@ -165,6 +203,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
 
         return [
             'wordset_id' => $wordset_id,
+            'inactive_category_id' => $inactive_category_id,
             'image_only_category_id' => $image_only_category_id,
             'image_id' => (int) $image_id,
         ];
