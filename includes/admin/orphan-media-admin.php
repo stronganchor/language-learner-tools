@@ -25,6 +25,10 @@ if (!defined('LL_TOOLS_ORPHAN_MEDIA_SNAPSHOT_MAX_AGE')) {
     define('LL_TOOLS_ORPHAN_MEDIA_SNAPSHOT_MAX_AGE', 21600);
 }
 
+if (!defined('LL_TOOLS_ORPHAN_MEDIA_STORED_ITEM_LIMIT')) {
+    define('LL_TOOLS_ORPHAN_MEDIA_STORED_ITEM_LIMIT', 1000);
+}
+
 function ll_tools_orphan_media_get_page_slug(): string {
     return (string) LL_TOOLS_ORPHAN_MEDIA_PAGE_SLUG;
 }
@@ -1181,7 +1185,16 @@ function ll_tools_orphan_media_get_snapshot(bool $force = false): array {
         'items' => $items,
     ];
 
-    update_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT, $snapshot, false);
+    $stored_snapshot = $snapshot;
+    $stored_item_limit = (int) apply_filters('ll_tools_orphan_media_stored_item_limit', (int) LL_TOOLS_ORPHAN_MEDIA_STORED_ITEM_LIMIT);
+    if ($stored_item_limit > 0 && count($items) > $stored_item_limit) {
+        $stored_snapshot['items'] = array_slice($items, 0, $stored_item_limit);
+        $stored_snapshot['items_truncated'] = true;
+        $stored_snapshot['stored_item_count'] = $stored_item_limit;
+        $stored_snapshot['summary']['stored_item_count'] = $stored_item_limit;
+    }
+
+    update_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT, $stored_snapshot, false);
     $GLOBALS['ll_tools_orphan_media_snapshot_stale'] = false;
 
     return $snapshot;
@@ -1694,6 +1707,21 @@ function ll_tools_orphan_media_render_admin_page(): void {
         <?php if (is_array($notice) && !empty($notice['message'])) : ?>
             <div class="notice notice-<?php echo esc_attr((string) ($notice['type'] ?? 'info')); ?> is-dismissible">
                 <p><?php echo esc_html((string) $notice['message']); ?></p>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($snapshot['items_truncated'])) : ?>
+            <div class="notice notice-warning">
+                <p>
+                    <?php
+                    echo esc_html(sprintf(
+                        /* translators: 1: visible item count, 2: total orphaned media item count */
+                        __('Showing the largest %1$d orphaned media items from a total of %2$d. Refresh the scan after cleaning these up to reveal more items.', 'll-tools-text-domain'),
+                        (int) ($snapshot['stored_item_count'] ?? count((array) ($snapshot['items'] ?? []))),
+                        (int) ($summary['total_count'] ?? 0)
+                    ));
+                    ?>
+                </p>
             </div>
         <?php endif; ?>
 

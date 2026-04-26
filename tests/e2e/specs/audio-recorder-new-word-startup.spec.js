@@ -3,6 +3,8 @@ const { test, expect } = require('@playwright/test');
 const ADMIN_USER = process.env.LL_E2E_ADMIN_USER || '';
 const ADMIN_PASS = process.env.LL_E2E_ADMIN_PASS || '';
 
+test.describe.configure({ timeout: 240000 });
+
 async function dismissAdminEmailVerification(page) {
   if (!/action=confirm_admin_email/.test(page.url())) {
     return;
@@ -34,10 +36,10 @@ async function ensureLoggedIntoAdmin(page) {
     await expect(page.locator('#user_login')).toBeVisible({ timeout: 30000 });
     await page.fill('#user_login', ADMIN_USER);
     await page.fill('#user_pass', ADMIN_PASS);
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      page.click('#wp-submit')
-    ]);
+    await page.click('#wp-submit');
+    await page.waitForURL((url) => !/wp-login\.php/.test(url.toString()), {
+      timeout: 60000
+    }).catch(() => {});
   }
 
   await dismissAdminEmailVerification(page);

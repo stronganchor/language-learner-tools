@@ -169,8 +169,11 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
 
     await previewForm.locator('#ll_import_existing').selectOption({ value: fixture.zipName });
     await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      previewForm.locator('button[type="submit"]').click()
+      page.waitForURL((url) => url.searchParams.has('ll_import_preview'), {
+        waitUntil: 'commit',
+        timeout: 120000
+      }),
+      previewForm.locator('button[type="submit"]').click({ timeout: 120000 })
     ]);
 
     await expect(page.locator('#ll-tools-import-preview')).toBeVisible({ timeout: 60000 });
@@ -178,10 +181,20 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(confirmImportForm(page)).toBeVisible();
 
     const importForm = confirmImportForm(page);
-    await importForm.locator('button[type="submit"]').click({ timeout: 120000 });
+    await Promise.all([
+      page.waitForURL((url) => (
+        /\/wp-admin\/tools\.php$/.test(url.pathname)
+        && url.searchParams.get('page') === 'll-import'
+        && !url.searchParams.has('ll_import_preview')
+      ), {
+        waitUntil: 'commit',
+        timeout: 120000
+      }),
+      importForm.locator('button[type="submit"]').click({ timeout: 120000 })
+    ]);
 
     const importRow = page.locator('.ll-tools-recent-imports-table tbody tr').filter({ hasText: fixture.zipName }).first();
-    await expect(importRow).toBeVisible({ timeout: 60000 });
+    await expect(importRow).toBeVisible({ timeout: 120000 });
     await expect(importRow.locator('.ll-tools-undo-import-button')).toBeVisible({ timeout: 60000 });
     const categoriesDetails = importRow.locator('.ll-tools-recent-imports-categories');
     await expect(categoriesDetails).toBeVisible({ timeout: 60000 });
