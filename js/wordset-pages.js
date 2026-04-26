@@ -6966,6 +6966,142 @@
         });
     }
 
+    function setInactiveCategoryActionFormBusy($form, busy) {
+        const $targetForm = ($form && $form.length) ? $form.first() : $();
+        if (!$targetForm.length) {
+            return;
+        }
+
+        const $button = $targetForm.find('.ll-wordset-card__inactive-action').first();
+        $targetForm.toggleClass('is-submitting', !!busy);
+        if (!$button.length) {
+            return;
+        }
+
+        if (busy) {
+            $button.prop('disabled', true).attr('aria-busy', 'true');
+        } else {
+            $button.prop('disabled', false).removeAttr('aria-busy');
+        }
+    }
+
+    function getInactiveCategoryActionErrorMessage(response) {
+        const payload = (response && response.data && typeof response.data === 'object') ? response.data : null;
+        if (payload && String(payload.message || '').trim() !== '') {
+            return String(payload.message || '').trim();
+        }
+        const xhrPayload = (response && response.responseJSON && response.responseJSON.data && typeof response.responseJSON.data === 'object')
+            ? response.responseJSON.data
+            : null;
+        if (xhrPayload && String(xhrPayload.message || '').trim() !== '') {
+            return String(xhrPayload.message || '').trim();
+        }
+        return i18n.saveError || 'Unable to save right now.';
+    }
+
+    function removeInactiveCategoryCardFromGrid(categoryId) {
+        const id = parseInt(categoryId, 10) || 0;
+        if (!id) {
+            scheduleSelectAllAlignment();
+            return;
+        }
+
+        const $cards = $grid.find('.ll-wordset-card[data-cat-id="' + id + '"]');
+        if (!$cards.length) {
+            scheduleSelectAllAlignment();
+            return;
+        }
+
+        $cards.addClass('is-removing');
+        window.setTimeout(function () {
+            animateGridReflowAfterCardRemoval($cards);
+            if (isMainCategorySearchActive()) {
+                renderMainCategorySearch();
+            }
+        }, prefersReducedMotion() ? 0 : 120);
+    }
+
+    function applyInactiveCategoryActionResult(payload, fallbackAction, fallbackCategoryId) {
+        const data = (payload && typeof payload === 'object') ? payload : {};
+        const action = String(data.result || fallbackAction || '').trim();
+        const categoryId = parseInt(data.category_id, 10) || parseInt(fallbackCategoryId, 10) || 0;
+        if (!categoryId) {
+            return;
+        }
+
+        if (action === 'hidden') {
+            const ignored = uniqueIntList((goals.ignored_category_ids || []).concat([categoryId]));
+            goals.ignored_category_ids = ignored;
+            categories = categories.map(function (cat) {
+                if (cat.id === categoryId) {
+                    return Object.assign({}, cat, { hidden: true });
+                }
+                return cat;
+            });
+        } else if (action === 'deleted') {
+            categories = categories.filter(function (cat) {
+                return parseInt(cat && cat.id, 10) !== categoryId;
+            });
+            goals.ignored_category_ids = uniqueIntList((goals.ignored_category_ids || []).filter(function (id) {
+                return id !== categoryId;
+            }));
+            rebuildCategoryOrderLookup();
+        }
+
+        state.category_ids = uniqueIntList((state.category_ids || []).filter(function (value) {
+            return value !== categoryId;
+        }));
+        removeHiddenCategoryFromSelection(categoryId);
+        removeInactiveCategoryCardFromGrid(categoryId);
+        renderHiddenCount({
+            pulse: action === 'hidden',
+            scrollIntoView: false
+        });
+        renderSelectionBar();
+        syncSelectAllButton();
+        saveStateDebounced();
+    }
+
+    function submitInactiveCategoryActionForm($form) {
+        const $targetForm = ($form && $form.length) ? $form.first() : $();
+        if (!$targetForm.length || !ajaxUrl) {
+            return $.Deferred().reject().promise();
+        }
+        if ($targetForm.hasClass('is-submitting')) {
+            return $.Deferred().reject().promise();
+        }
+
+        const actionName = String($targetForm.find('input[name="ll_wordset_inactive_category_action"]').val() || '').trim();
+        const categoryId = parseInt($targetForm.find('input[name="ll_wordset_inactive_category_id"]').val(), 10) || 0;
+        if (actionName !== 'hide' && actionName !== 'delete') {
+            return $.Deferred().reject().promise();
+        }
+
+        const data = $targetForm.serializeArray();
+        data.push({
+            name: 'action',
+            value: 'll_tools_wordset_inactive_category_action'
+        });
+        setInactiveCategoryActionFormBusy($targetForm, true);
+
+        return $.ajax({
+            type: 'POST',
+            url: ajaxUrl,
+            data: $.param(data),
+            dataType: 'json'
+        }).done(function (response) {
+            if (!response || !response.success) {
+                alert(getInactiveCategoryActionErrorMessage(response));
+                setInactiveCategoryActionFormBusy($targetForm, false);
+                return;
+            }
+            applyInactiveCategoryActionResult(response.data || {}, actionName, categoryId);
+        }).fail(function (xhr) {
+            alert(getInactiveCategoryActionErrorMessage(xhr));
+            setInactiveCategoryActionFormBusy($targetForm, false);
+        });
+    }
+
     function insertCategoryCardIntoGrid($card, categoryId) {
         const $node = ($card && $card.length) ? $card.first() : $();
         const targetId = parseInt(categoryId, 10) || 0;
@@ -13213,13 +13349,23 @@
         });
 
         $root.on('submit', '[data-ll-wordset-card-action-form]', function (e) {
-            const message = String($(this).attr('data-ll-wordset-card-confirm') || '').trim();
-            if (!message) {
+            const $form = $(this);
+            const message = String($form.attr('data-ll-wordset-card-confirm') || '').trim();
+            if (message && !window.confirm(message)) {
+                e.preventDefault();
                 return;
             }
-            if (!window.confirm(message)) {
-                e.preventDefault();
+
+            const actionName = String($form.find('input[name="ll_wordset_inactive_category_action"]').val() || '').trim();
+            if (actionName !== 'hide' && actionName !== 'delete') {
+                return;
             }
+            if (!ajaxUrl) {
+                return;
+            }
+
+            e.preventDefault();
+            submitInactiveCategoryActionForm($form);
         });
 
         $root.on('click', '[data-ll-wordset-start-mode]', function (e) {

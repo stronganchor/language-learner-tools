@@ -1219,6 +1219,119 @@ function ll_tools_wordset_page_prepare_word_images_for_lesson_preview(int $categ
     ];
 }
 
+/**
+ * @return array{result:string,wordset_id:int,category_id:int,preview_url?:string}|WP_Error
+ */
+function ll_tools_wordset_page_process_inactive_category_action(string $action, int $wordset_id, int $submitted_wordset_id, int $category_id, string $nonce) {
+    $action = sanitize_key($action);
+    $wordset_id = (int) $wordset_id;
+    $submitted_wordset_id = (int) $submitted_wordset_id;
+    $category_id = (int) $category_id;
+    $nonce = (string) $nonce;
+
+    if (!in_array($action, ['hide', 'delete', 'preview'], true)) {
+        return new WP_Error('action', __('Unable to update this category right now.', 'll-tools-text-domain'));
+    }
+    if ($wordset_id <= 0 || $submitted_wordset_id !== $wordset_id || $category_id <= 0) {
+        return new WP_Error('category', __('Unable to find that category.', 'll-tools-text-domain'));
+    }
+
+    $wordset_term = get_term($wordset_id, 'wordset');
+    if (!($wordset_term instanceof WP_Term) || is_wp_error($wordset_term)) {
+        return new WP_Error('wordset', __('Unable to find that word set.', 'll-tools-text-domain'));
+    }
+    if ($nonce === '' || !wp_verify_nonce($nonce, 'll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)) {
+        return new WP_Error('nonce', __('Your session expired. Please try again.', 'll-tools-text-domain'));
+    }
+
+    $can_hide_inactive_category = $action === 'hide'
+        && is_user_logged_in()
+        && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
+    $can_manage_inactive_category = current_user_can('manage_options')
+        || (
+            function_exists('ll_tools_current_user_can_manage_wordset_content')
+            && ll_tools_current_user_can_manage_wordset_content($wordset_id)
+        );
+
+    if (!$can_hide_inactive_category && !$can_manage_inactive_category) {
+        return new WP_Error('permission', __('You do not have permission to manage this category.', 'll-tools-text-domain'));
+    }
+
+    $category = function_exists('ll_tools_wordset_page_get_owned_category_term')
+        ? ll_tools_wordset_page_get_owned_category_term($category_id, $wordset_id)
+        : get_term($category_id, 'word-category');
+    if (!($category instanceof WP_Term) || is_wp_error($category)) {
+        return new WP_Error('category', __('Unable to find that category.', 'll-tools-text-domain'));
+    }
+
+    if ($action === 'hide') {
+        if (!function_exists('ll_tools_get_user_study_goals') || !function_exists('ll_tools_save_user_study_goals')) {
+            return new WP_Error('hide_unavailable', __('Unable to hide this category right now.', 'll-tools-text-domain'));
+        }
+        $goals = ll_tools_get_user_study_goals();
+        $ignored_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])), static function (int $ignored_id): bool {
+            return $ignored_id > 0;
+        })));
+        if (!in_array($category_id, $ignored_ids, true)) {
+            $ignored_ids[] = $category_id;
+        }
+        $goals['ignored_category_ids'] = $ignored_ids;
+        ll_tools_save_user_study_goals($goals);
+
+        return [
+            'result' => 'hidden',
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+        ];
+    }
+
+    $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
+    if ($action === 'delete') {
+        $delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $summary);
+        if ($delete_reason !== '') {
+            return new WP_Error('delete_blocked', $delete_reason);
+        }
+
+        $deleted = wp_delete_term($category_id, 'word-category');
+        if (is_wp_error($deleted) || empty($deleted)) {
+            return new WP_Error('delete_failed', __('Unable to delete this category right now.', 'll-tools-text-domain'));
+        }
+        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+            ll_tools_bump_wordset_cache_epoch();
+        }
+
+        return [
+            'result' => 'deleted',
+            'wordset_id' => $wordset_id,
+            'category_id' => $category_id,
+        ];
+    }
+
+    $prepare_result = ll_tools_wordset_page_prepare_word_images_for_lesson_preview($category_id, $wordset_id);
+    if (is_wp_error($prepare_result) && max(0, (int) ($summary['total'] ?? 0)) <= 0 && max(0, (int) ($summary['prompt_card_count'] ?? 0)) <= 0) {
+        return new WP_Error('preview_prepare', $prepare_result->get_error_message());
+    }
+
+    $preview_result = function_exists('ll_tools_get_or_create_vocab_lesson_preview_page')
+        ? ll_tools_get_or_create_vocab_lesson_preview_page($category_id, $wordset_id)
+        : new WP_Error('preview_unavailable', __('Lesson previews are not available right now.', 'll-tools-text-domain'));
+    if (is_wp_error($preview_result) || empty($preview_result['post_id'])) {
+        return new WP_Error('preview_create', is_wp_error($preview_result) ? $preview_result->get_error_message() : __('Unable to create the preview lesson right now.', 'll-tools-text-domain'));
+    }
+
+    $lesson_url = get_permalink((int) $preview_result['post_id']);
+    if (!is_string($lesson_url) || $lesson_url === '') {
+        return new WP_Error('preview_create', __('Unable to create the preview lesson right now.', 'll-tools-text-domain'));
+    }
+
+    return [
+        'result' => 'preview',
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'preview_url' => add_query_arg('ll_vocab_lesson_preview', '1', $lesson_url),
+    ];
+}
+
 function ll_tools_wordset_page_handle_inactive_category_action(): void {
     if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'POST') {
         return;
@@ -1270,88 +1383,58 @@ function ll_tools_wordset_page_handle_inactive_category_action(): void {
         exit;
     };
 
-    if ($submitted_wordset_id !== $wordset_id || $category_id <= 0) {
-        $redirect_error('category');
+    $result = ll_tools_wordset_page_process_inactive_category_action($action, $wordset_id, $submitted_wordset_id, $category_id, $nonce);
+    if (is_wp_error($result)) {
+        $redirect_error($result->get_error_code(), $result->get_error_message());
     }
-    if ($nonce === '' || !wp_verify_nonce($nonce, 'll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)) {
-        $redirect_error('nonce');
-    }
-    $can_hide_inactive_category = $action === 'hide'
-        && is_user_logged_in()
-        && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
-    $can_manage_inactive_category = current_user_can('manage_options')
-        || (
-            function_exists('ll_tools_current_user_can_manage_wordset_content')
-            && ll_tools_current_user_can_manage_wordset_content($wordset_id)
-        );
-
-    if (!$can_hide_inactive_category && !$can_manage_inactive_category) {
-        $redirect_error('permission');
-    }
-
-    $category = function_exists('ll_tools_wordset_page_get_owned_category_term')
-        ? ll_tools_wordset_page_get_owned_category_term($category_id, $wordset_id)
-        : get_term($category_id, 'word-category');
-    if (!($category instanceof WP_Term) || is_wp_error($category)) {
-        $redirect_error('category');
-    }
-
-    if ($action === 'hide') {
-        if (!function_exists('ll_tools_get_user_study_goals') || !function_exists('ll_tools_save_user_study_goals')) {
-            $redirect_error('hide_unavailable');
-        }
-        $goals = ll_tools_get_user_study_goals();
-        $ignored_ids = array_values(array_unique(array_filter(array_map('intval', (array) ($goals['ignored_category_ids'] ?? [])), static function (int $ignored_id): bool {
-            return $ignored_id > 0;
-        })));
-        if (!in_array($category_id, $ignored_ids, true)) {
-            $ignored_ids[] = $category_id;
-        }
-        $goals['ignored_category_ids'] = $ignored_ids;
-        ll_tools_save_user_study_goals($goals);
-        $redirect_success('hidden');
-    }
-
-    $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
-    if ($action === 'delete') {
-        $delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $summary);
-        if ($delete_reason !== '') {
-            $redirect_error('delete_blocked', $delete_reason);
-        }
-
-        $deleted = wp_delete_term($category_id, 'word-category');
-        if (is_wp_error($deleted) || empty($deleted)) {
-            $redirect_error('delete_failed');
-        }
-        if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
-            ll_tools_bump_wordset_cache_epoch();
-        }
-        $redirect_success('deleted');
-    }
-
-    if ($action === 'preview') {
-        $prepare_result = ll_tools_wordset_page_prepare_word_images_for_lesson_preview($category_id, $wordset_id);
-        if (is_wp_error($prepare_result) && max(0, (int) ($summary['total'] ?? 0)) <= 0 && max(0, (int) ($summary['prompt_card_count'] ?? 0)) <= 0) {
-            $redirect_error('preview_prepare', $prepare_result->get_error_message());
-        }
-
-        $preview_result = function_exists('ll_tools_get_or_create_vocab_lesson_preview_page')
-            ? ll_tools_get_or_create_vocab_lesson_preview_page($category_id, $wordset_id)
-            : new WP_Error('preview_unavailable', __('Lesson previews are not available right now.', 'll-tools-text-domain'));
-        if (is_wp_error($preview_result) || empty($preview_result['post_id'])) {
-            $redirect_error('preview_create', is_wp_error($preview_result) ? $preview_result->get_error_message() : '');
-        }
-
-        $lesson_url = get_permalink((int) $preview_result['post_id']);
-        if (!is_string($lesson_url) || $lesson_url === '') {
-            $redirect_error('preview_create');
-        }
-
-        wp_safe_redirect(add_query_arg('ll_vocab_lesson_preview', '1', $lesson_url));
+    if (!empty($result['preview_url'])) {
+        wp_safe_redirect((string) $result['preview_url']);
         exit;
     }
+    $redirect_success((string) ($result['result'] ?? 'updated'));
 }
 add_action('template_redirect', 'll_tools_wordset_page_handle_inactive_category_action', 5);
+
+function ll_tools_wordset_page_handle_inactive_category_action_ajax(): void {
+    $action = isset($_POST['ll_wordset_inactive_category_action'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_wordset_inactive_category_action']))
+        : '';
+    $wordset_id = isset($_POST['ll_wordset_inactive_category_wordset_id'])
+        ? (int) wp_unslash((string) $_POST['ll_wordset_inactive_category_wordset_id'])
+        : 0;
+    $category_id = isset($_POST['ll_wordset_inactive_category_id'])
+        ? (int) wp_unslash((string) $_POST['ll_wordset_inactive_category_id'])
+        : 0;
+    $nonce = isset($_POST['ll_wordset_inactive_category_nonce'])
+        ? wp_unslash((string) $_POST['ll_wordset_inactive_category_nonce'])
+        : '';
+
+    $result = ll_tools_wordset_page_process_inactive_category_action($action, $wordset_id, $wordset_id, $category_id, $nonce);
+    if (is_wp_error($result)) {
+        $code = $result->get_error_code();
+        $status = in_array($code, ['permission', 'nonce'], true) ? 403 : ($code === 'delete_blocked' ? 409 : 400);
+        wp_send_json_error([
+            'code' => $code,
+            'message' => $result->get_error_message() ?: __('Unable to update this category right now.', 'll-tools-text-domain'),
+        ], $status);
+    }
+
+    $message = __('Category updated.', 'll-tools-text-domain');
+    if (($result['result'] ?? '') === 'hidden') {
+        $message = __('Category hidden.', 'll-tools-text-domain');
+    } elseif (($result['result'] ?? '') === 'deleted') {
+        $message = __('Category deleted.', 'll-tools-text-domain');
+    }
+
+    wp_send_json_success([
+        'result' => (string) ($result['result'] ?? 'updated'),
+        'wordset_id' => (int) ($result['wordset_id'] ?? $wordset_id),
+        'category_id' => (int) ($result['category_id'] ?? $category_id),
+        'preview_url' => (string) ($result['preview_url'] ?? ''),
+        'message' => $message,
+    ]);
+}
+add_action('wp_ajax_ll_tools_wordset_inactive_category_action', 'll_tools_wordset_page_handle_inactive_category_action_ajax');
 
 function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $category, int $wordset_id, int $quiz_ready_count, int $min_words, array $counts): string {
     $category_id = (int) $category->term_id;

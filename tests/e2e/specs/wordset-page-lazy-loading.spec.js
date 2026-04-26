@@ -313,9 +313,22 @@ async function mountWordsetPage(page, options = {}) {
   await page.evaluate(({ config, remainingCards }) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
+    window.confirm = function () { return true; };
     window.__llLazyAjaxCalls = [];
+    window.__llInactiveActionAjaxCalls = [];
 
     const $ = window.jQuery;
+    const normalizeAjaxData = function (raw) {
+      if (typeof raw === 'string') {
+        const params = {};
+        new URLSearchParams(raw).forEach((value, key) => {
+          params[key] = value;
+        });
+        return params;
+      }
+      return (raw && typeof raw === 'object') ? raw : {};
+    };
+
     $.post = function () {
       const deferred = $.Deferred();
       deferred.resolve({
@@ -337,7 +350,22 @@ async function mountWordsetPage(page, options = {}) {
 
     $.ajax = function (options) {
       const deferred = $.Deferred();
-      const data = (options && options.data) || {};
+      const data = normalizeAjaxData((options && options.data) || {});
+      if (data.action === 'll_tools_wordset_inactive_category_action') {
+        window.__llInactiveActionAjaxCalls.push(data);
+        window.setTimeout(() => {
+          deferred.resolve({
+            success: true,
+            data: {
+              result: data.ll_wordset_inactive_category_action === 'delete' ? 'deleted' : 'hidden',
+              wordset_id: Number.parseInt(data.ll_wordset_inactive_category_wordset_id, 10) || 0,
+              category_id: Number.parseInt(data.ll_wordset_inactive_category_id, 10) || 0
+            }
+          });
+        }, 40);
+        return deferred.promise();
+      }
+
       window.__llLazyAjaxCalls.push(data);
       const offset = Number.parseInt(data.offset, 10) || 0;
       const count = Math.max(1, Number.parseInt(data.count, 10) || 1);
@@ -473,4 +501,62 @@ test('legacy inactive cards missing action controls are repaired on init', async
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--hide')).toHaveCount(1);
   await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeDisabled();
   await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
+});
+
+test('inactive category hide submits by ajax and removes only that card', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [inactiveCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    initialCardsMarkup: buildInactiveCardMarkup(inactiveCategory),
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 1,
+      remaining: 0
+    }
+  });
+
+  const initialUrl = page.url();
+  await page.locator('.ll-wordset-card--inactive[data-cat-id="44"] .ll-wordset-card__inactive-action--hide').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llInactiveActionAjaxCalls.map((call) => call.ll_wordset_inactive_category_action));
+  }).toEqual(['hide']);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="44"]')).toHaveCount(0);
+  expect(page.url()).toBe(initialUrl);
+});
+
+test('inactive category delete submits by ajax and removes only that card', async ({ page }) => {
+  const deletableCategory = Object.assign({}, inactiveCategory, {
+    id: 45,
+    name: 'Empty Draft Category',
+    translation: 'Empty Draft Category',
+    can_delete: true,
+    delete_reason: '',
+    public_note: 'No words yet.',
+    search_text: 'empty draft category'
+  });
+
+  await mountWordsetPage(page, {
+    categories: [deletableCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    initialCardsMarkup: buildInactiveCardMarkup(deletableCategory),
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 1,
+      remaining: 0
+    }
+  });
+
+  const initialUrl = page.url();
+  await page.locator('.ll-wordset-card--inactive[data-cat-id="45"] .ll-wordset-card__inactive-action--delete').click();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => window.__llInactiveActionAjaxCalls.map((call) => call.ll_wordset_inactive_category_action));
+  }).toEqual(['delete']);
+  await expect(page.locator('.ll-wordset-card[data-cat-id="45"]')).toHaveCount(0);
+  expect(page.url()).toBe(initialUrl);
 });
