@@ -146,6 +146,21 @@ final class AudioRecordingShortcodeHelpersTest extends LL_Tools_TestCase
         $this->assertCount(3, ll_tools_filter_recording_items_by_category($items, ''));
     }
 
+    public function test_recording_items_can_prioritize_requested_start_word(): void
+    {
+        $items = [
+            ['word_id' => 101, 'title' => 'First'],
+            ['word_id' => 202, 'title' => 'Second'],
+            ['word_id' => 303, 'title' => 'Third'],
+        ];
+
+        $prioritized = ll_tools_prioritize_recording_item_by_word_id($items, 202);
+
+        $this->assertSame([202, 101, 303], array_map(static function (array $item): int {
+            return (int) ($item['word_id'] ?? 0);
+        }, $prioritized));
+    }
+
     public function test_get_word_for_image_in_wordset_respects_requested_wordset(): void
     {
         $wordset_one = $this->ensure_term('wordset', 'Recorder Helper WS One', 'rec-helper-ws-one');

@@ -6,14 +6,20 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
     /** @var mixed */
     private $originalIsolationOption;
 
+    /** @var array<string,mixed> */
+    private $getBackup = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->originalIsolationOption = get_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION, null);
+        $this->getBackup = $_GET;
     }
 
     protected function tearDown(): void
     {
+        $_GET = $this->getBackup;
+
         if ($this->originalIsolationOption === null) {
             delete_option(LL_TOOLS_WORDSET_ISOLATION_ENABLED_OPTION);
         } else {
@@ -76,6 +82,60 @@ final class AudioRecorderUiLayoutMarkupTest extends LL_Tools_TestCase
         $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
         $this->assertIsString($localized);
         $this->assertStringContainsString('checking_upload', $localized);
+    }
+
+    public function test_audio_recording_shortcode_launch_query_prioritizes_requested_word(): void
+    {
+        ll_tools_register_or_refresh_audio_recorder_role();
+
+        $admin_id = self::factory()->user->create([
+            'role' => 'administrator',
+        ]);
+        wp_set_current_user($admin_id);
+
+        $wordset_id = $this->ensure_term('wordset', 'Recorder Launch Wordset', 'recorder-launch-wordset');
+        $category_id = $this->ensure_term('word-category', 'Recorder Launch Category', 'recorder-launch-category');
+        $this->ensure_term('recording_type', 'Isolation', 'isolation');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+
+        $first_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Alpha Launch Word',
+        ]);
+        wp_set_object_terms($first_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($first_word_id, [$category_id], 'word-category', false);
+
+        $start_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Zulu Launch Word',
+        ]);
+        wp_set_object_terms($start_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms($start_word_id, [$category_id], 'word-category', false);
+
+        $_GET = [
+            'll_record_wordset' => (string) $wordset_id,
+            'll_record_category' => 'recorder-launch-category',
+            'll_record_word' => (string) $start_word_id,
+        ];
+
+        do_shortcode('[audio_recording_interface]');
+
+        $localized = wp_scripts()->get_data('ll-audio-recorder', 'data');
+        $this->assertIsString($localized);
+        $expected_category = function_exists('ll_tools_recorder_resolve_category_term_for_wordsets')
+            ? ll_tools_recorder_resolve_category_term_for_wordsets('recorder-launch-category', [$wordset_id], false)
+            : get_term_by('slug', 'recorder-launch-category', 'word-category');
+        $expected_category_slug = $expected_category instanceof WP_Term ? (string) $expected_category->slug : 'recorder-launch-category';
+        $this->assertStringContainsString('"initial_category":"' . $expected_category_slug . '"', $localized);
+
+        $start_position = strpos($localized, '"word_id":' . $start_word_id);
+        $first_position = strpos($localized, '"word_id":' . $first_word_id);
+
+        $this->assertIsInt($start_position);
+        $this->assertIsInt($first_position);
+        $this->assertLessThan($first_position, $start_position);
     }
 
     public function test_new_word_category_select_is_scoped_to_selected_wordset(): void

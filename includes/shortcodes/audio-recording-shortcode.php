@@ -991,7 +991,10 @@ function ll_audio_recording_interface_shortcode($atts) {
         'exclude_recording_types' => '',
         'allow_new_words' => '',
         'auto_process_recordings' => '',
+        'start_word' => '',
     ], $defaults), $atts);
+    $atts = ll_tools_recorder_apply_launch_request_overrides($atts);
+    $start_word_id = absint($atts['start_word'] ?? 0);
 
     // Resolve wordset term IDs
     $wordset_term_ids = ll_resolve_wordset_term_ids_or_default($atts['wordset']);
@@ -1033,10 +1036,24 @@ function ll_audio_recording_interface_shortcode($atts) {
     }
     $available_category_labels = ll_tools_get_recording_category_dropdown_labels($available_categories, $available_category_counts);
 
+    $start_word_category = '';
+    if ($start_word_id > 0) {
+        $start_word_item = ll_tools_get_recording_item_for_word_id($all_images_needing_audio, $start_word_id);
+        if (is_array($start_word_item)) {
+            $start_word_category = sanitize_title((string) ($start_word_item['category_slug'] ?? ''));
+            if ($start_word_category === '') {
+                $start_word_category = 'uncategorized';
+            }
+        }
+    }
+
     // Get images for the initial category (or first if none specified)
     $initial_category = !empty($atts['category']) && isset($available_categories[$atts['category']]) ? $atts['category'] : key($available_categories);
+    if ($start_word_category !== '' && (empty($atts['category']) || !isset($available_categories[$atts['category']]))) {
+        $initial_category = $start_word_category;
+    }
     // Prefer showing uncategorized first when present so missing-audio words are surfaced
-    if (empty($atts['category']) && isset($available_categories['uncategorized'])) {
+    if (empty($atts['category']) && $start_word_category === '' && isset($available_categories['uncategorized'])) {
         $initial_category = 'uncategorized';
     }
     $images_needing_audio = ll_tools_filter_recording_items_by_category($all_images_needing_audio, $initial_category);
@@ -1053,6 +1070,9 @@ function ll_audio_recording_interface_shortcode($atts) {
                 break;
             }
         }
+    }
+    if ($start_word_id > 0) {
+        $images_needing_audio = ll_tools_prioritize_recording_item_by_word_id($images_needing_audio, $start_word_id);
     }
 
     if (empty($images_needing_audio) && !$allow_new_words && !$has_hidden_recording_words) {
@@ -1734,6 +1754,73 @@ function ll_tools_filter_recording_items_by_category(array $items, string $categ
     }
 
     return $result;
+}
+
+function ll_tools_recorder_get_launch_request_value(string $key): string {
+    if (!isset($_GET[$key]) || is_array($_GET[$key])) {
+        return '';
+    }
+
+    return trim(sanitize_text_field(wp_unslash((string) $_GET[$key])));
+}
+
+function ll_tools_recorder_apply_launch_request_overrides(array $atts): array {
+    $category = ll_tools_recorder_get_launch_request_value('ll_record_category');
+    if ($category !== '') {
+        $atts['category'] = sanitize_title($category);
+    }
+
+    $wordset = ll_tools_recorder_get_launch_request_value('ll_record_wordset');
+    if ($wordset !== '') {
+        $atts['wordset'] = $wordset;
+    }
+
+    $start_word = absint(ll_tools_recorder_get_launch_request_value('ll_record_word'));
+    if ($start_word > 0) {
+        $atts['start_word'] = (string) $start_word;
+    }
+
+    return $atts;
+}
+
+function ll_tools_get_recording_item_for_word_id(array $items, int $word_id): ?array {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0) {
+        return null;
+    }
+
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        if ((int) ($item['word_id'] ?? 0) === $word_id) {
+            return $item;
+        }
+    }
+
+    return null;
+}
+
+function ll_tools_prioritize_recording_item_by_word_id(array $items, int $word_id): array {
+    $word_id = (int) $word_id;
+    if ($word_id <= 0 || empty($items)) {
+        return $items;
+    }
+
+    foreach ($items as $index => $item) {
+        if (!is_array($item) || (int) ($item['word_id'] ?? 0) !== $word_id) {
+            continue;
+        }
+        if ((int) $index === 0) {
+            return array_values($items);
+        }
+
+        unset($items[$index]);
+        array_unshift($items, $item);
+        return array_values($items);
+    }
+
+    return array_values($items);
 }
 
 function ll_tools_recorder_normalize_wordset_ids(array $wordset_ids): array {

@@ -178,6 +178,119 @@ function ll_tools_word_grid_select_audio_url(array $audio_files, string $type, i
     return isset($entry['url']) ? (string) $entry['url'] : '';
 }
 
+function ll_tools_word_grid_get_recording_launch_items_by_word(array $word_ids, int $wordset_id, $category_term = null): array {
+    $word_ids = array_values(array_unique(array_filter(array_map('intval', $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    })));
+    $wordset_id = (int) $wordset_id;
+    if (empty($word_ids) || $wordset_id <= 0) {
+        return [];
+    }
+    if (!function_exists('ll_tools_user_can_record') || !ll_tools_user_can_record()) {
+        return [];
+    }
+    if (!function_exists('ll_get_recording_redirect_url') || !function_exists('ll_tools_get_recording_queue_items')) {
+        return [];
+    }
+
+    $recording_wordset_ids = [$wordset_id];
+    if (function_exists('ll_tools_filter_recording_wordset_ids_for_user')) {
+        $recording_wordset_ids = ll_tools_filter_recording_wordset_ids_for_user($recording_wordset_ids, get_current_user_id());
+    }
+    $recording_wordset_ids = array_values(array_unique(array_filter(array_map('intval', (array) $recording_wordset_ids), static function (int $id): bool {
+        return $id > 0;
+    })));
+    if (!in_array($wordset_id, $recording_wordset_ids, true)) {
+        return [];
+    }
+
+    $category_slug = '';
+    if ($category_term instanceof WP_Term && !is_wp_error($category_term)) {
+        $category_slug = (string) $category_term->slug;
+    }
+
+    $user_config = get_user_meta(get_current_user_id(), 'll_recording_config', true);
+    $include_types = is_array($user_config) ? trim((string) ($user_config['include_recording_types'] ?? '')) : '';
+    $exclude_types = is_array($user_config) ? trim((string) ($user_config['exclude_recording_types'] ?? '')) : '';
+
+    $queue_items = ll_tools_get_recording_queue_items($category_slug, [$wordset_id], $include_types, $exclude_types, false, get_current_user_id());
+    if (empty($queue_items)) {
+        return [];
+    }
+
+    $word_lookup = array_fill_keys($word_ids, true);
+    $base_url = (string) ll_get_recording_redirect_url(get_current_user_id());
+    if ($base_url === '') {
+        return [];
+    }
+
+    $items_by_word = [];
+    foreach ((array) $queue_items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $word_id = (int) ($item['word_id'] ?? 0);
+        if ($word_id <= 0 || !isset($word_lookup[$word_id]) || isset($items_by_word[$word_id])) {
+            continue;
+        }
+
+        $missing_types = array_values(array_filter(array_map('sanitize_key', (array) ($item['missing_types'] ?? []))));
+        if (empty($missing_types)) {
+            continue;
+        }
+
+        $item_category_slug = sanitize_title((string) ($item['category_slug'] ?? ''));
+        if ($item_category_slug === '') {
+            $item_category_slug = 'uncategorized';
+        }
+
+        $items_by_word[$word_id] = [
+            'url' => add_query_arg([
+                'll_record_wordset'  => (string) $wordset_id,
+                'll_record_category' => $item_category_slug,
+                'll_record_word'     => (string) $word_id,
+            ], $base_url),
+            'missing_types' => $missing_types,
+            'category_slug' => $item_category_slug,
+            'category_name' => sanitize_text_field((string) ($item['category_name'] ?? '')),
+        ];
+    }
+
+    return $items_by_word;
+}
+
+function ll_tools_word_grid_render_recording_launch_button(array $launch_item, string $word_text): string {
+    $url = isset($launch_item['url']) ? (string) $launch_item['url'] : '';
+    if ($url === '') {
+        return '';
+    }
+
+    $missing_count = count(array_values(array_filter((array) ($launch_item['missing_types'] ?? []))));
+    $word_label = trim(wp_strip_all_tags($word_text));
+    if ($word_label === '') {
+        $word_label = __('this word', 'll-tools-text-domain');
+    }
+    $label = sprintf(
+        /* translators: %s: word title */
+        __('Record missing audio for %s', 'll-tools-text-domain'),
+        $word_label
+    );
+
+    $html = '<a class="ll-word-recording-launch" href="' . esc_url($url) . '" aria-label="' . esc_attr($label) . '" title="' . esc_attr($label) . '">';
+    $html .= '<span class="ll-word-recording-launch__icon" aria-hidden="true">';
+    $html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">';
+    $html .= '<path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    $html .= '<path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    $html .= '</svg>';
+    $html .= '</span>';
+    if ($missing_count > 0) {
+        $html .= '<span class="ll-word-recording-launch__count" aria-hidden="true">' . esc_html((string) $missing_count) . '</span>';
+    }
+    $html .= '</a>';
+
+    return $html;
+}
+
 function ll_tools_word_grid_word_in_deepest_category(int $word_id, int $category_id): bool {
     $word_id = (int) $word_id;
     $category_id = (int) $category_id;
@@ -3698,6 +3811,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $query->current_post = -1;
     $word_ids = wp_list_pluck($query->posts, 'ID');
     $part_of_speech_by_word = ll_tools_word_grid_collect_part_of_speech_terms($word_ids);
+    $recording_launch_items_by_word = ll_tools_word_grid_get_recording_launch_items_by_word($word_ids, $wordset_id, $category_term);
     $audio_by_word = ll_tools_word_grid_collect_audio_files($word_ids, true);
     $main_recording_types = function_exists('ll_tools_get_main_recording_types')
         ? ll_tools_get_main_recording_types()
@@ -3991,6 +4105,13 @@ function ll_tools_word_grid_shortcode($atts) {
             $recording_rows = [];
             $has_recording_caption = false;
             $edit_recordings = [];
+            $recording_launch_html = '';
+            if (isset($recording_launch_items_by_word[(int) $word_id])) {
+                $recording_launch_html = ll_tools_word_grid_render_recording_launch_button(
+                    (array) $recording_launch_items_by_word[(int) $word_id],
+                    (string) $word_text
+                );
+            }
 
             foreach ($recording_type_order as $type) {
                 $entry = ll_tools_word_grid_select_audio_entry($audio_files, $type, $preferred_speaker);
@@ -4534,7 +4655,7 @@ function ll_tools_word_grid_shortcode($atts) {
             }
 
             // Audio buttons
-            if ($has_recordings) {
+            if ($has_recordings || $recording_launch_html !== '') {
                 $use_recording_rows = ($has_recording_caption && !$hide_lesson_grid_text) || $show_lesson_recording_edit_triggers;
                 if ($use_recording_rows) {
                     $recordings_wrap_classes = 'll-word-recordings';
@@ -4570,11 +4691,19 @@ function ll_tools_word_grid_shortcode($atts) {
                         }
                         $recordings_html .= '</div>';
                     }
+                    if ($recording_launch_html !== '') {
+                        $recordings_html .= '<div class="ll-word-recording-row ll-word-recording-row--launch">';
+                        $recordings_html .= $recording_launch_html;
+                        $recordings_html .= '</div>';
+                    }
                     $recordings_html .= '</div>';
                 } else {
                     $recordings_html .= '<div class="ll-word-recordings" aria-label="' . esc_attr__('Recordings', 'll-tools-text-domain') . '">';
                     foreach ($recording_rows as $row) {
                         $recordings_html .= $row['button'];
+                    }
+                    if ($recording_launch_html !== '') {
+                        $recordings_html .= $recording_launch_html;
                     }
                     $recordings_html .= '</div>';
                 }
