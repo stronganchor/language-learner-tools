@@ -140,6 +140,7 @@ test('mobile lesson word reordering uses a drag handle so card bodies can scroll
 
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
+    window.__llLessonOrderMouseEvents = [];
     window.matchMedia = (query) => ({
       matches: String(query || '').includes('(pointer: coarse)'),
       media: String(query || ''),
@@ -151,6 +152,14 @@ test('mobile lesson word reordering uses a drag handle so card bodies can scroll
       dispatchEvent() {
         return false;
       }
+    });
+    ['mouseover', 'mousemove', 'mousedown', 'mouseup', 'mouseout'].forEach((type) => {
+      document.addEventListener(type, (event) => {
+        window.__llLessonOrderMouseEvents.push({
+          type,
+          fromHandle: !!(event.target && event.target.closest && event.target.closest('[data-ll-word-grid-order-handle]'))
+        });
+      });
     });
 
     jQuery.fn.sortable = function (arg) {
@@ -174,4 +183,104 @@ test('mobile lesson word reordering uses a drag handle so card bodies can scroll
 
   expect(config.handle).toBe('[data-ll-word-grid-order-handle]');
   expect(config.requiresHandle).toBe(true);
+
+  const touchResult = await page.locator('[data-ll-word-grid]').evaluate((grid) => {
+    const handle = grid.querySelector('[data-ll-word-grid-order-handle]');
+    const cardBody = grid.querySelector('.word-title');
+
+    function makeTouch(type, target, x, y, touchesCount = 1) {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      const touch = {
+        identifier: 99,
+        screenX: x,
+        screenY: y,
+        clientX: x,
+        clientY: y
+      };
+      Object.defineProperty(event, 'touches', {
+        configurable: true,
+        value: type === 'touchend' || type === 'touchcancel' ? [] : Array.from({ length: touchesCount }, () => touch)
+      });
+      Object.defineProperty(event, 'changedTouches', {
+        configurable: true,
+        value: [touch]
+      });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    }
+
+    const cardBodyPrevented = makeTouch('touchstart', cardBody, 20, 20);
+    const handleStartPrevented = makeTouch('touchstart', handle, 24, 24);
+    const handleMovePrevented = makeTouch('touchmove', handle, 24, 92);
+    const handleEndPrevented = makeTouch('touchend', handle, 24, 92);
+
+    return {
+      cardBodyPrevented,
+      handleStartPrevented,
+      handleMovePrevented,
+      handleEndPrevented,
+      mouseEvents: window.__llLessonOrderMouseEvents
+    };
+  });
+
+  expect(touchResult.cardBodyPrevented).toBe(false);
+  expect(touchResult.handleStartPrevented).toBe(true);
+  expect(touchResult.handleMovePrevented).toBe(true);
+  expect(touchResult.handleEndPrevented).toBe(true);
+  expect(touchResult.mouseEvents.map((event) => event.type)).toEqual([
+    'mouseover',
+    'mousemove',
+    'mousedown',
+    'mousemove',
+    'mouseup',
+    'mouseout'
+  ]);
+  expect(touchResult.mouseEvents.every((event) => event.fromHandle)).toBe(true);
+});
+
+test('desktop lesson word reordering keeps card-wide dragging', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(buildWordOrderMarkup());
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate((cfg) => {
+    window.llToolsWordGridData = cfg;
+    window.matchMedia = (query) => ({
+      matches: String(query || '').includes('(hover: hover) and (pointer: fine)'),
+      media: String(query || ''),
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return false;
+      }
+    });
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 0
+    });
+
+    jQuery.fn.sortable = function (arg) {
+      if (typeof arg === 'string') {
+        return this;
+      }
+
+      return this.each(function () {
+        jQuery(this).data('ui-sortable', { options: arg || {} });
+        this.__llSortableOptions = arg || {};
+      });
+    };
+  }, buildWordGridConfig());
+
+  await page.addScriptTag({ content: wordGridScriptSource });
+
+  const config = await page.locator('[data-ll-word-grid]').evaluate((grid) => ({
+    hasHandleOption: !!(grid.__llSortableOptions && grid.__llSortableOptions.handle),
+    requiresHandle: grid.classList.contains('ll-word-grid--order-handle-required')
+  }));
+
+  expect(config.hasHandleOption).toBe(false);
+  expect(config.requiresHandle).toBe(false);
 });

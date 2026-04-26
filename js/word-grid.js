@@ -76,6 +76,118 @@
         return !!(nav && Number(nav.maxTouchPoints || 0) > 0);
     }
 
+    function getLessonOrderTouchByIdentifier(touches, identifier) {
+        if (!touches) { return null; }
+        for (let i = 0; i < touches.length; i += 1) {
+            if (touches[i] && touches[i].identifier === identifier) {
+                return touches[i];
+            }
+        }
+        return null;
+    }
+
+    function getLessonOrderPrimaryTouch(event, activeIdentifier) {
+        if (!event) { return null; }
+        if (typeof activeIdentifier !== 'undefined' && activeIdentifier !== null) {
+            return getLessonOrderTouchByIdentifier(event.changedTouches, activeIdentifier)
+                || getLessonOrderTouchByIdentifier(event.touches, activeIdentifier);
+        }
+        if (event.changedTouches && event.changedTouches.length) {
+            return event.changedTouches[0];
+        }
+        if (event.touches && event.touches.length) {
+            return event.touches[0];
+        }
+        return null;
+    }
+
+    function dispatchLessonOrderMouseEvent(type, touch, target) {
+        if (!touch || !target || typeof target.dispatchEvent !== 'function') { return; }
+        const event = new MouseEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            detail: 1,
+            screenX: Number(touch.screenX) || 0,
+            screenY: Number(touch.screenY) || 0,
+            clientX: Number(touch.clientX) || 0,
+            clientY: Number(touch.clientY) || 0,
+            button: 0,
+            buttons: type === 'mouseup' ? 0 : 1
+        });
+        target.dispatchEvent(event);
+    }
+
+    function clearLessonOrderTouchBridge($grid) {
+        const grid = $grid && $grid.length ? $grid.get(0) : null;
+        if (!grid || typeof grid.__llLessonOrderTouchBridgeCleanup !== 'function') { return; }
+        grid.__llLessonOrderTouchBridgeCleanup();
+        grid.__llLessonOrderTouchBridgeCleanup = null;
+    }
+
+    function bindLessonOrderTouchBridge($grid) {
+        const grid = $grid && $grid.length ? $grid.get(0) : null;
+        if (!grid || typeof grid.addEventListener !== 'function') { return; }
+        clearLessonOrderTouchBridge($grid);
+
+        let active = null;
+
+        const finish = function (event) {
+            if (!active) { return; }
+            const touch = getLessonOrderPrimaryTouch(event, active.identifier);
+            if (event && typeof event.preventDefault === 'function') {
+                event.preventDefault();
+            }
+            dispatchLessonOrderMouseEvent('mouseup', touch || active.lastTouch, active.target);
+            dispatchLessonOrderMouseEvent('mouseout', touch || active.lastTouch, active.target);
+            active = null;
+        };
+
+        const onTouchStart = function (event) {
+            if (!event || !event.target || (event.touches && event.touches.length > 1) || active) {
+                return;
+            }
+            const handle = event.target.closest ? event.target.closest(LESSON_ORDER_HANDLE_SELECTOR) : null;
+            if (!handle || !grid.contains(handle)) {
+                return;
+            }
+            const touch = getLessonOrderPrimaryTouch(event, null);
+            if (!touch) { return; }
+
+            active = {
+                identifier: touch.identifier,
+                target: handle,
+                lastTouch: touch
+            };
+            event.preventDefault();
+            dispatchLessonOrderMouseEvent('mouseover', touch, handle);
+            dispatchLessonOrderMouseEvent('mousemove', touch, handle);
+            dispatchLessonOrderMouseEvent('mousedown', touch, handle);
+        };
+
+        const onTouchMove = function (event) {
+            if (!active) { return; }
+            const touch = getLessonOrderPrimaryTouch(event, active.identifier);
+            if (!touch) { return; }
+            active.lastTouch = touch;
+            event.preventDefault();
+            dispatchLessonOrderMouseEvent('mousemove', touch, active.target);
+        };
+
+        grid.addEventListener('touchstart', onTouchStart, { passive: false });
+        grid.addEventListener('touchmove', onTouchMove, { passive: false });
+        grid.addEventListener('touchend', finish, { passive: false });
+        grid.addEventListener('touchcancel', finish, { passive: false });
+
+        grid.__llLessonOrderTouchBridgeCleanup = function () {
+            grid.removeEventListener('touchstart', onTouchStart);
+            grid.removeEventListener('touchmove', onTouchMove);
+            grid.removeEventListener('touchend', finish);
+            grid.removeEventListener('touchcancel', finish);
+            active = null;
+        };
+    }
+
     function setWordGridImagePending(img) {
         if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
         img.classList.remove('ll-image-loaded');
@@ -4915,6 +5027,7 @@
                 lessonState.lastSavedKey = collectLessonOrderWordIds($grid).join(',');
 
                 setLessonOrderStatus($grid, '', '');
+                clearLessonOrderTouchBridge($grid);
                 $grid.removeClass('ll-word-grid--ordering ll-word-grid--order-handle-required');
                 if (typeof $grid.sortable === 'function' && $grid.data('ui-sortable')) {
                     try {
@@ -4976,6 +5089,7 @@
                 if (requireHandle) {
                     sortableOptions.handle = LESSON_ORDER_HANDLE_SELECTOR;
                     $grid.addClass('ll-word-grid--order-handle-required');
+                    bindLessonOrderTouchBridge($grid);
                 }
 
                 $grid.sortable(sortableOptions);
