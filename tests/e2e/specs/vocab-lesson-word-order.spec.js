@@ -3,6 +3,10 @@ const fs = require('fs');
 const path = require('path');
 
 const jquerySource = fs.readFileSync(require.resolve('jquery'), 'utf8');
+const wordGridCssSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../css/language-learner-tools.css'),
+  'utf8'
+);
 const wordGridScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/word-grid.js'),
   'utf8'
@@ -63,6 +67,7 @@ test('lesson word reordering posts the dragged order through AJAX', async ({ pag
   await page.goto('about:blank');
   await page.setContent(buildWordOrderMarkup());
   await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: wordGridCssSource });
 
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
@@ -137,6 +142,7 @@ test('mobile lesson word reordering uses a drag handle so card bodies can scroll
   await page.goto('about:blank');
   await page.setContent(buildWordOrderMarkup());
   await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: wordGridCssSource });
 
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
@@ -178,11 +184,15 @@ test('mobile lesson word reordering uses a drag handle so card bodies can scroll
 
   const config = await page.locator('[data-ll-word-grid]').evaluate((grid) => ({
     handle: grid.__llSortableOptions && grid.__llSortableOptions.handle,
-    requiresHandle: grid.classList.contains('ll-word-grid--order-handle-required')
+    requiresHandle: grid.classList.contains('ll-word-grid--order-handle-required'),
+    handleDisplay: window.getComputedStyle(grid.querySelector('[data-ll-word-grid-order-handle]')).display,
+    handleWidth: grid.querySelector('[data-ll-word-grid-order-handle]').getBoundingClientRect().width
   }));
 
   expect(config.handle).toBe('[data-ll-word-grid-order-handle]');
   expect(config.requiresHandle).toBe(true);
+  expect(config.handleDisplay).not.toBe('none');
+  expect(config.handleWidth).toBeGreaterThan(0);
 
   const touchResult = await page.locator('[data-ll-word-grid]').evaluate((grid) => {
     const handle = grid.querySelector('[data-ll-word-grid-order-handle]');
@@ -242,6 +252,7 @@ test('desktop lesson word reordering keeps card-wide dragging', async ({ page })
   await page.goto('about:blank');
   await page.setContent(buildWordOrderMarkup());
   await page.addScriptTag({ content: jquerySource });
+  await page.addStyleTag({ content: wordGridCssSource });
 
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
@@ -278,9 +289,13 @@ test('desktop lesson word reordering keeps card-wide dragging', async ({ page })
 
   const config = await page.locator('[data-ll-word-grid]').evaluate((grid) => ({
     hasHandleOption: !!(grid.__llSortableOptions && grid.__llSortableOptions.handle),
-    requiresHandle: grid.classList.contains('ll-word-grid--order-handle-required')
+    requiresHandle: grid.classList.contains('ll-word-grid--order-handle-required'),
+    handleDisplay: window.getComputedStyle(grid.querySelector('[data-ll-word-grid-order-handle]')).display,
+    handleWidth: grid.querySelector('[data-ll-word-grid-order-handle]').getBoundingClientRect().width
   }));
 
   expect(config.hasHandleOption).toBe(false);
   expect(config.requiresHandle).toBe(false);
+  expect(config.handleDisplay).not.toBe('none');
+  expect(config.handleWidth).toBeGreaterThan(0);
 });

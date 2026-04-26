@@ -1863,6 +1863,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     touch-action: none;
 }
 
+.word-grid.ll-word-grid.ll-word-grid--reorderable .ll-word-grid-order-handle,
 .word-grid.ll-word-grid.ll-word-grid--order-handle-required .ll-word-grid-order-handle {
     display: inline-flex;
 }
