@@ -302,6 +302,34 @@
         }
     }
 
+    function isPlainNavigationClick(event) {
+        if (!event) { return true; }
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+            return false;
+        }
+        if (typeof event.which === 'number' && event.which > 0 && event.which !== 1) {
+            return false;
+        }
+        if (typeof event.button === 'number' && event.button > 0) {
+            return false;
+        }
+        return true;
+    }
+
+    function navigateAfterPaint(url) {
+        const navigate = function () {
+            window.location.assign(url);
+        };
+        const schedule = function () {
+            window.setTimeout(navigate, 50);
+        };
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(schedule);
+            return;
+        }
+        schedule();
+    }
+
     function ensureVisualizerContext() {
         if (vizContext) { return vizContext; }
         const Ctor = window.AudioContext || window.webkitAudioContext;
@@ -483,6 +511,36 @@
         currentAudio = null;
         currentAudioButton = null;
     }
+
+    $grids.on('click', '.ll-word-recording-launch', function (e) {
+        const link = this;
+        const $link = $(link);
+        const rawHref = $link.attr('href') || '';
+        const href = link.href || rawHref;
+        const target = String($link.attr('target') || '').toLowerCase();
+
+        if (!rawHref || rawHref === '#' || (target && target !== '_self') || link.hasAttribute('download') || !isPlainNavigationClick(e)) {
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        if ($link.hasClass('is-loading')) {
+            return;
+        }
+
+        const loadingLabel = $link.attr('data-loading-label') || '';
+        $link.addClass('is-loading').attr('aria-busy', 'true');
+        if (loadingLabel) {
+            $link.attr({
+                'aria-label': loadingLabel,
+                title: loadingLabel
+            });
+        }
+
+        navigateAfterPaint(href);
+    });
 
     $grids.on('click', '.ll-study-recording-btn', function (e) {
         e.preventDefault();

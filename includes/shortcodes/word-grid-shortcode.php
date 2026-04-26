@@ -275,8 +275,9 @@ function ll_tools_word_grid_render_recording_launch_button(array $launch_item, s
         __('Record missing audio for %s', 'll-tools-text-domain'),
         $word_label
     );
+    $loading_label = __('Opening recorder...', 'll-tools-text-domain');
 
-    $html = '<a class="ll-word-recording-launch" href="' . esc_url($url) . '" aria-label="' . esc_attr($label) . '" title="' . esc_attr($label) . '">';
+    $html = '<a class="ll-word-recording-launch" href="' . esc_url($url) . '" aria-label="' . esc_attr($label) . '" title="' . esc_attr($label) . '" data-loading-label="' . esc_attr($loading_label) . '">';
     $html .= '<span class="ll-word-recording-launch__icon" aria-hidden="true">';
     $html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">';
     $html .= '<circle cx="12" cy="12" r="8" fill="currentColor"/>';

@@ -2179,6 +2179,51 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     text-decoration: none !important;
 }
 
+.word-grid.ll-word-grid .ll-word-recording-launch.is-loading,
+.word-grid.ll-word-grid .ll-word-recording-launch.is-loading:hover {
+    background: #c0392b !important;
+    background-color: #c0392b !important;
+    color: #ffffff !important;
+    cursor: wait !important;
+    transform: none !important;
+    text-decoration: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-launch.is-loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    box-sizing: border-box;
+    pointer-events: none;
+    animation: ll-word-recording-launch-spin 0.75s linear infinite;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-launch.is-loading .ll-word-recording-launch__icon,
+.word-grid.ll-word-grid .ll-word-recording-launch.is-loading .ll-word-recording-launch__count {
+    visibility: hidden;
+}
+
+@keyframes ll-word-recording-launch-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .word-grid.ll-word-grid .ll-word-recording-launch.is-loading::after {
+        animation: none;
+        border-color: rgba(255, 255, 255, 0.35);
+        border-top-color: #ffffff;
+    }
+}
+
 .word-grid.ll-word-grid .ll-word-recording-launch__icon,
 .word-grid.ll-word-grid .ll-word-recording-launch__icon svg {
     display: block;
