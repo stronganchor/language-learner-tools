@@ -755,15 +755,13 @@ function ll_tools_wordset_page_get_staff_category_terms(int $wordset_id, array $
         $terms_by_id[(int) $term->term_id] = $term;
     };
 
-    foreach (ll_tools_wordset_page_get_owned_category_terms($wordset_id) as $term) {
-        $add_term($term);
-    }
-
     $candidate_ids = array_unique(array_merge(
         array_keys((array) ($counts['all'] ?? [])),
         array_keys((array) ($counts['with_images'] ?? []))
     ));
 
+    // Staff-only inactive cards should represent lesson/quiz content, not every
+    // empty owned category shell or image-only staging category.
     $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
     $object_ids = get_posts([
         'post_type'      => ['words', $prompt_card_post_type],

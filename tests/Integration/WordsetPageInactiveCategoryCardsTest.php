@@ -24,6 +24,8 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $inactive_card = $this->extractCategoryCardMarkupByText($staff_html, 'Inactive Staff Only Category');
 
         $this->assertStringContainsString('Inactive Staff Only Category', $staff_html);
+        $this->assertStringNotContainsString('Empty Owned Staff Category', $staff_html);
+        $this->assertStringNotContainsString('Image Only Staff Category', $staff_html);
         $this->assertStringContainsString('ll-wordset-card--inactive', $inactive_card);
         $this->assertStringContainsString('data-ll-wordset-public="0"', $inactive_card);
         $this->assertStringContainsString('Not public', $inactive_card);
@@ -45,13 +47,25 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
 
         $public_category = wp_insert_term('Public Staff Visible Category ' . wp_generate_password(4, false), 'word-category');
         $inactive_category = wp_insert_term('Inactive Staff Only Category ' . wp_generate_password(4, false), 'word-category');
+        $empty_owned_category = wp_insert_term('Empty Owned Staff Category ' . wp_generate_password(4, false), 'word-category');
+        $image_only_category = wp_insert_term('Image Only Staff Category ' . wp_generate_password(4, false), 'word-category');
         $this->assertFalse(is_wp_error($public_category));
         $this->assertFalse(is_wp_error($inactive_category));
+        $this->assertFalse(is_wp_error($empty_owned_category));
+        $this->assertFalse(is_wp_error($image_only_category));
         $this->assertIsArray($public_category);
         $this->assertIsArray($inactive_category);
+        $this->assertIsArray($empty_owned_category);
+        $this->assertIsArray($image_only_category);
 
         $public_category_id = (int) $public_category['term_id'];
         $inactive_category_id = (int) $inactive_category['term_id'];
+        $empty_owned_category_id = (int) $empty_owned_category['term_id'];
+        $image_only_category_id = (int) $image_only_category['term_id'];
+        $owner_meta_key = defined('LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY') ? LL_TOOLS_CATEGORY_WORDSET_OWNER_META_KEY : 'll_wordset_owner_id';
+        foreach ([$public_category_id, $inactive_category_id, $empty_owned_category_id, $image_only_category_id] as $category_id) {
+            update_term_meta($category_id, $owner_meta_key, (string) $wordset_id);
+        }
 
         update_term_meta($public_category_id, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($public_category_id, 'll_quiz_option_type', 'text_title');
@@ -81,6 +95,14 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         ]);
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $public_category_id);
+
+        $image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Image Only Staff Category Image ' . wp_generate_password(4, false),
+        ]);
+        wp_set_post_terms($image_id, [$image_only_category_id], 'word-category', false);
+        wp_set_post_terms($image_id, [$wordset_id], 'wordset', false);
 
         return [
             'wordset_id' => $wordset_id,
