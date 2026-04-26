@@ -94,14 +94,14 @@ test('lesson word reordering posts the dragged order through AJAX', async ({ pag
       const payload = JSON.parse(JSON.stringify(options && options.data ? options.data : {}));
       window.__llLessonOrderCalls.push(payload);
       const deferred = jQuery.Deferred();
-      window.setTimeout(() => {
+      window.__llResolveLessonOrder = () => {
         deferred.resolve({
           success: true,
           data: {
             order: payload.order || []
           }
         });
-      }, 10);
+      };
       return deferred.promise();
     };
   }, buildWordGridConfig());
@@ -128,6 +128,25 @@ test('lesson word reordering posts the dragged order through AJAX', async ({ pag
   });
 
   await page.waitForFunction(() => Array.isArray(window.__llLessonOrderCalls) && window.__llLessonOrderCalls.length === 1);
+  await expect(page.locator('[data-ll-word-grid-order-status]')).toContainText('Saving order...');
+
+  const savingLayout = await page.locator('[data-ll-word-grid]').evaluate((grid) => {
+    const status = grid.querySelector('[data-ll-word-grid-order-status]');
+    const firstCard = grid.querySelector('.word-item[data-word-id="103"]');
+    const gridRect = grid.getBoundingClientRect();
+    const firstCardRect = firstCard.getBoundingClientRect();
+
+    return {
+      order: Array.from(grid.querySelectorAll('.word-item[data-word-id]')).map((item) => Number(item.getAttribute('data-word-id'))),
+      statusPosition: window.getComputedStyle(status).position,
+      firstCardLeft: firstCardRect.left,
+      gridLeft: gridRect.left
+    };
+  });
+
+  expect(savingLayout.order).toEqual([103, 101, 102]);
+  expect(savingLayout.statusPosition).toBe('fixed');
+  expect(Math.abs(savingLayout.firstCardLeft - savingLayout.gridLeft)).toBeLessThan(1);
 
   const payload = await page.evaluate(() => window.__llLessonOrderCalls[0]);
   expect(payload.action).toBe('ll_tools_word_grid_save_lesson_order');
@@ -135,6 +154,7 @@ test('lesson word reordering posts the dragged order through AJAX', async ({ pag
   expect(payload.nonce).toBe('lesson-order-nonce');
   expect(payload.order).toEqual([103, 101, 102]);
 
+  await page.evaluate(() => window.__llResolveLessonOrder());
   await expect(page.locator('[data-ll-word-grid-order-status]')).toContainText('Order saved.');
 });
 

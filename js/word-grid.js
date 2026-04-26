@@ -4979,6 +4979,16 @@
                 const savedIds = Array.isArray(data.order) ? normalizeIds(data.order) : orderIds;
                 lessonState.lastSavedKey = savedIds.join(',') || orderKey;
                 lessonState.pendingIds = [];
+                if (savedIds.length) {
+                    const savedLookup = {};
+                    savedIds.forEach(function (wordId) {
+                        savedLookup[wordId] = true;
+                    });
+                    const currentIds = collectLessonOrderWordIds($grid);
+                    if (currentIds.length && currentIds.every(function (wordId) { return !!savedLookup[wordId]; })) {
+                        lessonState.lastSavedKey = currentIds.join(',') || lessonState.lastSavedKey;
+                    }
+                }
                 setLessonOrderStatus($grid, 'saved', orderMessages.saved);
                 scheduleLessonOrderStatusClear($grid, 1200);
             }).fail(function (jqXHR) {

@@ -1887,13 +1887,22 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 }
 
 .word-grid.ll-word-grid .ll-word-grid-order-status {
-    margin: 0 0 14px;
+    position: fixed;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    z-index: 100000;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    margin: 0;
     padding: 10px 12px;
     border-radius: 12px;
     font-size: 13px;
     line-height: 1.4;
     background: rgba(15, 23, 42, 0.04);
     color: #334155;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+    pointer-events: none;
+    transform: translateX(-50%);
 }
 
 .word-grid.ll-word-grid .ll-word-grid-order-status[hidden] {

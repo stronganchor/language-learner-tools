@@ -4697,22 +4697,29 @@ function ll_tools_resolve_audio_file_for_transcription(string $audio_path): arra
     ];
 }
 
-function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $category_id): array {
+function ll_tools_get_lesson_word_ids_for_statuses(int $wordset_id, int $category_id, array $post_statuses): array {
     $wordset_id = (int) $wordset_id;
     $category_id = (int) $category_id;
     if ($wordset_id <= 0 || $category_id <= 0) {
         return [];
     }
 
+    $post_statuses = array_values(array_unique(array_filter(array_map('sanitize_key', $post_statuses), static function (string $status): bool {
+        return $status !== '';
+    })));
+    if (empty($post_statuses)) {
+        $post_statuses = ['publish'];
+    }
+
     static $request_cache = [];
-    $cache_key = $wordset_id . ':' . $category_id;
+    $cache_key = $wordset_id . ':' . $category_id . ':' . implode(',', $post_statuses);
     if (array_key_exists($cache_key, $request_cache)) {
         return $request_cache[$cache_key];
     }
 
     $query = new WP_Query([
         'post_type'      => 'words',
-        'post_status'    => 'publish',
+        'post_status'    => count($post_statuses) === 1 ? $post_statuses[0] : $post_statuses,
         'posts_per_page' => -1,
         'fields'         => 'ids',
         'no_found_rows'  => true,
@@ -4755,6 +4762,18 @@ function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $ca
 
     $request_cache[$cache_key] = $word_ids;
     return $word_ids;
+}
+
+function ll_tools_get_lesson_word_ids_for_transcription(int $wordset_id, int $category_id): array {
+    return ll_tools_get_lesson_word_ids_for_statuses($wordset_id, $category_id, ['publish']);
+}
+
+function ll_tools_get_lesson_word_ids_for_order(int $wordset_id, int $category_id, bool $include_drafts = false): array {
+    return ll_tools_get_lesson_word_ids_for_statuses(
+        $wordset_id,
+        $category_id,
+        $include_drafts ? ['publish', 'draft'] : ['publish']
+    );
 }
 
 function ll_tools_get_vocab_lesson_ids_from_post(int $lesson_id): array {
@@ -5772,7 +5791,9 @@ function ll_tools_word_grid_save_lesson_order_handler() {
         wp_send_json_error('Forbidden', 403);
     }
 
-    $allowed_word_ids = ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
+    $allowed_word_ids = function_exists('ll_tools_get_lesson_word_ids_for_order')
+        ? ll_tools_get_lesson_word_ids_for_order($wordset_id, $category_id, true)
+        : ll_tools_get_lesson_word_ids_for_transcription($wordset_id, $category_id);
     if (empty($allowed_word_ids)) {
         delete_post_meta($lesson_id, defined('LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META') ? LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META : '_ll_tools_vocab_word_order');
         wp_send_json_success([

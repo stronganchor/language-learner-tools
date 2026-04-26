@@ -86,6 +86,74 @@ final class VocabLessonWordOrderTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_save_lesson_order_handler_preserves_draft_words_for_staff_refresh(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+        wp_set_current_user($admin_id);
+
+        [$wordset_id, $category_id] = $this->createLessonTerms('Lesson Draft Order Save');
+
+        $word_one = $this->createWord($wordset_id, $category_id, 'One');
+        $draft_word = $this->createWord($wordset_id, $category_id, 'Draft Middle', 'draft');
+        $word_two = $this->createWord($wordset_id, $category_id, 'Two');
+
+        $lesson_id = $this->createLesson($wordset_id, $category_id, 'Save Draft Order Lesson');
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'lesson_id' => $lesson_id,
+            'order' => [$word_two, $draft_word, $word_one],
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $save_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_word_grid_save_lesson_order_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($save_response['success'] ?? false), wp_json_encode($save_response));
+        $this->assertSame(
+            [$word_two, $draft_word, $word_one],
+            array_values(array_map('intval', (array) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORD_ORDER_META, true)))
+        );
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $grid_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($grid_response['success'] ?? false), wp_json_encode($grid_response));
+        $html = (string) (($grid_response['data'] ?? [])['html'] ?? '');
+
+        $position_two = strpos($html, 'Two');
+        $position_draft = strpos($html, 'Draft Middle');
+        $position_one = strpos($html, 'One');
+
+        $this->assertIsInt($position_two);
+        $this->assertIsInt($position_draft);
+        $this->assertIsInt($position_one);
+        $this->assertLessThan($position_draft, $position_two);
+        $this->assertLessThan($position_one, $position_draft);
+    }
+
     /**
      * @return array{0:int,1:int}
      */
@@ -107,11 +175,11 @@ final class VocabLessonWordOrderTest extends LL_Tools_TestCase
         return [$wordset_id, $category_id];
     }
 
-    private function createWord(int $wordset_id, int $category_id, string $title): int
+    private function createWord(int $wordset_id, int $category_id, string $title, string $status = 'publish'): int
     {
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
-            'post_status' => 'publish',
+            'post_status' => $status,
             'post_title' => $title,
         ]);
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
