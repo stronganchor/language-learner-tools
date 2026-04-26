@@ -1092,7 +1092,7 @@ function ll_tools_wordset_page_category_delete_blocker(WP_Term $category, int $w
  */
 function ll_tools_wordset_page_get_inactive_category_action_state(WP_Term $category, int $wordset_id, array $summary = []): array {
     $category_id = (int) $category->term_id;
-    $can_manage = $wordset_id > 0
+    $can_manage_content = $wordset_id > 0
         && is_user_logged_in()
         && (
             current_user_can('manage_options')
@@ -1101,7 +1101,8 @@ function ll_tools_wordset_page_get_inactive_category_action_state(WP_Term $categ
                 && ll_tools_current_user_can_manage_wordset_content($wordset_id)
             )
         );
-    $delete_reason = $can_manage ? ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $summary) : __('You do not have permission to manage this category.', 'll-tools-text-domain');
+    $can_show_actions = $wordset_id > 0 && $category_id > 0 && is_user_logged_in();
+    $delete_reason = $can_manage_content ? ll_tools_wordset_page_category_delete_blocker($category, $wordset_id, $summary) : __('You do not have permission to manage this category.', 'll-tools-text-domain');
     $action_url = '';
     $wordset_term = get_term($wordset_id, 'wordset');
     if ($wordset_term instanceof WP_Term && !is_wp_error($wordset_term) && function_exists('ll_tools_get_wordset_page_view_url')) {
@@ -1112,14 +1113,14 @@ function ll_tools_wordset_page_get_inactive_category_action_state(WP_Term $categ
     }
 
     return [
-        'can_manage' => $can_manage,
-        'can_hide' => $can_manage,
-        'can_preview' => $can_manage
+        'can_manage' => $can_show_actions,
+        'can_hide' => $can_show_actions,
+        'can_preview' => $can_manage_content
             && max(0, (int) ($summary['content_count'] ?? 0)) > 0
             && function_exists('ll_tools_get_or_create_vocab_lesson_preview_page'),
-        'can_delete' => $can_manage && $delete_reason === '',
+        'can_delete' => $can_manage_content && $delete_reason === '',
         'delete_reason' => $delete_reason,
-        'nonce' => ($can_manage && $category_id > 0) ? wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id) : '',
+        'nonce' => $can_show_actions ? wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id) : '',
         'action_url' => $action_url,
     ];
 }
@@ -1275,13 +1276,16 @@ function ll_tools_wordset_page_handle_inactive_category_action(): void {
     if ($nonce === '' || !wp_verify_nonce($nonce, 'll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)) {
         $redirect_error('nonce');
     }
-    if (
-        !current_user_can('manage_options')
-        && (
-            !function_exists('ll_tools_current_user_can_manage_wordset_content')
-            || !ll_tools_current_user_can_manage_wordset_content($wordset_id)
-        )
-    ) {
+    $can_hide_inactive_category = $action === 'hide'
+        && is_user_logged_in()
+        && (!function_exists('ll_tools_user_study_can_access') || ll_tools_user_study_can_access());
+    $can_manage_inactive_category = current_user_can('manage_options')
+        || (
+            function_exists('ll_tools_current_user_can_manage_wordset_content')
+            && ll_tools_current_user_can_manage_wordset_content($wordset_id)
+        );
+
+    if (!$can_hide_inactive_category && !$can_manage_inactive_category) {
         $redirect_error('permission');
     }
 

@@ -127,6 +127,33 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_inactive_category_nonce', $html);
     }
 
+    public function test_logged_in_viewer_gets_hide_icon_for_visible_inactive_card(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $inactive_category_id = (int) $fixture['inactive_category_id'];
+
+        $subscriber_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($subscriber_id);
+
+        $html = ll_tools_wordset_page_render_category_card([
+            'id' => $inactive_category_id,
+            'wordset_id' => $wordset_id,
+            'name' => 'Visible Draft Category',
+            'count' => 1,
+            'preview' => [],
+            'has_images' => false,
+            'is_public' => false,
+            'public_note' => 'Needs more quiz-ready words.',
+        ], ['is_study_user' => true]);
+
+        $this->assertStringContainsString('ll-wordset-card__inactive-actions', $html);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $html);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--hide', $html);
+        $this->assertStringContainsString('ll-wordset-trash-icon', $html);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--delete" disabled', $html);
+    }
+
     /**
      * @return array{wordset_id:int,inactive_category_id:int,image_only_category_id:int,image_id:int}
      */
