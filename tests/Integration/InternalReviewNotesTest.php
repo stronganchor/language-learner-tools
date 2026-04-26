@@ -7,10 +7,12 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
     {
         $wordset_id = $this->createTerm('wordset', 'Internal Notes Wordset', 'internal-notes-wordset');
         $category_id = $this->createTerm('word-category', 'Internal Notes Category', 'internal-notes-category');
+        $recording_type_id = $this->createTerm('recording_type', 'Isolation', 'isolation');
         update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
 
         $word_id = $this->createWord($wordset_id, $category_id, 'Terminus', 'Boundary');
+        $this->createAudio($word_id, $recording_type_id, 'audio/internal-notes-terminus.mp3');
         update_post_meta($word_id, ll_tools_internal_review_note_meta_key(), 'Split this into two cards.');
 
         $ajax_filter = static function (): bool {
@@ -36,6 +38,11 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
             $this->assertStringContainsString('data-ll-internal-review-note', $staff_output);
             $this->assertStringContainsString('Internal review note', $staff_output);
             $this->assertStringContainsString('Split this into two cards.', $staff_output);
+            $recordings_position = strpos($staff_output, 'class="ll-word-recordings');
+            $note_position = strpos($staff_output, 'data-ll-internal-review-note');
+            $this->assertIsInt($recordings_position);
+            $this->assertIsInt($note_position);
+            $this->assertGreaterThan($recordings_position, $note_position);
         } finally {
             unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
             remove_filter('wp_doing_ajax', $ajax_filter);
@@ -136,6 +143,11 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
 
     private function createTerm(string $taxonomy, string $name, string $slug): int
     {
+        $existing = get_term_by('slug', $slug, $taxonomy);
+        if ($existing instanceof WP_Term) {
+            return (int) $existing->term_id;
+        }
+
         $term = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
         $this->assertFalse(is_wp_error($term));
         $this->assertIsArray($term);
@@ -155,6 +167,20 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    private function createAudio(int $word_id, int $recording_type_id, string $audio_path): int
+    {
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Internal Notes Recording',
+        ]);
+        update_post_meta($audio_id, 'audio_file_path', $audio_path);
+        wp_set_post_terms($audio_id, [$recording_type_id], 'recording_type', false);
+
+        return (int) $audio_id;
     }
 
     /**

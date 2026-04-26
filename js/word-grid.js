@@ -13,6 +13,7 @@
     const internalNotesCfg = (cfg.internalNotes && typeof cfg.internalNotes === 'object') ? cfg.internalNotes : {};
     const internalNotesI18n = (internalNotesCfg.i18n && typeof internalNotesCfg.i18n === 'object') ? internalNotesCfg.i18n : {};
     const internalNotesEnabled = !!internalNotesCfg.enabled && !!internalNotesCfg.nonce && !!ajaxUrl;
+    const internalNoteSaveDelayMs = Math.max(1500, parseInt(internalNotesCfg.saveDelayMs, 10) || 3000);
     const transcribePollAttemptsRaw = parseInt(cfg.transcribePollAttempts, 10);
     const transcribePollIntervalRaw = parseInt(cfg.transcribePollIntervalMs, 10);
     const transcribePollAttempts = Number.isFinite(transcribePollAttemptsRaw) && transcribePollAttemptsRaw > 0
@@ -1875,9 +1876,11 @@
         return ($input.attr('data-ll-internal-review-note-original') || '').toString();
     }
 
-    function setInternalNoteOriginalValue($input, value) {
+    function setInternalNoteOriginalValue($input, value, updateValue) {
         const clean = (value || '').toString();
-        $input.val(clean);
+        if (updateValue !== false) {
+            $input.val(clean);
+        }
         $input.attr('data-ll-internal-review-note-original', clean);
         const inputEl = $input.get(0);
         if (inputEl) {
@@ -1914,7 +1917,6 @@
 
         $wrap.removeData('llInternalReviewNoteDirty');
         $wrap.addClass('is-saving');
-        $input.prop('disabled', true);
         setInternalNoteStatus($wrap, getInternalNoteMessage('saving', 'Saving review note...'), 'saving');
 
         $.ajax({
@@ -1936,8 +1938,14 @@
             }
             const data = response.data || {};
             const savedNote = (typeof data.note === 'string') ? data.note : note;
-            setInternalNoteOriginalValue($input, savedNote);
+            const currentNote = ($input.val() || '').toString();
+            const hasTypedAhead = currentNote !== note;
+            setInternalNoteOriginalValue($input, savedNote, !hasTypedAhead);
             setInternalNoteStatus($wrap, getInternalNoteMessage('saved', 'Review note saved.'), 'success');
+            if (hasTypedAhead) {
+                $wrap.data('llInternalReviewNoteDirty', true);
+                scheduleInternalReviewNoteSave($wrap);
+            }
             window.setTimeout(function () {
                 if (!$wrap.hasClass('is-saving')) {
                     setInternalNoteStatus($wrap, '', '');
@@ -1947,7 +1955,6 @@
             setInternalNoteStatus($wrap, readAjaxErrorMessage(jqXHR, getInternalNoteMessage('error', 'Unable to save the review note.')), 'error');
         }).always(function () {
             $wrap.removeClass('is-saving');
-            $input.prop('disabled', false);
         });
     }
 
@@ -1957,7 +1964,7 @@
         $wrap.data('llInternalReviewNoteDirty', true);
         const timer = window.setTimeout(function () {
             saveInternalReviewNote($wrap);
-        }, 900);
+        }, internalNoteSaveDelayMs);
         $wrap.data('llInternalReviewNoteTimer', timer);
     }
 

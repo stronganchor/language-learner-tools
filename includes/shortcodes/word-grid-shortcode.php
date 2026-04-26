@@ -2682,6 +2682,7 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'enabled' => $can_manage_internal_notes,
             'action' => 'll_tools_save_internal_review_note',
             'nonce' => $can_manage_internal_notes ? wp_create_nonce('ll_internal_review_note') : '',
+            'saveDelayMs' => (int) apply_filters('ll_tools_internal_review_note_save_delay_ms', 3000),
             'i18n' => [
                 'saving' => __('Saving review note...', 'll-tools-text-domain'),
                 'saved' => __('Review note saved.', 'll-tools-text-domain'),
@@ -4090,9 +4091,6 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
                 echo '<div class="' . esc_attr($note_class) . '" data-ll-word-note>' . esc_html($word_note) . '</div>';
             }
-            if ($can_manage_internal_notes) {
-                echo ll_tools_render_internal_review_note_field((int) $word_id, 'word', (int) $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-            }
 
             if ($can_edit_words) {
                 echo '<div class="ll-word-save-status" data-ll-word-save-status aria-live="polite"></div>';
@@ -4410,6 +4408,9 @@ function ll_tools_word_grid_shortcode($atts) {
                     $recordings_html .= '</div>';
                 }
                 echo $recordings_html;
+            }
+            if ($can_manage_internal_notes) {
+                echo ll_tools_render_internal_review_note_field((int) $word_id, 'word', (int) $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
             echo '</div>'; // End of word-item
         }
