@@ -275,6 +275,7 @@
     let vizButton = null;
     let vizAudio = null;
     let vizSource = null;
+    let wordRecordingLaunchPending = false;
 
     function syncEditModalBodyLock() {
         const hasOpenPanel = $grids.find('[data-ll-word-edit-panel][aria-hidden="false"]').length > 0;
@@ -328,6 +329,59 @@
             return;
         }
         schedule();
+    }
+
+    function closeWordRecordingLaunchOverlay() {
+        wordRecordingLaunchPending = false;
+        $('body').removeClass('ll-word-recording-launch-overlay-open');
+        $('#ll-word-recording-launch-overlay')
+            .removeClass('is-active')
+            .attr('aria-hidden', 'true')
+            .prop('hidden', true);
+    }
+
+    function openWordRecordingLaunchOverlay(label) {
+        const statusLabel = String(label || '').trim();
+        let $overlay = $('#ll-word-recording-launch-overlay');
+        if (!$overlay.length) {
+            $overlay = $('<div>', {
+                id: 'll-word-recording-launch-overlay',
+                class: 'll-word-recording-launch-overlay',
+                role: 'status',
+                'aria-live': 'polite',
+                'aria-hidden': 'true',
+                hidden: true
+            });
+            const $inner = $('<div>', {
+                class: 'll-word-recording-launch-overlay__inner'
+            });
+            $('<div>', {
+                class: 'll-word-recording-launch-overlay__spinner',
+                'aria-hidden': 'true'
+            }).appendTo($inner);
+            $('<span>', {
+                class: 'screen-reader-text ll-word-recording-launch-overlay__label'
+            }).appendTo($inner);
+            $inner.appendTo($overlay);
+            $overlay.appendTo('body');
+        }
+
+        $overlay
+            .find('.ll-word-recording-launch-overlay__label')
+            .text(statusLabel);
+        const overlayAttrs = {
+            'aria-hidden': 'false'
+        };
+        if (statusLabel) {
+            overlayAttrs['aria-label'] = statusLabel;
+        } else {
+            $overlay.removeAttr('aria-label');
+        }
+        $overlay
+            .attr(overlayAttrs)
+            .prop('hidden', false)
+            .addClass('is-active');
+        $('body').addClass('ll-word-recording-launch-overlay-open');
     }
 
     function ensureVisualizerContext() {
@@ -526,20 +580,19 @@
         e.preventDefault();
         e.stopPropagation();
 
-        if ($link.hasClass('is-loading')) {
+        if (wordRecordingLaunchPending) {
             return;
         }
 
         const loadingLabel = $link.attr('data-loading-label') || '';
-        $link.addClass('is-loading').attr('aria-busy', 'true');
-        if (loadingLabel) {
-            $link.attr({
-                'aria-label': loadingLabel,
-                title: loadingLabel
-            });
-        }
+        wordRecordingLaunchPending = true;
+        openWordRecordingLaunchOverlay(loadingLabel);
 
         navigateAfterPaint(href);
+    });
+
+    $(window).on('pageshow', function () {
+        closeWordRecordingLaunchOverlay();
     });
 
     $grids.on('click', '.ll-study-recording-btn', function (e) {
