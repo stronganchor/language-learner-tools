@@ -279,8 +279,7 @@ function ll_tools_word_grid_render_recording_launch_button(array $launch_item, s
     $html = '<a class="ll-word-recording-launch" href="' . esc_url($url) . '" aria-label="' . esc_attr($label) . '" title="' . esc_attr($label) . '">';
     $html .= '<span class="ll-word-recording-launch__icon" aria-hidden="true">';
     $html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">';
-    $html .= '<path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-    $html .= '<path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    $html .= '<circle cx="12" cy="12" r="8" fill="currentColor"/>';
     $html .= '</svg>';
     $html .= '</span>';
     if ($missing_count > 0) {

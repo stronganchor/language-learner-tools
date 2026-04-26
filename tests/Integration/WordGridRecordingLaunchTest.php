@@ -29,6 +29,8 @@ final class WordGridRecordingLaunchTest extends LL_Tools_TestCase
         $output = do_shortcode('[word_grid category="grid-recording-launch-category" wordset="grid-recording-launch-wordset"]');
 
         $this->assertStringContainsString('class="ll-word-recording-launch"', $output);
+        $this->assertStringContainsString('class="ll-word-recording-launch__icon"', $output);
+        $this->assertStringContainsString('<circle cx="12" cy="12" r="8"', $output);
         $this->assertStringContainsString('ll_record_word=' . $word_id, $output);
         $this->assertStringContainsString('ll_record_wordset=' . $wordset_id, $output);
         $this->assertStringContainsString('ll_record_category=grid-recording-launch-category', $output);

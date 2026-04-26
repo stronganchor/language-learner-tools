@@ -2140,47 +2140,50 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     position: relative;
     width: 36px !important;
     min-width: 36px !important;
-    height: 32px !important;
-    min-height: 32px !important;
+    height: 36px !important;
+    min-height: 36px !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
     padding: 0 !important;
     margin: 0 !important;
-    border: 1px solid #99f6e4 !important;
-    border-radius: 8px !important;
-    background: #f0fdfa !important;
-    background-color: #f0fdfa !important;
+    border: 0 !important;
+    border-radius: 50% !important;
+    background: #e74c3c !important;
+    background-color: #e74c3c !important;
     background-image: none !important;
-    box-shadow: none !important;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
     text-shadow: none !important;
-    color: #115e59 !important;
+    color: #ffffff !important;
     text-decoration: none !important;
     line-height: 1 !important;
     cursor: pointer !important;
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease !important;
     -webkit-appearance: none !important;
     appearance: none !important;
     box-sizing: border-box !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-launch:hover {
-    border-color: #2dd4bf !important;
-    background: #ccfbf1 !important;
-    color: #0f766e !important;
+    background: #c0392b !important;
+    background-color: #c0392b !important;
+    color: #ffffff !important;
+    transform: scale(1.05);
     text-decoration: none !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-launch:focus-visible {
-    outline: 3px solid rgba(45, 212, 191, 0.45) !important;
+    outline: none !important;
     outline-offset: 2px;
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3), 0 0 0 3px rgba(34, 113, 177, 0.3) !important;
     text-decoration: none !important;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-launch__icon,
 .word-grid.ll-word-grid .ll-word-recording-launch__icon svg {
     display: block;
-    width: 17px;
-    height: 17px;
+    width: 18px;
+    height: 18px;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-launch__count {
@@ -2192,7 +2195,7 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     padding: 0 4px;
     border: 1px solid #ffffff;
     border-radius: 999px;
-    background: #0f766e;
+    background: #7f1d1d;
     color: #ffffff;
     font-size: 10px !important;
     font-weight: 700 !important;
