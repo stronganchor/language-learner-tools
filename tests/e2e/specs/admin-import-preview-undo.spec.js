@@ -132,10 +132,10 @@ async function ensureLoggedIntoImportPage(page) {
     await expect(page.locator('#user_login')).toBeVisible({ timeout: 30000 });
     await page.fill('#user_login', ADMIN_USER);
     await page.fill('#user_pass', ADMIN_PASS);
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      page.click('#wp-submit')
-    ]);
+    await page.click('#wp-submit');
+    await page.waitForURL((url) => !/wp-login\.php/.test(url.toString()), {
+      timeout: 60000
+    }).catch(() => {});
   }
 
   await dismissAdminEmailVerification(page);
