@@ -263,6 +263,60 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertSame($second_wordset_id, ll_tools_teacher_class_get_wordset_id((int) $class_id));
     }
 
+    public function test_teacher_class_listing_scopes_to_owner_and_wordset(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $second_wordset_id = $this->createWordset('Teacher Classes Scoped Wordset');
+        $teacher_one_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-scope-one@example.org',
+        ]);
+        $teacher_two_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-scope-two@example.org',
+        ]);
+
+        $teacher_one_default_class_id = ll_tools_teacher_class_create(
+            $teacher_one_id,
+            'Teacher One Default Class',
+            $this->default_wordset_id
+        );
+        $teacher_one_scoped_class_id = ll_tools_teacher_class_create(
+            $teacher_one_id,
+            'Teacher One Scoped Class',
+            $second_wordset_id
+        );
+        $teacher_two_scoped_class_id = ll_tools_teacher_class_create(
+            $teacher_two_id,
+            'Teacher Two Scoped Class',
+            $second_wordset_id
+        );
+
+        $this->assertIsInt($teacher_one_default_class_id);
+        $this->assertIsInt($teacher_one_scoped_class_id);
+        $this->assertIsInt($teacher_two_scoped_class_id);
+
+        $teacher_one_classes = ll_tools_teacher_classes_for_user($teacher_one_id);
+        $teacher_one_class_ids = array_map(static function (WP_Post $class_post): int {
+            return (int) $class_post->ID;
+        }, $teacher_one_classes);
+        sort($teacher_one_class_ids, SORT_NUMERIC);
+
+        $this->assertSame(
+            [(int) $teacher_one_default_class_id, (int) $teacher_one_scoped_class_id],
+            $teacher_one_class_ids
+        );
+
+        $teacher_one_scoped_classes = ll_tools_teacher_classes_for_user($teacher_one_id, $second_wordset_id);
+        $teacher_one_scoped_class_ids = array_map(static function (WP_Post $class_post): int {
+            return (int) $class_post->ID;
+        }, $teacher_one_scoped_classes);
+
+        $this->assertSame([(int) $teacher_one_scoped_class_id], $teacher_one_scoped_class_ids);
+        $this->assertNotContains((int) $teacher_two_scoped_class_id, $teacher_one_scoped_class_ids);
+    }
+
     public function test_existing_learner_invite_rejects_different_logged_in_user(): void
     {
         ll_tools_register_or_refresh_teacher_role();
