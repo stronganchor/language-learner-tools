@@ -6665,6 +6665,36 @@
         return html;
     }
 
+    function buildInactiveCategoryActionForm(category, action, label, enabled, modifier, disabledReason, confirmMessage) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const categoryId = parseInt(cat.id, 10) || 0;
+        const wordsetId = parseInt(cat.wordset_id, 10) || 0;
+        const nonce = String(cat.inactive_action_nonce || '').trim();
+        const actionUrl = String(cat.inactive_action_url || '').trim();
+        const actionName = String(action || '').trim();
+        const buttonClass = 'll-wordset-card__staff-action' + (modifier ? ' ll-wordset-card__staff-action--' + String(modifier).replace(/[^A-Za-z0-9_-]/g, '') : '');
+        const buttonLabel = String(label || '').trim();
+        const disabledTitle = String(disabledReason || '').trim();
+        if (!categoryId || !wordsetId || !actionName || !buttonLabel) {
+            return '';
+        }
+        if (!enabled || !nonce || !actionUrl) {
+            return '<button type="button" class="' + escapeHtml(buttonClass) + '" disabled'
+                + (disabledTitle ? ' title="' + escapeHtml(disabledTitle) + '"' : '')
+                + '>' + escapeHtml(buttonLabel) + '</button>';
+        }
+
+        return '<form class="ll-wordset-card__staff-action-form" method="post" action="' + escapeHtml(actionUrl) + '" data-ll-wordset-card-action-form'
+            + (confirmMessage ? ' data-ll-wordset-card-confirm="' + escapeHtml(String(confirmMessage)) + '"' : '')
+            + '>'
+            + '<input type="hidden" name="ll_wordset_inactive_category_action" value="' + escapeHtml(actionName) + '" />'
+            + '<input type="hidden" name="ll_wordset_inactive_category_wordset_id" value="' + wordsetId + '" />'
+            + '<input type="hidden" name="ll_wordset_inactive_category_id" value="' + categoryId + '" />'
+            + '<input type="hidden" name="ll_wordset_inactive_category_nonce" value="' + escapeHtml(nonce) + '" />'
+            + '<button type="submit" class="' + escapeHtml(buttonClass) + '">' + escapeHtml(buttonLabel) + '</button>'
+            + '</form>';
+    }
+
     function buildWordsetCategoryCardMarkup(category, options) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
@@ -6749,6 +6779,23 @@
                 + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(i18n.notPublicLabel || 'Not public') + '</span>'
                 + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
                 + '</div>';
+            if (!!cat.can_manage_inactive && String(cat.inactive_action_nonce || '').trim() !== '' && String(cat.inactive_action_url || '').trim() !== '') {
+                html += '<div class="ll-wordset-card__staff-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
+                if (!!cat.can_preview) {
+                    html += buildInactiveCategoryActionForm(cat, 'preview', i18n.inactivePreviewLabel || 'Preview', true, 'preview', '', '');
+                }
+                html += buildInactiveCategoryActionForm(cat, 'hide', i18n.inactiveHideLabel || 'Hide', !!cat.can_hide, 'hide', '', '');
+                html += buildInactiveCategoryActionForm(
+                    cat,
+                    'delete',
+                    i18n.inactiveDeleteLabel || 'Delete',
+                    !!cat.can_delete,
+                    'delete',
+                    String(cat.delete_reason || ''),
+                    i18n.inactiveDeleteConfirm || 'Delete this category? This cannot be undone.'
+                );
+                html += '</div>';
+            }
             html += '</article>';
             return html;
         }
@@ -13014,6 +13061,16 @@
         $root.on('click', '[data-ll-wordset-hide]', function (e) {
             e.preventDefault();
             hideCategory($(this).attr('data-cat-id'));
+        });
+
+        $root.on('submit', '[data-ll-wordset-card-action-form]', function (e) {
+            const message = String($(this).attr('data-ll-wordset-card-confirm') || '').trim();
+            if (!message) {
+                return;
+            }
+            if (!window.confirm(message)) {
+                e.preventDefault();
+            }
         });
 
         $root.on('click', '[data-ll-wordset-start-mode]', function (e) {

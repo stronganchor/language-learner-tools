@@ -22,21 +22,68 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         wp_set_current_user($admin_id);
         $staff_html = $this->renderWordsetMainView($wordset_id);
         $inactive_card = $this->extractCategoryCardMarkupByText($staff_html, 'Inactive Staff Only Category');
+        $empty_card = $this->extractCategoryCardMarkupByText($staff_html, 'Empty Owned Staff Category');
+        $image_card = $this->extractCategoryCardMarkupByText($staff_html, 'Image Only Staff Category');
 
         $this->assertStringContainsString('Inactive Staff Only Category', $staff_html);
-        $this->assertStringNotContainsString('Empty Owned Staff Category', $staff_html);
-        $this->assertStringNotContainsString('Image Only Staff Category', $staff_html);
+        $this->assertStringContainsString('Empty Owned Staff Category', $staff_html);
+        $this->assertStringContainsString('Image Only Staff Category', $staff_html);
         $this->assertStringContainsString('ll-wordset-card--inactive', $inactive_card);
         $this->assertStringContainsString('data-ll-wordset-public="0"', $inactive_card);
         $this->assertStringContainsString('Not public', $inactive_card);
         $this->assertStringContainsString('Needs more quiz-ready words.', $inactive_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $inactive_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-card__staff-action--delete', $inactive_card);
+        $this->assertStringContainsString('disabled', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-select', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-category-mode', $inactive_card);
         $this->assertStringNotContainsString('href="', $inactive_card);
+
+        $this->assertStringContainsString('No words yet.', $empty_card);
+        $this->assertStringNotContainsString('ll_wordset_inactive_category_action" value="preview"', $empty_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="delete"', $empty_card);
+        $this->assertStringNotContainsString('ll-wordset-card__staff-action--delete" disabled', $empty_card);
+
+        $this->assertStringContainsString('Needs word records.', $image_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $image_card);
+        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $image_card);
+        $this->assertStringContainsString('ll-wordset-card__staff-action--delete', $image_card);
+        $this->assertStringContainsString('disabled', $image_card);
+    }
+
+    public function test_preview_prepares_draft_words_from_word_images(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        $image_id = (int) $fixture['image_id'];
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $prepared = ll_tools_wordset_page_prepare_word_images_for_lesson_preview($category_id, $wordset_id);
+
+        $this->assertIsArray($prepared);
+        $this->assertSame(1, (int) $prepared['image_count']);
+        $this->assertSame(1, count($prepared['word_ids']));
+
+        $word_id = (int) $prepared['word_ids'][0];
+        $this->assertSame('draft', get_post_status($word_id));
+        $this->assertSame($image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
+        $this->assertContains($wordset_id, array_map('intval', wp_get_object_terms($word_id, 'wordset', ['fields' => 'ids'])));
+        $this->assertContains($category_id, array_map('intval', wp_get_object_terms($word_id, 'word-category', ['fields' => 'ids'])));
+
+        $lesson = ll_tools_get_or_create_vocab_lesson_preview_page($category_id, $wordset_id);
+        $this->assertIsArray($lesson);
+        $lesson_id = (int) $lesson['post_id'];
+        $this->assertGreaterThan(0, $lesson_id);
+        $this->assertSame('publish', get_post_status($lesson_id));
+        $this->assertTrue(ll_tools_vocab_lesson_is_preview_only($lesson_id));
     }
 
     /**
-     * @return array{wordset_id:int}
+     * @return array{wordset_id:int,image_only_category_id:int,image_id:int}
      */
     private function createWordsetFixture(): array
     {
@@ -101,11 +148,18 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
             'post_status' => 'publish',
             'post_title' => 'Image Only Staff Category Image ' . wp_generate_password(4, false),
         ]);
+        $attachment_id = $this->createImageAttachment();
+        set_post_thumbnail($image_id, $attachment_id);
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner((int) $image_id, $wordset_id);
+        }
         wp_set_post_terms($image_id, [$image_only_category_id], 'word-category', false);
         wp_set_post_terms($image_id, [$wordset_id], 'wordset', false);
 
         return [
             'wordset_id' => $wordset_id,
+            'image_only_category_id' => $image_only_category_id,
+            'image_id' => (int) $image_id,
         ];
     }
 
@@ -121,6 +175,20 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         update_post_meta($word_id, 'word_translation', $translation);
 
         return (int) $word_id;
+    }
+
+    private function createImageAttachment(): int
+    {
+        $attachment_id = wp_insert_attachment([
+            'post_title' => 'Inactive Category Test Attachment ' . wp_generate_password(4, false),
+            'post_type' => 'attachment',
+            'post_status' => 'inherit',
+            'post_mime_type' => 'image/jpeg',
+        ]);
+        $this->assertIsInt($attachment_id);
+        update_post_meta($attachment_id, '_wp_attached_file', '2026/04/inactive-category-test.jpg');
+
+        return (int) $attachment_id;
     }
 
     private function renderWordsetMainView(int $wordset_id): string
