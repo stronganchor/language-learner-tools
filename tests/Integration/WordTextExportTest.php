@@ -186,6 +186,69 @@ final class WordTextExportTest extends LL_Tools_TestCase
         $this->assertSame('1.234', (string) $recording_row['duration_seconds']);
     }
 
+    public function test_csv_output_neutralizes_formula_leading_text_cells_only(): void
+    {
+        $header = ll_tools_export_build_wordset_csv_header(['en']);
+        $row = ll_tools_export_build_csv_row(
+            '=Formula lexeme',
+            '+Formula phonetic',
+            '-Formula gloss',
+            1,
+            '@Formula dialect',
+            '=Formula source',
+            [
+                'word_id' => 123,
+                'recording_id' => 456,
+                'word_audio_id' => 456,
+                'recording_type' => 'isolation',
+                'category_slug' => 'safe-category',
+                'category_name' => '@Formula category',
+                'speaker_user_id' => 789,
+                'speaker_name' => '=Formula speaker',
+                'audio_credit' => '+Formula credit',
+                'audio_source_name' => '-Formula source name',
+                'audio_source_url' => 'https://example.com/audio-source',
+                'audio_license' => '@Formula license',
+                'audio_license_url' => 'https://example.com/license',
+                'audio_change_note' => '=Formula change note',
+                'recording_text' => '=Formula recording text',
+                'recording_ipa' => '@Formula recording ipa',
+                'review-status' => 'reviewed',
+                'audio_url' => 'https://example.com/audio.mp3',
+                'duration_seconds' => '-1.25',
+            ]
+        );
+
+        $csv = ll_tools_export_build_csv_contents($header, [$row]);
+        $lines = array_values(array_filter(explode("\n", trim($csv)), static function ($line) {
+            return $line !== '';
+        }));
+        $this->assertCount(2, $lines);
+
+        $parsed = str_getcsv($lines[1], ',', '"', '\\');
+        $assoc = array_combine($header, $parsed);
+        $this->assertIsArray($assoc);
+
+        $this->assertSame("'=Formula lexeme", (string) $assoc['Lexeme']);
+        $this->assertSame("'+Formula phonetic", (string) $assoc['PhoneticForm']);
+        $this->assertSame("'-Formula gloss", (string) $assoc['Gloss_en']);
+        $this->assertSame("'@Formula dialect", (string) $assoc['Dialect']);
+        $this->assertSame("'=Formula source", (string) $assoc['Source']);
+        $this->assertSame("'@Formula category", (string) $assoc['category_name']);
+        $this->assertSame("'=Formula speaker", (string) $assoc['speaker_name']);
+        $this->assertSame("'+Formula credit", (string) $assoc['audio_credit']);
+        $this->assertSame("'-Formula source name", (string) $assoc['audio_source_name']);
+        $this->assertSame('https://example.com/audio-source', (string) $assoc['audio_source_url']);
+        $this->assertSame("'@Formula license", (string) $assoc['audio_license']);
+        $this->assertSame('https://example.com/license', (string) $assoc['audio_license_url']);
+        $this->assertSame("'=Formula change note", (string) $assoc['audio_change_note']);
+        $this->assertSame("'=Formula recording text", (string) $assoc['recording_text']);
+        $this->assertSame("'@Formula recording ipa", (string) $assoc['recording_ipa']);
+
+        $this->assertSame('-1.25', (string) $assoc['duration_seconds']);
+        $this->assertSame('123', (string) $assoc['word_id']);
+    }
+
     private function createWordset(string $name): int
     {
         $result = wp_insert_term($name . ' ' . wp_generate_password(6, false, false), 'wordset');

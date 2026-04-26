@@ -3,6 +3,15 @@ declare(strict_types=1);
 
 final class ImportPreviewWarningsTest extends LL_Tools_TestCase
 {
+    public function test_preview_media_inline_mime_filter_rejects_svg_but_allows_images_and_audio(): void
+    {
+        $this->assertFalse(ll_tools_import_preview_media_is_supported_inline_mime('image/svg+xml'));
+        $this->assertTrue(ll_tools_import_preview_media_is_supported_inline_mime('image/jpeg'));
+        $this->assertTrue(ll_tools_import_preview_media_is_supported_inline_mime('image/png'));
+        $this->assertTrue(ll_tools_import_preview_media_is_supported_inline_mime('image/webp'));
+        $this->assertTrue(ll_tools_import_preview_media_is_supported_inline_mime('audio/mpeg'));
+    }
+
     public function test_preview_warns_when_media_file_count_reaches_threshold(): void
     {
         $file_limit_filter = static function () {

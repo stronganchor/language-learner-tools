@@ -568,6 +568,18 @@ function ll_tools_detect_preview_media_mime_type(string $relative_path): string 
     return $map[$extension] ?? 'application/octet-stream';
 }
 
+function ll_tools_import_preview_media_is_supported_inline_mime(string $mime_type): bool {
+    $mime_type = strtolower(trim($mime_type));
+    if ($mime_type === 'image/svg+xml') {
+        return false;
+    }
+
+    return (
+        strpos($mime_type, 'image/') === 0 ||
+        strpos($mime_type, 'audio/') === 0
+    );
+}
+
 function ll_tools_import_preview_detect_audio_type(string $path): string {
     $filename = strtolower((string) basename($path));
     if ($filename === '') {
@@ -664,11 +676,7 @@ function ll_tools_handle_import_preview_media(): void {
     }
 
     $mime_type = ll_tools_detect_preview_media_mime_type($relative_path);
-    $is_allowed_media = (
-        strpos($mime_type, 'image/') === 0 ||
-        strpos($mime_type, 'audio/') === 0
-    );
-    if (!$is_allowed_media) {
+    if (!ll_tools_import_preview_media_is_supported_inline_mime($mime_type)) {
         fclose($stream);
         $zip->close();
         wp_die(__('Preview media type is not supported.', 'll-tools-text-domain'));
@@ -4543,7 +4551,7 @@ function ll_tools_handle_export_wordset_csv() {
 
     fputcsv($output, $header, ',', '"', '\\');
     foreach ($rows as $row) {
-        fputcsv($output, $row, ',', '"', '\\');
+        fputcsv($output, ll_tools_export_prepare_csv_row_for_output($header, $row), ',', '"', '\\');
     }
 
     fclose($output);
@@ -11547,6 +11555,67 @@ function ll_tools_export_build_wordset_csv_rows(
     return $rows;
 }
 
+function ll_tools_export_csv_header_needs_formula_safety(string $header): bool {
+    $header = strtolower(trim($header));
+    if ($header === '') {
+        return false;
+    }
+
+    if (strpos($header, 'gloss_') === 0) {
+        return true;
+    }
+
+    return in_array($header, [
+        'lexeme',
+        'phoneticform',
+        'dialect',
+        'source',
+        'notes',
+        'text',
+        'text_field_label',
+        'wordset_name',
+        'word_title',
+        'word_translation',
+        'category_name',
+        'speaker_name',
+        'audio_credit',
+        'audio_source_name',
+        'audio_source_url',
+        'audio_license',
+        'audio_license_url',
+        'audio_change_note',
+        'recording_text',
+        'recording_translation',
+        'recording_ipa',
+        'audio_url',
+    ], true);
+}
+
+function ll_tools_export_neutralize_csv_formula_cell($value) {
+    if (!is_string($value) || $value === '') {
+        return $value;
+    }
+
+    $first_char = $value[0];
+    if ($first_char === '=' || $first_char === '+' || $first_char === '-' || $first_char === '@') {
+        return "'" . $value;
+    }
+
+    return $value;
+}
+
+function ll_tools_export_prepare_csv_row_for_output(array $header, array $row): array {
+    $safe_row = [];
+    foreach (array_values($row) as $index => $value) {
+        $column_header = isset($header[$index]) ? (string) $header[$index] : '';
+        $safe_row[] = ll_tools_export_csv_header_needs_formula_safety($column_header)
+            ? ll_tools_export_neutralize_csv_formula_cell($value)
+            : $value;
+    }
+
+    return $safe_row;
+}
+
 function ll_tools_export_get_stt_text_field_options(int $wordset_id = 0): array {
     return [
         'recording_text' => [
@@ -11898,7 +11967,7 @@ function ll_tools_export_build_csv_contents(array $header, array $rows): string 
 
     fputcsv($handle, $header, ',', '"', '\\');
     foreach ($rows as $row) {
-        fputcsv($handle, $row, ',', '"', '\\');
+        fputcsv($handle, ll_tools_export_prepare_csv_row_for_output($header, $row), ',', '"', '\\');
     }
 
     rewind($handle);
