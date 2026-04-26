@@ -202,6 +202,14 @@ function ll_tools_word_option_rules_wordset_is_available(int $wordset_id, array 
     return false;
 }
 
+function ll_tools_word_option_rules_filter_editable_wordsets(array $wordsets): array {
+    return array_values(array_filter($wordsets, static function ($wordset): bool {
+        return $wordset instanceof WP_Term
+            && !is_wp_error($wordset)
+            && ll_tools_word_option_rules_can_edit_wordset((int) $wordset->term_id);
+    }));
+}
+
 function ll_tools_word_option_rules_resolve_wordset_id(array $wordsets, int $requested_wordset_id = 0): int {
     $candidate_ids = [];
     if ($requested_wordset_id > 0) {
@@ -1209,7 +1217,8 @@ function ll_render_word_option_rules_admin_page() {
             'category_display_name' => '',
         ];
 
-    $wordset_id = isset($_GET['wordset_id']) ? (int) $_GET['wordset_id'] : 0;
+    $requested_wordset_id = isset($_GET['wordset_id']) ? (int) $_GET['wordset_id'] : 0;
+    $wordset_id = $requested_wordset_id;
     $category_id = isset($_GET['category_id']) ? (int) $_GET['category_id'] : 0;
     if ($is_iframe) {
         $wordset_id = (int) ($lesson_context['wordset_id'] ?? 0);
@@ -1225,7 +1234,20 @@ function ll_render_word_option_rules_admin_page() {
             'order' => 'ASC',
         ]);
 
-        $wordset_id = ll_tools_word_option_rules_resolve_wordset_id(is_array($wordsets) ? $wordsets : [], $wordset_id);
+        $wordsets = is_array($wordsets)
+            ? ll_tools_word_option_rules_filter_editable_wordsets($wordsets)
+            : [];
+        if (
+            $requested_wordset_id > 0
+            && term_exists($requested_wordset_id, 'wordset')
+            && !ll_tools_word_option_rules_can_edit_wordset($requested_wordset_id)
+        ) {
+            wp_die(__('You do not have permission to edit word option rules for this word set.', 'll-tools-text-domain'));
+        }
+
+        $wordset_id = !empty($wordsets)
+            ? ll_tools_word_option_rules_resolve_wordset_id($wordsets, $wordset_id)
+            : 0;
         if ($wordset_id > 0) {
             ll_tools_word_option_rules_remember_wordset($wordset_id);
         }
@@ -2385,6 +2407,9 @@ function ll_tools_handle_export_word_option_rules() {
     if ($wordset_id <= 0 || $category_id <= 0) {
         wp_die(__('Missing word set or category for export.', 'll-tools-text-domain'));
     }
+    if (!ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
+        wp_die(__('You do not have permission to edit word option rules for this word set.', 'll-tools-text-domain'));
+    }
 
     $wordset = get_term($wordset_id, 'wordset');
     $category = get_term($category_id, 'word-category');
@@ -2433,6 +2458,9 @@ function ll_tools_handle_prepare_word_option_rules_import() {
     $redirect_base = admin_url('tools.php?page=ll-word-option-rules');
     if ($wordset_id > 0) {
         $redirect_base = add_query_arg('wordset_id', $wordset_id, $redirect_base);
+    }
+    if ($wordset_id > 0 && !ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
+        wp_die(__('You do not have permission to edit word option rules for this word set.', 'll-tools-text-domain'));
     }
 
     $file = $_FILES['ll_word_options_import_file'] ?? null;
@@ -2516,6 +2544,9 @@ function ll_tools_handle_apply_word_option_rules_import() {
     $wordset_id = (int) $import['wordset_id'];
     if ($wordset_id <= 0 || $category_id <= 0) {
         wp_die(__('Missing word set or category for import.', 'll-tools-text-domain'));
+    }
+    if (!ll_tools_word_option_rules_can_edit_wordset($wordset_id)) {
+        wp_die(__('You do not have permission to edit word option rules for this word set.', 'll-tools-text-domain'));
     }
 
     $mapped = ll_tools_word_option_rules_map_import_data($import['data'], $wordset_id, $category_id);
