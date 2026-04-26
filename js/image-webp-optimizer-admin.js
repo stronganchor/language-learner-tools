@@ -365,14 +365,15 @@
             );
             const animatedWebpLabel = String(i18n.animatedWebpLabel || 'animated WebP');
             const oversizeThresholdText = (animatedThresholdLabel && animatedThresholdLabel !== thresholdLabel)
-                ? ('Over ' + thresholdLabel + ' (' + animatedWebpLabel + ': ' + animatedThresholdLabel + ')')
-                : ('Over ' + thresholdLabel);
+                ? formatTemplate(i18n.overThresholdAnimated || 'Over %1$s (%2$s: %3$s)', [thresholdLabel, animatedWebpLabel, animatedThresholdLabel])
+                : formatTemplate(i18n.overThreshold || 'Over %s', [thresholdLabel]);
+            const supportedCountLabel = formatTemplate(i18n.supportedCount || '%s supported', [String(supportedCount)]);
 
             $summary.html(''
-                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Flagged</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(queuedCount)) + '</div><div class="ll-webp-stat-card__sub">Current filter queue</div></div>'
-                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Bytes in Queue</div><div class="ll-webp-stat-card__value">' + escapeHtml(queuedBytesLabel) + '</div><div class="ll-webp-stat-card__sub">Source file sizes</div></div>'
-                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Needs Format Upgrade</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(nonWebpCount)) + '</div><div class="ll-webp-stat-card__sub">JPEG / PNG to WebP</div></div>'
-                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">Oversized WebP</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(oversizeCount)) + '</div><div class="ll-webp-stat-card__sub">' + escapeHtml(oversizeThresholdText) + ' (' + escapeHtml(String(supportedCount)) + ' supported)</div></div>');
+                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">' + escapeHtml(i18n.flagged || 'Flagged') + '</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(queuedCount)) + '</div><div class="ll-webp-stat-card__sub">' + escapeHtml(i18n.currentFilterQueue || 'Current filter queue') + '</div></div>'
+                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">' + escapeHtml(i18n.bytesInQueue || 'Bytes in Queue') + '</div><div class="ll-webp-stat-card__value">' + escapeHtml(queuedBytesLabel) + '</div><div class="ll-webp-stat-card__sub">' + escapeHtml(i18n.sourceFileSizes || 'Source file sizes') + '</div></div>'
+                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">' + escapeHtml(i18n.needsFormatUpgrade || 'Needs Format Upgrade') + '</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(nonWebpCount)) + '</div><div class="ll-webp-stat-card__sub">' + escapeHtml(i18n.jpegPngToWebp || 'JPEG / PNG to WebP') + '</div></div>'
+                + '<div class="ll-webp-stat-card"><div class="ll-webp-stat-card__label">' + escapeHtml(i18n.oversizedWebp || 'Oversized WebP') + '</div><div class="ll-webp-stat-card__value">' + escapeHtml(String(oversizeCount)) + '</div><div class="ll-webp-stat-card__sub">' + escapeHtml(oversizeThresholdText) + ' (' + escapeHtml(supportedCountLabel) + ')</div></div>');
         }
 
         function renderCards() {

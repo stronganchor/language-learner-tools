@@ -788,7 +788,7 @@ add_action('add_meta_boxes_word_images', 'll_add_word_image_meta_box');
 function ll_add_word_image_meta_box() {
     add_meta_box(
         'll_word_image_metadata_box',   // Unique ID for the meta box
-        'Word Image Metadata',          // Box title
+        __('Word Image Metadata', 'll-tools-text-domain'), // Box title
         'll_word_image_metadata_cb',    // Callback to render the box’s HTML
         'word_images',                  // Post type
         'side',                         // Context (side, normal, advanced)
@@ -808,11 +808,11 @@ function ll_word_image_metadata_cb($post) {
     // Retrieve the current value of copyright_info
     $copyright_info = get_post_meta($post->ID, 'copyright_info', true);
 
-    echo '<p><label for="ll_copyright_info"><strong>Copyright Info:</strong></label></p>';
+    echo '<p><label for="ll_copyright_info"><strong>' . esc_html__('Copyright Info:', 'll-tools-text-domain') . '</strong></label></p>';
     echo '<textarea id="ll_copyright_info" name="ll_copyright_info" rows="3" style="width:100%;">';
     echo esc_textarea($copyright_info);
     echo '</textarea>';
-    echo '<p class="howto">Edit or add any copyright or source info for this image.</p>';
+    echo '<p class="howto">' . esc_html__('Edit or add any copyright or source info for this image.', 'll-tools-text-domain') . '</p>';
     echo '<p class="howto">' . esc_html__('Replacing this featured image also updates connected word posts automatically.', 'll-tools-text-domain') . '</p>';
 }
 

@@ -7568,6 +7568,7 @@ function ll_tools_get_wordset_games_i18n_messages(): array {
         'gamesLineupNeedItems' => __('Each Line-Up sequence needs at least %d cards.', 'll-tools-text-domain'),
         'gamesPlay' => _x('Play', 'launch game action', 'll-tools-text-domain'),
         'gamesLocked' => __('Locked', 'll-tools-text-domain'),
+        'gamesEligibleWords' => __('Eligible words', 'll-tools-text-domain'),
         'gamesSpeakingHiddenConnection' => __('Speaking games are hidden because the speaking service for this word set is not responding on this device.', 'll-tools-text-domain'),
         'gamesSpeakingHiddenGeneric' => __('Speaking games are hidden because this word set speaking setup is not available right now.', 'll-tools-text-domain'),
         'gamesSpeakingOpenSettings' => __('Open speaking settings', 'll-tools-text-domain'),

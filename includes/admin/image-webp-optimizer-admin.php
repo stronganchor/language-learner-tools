@@ -1488,6 +1488,19 @@ function ll_tools_webp_optimizer_enqueue_admin_assets($hook): void {
             'prevPage' => __('Previous', 'll-tools-text-domain'),
             'nextPage' => __('Next', 'll-tools-text-domain'),
             'animatedWebpLabel' => __('animated WebP', 'll-tools-text-domain'),
+            /* translators: %s: file size threshold. */
+            'overThreshold' => __('Over %s', 'll-tools-text-domain'),
+            /* translators: 1: standard file size threshold, 2: animated WebP label, 3: animated WebP threshold. */
+            'overThresholdAnimated' => __('Over %1$s (%2$s: %3$s)', 'll-tools-text-domain'),
+            'flagged' => __('Flagged', 'll-tools-text-domain'),
+            'currentFilterQueue' => __('Current filter queue', 'll-tools-text-domain'),
+            'bytesInQueue' => __('Bytes in Queue', 'll-tools-text-domain'),
+            'sourceFileSizes' => __('Source file sizes', 'll-tools-text-domain'),
+            'needsFormatUpgrade' => __('Needs Format Upgrade', 'll-tools-text-domain'),
+            'jpegPngToWebp' => __('JPEG / PNG to WebP', 'll-tools-text-domain'),
+            'oversizedWebp' => __('Oversized WebP', 'll-tools-text-domain'),
+            /* translators: %s: number of supported queued images. */
+            'supportedCount' => __('%s supported', 'll-tools-text-domain'),
             'focusLabel' => __('Opened from list view', 'll-tools-text-domain'),
             'refresh' => __('Refresh Queue', 'll-tools-text-domain'),
             'applyFilters' => __('Apply Filters', 'll-tools-text-domain'),

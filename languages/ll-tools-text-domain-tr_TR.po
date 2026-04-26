@@ -4684,7 +4684,7 @@ msgstr "Yönet %s"
 
 #: includes/admin/admin-dashboard-menu.php:276
 msgid "Manage image records linked to vocabulary words."
-msgstr "Sözcüklerle bağlantılı görüntü kayıtlarını yönet."
+msgstr "Kelime görselleriyle bağlantılı kayıtları yönet."
 
 #: includes/admin/admin-dashboard-menu.php:620
 msgid "Manage language taxonomy options and plugin language metadata."
