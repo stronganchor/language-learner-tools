@@ -2801,6 +2801,10 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'audioUnsupportedError' => __('This browser cannot process audio here.', 'll-tools-text-domain'),
             'sourceOriginal' => __('Using saved original audio', 'll-tools-text-domain'),
             'sourceCurrent' => __('Using current audio', 'll-tools-text-domain'),
+            'playSelection' => __('Play clip', 'll-tools-text-domain'),
+            'pauseSelection' => __('Pause clip', 'll-tools-text-domain'),
+            'waveformLoading' => __('Loading waveform...', 'll-tools-text-domain'),
+            'waveformUnavailable' => __('Waveform unavailable.', 'll-tools-text-domain'),
             'ipaCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
             'ipaWordset' => (string) ($transcription_config['wordset_chars_label'] ?? __('Wordset IPA symbols', 'll-tools-text-domain')),
             'secondaryTextCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
@@ -3759,9 +3763,12 @@ function ll_tools_word_grid_shortcode($atts) {
         'auto_trim'   => __('Auto trim', 'll-tools-text-domain'),
         'noise_reduction' => __('Noise reduction', 'll-tools-text-domain'),
         'normalize_loudness' => __('Normalize volume', 'll-tools-text-domain'),
-        'clip_start'  => __('Start', 'll-tools-text-domain'),
-        'clip_end'    => __('End', 'll-tools-text-domain'),
-        'seconds'     => __('seconds', 'll-tools-text-domain'),
+        'play_selection' => __('Play clip', 'll-tools-text-domain'),
+        'waveform_label' => __('Audio clip boundaries', 'll-tools-text-domain'),
+        'waveform_loading' => __('Loading waveform...', 'll-tools-text-domain'),
+        'waveform_unavailable' => __('Waveform unavailable.', 'll-tools-text-domain'),
+        'trim_start_handle' => __('Start boundary', 'll-tools-text-domain'),
+        'trim_end_handle' => __('End boundary', 'll-tools-text-domain'),
         'source_original' => __('Using saved original audio', 'll-tools-text-domain'),
         'source_current' => __('Using current audio', 'll-tools-text-domain'),
         'save'        => __('Save', 'll-tools-text-domain'),
@@ -4434,8 +4441,6 @@ function ll_tools_word_grid_shortcode($atts) {
                         $trim_input_id = 'll-word-edit-recording-trim-' . $recording_id;
                         $noise_input_id = 'll-word-edit-recording-noise-' . $recording_id;
                         $loudness_input_id = 'll-word-edit-recording-loudness-' . $recording_id;
-                        $clip_start_id = 'll-word-edit-recording-start-' . $recording_id;
-                        $clip_end_id = 'll-word-edit-recording-end-' . $recording_id;
                         $process_button_label = $has_original_audio ? $edit_labels['reprocess_audio'] : $edit_labels['process_audio'];
                         $source_label = $uses_original_audio ? $edit_labels['source_original'] : $edit_labels['source_current'];
                         echo '<div class="ll-word-edit-recording" data-recording-id="' . esc_attr($recording_id) . '" data-recording-type="' . esc_attr($recording_type) . '" data-ll-current-audio-url="' . esc_url($recording_audio_url) . '" data-ll-processing-source-audio-url="' . esc_url($processing_source_audio_url) . '" data-ll-uses-original-audio="' . ($uses_original_audio ? '1' : '0') . '" data-ll-has-original-audio="' . ($has_original_audio ? '1' : '0') . '">';
@@ -4479,11 +4484,12 @@ function ll_tools_word_grid_shortcode($atts) {
                             echo '<label class="ll-word-edit-processing-option" for="' . esc_attr($noise_input_id) . '"><input type="checkbox" id="' . esc_attr($noise_input_id) . '" data-ll-processing-option="noise" checked /> <span>' . esc_html($edit_labels['noise_reduction']) . '</span></label>';
                             echo '<label class="ll-word-edit-processing-option" for="' . esc_attr($loudness_input_id) . '"><input type="checkbox" id="' . esc_attr($loudness_input_id) . '" data-ll-processing-option="loudness" checked /> <span>' . esc_html($edit_labels['normalize_loudness']) . '</span></label>';
                             echo '</div>';
-                            echo '<div class="ll-word-edit-processing-times">';
-                            echo '<label class="ll-word-edit-processing-time" for="' . esc_attr($clip_start_id) . '"><span>' . esc_html($edit_labels['clip_start']) . '</span><input type="number" id="' . esc_attr($clip_start_id) . '" data-ll-processing-start value="" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /><span class="screen-reader-text">' . esc_html($edit_labels['seconds']) . '</span></label>';
-                            echo '<label class="ll-word-edit-processing-time" for="' . esc_attr($clip_end_id) . '"><span>' . esc_html($edit_labels['clip_end']) . '</span><input type="number" id="' . esc_attr($clip_end_id) . '" data-ll-processing-end value="" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /><span class="screen-reader-text">' . esc_html($edit_labels['seconds']) . '</span></label>';
+                            echo '<div class="ll-word-edit-processing-waveform" data-ll-processing-waveform aria-label="' . esc_attr($edit_labels['waveform_label']) . '" data-loading-label="' . esc_attr($edit_labels['waveform_loading']) . '" data-unavailable-label="' . esc_attr($edit_labels['waveform_unavailable']) . '" data-start-label="' . esc_attr($edit_labels['trim_start_handle']) . '" data-end-label="' . esc_attr($edit_labels['trim_end_handle']) . '">';
+                            echo '<canvas class="ll-word-edit-processing-waveform-canvas" data-ll-processing-waveform-canvas></canvas>';
+                            echo '<span class="ll-word-edit-processing-waveform-message" data-ll-processing-waveform-message>' . esc_html($edit_labels['waveform_loading']) . '</span>';
                             echo '</div>';
                             echo '<div class="ll-word-edit-processing-actions">';
+                            echo '<button type="button" class="ll-word-edit-processing-play-selection" data-ll-processing-play-selection>' . esc_html($edit_labels['play_selection']) . '</button>';
                             echo '<button type="button" class="ll-word-edit-process-audio" data-ll-process-recording-audio>' . esc_html($process_button_label) . '</button>';
                             echo '<span class="ll-word-edit-processing-status" data-ll-processing-status aria-live="polite"></span>';
                             echo '</div>';

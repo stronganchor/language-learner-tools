@@ -1127,6 +1127,23 @@
         repositionOpenSettingsPanels();
     });
 
+    let lessonEditProcessingResizeFrame = 0;
+    $(window).on('resize.llLessonProcessingWaveform orientationchange.llLessonProcessingWaveform', function () {
+        if (lessonEditProcessingResizeFrame) {
+            window.cancelAnimationFrame(lessonEditProcessingResizeFrame);
+        }
+        lessonEditProcessingResizeFrame = window.requestAnimationFrame(function () {
+            lessonEditProcessingResizeFrame = 0;
+            $grids.find('.ll-word-edit-recording[data-recording-id]').each(function () {
+                const $recording = $(this);
+                const state = $recording.data('llProcessingState');
+                if (state && state.originalBuffer && $recording.closest('[data-ll-word-edit-panel]').attr('aria-hidden') === 'false') {
+                    renderLessonEditProcessingWaveform($recording, state);
+                }
+            });
+        });
+    });
+
     if ($starModeButtons.length) {
         $starModeButtons.on('click', function (e) {
             e.preventDefault();
@@ -1204,7 +1221,11 @@
         audioDecodeError: editI18n.audioDecodeError || 'Unable to read this audio file in the browser.',
         audioUnsupportedError: editI18n.audioUnsupportedError || 'This browser cannot process audio here.',
         sourceOriginal: editI18n.sourceOriginal || 'Using saved original audio',
-        sourceCurrent: editI18n.sourceCurrent || 'Using current audio'
+        sourceCurrent: editI18n.sourceCurrent || 'Using current audio',
+        playSelection: editI18n.playSelection || 'Play clip',
+        pauseSelection: editI18n.pauseSelection || 'Pause clip',
+        waveformLoading: editI18n.waveformLoading || 'Loading waveform...',
+        waveformUnavailable: editI18n.waveformUnavailable || 'Waveform unavailable.'
     };
     const lessonEditTargetLufs = -18.0;
     let lessonEditAudioContext = null;
@@ -1221,35 +1242,9 @@
         return lessonEditAudioContext;
     }
 
-    function decodeLessonEditAudioData(ctx, arrayBuffer) {
-        return new Promise(function (resolve, reject) {
-            if (!ctx || typeof ctx.decodeAudioData !== 'function') {
-                reject(new Error(editMessages.audioUnsupportedError));
-                return;
-            }
-            try {
-                const copy = arrayBuffer && typeof arrayBuffer.slice === 'function' ? arrayBuffer.slice(0) : arrayBuffer;
-                const maybePromise = ctx.decodeAudioData(copy, resolve, reject);
-                if (maybePromise && typeof maybePromise.then === 'function') {
-                    maybePromise.then(resolve).catch(reject);
-                }
-            } catch (error) {
-                reject(error);
-            }
-        });
-    }
-
     function clampLessonEditSample(value, min, max) {
         const numeric = Number.isFinite(value) ? value : min;
         return Math.max(min, Math.min(max, numeric));
-    }
-
-    function readLessonEditSeconds($input) {
-        if (!$input || !$input.length) { return null; }
-        const raw = ($input.val() || '').toString().trim();
-        if (raw === '') { return null; }
-        const value = Number.parseFloat(raw.replace(',', '.'));
-        return Number.isFinite(value) && value >= 0 ? value : null;
     }
 
     function detectLessonEditSilenceBoundaries(audioBuffer) {
@@ -1283,6 +1278,396 @@
         }
 
         return { start: startIndex, end: endIndex };
+    }
+
+    function getLessonEditProcessingSourceUrl($recording) {
+        if (!$recording || !$recording.length) { return ''; }
+        return ($recording.attr('data-ll-processing-source-audio-url') || $recording.attr('data-ll-current-audio-url') || '').toString();
+    }
+
+    function getLessonEditProcessingMessage($recording, attrName, fallback) {
+        const $waveform = $recording.find('[data-ll-processing-waveform]').first();
+        const value = $waveform.length ? ($waveform.attr(attrName) || '').toString() : '';
+        return value || fallback;
+    }
+
+    function setLessonEditProcessingWaveformMessage($recording, message, isError) {
+        const $waveform = $recording.find('[data-ll-processing-waveform]').first();
+        if (!$waveform.length) { return; }
+        $waveform
+            .removeClass('is-ready is-error')
+            .toggleClass('is-error', !!isError);
+        $waveform.find('[data-ll-processing-waveform-message]').first().text(message || '');
+    }
+
+    function isLessonEditAutoTrimEnabled($recording) {
+        return $recording.find('[data-ll-processing-option="trim"]').first().prop('checked') !== false;
+    }
+
+    function resetLessonEditProcessingBounds($recording, state) {
+        if (!state || !state.originalBuffer) { return; }
+        if (isLessonEditAutoTrimEnabled($recording)) {
+            const detected = detectLessonEditSilenceBoundaries(state.originalBuffer);
+            state.trimStart = clampLessonEditSample(detected.start, 0, Math.max(0, state.originalBuffer.length - 1));
+            state.trimEnd = clampLessonEditSample(detected.end, state.trimStart + 1, state.originalBuffer.length);
+        } else {
+            state.trimStart = 0;
+            state.trimEnd = state.originalBuffer.length;
+        }
+        state.manualBoundaries = false;
+    }
+
+    function updateLessonEditProcessingBoundaryPositions($recording, state) {
+        const $waveform = $recording.find('[data-ll-processing-waveform]').first();
+        if (!$waveform.length || !state || !state.originalBuffer) { return; }
+        const totalSamples = Math.max(1, state.originalBuffer.length || 1);
+        const start = clampLessonEditSample(Math.floor(state.trimStart), 0, Math.max(0, totalSamples - 1));
+        const end = clampLessonEditSample(Math.ceil(state.trimEnd), start + 1, totalSamples);
+        state.trimStart = start;
+        state.trimEnd = end;
+
+        const startPercent = (start / totalSamples) * 100;
+        const endPercent = (end / totalSamples) * 100;
+        const widthPercent = Math.max(0, endPercent - startPercent);
+        const startSeconds = state.sampleRate ? (start / state.sampleRate) : 0;
+        const endSeconds = state.sampleRate ? (end / state.sampleRate) : 0;
+
+        $waveform.find('[data-ll-processing-selected-region]').css({
+            left: startPercent + '%',
+            width: widthPercent + '%'
+        });
+        $waveform.find('[data-ll-processing-trimmed-region="before"]').css({
+            left: '0%',
+            width: startPercent + '%'
+        });
+        $waveform.find('[data-ll-processing-trimmed-region="after"]').css({
+            left: endPercent + '%',
+            width: Math.max(0, 100 - endPercent) + '%'
+        });
+        $waveform.find('[data-ll-processing-boundary="start"]').css('left', startPercent + '%').attr('aria-valuenow', startSeconds.toFixed(2));
+        $waveform.find('[data-ll-processing-boundary="end"]').css('left', endPercent + '%').attr('aria-valuenow', endSeconds.toFixed(2));
+    }
+
+    function drawLessonEditProcessingWaveform(canvas, container, audioBuffer) {
+        if (!canvas || !container || !audioBuffer) { return false; }
+        const rect = container.getBoundingClientRect();
+        const width = Math.floor(rect.width);
+        const height = Math.floor(rect.height);
+        if (!width || !height) { return false; }
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { return false; }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+
+        const channelData = audioBuffer.getChannelData(0);
+        if (!channelData || !channelData.length) { return false; }
+
+        const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        gradient.addColorStop(0, '#93c5fd');
+        gradient.addColorStop(0.5, '#60a5fa');
+        gradient.addColorStop(1, '#2563eb');
+        ctx.fillStyle = gradient;
+
+        const samplesPerPixel = Math.max(1, Math.floor(channelData.length / width));
+        const centerY = height / 2;
+
+        for (let x = 0; x < width; x += 1) {
+            const start = x * samplesPerPixel;
+            const end = Math.min(start + samplesPerPixel, channelData.length);
+            let min = 1;
+            let max = -1;
+
+            for (let i = start; i < end; i += 1) {
+                const sample = channelData[i];
+                if (sample < min) { min = sample; }
+                if (sample > max) { max = sample; }
+            }
+
+            const yTop = centerY - (max * centerY * 0.86);
+            const yBottom = centerY - (min * centerY * 0.86);
+            ctx.fillRect(x, yTop, 1, Math.max(1, yBottom - yTop));
+        }
+
+        return true;
+    }
+
+    function bindLessonEditProcessingBoundaryDragging($recording, state, $startBoundary, $endBoundary) {
+        const container = $recording.find('[data-ll-processing-waveform]').get(0);
+        if (!container || !state || !state.originalBuffer) { return; }
+
+        const clientXFromEvent = function (event) {
+            const original = event.originalEvent || event;
+            if (original.touches && original.touches.length) {
+                return original.touches[0].clientX;
+            }
+            if (original.changedTouches && original.changedTouches.length) {
+                return original.changedTouches[0].clientX;
+            }
+            return original.clientX;
+        };
+
+        const applyClientX = function (clientX, boundaryName) {
+            const rect = container.getBoundingClientRect();
+            const width = rect.width || 1;
+            const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / width));
+            const sample = Math.round(ratio * state.originalBuffer.length);
+            if (boundaryName === 'start') {
+                state.trimStart = clampLessonEditSample(sample, 0, Math.max(0, state.trimEnd - 1));
+            } else {
+                state.trimEnd = clampLessonEditSample(sample, Math.min(state.originalBuffer.length, state.trimStart + 1), state.originalBuffer.length);
+            }
+            state.manualBoundaries = true;
+            stopLessonEditProcessingPlayback($recording);
+            updateLessonEditProcessingBoundaryPositions($recording, state);
+        };
+
+        const startDrag = function (event, boundaryName) {
+            event.preventDefault();
+            event.stopPropagation();
+            applyClientX(clientXFromEvent(event), boundaryName);
+            const onMove = function (moveEvent) {
+                moveEvent.preventDefault();
+                applyClientX(clientXFromEvent(moveEvent), boundaryName);
+            };
+            const onEnd = function () {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onEnd);
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('touchend', onEnd);
+                document.removeEventListener('touchcancel', onEnd);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onEnd);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onEnd);
+            document.addEventListener('touchcancel', onEnd);
+        };
+
+        const keyAdjust = function (event, boundaryName) {
+            const key = event.key || '';
+            if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(key) === -1) { return; }
+            event.preventDefault();
+            event.stopPropagation();
+            const smallStep = Math.max(1, Math.round((state.sampleRate || 44100) * 0.05));
+            const largeStep = Math.max(smallStep, Math.round((state.sampleRate || 44100) * 0.25));
+            const step = event.shiftKey ? largeStep : smallStep;
+            if (boundaryName === 'start') {
+                if (key === 'Home') {
+                    state.trimStart = 0;
+                } else if (key === 'End') {
+                    state.trimStart = Math.max(0, state.trimEnd - 1);
+                } else {
+                    state.trimStart += key === 'ArrowLeft' ? -step : step;
+                }
+            } else if (key === 'Home') {
+                state.trimEnd = Math.min(state.originalBuffer.length, state.trimStart + 1);
+            } else if (key === 'End') {
+                state.trimEnd = state.originalBuffer.length;
+            } else {
+                state.trimEnd += key === 'ArrowLeft' ? -step : step;
+            }
+            state.manualBoundaries = true;
+            stopLessonEditProcessingPlayback($recording);
+            updateLessonEditProcessingBoundaryPositions($recording, state);
+        };
+
+        $startBoundary.on('mousedown touchstart', function (event) { startDrag(event, 'start'); });
+        $endBoundary.on('mousedown touchstart', function (event) { startDrag(event, 'end'); });
+        $startBoundary.on('keydown', function (event) { keyAdjust(event, 'start'); });
+        $endBoundary.on('keydown', function (event) { keyAdjust(event, 'end'); });
+    }
+
+    function renderLessonEditProcessingWaveform($recording, state) {
+        const $waveform = $recording.find('[data-ll-processing-waveform]').first();
+        const container = $waveform.get(0);
+        const canvas = $waveform.find('[data-ll-processing-waveform-canvas]').get(0);
+        if (!$waveform.length || !container || !canvas || !state || !state.originalBuffer) { return false; }
+        if (!drawLessonEditProcessingWaveform(canvas, container, state.originalBuffer)) {
+            return false;
+        }
+
+        $waveform.find('[data-ll-processing-selected-region], [data-ll-processing-trimmed-region], [data-ll-processing-boundary]').remove();
+
+        $('<span class="ll-word-edit-processing-selected-region" data-ll-processing-selected-region aria-hidden="true"></span>').appendTo($waveform);
+        $('<span class="ll-word-edit-processing-trimmed-region" data-ll-processing-trimmed-region="before" aria-hidden="true"></span>').appendTo($waveform);
+        $('<span class="ll-word-edit-processing-trimmed-region" data-ll-processing-trimmed-region="after" aria-hidden="true"></span>').appendTo($waveform);
+
+        const startLabel = ($waveform.attr('data-start-label') || 'Start boundary').toString();
+        const endLabel = ($waveform.attr('data-end-label') || 'End boundary').toString();
+        const duration = state.sampleRate ? (state.originalBuffer.length / state.sampleRate) : 0;
+        const $startBoundary = $('<button type="button" class="ll-word-edit-processing-boundary ll-word-edit-processing-boundary--start" data-ll-processing-boundary="start"></button>')
+            .attr({
+                'aria-label': startLabel,
+                'title': startLabel,
+                'role': 'slider',
+                'aria-valuemin': '0',
+                'aria-valuemax': duration.toFixed(2)
+            })
+            .appendTo($waveform);
+        const $endBoundary = $('<button type="button" class="ll-word-edit-processing-boundary ll-word-edit-processing-boundary--end" data-ll-processing-boundary="end"></button>')
+            .attr({
+                'aria-label': endLabel,
+                'title': endLabel,
+                'role': 'slider',
+                'aria-valuemin': '0',
+                'aria-valuemax': duration.toFixed(2)
+            })
+            .appendTo($waveform);
+
+        updateLessonEditProcessingBoundaryPositions($recording, state);
+        bindLessonEditProcessingBoundaryDragging($recording, state, $startBoundary, $endBoundary);
+        $waveform.removeClass('is-error').addClass('is-ready');
+        return true;
+    }
+
+    function stopLessonEditProcessingPlayback($scope) {
+        const $recordings = $scope && $scope.hasClass && $scope.hasClass('ll-word-edit-recording')
+            ? $scope
+            : ($scope && $scope.length ? $scope.find('.ll-word-edit-recording') : $grids.find('.ll-word-edit-recording'));
+        $recordings.each(function () {
+            const $recording = $(this);
+            const state = $recording.data('llProcessingState');
+            if (!state || !state.selectionAudio) { return; }
+            try { state.selectionAudio.pause(); } catch (_) {}
+            if (state.selectionTimeHandler) {
+                state.selectionAudio.removeEventListener('timeupdate', state.selectionTimeHandler);
+            }
+            if (state.selectionEndHandler) {
+                state.selectionAudio.removeEventListener('ended', state.selectionEndHandler);
+            }
+            state.selectionTimeHandler = null;
+            state.selectionEndHandler = null;
+            $recording.find('[data-ll-processing-play-selection]').first().text(editMessages.playSelection).removeClass('is-playing');
+        });
+    }
+
+    function clearLessonEditProcessingState($recording) {
+        if (!$recording || !$recording.length) { return; }
+        stopLessonEditProcessingPlayback($recording);
+        $recording.removeData('llProcessingState');
+        const $waveform = $recording.find('[data-ll-processing-waveform]').first();
+        if ($waveform.length) {
+            $waveform.removeClass('is-ready is-error');
+            $waveform.find('[data-ll-processing-selected-region], [data-ll-processing-trimmed-region], [data-ll-processing-boundary]').remove();
+            $waveform.find('[data-ll-processing-waveform-message]').first().text(getLessonEditProcessingMessage($recording, 'data-loading-label', editMessages.waveformLoading));
+        }
+    }
+
+    async function ensureLessonEditProcessingWaveform($recording) {
+        if (!$recording || !$recording.length) {
+            throw new Error(editMessages.processAudioError);
+        }
+        const sourceUrl = getLessonEditProcessingSourceUrl($recording);
+        if (!sourceUrl) {
+            throw new Error(editMessages.processAudioError);
+        }
+
+        const existingState = $recording.data('llProcessingState');
+        if (existingState && existingState.sourceUrl === sourceUrl && existingState.originalBuffer) {
+            renderLessonEditProcessingWaveform($recording, existingState);
+            return existingState;
+        }
+
+        clearLessonEditProcessingState($recording);
+        setLessonEditProcessingWaveformMessage($recording, getLessonEditProcessingMessage($recording, 'data-loading-label', editMessages.waveformLoading), false);
+
+        let buffer;
+        try {
+            buffer = await loadWaveformBuffer(sourceUrl);
+        } catch (error) {
+            setLessonEditProcessingWaveformMessage($recording, getLessonEditProcessingMessage($recording, 'data-unavailable-label', editMessages.waveformUnavailable), true);
+            throw new Error(editMessages.audioDecodeError);
+        }
+
+        const state = {
+            sourceUrl: sourceUrl,
+            originalBuffer: buffer,
+            sampleRate: buffer.sampleRate || 0,
+            trimStart: 0,
+            trimEnd: buffer.length,
+            manualBoundaries: false,
+            selectionAudio: null,
+            selectionTimeHandler: null,
+            selectionEndHandler: null
+        };
+        resetLessonEditProcessingBounds($recording, state);
+        $recording.data('llProcessingState', state);
+
+        if (!renderLessonEditProcessingWaveform($recording, state)) {
+            window.requestAnimationFrame(function () {
+                renderLessonEditProcessingWaveform($recording, state);
+            });
+        }
+
+        return state;
+    }
+
+    function initLessonEditProcessingWaveforms($scope) {
+        const $context = ($scope && $scope.length) ? $scope : $grids;
+        $context.find('.ll-word-edit-recording[data-recording-id]').each(function () {
+            const $recording = $(this);
+            if (!$recording.find('[data-ll-processing-waveform]').length) { return; }
+            ensureLessonEditProcessingWaveform($recording).catch(function () {});
+        });
+    }
+
+    async function playLessonEditProcessingSelection($recording) {
+        const existingState = $recording.data('llProcessingState');
+        if (existingState && existingState.selectionAudio && !existingState.selectionAudio.paused) {
+            stopLessonEditProcessingPlayback($recording);
+            return;
+        }
+
+        const state = await ensureLessonEditProcessingWaveform($recording);
+        stopLessonEditProcessingPlayback($recording);
+
+        const audio = state.selectionAudio || new Audio(state.sourceUrl);
+        state.selectionAudio = audio;
+        audio.preload = 'auto';
+
+        const startSeconds = state.sampleRate ? (state.trimStart / state.sampleRate) : 0;
+        const endSeconds = state.sampleRate ? Math.max(startSeconds + 0.05, state.trimEnd / state.sampleRate) : Number.POSITIVE_INFINITY;
+        const $button = $recording.find('[data-ll-processing-play-selection]').first();
+
+        const cleanup = function () {
+            if (state.selectionTimeHandler) {
+                audio.removeEventListener('timeupdate', state.selectionTimeHandler);
+            }
+            if (state.selectionEndHandler) {
+                audio.removeEventListener('ended', state.selectionEndHandler);
+            }
+            state.selectionTimeHandler = null;
+            state.selectionEndHandler = null;
+            $button.text(editMessages.playSelection).removeClass('is-playing');
+        };
+
+        state.selectionTimeHandler = function () {
+            if (audio.currentTime >= endSeconds) {
+                try { audio.pause(); } catch (_) {}
+                cleanup();
+            }
+        };
+        state.selectionEndHandler = cleanup;
+        audio.addEventListener('timeupdate', state.selectionTimeHandler);
+        audio.addEventListener('ended', state.selectionEndHandler);
+
+        try {
+            audio.currentTime = startSeconds;
+        } catch (_) {}
+        $button.text(editMessages.pauseSelection).addClass('is-playing');
+        try {
+            await audio.play();
+        } catch (error) {
+            cleanup();
+            throw error;
+        }
     }
 
     function trimLessonEditAudioBuffer(ctx, audioBuffer, startIndex, endIndex) {
@@ -1607,6 +1992,7 @@
         $item.toggleClass('ll-word-edit-open', open);
         if (open) {
             window.requestAnimationFrame(function () {
+                initLessonEditProcessingWaveforms($item);
                 const $firstFocusable = $panel
                     .find('input, textarea, select, button')
                     .filter(':enabled:visible')
@@ -1620,6 +2006,7 @@
                 $toggle.trigger('focus');
             }
             hideIpaKeyboards();
+            stopLessonEditProcessingPlayback($item);
         }
         syncEditModalBodyLock();
     }
@@ -2458,14 +2845,10 @@
     }
 
     function collectLessonEditProcessingOptions($recording) {
-        const startSeconds = readLessonEditSeconds($recording.find('[data-ll-processing-start]').first());
-        const endSeconds = readLessonEditSeconds($recording.find('[data-ll-processing-end]').first());
         return {
             enableTrim: $recording.find('[data-ll-processing-option="trim"]').first().prop('checked') !== false,
             enableNoise: $recording.find('[data-ll-processing-option="noise"]').first().prop('checked') !== false,
-            enableLoudness: $recording.find('[data-ll-processing-option="loudness"]').first().prop('checked') !== false,
-            startSeconds: startSeconds,
-            endSeconds: endSeconds
+            enableLoudness: $recording.find('[data-ll-processing-option="loudness"]').first().prop('checked') !== false
         };
     }
 
@@ -2480,11 +2863,6 @@
     }
 
     async function buildLessonEditProcessedAudio($recording) {
-        const sourceUrl = ($recording.attr('data-ll-processing-source-audio-url') || $recording.attr('data-ll-current-audio-url') || '').toString();
-        if (!sourceUrl) {
-            throw new Error(editMessages.processAudioError);
-        }
-
         const ctx = ensureLessonEditAudioContext();
         if (!ctx) {
             throw new Error(editMessages.audioUnsupportedError);
@@ -2493,35 +2871,17 @@
             try { await ctx.resume(); } catch (_) {}
         }
 
-        const response = await fetch(sourceUrl, { cache: 'no-store', credentials: 'same-origin' });
-        if (!response || !response.ok) {
-            throw new Error(editMessages.processAudioError);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        let originalBuffer;
-        try {
-            originalBuffer = await decodeLessonEditAudioData(ctx, arrayBuffer);
-        } catch (error) {
-            throw new Error(editMessages.audioDecodeError);
-        }
-
+        const state = await ensureLessonEditProcessingWaveform($recording);
+        const originalBuffer = state.originalBuffer;
         const options = collectLessonEditProcessingOptions($recording);
         let processedBuffer = originalBuffer;
         let trimStart = 0;
         let trimEnd = originalBuffer.length;
-        const hasManualTrim = options.startSeconds !== null || options.endSeconds !== null;
+        const hasManualTrim = !!state.manualBoundaries;
 
         if (options.enableTrim || hasManualTrim) {
-            if (hasManualTrim) {
-                const startRaw = options.startSeconds !== null ? Math.floor(options.startSeconds * originalBuffer.sampleRate) : 0;
-                const endRaw = options.endSeconds !== null ? Math.ceil(options.endSeconds * originalBuffer.sampleRate) : originalBuffer.length;
-                trimStart = clampLessonEditSample(startRaw, 0, Math.max(0, originalBuffer.length - 1));
-                trimEnd = clampLessonEditSample(endRaw, trimStart + 1, originalBuffer.length);
-            } else {
-                const detected = detectLessonEditSilenceBoundaries(originalBuffer);
-                trimStart = detected.start;
-                trimEnd = detected.end;
-            }
+            trimStart = clampLessonEditSample(Math.floor(state.trimStart), 0, Math.max(0, originalBuffer.length - 1));
+            trimEnd = clampLessonEditSample(Math.ceil(state.trimEnd), trimStart + 1, originalBuffer.length);
             processedBuffer = trimLessonEditAudioBuffer(ctx, originalBuffer, trimStart, trimEnd);
         }
 
@@ -2538,7 +2898,8 @@
             trimEnd: trimEnd,
             sourceSamples: originalBuffer.length,
             sampleRate: originalBuffer.sampleRate,
-            options: options
+            options: options,
+            usedManualTrim: hasManualTrim
         };
     }
 
@@ -2575,6 +2936,14 @@
             });
             $recording.find('[data-ll-processing-source-label]').first().text(usesOriginal ? editMessages.sourceOriginal : editMessages.sourceCurrent);
             $recording.find('[data-ll-process-recording-audio]').first().text(hasOriginal ? editMessages.reprocessAudio : editMessages.processAudio);
+            if (sourceUrl) {
+                waveformCache.delete(sourceUrl);
+                waveformPending.delete(sourceUrl);
+            }
+            if (audioUrl && audioUrl !== sourceUrl) {
+                waveformCache.delete(audioUrl);
+                waveformPending.delete(audioUrl);
+            }
             const $player = $recording.find('.ll-word-edit-ipa-audio-player').first();
             if ($player.length && audioUrl) {
                 const audioEl = $player.get(0);
@@ -2586,6 +2955,8 @@
                     try { audioEl.load(); } catch (_) {}
                 }
             }
+            clearLessonEditProcessingState($recording);
+            ensureLessonEditProcessingWaveform($recording).catch(function () {});
         }
 
         if (audioUrl) {
@@ -6056,6 +6427,41 @@
             if (!$panel.length) { return; }
             const isOpen = $panel.attr('aria-hidden') === 'false';
             setRecordingsPanelOpen($item, !isOpen);
+            if (isOpen === false) {
+                window.requestAnimationFrame(function () {
+                    initLessonEditProcessingWaveforms($item);
+                });
+            }
+        });
+
+        $grids.on('change', '[data-ll-processing-option="trim"]', function () {
+            const $recording = $(this).closest('.ll-word-edit-recording');
+            const state = $recording.data('llProcessingState');
+            if (state && state.originalBuffer) {
+                resetLessonEditProcessingBounds($recording, state);
+                renderLessonEditProcessingWaveform($recording, state);
+                stopLessonEditProcessingPlayback($recording);
+                return;
+            }
+            ensureLessonEditProcessingWaveform($recording).catch(function () {});
+        });
+
+        $grids.on('click', '[data-ll-processing-play-selection]', async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $btn = $(this);
+            if ($btn.prop('disabled')) { return; }
+
+            const $recording = $btn.closest('.ll-word-edit-recording');
+            $btn.prop('disabled', true);
+            try {
+                await playLessonEditProcessingSelection($recording);
+            } catch (error) {
+                setLessonEditProcessingStatus($recording, editMessages.processAudioError, 'error');
+            } finally {
+                $btn.prop('disabled', false);
+            }
         });
 
         $grids.on('click', '[data-ll-process-recording-audio]', async function (e) {
@@ -6092,7 +6498,7 @@
                 formData.append('trim_end', String(Math.max(0, parseInt(processed.trimEnd, 10) || 0)));
                 formData.append('source_samples', String(Math.max(0, parseInt(processed.sourceSamples, 10) || 0)));
                 formData.append('sample_rate', String(Math.max(0, parseInt(processed.sampleRate, 10) || 0)));
-                formData.append('enable_trim', (processed.options.enableTrim || processed.options.startSeconds !== null || processed.options.endSeconds !== null) ? '1' : '0');
+                formData.append('enable_trim', (processed.options.enableTrim || processed.usedManualTrim) ? '1' : '0');
                 formData.append('enable_noise', processed.options.enableNoise ? '1' : '0');
                 formData.append('enable_loudness', processed.options.enableLoudness ? '1' : '0');
                 formData.append('used_original_source', ($recording.attr('data-ll-uses-original-audio') || '') === '1' ? '1' : '0');
