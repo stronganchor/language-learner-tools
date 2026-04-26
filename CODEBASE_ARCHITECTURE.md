@@ -33,10 +33,10 @@ read_first:
 
 # Overview (30-second tour)
 - WordPress plugin for vocabulary-driven language learning.
-- Custom post types for words, dictionary entries, word images, and word audio recordings.
+- Custom post types for words, dictionary entries, word images, word audio recordings, vocab lessons, content lessons, prompt cards, and teacher classes.
 - Taxonomies for word categories, word sets, language, part of speech, and recording types.
 - Flashcard quizzes with multiple modes (practice, learning, listening, gender, self-check) and per-category prompt/option config.
-- Auto quiz pages under `/quiz/<category>` plus embeddable pages under `/embed/<category>`.
+- Auto quiz pages under `/quiz/<category>`, embeddable pages under `/embed/<category>`, wordset hub routes, vocab lesson routes, content lessons, games, and teacher class views.
 - Audio workflow: recording interface, bulk uploader, processing/review, recording type management.
 - Admin tools for bulk translation, bulk word import, export/import, and legacy cleanups.
 - Dictionary tooling: TSV import into `ll_dictionary_entry`, grouped sense metadata, snapshot import/export, and a public `[ll_dictionary]` browse/search page.
@@ -50,7 +50,7 @@ read_first:
   - Registers `/embed/<category>` rewrite + query var + template_include hook.
 - `includes/bootstrap.php`
   - Loads all CPTs, taxonomies, roles, admin tools, pages, shortcodes, API wrappers, utilities, and vendor update checker.
-  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/user-progress.php`, `includes/privacy.php`, and `includes/login-window.php`.
+  - Also loads shared quiz/data helpers like `includes/lib/word-option-rules.php`, `includes/lib/internal-review-notes.php`, `includes/user-progress.php`, `includes/privacy.php`, `includes/login-window.php`, and `includes/teacher-classes.php`.
 - `includes/assets.php`
   - `ll_enqueue_asset_by_timestamp()` enqueues local JS/CSS with `filemtime` versioning.
   - Public enqueue provides shared base LL Tools styles; feature-specific libraries (jQuery UI autocomplete, canvas-confetti) are enqueued on demand by the features that use them.
@@ -105,12 +105,16 @@ includes/
     site-tools-page.php       # Front-end Site Tools page creation + URL helper
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
+    content-lesson-pages.php  # Content lesson routing/rendering
+    wordset-games.php         # Wordset game catalog/runtime helpers
   post-types/
     words-post-type.php
     dictionary-entry-post-type.php
     word-image-post-type.php
     word-audio-post-type.php
     vocab-lesson-post-type.php
+    content-lesson-post-type.php
+    prompt-card-post-type.php
   taxonomies/
     word-category-taxonomy.php
     wordset-taxonomy.php
@@ -126,6 +130,7 @@ includes/
     word-audio-shortcode.php
     wordset-page-shortcode.php
     wordset-buttons-shortcode.php
+    audio-credit-grid-shortcode.php
     audio-recording-shortcode.php
     image-copyright-grid-shortcode.php
     language-switcher-shortcode.php
@@ -219,6 +224,20 @@ vendor/
   - Child of `words` via `post_parent`.
   - Meta: `audio_file_path`, `recording_date`, `speaker_user_id` or `speaker_name`, `_ll_needs_audio_processing`.
   - Terms: `recording_type` (isolation, sentence, question, introduction, etc).
+- `ll_vocab_lesson` (public lesson pages)
+  - Generated/synced from enabled wordsets and categories.
+  - Routes are handled by custom rewrite rules rather than native CPT rewrites.
+  - Lesson pages can include word grids, prompt-card grids, manager settings, prerequisites, text visibility, enabled games, desired recording types, and category-specific quiz config.
+- `ll_content_lesson` (public content lessons)
+  - Rewrite slug: `/lesson/<slug>`.
+  - Meta includes wordset, media type/url, transcript source/format/cues, linked category ids, mix-in flag, and prerequisite category/content-lesson ids.
+  - Can render inside the mixed wordset lesson grid when `show_in_mix` is enabled.
+- `ll_prompt_card` (admin UI, REST)
+  - Prompt-first quiz/lesson cards that can use prompt text/audio/image plus correct and wrong answer word ids.
+  - Can be surfaced in lesson grids, recorder queues, quiz payloads, progress tracking, and internal review notes.
+- `ll_teacher_class` (hidden CPT)
+  - Stores wordset-scoped class records with teacher ownership and learner membership.
+  - Managed primarily through the wordset Classes view; invite and manual-assignment helpers live in `includes/teacher-classes.php`.
 
 ## Taxonomies
 - `word-category` (hierarchical; attached to `words` and `word_images`)
@@ -253,7 +272,8 @@ vendor/
 
 ## User meta and per-user state
 - User study state (from `includes/user-study.php`):
-  - `ll_user_study_wordset`, `ll_user_study_categories`, `ll_user_study_starred`, `ll_user_star_mode`, `ll_user_fast_transitions`.
+  - `ll_user_study_wordset`, `ll_user_study_categories`, `ll_user_study_starred`, `ll_user_fast_transitions`.
+  - `ll_user_star_mode` is legacy cleanup-only state. Starred-only mode is session/runtime state and must not be saved as persisted user meta.
 - Audio recorder config (from `includes/user-roles/audio-recorder-role.php`):
   - `ll_recording_config` (wordset, category, recording type filters, allow_new_words, auto_process_recordings).
   - `ll_recording_page_id` (custom internal page override on login; legacy same-site URLs are migrated when encountered).
@@ -283,12 +303,21 @@ Core settings live in `includes/admin/settings.php`:
 - `[audio_upload_form]` and `[image_upload_form]` (bulk upload helpers in `includes/admin/uploads/`).
 - `[image_copyright_grid]` (`includes/shortcodes/image-copyright-grid-shortcode.php`).
 - `[ll_language_switcher]` (`includes/shortcodes/language-switcher-shortcode.php`).
+- `[ll_dictionary]` (`includes/shortcodes/dictionary-shortcode.php`).
+- `[ll_site_tools]` (`includes/shortcodes/site-tools-shortcode.php`).
+- `[audio_credit_grid]` (`includes/shortcodes/audio-credit-grid-shortcode.php`).
 
 ## Routes
 - `/quiz/<category>` auto pages (created/synced by `includes/pages/quiz-pages.php`).
   - Optional params: `?mode=practice|learning|listening|gender|self-check`.
 - `/embed/<category>` embed page (handled by `includes/pages/embed-page.php`).
   - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
+- `/<wordset>` wordset hub pages (handled by `includes/pages/wordset-pages.php`).
+  - Views: main, `progress`, `hidden-categories`, `settings`, `games`, and `classes`.
+- `/<wordset>/<category>` vocab lesson pages (handled by `includes/pages/vocab-lesson-pages.php`).
+- `/lesson/<slug>` content lesson pages (handled by `includes/pages/content-lesson-pages.php`).
+- `/wp-json/ll-tools/v1/...` REST automation routes (handled by `includes/api/automation-rest.php`).
+  - Includes status, wordset creation/reports/missing-meta/bulk-update/word-option-rules/review-notes, and import preview/start/process/discard/result routes.
 
 # Flashcard widget architecture
 ## PHP controller

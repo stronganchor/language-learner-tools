@@ -7,7 +7,7 @@ This directory contains the plugin test framework:
 - `composer.json`: isolated PHPUnit dependency config (separate from plugin `vendor/`).
 - `phpunit.xml.dist`: PHPUnit config.
 - `bootstrap.php`: boots the WordPress test suite and loads the plugin.
-- `Integration/*Test.php`: first integration tests.
+- `Integration/*Test.php`: PHPUnit integration tests.
 - `bin/setup-local-env.sh`: detects Local site DB settings and prints export commands.
   - Prefers the active Local runtime MySQL port (when detectable from `AppData/Roaming/Local/run/*`) to avoid stale `local-site.json` ports.
   - Keeps the detected Local DB host/user/password, but defaults `WP_TEST_DB_NAME` to an isolated test schema instead of the live site schema.
@@ -154,6 +154,12 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 
 ## 5) What the PHPUnit suite covers (high level)
 
+For the current inventory, run:
+
+```bash
+find tests/Integration -maxdepth 1 -name '*Test.php' | sort
+```
+
 - Audio recorder role creation and required capabilities.
 - `ll_tools_user_can_record()` permission behavior.
 - `ll_enqueue_asset_by_timestamp()` registration/enqueue + filemtime versioning.
@@ -163,7 +169,7 @@ tests/bin/run-tests.sh Integration/UserProgressSelfCheckSignalTest.php
 - Word publish guard that blocks publish without `word_audio` when category config requires audio, and allows publish otherwise.
 - Bulk translations security guards for fetch/save/migrate handlers (per-post edit checks, non-editable skips, mixed selections).
 - Dictionary import/search regressions including grouped senses, multilingual gloss columns, source/dialect attribution filters, snapshot override/undo flows, and shared-entry wordset scope refreshes.
-- Additional integration tests also cover wordset games availability and pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more (see `tests/Integration/` for the current list).
+- Additional integration tests cover prompt cards, internal review notes, content lessons, teacher classes, wordset games availability and pool filtering, import/export flows, media proxy behavior, login-window registration, user progress recommendations, wordset progress reset actions, and more.
 
 ## 6) Browser E2E tests (Playwright)
 
@@ -179,7 +185,13 @@ Read-only live-site smoke checks use a separate Playwright config and a local-on
 tests/bin/run-live-smoke.sh
 ```
 
-Representative current E2E specs (`tests/e2e/specs/`, 52 files at the time of writing):
+For the current inventory, run:
+
+```bash
+find tests/e2e/specs -maxdepth 1 -name '*.spec.js' | sort
+```
+
+Representative E2E coverage areas:
 
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
@@ -225,6 +237,9 @@ Representative current E2E specs (`tests/e2e/specs/`, 52 files at the time of wr
   - Verifies deferred lesson shells hydrate the word-grid markup and keep hidden feedback hidden under theme overrides.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
+- Content lessons and mixed lesson-grid behavior.
+- Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
+- Teacher class management and progress views.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`

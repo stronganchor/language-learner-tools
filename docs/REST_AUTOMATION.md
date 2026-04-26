@@ -95,6 +95,8 @@ Routes:
 - `POST /wordsets/{wordset}/word-option-rules`
 - `GET /wordsets/{wordset}/report`
 - `GET /wordsets/{wordset}/report-summary`
+- `GET /wordsets/{wordset}/review-notes`
+- `POST /wordsets/{wordset}/review-notes`
 - `POST /imports/preview`
 - `POST /imports/start`
 - `GET /imports/{job_id}`
@@ -343,6 +345,45 @@ Returns fast live-verification counts without building every word row:
 
 Use this route for live smoke tests after imports.
 
+### `GET /wordsets/{wordset}/review-notes`
+
+Returns staff-only internal review notes for words and prompt cards in one
+wordset.
+
+Query params:
+
+- `category` optional category slug or name
+- `include_empty` optional boolean; include eligible rows with blank notes
+
+Response fields:
+
+- `generated_at_gmt`
+- `wordset` object with `id`, `slug`, and `name`
+- `filters` object with the applied category and `include_empty` values
+- `count`
+- `notes` rows with `object_type`, `object_id`, `note`, `title`,
+  `categories`, `wordset_id`, and type-specific fields such as
+  `word`/`translation` or prompt-card answer references
+
+Use this route when Codex or another reviewer needs a durable review handoff
+without scraping lesson-grid UI.
+
+### `POST /wordsets/{wordset}/review-notes`
+
+Creates, updates, or clears one staff-only internal review note.
+
+Body fields:
+
+- `object_id` required; a `words` or `ll_prompt_card` post ID
+- `object_type` optional; `word` or `prompt_card`
+- `note` required; send an empty string to clear the note
+
+The object must belong to the requested wordset. If `object_type` is provided,
+it must match the resolved object type.
+
+The response includes the selected `wordset`, resolved `object_type`,
+`object_id`, saved `note`, and normalized `row`.
+
 ### `POST /imports/preview`
 
 Prepares a bundle preview without wp-admin nonce scraping.
@@ -396,6 +437,8 @@ The routes still respect LL Tools permissions:
 
 - Any automation caller must pass the `view_ll_tools` gate.
 - Wordset-scoped routes also require access to manage that specific wordset.
+- Review-note routes use the internal-review-note permission helper for the
+  target wordset, so staff/managers must be allowed to manage notes there.
 - Wordset creation requires `edit_wordsets`.
 - Import routes require the same capability as the LL Tools import admin page
   (`manage_options` by default, filterable through

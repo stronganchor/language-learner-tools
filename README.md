@@ -1,12 +1,17 @@
 # Language Learner Tools
 
-A WordPress toolkit for building vocabulary-driven language learning sites. It provides custom post types and taxonomies, flashcard quizzes (with image + audio), auto-generated quiz pages, embeddable quiz pages, vocabulary grids, audio players, bulk uploaders, DeepL-assisted translations, a template override system, and helper roles.
+A WordPress toolkit for building vocabulary-driven language learning sites. It provides custom post types and taxonomies, flashcard quizzes (with image + audio), auto-generated quiz pages, embeddable quiz pages, vocabulary grids, audio players, prompt cards, content lessons, teacher classes, bulk uploaders, DeepL-assisted translations, a template override system, and helper roles.
 
 ## Key Features
 
 - **Post types & taxonomies**
-  - `words`, `word_images`, `word_audio`, `ll_dictionary_entry`, and `ll_vocab_lesson` post types.
+  - `words`, `word_images`, `word_audio`, `ll_dictionary_entry`, `ll_vocab_lesson`, `ll_content_lesson`, `ll_prompt_card`, and `ll_teacher_class` post types.
   - Taxonomies: `word-category`, `wordset`, `language`, `part-of-speech`, `recording_type`.
+
+- **Lessons & prompt cards**
+  - Vocab lessons organize wordset/category study pages with lesson grids, prerequisites, category settings, and optional prompt-card rows.
+  - Content lessons support audio/video plus transcript cues and can appear in the same mixed wordset lesson grid as vocab lessons.
+  - Prompt cards provide prompt-first quiz items with text/audio/image prompts, answer-word references, recorder queue support, and progress tracking.
 
 - **Flashcard quiz modes**
   - **Practice Mode**: Traditional quiz with adaptive difficulty based on performance.
@@ -45,6 +50,7 @@ A WordPress toolkit for building vocabulary-driven language learning sites. It p
   - **Audio-Image Matcher**: Match audio files to images with scoring and usage tracking.
   - **Offline App Export**: Build a single-wordset offline quiz bundle with media, optional local STT games, and local-first progress sync back to the site.
   - Wordset manager workflows via the plugin’s custom wordset pages.
+  - Teacher classes scoped to wordsets, with invite links, manual learner assignment, and sortable student progress views.
   - Settings page (translations, browser-language auto-switch, DeepL API key, image size, font, option caps, etc.).
 
 - **DeepL integration**
