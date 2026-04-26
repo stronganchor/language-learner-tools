@@ -1049,6 +1049,28 @@ function ll_tools_orphan_media_sort_items(array &$items): void {
     });
 }
 
+function ll_tools_orphan_media_prepare_snapshot_for_storage(array $snapshot): array {
+    $items = isset($snapshot['items']) && is_array($snapshot['items'])
+        ? array_values($snapshot['items'])
+        : [];
+    $stored_item_limit = (int) apply_filters('ll_tools_orphan_media_stored_item_limit', (int) LL_TOOLS_ORPHAN_MEDIA_STORED_ITEM_LIMIT);
+
+    if ($stored_item_limit <= 0 || count($items) <= $stored_item_limit) {
+        return $snapshot;
+    }
+
+    $stored_snapshot = $snapshot;
+    $stored_snapshot['items'] = array_slice($items, 0, $stored_item_limit);
+    $stored_snapshot['items_truncated'] = true;
+    $stored_snapshot['stored_item_count'] = $stored_item_limit;
+
+    if (isset($stored_snapshot['summary']) && is_array($stored_snapshot['summary'])) {
+        $stored_snapshot['summary']['stored_item_count'] = $stored_item_limit;
+    }
+
+    return $stored_snapshot;
+}
+
 function ll_tools_orphan_media_get_snapshot(bool $force = false): array {
     $max_age = (int) apply_filters('ll_tools_orphan_media_snapshot_max_age', (int) LL_TOOLS_ORPHAN_MEDIA_SNAPSHOT_MAX_AGE);
     $is_stale = !empty($GLOBALS['ll_tools_orphan_media_snapshot_stale']);
@@ -1185,15 +1207,7 @@ function ll_tools_orphan_media_get_snapshot(bool $force = false): array {
         'items' => $items,
     ];
 
-    $stored_snapshot = $snapshot;
-    $stored_item_limit = (int) apply_filters('ll_tools_orphan_media_stored_item_limit', (int) LL_TOOLS_ORPHAN_MEDIA_STORED_ITEM_LIMIT);
-    if ($stored_item_limit > 0 && count($items) > $stored_item_limit) {
-        $stored_snapshot['items'] = array_slice($items, 0, $stored_item_limit);
-        $stored_snapshot['items_truncated'] = true;
-        $stored_snapshot['stored_item_count'] = $stored_item_limit;
-        $stored_snapshot['summary']['stored_item_count'] = $stored_item_limit;
-    }
-
+    $stored_snapshot = ll_tools_orphan_media_prepare_snapshot_for_storage($snapshot);
     update_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT, $stored_snapshot, false);
     $GLOBALS['ll_tools_orphan_media_snapshot_stale'] = false;
 
