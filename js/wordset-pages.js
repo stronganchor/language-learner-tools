@@ -172,6 +172,25 @@
         });
     }
 
+    function normalizeBooleanFlag(value) {
+        if (value === true || value === 1) {
+            return true;
+        }
+        if (value === false || value === 0 || value === null || value === undefined) {
+            return false;
+        }
+
+        const normalized = String(value).trim().toLowerCase();
+        if (normalized === '1' || normalized === 'true' || normalized === 'yes') {
+            return true;
+        }
+        if (normalized === '' || normalized === '0' || normalized === 'false' || normalized === 'no') {
+            return false;
+        }
+
+        return !!value;
+    }
+
     function stopProgressWordAudio() {
         const audio = progressWordAudio;
         const button = progressWordAudioButton;
@@ -1470,23 +1489,31 @@
                 prompt_type: String((cat && cat.prompt_type) || 'audio'),
                 option_type: String((cat && cat.option_type) || 'image'),
                 learning_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'learning_supported')
-                    ? !!cat.learning_supported
+                    ? normalizeBooleanFlag(cat.learning_supported)
                     : true,
                 self_check_supported: cat && Object.prototype.hasOwnProperty.call(cat, 'self_check_supported')
-                    ? !!cat.self_check_supported
+                    ? normalizeBooleanFlag(cat.self_check_supported)
                     : true,
-                gender_supported: !!(cat && cat.gender_supported),
+                gender_supported: normalizeBooleanFlag(cat && cat.gender_supported),
                 is_public: cat && Object.prototype.hasOwnProperty.call(cat, 'is_public')
-                    ? !!cat.is_public
+                    ? normalizeBooleanFlag(cat.is_public)
                     : true,
                 public_note: String((cat && cat.public_note) || ''),
-                hidden: !!(cat && cat.hidden),
-                has_images: !!(cat && cat.has_images),
+                hidden: normalizeBooleanFlag(cat && cat.hidden),
+                has_images: normalizeBooleanFlag(cat && cat.has_images),
                 search_text: String((cat && cat.search_text) || ''),
                 mastered_words: Math.max(0, parseInt(cat && cat.mastered_words, 10) || 0),
                 studied_words: Math.max(0, parseInt(cat && cat.studied_words, 10) || 0),
                 new_words: Math.max(0, parseInt(cat && cat.new_words, 10) || Math.max(0, parseInt(cat && cat.count, 10) || 0)),
                 last_seen_at: String((cat && cat.last_seen_at) || ''),
+                wordset_id: parseInt(cat && cat.wordset_id, 10) || wordsetId,
+                can_manage_inactive: normalizeBooleanFlag(cat && cat.can_manage_inactive),
+                can_hide: normalizeBooleanFlag(cat && cat.can_hide),
+                can_delete: normalizeBooleanFlag(cat && cat.can_delete),
+                can_preview: normalizeBooleanFlag(cat && cat.can_preview),
+                delete_reason: String((cat && cat.delete_reason) || ''),
+                inactive_action_nonce: String((cat && cat.inactive_action_nonce) || ''),
+                inactive_action_url: String((cat && cat.inactive_action_url) || ''),
                 preview: normalizeCategoryPreview(cat && cat.preview)
             };
         }).filter(Boolean);
@@ -5788,7 +5815,11 @@
     function categoryIsPublic(category) {
         const cat = (category && typeof category === 'object') ? category : null;
         if (!cat) { return false; }
-        return !Object.prototype.hasOwnProperty.call(cat, 'is_public') || cat.is_public !== false;
+        if (!Object.prototype.hasOwnProperty.call(cat, 'is_public')) {
+            return true;
+        }
+        const value = cat.is_public;
+        return !(value === false || value === 0 || value === '0' || String(value).toLowerCase() === 'false');
     }
 
     function categoryIdIsPublic(catId) {
@@ -6742,6 +6773,39 @@
             + '</form>';
     }
 
+    function canRenderInactiveCategoryActions(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        return !categoryIsPublic(cat)
+            && !!cat.can_manage_inactive
+            && String(cat.inactive_action_nonce || '').trim() !== ''
+            && String(cat.inactive_action_url || '').trim() !== '';
+    }
+
+    function buildInactiveCategoryActionsMarkup(category) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        if (!canRenderInactiveCategoryActions(cat)) {
+            return '';
+        }
+
+        const catName = String(cat.name || cat.translation || '').trim();
+        const hideAria = formatTemplate(i18n.hideCategoryAria || 'Hide %s', [catName]);
+        let html = '  <div class="ll-wordset-card__inactive-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
+        html += buildInactiveCategoryIconActionForm(cat, 'hide', hideAria, buildWordsetHideIconMarkup(), !!cat.can_hide, 'hide', '', '');
+        html += buildInactiveCategoryIconActionForm(
+            cat,
+            'delete',
+            formatTemplate(i18n.deleteCategoryAria || 'Delete %s', [catName]),
+            buildWordsetTrashIconMarkup(),
+            !!cat.can_delete,
+            'delete',
+            String(cat.delete_reason || ''),
+            i18n.inactiveDeleteConfirm || 'Delete this category? This cannot be undone.'
+        );
+        html += '  </div>';
+
+        return html;
+    }
+
     function buildWordsetCategoryCardMarkup(category, options) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
@@ -6764,10 +6828,6 @@
         const hideAria = formatTemplate(i18n.hideCategoryAria || 'Hide %s', [catName]);
         const starredAria = formatTemplate(i18n.starredWordsCategoryAria || 'Starred words in %s', [catName]);
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || 'Quiz modes for %s', [catName]);
-        const canManageInactiveActions = !isPublic
-            && !!cat.can_manage_inactive
-            && String(cat.inactive_action_nonce || '').trim() !== ''
-            && String(cat.inactive_action_url || '').trim() !== '';
         const cardModes = [];
         if (isPublic) {
             if (cat.learning_supported !== false) {
@@ -6806,20 +6866,8 @@
             html += '  <button type="button" class="ll-wordset-card__hide" data-ll-wordset-hide data-cat-id="' + categoryId + '" aria-label="' + escapeHtml(hideAria) + '">'
                 + buildWordsetHideIconMarkup()
                 + '  </button>';
-        } else if (canManageInactiveActions) {
-            html += '  <div class="ll-wordset-card__inactive-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
-            html += buildInactiveCategoryIconActionForm(cat, 'hide', hideAria, buildWordsetHideIconMarkup(), !!cat.can_hide, 'hide', '', '');
-            html += buildInactiveCategoryIconActionForm(
-                cat,
-                'delete',
-                formatTemplate(i18n.deleteCategoryAria || 'Delete %s', [catName]),
-                buildWordsetTrashIconMarkup(),
-                !!cat.can_delete,
-                'delete',
-                String(cat.delete_reason || ''),
-                i18n.inactiveDeleteConfirm || 'Delete this category? This cannot be undone.'
-            );
-            html += '  </div>';
+        } else if (canRenderInactiveCategoryActions(cat)) {
+            html += buildInactiveCategoryActionsMarkup(cat);
         } else {
             html += '  <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>';
         }
@@ -6844,7 +6892,7 @@
                 + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(i18n.notPublicLabel || 'Not public') + '</span>'
                 + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
                 + '</div>';
-            if (canManageInactiveActions && !!cat.can_preview) {
+            if (canRenderInactiveCategoryActions(cat) && !!cat.can_preview) {
                 html += '<div class="ll-wordset-card__staff-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
                 html += buildInactiveCategoryActionForm(cat, 'preview', i18n.inactivePreviewLabel || 'Preview', true, 'preview', '', '');
                 html += '</div>';
@@ -6870,6 +6918,52 @@
         html += '</article>';
 
         return html;
+    }
+
+    function repairInactiveCategoryActionControls($scope) {
+        const $container = ($scope && $scope.length) ? $scope : $grid;
+        if (!$container || !$container.length) {
+            return;
+        }
+
+        const $cards = $container
+            .filter('.ll-wordset-card--inactive[data-cat-id], .ll-wordset-card[data-ll-wordset-public="0"][data-cat-id]')
+            .add($container.find('.ll-wordset-card--inactive[data-cat-id], .ll-wordset-card[data-ll-wordset-public="0"][data-cat-id]'));
+        if (!$cards.length) {
+            return;
+        }
+
+        $cards.each(function () {
+            const $card = $(this);
+            if ($card.find('.ll-wordset-card__inactive-actions').length) {
+                return;
+            }
+
+            const categoryId = parseInt($card.attr('data-cat-id'), 10) || 0;
+            const cat = getCategoryById(categoryId);
+            const actionsMarkup = buildInactiveCategoryActionsMarkup(cat);
+            if (!actionsMarkup) {
+                return;
+            }
+
+            const $top = $card.find('.ll-wordset-card__top').first();
+            if (!$top.length) {
+                return;
+            }
+
+            const parsedNodes = $.parseHTML(String(actionsMarkup), document, true) || [];
+            const $actions = $(parsedNodes).filter('.ll-wordset-card__inactive-actions').first();
+            if (!$actions.length) {
+                return;
+            }
+
+            const $spacer = $top.find('.ll-wordset-card__hide-spacer').first();
+            if ($spacer.length) {
+                $spacer.replaceWith($actions);
+            } else {
+                $top.append($actions);
+            }
+        });
     }
 
     function insertCategoryCardIntoGrid($card, categoryId) {
@@ -6922,6 +7016,7 @@
             return;
         }
 
+        repairInactiveCategoryActionControls($inserted);
         syncLazyCardsCheckboxState($inserted);
         $inserted.filter('.ll-wordset-card[data-cat-id]').each(function () {
             syncWordsetCardProgressSegmentVisualState($(this));
@@ -12949,6 +13044,7 @@
         writeMainCategorySortPreference(mainCategorySort);
         syncMainCategorySortUi();
         refreshMainCategoryOrdering();
+        repairInactiveCategoryActionControls($grid);
         scheduleSelectAllAlignment();
         $(window).off('resize.llWordsetSelectAllAlign').on('resize.llWordsetSelectAllAlign', function () {
             scheduleSelectAllAlignment();

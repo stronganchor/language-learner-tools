@@ -62,6 +62,38 @@ const allCategories = [
   }
 ];
 
+const inactiveCategory = {
+  id: 44,
+  slug: 'numbers',
+  name: 'Sayılar, matematik',
+  translation: 'Sayılar, matematik',
+  count: 2,
+  url: '#',
+  wordset_id: 77,
+  mode: 'text',
+  prompt_type: 'audio',
+  option_type: 'text',
+  learning_supported: false,
+  gender_supported: false,
+  aspect_bucket: '',
+  hidden: false,
+  is_public: '0',
+  has_images: false,
+  can_manage_inactive: true,
+  can_hide: true,
+  can_delete: false,
+  can_preview: true,
+  delete_reason: 'Needs word records.',
+  inactive_action_nonce: 'inactive-action-nonce',
+  inactive_action_url: '/wordsets/lazy-wordset/',
+  public_note: 'Needs word records.',
+  search_text: 'sayılar matematik bin yo nim',
+  preview: [
+    { label: 'Bin yo' },
+    { label: 'Nim' }
+  ]
+};
+
 function buildCardMarkup(category, options = {}) {
   const cat = category || {};
   const extraStyle = String(options.extraStyle || '').trim();
@@ -88,7 +120,37 @@ function buildCardMarkup(category, options = {}) {
   `;
 }
 
-function buildMarkup() {
+function buildInactiveCardMarkup(category) {
+  const cat = category || {};
+
+  return `
+    <article class="ll-wordset-card ll-wordset-card--inactive" role="listitem" data-cat-id="${cat.id}" data-word-count="${cat.count}" data-ll-wordset-public="0">
+      <div class="ll-wordset-card__top">
+        <span class="ll-wordset-card__select ll-wordset-card__select--inactive" aria-hidden="true">
+          <span class="ll-wordset-card__select-box"></span>
+        </span>
+        <div class="ll-wordset-card__heading" aria-label="${cat.name}">
+          <h2 class="ll-wordset-card__title">${cat.name}</h2>
+        </div>
+        <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
+      </div>
+      <div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive" aria-label="${cat.name}">
+        <div class="ll-wordset-card__preview has-text">
+          <span class="ll-wordset-card__text-preview-item">Bin yo</span>
+          <span class="ll-wordset-card__text-preview-item">Nim</span>
+        </div>
+      </div>
+      <div class="ll-wordset-card__public-note" role="note">
+        <span class="ll-wordset-card__public-note-label">Not public</span>
+        <span class="ll-wordset-card__public-note-text">${cat.public_note}</span>
+      </div>
+    </article>
+  `;
+}
+
+function buildMarkup(options = {}) {
+  const initialCardsMarkup = options.initialCardsMarkup || buildCardMarkup(allCategories[0], { extraStyle: 'margin-top: 1600px;' });
+
   return `
     <div class="ll-wordset-page" data-ll-wordset-page data-ll-wordset-view="main" data-ll-wordset-id="77">
       <div class="ll-wordset-grid-tools">
@@ -107,7 +169,7 @@ function buildMarkup() {
       </div>
 
       <div class="ll-wordset-grid" role="list" data-ll-wordset-main-grid>
-        ${buildCardMarkup(allCategories[0], { extraStyle: 'margin-top: 1600px;' })}
+        ${initialCardsMarkup}
       </div>
 
       <div class="ll-wordset-grid-lazy" data-ll-wordset-lazy-root>
@@ -150,12 +212,39 @@ function buildMarkup() {
   `;
 }
 
-function buildConfig() {
+function buildConfig(options = {}) {
+  const categories = Array.isArray(options.categories) ? options.categories : allCategories;
+  const lazyCards = Object.assign({
+    enabled: true,
+    nonce: 'lazy-nonce',
+    token: 'lazy-token',
+    wordsetId: 77,
+    previewLimit: 2,
+    batchSize: 1,
+    initialCount: 1,
+    loaded: 1,
+    total: categories.length,
+    remaining: Math.max(0, categories.length - 1)
+  }, options.lazyCards || {});
+  const i18n = Object.assign({
+    selectionLabel: 'Select categories to study together',
+    selectionWordsOnly: '%d words',
+    selectAll: 'Select all',
+    deselectAll: 'Deselect all',
+    loadingMoreCards: 'Loading more cards...',
+    loadMoreCardsError: 'Could not load more cards right now.',
+    hideCategoryAria: 'Hide %s',
+    deleteCategoryAria: 'Delete %s',
+    categoryManagementAria: 'Category management for %s',
+    inactiveDeleteConfirm: 'Delete this category? This cannot be undone.',
+    notPublicLabel: 'Not public'
+  }, options.i18n || {});
+
   return {
     view: 'main',
     ajaxUrl: '/fake-admin-ajax.php',
     nonce: '',
-    isLoggedIn: false,
+    isLoggedIn: !!options.isLoggedIn,
     wordsetId: 77,
     wordsetSlug: 'lazy-wordset',
     wordsetName: 'Lazy Wordset',
@@ -166,8 +255,8 @@ function buildConfig() {
       settings: '/wordsets/lazy-wordset/settings/'
     },
     progressIncludeHidden: false,
-    categories: allCategories,
-    visibleCategoryIds: allCategories.map((category) => category.id),
+    categories,
+    visibleCategoryIds: categories.map((category) => category.id),
     hiddenCategoryIds: [],
     state: {
       wordset_id: 77,
@@ -202,38 +291,23 @@ function buildConfig() {
     summaryCounts: {
       mastered: 0,
       studied: 0,
-      new: 9,
+      new: categories.reduce((total, category) => total + (Number.parseInt(category.count, 10) || 0), 0),
       starred: 0,
       hard: 0
     },
     summaryCountsDeferred: false,
-    lazyCards: {
-      enabled: true,
-      nonce: 'lazy-nonce',
-      token: 'lazy-token',
-      wordsetId: 77,
-      previewLimit: 2,
-      batchSize: 1,
-      initialCount: 1,
-      loaded: 1,
-      total: 3,
-      remaining: 2
-    },
-    i18n: {
-      selectionLabel: 'Select categories to study together',
-      selectionWordsOnly: '%d words',
-      selectAll: 'Select all',
-      deselectAll: 'Deselect all',
-      loadingMoreCards: 'Loading more cards...',
-      loadMoreCardsError: 'Could not load more cards right now.'
-    }
+    lazyCards,
+    i18n
   };
 }
 
-async function mountWordsetPage(page) {
+async function mountWordsetPage(page, options = {}) {
+  const config = buildConfig(options);
+  const remainingCards = Array.isArray(options.remainingCards) ? options.remainingCards : allCategories;
+
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
-  await page.setContent(buildMarkup());
+  await page.setContent(buildMarkup(options));
   await page.addScriptTag({ content: jquerySource });
 
   await page.evaluate(({ config, remainingCards }) => {
@@ -306,8 +380,8 @@ async function mountWordsetPage(page) {
       return deferred.promise();
     };
   }, {
-    config: buildConfig(),
-    remainingCards: allCategories
+    config,
+    remainingCards
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -355,4 +429,48 @@ test('wordset search renders matching unloaded categories without forcing lazy-l
       .filter((card) => !card.hidden)
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([11]);
+});
+
+test('client-rendered inactive categories include hide and trash controls', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [allCategories[0], inactiveCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 2,
+      remaining: 0
+    }
+  });
+
+  await page.fill('[data-ll-wordset-page-search]', 'matematik');
+
+  const inactiveCard = page.locator('.ll-wordset-card--inactive[data-cat-id="44"]');
+  await expect(inactiveCard).toBeVisible();
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-actions')).toHaveCount(1);
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--hide')).toHaveCount(1);
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeDisabled();
+  await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
+});
+
+test('legacy inactive cards missing action controls are repaired on init', async ({ page }) => {
+  await mountWordsetPage(page, {
+    categories: [inactiveCategory],
+    remainingCards: [],
+    isLoggedIn: true,
+    initialCardsMarkup: buildInactiveCardMarkup(inactiveCategory),
+    lazyCards: {
+      enabled: false,
+      loaded: 1,
+      total: 1,
+      remaining: 0
+    }
+  });
+
+  const inactiveCard = page.locator('.ll-wordset-card--inactive[data-cat-id="44"]');
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-actions')).toHaveCount(1);
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--hide')).toHaveCount(1);
+  await expect(inactiveCard.locator('.ll-wordset-card__inactive-action--delete')).toBeDisabled();
+  await expect(inactiveCard.locator('.ll-wordset-card__hide-spacer')).toHaveCount(0);
 });
