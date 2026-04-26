@@ -10,19 +10,19 @@ async function dismissAdminEmailVerification(page) {
 
   const remindLaterLink = page.getByRole('link', { name: /Remind me later/i }).first();
   if ((await remindLaterLink.count()) > 0) {
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      remindLaterLink.click()
-    ]);
+    await remindLaterLink.click();
+    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
+      timeout: 60000
+    }).catch(() => {});
     return;
   }
 
   const confirmButton = page.getByRole('button', { name: /The email is correct/i }).first();
   if ((await confirmButton.count()) > 0) {
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      confirmButton.click()
-    ]);
+    await confirmButton.click();
+    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
+      timeout: 60000
+    }).catch(() => {});
   }
 }
 
@@ -87,18 +87,39 @@ async function createRecorderPage(page, title) {
 }
 
 async function deletePage(page, pageId) {
-  await page.goto('/wp-admin/post-new.php?post_type=page', { waitUntil: 'domcontentloaded' });
-  await page.evaluate(async (id) => {
-    const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
-    if (!nonce || !id) return;
+  if (!pageId || page.isClosed()) {
+    return;
+  }
 
-    await fetch(`/wp-json/wp/v2/pages/${id}?force=true`, {
-      method: 'DELETE',
-      headers: {
-        'X-WP-Nonce': nonce
-      }
+  try {
+    await page.goto('/wp-admin/post-new.php?post_type=page', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000
     });
-  }, pageId);
+    await dismissAdminEmailVerification(page);
+    await page.evaluate(async (id) => {
+      const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
+      if (!nonce || !id) return;
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 10000);
+      try {
+        await fetch(`/wp-json/wp/v2/pages/${id}?force=true`, {
+          method: 'DELETE',
+          headers: {
+            'X-WP-Nonce': nonce
+          },
+          signal: controller.signal
+        });
+      } catch (_) {
+        // Best-effort cleanup should not hide the recorder behavior under test.
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }, pageId);
+  } catch (_) {
+    // Best-effort cleanup should not hide the recorder behavior under test.
+  }
 }
 
 async function installFakeRecorderRuntime(page) {

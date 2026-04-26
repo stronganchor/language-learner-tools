@@ -22,22 +22,15 @@ function makeNounWord(id, categoryName, gender = 'masculine', extras = {}) {
 }
 
 async function openHarnessPage(page) {
-  const url = `${String(BASE_URL).replace(/\/$/, '')}/`;
-  let lastError = null;
-  for (let attempt = 0; attempt < 6; attempt++) {
-    try {
-      await page.goto(url, { waitUntil: 'commit' });
-      lastError = null;
-      break;
-    } catch (error) {
-      lastError = error;
-      await page.waitForTimeout(1000);
-    }
-  }
-  if (lastError) {
-    throw lastError;
-  }
-  await page.setContent('<!doctype html><html><head></head><body></body></html>');
+  const url = `${String(BASE_URL).replace(/\/$/, '')}/ll-tools-e2e-gender-harness`;
+  await page.route(url, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: '<!doctype html><html><head></head><body></body></html>'
+    });
+  });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
 }
 
 function bootstrapGenderHarness(page, options = {}) {

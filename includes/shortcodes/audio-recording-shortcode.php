@@ -4517,11 +4517,46 @@ function ll_get_images_needing_audio($category_slug = '', $wordset_term_ids = []
     }
 
     $result = [];
+    $seen_queue_items = [];
     foreach ($target_slugs as $slug) {
         if (!isset($items_by_category[$slug])) {
             continue;
         }
         foreach ($items_by_category[$slug]['items'] as $item) {
+            if (!is_array($item)) {
+                $result[] = $item;
+                continue;
+            }
+
+            $word_id_for_key = (int) ($item['word_id'] ?? 0);
+            $image_id_for_key = (int) ($item['id'] ?? 0);
+            $category_slug_for_key = (string) ($item['category_slug'] ?? $slug);
+            if ($word_id_for_key > 0) {
+                $dedupe_key = $category_slug_for_key . '|word:' . $word_id_for_key;
+            } elseif ($image_id_for_key > 0) {
+                $dedupe_key = $category_slug_for_key . '|image:' . $image_id_for_key;
+            } else {
+                $dedupe_key = $category_slug_for_key . '|title:' . sanitize_title((string) ($item['title'] ?? ''));
+            }
+
+            if (isset($seen_queue_items[$dedupe_key])) {
+                $existing_index = (int) $seen_queue_items[$dedupe_key];
+                foreach (['missing_types', 'existing_types', 'prompt_types', 'my_existing_types'] as $type_key) {
+                    $merged_types = array_merge(
+                        (array) ($result[$existing_index][$type_key] ?? []),
+                        (array) ($item[$type_key] ?? [])
+                    );
+                    $result[$existing_index][$type_key] = ll_sort_recording_type_slugs(array_values(array_unique(array_filter(array_map('strval', $merged_types)))));
+                }
+                if (!empty($item['image_url']) && empty($result[$existing_index]['image_url'])) {
+                    $result[$existing_index]['image_url'] = $item['image_url'];
+                    $result[$existing_index]['id'] = $image_id_for_key;
+                    $result[$existing_index]['is_text_only'] = false;
+                }
+                continue;
+            }
+
+            $seen_queue_items[$dedupe_key] = count($result);
             $result[] = $item;
         }
     }

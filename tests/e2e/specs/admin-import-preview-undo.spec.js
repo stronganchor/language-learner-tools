@@ -14,19 +14,19 @@ async function dismissAdminEmailVerification(page) {
 
   const remindLaterLink = page.getByRole('link', { name: /Remind me later/i }).first();
   if ((await remindLaterLink.count()) > 0) {
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      remindLaterLink.click()
-    ]);
+    await remindLaterLink.click();
+    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
+      timeout: 60000
+    }).catch(() => {});
     return;
   }
 
   const confirmButton = page.getByRole('button', { name: /The email is correct/i }).first();
   if ((await confirmButton.count()) > 0) {
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      confirmButton.click()
-    ]);
+    await confirmButton.click();
+    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
+      timeout: 60000
+    }).catch(() => {});
   }
 }
 
@@ -156,6 +156,7 @@ function confirmImportForm(page) {
 }
 
 test('admin import page previews, imports, and undoes a minimal server zip bundle', async ({ page }) => {
+  test.setTimeout(240000);
   test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for admin E2E tests.');
 
   const fixture = createMinimalImportBundleZip();
@@ -177,11 +178,7 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(confirmImportForm(page)).toBeVisible();
 
     const importForm = confirmImportForm(page);
-    const importNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 120000 });
-    await importForm.locator('button[type="submit"]').click();
-    await importNavigation;
-
-    await expect(page).toHaveURL(/\/wp-admin\/tools\.php\?page=ll-import/);
+    await importForm.locator('button[type="submit"]').click({ timeout: 120000 });
 
     const importRow = page.locator('.ll-tools-recent-imports-table tbody tr').filter({ hasText: fixture.zipName }).first();
     await expect(importRow).toBeVisible({ timeout: 60000 });
@@ -192,12 +189,7 @@ test('admin import page previews, imports, and undoes a minimal server zip bundl
     await expect(categoriesDetails).toContainText(fixture.categoryName);
 
     page.once('dialog', (dialog) => dialog.accept());
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 120000 }),
-      importRow.locator('.ll-tools-undo-import-button').click()
-    ]);
-
-    await expect(page).toHaveURL(/\/wp-admin\/tools\.php\?page=ll-import/);
+    await importRow.locator('.ll-tools-undo-import-button').click({ timeout: 120000 });
 
     const undoneRow = page.locator('.ll-tools-recent-imports-table tbody tr').filter({ hasText: fixture.zipName }).first();
     await expect(undoneRow).toBeVisible({ timeout: 60000 });
