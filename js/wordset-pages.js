@@ -6673,6 +6673,14 @@
         return html;
     }
 
+    function buildWordsetHideIconMarkup() {
+        return '<svg class="ll-wordset-hide-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false"><path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12 18.7 18.5 12 18.5 1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M3 21 21 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>';
+    }
+
+    function buildWordsetTrashIconMarkup() {
+        return '<svg class="ll-wordset-trash-icon" viewBox="0 0 875 1000" width="18" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M0 281.296l0 -68.355q1.953 -37.107 29.295 -62.496t64.449 -25.389l93.744 0l0 -31.248q0 -39.06 27.342 -66.402t66.402 -27.342l312.48 0q39.06 0 66.402 27.342t27.342 66.402l0 31.248l93.744 0q37.107 0 64.449 25.389t29.295 62.496l0 68.355q0 25.389 -18.553 43.943t-43.943 18.553l0 531.216q0 52.731 -36.13 88.862t-88.862 36.13l-499.968 0q-52.731 0 -88.862 -36.13t-36.13 -88.862l0 -531.216q-25.389 0 -43.943 -18.553t-18.553 -43.943zm62.496 0l749.952 0l0 -62.496q0 -13.671 -8.789 -22.46t-22.46 -8.789l-687.456 0q-13.671 0 -22.46 8.789t-8.789 22.46l0 62.496zm62.496 593.712q0 25.389 18.553 43.943t43.943 18.553l499.968 0q25.389 0 43.943 -18.553t18.553 -43.943l0 -531.216l-624.96 0l0 531.216zm62.496 -31.248l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224zm31.248 -718.704l374.976 0l0 -31.248q0 -13.671 -8.789 -22.46t-22.46 -8.789l-312.48 0q-13.671 0 -22.46 8.789t-8.789 22.46l0 31.248zm124.992 718.704l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224zm156.24 0l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224z"></path></svg>';
+    }
+
     function buildInactiveCategoryActionForm(category, action, label, enabled, modifier, disabledReason, confirmMessage) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
@@ -6703,6 +6711,37 @@
             + '</form>';
     }
 
+    function buildInactiveCategoryIconActionForm(category, action, label, iconMarkup, enabled, modifier, disabledReason, confirmMessage) {
+        const cat = (category && typeof category === 'object') ? category : {};
+        const categoryId = parseInt(cat.id, 10) || 0;
+        const wordsetId = parseInt(cat.wordset_id, 10) || 0;
+        const nonce = String(cat.inactive_action_nonce || '').trim();
+        const actionUrl = String(cat.inactive_action_url || '').trim();
+        const actionName = String(action || '').trim();
+        const buttonClass = 'll-wordset-card__inactive-action' + (modifier ? ' ll-wordset-card__inactive-action--' + String(modifier).replace(/[^A-Za-z0-9_-]/g, '') : '');
+        const ariaLabel = String(label || '').trim();
+        const iconHtml = String(iconMarkup || '').trim();
+        const disabledTitle = String(disabledReason || '').trim();
+        if (!categoryId || !wordsetId || !actionName || !ariaLabel || !iconHtml) {
+            return '';
+        }
+        if (!enabled || !nonce || !actionUrl) {
+            return '<button type="button" class="' + escapeHtml(buttonClass) + '" disabled aria-label="' + escapeHtml(ariaLabel) + '"'
+                + (disabledTitle ? ' title="' + escapeHtml(disabledTitle) + '"' : '')
+                + '>' + iconHtml + '</button>';
+        }
+
+        return '<form class="ll-wordset-card__inactive-action-form" method="post" action="' + escapeHtml(actionUrl) + '" data-ll-wordset-card-action-form'
+            + (confirmMessage ? ' data-ll-wordset-card-confirm="' + escapeHtml(String(confirmMessage)) + '"' : '')
+            + '>'
+            + '<input type="hidden" name="ll_wordset_inactive_category_action" value="' + escapeHtml(actionName) + '" />'
+            + '<input type="hidden" name="ll_wordset_inactive_category_wordset_id" value="' + wordsetId + '" />'
+            + '<input type="hidden" name="ll_wordset_inactive_category_id" value="' + categoryId + '" />'
+            + '<input type="hidden" name="ll_wordset_inactive_category_nonce" value="' + escapeHtml(nonce) + '" />'
+            + '<button type="submit" class="' + escapeHtml(buttonClass) + '" aria-label="' + escapeHtml(ariaLabel) + '">' + iconHtml + '</button>'
+            + '</form>';
+    }
+
     function buildWordsetCategoryCardMarkup(category, options) {
         const cat = (category && typeof category === 'object') ? category : {};
         const categoryId = parseInt(cat.id, 10) || 0;
@@ -6725,6 +6764,10 @@
         const hideAria = formatTemplate(i18n.hideCategoryAria || 'Hide %s', [catName]);
         const starredAria = formatTemplate(i18n.starredWordsCategoryAria || 'Starred words in %s', [catName]);
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || 'Quiz modes for %s', [catName]);
+        const canManageInactiveActions = !isPublic
+            && !!cat.can_manage_inactive
+            && String(cat.inactive_action_nonce || '').trim() !== ''
+            && String(cat.inactive_action_url || '').trim() !== '';
         const cardModes = [];
         if (isPublic) {
             if (cat.learning_supported !== false) {
@@ -6761,8 +6804,22 @@
         }
         if (isPublic && isLoggedIn) {
             html += '  <button type="button" class="ll-wordset-card__hide" data-ll-wordset-hide data-cat-id="' + categoryId + '" aria-label="' + escapeHtml(hideAria) + '">'
-                + '    <svg class="ll-wordset-hide-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false"><path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12 18.7 18.5 12 18.5 1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M3 21 21 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>'
+                + buildWordsetHideIconMarkup()
                 + '  </button>';
+        } else if (canManageInactiveActions) {
+            html += '  <div class="ll-wordset-card__inactive-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
+            html += buildInactiveCategoryIconActionForm(cat, 'hide', hideAria, buildWordsetHideIconMarkup(), !!cat.can_hide, 'hide', '', '');
+            html += buildInactiveCategoryIconActionForm(
+                cat,
+                'delete',
+                formatTemplate(i18n.deleteCategoryAria || 'Delete %s', [catName]),
+                buildWordsetTrashIconMarkup(),
+                !!cat.can_delete,
+                'delete',
+                String(cat.delete_reason || ''),
+                i18n.inactiveDeleteConfirm || 'Delete this category? This cannot be undone.'
+            );
+            html += '  </div>';
         } else {
             html += '  <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>';
         }
@@ -6787,21 +6844,9 @@
                 + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(i18n.notPublicLabel || 'Not public') + '</span>'
                 + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
                 + '</div>';
-            if (!!cat.can_manage_inactive && String(cat.inactive_action_nonce || '').trim() !== '' && String(cat.inactive_action_url || '').trim() !== '') {
+            if (canManageInactiveActions && !!cat.can_preview) {
                 html += '<div class="ll-wordset-card__staff-actions" role="group" aria-label="' + escapeHtml(formatTemplate(i18n.categoryManagementAria || 'Category management for %s', [catName])) + '">';
-                if (!!cat.can_preview) {
-                    html += buildInactiveCategoryActionForm(cat, 'preview', i18n.inactivePreviewLabel || 'Preview', true, 'preview', '', '');
-                }
-                html += buildInactiveCategoryActionForm(cat, 'hide', i18n.inactiveHideLabel || 'Hide', !!cat.can_hide, 'hide', '', '');
-                html += buildInactiveCategoryActionForm(
-                    cat,
-                    'delete',
-                    i18n.inactiveDeleteLabel || 'Delete',
-                    !!cat.can_delete,
-                    'delete',
-                    String(cat.delete_reason || ''),
-                    i18n.inactiveDeleteConfirm || 'Delete this category? This cannot be undone.'
-                );
+                html += buildInactiveCategoryActionForm(cat, 'preview', i18n.inactivePreviewLabel || 'Preview', true, 'preview', '', '');
                 html += '</div>';
             }
             html += '</article>';

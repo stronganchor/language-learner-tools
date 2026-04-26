@@ -2268,6 +2268,112 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     fill: none !important;
 }
 
+.ll-wordset-card__inactive-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 74px;
+}
+
+.ll-wordset-card__inactive-action-form {
+    display: inline-flex;
+    margin: 0;
+    padding: 0;
+}
+
+.ll-wordset-page .ll-wordset-card__inactive-action,
+.ll-wordset-card__inactive-action {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    border-radius: 9px !important;
+    border: 1px solid #d0d7de !important;
+    background: #ffffff !important;
+    color: #5c6672 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    text-decoration: none !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.ll-wordset-page .ll-wordset-card__inactive-action--hide:hover,
+.ll-wordset-page .ll-wordset-card__inactive-action--hide:focus-visible,
+.ll-wordset-card__inactive-action--hide:hover,
+.ll-wordset-card__inactive-action--hide:focus-visible {
+    color: #2f3a47 !important;
+    border-color: #8a98a8 !important;
+    background: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(77, 93, 113, 0.15) !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__inactive-action--delete,
+.ll-wordset-card__inactive-action--delete {
+    border-color: #e2b8b8 !important;
+    color: #b42318 !important;
+}
+
+.ll-wordset-page .ll-wordset-card__inactive-action--delete:hover,
+.ll-wordset-page .ll-wordset-card__inactive-action--delete:focus-visible,
+.ll-wordset-card__inactive-action--delete:hover,
+.ll-wordset-card__inactive-action--delete:focus-visible {
+    border-color: #d92d20 !important;
+    background: #fff5f5 !important;
+    color: #912018 !important;
+    box-shadow: 0 0 0 3px rgba(217, 45, 32, 0.15) !important;
+    outline: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__inactive-action:disabled,
+.ll-wordset-card__inactive-action:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+    box-shadow: none !important;
+}
+
+.ll-wordset-page .ll-wordset-card__inactive-action:disabled:hover,
+.ll-wordset-page .ll-wordset-card__inactive-action:disabled:focus-visible,
+.ll-wordset-card__inactive-action:disabled:hover,
+.ll-wordset-card__inactive-action:disabled:focus-visible {
+    background: #ffffff !important;
+    border-color: #d0d7de !important;
+    box-shadow: none !important;
+}
+
+.ll-wordset-card__inactive-action .ll-wordset-hide-icon,
+.ll-wordset-card__inactive-action .ll-wordset-trash-icon {
+    display: block;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-card__inactive-action .ll-wordset-hide-icon {
+    width: 18px;
+    height: 18px;
+    fill: none !important;
+}
+
+.ll-wordset-card__inactive-action .ll-wordset-trash-icon {
+    width: 17px;
+    height: 19px;
+    fill: currentColor !important;
+}
+
+.ll-wordset-card__inactive-action .ll-wordset-hide-icon path {
+    fill: none !important;
+    stroke: currentColor !important;
+}
+
+.ll-wordset-card__inactive-action .ll-wordset-hide-icon circle {
+    fill: currentColor !important;
+    stroke: none !important;
+}
+
 .ll-wordset-card__hide-spacer {
     width: 34px;
     height: 34px;
@@ -6252,6 +6358,7 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-page button.ll-wordset-progress-select-all,
 .ll-wordset-page button.ll-wordset-progress-tab,
 .ll-wordset-page button.ll-wordset-card__hide,
+.ll-wordset-page button.ll-wordset-card__inactive-action,
 .ll-wordset-page button.ll-wordset-card__quiz-btn,
 .ll-wordset-page button.ll-wordset-hidden-item__btn,
 .ll-wordset-page button.ll-wordset-progress-star,

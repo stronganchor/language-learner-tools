@@ -37,7 +37,9 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Needs more quiz-ready words.', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $inactive_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $inactive_card);
-        $this->assertStringContainsString('ll-wordset-card__staff-action--delete', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--hide', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $inactive_card);
+        $this->assertStringContainsString('ll-wordset-trash-icon', $inactive_card);
         $this->assertStringContainsString('disabled', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-select', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-category-mode', $inactive_card);
@@ -46,12 +48,14 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('No words yet.', $empty_card);
         $this->assertStringNotContainsString('ll_wordset_inactive_category_action" value="preview"', $empty_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="delete"', $empty_card);
-        $this->assertStringNotContainsString('ll-wordset-card__staff-action--delete" disabled', $empty_card);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $empty_card);
+        $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $empty_card);
 
         $this->assertStringContainsString('Needs word records.', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="preview"', $image_card);
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $image_card);
-        $this->assertStringContainsString('ll-wordset-card__staff-action--delete', $image_card);
+        $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $image_card);
+        $this->assertStringContainsString('ll-wordset-trash-icon', $image_card);
         $this->assertStringContainsString('disabled', $image_card);
     }
 

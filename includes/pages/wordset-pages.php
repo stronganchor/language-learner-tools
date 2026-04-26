@@ -2890,6 +2890,43 @@ function ll_tools_wordset_page_render_inactive_category_action_form(array $cat, 
     return (string) ob_get_clean();
 }
 
+function ll_tools_wordset_page_render_inactive_category_icon_action_form(array $cat, string $action, string $label, string $icon_html, bool $enabled, string $modifier = '', string $disabled_reason = '', string $confirm = ''): string {
+    $category_id = isset($cat['id']) ? (int) $cat['id'] : 0;
+    $wordset_id = isset($cat['wordset_id']) ? (int) $cat['wordset_id'] : 0;
+    $nonce = isset($cat['inactive_action_nonce']) ? (string) $cat['inactive_action_nonce'] : '';
+    $action_url = isset($cat['inactive_action_url']) ? (string) $cat['inactive_action_url'] : '';
+    $action = sanitize_key($action);
+    $modifier = sanitize_html_class($modifier);
+    if ($category_id <= 0 || $wordset_id <= 0 || $action === '' || $icon_html === '') {
+        return '';
+    }
+
+    $button_classes = trim('ll-wordset-card__inactive-action ' . ($modifier !== '' ? 'll-wordset-card__inactive-action--' . $modifier : ''));
+    $disabled_title = $disabled_reason !== '' ? ' title="' . esc_attr($disabled_reason) . '"' : '';
+    if (!$enabled || $nonce === '' || $action_url === '') {
+        return sprintf(
+            '<button type="button" class="%1$s" disabled aria-label="%2$s"%3$s>%4$s</button>',
+            esc_attr($button_classes),
+            esc_attr($label),
+            $disabled_title,
+            $icon_html
+        );
+    }
+
+    ob_start();
+    ?>
+    <form class="ll-wordset-card__inactive-action-form" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-card-action-form<?php echo $confirm !== '' ? ' data-ll-wordset-card-confirm="' . esc_attr($confirm) . '"' : ''; ?>>
+        <input type="hidden" name="ll_wordset_inactive_category_action" value="<?php echo esc_attr($action); ?>" />
+        <input type="hidden" name="ll_wordset_inactive_category_wordset_id" value="<?php echo esc_attr($wordset_id); ?>" />
+        <input type="hidden" name="ll_wordset_inactive_category_id" value="<?php echo esc_attr($category_id); ?>" />
+        <input type="hidden" name="ll_wordset_inactive_category_nonce" value="<?php echo esc_attr($nonce); ?>" />
+        <button type="submit" class="<?php echo esc_attr($button_classes); ?>" aria-label="<?php echo esc_attr($label); ?>"><?php echo $icon_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></button>
+    </form>
+    <?php
+
+    return (string) ob_get_clean();
+}
+
 function ll_tools_wordset_page_render_category_card(array $cat, array $context = []): string {
     $cat_id = isset($cat['id']) ? (int) $cat['id'] : 0;
     if ($cat_id <= 0) {
@@ -2934,6 +2971,10 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
     if (!$is_public && $public_note === '') {
         $public_note = __('Not public yet.', 'll-tools-text-domain');
     }
+    $can_manage_inactive_actions = !$is_public
+        && !empty($cat['can_manage_inactive'])
+        && !empty($cat['inactive_action_nonce'])
+        && !empty($cat['inactive_action_url']);
     $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
     if ($current_preview_limit < 1) {
         $current_preview_limit = 1;
@@ -2966,6 +3007,29 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                 <button type="button" class="ll-wordset-card__hide" data-ll-wordset-hide data-cat-id="<?php echo esc_attr($cat_id); ?>" aria-label="<?php echo esc_attr(sprintf(__('Hide %s', 'll-tools-text-domain'), $cat_name)); ?>">
                     <?php echo ll_tools_wordset_page_render_hide_icon('ll-wordset-hide-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </button>
+            <?php elseif ($can_manage_inactive_actions) : ?>
+                <div class="ll-wordset-card__inactive-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Category management for %s', 'll-tools-text-domain'), $cat_name)); ?>">
+                    <?php
+                    echo ll_tools_wordset_page_render_inactive_category_icon_action_form(
+                        $cat,
+                        'hide',
+                        sprintf(__('Hide %s', 'll-tools-text-domain'), $cat_name),
+                        ll_tools_wordset_page_render_hide_icon('ll-wordset-hide-icon'),
+                        !empty($cat['can_hide']),
+                        'hide'
+                    ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    echo ll_tools_wordset_page_render_inactive_category_icon_action_form(
+                        $cat,
+                        'delete',
+                        sprintf(__('Delete %s', 'll-tools-text-domain'), $cat_name),
+                        ll_tools_wordset_page_render_trash_icon('ll-wordset-trash-icon'),
+                        !empty($cat['can_delete']),
+                        'delete',
+                        (string) ($cat['delete_reason'] ?? ''),
+                        __('Delete this category? This cannot be undone.', 'll-tools-text-domain')
+                    ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    ?>
+                </div>
             <?php else : ?>
                 <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
             <?php endif; ?>
@@ -3031,22 +3095,10 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                 <span class="ll-wordset-card__public-note-label"><?php echo esc_html__('Not public', 'll-tools-text-domain'); ?></span>
                 <span class="ll-wordset-card__public-note-text"><?php echo esc_html($public_note); ?></span>
             </div>
-            <?php if (!empty($cat['can_manage_inactive']) && !empty($cat['inactive_action_nonce']) && !empty($cat['inactive_action_url'])) : ?>
+            <?php if ($can_manage_inactive_actions && !empty($cat['can_preview'])) : ?>
                 <div class="ll-wordset-card__staff-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Category management for %s', 'll-tools-text-domain'), $cat_name)); ?>">
                     <?php
-                    if (!empty($cat['can_preview'])) {
-                        echo ll_tools_wordset_page_render_inactive_category_action_form($cat, 'preview', __('Preview', 'll-tools-text-domain'), true, 'preview'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    }
-                    echo ll_tools_wordset_page_render_inactive_category_action_form($cat, 'hide', __('Hide', 'll-tools-text-domain'), !empty($cat['can_hide']), 'hide'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-                    echo ll_tools_wordset_page_render_inactive_category_action_form(
-                        $cat,
-                        'delete',
-                        __('Delete', 'll-tools-text-domain'),
-                        !empty($cat['can_delete']),
-                        'delete',
-                        (string) ($cat['delete_reason'] ?? ''),
-                        __('Delete this category? This cannot be undone.', 'll-tools-text-domain')
-                    ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                    echo ll_tools_wordset_page_render_inactive_category_action_form($cat, 'preview', __('Preview', 'll-tools-text-domain'), true, 'preview'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 </div>
             <?php endif; ?>
@@ -6751,6 +6803,12 @@ function ll_tools_wordset_page_render_hide_icon(string $class = 'll-wordset-hide
         . '<path d="M6 32 C14 26, 22 22, 32 22 C42 22, 50 26, 58 32 C50 38, 42 42, 32 42 C22 42, 14 38, 6 32Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'
         . '<circle cx="32" cy="32" r="7" fill="currentColor"/>'
         . '<path d="M16 16 L48 48" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
+function ll_tools_wordset_page_render_trash_icon(string $class = 'll-wordset-trash-icon'): string {
+    return '<svg class="' . esc_attr($class) . '" viewBox="0 0 875 1000" width="18" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">'
+        . '<path d="M0 281.296l0 -68.355q1.953 -37.107 29.295 -62.496t64.449 -25.389l93.744 0l0 -31.248q0 -39.06 27.342 -66.402t66.402 -27.342l312.48 0q39.06 0 66.402 27.342t27.342 66.402l0 31.248l93.744 0q37.107 0 64.449 25.389t29.295 62.496l0 68.355q0 25.389 -18.553 43.943t-43.943 18.553l0 531.216q0 52.731 -36.13 88.862t-88.862 36.13l-499.968 0q-52.731 0 -88.862 -36.13t-36.13 -88.862l0 -531.216q-25.389 0 -43.943 -18.553t-18.553 -43.943zm62.496 0l749.952 0l0 -62.496q0 -13.671 -8.789 -22.46t-22.46 -8.789l-687.456 0q-13.671 0 -22.46 8.789t-8.789 22.46l0 62.496zm62.496 593.712q0 25.389 18.553 43.943t43.943 18.553l499.968 0q25.389 0 43.943 -18.553t18.553 -43.943l0 -531.216l-624.96 0l0 531.216zm62.496 -31.248l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224zm31.248 -718.704l374.976 0l0 -31.248q0 -13.671 -8.789 -22.46t-22.46 -8.789l-312.48 0q-13.671 0 -22.46 8.789t-8.789 22.46l0 31.248zm124.992 718.704l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224zm156.24 0l0 -406.224q0 -13.671 8.789 -22.46t22.46 -8.789l62.496 0q13.671 0 22.46 8.789t8.789 22.46l0 406.224q0 13.671 -8.789 22.46t-22.46 8.789l-62.496 0q-13.671 0 -22.46 -8.789t-8.789 -22.46zm31.248 0l62.496 0l0 -406.224l-62.496 0l0 406.224z"/>'
         . '</svg>';
 }
 
@@ -12797,6 +12855,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'deselectAll' => __('Deselect all', 'll-tools-text-domain'),
             'selectCategoryAria' => __('Select %s', 'll-tools-text-domain'),
             'hideCategoryAria' => __('Hide %s', 'll-tools-text-domain'),
+            'deleteCategoryAria' => __('Delete %s', 'll-tools-text-domain'),
             'starredWordsCategoryAria' => __('Starred words in %s', 'll-tools-text-domain'),
             'quizModesCategoryAria' => __('Quiz modes for %s', 'll-tools-text-domain'),
             'modeCategoryAria' => __('%1$s: %2$s', 'll-tools-text-domain'),
