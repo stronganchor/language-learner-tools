@@ -7741,6 +7741,97 @@ function ll_tools_metadata_update_get_effective_field_value(string $target_type,
     return $fallback_value;
 }
 
+function ll_tools_metadata_update_get_row_target_requirements(array $updates, array $clear_fields, array $supported_fields): array {
+    $requirements = [
+        'needs_word' => false,
+        'needs_recording' => false,
+    ];
+
+    $field_keys = array_merge(array_keys($updates), $clear_fields);
+    foreach ($field_keys as $field_key) {
+        if (!isset($supported_fields[$field_key])) {
+            continue;
+        }
+
+        $target = (string) ($supported_fields[$field_key]['target'] ?? '');
+        if ($target === 'word') {
+            $requirements['needs_word'] = true;
+        } elseif ($target === 'recording') {
+            $requirements['needs_recording'] = true;
+        }
+    }
+
+    return $requirements;
+}
+
+function ll_tools_metadata_update_resolve_row_targets(array $row, bool $needs_word, bool $needs_recording) {
+    $resolved_recording_id = 0;
+    $resolved_word_id = 0;
+    $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
+
+    if ($needs_recording || ((!empty($row['recording_id']) || !empty($row['recording_slug']) || !empty($row['recording_type']) || !empty($row['audio'])) && $needs_word)) {
+        $word_hint_result = ll_tools_metadata_update_resolve_word_target($row);
+        if (is_wp_error($word_hint_result)) {
+            $word_hint_result = 0;
+        }
+        $word_hint = is_int($word_hint_result) ? (int) $word_hint_result : 0;
+
+        $recording_result = ll_tools_metadata_update_resolve_recording_target($row, $word_hint);
+        if (is_wp_error($recording_result)) {
+            return $recording_result;
+        }
+
+        $resolved_recording_id = (int) $recording_result;
+        if ($needs_recording && $resolved_recording_id <= 0) {
+            return new WP_Error(
+                'll_tools_metadata_updates_recording_unidentified',
+                sprintf(
+                    /* translators: %d row number */
+                    __('Row %d: recording fields were provided but no recording could be identified.', 'll-tools-text-domain'),
+                    $row_number
+                )
+            );
+        }
+    }
+
+    if ($needs_word) {
+        $fallback_word_id = 0;
+        if ($resolved_recording_id > 0) {
+            $recording_post = get_post($resolved_recording_id);
+            if ($recording_post instanceof WP_Post) {
+                $fallback_word_id = (int) $recording_post->post_parent;
+            }
+        }
+
+        $word_result = ll_tools_metadata_update_resolve_word_target($row, $fallback_word_id);
+        if (is_wp_error($word_result)) {
+            return $word_result;
+        }
+
+        $resolved_word_id = (int) $word_result;
+        if ($resolved_word_id <= 0) {
+            return new WP_Error(
+                'll_tools_metadata_updates_word_unidentified',
+                sprintf(
+                    /* translators: %d row number */
+                    __('Row %d: word fields were provided but no word could be identified.', 'll-tools-text-domain'),
+                    $row_number
+                )
+            );
+        }
+    } elseif ($resolved_recording_id > 0) {
+        $recording_post = get_post($resolved_recording_id);
+        if ($recording_post instanceof WP_Post) {
+            $resolved_word_id = (int) $recording_post->post_parent;
+        }
+    }
+
+    return [
+        'word_id' => $resolved_word_id,
+        'recording_id' => $resolved_recording_id,
+    ];
+}
+
 function ll_tools_metadata_update_build_preview_item_label(string $target_type, int $post_id, int $word_id = 0): string {
     $title = trim((string) get_the_title($post_id));
     if ($target_type === 'word') {
@@ -7853,94 +7944,23 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
         $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
         $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
 
-        $needs_word = false;
-        $needs_recording = false;
-        foreach (array_keys($updates) as $field_key) {
-            if (!isset($supported_fields[$field_key])) {
-                continue;
-            }
-            if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
-                $needs_word = true;
-            } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
-                $needs_recording = true;
-            }
-        }
-        foreach ($clear_fields as $field_key) {
-            if (!isset($supported_fields[$field_key])) {
-                continue;
-            }
-            if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
-                $needs_word = true;
-            } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
-                $needs_recording = true;
-            }
-        }
+        $target_requirements = ll_tools_metadata_update_get_row_target_requirements($updates, $clear_fields, $supported_fields);
+        $needs_word = !empty($target_requirements['needs_word']);
+        $needs_recording = !empty($target_requirements['needs_recording']);
 
         if (!$needs_word && !$needs_recording) {
             $preview['stats']['metadata_rows_skipped']++;
             continue;
         }
 
-        $resolved_recording_id = 0;
-        $resolved_word_id = 0;
-
-        if ($needs_recording || ((!empty($row['recording_id']) || !empty($row['recording_slug']) || !empty($row['recording_type']) || !empty($row['audio'])) && $needs_word)) {
-            $word_hint = 0;
-            $word_hint_result = ll_tools_metadata_update_resolve_word_target($row);
-            if (is_wp_error($word_hint_result)) {
-                $word_hint_result = 0;
-            }
-            $word_hint = is_int($word_hint_result) ? (int) $word_hint_result : 0;
-
-            $recording_result = ll_tools_metadata_update_resolve_recording_target($row, $word_hint);
-            if (is_wp_error($recording_result)) {
-                $add_error($recording_result->get_error_message());
-                $preview['stats']['metadata_rows_skipped']++;
-                continue;
-            }
-            $resolved_recording_id = (int) $recording_result;
-            if ($needs_recording && $resolved_recording_id <= 0) {
-                $add_error(sprintf(
-                    /* translators: %d row number */
-                    __('Row %d: recording fields were provided but no recording could be identified.', 'll-tools-text-domain'),
-                    $row_number
-                ));
-                $preview['stats']['metadata_rows_skipped']++;
-                continue;
-            }
+        $resolved_targets = ll_tools_metadata_update_resolve_row_targets($row, $needs_word, $needs_recording);
+        if (is_wp_error($resolved_targets)) {
+            $add_error($resolved_targets->get_error_message());
+            $preview['stats']['metadata_rows_skipped']++;
+            continue;
         }
-
-        if ($needs_word) {
-            $fallback_word_id = 0;
-            if ($resolved_recording_id > 0) {
-                $recording_post = get_post($resolved_recording_id);
-                if ($recording_post instanceof WP_Post) {
-                    $fallback_word_id = (int) $recording_post->post_parent;
-                }
-            }
-
-            $word_result = ll_tools_metadata_update_resolve_word_target($row, $fallback_word_id);
-            if (is_wp_error($word_result)) {
-                $add_error($word_result->get_error_message());
-                $preview['stats']['metadata_rows_skipped']++;
-                continue;
-            }
-            $resolved_word_id = (int) $word_result;
-            if ($resolved_word_id <= 0) {
-                $add_error(sprintf(
-                    /* translators: %d row number */
-                    __('Row %d: word fields were provided but no word could be identified.', 'll-tools-text-domain'),
-                    $row_number
-                ));
-                $preview['stats']['metadata_rows_skipped']++;
-                continue;
-            }
-        } elseif ($resolved_recording_id > 0) {
-            $recording_post = get_post($resolved_recording_id);
-            if ($recording_post instanceof WP_Post) {
-                $resolved_word_id = (int) $recording_post->post_parent;
-            }
-        }
+        $resolved_word_id = (int) ($resolved_targets['word_id'] ?? 0);
+        $resolved_recording_id = (int) ($resolved_targets['recording_id'] ?? 0);
 
         $row_changed = false;
         $word_changed_this_row = false;
@@ -8199,94 +8219,23 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                 $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
                 $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
 
-            $needs_word = false;
-            $needs_recording = false;
-            foreach (array_keys($updates) as $field_key) {
-                if (!isset($supported_fields[$field_key])) {
-                    continue;
-                }
-                if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
-                    $needs_word = true;
-                } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
-                    $needs_recording = true;
-                }
-            }
-            foreach ($clear_fields as $field_key) {
-                if (!isset($supported_fields[$field_key])) {
-                    continue;
-                }
-                if (($supported_fields[$field_key]['target'] ?? '') === 'word') {
-                    $needs_word = true;
-                } elseif (($supported_fields[$field_key]['target'] ?? '') === 'recording') {
-                    $needs_recording = true;
-                }
-            }
+            $target_requirements = ll_tools_metadata_update_get_row_target_requirements($updates, $clear_fields, $supported_fields);
+            $needs_word = !empty($target_requirements['needs_word']);
+            $needs_recording = !empty($target_requirements['needs_recording']);
 
             if (!$needs_word && !$needs_recording) {
                 $result['stats']['metadata_rows_skipped']++;
                 continue;
             }
 
-            $resolved_recording_id = 0;
-            $resolved_word_id = 0;
-
-            if ($needs_recording || ((!empty($row['recording_id']) || !empty($row['recording_slug']) || !empty($row['recording_type']) || !empty($row['audio'])) && $needs_word)) {
-                $word_hint = 0;
-                $word_hint_result = ll_tools_metadata_update_resolve_word_target($row);
-                if (is_wp_error($word_hint_result)) {
-                    $word_hint_result = 0;
-                }
-                $word_hint = is_int($word_hint_result) ? (int) $word_hint_result : 0;
-
-                $recording_result = ll_tools_metadata_update_resolve_recording_target($row, $word_hint);
-                if (is_wp_error($recording_result)) {
-                    $add_error($recording_result->get_error_message());
-                    $result['stats']['metadata_rows_skipped']++;
-                    continue;
-                }
-                $resolved_recording_id = (int) $recording_result;
-                if ($needs_recording && $resolved_recording_id <= 0) {
-                    $add_error(sprintf(
-                        /* translators: %d row number */
-                        __('Row %d: recording fields were provided but no recording could be identified.', 'll-tools-text-domain'),
-                        $row_number
-                    ));
-                    $result['stats']['metadata_rows_skipped']++;
-                    continue;
-                }
+            $resolved_targets = ll_tools_metadata_update_resolve_row_targets($row, $needs_word, $needs_recording);
+            if (is_wp_error($resolved_targets)) {
+                $add_error($resolved_targets->get_error_message());
+                $result['stats']['metadata_rows_skipped']++;
+                continue;
             }
-
-            if ($needs_word) {
-                $fallback_word_id = 0;
-                if ($resolved_recording_id > 0) {
-                    $recording_post = get_post($resolved_recording_id);
-                    if ($recording_post instanceof WP_Post) {
-                        $fallback_word_id = (int) $recording_post->post_parent;
-                    }
-                }
-
-                $word_result = ll_tools_metadata_update_resolve_word_target($row, $fallback_word_id);
-                if (is_wp_error($word_result)) {
-                    $add_error($word_result->get_error_message());
-                    $result['stats']['metadata_rows_skipped']++;
-                    continue;
-                }
-                $resolved_word_id = (int) $word_result;
-                if ($resolved_word_id <= 0) {
-                    $add_error(sprintf(
-                        /* translators: %d row number */
-                        __('Row %d: word fields were provided but no word could be identified.', 'll-tools-text-domain'),
-                        $row_number
-                    ));
-                    $result['stats']['metadata_rows_skipped']++;
-                    continue;
-                }
-            } elseif ($resolved_recording_id > 0) {
-                $recording_post = get_post($resolved_recording_id);
-                if ($recording_post instanceof WP_Post) {
-                    $resolved_word_id = (int) $recording_post->post_parent;
-                }
-            }
+            $resolved_word_id = (int) ($resolved_targets['word_id'] ?? 0);
+            $resolved_recording_id = (int) ($resolved_targets['recording_id'] ?? 0);
 
             $row_changed = false;
 

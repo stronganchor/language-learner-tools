@@ -91,6 +91,84 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_metadata_update_preview_and_apply_counts_match_for_mixed_rows(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Mixed Word',
+            'post_name' => 'mixed-word',
+        ]);
+        update_post_meta($word_id, 'word_translation', 'Old Translation');
+        update_post_meta($word_id, 'word_english_meaning', 'Old Translation');
+        update_post_meta($word_id, 'word_example_sentence', 'Old example');
+
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Mixed Recording',
+            'post_name' => 'mixed-recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'Old Recording Text');
+        update_post_meta($recording_id, 'recording_ipa', 'old.ipa');
+        update_post_meta($recording_id, 'speaker_name', 'Speaker Old');
+
+        $csv = implode("\n", [
+            'word_id,recording_id,word_title,word_translation,recording_text,recording_ipa,clear_fields',
+            $word_id . ',,New Mixed Word,New Translation,,,',
+            ',' . $recording_id . ',,,New Recording Text,new.ipa,',
+            $word_id . ',' . $recording_id . ',,,,,word_example_sentence|speaker_name',
+        ]) . "\n";
+
+        $file_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-metadata-preview-apply-' . wp_generate_password(8, false, false) . '.csv');
+        file_put_contents($file_path, $csv);
+
+        try {
+            $preview = ll_tools_build_metadata_update_preview_data($file_path, 'mixed-preview-apply.csv');
+            $result = ll_tools_process_metadata_updates_file($file_path, 'mixed-preview-apply.csv');
+
+            $this->assertTrue((bool) ($preview['ok'] ?? false), implode(' | ', (array) ($preview['errors'] ?? [])));
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+
+            $stats_to_compare = [
+                'metadata_files_processed',
+                'metadata_rows_total',
+                'metadata_rows_applied',
+                'metadata_rows_skipped',
+                'words_updated',
+                'word_audio_updated',
+                'metadata_fields_updated',
+                'metadata_fields_cleared',
+                'metadata_ipa_reviews_flagged',
+            ];
+
+            foreach ($stats_to_compare as $stat_key) {
+                $this->assertSame(
+                    (int) (($preview['stats'] ?? [])[$stat_key] ?? 0),
+                    (int) (($result['stats'] ?? [])[$stat_key] ?? 0),
+                    $stat_key . ' should match between preview and apply.'
+                );
+            }
+
+            $this->assertSame(3, (int) (($result['stats'] ?? [])['metadata_rows_applied'] ?? 0));
+            $this->assertSame(4, (int) (($result['stats'] ?? [])['metadata_fields_updated'] ?? 0));
+            $this->assertSame(2, (int) (($result['stats'] ?? [])['metadata_fields_cleared'] ?? 0));
+            $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_ipa_reviews_flagged'] ?? 0));
+            $this->assertSame('New Mixed Word', (string) get_the_title($word_id));
+            $this->assertSame('New Translation', (string) get_post_meta($word_id, 'word_translation', true));
+            $this->assertSame('', (string) get_post_meta($word_id, 'word_example_sentence', true));
+            $this->assertSame('New Recording Text', (string) get_post_meta($recording_id, 'recording_text', true));
+            $this->assertSame('new.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+            $this->assertSame('', (string) get_post_meta($recording_id, 'speaker_name', true));
+        } finally {
+            @unlink($file_path);
+        }
+    }
+
     public function test_import_page_renders_metadata_update_preview_section_from_transient(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
