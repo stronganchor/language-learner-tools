@@ -2461,6 +2461,64 @@ function ll_tools_user_can_edit_vocab_words(int $wordset_id = 0): bool {
     return false;
 }
 
+function ll_tools_word_grid_should_show_draft_words(array $context): bool {
+    $lesson_id = isset($context['lesson_id']) ? (int) $context['lesson_id'] : 0;
+    if ($lesson_id <= 0 || empty($context['can_edit_words'])) {
+        return false;
+    }
+
+    return ll_tools_word_grid_is_lesson_context($context);
+}
+
+function ll_tools_word_grid_get_draft_word_note(int $word_id): string {
+    $word = get_post((int) $word_id);
+    if (!($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'draft') {
+        return '';
+    }
+
+    $requires_audio = function_exists('ll_word_requires_audio_to_publish')
+        ? ll_word_requires_audio_to_publish((int) $word->ID)
+        : true;
+    $has_published_audio = function_exists('ll_tools_word_has_published_audio')
+        ? ll_tools_word_has_published_audio((int) $word->ID)
+        : false;
+
+    if ($requires_audio && !$has_published_audio) {
+        $audio_posts = get_posts([
+            'post_type'              => 'word_audio',
+            'post_parent'            => (int) $word->ID,
+            'post_status'            => ['publish', 'draft', 'pending', 'future', 'private'],
+            'posts_per_page'         => -1,
+            'fields'                 => 'ids',
+            'no_found_rows'          => true,
+            'suppress_filters'       => true,
+            'update_post_meta_cache' => false,
+            'update_post_term_cache' => false,
+        ]);
+
+        if (empty($audio_posts)) {
+            return __('No audio recording yet.', 'll-tools-text-domain');
+        }
+
+        $has_audio_file = false;
+        foreach ((array) $audio_posts as $audio_post_id) {
+            $audio_path = trim((string) get_post_meta((int) $audio_post_id, 'audio_file_path', true));
+            if ($audio_path !== '') {
+                $has_audio_file = true;
+                break;
+            }
+        }
+
+        if ($has_audio_file) {
+            return __('Audio exists but is not published yet.', 'll-tools-text-domain');
+        }
+
+        return __('Audio record exists but has no file yet.', 'll-tools-text-domain');
+    }
+
+    return __('Word has not been published yet.', 'll-tools-text-domain');
+}
+
 function ll_tools_word_grid_resolve_context($atts): array {
     $atts = shortcode_atts([
         'category' => '',
@@ -3475,6 +3533,7 @@ function ll_tools_word_grid_shortcode($atts) {
             'fast_transitions' => false,
         ];
     $sort_visible_titles = ll_tools_word_grid_should_sort_visible_titles($context);
+    $show_draft_words = ll_tools_word_grid_should_show_draft_words($context);
 
     ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
 
@@ -3513,7 +3572,7 @@ function ll_tools_word_grid_shortcode($atts) {
     // WP_Query arguments
     $args = array(
         'post_type' => 'words',
-        'post_status' => 'publish',
+        'post_status' => $show_draft_words ? ['publish', 'draft'] : 'publish',
         'posts_per_page' => -1,
         'no_found_rows' => true,
         'orderby' => 'date', // Order by date
@@ -3799,6 +3858,9 @@ function ll_tools_word_grid_shortcode($atts) {
         while ($query->have_posts()) {
             $query->the_post();
             $word_id = get_the_ID();
+            $word_status = (string) get_post_status($word_id);
+            $is_draft_word = ($word_status === 'draft');
+            $draft_note = $is_draft_word ? ll_tools_word_grid_get_draft_word_note((int) $word_id) : '';
             $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
@@ -3891,7 +3953,11 @@ function ll_tools_word_grid_shortcode($atts) {
             }
 
             // Individual item
-            echo '<div class="word-item" data-word-id="' . esc_attr($word_id) . '">';
+            $word_item_classes = 'word-item';
+            if ($is_draft_word) {
+                $word_item_classes .= ' ll-word-item--draft';
+            }
+            echo '<div class="' . esc_attr($word_item_classes) . '" data-word-id="' . esc_attr($word_id) . '" data-ll-word-status="' . esc_attr($word_status) . '">';
             // Featured image with container
             if (
                 !$is_text_based
@@ -4111,6 +4177,12 @@ function ll_tools_word_grid_shortcode($atts) {
                     echo $actions_row_html;
                 }
                 echo $title_row_html;
+            }
+            if ($draft_note !== '') {
+                echo '<div class="ll-word-draft-notice" data-ll-word-draft-notice>';
+                echo '<span class="ll-word-draft-notice__badge">' . esc_html__('Draft', 'll-tools-text-domain') . '</span>';
+                echo '<span class="ll-word-draft-notice__text">' . esc_html($draft_note) . '</span>';
+                echo '</div>';
             }
             $meta_row_class = 'll-word-meta-row';
             if ($pos_label === '' && $gender_label === '' && $plurality_label === '' && $verb_tense_label === '' && $verb_mood_label === '') {

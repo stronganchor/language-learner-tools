@@ -58,6 +58,116 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('River', $html);
     }
 
+    public function test_lesson_grid_ajax_shows_draft_words_to_staff_with_audio_status_notes(): void
+    {
+        $wordset = wp_insert_term('Deferred Draft Wordset', 'wordset', ['slug' => 'deferred-draft-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Draft Category', 'word-category', ['slug' => 'deferred-draft-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $published_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Published Visible',
+        ]);
+        wp_set_post_terms($published_word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($published_word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($published_word_id, 'word_translation', 'Ready');
+
+        $draft_no_audio_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Draft No Audio',
+        ]);
+        wp_set_post_terms($draft_no_audio_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($draft_no_audio_id, [$wordset_id], 'wordset', false);
+        update_post_meta($draft_no_audio_id, 'word_translation', 'Missing audio');
+
+        $draft_unpublished_audio_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'draft',
+            'post_title' => 'Draft Unpublished Audio',
+        ]);
+        wp_set_post_terms($draft_unpublished_audio_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($draft_unpublished_audio_id, [$wordset_id], 'wordset', false);
+        update_post_meta($draft_unpublished_audio_id, 'word_translation', 'Audio pending');
+
+        $audio_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'draft',
+            'post_parent' => $draft_unpublished_audio_id,
+            'post_title' => 'Draft child audio',
+        ]);
+        update_post_meta($audio_id, 'audio_file_path', '/wp-content/uploads/draft-unpublished-audio.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Draft Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $public_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($public_response['success']);
+        $public_html = (string) (($public_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Published Visible', $public_html);
+        $this->assertStringNotContainsString('Draft No Audio', $public_html);
+        $this->assertStringNotContainsString('Draft Unpublished Audio', $public_html);
+        $this->assertStringNotContainsString('ll-word-item--draft', $public_html);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        wp_set_current_user($admin_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $staff_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($staff_response['success']);
+        $staff_html = (string) (($staff_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Published Visible', $staff_html);
+        $this->assertStringContainsString('Draft No Audio', $staff_html);
+        $this->assertStringContainsString('Draft Unpublished Audio', $staff_html);
+        $this->assertSame(2, substr_count($staff_html, 'll-word-item--draft'));
+        $this->assertSame(2, substr_count($staff_html, 'data-ll-word-status="draft"'));
+        $this->assertStringContainsString('No audio recording yet.', $staff_html);
+        $this->assertStringContainsString('Audio exists but is not published yet.', $staff_html);
+    }
+
     public function test_lesson_grid_ajax_renders_prompt_card_question_and_audio_answers(): void
     {
         $wordset = wp_insert_term('Deferred Prompt Card Wordset', 'wordset', ['slug' => 'deferred-prompt-card-wordset']);

@@ -1610,6 +1610,62 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     text-align: center !important;
 }
 
+.word-grid.ll-word-grid .word-item.ll-word-item--draft {
+    border: 1px dashed #94a3b8 !important;
+    border-radius: 12px !important;
+    background: #f8fafc !important;
+    color: #475569 !important;
+    box-shadow: none !important;
+}
+
+.word-grid.ll-word-grid .word-item.ll-word-item--draft .word-image {
+    filter: grayscale(1);
+    opacity: 0.56;
+}
+
+.word-grid.ll-word-grid .word-item.ll-word-item--draft .word-title,
+.word-grid.ll-word-grid .word-item.ll-word-item--draft .ll-word-text,
+.word-grid.ll-word-grid .word-item.ll-word-item--draft .ll-word-translation,
+.word-grid.ll-word-grid .word-item.ll-word-item--draft .ll-word-meta-tag,
+.word-grid.ll-word-grid .word-item.ll-word-item--draft .ll-word-note {
+    color: #64748b !important;
+}
+
+.word-grid.ll-word-grid .ll-word-draft-notice {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    max-width: 260px;
+    margin: 8px auto 4px !important;
+    padding: 6px 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.35 !important;
+    text-align: left !important;
+}
+
+.word-grid.ll-word-grid .ll-word-draft-notice__badge {
+    flex: 0 0 auto;
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: uppercase;
+}
+
+.word-grid.ll-word-grid .ll-word-draft-notice__text {
+    min-width: 0;
+}
+
 .word-grid.ll-word-grid.ll-word-grid--reorderable > .word-item[data-word-id] {
     cursor: grab;
     transition: box-shadow 0.18s ease, transform 0.18s ease;
