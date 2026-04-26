@@ -67,6 +67,9 @@ function ll_tools_bump_dictionary_browser_cache_version(): int {
     $next_version = ll_tools_get_dictionary_browser_cache_version() + 1;
     update_option(LL_TOOLS_DICTIONARY_BROWSER_CACHE_VERSION_OPTION, $next_version, false);
     $GLOBALS['ll_tools_dictionary_browser_cache_version'] = $next_version;
+    if (function_exists('ll_tools_purge_dictionary_static_cache')) {
+        ll_tools_purge_dictionary_static_cache();
+    }
 
     return $next_version;
 }

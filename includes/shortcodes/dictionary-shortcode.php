@@ -3,6 +3,7 @@ if (!defined('WPINC')) { die; }
 
 function ll_tools_dictionary_shortcode_query_keys(): array {
     return [
+        'letter',
         'll_dictionary_q',
         'll_dictionary_scope',
         'll_dictionary_page',
@@ -81,7 +82,12 @@ function ll_tools_dictionary_shortcode_resolve_wordset_id($raw_wordset = ''): in
 }
 
 function ll_tools_dictionary_get_current_base_url(): string {
-    return (string) remove_query_arg(ll_tools_dictionary_shortcode_query_keys(), get_pagenum_link(1, false));
+    $base_url = (string) remove_query_arg(ll_tools_dictionary_shortcode_query_keys(), get_pagenum_link(1, false));
+    if (function_exists('ll_tools_dictionary_strip_noise_query_args_from_url')) {
+        $base_url = ll_tools_dictionary_strip_noise_query_args_from_url($base_url);
+    }
+
+    return $base_url;
 }
 
 function ll_tools_dictionary_preserve_non_dictionary_query_inputs(): string {
@@ -89,7 +95,11 @@ function ll_tools_dictionary_preserve_non_dictionary_query_inputs(): string {
     $html = '';
 
     foreach ($_GET as $key => $value) {
-        if (!is_string($key) || isset($exclude[$key])) {
+        if (
+            !is_string($key)
+            || isset($exclude[$key])
+            || (function_exists('ll_tools_dictionary_is_noise_query_key') && ll_tools_dictionary_is_noise_query_key($key))
+        ) {
             continue;
         }
         if (is_array($value)) {
@@ -2090,7 +2100,12 @@ function ll_tools_dictionary_resolve_live_base_url(string $raw_base_url = ''): s
         return home_url('/');
     }
 
-    return (string) remove_query_arg(ll_tools_dictionary_shortcode_query_keys(), $base_url);
+    $base_url = (string) remove_query_arg(ll_tools_dictionary_shortcode_query_keys(), $base_url);
+    if (function_exists('ll_tools_dictionary_strip_noise_query_args_from_url')) {
+        $base_url = ll_tools_dictionary_strip_noise_query_args_from_url($base_url);
+    }
+
+    return $base_url;
 }
 
 function ll_tools_dictionary_build_toolbar_panel_context(int $wordset_id, string $source_id = '', string $dialect = ''): array {

@@ -30,6 +30,7 @@ require_once(__DIR__ . '/post-types/prompt-card-post-type.php');
 require_once(__DIR__ . '/post-types/vocab-lesson-post-type.php');
 require_once(__DIR__ . '/post-types/content-lesson-post-type.php');
 require_once(__DIR__ . '/lib/dictionary-sources.php');
+require_once(__DIR__ . '/lib/dictionary-static-cache.php');
 require_once(__DIR__ . '/lib/dictionary-search-index.php');
 require_once(__DIR__ . '/lib/dictionary-browser.php');
 require_once(__DIR__ . '/lib/dictionary-snapshot.php');

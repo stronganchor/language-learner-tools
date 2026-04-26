@@ -88,6 +88,130 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('[ll_dictionary wordset="0"]', ll_tools_get_dictionary_page_config()['post_content']);
     }
 
+    public function test_dictionary_static_cache_key_normalizes_display_args_and_ignores_nonce_noise(): void
+    {
+        $identity = [
+            'page_id' => 123,
+            'path' => '/sozluk',
+        ];
+        $first_key = ll_tools_dictionary_static_cache_key($identity, [
+            'letter' => 'H',
+            'll_dictionary_entry' => '70456',
+            'll_dictionary_letter' => 'I',
+            'll_dictionary_page' => '1',
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => 'first',
+            'll_tools_auth' => 'register',
+            'utm_source' => 'crawler',
+        ], 'tr_TR');
+        $second_key = ll_tools_dictionary_static_cache_key($identity, [
+            'utm_source' => 'other',
+            'll_tools_auth' => 'login',
+            'll_locale_nonce' => 'second',
+            'll_locale' => 'tr_TR',
+            'll_dictionary_letter' => 'I',
+            'll_dictionary_entry' => '70456',
+        ], 'tr_TR');
+
+        $this->assertSame($first_key, $second_key);
+        $this->assertNotSame(
+            $first_key,
+            ll_tools_dictionary_static_cache_key($identity, [
+                'll_dictionary_entry' => '70456',
+                'll_dictionary_letter' => 'J',
+                'll_locale' => 'tr_TR',
+            ], 'tr_TR')
+        );
+
+        $normalized = ll_tools_dictionary_static_cache_normalize_query_args([
+            'letter' => 'H',
+            'll_dictionary_letter' => 'I',
+            'll_dictionary_page' => '1',
+            'll_locale_nonce' => 'ignored',
+            'll_tools_auth' => 'ignored',
+            'll_locale' => 'tr_TR',
+        ]);
+        $this->assertSame([
+            'll_dictionary_letter' => 'I',
+            'll_locale' => 'tr_TR',
+        ], $normalized);
+
+        $legacy_normalized = ll_tools_dictionary_static_cache_normalize_query_args(['letter' => 'H']);
+        $this->assertSame(['ll_dictionary_letter' => 'H'], $legacy_normalized);
+
+        $search_normalized = ll_tools_dictionary_static_cache_normalize_query_args([
+            'll_dictionary_q' => 'ro',
+            'll_dictionary_letter' => 'B',
+        ]);
+        $this->assertSame(['ll_dictionary_q' => 'ro'], $search_normalized);
+    }
+
+    public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
+    {
+        $clean_url = ll_tools_dictionary_strip_noise_query_args_from_url(
+            'https://example.com/sozluk/?ll_locale=tr_TR&ll_locale_nonce=abc&ll_tools_auth=login&utm_source=news&fbclid=1&foo=bar'
+        );
+
+        $this->assertStringContainsString('ll_locale=tr_TR', $clean_url);
+        $this->assertStringContainsString('foo=bar', $clean_url);
+        $this->assertStringNotContainsString('ll_locale_nonce', $clean_url);
+        $this->assertStringNotContainsString('ll_tools_auth', $clean_url);
+        $this->assertStringNotContainsString('utm_source', $clean_url);
+        $this->assertStringNotContainsString('fbclid', $clean_url);
+
+        $_GET = [
+            'll_dictionary_q' => 'ro',
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => 'abc',
+            'll_tools_auth' => 'register',
+            'utm_source' => 'crawler',
+            'foo' => 'bar',
+        ];
+        $hidden_inputs = ll_tools_dictionary_preserve_non_dictionary_query_inputs();
+
+        $this->assertStringContainsString('name="ll_locale"', $hidden_inputs);
+        $this->assertStringContainsString('name="foo"', $hidden_inputs);
+        $this->assertStringNotContainsString('ll_dictionary_q', $hidden_inputs);
+        $this->assertStringNotContainsString('ll_locale_nonce', $hidden_inputs);
+        $this->assertStringNotContainsString('ll_tools_auth', $hidden_inputs);
+        $this->assertStringNotContainsString('utm_source', $hidden_inputs);
+    }
+
+    public function test_dictionary_browser_cache_bump_purges_static_html_files(): void
+    {
+        $dir = ll_tools_dictionary_static_cache_dir();
+        $this->assertNotSame('', $dir);
+        $this->assertTrue(wp_mkdir_p($dir));
+
+        $file = trailingslashit($dir) . 'dictionary-test.html';
+        file_put_contents($file, '<!doctype html><html><body>cached</body></html>');
+        $this->assertFileExists($file);
+
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $this->assertFileDoesNotExist($file);
+    }
+
+    public function test_dictionary_static_cache_refreshes_embedded_public_nonces(): void
+    {
+        $dictionary_nonce = wp_create_nonce('ll_tools_dictionary_live_search');
+        $locale_nonce = wp_create_nonce(ll_tools_get_locale_switch_nonce_action());
+        $stored = ll_tools_dictionary_static_cache_prepare_html_for_storage(
+            '<script>' . $dictionary_nonce . '</script><a href="?ll_locale_nonce=' . $locale_nonce . '">Locale</a>'
+        );
+
+        $this->assertStringContainsString(LL_TOOLS_DICTIONARY_STATIC_CACHE_NONCE_PLACEHOLDER, $stored);
+        $this->assertStringContainsString(LL_TOOLS_DICTIONARY_STATIC_CACHE_LOCALE_NONCE_PLACEHOLDER, $stored);
+        $this->assertStringNotContainsString($dictionary_nonce, $stored);
+        $this->assertStringNotContainsString($locale_nonce, $stored);
+
+        $output = ll_tools_dictionary_static_cache_prepare_html_for_output($stored);
+        $this->assertStringContainsString($dictionary_nonce, $output);
+        $this->assertStringContainsString($locale_nonce, $output);
+        $this->assertStringNotContainsString(LL_TOOLS_DICTIONARY_STATIC_CACHE_NONCE_PLACEHOLDER, $output);
+        $this->assertStringNotContainsString(LL_TOOLS_DICTIONARY_STATIC_CACHE_LOCALE_NONCE_PLACEHOLDER, $output);
+    }
+
     public function test_import_groups_duplicate_headwords_and_shortcode_paginates_results(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
