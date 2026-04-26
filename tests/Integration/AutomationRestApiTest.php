@@ -253,6 +253,51 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Replace prompt audio.', ll_tools_get_internal_review_note($prompt_card_id));
     }
 
+    public function test_review_notes_route_blocks_view_only_writes_and_allows_manager_writes(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'REST Review Notes Permission Wordset', 'rest-review-notes-permission-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Review Notes Permission Category', 'rest-review-notes-permission-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Guarded Review Word', 'Guarded Translation');
+        update_post_meta($word_id, ll_tools_internal_review_note_meta_key(), 'Existing manager note.');
+
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+
+        wp_set_current_user($viewer_id);
+
+        $list = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-review-notes-permission-wordset/review-notes');
+        $this->assertSame(200, $list->get_status());
+
+        $blocked = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-review-notes-permission-wordset/review-notes', [
+            'object_type' => 'word',
+            'object_id' => $word_id,
+            'note' => 'View-only users must not save this.',
+        ]);
+        $this->assertSame(403, $blocked->get_status());
+        $this->assertSame('Existing manager note.', ll_tools_get_internal_review_note($word_id));
+
+        $manager_id = self::factory()->user->create(['role' => 'subscriber']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+        $this->assertTrue(function_exists('ll_tools_cli_assign_wordset_manager'));
+        ll_tools_cli_assign_wordset_manager($wordset_id, $manager_id);
+
+        wp_set_current_user($manager_id);
+
+        $allowed = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-review-notes-permission-wordset/review-notes', [
+            'object_type' => 'word',
+            'object_id' => $word_id,
+            'note' => 'Assigned manager can save this.',
+        ]);
+        $this->assertSame(200, $allowed->get_status());
+        $this->assertSame('Assigned manager can save this.', ll_tools_get_internal_review_note($word_id));
+    }
+
     public function test_import_rest_routes_preview_start_process_and_expose_result_with_basic_auth(): void
     {
         if (!class_exists('ZipArchive')) {

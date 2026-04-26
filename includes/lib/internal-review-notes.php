@@ -73,7 +73,7 @@ function ll_tools_internal_review_note_object_belongs_to_wordset(int $object_id,
     return has_term($wordset_id, 'wordset', $object_id);
 }
 
-function ll_tools_current_user_can_manage_internal_review_notes(int $wordset_id = 0): bool {
+function ll_tools_current_user_can_read_internal_review_notes(int $wordset_id = 0): bool {
     if (!is_user_logged_in()) {
         return false;
     }
@@ -91,6 +91,26 @@ function ll_tools_current_user_can_manage_internal_review_notes(int $wordset_id 
     }
 
     return ll_tools_user_can_view_wordset($wordset_id, (int) get_current_user_id());
+}
+
+function ll_tools_current_user_can_manage_internal_review_notes(int $wordset_id = 0): bool {
+    if (!is_user_logged_in()) {
+        return false;
+    }
+
+    if (current_user_can('manage_options')) {
+        return true;
+    }
+
+    if ($wordset_id <= 0) {
+        return false;
+    }
+
+    if (!function_exists('ll_tools_user_can_manage_wordset_content')) {
+        return false;
+    }
+
+    return ll_tools_user_can_manage_wordset_content($wordset_id, (int) get_current_user_id());
 }
 
 function ll_tools_build_internal_review_note_row(int $object_id, int $wordset_id = 0): array {

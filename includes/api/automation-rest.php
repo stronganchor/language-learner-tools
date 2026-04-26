@@ -274,6 +274,18 @@ function ll_tools_rest_automation_require_review_notes_access(WP_REST_Request $r
         return $wordset_term;
     }
 
+    if ($request->get_method() !== 'POST') {
+        if (!function_exists('ll_tools_current_user_can_read_internal_review_notes') || !ll_tools_current_user_can_read_internal_review_notes((int) $wordset_term->term_id)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_review_notes_forbidden',
+                __('You cannot view internal review notes for this word set.', 'll-tools-text-domain'),
+                403
+            );
+        }
+
+        return true;
+    }
+
     if (!function_exists('ll_tools_current_user_can_manage_internal_review_notes') || !ll_tools_current_user_can_manage_internal_review_notes((int) $wordset_term->term_id)) {
         return ll_tools_rest_automation_error(
             'll_tools_rest_review_notes_forbidden',

@@ -161,6 +161,71 @@ final class InternalReviewNotesTest extends LL_Tools_TestCase
         $this->assertSame('', ll_tools_get_internal_review_note($prompt_card_id));
     }
 
+    public function test_ajax_internal_review_note_write_requires_wordset_management_access(): void
+    {
+        $wordset_id = $this->createTerm('wordset', 'AJAX Internal Notes Permission Wordset', 'ajax-internal-notes-permission-wordset');
+        $category_id = $this->createTerm('word-category', 'AJAX Internal Notes Permission Category', 'ajax-internal-notes-permission-category');
+        $word_id = $this->createWord($wordset_id, $category_id, 'Guarded note', 'Guarded translation');
+
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+
+        wp_set_current_user($viewer_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_internal_review_note'),
+            'object_type' => 'word',
+            'object_id' => (string) $word_id,
+            'wordset_id' => (string) $wordset_id,
+            'note' => 'View-only users must not save this.',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $blocked_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_save_internal_review_note_ajax_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse($blocked_response['success']);
+        $this->assertSame('', ll_tools_get_internal_review_note($word_id));
+
+        $manager_id = self::factory()->user->create(['role' => 'subscriber']);
+        $manager = get_user_by('id', $manager_id);
+        $this->assertInstanceOf(WP_User::class, $manager);
+        $manager->add_cap('view_ll_tools');
+        clean_user_cache($manager_id);
+        $this->assertTrue(function_exists('ll_tools_cli_assign_wordset_manager'));
+        ll_tools_cli_assign_wordset_manager($wordset_id, $manager_id);
+
+        wp_set_current_user($manager_id);
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_internal_review_note'),
+            'object_type' => 'word',
+            'object_id' => (string) $word_id,
+            'wordset_id' => (string) $wordset_id,
+            'note' => 'Assigned manager can save this.',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $allowed_response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_save_internal_review_note_ajax_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($allowed_response['success']);
+        $this->assertSame('Assigned manager can save this.', ll_tools_get_internal_review_note($word_id));
+    }
+
     private function createTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);
