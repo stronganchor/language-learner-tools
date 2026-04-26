@@ -31,6 +31,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
 
         $manual_result = ll_tools_sync_vocab_lesson_pages([], [
             'manual' => true,
+            'cleanup_invalid' => true,
         ]);
 
         $this->assertSame(1, (int) ($manual_result['removed'] ?? 0));
@@ -50,7 +51,10 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         set_transient(LL_TOOLS_VOCAB_LESSON_RECENT_UPDATE_TRANSIENT, time(), 30 * MINUTE_IN_SECONDS);
 
         try {
-            $guarded_result = ll_tools_sync_vocab_lesson_pages([$fixture['wordset_id']]);
+            $guarded_result = ll_tools_sync_vocab_lesson_pages([$fixture['wordset_id']], [
+                'cleanup_invalid' => true,
+                'cleanup_unavailable_categories' => true,
+            ]);
 
             $this->assertSame(0, (int) ($guarded_result['removed'] ?? -1));
             $this->assertSame(1, (int) ($guarded_result['guarded_wordsets'] ?? 0));
@@ -58,10 +62,64 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
 
             $manual_result = ll_tools_sync_vocab_lesson_pages([$fixture['wordset_id']], [
                 'manual' => true,
+                'cleanup_invalid' => true,
+                'cleanup_unavailable_categories' => true,
             ]);
 
             $this->assertSame(1, (int) ($manual_result['removed'] ?? 0));
             $this->assertSame('trash', get_post_status($fixture['lesson_id']));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_settings_cleanup_preserves_enabled_lessons_when_wordset_temporarily_resolves_no_generatable_lessons(): void
+    {
+        $fixture = $this->createQuizzableLessonFixture();
+        update_option('ll_vocab_lesson_wordsets', [$fixture['wordset_id']], false);
+
+        $min_words_filter = static function ($min_words = 0): int {
+            return 999;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            $background_result = ll_tools_sync_vocab_lesson_pages([$fixture['wordset_id']]);
+
+            $this->assertSame(0, (int) ($background_result['removed'] ?? -1));
+            $this->assertSame('publish', get_post_status($fixture['lesson_id']));
+
+            $result = ll_tools_sync_vocab_lesson_pages([$fixture['wordset_id']], [
+                'manual' => true,
+                'cleanup_invalid' => true,
+            ]);
+
+            $this->assertSame(0, (int) ($result['removed'] ?? -1));
+            $this->assertSame('publish', get_post_status($fixture['lesson_id']));
+        } finally {
+            remove_filter('ll_tools_quiz_min_words', $min_words_filter);
+        }
+    }
+
+    public function test_word_save_maintenance_preserves_existing_lesson_when_category_temporarily_not_generatable(): void
+    {
+        $fixture = $this->createQuizzableLessonFixture();
+        update_option('ll_vocab_lesson_wordsets', [$fixture['wordset_id']], false);
+
+        $word_id = (int) ($fixture['word_ids'][0] ?? 0);
+        $this->assertGreaterThan(0, $word_id);
+        $word = get_post($word_id);
+        $this->assertInstanceOf(WP_Post::class, $word);
+
+        $min_words_filter = static function ($min_words = 0): int {
+            return 999;
+        };
+        add_filter('ll_tools_quiz_min_words', $min_words_filter);
+
+        try {
+            ll_tools_sync_vocab_lessons_for_word_post($word_id, $word, true);
+
+            $this->assertSame('publish', get_post_status($fixture['lesson_id']));
         } finally {
             remove_filter('ll_tools_quiz_min_words', $min_words_filter);
         }
@@ -142,7 +200,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
     }
 
     /**
-     * @return array{wordset_id:int, category_id:int, lesson_id:int}
+     * @return array{wordset_id:int, category_id:int, lesson_id:int, word_ids:int[]}
      */
     private function createQuizzableLessonFixture(): array
     {
@@ -162,6 +220,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
         update_term_meta($category_id, 'll_quiz_prompt_type', 'text_title');
         update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
 
+        $word_ids = [];
         for ($index = 1; $index <= LL_TOOLS_MIN_WORDS_PER_QUIZ; $index++) {
             $word_id = self::factory()->post->create([
                 'post_type' => 'words',
@@ -171,6 +230,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
             update_post_meta($word_id, 'word_translation', 'Translation ' . $index);
             wp_set_post_terms($word_id, [$category_id], 'word-category', false);
             wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+            $word_ids[] = (int) $word_id;
         }
 
         $created = ll_tools_get_or_create_vocab_lesson_page($category_id, $wordset_id);
@@ -183,6 +243,7 @@ final class VocabLessonTrashNoticeTest extends LL_Tools_TestCase
             'wordset_id' => $wordset_id,
             'category_id' => $category_id,
             'lesson_id' => $lesson_id,
+            'word_ids' => $word_ids,
         ];
     }
 
