@@ -1,5 +1,18 @@
 <?php
 
+function ll_tools_word_grid_audio_url_from_path(string $audio_path): string {
+    $audio_path = trim($audio_path);
+    if ($audio_path === '') {
+        return '';
+    }
+
+    if (function_exists('ll_tools_resolve_audio_file_url')) {
+        return (string) ll_tools_resolve_audio_file_url($audio_path);
+    }
+
+    return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+}
+
 function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_meta = false): array {
     $word_ids = array_values(array_filter(array_map('intval', $word_ids), function ($id) { return $id > 0; }));
     if (empty($word_ids)) {
@@ -53,7 +66,18 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
         if (!$audio_path) {
             continue;
         }
-        $audio_url = (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
+        $audio_url = ll_tools_word_grid_audio_url_from_path((string) $audio_path);
+        $processing_source_path = (string) $audio_path;
+        $original_audio_path = '';
+        if (!preg_match('#^https?://#i', (string) $audio_path) && function_exists('ll_tools_get_audio_processing_source_file_path')) {
+            $processing_source_path = ll_tools_get_audio_processing_source_file_path((int) $audio_post->ID, (string) $audio_path);
+        }
+        if (function_exists('ll_tools_get_audio_original_file_path')) {
+            $original_audio_path = ll_tools_get_audio_original_file_path((int) $audio_post->ID);
+        }
+        $has_original_audio = $original_audio_path !== ''
+            && (!function_exists('ll_tools_audio_relative_file_exists') || ll_tools_audio_relative_file_exists($original_audio_path));
+        $processing_source_url = ll_tools_word_grid_audio_url_from_path($processing_source_path);
         $recording_types = array_keys($recording_types_by_audio[(int) $audio_post->ID] ?? []);
         if (empty($recording_types)) {
             continue;
@@ -84,6 +108,9 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
             $entry = [
                 'id'              => (int) $audio_post->ID,
                 'url'             => $audio_url,
+                'processing_source_url' => $processing_source_url !== '' ? $processing_source_url : $audio_url,
+                'uses_original_audio' => ($processing_source_path !== '' && $processing_source_path !== (string) $audio_path),
+                'has_original_audio' => $has_original_audio,
                 'recording_type'  => $type,
                 'speaker_user_id' => $speaker_uid,
             ];
@@ -2707,6 +2734,15 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'savingBackground' => __('Saving in background...', 'll-tools-text-domain'),
             'saved'  => __('Saved.', 'll-tools-text-domain'),
             'error'  => __('Unable to save changes.', 'll-tools-text-domain'),
+            'processingAudio' => __('Processing audio...', 'll-tools-text-domain'),
+            'processedAudio' => __('Audio processed.', 'll-tools-text-domain'),
+            'processAudio' => __('Process audio', 'll-tools-text-domain'),
+            'reprocessAudio' => __('Reprocess audio', 'll-tools-text-domain'),
+            'processAudioError' => __('Unable to process audio.', 'll-tools-text-domain'),
+            'audioDecodeError' => __('Unable to read this audio file in the browser.', 'll-tools-text-domain'),
+            'audioUnsupportedError' => __('This browser cannot process audio here.', 'll-tools-text-domain'),
+            'sourceOriginal' => __('Using saved original audio', 'll-tools-text-domain'),
+            'sourceCurrent' => __('Using current audio', 'll-tools-text-domain'),
             'ipaCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
             'ipaWordset' => (string) ($transcription_config['wordset_chars_label'] ?? __('Wordset IPA symbols', 'll-tools-text-domain')),
             'secondaryTextCommon' => (string) ($transcription_config['common_chars_label'] ?? __('Common IPA symbols', 'll-tools-text-domain')),
@@ -3658,6 +3694,17 @@ function ll_tools_word_grid_shortcode($atts) {
         'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
         'ipa'         => ll_tools_word_grid_label_with_code($secondary_text_label, $target_lang_code),
         'ipa_superscript' => __('Superscript selection', 'll-tools-text-domain'),
+        'processing'  => __('Audio processing', 'll-tools-text-domain'),
+        'process_audio' => __('Process audio', 'll-tools-text-domain'),
+        'reprocess_audio' => __('Reprocess audio', 'll-tools-text-domain'),
+        'auto_trim'   => __('Auto trim', 'll-tools-text-domain'),
+        'noise_reduction' => __('Noise reduction', 'll-tools-text-domain'),
+        'normalize_loudness' => __('Normalize volume', 'll-tools-text-domain'),
+        'clip_start'  => __('Start', 'll-tools-text-domain'),
+        'clip_end'    => __('End', 'll-tools-text-domain'),
+        'seconds'     => __('seconds', 'll-tools-text-domain'),
+        'source_original' => __('Using saved original audio', 'll-tools-text-domain'),
+        'source_current' => __('Using current audio', 'll-tools-text-domain'),
         'save'        => __('Save', 'll-tools-text-domain'),
         'cancel'      => __('Cancel', 'll-tools-text-domain'),
     ];
@@ -3924,6 +3971,9 @@ function ll_tools_word_grid_shortcode($atts) {
                         'translation' => (string) ($entry['recording_translation'] ?? ''),
                         'ipa' => ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''), $transcription_mode),
                         'audio_url' => $audio_url,
+                        'processing_source_audio_url' => (string) ($entry['processing_source_url'] ?? $audio_url),
+                        'uses_original_audio' => !empty($entry['uses_original_audio']),
+                        'has_original_audio' => !empty($entry['has_original_audio']),
                     ];
                 }
             }
@@ -3988,6 +4038,9 @@ function ll_tools_word_grid_shortcode($atts) {
                             'translation' => (string) ($entry['recording_translation'] ?? ''),
                             'ipa' => ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''), $transcription_mode),
                             'audio_url' => $audio_url,
+                            'processing_source_audio_url' => (string) ($entry['processing_source_url'] ?? $audio_url),
+                            'uses_original_audio' => !empty($entry['uses_original_audio']),
+                            'has_original_audio' => !empty($entry['has_original_audio']),
                         ];
                     }
                 }
@@ -4271,13 +4324,13 @@ function ll_tools_word_grid_shortcode($atts) {
                 echo '</div>';
 
                 if (!empty($edit_recordings)) {
-                    echo '<button type="button" class="ll-word-edit-recordings-toggle" data-ll-word-recordings-toggle aria-expanded="false">';
+                    echo '<button type="button" class="ll-word-edit-recordings-toggle" data-ll-word-recordings-toggle aria-expanded="true">';
                     echo '<span class="ll-word-edit-recordings-icon" aria-hidden="true">';
                     echo '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 10v4M9 6v12M14 8v8M19 11v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
                     echo '</span>';
                     echo '<span class="ll-word-edit-recordings-label">' . esc_html($edit_labels['recordings']) . '</span>';
                     echo '</button>';
-                    echo '<div class="ll-word-edit-recordings" data-ll-word-recordings-panel aria-hidden="true">';
+                    echo '<div class="ll-word-edit-recordings" data-ll-word-recordings-panel aria-hidden="false">';
                     foreach ($edit_recordings as $recording) {
                         $recording_id = (int) ($recording['id'] ?? 0);
                         if ($recording_id <= 0) {
@@ -4289,10 +4342,23 @@ function ll_tools_word_grid_shortcode($atts) {
                         $recording_translation = (string) ($recording['translation'] ?? '');
                         $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($recording['ipa'] ?? ''), $transcription_mode);
                         $recording_audio_url = (string) ($recording['audio_url'] ?? '');
+                        $processing_source_audio_url = (string) ($recording['processing_source_audio_url'] ?? $recording_audio_url);
+                        if ($processing_source_audio_url === '') {
+                            $processing_source_audio_url = $recording_audio_url;
+                        }
+                        $uses_original_audio = !empty($recording['uses_original_audio']);
+                        $has_original_audio = !empty($recording['has_original_audio']);
                         $recording_text_id = 'll-word-edit-recording-text-' . $recording_id;
                         $recording_translation_id = 'll-word-edit-recording-translation-' . $recording_id;
                         $recording_ipa_id = 'll-word-edit-recording-ipa-' . $recording_id;
-                        echo '<div class="ll-word-edit-recording" data-recording-id="' . esc_attr($recording_id) . '" data-recording-type="' . esc_attr($recording_type) . '">';
+                        $trim_input_id = 'll-word-edit-recording-trim-' . $recording_id;
+                        $noise_input_id = 'll-word-edit-recording-noise-' . $recording_id;
+                        $loudness_input_id = 'll-word-edit-recording-loudness-' . $recording_id;
+                        $clip_start_id = 'll-word-edit-recording-start-' . $recording_id;
+                        $clip_end_id = 'll-word-edit-recording-end-' . $recording_id;
+                        $process_button_label = $has_original_audio ? $edit_labels['reprocess_audio'] : $edit_labels['process_audio'];
+                        $source_label = $uses_original_audio ? $edit_labels['source_original'] : $edit_labels['source_current'];
+                        echo '<div class="ll-word-edit-recording" data-recording-id="' . esc_attr($recording_id) . '" data-recording-type="' . esc_attr($recording_type) . '" data-ll-current-audio-url="' . esc_url($recording_audio_url) . '" data-ll-processing-source-audio-url="' . esc_url($processing_source_audio_url) . '" data-ll-uses-original-audio="' . ($uses_original_audio ? '1' : '0') . '" data-ll-has-original-audio="' . ($has_original_audio ? '1' : '0') . '">';
                         echo '<div class="ll-word-edit-recording-header">';
                         echo '<div class="ll-word-edit-recording-title">';
                         echo '<span class="ll-word-edit-recording-icon" aria-hidden="true"></span>';
@@ -4322,6 +4388,25 @@ function ll_tools_word_grid_shortcode($atts) {
                             echo '<canvas class="ll-word-edit-ipa-waveform-canvas"></canvas>';
                             echo '</div>';
                             echo '<audio class="ll-word-edit-ipa-audio-player" controls preload="none" src="' . esc_url($recording_audio_url) . '"></audio>';
+                            echo '</div>';
+                            echo '<div class="ll-word-edit-processing" data-ll-word-edit-processing>';
+                            echo '<div class="ll-word-edit-processing-head">';
+                            echo '<span class="ll-word-edit-processing-title">' . esc_html($edit_labels['processing']) . '</span>';
+                            echo '<span class="ll-word-edit-processing-source" data-ll-processing-source-label>' . esc_html($source_label) . '</span>';
+                            echo '</div>';
+                            echo '<div class="ll-word-edit-processing-options">';
+                            echo '<label class="ll-word-edit-processing-option" for="' . esc_attr($trim_input_id) . '"><input type="checkbox" id="' . esc_attr($trim_input_id) . '" data-ll-processing-option="trim" checked /> <span>' . esc_html($edit_labels['auto_trim']) . '</span></label>';
+                            echo '<label class="ll-word-edit-processing-option" for="' . esc_attr($noise_input_id) . '"><input type="checkbox" id="' . esc_attr($noise_input_id) . '" data-ll-processing-option="noise" checked /> <span>' . esc_html($edit_labels['noise_reduction']) . '</span></label>';
+                            echo '<label class="ll-word-edit-processing-option" for="' . esc_attr($loudness_input_id) . '"><input type="checkbox" id="' . esc_attr($loudness_input_id) . '" data-ll-processing-option="loudness" checked /> <span>' . esc_html($edit_labels['normalize_loudness']) . '</span></label>';
+                            echo '</div>';
+                            echo '<div class="ll-word-edit-processing-times">';
+                            echo '<label class="ll-word-edit-processing-time" for="' . esc_attr($clip_start_id) . '"><span>' . esc_html($edit_labels['clip_start']) . '</span><input type="number" id="' . esc_attr($clip_start_id) . '" data-ll-processing-start value="" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /><span class="screen-reader-text">' . esc_html($edit_labels['seconds']) . '</span></label>';
+                            echo '<label class="ll-word-edit-processing-time" for="' . esc_attr($clip_end_id) . '"><span>' . esc_html($edit_labels['clip_end']) . '</span><input type="number" id="' . esc_attr($clip_end_id) . '" data-ll-processing-end value="" min="0" step="0.01" inputmode="decimal" placeholder="0.00" /><span class="screen-reader-text">' . esc_html($edit_labels['seconds']) . '</span></label>';
+                            echo '</div>';
+                            echo '<div class="ll-word-edit-processing-actions">';
+                            echo '<button type="button" class="ll-word-edit-process-audio" data-ll-process-recording-audio>' . esc_html($process_button_label) . '</button>';
+                            echo '<span class="ll-word-edit-processing-status" data-ll-processing-status aria-live="polite"></span>';
+                            echo '</div>';
                             echo '</div>';
                         }
                         echo '<div class="ll-word-edit-ipa-target" data-ll-ipa-target aria-hidden="true" aria-label="' . esc_attr__('Transcription guide', 'll-tools-text-domain') . '">';
@@ -4731,6 +4816,31 @@ function ll_tools_word_grid_get_recording_audio_url(int $recording_id): string {
     return (0 === strpos($audio_path, 'http')) ? $audio_path : site_url($audio_path);
 }
 
+function ll_tools_word_grid_get_recording_audio_payload(int $recording_id): array {
+    $recording_id = (int) $recording_id;
+    $audio_path = $recording_id > 0 ? trim((string) get_post_meta($recording_id, 'audio_file_path', true)) : '';
+    $audio_url = $audio_path !== '' ? ll_tools_word_grid_audio_url_from_path($audio_path) : '';
+    $source_path = $audio_path;
+    if ($recording_id > 0 && $audio_path !== '' && !preg_match('#^https?://#i', $audio_path) && function_exists('ll_tools_get_audio_processing_source_file_path')) {
+        $source_path = ll_tools_get_audio_processing_source_file_path($recording_id, $audio_path);
+    }
+    $source_url = $source_path !== '' ? ll_tools_word_grid_audio_url_from_path($source_path) : $audio_url;
+    $original_path = function_exists('ll_tools_get_audio_original_file_path')
+        ? ll_tools_get_audio_original_file_path($recording_id)
+        : '';
+    $has_original_audio = $original_path !== ''
+        && (!function_exists('ll_tools_audio_relative_file_exists') || ll_tools_audio_relative_file_exists($original_path));
+
+    return [
+        'audio_path' => $audio_path,
+        'audio_url' => $audio_url,
+        'processing_source_path' => $source_path,
+        'processing_source_audio_url' => $source_url !== '' ? $source_url : $audio_url,
+        'uses_original_audio' => ($audio_path !== '' && $source_path !== '' && $source_path !== $audio_path),
+        'has_original_audio' => $has_original_audio,
+    ];
+}
+
 function ll_tools_trim_isolation_transcript(string $text): string {
     $trimmed = rtrim($text, " \t\n\r\0\x0B.,!?;:");
     return $trimmed !== '' ? $trimmed : trim($text);
@@ -4866,6 +4976,187 @@ function ll_tools_word_grid_bump_category_cache_for_words(array $word_ids, int $
     if (!empty($touched)) {
         ll_tools_bump_category_cache_version(array_keys($touched));
     }
+}
+
+function ll_tools_word_grid_collect_audio_processing_settings_from_request(): array {
+    $settings = [];
+    foreach ([
+        'trim_start' => 'trim_start',
+        'trim_end' => 'trim_end',
+        'source_samples' => 'source_samples',
+        'sample_rate' => 'sample_rate',
+    ] as $request_key => $setting_key) {
+        if (!isset($_POST[$request_key])) {
+            continue;
+        }
+        $settings[$setting_key] = max(0, (int) wp_unslash((string) $_POST[$request_key]));
+    }
+
+    foreach (['enable_trim', 'enable_noise', 'enable_loudness', 'used_original_source'] as $request_key) {
+        if (!isset($_POST[$request_key])) {
+            continue;
+        }
+        $settings[$request_key] = ((string) wp_unslash((string) $_POST[$request_key]) === '1') ? 1 : 0;
+    }
+
+    if (!empty($settings)) {
+        $settings['processed_at'] = current_time('mysql');
+        $settings['processed_by'] = (int) get_current_user_id();
+    }
+
+    return $settings;
+}
+
+function ll_tools_word_grid_should_require_uploaded_processed_audio_file(): bool {
+    return (bool) apply_filters('ll_tools_word_grid_require_uploaded_processed_audio_file', true);
+}
+
+add_action('wp_ajax_ll_tools_word_grid_process_recording_audio', 'll_tools_word_grid_process_recording_audio_handler');
+function ll_tools_word_grid_process_recording_audio_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error(__('You must be logged in', 'll-tools-text-domain'), 401);
+    }
+
+    $recording_id = isset($_POST['recording_id']) ? absint($_POST['recording_id']) : 0;
+    if ($recording_id <= 0 || empty($_FILES['audio']) || !is_array($_FILES['audio'])) {
+        wp_send_json_error(__('Missing required audio data.', 'll-tools-text-domain'), 400);
+    }
+
+    $audio_post = get_post($recording_id);
+    if (!$audio_post || $audio_post->post_type !== 'word_audio') {
+        wp_send_json_error(__('Invalid recording.', 'll-tools-text-domain'), 404);
+    }
+
+    $parent_word_id = (int) wp_get_post_parent_id($recording_id);
+    $parent_word = $parent_word_id > 0 ? get_post($parent_word_id) : null;
+    if (!$parent_word || $parent_word->post_type !== 'words') {
+        wp_send_json_error(__('Invalid parent word.', 'll-tools-text-domain'), 404);
+    }
+
+    $requested_wordset_id = isset($_POST['wordset_id']) ? absint($_POST['wordset_id']) : 0;
+    if (!ll_tools_word_grid_user_can_manage_word($parent_word_id, $requested_wordset_id)) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
+
+    if (!function_exists('ll_tools_validate_recording_upload_file')) {
+        wp_send_json_error(__('Audio upload validation is unavailable.', 'll-tools-text-domain'), 500);
+    }
+
+    $file = (array) $_FILES['audio'];
+    $require_uploaded_file = ll_tools_word_grid_should_require_uploaded_processed_audio_file();
+    $upload_validation = ll_tools_validate_recording_upload_file($file, $require_uploaded_file);
+    if (empty($upload_validation['valid'])) {
+        $status = max(400, (int) ($upload_validation['status'] ?? 400));
+        $message = (string) ($upload_validation['error'] ?? '');
+        wp_send_json_error($message !== '' ? $message : __('Invalid audio upload.', 'll-tools-text-domain'), $status);
+    }
+
+    $previous_audio_file = trim((string) get_post_meta($recording_id, 'audio_file_path', true));
+    $previous_source_payload = ll_tools_word_grid_get_recording_audio_payload($recording_id);
+    $used_original_source = !empty($previous_source_payload['uses_original_audio']);
+
+    $upload_dir = wp_upload_dir();
+    if (!empty($upload_dir['error']) || empty($upload_dir['path']) || !wp_mkdir_p((string) $upload_dir['path'])) {
+        wp_send_json_error(__('Upload directory is unavailable.', 'll-tools-text-domain'), 500);
+    }
+
+    $existing_recording_types = wp_get_post_terms($recording_id, 'recording_type', ['fields' => 'slugs']);
+    $recording_type = isset($_POST['recording_type']) ? sanitize_key((string) wp_unslash($_POST['recording_type'])) : '';
+    $recording_type_term_id = 0;
+    if ($recording_type !== '') {
+        $recording_type_term = get_term_by('slug', $recording_type, 'recording_type');
+        if (!$recording_type_term || is_wp_error($recording_type_term)) {
+            wp_send_json_error(__('Invalid recording type.', 'll-tools-text-domain'), 400);
+        }
+        $recording_type_term_id = (int) $recording_type_term->term_id;
+        $recording_type = (string) $recording_type_term->slug;
+    }
+    $type_for_filename = $recording_type !== ''
+        ? $recording_type
+        : (!is_wp_error($existing_recording_types) && !empty($existing_recording_types) ? sanitize_key((string) $existing_recording_types[0]) : '');
+    $type_suffix = $type_for_filename !== '' ? '_' . $type_for_filename : '';
+
+    $validated_ext = sanitize_key((string) ($upload_validation['ext'] ?? ''));
+    if ($validated_ext === '') {
+        $validated_ext = 'wav';
+    }
+    $title_for_filename = sanitize_file_name((string) get_the_title($parent_word_id));
+    if ($title_for_filename === '') {
+        $title_for_filename = 'recording';
+    }
+    $file['name'] = $title_for_filename . $type_suffix . '_' . $recording_id . '_' . time() . '.' . $validated_ext;
+    if (!empty($upload_validation['mime'])) {
+        $file['type'] = (string) $upload_validation['mime'];
+    }
+
+    if (!function_exists('wp_handle_upload')) {
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+    }
+    $upload_overrides = [
+        'test_form' => false,
+        'test_type' => false,
+        'mimes' => function_exists('ll_tools_get_allowed_recording_upload_mimes')
+            ? ll_tools_get_allowed_recording_upload_mimes()
+            : null,
+    ];
+    $upload_result = $require_uploaded_file
+        ? wp_handle_upload($file, $upload_overrides)
+        : wp_handle_sideload($file, $upload_overrides);
+    if (!is_array($upload_result) || !empty($upload_result['error']) || empty($upload_result['file'])) {
+        $upload_error = is_array($upload_result) ? (string) ($upload_result['error'] ?? '') : '';
+        $message = $upload_error !== ''
+            ? sprintf(
+                /* translators: %s: upload subsystem error message */
+                __('Failed to save file: %s', 'll-tools-text-domain'),
+                $upload_error
+            )
+            : __('Failed to save file.', 'll-tools-text-domain');
+        wp_send_json_error($message, 400);
+    }
+
+    $relative_path = str_replace(
+        wp_normalize_path(untrailingslashit(ABSPATH)),
+        '',
+        wp_normalize_path((string) $upload_result['file'])
+    );
+
+    if ($previous_audio_file !== '' && function_exists('ll_tools_store_original_audio_if_enabled')) {
+        ll_tools_store_original_audio_if_enabled($recording_id, $previous_audio_file, [], 'lesson_edit_processor');
+    }
+    update_post_meta($recording_id, 'audio_file_path', $relative_path);
+    delete_post_meta($recording_id, '_ll_needs_audio_processing');
+    update_post_meta($recording_id, '_ll_processed_audio_date', current_time('mysql'));
+    delete_post_meta($recording_id, '_ll_needs_audio_review');
+
+    $processing_settings = ll_tools_word_grid_collect_audio_processing_settings_from_request();
+    if (!empty($processing_settings) && defined('LL_TOOLS_AUDIO_PROCESSING_SETTINGS_META_KEY')) {
+        $processing_settings['used_original_source'] = $used_original_source ? 1 : 0;
+        update_post_meta($recording_id, LL_TOOLS_AUDIO_PROCESSING_SETTINGS_META_KEY, $processing_settings);
+    }
+
+    if ($recording_type_term_id > 0) {
+        wp_set_object_terms($recording_id, [$recording_type_term_id], 'recording_type', false);
+    }
+
+    wp_update_post([
+        'ID' => $recording_id,
+        'post_status' => 'publish',
+    ]);
+
+    $payload = ll_tools_word_grid_get_recording_audio_payload($recording_id);
+    wp_send_json_success([
+        'message' => __('Audio processed.', 'll-tools-text-domain'),
+        'recording_id' => $recording_id,
+        'word_id' => $parent_word_id,
+        'recording_type' => $recording_type,
+        'audio_url' => (string) ($payload['audio_url'] ?? ''),
+        'processing_source_audio_url' => (string) ($payload['processing_source_audio_url'] ?? ''),
+        'uses_original_audio' => !empty($payload['uses_original_audio']),
+        'has_original_audio' => !empty($payload['has_original_audio']),
+        'file_path' => $relative_path,
+    ]);
 }
 
 add_action('wp_ajax_ll_tools_word_grid_update_word', 'll_tools_word_grid_update_word_handler');

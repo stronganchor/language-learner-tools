@@ -1335,6 +1335,129 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     text-transform: uppercase;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-processing {
+    display: grid;
+    gap: 8px;
+    margin: 8px 0 10px;
+    padding: 10px;
+    border: 1px solid #d9e2ec;
+    border-radius: 8px;
+    background: #f8fafc;
+    text-align: left;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-title {
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-source {
+    font-size: 11px;
+    line-height: 1.3;
+    color: #475569;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-options,
+.word-grid.ll-word-grid .ll-word-edit-processing-times,
+.word-grid.ll-word-grid .ll-word-edit-processing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-option,
+.word-grid.ll-word-grid .ll-word-edit-processing-time {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 600;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-option input[type="checkbox"] {
+    width: 15px !important;
+    height: 15px !important;
+    min-width: 15px !important;
+    margin: 0 !important;
+    accent-color: #2563eb;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-time input[type="number"] {
+    width: 72px !important;
+    min-width: 72px !important;
+    max-width: 72px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 4px 6px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-appearance: textfield !important;
+    appearance: textfield !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-process-audio {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 30px !important;
+    border: 1px solid #93c5fd !important;
+    border-radius: 7px !important;
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+    padding: 5px 10px !important;
+    font-size: 12px !important;
+    line-height: 1.2 !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-process-audio:hover:not(:disabled) {
+    border-color: #2563eb !important;
+    background: #dbeafe !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-process-audio:disabled {
+    cursor: wait !important;
+    opacity: 0.65;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-status {
+    min-height: 16px;
+    color: #475569;
+    font-size: 12px;
+    line-height: 1.25;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-status.is-success {
+    color: #15803d;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-processing-status.is-error {
+    color: #b91c1c;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-actions {
     display: flex;
     align-items: center;

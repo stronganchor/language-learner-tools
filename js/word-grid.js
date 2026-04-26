@@ -1176,8 +1176,227 @@
         saving: editI18n.saving || 'Saving...',
         savingBackground: editI18n.savingBackground || 'Saving in background...',
         saved: editI18n.saved || 'Saved.',
-        error: editI18n.error || 'Unable to save changes.'
+        error: editI18n.error || 'Unable to save changes.',
+        processingAudio: editI18n.processingAudio || 'Processing audio...',
+        processedAudio: editI18n.processedAudio || 'Audio processed.',
+        processAudio: editI18n.processAudio || 'Process audio',
+        reprocessAudio: editI18n.reprocessAudio || 'Reprocess audio',
+        processAudioError: editI18n.processAudioError || 'Unable to process audio.',
+        audioDecodeError: editI18n.audioDecodeError || 'Unable to read this audio file in the browser.',
+        audioUnsupportedError: editI18n.audioUnsupportedError || 'This browser cannot process audio here.',
+        sourceOriginal: editI18n.sourceOriginal || 'Using saved original audio',
+        sourceCurrent: editI18n.sourceCurrent || 'Using current audio'
     };
+    const lessonEditTargetLufs = -18.0;
+    let lessonEditAudioContext = null;
+
+    function ensureLessonEditAudioContext() {
+        if (lessonEditAudioContext) { return lessonEditAudioContext; }
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) { return null; }
+        try {
+            lessonEditAudioContext = new Ctor();
+        } catch (_) {
+            lessonEditAudioContext = null;
+        }
+        return lessonEditAudioContext;
+    }
+
+    function decodeLessonEditAudioData(ctx, arrayBuffer) {
+        return new Promise(function (resolve, reject) {
+            if (!ctx || typeof ctx.decodeAudioData !== 'function') {
+                reject(new Error(editMessages.audioUnsupportedError));
+                return;
+            }
+            try {
+                const copy = arrayBuffer && typeof arrayBuffer.slice === 'function' ? arrayBuffer.slice(0) : arrayBuffer;
+                const maybePromise = ctx.decodeAudioData(copy, resolve, reject);
+                if (maybePromise && typeof maybePromise.then === 'function') {
+                    maybePromise.then(resolve).catch(reject);
+                }
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    function clampLessonEditSample(value, min, max) {
+        const numeric = Number.isFinite(value) ? value : min;
+        return Math.max(min, Math.min(max, numeric));
+    }
+
+    function readLessonEditSeconds($input) {
+        if (!$input || !$input.length) { return null; }
+        const raw = ($input.val() || '').toString().trim();
+        if (raw === '') { return null; }
+        const value = Number.parseFloat(raw.replace(',', '.'));
+        return Number.isFinite(value) && value >= 0 ? value : null;
+    }
+
+    function detectLessonEditSilenceBoundaries(audioBuffer) {
+        const channelData = audioBuffer.getChannelData(0);
+        const sampleRate = audioBuffer.sampleRate;
+        const threshold = 0.02;
+        const windowSize = Math.max(1, Math.floor(0.01 * sampleRate));
+
+        let startIndex = 0;
+        for (let i = 0; i < channelData.length - windowSize; i++) {
+            let sum = 0;
+            for (let j = 0; j < windowSize; j++) {
+                sum += Math.abs(channelData[i + j]);
+            }
+            if ((sum / windowSize) > threshold) {
+                startIndex = Math.max(0, i - Math.floor(0.1 * sampleRate));
+                break;
+            }
+        }
+
+        let endIndex = channelData.length;
+        for (let i = channelData.length - windowSize; i >= 0; i--) {
+            let sum = 0;
+            for (let j = 0; j < windowSize; j++) {
+                sum += Math.abs(channelData[i + j]);
+            }
+            if ((sum / windowSize) > threshold) {
+                endIndex = Math.min(channelData.length, i + windowSize + Math.floor(0.3 * sampleRate));
+                break;
+            }
+        }
+
+        return { start: startIndex, end: endIndex };
+    }
+
+    function trimLessonEditAudioBuffer(ctx, audioBuffer, startIndex, endIndex) {
+        const start = clampLessonEditSample(Math.floor(startIndex), 0, audioBuffer.length);
+        const end = clampLessonEditSample(Math.ceil(endIndex), start + 1, audioBuffer.length);
+        if (end <= start || (start === 0 && end === audioBuffer.length)) {
+            return audioBuffer;
+        }
+
+        const trimmedLength = end - start;
+        const trimmedBuffer = ctx.createBuffer(audioBuffer.numberOfChannels, trimmedLength, audioBuffer.sampleRate);
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const sourceData = audioBuffer.getChannelData(channel);
+            const targetData = trimmedBuffer.getChannelData(channel);
+            for (let i = 0; i < trimmedLength; i++) {
+                targetData[i] = sourceData[start + i];
+            }
+        }
+        return trimmedBuffer;
+    }
+
+    async function reduceLessonEditNoise(audioBuffer) {
+        const OfflineCtor = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        if (!OfflineCtor) { return audioBuffer; }
+        const offlineContext = new OfflineCtor(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+        const source = offlineContext.createBufferSource();
+        source.buffer = audioBuffer;
+        const highpass = offlineContext.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 80;
+        const lowpass = offlineContext.createBiquadFilter();
+        lowpass.type = 'lowpass';
+        lowpass.frequency.value = 8000;
+        source.connect(highpass);
+        highpass.connect(lowpass);
+        lowpass.connect(offlineContext.destination);
+        source.start();
+        return await offlineContext.startRendering();
+    }
+
+    function calculateLessonEditLufs(audioBuffer) {
+        const sampleRate = audioBuffer.sampleRate;
+        const channelData = audioBuffer.getChannelData(0);
+        const blockSize = Math.max(1, Math.floor(0.4 * sampleRate));
+        const hopSize = Math.max(1, Math.floor(0.1 * sampleRate));
+        const gatingThreshold = -70;
+        const relativeThreshold = -10;
+        const blockLoudnesses = [];
+
+        for (let i = 0; i + blockSize < channelData.length; i += hopSize) {
+            let sumSquares = 0;
+            for (let j = 0; j < blockSize; j++) {
+                const sample = channelData[i + j];
+                sumSquares += sample * sample;
+            }
+            const meanSquare = sumSquares / blockSize;
+            if (meanSquare <= 0) { continue; }
+            const loudness = -0.691 + 10 * Math.log10(meanSquare);
+            if (loudness > gatingThreshold) {
+                blockLoudnesses.push(loudness);
+            }
+        }
+
+        if (!blockLoudnesses.length) { return -70; }
+        const avgLoudness = blockLoudnesses.reduce(function (a, b) { return a + b; }, 0) / blockLoudnesses.length;
+        const relThreshold = avgLoudness + relativeThreshold;
+        const gated = blockLoudnesses.filter(function (loudness) { return loudness >= relThreshold; });
+        if (!gated.length) { return avgLoudness; }
+        return gated.reduce(function (a, b) { return a + b; }, 0) / gated.length;
+    }
+
+    function normalizeLessonEditLoudness(ctx, audioBuffer) {
+        const currentLufs = calculateLessonEditLufs(audioBuffer);
+        const targetGain = Math.pow(10, (lessonEditTargetLufs - currentLufs) / 20);
+        const normalizedBuffer = ctx.createBuffer(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            const sourceData = audioBuffer.getChannelData(channel);
+            const targetData = normalizedBuffer.getChannelData(channel);
+            for (let i = 0; i < sourceData.length; i++) {
+                targetData[i] = Math.max(-1, Math.min(1, sourceData[i] * targetGain));
+            }
+        }
+
+        return normalizedBuffer;
+    }
+
+    function lessonEditAudioBufferToWav(audioBuffer) {
+        const numChannels = audioBuffer.numberOfChannels;
+        const sampleRate = audioBuffer.sampleRate;
+        const bitDepth = 16;
+        const bytesPerSample = bitDepth / 8;
+        const blockAlign = numChannels * bytesPerSample;
+        const data = [];
+
+        for (let i = 0; i < audioBuffer.length; i++) {
+            for (let channel = 0; channel < numChannels; channel++) {
+                const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
+                data.push(sample < 0 ? sample * 0x8000 : sample * 0x7FFF);
+            }
+        }
+
+        const dataLength = data.length * bytesPerSample;
+        const buffer = new ArrayBuffer(44 + dataLength);
+        const view = new DataView(buffer);
+        const writeString = function (offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        };
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, 36 + dataLength, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * blockAlign, true);
+        view.setUint16(32, blockAlign, true);
+        view.setUint16(34, bitDepth, true);
+        writeString(36, 'data');
+        view.setUint32(40, dataLength, true);
+
+        let offset = 44;
+        for (let i = 0; i < data.length; i++) {
+            view.setInt16(offset, data[i], true);
+            offset += 2;
+        }
+
+        return new Blob([buffer], { type: 'audio/wav' });
+    }
     const orderMessages = {
         saving: orderI18n.saving || 'Saving order...',
         saved: orderI18n.saved || 'Order saved.',
@@ -2190,6 +2409,9 @@
             const $item = $(this);
             cacheOriginalInputs($item);
             setMetaFieldState($item);
+            if ($item.find('[data-ll-word-recordings-panel]').length) {
+                setRecordingsPanelOpen($item, true);
+            }
         });
         $root.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
             initDictionaryEntryAutocomplete($(this));
@@ -2214,6 +2436,149 @@
             });
         });
         return recordings;
+    }
+
+    function collectLessonEditProcessingOptions($recording) {
+        const startSeconds = readLessonEditSeconds($recording.find('[data-ll-processing-start]').first());
+        const endSeconds = readLessonEditSeconds($recording.find('[data-ll-processing-end]').first());
+        return {
+            enableTrim: $recording.find('[data-ll-processing-option="trim"]').first().prop('checked') !== false,
+            enableNoise: $recording.find('[data-ll-processing-option="noise"]').first().prop('checked') !== false,
+            enableLoudness: $recording.find('[data-ll-processing-option="loudness"]').first().prop('checked') !== false,
+            startSeconds: startSeconds,
+            endSeconds: endSeconds
+        };
+    }
+
+    function setLessonEditProcessingStatus($recording, message, tone) {
+        const $status = $recording.find('[data-ll-processing-status]').first();
+        if (!$status.length) { return; }
+        $status
+            .removeClass('is-error is-success')
+            .toggleClass('is-error', tone === 'error')
+            .toggleClass('is-success', tone === 'success')
+            .text(message || '');
+    }
+
+    async function buildLessonEditProcessedAudio($recording) {
+        const sourceUrl = ($recording.attr('data-ll-processing-source-audio-url') || $recording.attr('data-ll-current-audio-url') || '').toString();
+        if (!sourceUrl) {
+            throw new Error(editMessages.processAudioError);
+        }
+
+        const ctx = ensureLessonEditAudioContext();
+        if (!ctx) {
+            throw new Error(editMessages.audioUnsupportedError);
+        }
+        if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+            try { await ctx.resume(); } catch (_) {}
+        }
+
+        const response = await fetch(sourceUrl, { cache: 'no-store', credentials: 'same-origin' });
+        if (!response || !response.ok) {
+            throw new Error(editMessages.processAudioError);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        let originalBuffer;
+        try {
+            originalBuffer = await decodeLessonEditAudioData(ctx, arrayBuffer);
+        } catch (error) {
+            throw new Error(editMessages.audioDecodeError);
+        }
+
+        const options = collectLessonEditProcessingOptions($recording);
+        let processedBuffer = originalBuffer;
+        let trimStart = 0;
+        let trimEnd = originalBuffer.length;
+        const hasManualTrim = options.startSeconds !== null || options.endSeconds !== null;
+
+        if (options.enableTrim || hasManualTrim) {
+            if (hasManualTrim) {
+                const startRaw = options.startSeconds !== null ? Math.floor(options.startSeconds * originalBuffer.sampleRate) : 0;
+                const endRaw = options.endSeconds !== null ? Math.ceil(options.endSeconds * originalBuffer.sampleRate) : originalBuffer.length;
+                trimStart = clampLessonEditSample(startRaw, 0, Math.max(0, originalBuffer.length - 1));
+                trimEnd = clampLessonEditSample(endRaw, trimStart + 1, originalBuffer.length);
+            } else {
+                const detected = detectLessonEditSilenceBoundaries(originalBuffer);
+                trimStart = detected.start;
+                trimEnd = detected.end;
+            }
+            processedBuffer = trimLessonEditAudioBuffer(ctx, originalBuffer, trimStart, trimEnd);
+        }
+
+        if (options.enableNoise) {
+            processedBuffer = await reduceLessonEditNoise(processedBuffer);
+        }
+        if (options.enableLoudness) {
+            processedBuffer = normalizeLessonEditLoudness(ctx, processedBuffer);
+        }
+
+        return {
+            audioBlob: lessonEditAudioBufferToWav(processedBuffer),
+            trimStart: trimStart,
+            trimEnd: trimEnd,
+            sourceSamples: originalBuffer.length,
+            sampleRate: originalBuffer.sampleRate,
+            options: options
+        };
+    }
+
+    function postLessonEditProcessedAudio(formData) {
+        return new Promise(function (resolve, reject) {
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json'
+            }).done(resolve).fail(reject);
+        });
+    }
+
+    function updateLessonEditRecordingAudio($item, recordingId, data) {
+        const recId = parseInt(recordingId, 10) || 0;
+        if (!recId || !data || typeof data !== 'object') { return; }
+
+        const audioUrl = (data.audio_url || '').toString();
+        const sourceUrl = (data.processing_source_audio_url || audioUrl).toString();
+        const usesOriginal = !!data.uses_original_audio;
+        const hasOriginal = !!data.has_original_audio;
+        const selector = '[data-recording-id="' + recId + '"]';
+
+        const $recording = $item.find('.ll-word-edit-recording' + selector).first();
+        if ($recording.length) {
+            $recording.attr({
+                'data-ll-current-audio-url': audioUrl,
+                'data-ll-processing-source-audio-url': sourceUrl,
+                'data-ll-uses-original-audio': usesOriginal ? '1' : '0',
+                'data-ll-has-original-audio': hasOriginal ? '1' : '0'
+            });
+            $recording.find('[data-ll-processing-source-label]').first().text(usesOriginal ? editMessages.sourceOriginal : editMessages.sourceCurrent);
+            $recording.find('[data-ll-process-recording-audio]').first().text(hasOriginal ? editMessages.reprocessAudio : editMessages.processAudio);
+            const $player = $recording.find('.ll-word-edit-ipa-audio-player').first();
+            if ($player.length && audioUrl) {
+                const audioEl = $player.get(0);
+                if (audioEl && typeof audioEl.pause === 'function') {
+                    try { audioEl.pause(); } catch (_) {}
+                }
+                $player.attr('src', audioUrl);
+                if (audioEl && typeof audioEl.load === 'function') {
+                    try { audioEl.load(); } catch (_) {}
+                }
+            }
+        }
+
+        if (audioUrl) {
+            $item.find('.ll-word-grid-recording-btn' + selector).attr('data-audio-url', audioUrl);
+            $item.find('.ll-word-grid-recording-btn[data-recording-id="' + recId + '"]').attr('data-audio-url', audioUrl);
+        }
+
+        if (currentAudioButton && parseInt($(currentAudioButton).attr('data-recording-id'), 10) === recId && currentAudio) {
+            try { currentAudio.pause(); } catch (_) {}
+            currentAudio = null;
+            currentAudioButton = null;
+        }
     }
 
     function setTranscribeStatus($wrap, message, isError) {
@@ -5666,6 +6031,61 @@
             setRecordingsPanelOpen($item, !isOpen);
         });
 
+        $grids.on('click', '[data-ll-process-recording-audio]', async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $btn = $(this);
+            if ($btn.prop('disabled')) { return; }
+
+            const $recording = $btn.closest('.ll-word-edit-recording');
+            const $item = $recording.closest('.word-item');
+            const $grid = $item.closest('[data-ll-word-grid]');
+            const recordingId = parseInt($recording.attr('data-recording-id'), 10) || 0;
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            const recordingType = ($recording.attr('data-recording-type') || '').toString();
+            if (!recordingId || !ajaxUrl || !editNonce || !window.FormData) {
+                setLessonEditProcessingStatus($recording, editMessages.processAudioError, 'error');
+                return;
+            }
+
+            $btn.prop('disabled', true);
+            setLessonEditProcessingStatus($recording, editMessages.processingAudio, '');
+
+            try {
+                const processed = await buildLessonEditProcessedAudio($recording);
+                const formData = new window.FormData();
+                formData.append('action', 'll_tools_word_grid_process_recording_audio');
+                formData.append('nonce', editNonce);
+                formData.append('recording_id', String(recordingId));
+                formData.append('wordset_id', String(wordsetId));
+                formData.append('recording_type', recordingType);
+                formData.append('audio', processed.audioBlob, 'lesson-recording-' + recordingId + '.wav');
+                formData.append('trim_start', String(Math.max(0, parseInt(processed.trimStart, 10) || 0)));
+                formData.append('trim_end', String(Math.max(0, parseInt(processed.trimEnd, 10) || 0)));
+                formData.append('source_samples', String(Math.max(0, parseInt(processed.sourceSamples, 10) || 0)));
+                formData.append('sample_rate', String(Math.max(0, parseInt(processed.sampleRate, 10) || 0)));
+                formData.append('enable_trim', (processed.options.enableTrim || processed.options.startSeconds !== null || processed.options.endSeconds !== null) ? '1' : '0');
+                formData.append('enable_noise', processed.options.enableNoise ? '1' : '0');
+                formData.append('enable_loudness', processed.options.enableLoudness ? '1' : '0');
+                formData.append('used_original_source', ($recording.attr('data-ll-uses-original-audio') || '') === '1' ? '1' : '0');
+
+                const response = await postLessonEditProcessedAudio(formData);
+                if (!response || response.success !== true) {
+                    throw new Error(readResponseErrorMessage(response, editMessages.processAudioError));
+                }
+
+                const data = (response.data && typeof response.data === 'object') ? response.data : {};
+                updateLessonEditRecordingAudio($item, recordingId, data);
+                setLessonEditProcessingStatus($recording, editMessages.processedAudio, 'success');
+            } catch (error) {
+                const message = error && error.message ? error.message : editMessages.processAudioError;
+                setLessonEditProcessingStatus($recording, message, 'error');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+
         $grids.on('click', '.ll-word-recording-row', function (e) {
             const $row = $(this);
             if (!$row.hasClass('ll-word-recording-row--editable')) {
@@ -6100,7 +6520,7 @@
                 }));
             }
             updateGridLayouts();
-            setRecordingsPanelOpen($item, false);
+            setRecordingsPanelOpen($item, true);
             setEditPanelOpen($item, false);
             setEditStatus($item, '', false);
             setWordSaveBusy($item, true);
@@ -6197,7 +6617,7 @@
                     syncBulkControlSelectDefaults($bulkWrap);
                 }
                 setEditStatus($item, '');
-                setRecordingsPanelOpen($item, false);
+                setRecordingsPanelOpen($item, true);
                 setEditPanelOpen($item, false);
                 setWordSaveStatus($item, editMessages.saved, 'success');
                 scheduleWordSaveStatusClear($item, 1800);
