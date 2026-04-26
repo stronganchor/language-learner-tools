@@ -594,7 +594,295 @@ function ll_tools_wordset_page_store_cached_payload(string $cache_key, $payload,
     return $payload;
 }
 
-function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_limit = 2): array {
+function ll_tools_wordset_page_current_user_can_preview_inactive_categories(int $wordset_id): bool {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !is_user_logged_in()) {
+        return false;
+    }
+
+    if (current_user_can('manage_options')) {
+        return true;
+    }
+
+    if (function_exists('ll_tools_current_user_can_manage_wordset_content')) {
+        return (bool) ll_tools_current_user_can_manage_wordset_content($wordset_id);
+    }
+
+    return current_user_can('view_ll_tools') && current_user_can('edit_posts');
+}
+
+function ll_tools_wordset_page_get_category_word_status_summary(int $category_id, int $wordset_id): array {
+    static $request_cache = [];
+
+    $category_id = (int) $category_id;
+    $wordset_id = (int) $wordset_id;
+    $empty = [
+        'total' => 0,
+        'publish' => 0,
+        'draft' => 0,
+        'pending' => 0,
+        'future' => 0,
+        'private' => 0,
+        'published_audio' => 0,
+        'unpublished_audio' => 0,
+        'missing_audio' => 0,
+    ];
+    if ($category_id <= 0 || $wordset_id <= 0) {
+        return $empty;
+    }
+
+    $cache_key = $wordset_id . ':' . $category_id;
+    if (isset($request_cache[$cache_key]) && is_array($request_cache[$cache_key])) {
+        return $request_cache[$cache_key];
+    }
+
+    $word_ids = get_posts([
+        'post_type'      => 'words',
+        'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'tax_query'      => [
+            'relation' => 'AND',
+            [
+                'taxonomy' => 'word-category',
+                'field'    => 'term_id',
+                'terms'    => [$category_id],
+                'include_children' => false,
+            ],
+            [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ],
+        ],
+    ]);
+    $word_ids = array_values(array_filter(array_map('intval', (array) $word_ids), static function (int $word_id): bool {
+        return $word_id > 0;
+    }));
+
+    if (empty($word_ids)) {
+        $request_cache[$cache_key] = $empty;
+        return $empty;
+    }
+
+    $summary = $empty;
+    $summary['total'] = count($word_ids);
+    foreach ($word_ids as $word_id) {
+        $word = get_post($word_id);
+        if (!($word instanceof WP_Post)) {
+            continue;
+        }
+        $status = (string) $word->post_status;
+        if (array_key_exists($status, $summary)) {
+            $summary[$status]++;
+        }
+    }
+
+    $audio_posts = get_posts([
+        'post_type'      => 'word_audio',
+        'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+        'post_parent__in' => $word_ids,
+        'posts_per_page' => -1,
+        'no_found_rows'  => true,
+        'meta_query'     => [
+            [
+                'key'     => 'audio_file_path',
+                'value'   => '',
+                'compare' => '!=',
+            ],
+        ],
+    ]);
+
+    $audio_status_by_word = [];
+    foreach ((array) $audio_posts as $audio_post) {
+        if (!($audio_post instanceof WP_Post)) {
+            continue;
+        }
+        $parent_id = (int) $audio_post->post_parent;
+        if ($parent_id <= 0) {
+            continue;
+        }
+        if (!isset($audio_status_by_word[$parent_id])) {
+            $audio_status_by_word[$parent_id] = [
+                'publish' => false,
+                'unpublished' => false,
+            ];
+        }
+        if ((string) $audio_post->post_status === 'publish') {
+            $audio_status_by_word[$parent_id]['publish'] = true;
+        } else {
+            $audio_status_by_word[$parent_id]['unpublished'] = true;
+        }
+    }
+
+    foreach ($word_ids as $word_id) {
+        $audio_status = $audio_status_by_word[$word_id] ?? null;
+        if (is_array($audio_status) && !empty($audio_status['publish'])) {
+            $summary['published_audio']++;
+        } elseif (is_array($audio_status) && !empty($audio_status['unpublished'])) {
+            $summary['unpublished_audio']++;
+        } else {
+            $summary['missing_audio']++;
+        }
+    }
+
+    $request_cache[$cache_key] = $summary;
+    return $summary;
+}
+
+function ll_tools_wordset_page_get_staff_category_terms(int $wordset_id, array $counts = []): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $terms_by_id = [];
+    $add_term = static function ($term) use (&$terms_by_id, $wordset_id): void {
+        if (!($term instanceof WP_Term) || is_wp_error($term) || $term->taxonomy !== 'word-category') {
+            return;
+        }
+        if (
+            function_exists('ll_tools_get_category_wordset_owner_id')
+            && (int) ll_tools_get_category_wordset_owner_id($term) > 0
+            && (int) ll_tools_get_category_wordset_owner_id($term) !== $wordset_id
+        ) {
+            return;
+        }
+        if (function_exists('ll_tools_user_can_view_category') && !ll_tools_user_can_view_category($term)) {
+            return;
+        }
+        $terms_by_id[(int) $term->term_id] = $term;
+    };
+
+    foreach (ll_tools_wordset_page_get_owned_category_terms($wordset_id) as $term) {
+        $add_term($term);
+    }
+
+    $candidate_ids = array_unique(array_merge(
+        array_keys((array) ($counts['all'] ?? [])),
+        array_keys((array) ($counts['with_images'] ?? []))
+    ));
+
+    $prompt_card_post_type = defined('LL_TOOLS_PROMPT_CARD_POST_TYPE') ? LL_TOOLS_PROMPT_CARD_POST_TYPE : 'll_prompt_card';
+    $object_ids = get_posts([
+        'post_type'      => ['words', $prompt_card_post_type],
+        'post_status'    => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'tax_query'      => [
+            [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ],
+        ],
+    ]);
+    $object_ids = array_values(array_filter(array_map('intval', (array) $object_ids), static function (int $object_id): bool {
+        return $object_id > 0;
+    }));
+    if (!empty($object_ids)) {
+        $object_term_ids = wp_get_object_terms($object_ids, 'word-category', ['fields' => 'ids']);
+        if (!is_wp_error($object_term_ids)) {
+            $candidate_ids = array_merge($candidate_ids, (array) $object_term_ids);
+        }
+    }
+
+    $candidate_ids = array_values(array_unique(array_filter(array_map('intval', $candidate_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+    if (!empty($candidate_ids)) {
+        $terms = get_terms([
+            'taxonomy'   => 'word-category',
+            'include'    => $candidate_ids,
+            'hide_empty' => false,
+            'orderby'    => 'name',
+        ]);
+        if (!is_wp_error($terms)) {
+            foreach ((array) $terms as $term) {
+                $add_term($term);
+            }
+        }
+    }
+
+    return array_values($terms_by_id);
+}
+
+function ll_tools_wordset_page_get_inactive_category_public_note(WP_Term $category, int $wordset_id, int $quiz_ready_count, int $min_words, array $counts): string {
+    $category_id = (int) $category->term_id;
+    if ($category_id <= 0) {
+        return __('Not public yet.', 'll-tools-text-domain');
+    }
+
+    if ((string) $category->slug === 'uncategorized') {
+        return __('Reserved category.', 'll-tools-text-domain');
+    }
+
+    $quiz_config = function_exists('ll_tools_get_category_quiz_config')
+        ? ll_tools_get_category_quiz_config($category)
+        : [
+            'prompt_type' => 'audio',
+            'option_type' => 'image',
+        ];
+    $option_type = (string) ($quiz_config['option_type'] ?? '');
+    $requires_audio = function_exists('ll_tools_quiz_requires_audio')
+        ? ll_tools_quiz_requires_audio($quiz_config, $option_type)
+        : true;
+    $requires_images = function_exists('ll_tools_vocab_lesson_category_requires_images')
+        ? ll_tools_vocab_lesson_category_requires_images($category)
+        : (function_exists('ll_tools_quiz_requires_image') ? ll_tools_quiz_requires_image($quiz_config, $option_type) : false);
+    $status_summary = ll_tools_wordset_page_get_category_word_status_summary($category_id, $wordset_id);
+    $published_words = max(0, (int) ($status_summary['publish'] ?? 0));
+    $unpublished_words = max(0, (int) ($status_summary['draft'] ?? 0))
+        + max(0, (int) ($status_summary['pending'] ?? 0))
+        + max(0, (int) ($status_summary['future'] ?? 0))
+        + max(0, (int) ($status_summary['private'] ?? 0));
+
+    if (max(0, (int) ($status_summary['total'] ?? 0)) <= 0) {
+        return __('No words yet.', 'll-tools-text-domain');
+    }
+
+    if ($requires_audio) {
+        if ($published_words <= 0 && max(0, (int) ($status_summary['unpublished_audio'] ?? 0)) > 0) {
+            return __('Audio is not published yet.', 'll-tools-text-domain');
+        }
+        if (
+            $published_words <= 0
+            && $unpublished_words > 0
+            && max(0, (int) ($status_summary['missing_audio'] ?? 0)) > 0
+        ) {
+            return __('Needs audio.', 'll-tools-text-domain');
+        }
+        if (
+            $published_words > 0
+            && max(0, (int) ($status_summary['published_audio'] ?? 0)) < min($published_words, max(1, $min_words))
+            && $quiz_ready_count < $min_words
+        ) {
+            return __('Needs published audio.', 'll-tools-text-domain');
+        }
+    }
+
+    if ($published_words <= 0 && $unpublished_words > 0) {
+        return __('No published words yet.', 'll-tools-text-domain');
+    }
+
+    if ($requires_images) {
+        $all_count = max(0, (int) ($counts['all'][$category_id] ?? 0));
+        $image_count = max(0, (int) ($counts['with_images'][$category_id] ?? 0));
+        if ($all_count >= $min_words && $image_count < $min_words) {
+            return __('Needs images.', 'll-tools-text-domain');
+        }
+    }
+
+    if ($quiz_ready_count < $min_words) {
+        return __('Needs more quiz-ready words.', 'll-tools-text-domain');
+    }
+
+    return __('Not public yet.', 'll-tools-text-domain');
+}
+
+function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_limit = 2, bool $include_inactive = false): array {
     static $request_cache = [];
 
     $wordset_id = (int) $wordset_id;
@@ -639,10 +927,15 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
         'cache_context' => $cache_context_sig,
         'category_epoch' => $category_epoch,
         'wordset_epoch' => $wordset_epoch,
+        'inactive' => $include_inactive ? 1 : 0,
     ]);
-    $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
-    if (is_array($cached)) {
-        return $cached;
+    if (!$include_inactive) {
+        $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
+        if (is_array($cached)) {
+            return $cached;
+        }
+    } elseif (array_key_exists($cache_key, $request_cache)) {
+        return is_array($request_cache[$cache_key]) ? $request_cache[$cache_key] : [];
     }
     $cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_category_rows_cache_ttl', HOUR_IN_SECONDS);
 
@@ -670,18 +963,21 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
         $counts_map[$category_id] = $count;
     }
 
-    if (empty($eligible_ids)) {
+    if (empty($eligible_ids) && !$include_inactive) {
         return ll_tools_wordset_page_store_cached_payload($cache_key, [], $cache_ttl, $request_cache);
     }
 
-    $terms = get_terms([
-        'taxonomy'   => 'word-category',
-        'include'    => $eligible_ids,
-        'hide_empty' => false,
-        'orderby'    => 'name',
-    ]);
-
     $rows = [];
+    $terms = [];
+    if (!empty($eligible_ids)) {
+        $terms = get_terms([
+            'taxonomy'   => 'word-category',
+            'include'    => $eligible_ids,
+            'hide_empty' => false,
+            'orderby'    => 'name',
+        ]);
+    }
+
     if (!is_wp_error($terms)) {
         foreach ($terms as $term) {
             $term_id = (int) $term->term_id;
@@ -692,8 +988,41 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
             $rows[] = [
                 'term_id' => $term_id,
                 'word_count' => $count,
+                'is_public' => true,
+                'public_note' => '',
             ];
         }
+    }
+
+    if ($include_inactive) {
+        $eligible_lookup = array_fill_keys(array_map('intval', $eligible_ids), true);
+        $row_lookup_ids = array_fill_keys(array_map(static function (array $row): int {
+            return (int) ($row['term_id'] ?? 0);
+        }, $rows), true);
+        foreach (ll_tools_wordset_page_get_staff_category_terms($wordset_id, $counts) as $term) {
+            $term_id = (int) $term->term_id;
+            if ($term_id <= 0 || !empty($eligible_lookup[$term_id]) || !empty($row_lookup_ids[$term_id])) {
+                continue;
+            }
+            $count = function_exists('ll_tools_get_vocab_lesson_category_word_count')
+                ? ll_tools_get_vocab_lesson_category_word_count($term_id, $wordset_id, $counts)
+                : max(0, (int) ($counts['all'][$term_id] ?? 0));
+            $rows[] = [
+                'term_id' => $term_id,
+                'word_count' => max(0, (int) $count),
+                'is_public' => false,
+                'public_note' => ll_tools_wordset_page_get_inactive_category_public_note($term, $wordset_id, max(0, (int) $count), $min_words, $counts),
+            ];
+            $row_lookup_ids[$term_id] = true;
+        }
+    }
+
+    if (empty($rows)) {
+        if ($include_inactive) {
+            $request_cache[$cache_key] = [];
+            return [];
+        }
+        return ll_tools_wordset_page_store_cached_payload($cache_key, [], $cache_ttl, $request_cache);
     }
 
     if (!empty($rows) && function_exists('ll_tools_wordset_sort_category_ids')) {
@@ -717,6 +1046,11 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
         if (!empty($ordered_rows)) {
             $rows = $ordered_rows;
         }
+    }
+
+    if ($include_inactive) {
+        $request_cache[$cache_key] = $rows;
+        return $rows;
     }
 
     return ll_tools_wordset_page_store_cached_payload($cache_key, $rows, $cache_ttl, $request_cache);
@@ -1303,6 +1637,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         return [];
     }
 
+    $include_inactive = ll_tools_wordset_page_current_user_can_preview_inactive_categories($wordset_id);
     $use_guest_cache = !is_user_logged_in();
     $guest_cache_key = '';
     $guest_cache_ttl = 0;
@@ -1335,7 +1670,7 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         $guest_cache_ttl = ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_categories_cache_ttl', 30 * MINUTE_IN_SECONDS);
     }
 
-    $rows = ll_tools_get_wordset_page_category_rows($wordset_id, $preview_limit);
+    $rows = ll_tools_get_wordset_page_category_rows($wordset_id, $preview_limit, $include_inactive);
     if (empty($rows)) {
         return [];
     }
@@ -1410,7 +1745,9 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
         }
 
         $lesson_post_id = (int) ($lesson_map[(int) $category->term_id] ?? 0);
-        if ($lesson_post_id <= 0) {
+        $is_public = !array_key_exists('is_public', $row) || !empty($row['is_public']);
+        $public_note = isset($row['public_note']) ? trim((string) $row['public_note']) : '';
+        if ($lesson_post_id <= 0 && $is_public) {
             continue;
         }
 
@@ -1469,7 +1806,9 @@ function ll_tools_get_wordset_page_categories(int $wordset_id, int $preview_limi
             'has_images' => (bool) $preview['has_images'],
             'preview_aspect_ratio' => $preview['preview_aspect_ratio'] ?? '',
             'preview_limit' => $preview_limit_for_category,
-            'url'        => get_permalink($lesson_post_id),
+            'url'        => ($is_public && $lesson_post_id > 0) ? get_permalink($lesson_post_id) : '',
+            'is_public'  => $is_public,
+            'public_note' => $is_public ? '' : ($public_note !== '' ? $public_note : __('Not public yet.', 'll-tools-text-domain')),
         ];
     }
 
@@ -1817,10 +2156,12 @@ function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id
         if ($enhanced['aspect_bucket'] === '') {
             $enhanced['aspect_bucket'] = 'no-image';
         }
+        $enhanced['is_public'] = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+        $enhanced['public_note'] = isset($cat['public_note']) ? (string) $cat['public_note'] : '';
         $enhanced['hidden'] = !empty($ignored_lookup[$cid]);
 
         $enhanced_categories[] = $enhanced;
-        if (empty($enhanced['hidden'])) {
+        if ($enhanced['is_public'] && empty($enhanced['hidden'])) {
             $visible_categories[] = $enhanced;
         }
     }
@@ -2018,6 +2359,11 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
 
     $cat_name = isset($cat['name']) ? (string) $cat['name'] : '';
     $cat_url = isset($cat['url']) ? (string) $cat['url'] : '';
+    $is_public = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+    $public_note = isset($cat['public_note']) ? trim((string) $cat['public_note']) : '';
+    if (!$is_public && $public_note === '') {
+        $public_note = __('Not public yet.', 'll-tools-text-domain');
+    }
     $current_preview_limit = isset($cat['preview_limit']) ? (int) $cat['preview_limit'] : 2;
     if ($current_preview_limit < 1) {
         $current_preview_limit = 1;
@@ -2025,16 +2371,28 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
 
     ob_start();
     ?>
-    <article class="ll-wordset-card" role="listitem" data-cat-id="<?php echo esc_attr($cat_id); ?>" data-word-count="<?php echo esc_attr((int) ($cat['count'] ?? 0)); ?>">
+    <article class="ll-wordset-card<?php echo $is_public ? '' : ' ll-wordset-card--inactive'; ?>" role="listitem" data-cat-id="<?php echo esc_attr($cat_id); ?>" data-word-count="<?php echo esc_attr((int) ($cat['count'] ?? 0)); ?>" data-ll-wordset-public="<?php echo $is_public ? '1' : '0'; ?>">
         <div class="ll-wordset-card__top">
-            <label class="ll-wordset-card__select" aria-label="<?php echo esc_attr(sprintf(__('Select %s', 'll-tools-text-domain'), $cat_name)); ?>">
-                <input type="checkbox" value="<?php echo esc_attr($cat_id); ?>" data-ll-wordset-select />
-                <span class="ll-wordset-card__select-box" aria-hidden="true"></span>
-            </label>
-            <a class="ll-wordset-card__heading" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
-                <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
-            </a>
-            <?php if ($is_study_user) : ?>
+            <?php if ($is_public) : ?>
+                <label class="ll-wordset-card__select" aria-label="<?php echo esc_attr(sprintf(__('Select %s', 'll-tools-text-domain'), $cat_name)); ?>">
+                    <input type="checkbox" value="<?php echo esc_attr($cat_id); ?>" data-ll-wordset-select />
+                    <span class="ll-wordset-card__select-box" aria-hidden="true"></span>
+                </label>
+            <?php else : ?>
+                <span class="ll-wordset-card__select ll-wordset-card__select--inactive" aria-hidden="true">
+                    <span class="ll-wordset-card__select-box"></span>
+                </span>
+            <?php endif; ?>
+            <?php if ($is_public && $cat_url !== '') : ?>
+                <a class="ll-wordset-card__heading" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
+                    <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
+                </a>
+            <?php else : ?>
+                <div class="ll-wordset-card__heading" aria-label="<?php echo esc_attr($cat_name); ?>">
+                    <h2 class="ll-wordset-card__title"><?php echo esc_html($cat_name); ?></h2>
+                </div>
+            <?php endif; ?>
+            <?php if ($is_public && $is_study_user) : ?>
                 <button type="button" class="ll-wordset-card__hide" data-ll-wordset-hide data-cat-id="<?php echo esc_attr($cat_id); ?>" aria-label="<?php echo esc_attr(sprintf(__('Hide %s', 'll-tools-text-domain'), $cat_name)); ?>">
                     <?php echo ll_tools_wordset_page_render_hide_icon('ll-wordset-hide-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </button>
@@ -2042,77 +2400,92 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                 <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
             <?php endif; ?>
         </div>
-        <a class="ll-wordset-card__lesson-link" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
-            <div class="ll-wordset-card__preview <?php echo !empty($cat['has_images']) ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
-                <?php if ($card_starred_count > 0) : ?>
-                    <span
-                        class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred"
-                        aria-label="<?php echo esc_attr(sprintf(_n('%1$d starred word in %2$s', '%1$d starred words in %2$s', $card_starred_count, 'll-tools-text-domain'), $card_starred_count, $cat_name)); ?>">
-                        <?php echo ll_tools_wordset_page_render_progress_icon('starred', 'll-wordset-progress-pill__icon ll-wordset-card__starred-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <span class="ll-wordset-progress-pill__value ll-wordset-card__starred-value"><?php echo (int) $card_starred_count; ?></span>
-                    </span>
-                <?php endif; ?>
-                <?php if (!empty($cat['preview'])) : ?>
-                    <?php
-                    $preview_items = array_values((array) $cat['preview']);
-                    $preview_count = count($preview_items);
-                    $displayed_count = min($preview_count, $current_preview_limit);
-                    ?>
-                    <?php foreach (array_slice($preview_items, 0, $current_preview_limit) as $preview) : ?>
-                        <?php if (($preview['type'] ?? '') === 'image') : ?>
-                            <?php
-                            $preview_ratio_style = '';
-                            if (!empty($preview['ratio'])) {
-                                $ratio_value = esc_attr((string) $preview['ratio']);
-                                $preview_ratio_style = ' style="aspect-ratio: ' . $ratio_value . ' !important;"';
-                            }
-                            $preview_width = !empty($preview['width']) ? (int) $preview['width'] : 0;
-                            $preview_height = !empty($preview['height']) ? (int) $preview['height'] : 0;
-                            $preview_width_attr = $preview_width > 0 ? ' width="' . esc_attr($preview_width) . '"' : '';
-                            $preview_height_attr = $preview_height > 0 ? ' height="' . esc_attr($preview_height) . '"' : '';
-                            ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--image"<?php echo $preview_ratio_style; ?>>
-                                <img src="<?php echo esc_url((string) ($preview['url'] ?? '')); ?>" alt="<?php echo esc_attr((string) ($preview['alt'] ?? '')); ?>"<?php echo $preview_width_attr . $preview_height_attr; ?> loading="lazy" decoding="async" fetchpriority="low" />
-                            </span>
-                        <?php else : ?>
-                            <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
-                                <span class="ll-wordset-preview-text" dir="auto"><?php echo esc_html((string) ($preview['label'] ?? '')); ?></span>
-                            </span>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                    <?php for ($i = $displayed_count; $i < $current_preview_limit; $i++) : ?>
-                        <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
-                    <?php endfor; ?>
-                <?php else : ?>
-                    <?php for ($i = 0; $i < $current_preview_limit; $i++) : ?>
-                        <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
-                    <?php endfor; ?>
-                <?php endif; ?>
+        <?php if ($is_public && $cat_url !== '') : ?>
+            <a class="ll-wordset-card__lesson-link" href="<?php echo esc_url($cat_url); ?>" aria-label="<?php echo esc_attr($cat_name); ?>">
+        <?php else : ?>
+            <div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive" aria-label="<?php echo esc_attr($cat_name); ?>">
+        <?php endif; ?>
+                <div class="ll-wordset-card__preview <?php echo !empty($cat['has_images']) ? 'has-images' : 'has-text'; ?>"<?php echo $preview_style; ?>>
+                    <?php if ($is_public && $card_starred_count > 0) : ?>
+                        <span
+                            class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred"
+                            aria-label="<?php echo esc_attr(sprintf(_n('%1$d starred word in %2$s', '%1$d starred words in %2$s', $card_starred_count, 'll-tools-text-domain'), $card_starred_count, $cat_name)); ?>">
+                            <?php echo ll_tools_wordset_page_render_progress_icon('starred', 'll-wordset-progress-pill__icon ll-wordset-card__starred-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                            <span class="ll-wordset-progress-pill__value ll-wordset-card__starred-value"><?php echo (int) $card_starred_count; ?></span>
+                        </span>
+                    <?php endif; ?>
+                    <?php if (!empty($cat['preview'])) : ?>
+                        <?php
+                        $preview_items = array_values((array) $cat['preview']);
+                        $preview_count = count($preview_items);
+                        $displayed_count = min($preview_count, $current_preview_limit);
+                        ?>
+                        <?php foreach (array_slice($preview_items, 0, $current_preview_limit) as $preview) : ?>
+                            <?php if (($preview['type'] ?? '') === 'image') : ?>
+                                <?php
+                                $preview_ratio_style = '';
+                                if (!empty($preview['ratio'])) {
+                                    $ratio_value = esc_attr((string) $preview['ratio']);
+                                    $preview_ratio_style = ' style="aspect-ratio: ' . $ratio_value . ' !important;"';
+                                }
+                                $preview_width = !empty($preview['width']) ? (int) $preview['width'] : 0;
+                                $preview_height = !empty($preview['height']) ? (int) $preview['height'] : 0;
+                                $preview_width_attr = $preview_width > 0 ? ' width="' . esc_attr($preview_width) . '"' : '';
+                                $preview_height_attr = $preview_height > 0 ? ' height="' . esc_attr($preview_height) . '"' : '';
+                                ?>
+                                <span class="ll-wordset-preview-item ll-wordset-preview-item--image"<?php echo $preview_ratio_style; ?>>
+                                    <img src="<?php echo esc_url((string) ($preview['url'] ?? '')); ?>" alt="<?php echo esc_attr((string) ($preview['alt'] ?? '')); ?>"<?php echo $preview_width_attr . $preview_height_attr; ?> loading="lazy" decoding="async" fetchpriority="low" />
+                                </span>
+                            <?php else : ?>
+                                <span class="ll-wordset-preview-item ll-wordset-preview-item--text">
+                                    <span class="ll-wordset-preview-text" dir="auto"><?php echo esc_html((string) ($preview['label'] ?? '')); ?></span>
+                                </span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <?php for ($i = $displayed_count; $i < $current_preview_limit; $i++) : ?>
+                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                        <?php endfor; ?>
+                    <?php else : ?>
+                        <?php for ($i = 0; $i < $current_preview_limit; $i++) : ?>
+                            <span class="ll-wordset-preview-item ll-wordset-preview-item--empty" aria-hidden="true"></span>
+                        <?php endfor; ?>
+                    <?php endif; ?>
+                </div>
+        <?php if ($is_public && $cat_url !== '') : ?>
+            </a>
+        <?php else : ?>
             </div>
-        </a>
-        <div class="ll-wordset-card__progress" aria-hidden="true">
-            <span class="ll-wordset-card__progress-track<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>">
-                <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: <?php echo esc_attr(number_format((float) $card_mastered_pct, 2, '.', '')); ?>%;">
-                    <?php echo ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+        <?php endif; ?>
+        <?php if (!$is_public) : ?>
+            <div class="ll-wordset-card__public-note" role="note">
+                <span class="ll-wordset-card__public-note-label"><?php echo esc_html__('Not public', 'll-tools-text-domain'); ?></span>
+                <span class="ll-wordset-card__public-note-text"><?php echo esc_html($public_note); ?></span>
+            </div>
+        <?php else : ?>
+            <div class="ll-wordset-card__progress" aria-hidden="true">
+                <span class="ll-wordset-card__progress-track<?php echo $summary_counts_deferred ? ' is-loading' : ''; ?>">
+                    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: <?php echo esc_attr(number_format((float) $card_mastered_pct, 2, '.', '')); ?>%;">
+                        <?php echo ll_tools_wordset_page_render_progress_icon('mastered', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </span>
+                    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: <?php echo esc_attr(number_format((float) $card_studied_pct, 2, '.', '')); ?>%;">
+                        <?php echo ll_tools_wordset_page_render_progress_icon('studied', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </span>
+                    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: <?php echo esc_attr(number_format((float) $card_new_pct, 2, '.', '')); ?>%;">
+                        <?php echo ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </span>
                 </span>
-                <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: <?php echo esc_attr(number_format((float) $card_studied_pct, 2, '.', '')); ?>%;">
-                    <?php echo ll_tools_wordset_page_render_progress_icon('studied', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                </span>
-                <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: <?php echo esc_attr(number_format((float) $card_new_pct, 2, '.', '')); ?>%;">
-                    <?php echo ll_tools_wordset_page_render_progress_icon('new', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                </span>
-            </span>
-        </div>
-        <div class="ll-wordset-card__quiz-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Quiz modes for %s', 'll-tools-text-domain'), $cat_name)); ?>">
-            <?php
-            $card_modes = ll_tools_get_study_launch_mode_order($gender_enabled && !empty($cat['gender_supported']));
-            foreach ($card_modes as $mode) :
-            ?>
-                <button type="button" class="ll-wordset-card__quiz-btn" data-ll-wordset-category-mode data-mode="<?php echo esc_attr($mode); ?>" data-cat-id="<?php echo esc_attr($cat_id); ?>" aria-label="<?php echo esc_attr(sprintf(__('%1$s: %2$s', 'll-tools-text-domain'), $mode_labels[$mode] ?? ucfirst($mode), $cat_name)); ?>">
-                    <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓', 'll-wordset-card__quiz-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                </button>
-            <?php endforeach; ?>
-        </div>
+            </div>
+            <div class="ll-wordset-card__quiz-actions" role="group" aria-label="<?php echo esc_attr(sprintf(__('Quiz modes for %s', 'll-tools-text-domain'), $cat_name)); ?>">
+                <?php
+                $card_modes = ll_tools_get_study_launch_mode_order($gender_enabled && !empty($cat['gender_supported']));
+                foreach ($card_modes as $mode) :
+                ?>
+                    <button type="button" class="ll-wordset-card__quiz-btn" data-ll-wordset-category-mode data-mode="<?php echo esc_attr($mode); ?>" data-cat-id="<?php echo esc_attr($cat_id); ?>" aria-label="<?php echo esc_attr(sprintf(__('%1$s: %2$s', 'll-tools-text-domain'), $mode_labels[$mode] ?? ucfirst($mode), $cat_name)); ?>">
+                        <?php echo ll_tools_wordset_page_render_mode_icon($mode, $mode_ui, $mode_fallback_icons[$mode] ?? '❓', 'll-wordset-card__quiz-icon'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </article>
     <?php
 
@@ -10932,12 +11305,14 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
         if ($enhanced['aspect_bucket'] === '') {
             $enhanced['aspect_bucket'] = 'no-image';
         }
+        $enhanced['is_public'] = !array_key_exists('is_public', $cat) || !empty($cat['is_public']);
+        $enhanced['public_note'] = isset($cat['public_note']) ? (string) $cat['public_note'] : '';
         $enhanced['hidden'] = !empty($ignored_lookup[$cid]);
 
         $enhanced_categories[] = $enhanced;
-        if ($enhanced['hidden']) {
+        if ($enhanced['is_public'] && $enhanced['hidden']) {
             $hidden_categories[] = $enhanced;
-        } else {
+        } elseif ($enhanced['is_public']) {
             $visible_categories[] = $enhanced;
         }
     }
@@ -11623,6 +11998,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'learning_supported' => !empty($cat['learning_supported']),
             'self_check_supported' => !array_key_exists('self_check_supported', $cat) || !empty($cat['self_check_supported']),
             'gender_supported' => !empty($cat['gender_supported']),
+            'is_public' => !array_key_exists('is_public', $cat) || !empty($cat['is_public']),
+            'public_note' => (string) ($cat['public_note'] ?? ''),
             'aspect_bucket' => (string) ($cat['aspect_bucket'] ?? 'no-image'),
             'hidden' => !empty($cat['hidden']),
             'has_images' => !empty($cat['has_images']),
@@ -11715,6 +12092,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'nextReady' => __('Recommended: %1$s in %2$s (%3$d words).', 'll-tools-text-domain'),
             'nextReadyNoCount' => __('Recommended: %1$s in %2$s.', 'll-tools-text-domain'),
             'categoriesLabel' => __('Categories', 'll-tools-text-domain'),
+            'notPublicLabel' => __('Not public', 'll-tools-text-domain'),
+            'categoryNotPublicDefaultNote' => __('Not public yet.', 'll-tools-text-domain'),
             'starredWordsLabel' => __('Starred words', 'll-tools-text-domain'),
             'repeatLabel' => __('Repeat', 'll-tools-text-domain'),
             'continueLabel' => __('Continue', 'll-tools-text-domain'),

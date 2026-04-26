@@ -1468,6 +1468,10 @@
                     ? !!cat.self_check_supported
                     : true,
                 gender_supported: !!(cat && cat.gender_supported),
+                is_public: cat && Object.prototype.hasOwnProperty.call(cat, 'is_public')
+                    ? !!cat.is_public
+                    : true,
+                public_note: String((cat && cat.public_note) || ''),
                 hidden: !!(cat && cat.hidden),
                 has_images: !!(cat && cat.has_images),
                 search_text: String((cat && cat.search_text) || ''),
@@ -5773,6 +5777,21 @@
         return null;
     }
 
+    function categoryIsPublic(category) {
+        const cat = (category && typeof category === 'object') ? category : null;
+        if (!cat) { return false; }
+        return !Object.prototype.hasOwnProperty.call(cat, 'is_public') || cat.is_public !== false;
+    }
+
+    function categoryIdIsPublic(catId) {
+        return categoryIsPublic(getCategoryById(catId));
+    }
+
+    function categoryIdIsLaunchable(catId) {
+        const id = parseInt(catId, 10) || 0;
+        return id > 0 && categoryIdIsPublic(id) && !isCategoryHidden(id);
+    }
+
     function categoryUsesTextPreview(category) {
         const cat = (category && typeof category === 'object') ? category : {};
         const preview = Array.isArray(cat.preview) ? cat.preview : [];
@@ -5852,7 +5871,7 @@
 
     function filterCategoryIdsByAspectBucket(categoryIds, options) {
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         if (ids.length < 2) {
             return ids;
@@ -5891,7 +5910,7 @@
 
     function selectCompatibleCategoryIdsByWordCounts(categoryIds, options) {
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         if (ids.length < 2) {
             return ids;
@@ -6102,13 +6121,13 @@
         return categories.map(function (cat) {
             return parseInt(cat && cat.id, 10) || 0;
         }).filter(function (id) {
-            return id > 0 && !ignored[id];
+            return id > 0 && !ignored[id] && categoryIdIsPublic(id);
         });
     }
 
     function getKnownVisibleCategoryIds(rawIds) {
         return uniqueIntList(rawIds || []).filter(function (id) {
-            return !isCategoryHidden(id) && !!getCategoryById(id);
+            return categoryIdIsLaunchable(id) && !!getCategoryById(id);
         });
     }
 
@@ -6220,7 +6239,7 @@
 
     function hasActiveCategorySelection() {
         const ids = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         return ids.length > 0;
     }
@@ -6297,7 +6316,7 @@
 
     function buildSelectionWordMetrics(categoryIds) {
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         const metrics = { total: 0, mastered: 0, studied: 0, new: 0, starred: 0, hard: 0, starredHard: 0 };
         if (!ids.length) {
@@ -6462,7 +6481,7 @@
             const query = String(mainCategorySearchQuery || '').trim();
             categories.forEach(function (category) {
                 const id = parseInt(category && category.id, 10) || 0;
-                if (!id || isCategoryHidden(id)) {
+                if (!id || !categoryIdIsLaunchable(id)) {
                     return;
                 }
                 if (query && !mainCategoryMatchesSearch(category, query)) {
@@ -6480,7 +6499,7 @@
             if ($card.length && $card.prop('hidden')) {
                 return;
             }
-            if (id > 0 && !isCategoryHidden(id)) {
+            if (categoryIdIsLaunchable(id)) {
                 ids.push(id);
             }
         });
@@ -6659,6 +6678,8 @@
         const temporarySearchCard = !!opts.temporarySearchCard;
         const catName = String(cat.name || cat.translation || '').trim();
         const catUrl = String(cat.url || '#').trim() || '#';
+        const isPublic = categoryIsPublic(cat);
+        const publicNote = String(cat.public_note || i18n.categoryNotPublicDefaultNote || 'Not public yet.').trim();
         const progressValues = progressLookup[categoryId] || { mastered: 0, studied: 0, new: 100 };
         const starredCount = Math.max(0, parseInt(starredLookup[categoryId], 10) || 0);
         const trackLoadingClass = (summaryMetricsLoading || cardProgressInitialLoading) ? ' is-loading' : '';
@@ -6667,31 +6688,40 @@
         const starredAria = formatTemplate(i18n.starredWordsCategoryAria || 'Starred words in %s', [catName]);
         const quizModesAria = formatTemplate(i18n.quizModesCategoryAria || 'Quiz modes for %s', [catName]);
         const cardModes = [];
-        if (cat.learning_supported !== false) {
-            cardModes.push('learning');
-        }
-        cardModes.push('practice', 'listening');
-        if (!!genderCfg.enabled && !!cat.gender_supported) {
-            cardModes.push('gender');
-        }
-        if (cat.self_check_supported !== false) {
-            cardModes.push('self-check');
+        if (isPublic) {
+            if (cat.learning_supported !== false) {
+                cardModes.push('learning');
+            }
+            cardModes.push('practice', 'listening');
+            if (!!genderCfg.enabled && !!cat.gender_supported) {
+                cardModes.push('gender');
+            }
+            if (cat.self_check_supported !== false) {
+                cardModes.push('self-check');
+            }
         }
 
-        let html = '<article class="ll-wordset-card" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '"';
+        let html = '<article class="ll-wordset-card' + (isPublic ? '' : ' ll-wordset-card--inactive') + '" role="listitem" data-cat-id="' + categoryId + '" data-word-count="' + Math.max(0, parseInt(cat.count, 10) || 0) + '" data-ll-wordset-public="' + (isPublic ? '1' : '0') + '"';
         if (temporarySearchCard) {
             html += ' data-ll-wordset-search-rendered="true"';
         }
         html += '>';
         html += '<div class="ll-wordset-card__top">';
-        html += '  <label class="ll-wordset-card__select" aria-label="' + escapeHtml(selectAria) + '">';
-        html += '    <input type="checkbox" value="' + categoryId + '" data-ll-wordset-select />';
-        html += '    <span class="ll-wordset-card__select-box" aria-hidden="true"></span>';
-        html += '  </label>';
-        html += '  <a class="ll-wordset-card__heading" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
-        html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
-        html += '  </a>';
-        if (isLoggedIn) {
+        if (isPublic) {
+            html += '  <label class="ll-wordset-card__select" aria-label="' + escapeHtml(selectAria) + '">';
+            html += '    <input type="checkbox" value="' + categoryId + '" data-ll-wordset-select />';
+            html += '    <span class="ll-wordset-card__select-box" aria-hidden="true"></span>';
+            html += '  </label>';
+            html += '  <a class="ll-wordset-card__heading" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+            html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
+            html += '  </a>';
+        } else {
+            html += '  <span class="ll-wordset-card__select ll-wordset-card__select--inactive" aria-hidden="true"><span class="ll-wordset-card__select-box"></span></span>';
+            html += '  <div class="ll-wordset-card__heading" aria-label="' + escapeHtml(catName) + '">';
+            html += '    <h2 class="ll-wordset-card__title">' + escapeHtml(catName) + '</h2>';
+            html += '  </div>';
+        }
+        if (isPublic && isLoggedIn) {
             html += '  <button type="button" class="ll-wordset-card__hide" data-ll-wordset-hide data-cat-id="' + categoryId + '" aria-label="' + escapeHtml(hideAria) + '">'
                 + '    <svg class="ll-wordset-hide-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true" focusable="false"><path d="M1.5 12s3.8-6.5 10.5-6.5S22.5 12 22.5 12 18.7 18.5 12 18.5 1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M3 21 21 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>'
                 + '  </button>';
@@ -6699,9 +6729,13 @@
             html += '  <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>';
         }
         html += '</div>';
-        html += '<a class="ll-wordset-card__lesson-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+        if (isPublic) {
+            html += '<a class="ll-wordset-card__lesson-link" href="' + escapeHtml(catUrl) + '" aria-label="' + escapeHtml(catName) + '">';
+        } else {
+            html += '<div class="ll-wordset-card__lesson-link ll-wordset-card__lesson-link--inactive" aria-label="' + escapeHtml(catName) + '">';
+        }
         html += '  <div class="ll-wordset-card__preview ' + (cat.has_images ? 'has-images' : 'has-text') + '">';
-        if (starredCount > 0) {
+        if (isPublic && starredCount > 0) {
             html += '    <span class="ll-wordset-card__starred-pill ll-wordset-progress-pill ll-wordset-progress-pill--starred" aria-label="' + escapeHtml(starredAria) + '">'
                 + buildProgressIconMarkup('starred', 'll-wordset-progress-pill__icon ll-wordset-card__starred-icon')
                 + '<span class="ll-wordset-progress-pill__value ll-wordset-card__starred-value">' + starredCount + '</span>'
@@ -6709,7 +6743,15 @@
         }
         html += buildWordsetCategoryPreviewMarkup(cat);
         html += '  </div>';
-        html += '</a>';
+        html += isPublic ? '</a>' : '</div>';
+        if (!isPublic) {
+            html += '<div class="ll-wordset-card__public-note" role="note">'
+                + '<span class="ll-wordset-card__public-note-label">' + escapeHtml(i18n.notPublicLabel || 'Not public') + '</span>'
+                + '<span class="ll-wordset-card__public-note-text">' + escapeHtml(publicNote) + '</span>'
+                + '</div>';
+            html += '</article>';
+            return html;
+        }
         html += '<div class="ll-wordset-card__progress" aria-hidden="true">';
         html += '  <span class="ll-wordset-card__progress-track' + trackLoadingClass + '">';
         html += '    <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: ' + formatProgressPercent(progressValues.mastered) + ';">' + buildProgressIconMarkup('mastered', 'll-wordset-progress-pill__icon ll-wordset-card__progress-icon') + '</span>';
@@ -7531,7 +7573,7 @@
 
         const previousSelectedIds = uniqueIntList(selectedCategoryIds || []);
         selectedCategoryIds = previousSelectedIds.filter(function (id) {
-            return !!visibleLookup[id];
+            return !!visibleLookup[id] && categoryIdIsLaunchable(id);
         });
         const selectedLookup = {};
         selectedCategoryIds.forEach(function (id) {
@@ -10293,7 +10335,7 @@
         if (!$selectionBar.length) { return; }
 
         const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         selectedCategoryIds = selectedIds.slice();
 
@@ -10408,7 +10450,7 @@
     function syncSelectionModeButtons(options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(opts.categoryIds || selectedCategoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         const hasSelection = ids.length > 0;
         const allowGender = selectionHasGenderSupport(ids);
@@ -10819,7 +10861,7 @@
     function buildLearningSelectionLaunchPlan(categoryIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         const minimumWords = Math.max(
             getSelectionMinimumWordCount(),
@@ -10951,7 +10993,7 @@
 
     function buildCategoryCompatibilityGroups(categoryIds, options) {
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         if (!ids.length) {
             return [];
@@ -10981,7 +11023,7 @@
     function buildSelectionChunkLaunchPlan(categoryIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         if (!ids.length) {
             return {
@@ -11086,7 +11128,7 @@
     function buildSelectionPracticeLaunchPlan(categoryIds, options) {
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         if (!ids.length) {
             return {
@@ -11231,7 +11273,7 @@
         const key = normalizeMode(mode);
         const opts = (options && typeof options === 'object') ? options : {};
         const ids = uniqueIntList(categoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         if (!key) { return []; }
         const byMode = ids.filter(function (id) {
@@ -12205,7 +12247,7 @@
         const shouldFastStartListeningWithoutSession = finalMode === 'listening' && sessionIds.length === 0;
         if (shouldFastStartListeningWithoutSession) {
             let selectedCats = categories.filter(function (cat) {
-                return ids.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id);
+                return ids.indexOf(cat.id) !== -1 && categoryIdIsLaunchable(cat.id);
             });
             if (!selectedCats.length) {
                 abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
@@ -12260,7 +12302,7 @@
             }
 
             let selectedCats = categories.filter(function (cat) {
-                return launchCategoryIds.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id);
+                return launchCategoryIds.indexOf(cat.id) !== -1 && categoryIdIsLaunchable(cat.id);
             });
             if (!selectedCats.length) {
                 abortLaunch(i18n.noCategoriesSelected || 'Select at least one category.');
@@ -12312,7 +12354,7 @@
             if (!selectedCats.length && effectiveSessionIds.length) {
                 effectiveSessionIds = [];
                 selectedCats = categories.filter(function (cat) {
-                    return launchCategoryIds.indexOf(cat.id) !== -1 && !isCategoryHidden(cat.id) && hasWordRowsForCategory(cat.id, null);
+                    return launchCategoryIds.indexOf(cat.id) !== -1 && categoryIdIsLaunchable(cat.id) && hasWordRowsForCategory(cat.id, null);
                 });
             }
 
@@ -12387,7 +12429,7 @@
         const normalizedMode = normalizeMode(mode) || 'practice';
         const minimumWordCount = getSelectionMinimumWordCount();
         const selectedIds = uniqueIntList(selectedCategoryIds || []).filter(function (id) {
-            return !isCategoryHidden(id);
+            return categoryIdIsLaunchable(id);
         });
         const selectionPriorityFocus = getSelectionPriorityFilterFocus();
         const priorityOnlyActive = !!selectionPriorityOnly && selectionPriorityFocus !== '';
@@ -12988,6 +13030,7 @@
             const mode = normalizeMode($(this).attr('data-mode') || 'practice') || 'practice';
             const catId = parseInt($(this).attr('data-cat-id'), 10) || 0;
             if (!catId) { return; }
+            if (!categoryIdIsLaunchable(catId)) { return; }
             chunkSession = null;
             launchFlashcards(mode, [catId], [], {
                 source: 'wordset_category_start',

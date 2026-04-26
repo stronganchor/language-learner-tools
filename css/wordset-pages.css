@@ -1985,6 +1985,22 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     transition: opacity 0.16s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease;
 }
 
+.ll-wordset-card--inactive {
+    background: #f4f6f8;
+    border-color: #d1d5db;
+    box-shadow: none;
+    color: #4b5563;
+}
+
+.ll-wordset-card--inactive .ll-wordset-card__title {
+    color: #4b5563 !important;
+}
+
+.ll-wordset-card--inactive .ll-wordset-card__preview {
+    opacity: 0.66;
+    filter: grayscale(0.42);
+}
+
 .ll-wordset-card.is-removing {
     pointer-events: none;
     opacity: 0;
@@ -2169,6 +2185,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     cursor: pointer;
 }
 
+.ll-wordset-card__select--inactive {
+    cursor: default;
+}
+
 .ll-wordset-card__select input {
     position: absolute;
     width: 1px;
@@ -2187,6 +2207,12 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     border: 2px solid #9ca3af;
     background: #fff;
     position: relative;
+}
+
+.ll-wordset-card__select--inactive .ll-wordset-card__select-box {
+    border-color: #cbd5e1;
+    border-style: dashed;
+    background: #eef2f6;
 }
 
 .ll-wordset-card__select input:checked + .ll-wordset-card__select-box {
@@ -2271,10 +2297,51 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     white-space: nowrap;
 }
 
+.ll-wordset-card__public-note {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    background: #ffffff;
+    color: #4b5563;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.ll-wordset-card__public-note-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 22px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.ll-wordset-card__public-note-text {
+    min-width: 0;
+}
+
 .ll-wordset-card__lesson-link {
     text-decoration: none !important;
     color: inherit !important;
     display: block;
+}
+
+.ll-wordset-card__lesson-link--inactive {
+    cursor: default;
 }
 
 .ll-wordset-card__preview {
