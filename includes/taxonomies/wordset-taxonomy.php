@@ -4704,6 +4704,12 @@ function ll_tools_get_wordset_cache_epoch(): int {
 function ll_tools_bump_wordset_cache_epoch(): void {
     $epoch = ll_tools_get_wordset_cache_epoch();
     update_option('ll_tools_wordset_cache_epoch', $epoch + 1, false);
+    if (function_exists('ll_tools_purge_public_static_cache_once')) {
+        ll_tools_purge_public_static_cache_once();
+    }
+    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
+        ll_tools_purge_wordset_buttons_shortcode_cache_once();
+    }
 }
 
 function ll_tools_handle_wordset_cache_epoch_bump($term_id = 0): void {

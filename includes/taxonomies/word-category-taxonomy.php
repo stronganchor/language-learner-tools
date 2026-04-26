@@ -2649,6 +2649,12 @@ function ll_tools_get_category_cache_epoch() {
 function ll_tools_bump_category_cache_epoch() {
     $epoch = ll_tools_get_category_cache_epoch();
     update_option('ll_tools_wc_cache_epoch', $epoch + 1, false);
+    if (function_exists('ll_tools_purge_public_static_cache_once')) {
+        ll_tools_purge_public_static_cache_once();
+    }
+    if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache_once')) {
+        ll_tools_purge_wordset_buttons_shortcode_cache_once();
+    }
 }
 
 /**

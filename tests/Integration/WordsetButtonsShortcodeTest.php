@@ -5,6 +5,14 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
 {
     private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+yZ5kAAAAASUVORK5CYII=';
 
+    protected function tearDown(): void
+    {
+        if (function_exists('ll_tools_purge_wordset_buttons_shortcode_cache')) {
+            ll_tools_purge_wordset_buttons_shortcode_cache();
+        }
+        parent::tearDown();
+    }
+
     public function test_shortcode_renders_viewable_wordsets_with_published_lesson_counts_only(): void
     {
         $public_term = wp_insert_term('Buttons Public Wordset', 'wordset');
@@ -124,6 +132,22 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Buttons Plain Wordset', $html);
         $this->assertStringContainsString('ll-wordset-buttons-shortcode__image', $html);
         $this->assertSame(1, substr_count($html, 'll-wordset-buttons-shortcode__media'));
+    }
+
+    public function test_shortcode_returns_anonymous_cached_html_when_available(): void
+    {
+        wp_set_current_user(0);
+        $cache_key = ll_tools_wordset_buttons_shortcode_cache_key([
+            'class' => '',
+            'hide_empty' => '0',
+        ], 'll_wordset_buttons');
+        $cached_html = '<div class="ll-wordset-buttons-shortcode"><a class="ll-wordset-buttons-shortcode__button">Cached wordsets</a></div>';
+        ll_tools_wordset_buttons_shortcode_cache_set($cache_key, $cached_html);
+
+        $this->assertSame($cached_html, do_shortcode('[ll_wordset_buttons]'));
+
+        ll_tools_purge_wordset_buttons_shortcode_cache();
+        $this->assertFalse(get_transient($cache_key));
     }
 
     private function createPublishedLessonForWordset(int $wordset_id, string $title): int
