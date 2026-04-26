@@ -263,6 +263,28 @@ function ll_tools_rest_automation_require_wordset_access(WP_REST_Request $reques
     return true;
 }
 
+function ll_tools_rest_automation_require_review_notes_access(WP_REST_Request $request) {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    if (!function_exists('ll_tools_current_user_can_manage_internal_review_notes') || !ll_tools_current_user_can_manage_internal_review_notes((int) $wordset_term->term_id)) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_review_notes_forbidden',
+            __('You cannot manage internal review notes for this word set.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_automation_require_wordset_create_access() {
     $view_check = ll_tools_rest_automation_require_view_access();
     if (is_wp_error($view_check)) {
@@ -449,6 +471,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
+            'review_notes' => '/ll-tools/v1/wordsets/{wordset}/review-notes',
             'import_preview' => '/ll-tools/v1/imports/preview',
             'import_start' => '/ll-tools/v1/imports/start',
             'import_status' => '/ll-tools/v1/imports/{job_id}',
@@ -1340,6 +1363,89 @@ function ll_tools_rest_automation_wordset_report_summary(WP_REST_Request $reques
     ]);
 }
 
+function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    if ($request->get_method() === 'POST') {
+        $object_id_param = $request->get_param('object_id');
+        $object_id = is_scalar($object_id_param) ? absint($object_id_param) : 0;
+        $submitted_type = ll_tools_internal_review_note_normalize_object_type(
+            ll_tools_rest_automation_request_string($request, 'object_type')
+        );
+        $note_param = $request->get_param('note');
+        if (!is_scalar($note_param)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_review_note_missing_note',
+                __('Provide a note value. Send an empty string to clear the note.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        if ($object_id <= 0) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_review_note_missing_object',
+                __('Provide the word or prompt card object_id to update.', 'll-tools-text-domain'),
+                400
+            );
+        }
+
+        $object_type = function_exists('ll_tools_internal_review_note_object_type')
+            ? ll_tools_internal_review_note_object_type($object_id)
+            : '';
+        if ($object_type === '' || ($submitted_type !== '' && $submitted_type !== $object_type)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_review_note_invalid_object',
+                __('This item cannot store an internal review note.', 'll-tools-text-domain'),
+                400
+            );
+        }
+        if (!ll_tools_internal_review_note_object_belongs_to_wordset($object_id, $wordset_id)) {
+            return ll_tools_rest_automation_error(
+                'll_tools_rest_review_note_wrong_wordset',
+                __('This item does not belong to the selected word set.', 'll-tools-text-domain'),
+                400
+            );
+        }
+
+        $saved_note = ll_tools_set_internal_review_note($object_id, (string) $note_param);
+        return rest_ensure_response([
+            'wordset' => [
+                'id' => $wordset_id,
+                'slug' => (string) $wordset_term->slug,
+                'name' => (string) $wordset_term->name,
+            ],
+            'object_type' => $object_type,
+            'object_id' => $object_id,
+            'note' => $saved_note,
+            'row' => ll_tools_build_internal_review_note_row($object_id, $wordset_id),
+        ]);
+    }
+
+    $category_spec = ll_tools_rest_automation_request_string($request, 'category');
+    $include_empty = (bool) rest_sanitize_boolean($request->get_param('include_empty'));
+    $rows = function_exists('ll_tools_get_internal_review_note_rows_for_wordset')
+        ? ll_tools_get_internal_review_note_rows_for_wordset($wordset_id, $category_spec, $include_empty)
+        : [];
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'filters' => [
+            'category' => $category_spec,
+            'include_empty' => $include_empty,
+        ],
+        'count' => count($rows),
+        'notes' => $rows,
+    ]);
+}
+
 function ll_tools_rest_automation_resolve_import_zip(WP_REST_Request $request) {
     ll_tools_rest_automation_load_import_helpers();
 
@@ -1688,6 +1794,34 @@ function ll_tools_rest_register_automation_routes(): void {
         'methods' => WP_REST_Server::READABLE,
         'callback' => 'll_tools_rest_automation_wordset_report_summary',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/review-notes', [
+        'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE],
+        'callback' => 'll_tools_rest_automation_review_notes',
+        'permission_callback' => 'll_tools_rest_automation_require_review_notes_access',
+        'args' => [
+            'category' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'include_empty' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'object_type' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'object_id' => [
+                'required' => false,
+                'type' => 'integer',
+            ],
+            'note' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+        ],
     ]);
 
     register_rest_route('ll-tools/v1', '/imports/preview', [

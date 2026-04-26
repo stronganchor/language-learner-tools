@@ -10,6 +10,9 @@
     const bulkI18n = cfg.bulkI18n || {};
     const prereqI18n = cfg.prereqI18n || {};
     const transcribeI18n = cfg.transcribeI18n || {};
+    const internalNotesCfg = (cfg.internalNotes && typeof cfg.internalNotes === 'object') ? cfg.internalNotes : {};
+    const internalNotesI18n = (internalNotesCfg.i18n && typeof internalNotesCfg.i18n === 'object') ? internalNotesCfg.i18n : {};
+    const internalNotesEnabled = !!internalNotesCfg.enabled && !!internalNotesCfg.nonce && !!ajaxUrl;
     const transcribePollAttemptsRaw = parseInt(cfg.transcribePollAttempts, 10);
     const transcribePollIntervalRaw = parseInt(cfg.transcribePollIntervalMs, 10);
     const transcribePollAttempts = Number.isFinite(transcribePollAttemptsRaw) && transcribePollAttemptsRaw > 0
@@ -1840,6 +1843,122 @@
             return response.message;
         }
         return fallback;
+    }
+
+    function getInternalNoteMessage(key, fallback) {
+        const value = internalNotesI18n[key];
+        return (typeof value === 'string' && value) ? value : fallback;
+    }
+
+    function setInternalNoteStatus($wrap, message, state) {
+        const $status = $wrap.find('[data-ll-internal-review-note-status]').first();
+        if (!$status.length) { return; }
+        const normalizedState = (state || '').toString();
+        $status
+            .text(message || '')
+            .removeClass('is-saving is-success is-error')
+            .toggleClass('is-saving', normalizedState === 'saving')
+            .toggleClass('is-success', normalizedState === 'success')
+            .toggleClass('is-error', normalizedState === 'error');
+    }
+
+    function getInternalNoteOriginalValue($input) {
+        if (!$input.length) { return ''; }
+        if (!$input.attr('data-ll-internal-review-note-original')) {
+            const current = ($input.val() || '').toString();
+            $input.attr('data-ll-internal-review-note-original', current);
+            const inputEl = $input.get(0);
+            if (inputEl) {
+                inputEl.defaultValue = current;
+            }
+        }
+        return ($input.attr('data-ll-internal-review-note-original') || '').toString();
+    }
+
+    function setInternalNoteOriginalValue($input, value) {
+        const clean = (value || '').toString();
+        $input.val(clean);
+        $input.attr('data-ll-internal-review-note-original', clean);
+        const inputEl = $input.get(0);
+        if (inputEl) {
+            inputEl.defaultValue = clean;
+        }
+    }
+
+    function clearInternalNoteTimer($wrap) {
+        const timer = parseInt($wrap.data('llInternalReviewNoteTimer'), 10) || 0;
+        if (timer > 0) {
+            window.clearTimeout(timer);
+        }
+        $wrap.removeData('llInternalReviewNoteTimer');
+    }
+
+    function saveInternalReviewNote($wrap) {
+        if (!internalNotesEnabled || !$wrap || !$wrap.length) { return; }
+
+        const $input = $wrap.find('[data-ll-internal-review-note-input]').first();
+        if (!$input.length) { return; }
+
+        clearInternalNoteTimer($wrap);
+
+        const note = ($input.val() || '').toString();
+        const original = getInternalNoteOriginalValue($input);
+        if (note === original && !$wrap.data('llInternalReviewNoteDirty')) {
+            return;
+        }
+
+        const objectId = parseInt($wrap.attr('data-object-id'), 10) || 0;
+        const objectType = ($wrap.attr('data-object-type') || '').toString();
+        const wordsetId = parseInt($wrap.attr('data-wordset-id'), 10) || 0;
+        if (!objectId || !objectType) { return; }
+
+        $wrap.removeData('llInternalReviewNoteDirty');
+        $wrap.addClass('is-saving');
+        $input.prop('disabled', true);
+        setInternalNoteStatus($wrap, getInternalNoteMessage('saving', 'Saving review note...'), 'saving');
+
+        $.ajax({
+            url: ajaxUrl,
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                action: internalNotesCfg.action || 'll_tools_save_internal_review_note',
+                nonce: internalNotesCfg.nonce,
+                object_id: objectId,
+                object_type: objectType,
+                wordset_id: wordsetId,
+                note: note
+            }
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                setInternalNoteStatus($wrap, readResponseErrorMessage(response, getInternalNoteMessage('error', 'Unable to save the review note.')), 'error');
+                return;
+            }
+            const data = response.data || {};
+            const savedNote = (typeof data.note === 'string') ? data.note : note;
+            setInternalNoteOriginalValue($input, savedNote);
+            setInternalNoteStatus($wrap, getInternalNoteMessage('saved', 'Review note saved.'), 'success');
+            window.setTimeout(function () {
+                if (!$wrap.hasClass('is-saving')) {
+                    setInternalNoteStatus($wrap, '', '');
+                }
+            }, 1800);
+        }).fail(function (jqXHR) {
+            setInternalNoteStatus($wrap, readAjaxErrorMessage(jqXHR, getInternalNoteMessage('error', 'Unable to save the review note.')), 'error');
+        }).always(function () {
+            $wrap.removeClass('is-saving');
+            $input.prop('disabled', false);
+        });
+    }
+
+    function scheduleInternalReviewNoteSave($wrap) {
+        if (!internalNotesEnabled || !$wrap || !$wrap.length) { return; }
+        clearInternalNoteTimer($wrap);
+        $wrap.data('llInternalReviewNoteDirty', true);
+        const timer = window.setTimeout(function () {
+            saveInternalReviewNote($wrap);
+        }, 900);
+        $wrap.data('llInternalReviewNoteTimer', timer);
     }
 
     function formatPrereqLevelText(level, hasCycle) {
@@ -5610,6 +5729,16 @@
                 event.preventDefault();
                 $editor.find('[data-ll-inline-word-save]').first().trigger('click');
             }
+        });
+
+        $grids.on('input', '[data-ll-internal-review-note-input]', function () {
+            const $input = $(this);
+            getInternalNoteOriginalValue($input);
+            scheduleInternalReviewNoteSave($input.closest('[data-ll-internal-review-note]'));
+        });
+
+        $grids.on('blur change', '[data-ll-internal-review-note-input]', function () {
+            saveInternalReviewNote($(this).closest('[data-ll-internal-review-note]'));
         });
 
         $grids.on('click', '[data-ll-inline-word-save]', function (e) {

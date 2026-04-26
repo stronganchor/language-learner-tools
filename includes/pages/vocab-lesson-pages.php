@@ -998,6 +998,9 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
     $transcription_mode = (string) ($transcription_config['mode'] ?? 'ipa');
     $transcription_format = (string) ($transcription_config['display_format'] ?? 'plain');
     $transcription_uses_ipa_font = !empty($transcription_config['uses_ipa_font']);
+    $can_manage_internal_notes = function_exists('ll_tools_current_user_can_manage_internal_review_notes')
+        && function_exists('ll_tools_render_internal_review_note_field')
+        && ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
 
     $grid_attrs = [
         'id' => 'word-grid',
@@ -1151,6 +1154,9 @@ function ll_tools_render_vocab_lesson_prompt_cards_grid(int $wordset_id, $catego
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <?php if ($can_manage_internal_notes) : ?>
+                        <?php echo ll_tools_render_internal_review_note_field($prompt_card_id, 'prompt_card', $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php endif; ?>
                 </div>
             </article>
         <?php endforeach; ?>

@@ -195,6 +195,64 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(1, (int) (($data['counts']['words_with_images'] ?? 0)));
     }
 
+    public function test_review_notes_route_lists_updates_and_clears_internal_notes(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        clean_user_cache($admin_id);
+
+        $wordset_id = $this->ensure_term('wordset', 'REST Review Notes Wordset', 'rest-review-notes-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Review Notes Category', 'rest-review-notes-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Review Word', 'Review Translation');
+        $wrong_word_id = $this->create_word($wordset_id, [$category_id], 'REST Review Wrong', 'Wrong Translation');
+        $prompt_card_id = $this->create_prompt_card($wordset_id, $category_id, $word_id, [$wrong_word_id]);
+
+        update_post_meta($word_id, ll_tools_internal_review_note_meta_key(), 'Split this word.');
+        update_post_meta($prompt_card_id, ll_tools_internal_review_note_meta_key(), 'Update prompt image.');
+
+        wp_set_current_user($admin_id);
+
+        $list = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-review-notes-wordset/review-notes');
+        $this->assertSame(200, $list->get_status());
+        $list_data = $list->get_data();
+        $this->assertIsArray($list_data);
+        $this->assertSame(2, (int) ($list_data['count'] ?? 0));
+
+        $notes_by_key = [];
+        foreach ((array) ($list_data['notes'] ?? []) as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $notes_by_key[(string) ($row['object_type'] ?? '') . ':' . (int) ($row['object_id'] ?? 0)] = (string) ($row['note'] ?? '');
+        }
+        $this->assertSame('Split this word.', $notes_by_key['word:' . $word_id] ?? '');
+        $this->assertSame('Update prompt image.', $notes_by_key['prompt_card:' . $prompt_card_id] ?? '');
+
+        $clear = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-review-notes-wordset/review-notes', [
+            'object_type' => 'word',
+            'object_id' => $word_id,
+            'note' => '',
+        ]);
+        $this->assertSame(200, $clear->get_status());
+        $clear_data = $clear->get_data();
+        $this->assertIsArray($clear_data);
+        $this->assertSame('', (string) ($clear_data['note'] ?? 'not-cleared'));
+        $this->assertSame('', ll_tools_get_internal_review_note($word_id));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-review-notes-wordset/review-notes', [
+            'object_type' => 'prompt_card',
+            'object_id' => $prompt_card_id,
+            'note' => 'Replace prompt audio.',
+        ]);
+        $this->assertSame(200, $update->get_status());
+        $update_data = $update->get_data();
+        $this->assertIsArray($update_data);
+        $this->assertSame('Replace prompt audio.', (string) ($update_data['note'] ?? ''));
+        $this->assertSame('Replace prompt audio.', ll_tools_get_internal_review_note($prompt_card_id));
+    }
+
     public function test_import_rest_routes_preview_start_process_and_expose_result_with_basic_auth(): void
     {
         if (!class_exists('ZipArchive')) {
@@ -419,6 +477,25 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    /**
+     * @param int[] $wrong_answer_ids
+     */
+    private function create_prompt_card(int $wordset_id, int $category_id, int $answer_id, array $wrong_answer_ids): int
+    {
+        $prompt_card_id = self::factory()->post->create([
+            'post_type' => LL_TOOLS_PROMPT_CARD_POST_TYPE,
+            'post_status' => 'publish',
+            'post_title' => 'REST Review Prompt Card',
+        ]);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_PROMPT_TEXT_META_KEY, 'Which option is right?');
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_CORRECT_ANSWER_WORD_ID_META_KEY, $answer_id);
+        update_post_meta($prompt_card_id, LL_TOOLS_PROMPT_CARD_WRONG_ANSWER_WORD_IDS_META_KEY, array_values(array_map('intval', $wrong_answer_ids)));
+        wp_set_post_terms($prompt_card_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($prompt_card_id, [$wordset_id], 'wordset', false);
+
+        return (int) $prompt_card_id;
     }
 
     /**

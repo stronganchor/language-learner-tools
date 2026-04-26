@@ -2537,11 +2537,14 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $wordset_has_verb_mood = ll_tools_wordset_has_verb_mood($wordset_id);
     }
 
-    $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id)
-        && (
-            is_singular('ll_vocab_lesson')
-            || (!empty($GLOBALS['ll_tools_word_grid_force_lesson_context']) && wp_doing_ajax())
-        );
+    $is_lesson_context = (
+        is_singular('ll_vocab_lesson')
+        || (!empty($GLOBALS['ll_tools_word_grid_force_lesson_context']) && wp_doing_ajax())
+    );
+    $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id) && $is_lesson_context;
+    $can_manage_internal_notes = $is_lesson_context
+        && function_exists('ll_tools_current_user_can_manage_internal_review_notes')
+        && ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
 
     $user_study_state = [
         'wordset_id'       => 0,
@@ -2573,6 +2576,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'wordset_has_verb_tense'       => $wordset_has_verb_tense,
         'wordset_has_verb_mood'        => $wordset_has_verb_mood,
         'can_edit_words'               => $can_edit_words,
+        'can_manage_internal_notes'     => $can_manage_internal_notes,
         'user_study_state'             => $user_study_state,
     ];
 }
@@ -2580,6 +2584,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
 function ll_tools_word_grid_build_base_frontend_config(array $context): array {
     $wordset_id = isset($context['wordset_id']) ? (int) $context['wordset_id'] : 0;
     $can_edit_words = !empty($context['can_edit_words']);
+    $can_manage_internal_notes = !empty($context['can_manage_internal_notes']);
     $transcription_service = function_exists('ll_tools_get_wordset_transcription_service_config')
         ? ll_tools_get_wordset_transcription_service_config([$wordset_id], true)
         : [
@@ -2673,6 +2678,16 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
         'isLoggedIn' => is_user_logged_in(),
         'canEdit'    => $can_edit_words,
         'editNonce'  => $can_edit_words ? wp_create_nonce('ll_word_grid_edit') : '',
+        'internalNotes' => [
+            'enabled' => $can_manage_internal_notes,
+            'action' => 'll_tools_save_internal_review_note',
+            'nonce' => $can_manage_internal_notes ? wp_create_nonce('ll_internal_review_note') : '',
+            'i18n' => [
+                'saving' => __('Saving review note...', 'll-tools-text-domain'),
+                'saved' => __('Review note saved.', 'll-tools-text-domain'),
+                'error' => __('Unable to save the review note.', 'll-tools-text-domain'),
+            ],
+        ],
         'supportsIpaExtended' => ll_tools_word_grid_supports_ipa_extended(),
         'secondaryTextMode' => $transcription_mode,
         'secondaryTextDisplayFormat' => (string) ($transcription_config['display_format'] ?? 'plain'),
@@ -3648,6 +3663,8 @@ function ll_tools_word_grid_shortcode($atts) {
     $show_stars = is_user_logged_in();
     $starred_ids = array_values(array_filter(array_map('intval', (array) ($user_study_state['starred_word_ids'] ?? []))));
     $show_lesson_recording_edit_triggers = $can_edit_words && ll_tools_word_grid_is_lesson_context($context);
+    $can_manage_internal_notes = !empty($context['can_manage_internal_notes'])
+        && function_exists('ll_tools_render_internal_review_note_field');
 
     // The Loop
     if ($query->have_posts()) {
@@ -4072,6 +4089,9 @@ function ll_tools_word_grid_shortcode($atts) {
                     $note_class .= ' ll-word-note--empty';
                 }
                 echo '<div class="' . esc_attr($note_class) . '" data-ll-word-note>' . esc_html($word_note) . '</div>';
+            }
+            if ($can_manage_internal_notes) {
+                echo ll_tools_render_internal_review_note_field((int) $word_id, 'word', (int) $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
 
             if ($can_edit_words) {
