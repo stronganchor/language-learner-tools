@@ -414,18 +414,23 @@ p:has(.ll-word-audio) {
     display: none;
 }
 
+.word-grid.ll-word-grid .ll-word-meta-tag--gender,
+.word-grid.ll-word-grid .ll-word-meta-tag--pos,
+.word-grid.ll-word-grid .ll-word-meta-tag--plurality {
+    border-color: var(--ll-gender-border, rgba(107, 114, 128, 0.38));
+    background: var(--ll-gender-bg, rgba(107, 114, 128, 0.14));
+    color: var(--ll-gender-accent, #6b7280);
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
 .word-grid.ll-word-grid .ll-word-meta-tag--gender {
     --ll-gender-accent: #6b7280;
     --ll-gender-bg: rgba(107, 114, 128, 0.14);
     --ll-gender-border: rgba(107, 114, 128, 0.38);
-    border-color: var(--ll-gender-border);
-    background: var(--ll-gender-bg);
-    color: var(--ll-gender-accent);
     font-family: "Noto Sans Symbols 2", "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", "Symbola", "DejaVu Sans", "Noto Sans", sans-serif !important;
     font-variant-emoji: text;
-    line-height: 1;
-    letter-spacing: 0;
-    text-transform: none;
 }
 
 .word-grid.ll-word-grid .ll-word-meta-tag--gender-masculine {
@@ -476,14 +481,6 @@ p:has(.ll-word-audio) {
 .word-grid.ll-word-grid .ll-word-meta-tag--gender .ll-gender-symbol--svg svg * {
     fill: currentColor !important;
     stroke: currentColor !important;
-}
-
-.word-grid.ll-word-grid .ll-word-meta-tag--plurality {
-    border-color: #bae6fd;
-    background: #e0f2fe;
-    color: #0369a1;
-    letter-spacing: 0;
-    text-transform: none;
 }
 
 .word-grid.ll-word-grid .ll-word-meta-tag--verb-tense {
