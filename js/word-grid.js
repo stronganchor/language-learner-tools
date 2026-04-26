@@ -55,7 +55,26 @@
 
     const WORD_GRID_IMAGE_SELECTOR = '.word-image-container img.word-image';
     const WORD_GRID_IMAGE_WRAPPER_SELECTOR = '.word-image-container';
+    const LESSON_ORDER_HANDLE_SELECTOR = '[data-ll-word-grid-order-handle]';
     const wordGridImageObservers = [];
+
+    function shouldRequireLessonOrderHandle() {
+        const nav = (typeof window !== 'undefined' && window.navigator) ? window.navigator : null;
+        if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+            try {
+                if (window.matchMedia('(pointer: coarse)').matches) {
+                    return true;
+                }
+                if (nav && Number(nav.maxTouchPoints || 0) > 0 && !window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+                    return true;
+                }
+            } catch (_error) {
+                return !!(nav && Number(nav.maxTouchPoints || 0) > 0);
+            }
+        }
+
+        return !!(nav && Number(nav.maxTouchPoints || 0) > 0);
+    }
 
     function setWordGridImagePending(img) {
         if (!img || img.nodeType !== 1 || img.tagName !== 'IMG') { return; }
@@ -4525,7 +4544,7 @@
                 lessonState.lastSavedKey = collectLessonOrderWordIds($grid).join(',');
 
                 setLessonOrderStatus($grid, '', '');
-                $grid.removeClass('ll-word-grid--ordering');
+                $grid.removeClass('ll-word-grid--ordering ll-word-grid--order-handle-required');
                 if (typeof $grid.sortable === 'function' && $grid.data('ui-sortable')) {
                     try {
                         $grid.sortable('destroy');
@@ -4536,7 +4555,8 @@
                     return;
                 }
 
-                $grid.sortable({
+                const requireHandle = shouldRequireLessonOrderHandle();
+                const sortableOptions = {
                     items: '> .word-item[data-word-id]',
                     distance: 6,
                     tolerance: 'pointer',
@@ -4580,7 +4600,14 @@
                         }
                         scheduleLessonOrderSave($grid, 140);
                     }
-                });
+                };
+
+                if (requireHandle) {
+                    sortableOptions.handle = LESSON_ORDER_HANDLE_SELECTOR;
+                    $grid.addClass('ll-word-grid--order-handle-required');
+                }
+
+                $grid.sortable(sortableOptions);
             });
         }
 

@@ -21,9 +21,18 @@ function buildWordOrderMarkup() {
         data-ll-category-id="9"
       >
         <div class="ll-word-grid-order-status" data-ll-word-grid-order-status hidden></div>
-        <div class="word-item" data-word-id="101"><div class="word-title">One</div></div>
-        <div class="word-item" data-word-id="102"><div class="word-title">Two</div></div>
-        <div class="word-item" data-word-id="103"><div class="word-title">Three</div></div>
+        <div class="word-item" data-word-id="101">
+          <div class="ll-word-actions-row"><span class="ll-word-grid-order-handle" data-ll-word-grid-order-handle></span></div>
+          <div class="word-title">One</div>
+        </div>
+        <div class="word-item" data-word-id="102">
+          <div class="ll-word-actions-row"><span class="ll-word-grid-order-handle" data-ll-word-grid-order-handle></span></div>
+          <div class="word-title">Two</div>
+        </div>
+        <div class="word-item" data-word-id="103">
+          <div class="ll-word-actions-row"><span class="ll-word-grid-order-handle" data-ll-word-grid-order-handle></span></div>
+          <div class="word-title">Three</div>
+        </div>
       </div>
     </div>
   `;
@@ -122,4 +131,47 @@ test('lesson word reordering posts the dragged order through AJAX', async ({ pag
   expect(payload.order).toEqual([103, 101, 102]);
 
   await expect(page.locator('[data-ll-word-grid-order-status]')).toContainText('Order saved.');
+});
+
+test('mobile lesson word reordering uses a drag handle so card bodies can scroll', async ({ page }) => {
+  await page.goto('about:blank');
+  await page.setContent(buildWordOrderMarkup());
+  await page.addScriptTag({ content: jquerySource });
+
+  await page.evaluate((cfg) => {
+    window.llToolsWordGridData = cfg;
+    window.matchMedia = (query) => ({
+      matches: String(query || '').includes('(pointer: coarse)'),
+      media: String(query || ''),
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return false;
+      }
+    });
+
+    jQuery.fn.sortable = function (arg) {
+      if (typeof arg === 'string') {
+        return this;
+      }
+
+      return this.each(function () {
+        jQuery(this).data('ui-sortable', { options: arg || {} });
+        this.__llSortableOptions = arg || {};
+      });
+    };
+  }, buildWordGridConfig());
+
+  await page.addScriptTag({ content: wordGridScriptSource });
+
+  const config = await page.locator('[data-ll-word-grid]').evaluate((grid) => ({
+    handle: grid.__llSortableOptions && grid.__llSortableOptions.handle,
+    requiresHandle: grid.classList.contains('ll-word-grid--order-handle-required')
+  }));
+
+  expect(config.handle).toBe('[data-ll-word-grid-order-handle]');
+  expect(config.requiresHandle).toBe(true);
 });

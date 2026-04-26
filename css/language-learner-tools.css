@@ -1671,6 +1671,10 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     transition: box-shadow 0.18s ease, transform 0.18s ease;
 }
 
+.word-grid.ll-word-grid.ll-word-grid--reorderable.ll-word-grid--order-handle-required > .word-item[data-word-id] {
+    cursor: default;
+}
+
 .word-grid.ll-word-grid.ll-word-grid--reorderable.ll-word-grid--ordering > .word-item[data-word-id] {
     cursor: grabbing;
 }
@@ -1679,6 +1683,38 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     opacity: 0.9;
     box-shadow: 0 18px 30px rgba(15, 23, 42, 0.18);
     transform: scale(1.01);
+}
+
+.word-grid.ll-word-grid .ll-word-grid-order-handle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #475569;
+    box-shadow: none;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--order-handle-required .ll-word-grid-order-handle {
+    display: inline-flex;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--ordering .ll-word-grid-order-handle {
+    cursor: grabbing;
+}
+
+.word-grid.ll-word-grid .ll-word-grid-order-handle svg {
+    width: 18px;
+    height: 18px;
+    display: block;
 }
 
 .word-grid.ll-word-grid .ll-word-grid-order-placeholder {

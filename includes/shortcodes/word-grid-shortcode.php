@@ -4115,6 +4115,14 @@ function ll_tools_word_grid_shortcode($atts) {
             $actions_row_html = '';
             if ($show_stars || $can_edit_words) {
                 $actions_row_html .= '<div class="ll-word-actions-row">';
+                if ($can_edit_words && $lesson_id > 0) {
+                    $order_handle_label = __('Drag to reorder word', 'll-tools-text-domain');
+                    $actions_row_html .= '<span class="ll-word-grid-order-handle" data-ll-word-grid-order-handle title="' . esc_attr($order_handle_label) . '" aria-hidden="true">';
+                    $actions_row_html .= '<svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">';
+                    $actions_row_html .= '<circle cx="7" cy="5" r="1.4" fill="currentColor"/><circle cx="13" cy="5" r="1.4" fill="currentColor"/><circle cx="7" cy="10" r="1.4" fill="currentColor"/><circle cx="13" cy="10" r="1.4" fill="currentColor"/><circle cx="7" cy="15" r="1.4" fill="currentColor"/><circle cx="13" cy="15" r="1.4" fill="currentColor"/>';
+                    $actions_row_html .= '</svg>';
+                    $actions_row_html .= '</span>';
+                }
                 if ($show_stars) {
                     $is_starred = in_array((int) $word_id, $starred_ids, true);
                     $star_label = $is_starred
