@@ -4,7 +4,7 @@ msgstr ""
 "Project-Id-Version: Language Learner Tools 5.6.8\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-03-09T11:49:56+00:00\n"
-"PO-Revision-Date: 2026-04-16 17:30+0300\n"
+"PO-Revision-Date: 2026-04-27 07:02+0300\n"
 "Last-Translator: \n"
 "Language-Team: Türkçe\n"
 "Language: tr_TR\n"
@@ -170,15 +170,15 @@ msgstr[1] "%d ses kaydı işlenmeyi bekliyor"
 #, php-format
 msgid "%d clone failed."
 msgid_plural "%d clones failed."
-msgstr[0] "%d klon başarısız oldu."
-msgstr[1] "%d klon başarısız oldu."
+msgstr[0] "%d kopya oluşturulamadı."
+msgstr[1] "%d kopya oluşturulamadı."
 
 #: includes/admin/duplicate-category-words-admin.php:662
 #, php-format
 msgid "%d dictionary entry was created automatically."
 msgid_plural "%d dictionary entries were created automatically."
-msgstr[0] "%d sözlük girişi otomatik olarak oluşturuldu."
-msgstr[1] "%d sözlük girişi otomatik olarak oluşturuldu."
+msgstr[0] "%d sözlük girdisi otomatik olarak oluşturuldu."
+msgstr[1] "%d sözlük girdisi otomatik olarak oluşturuldu."
 
 #: includes/admin/duplicate-category-words-admin.php:668
 #, php-format
@@ -194,11 +194,9 @@ msgid ""
 msgid_plural ""
 "%d duplicate titles were imported because duplicate override was enabled."
 msgstr[0] ""
-"yinelenen geçersiz kılma etkinleştirildiği için %d yinelenen başlık içe "
-"aktarıldı."
+"%d yinelenen başlık, yinelenenlere izin verildiği için içe aktarıldı."
 msgstr[1] ""
-"yinelenen geçersiz kılma etkinleştirildiği için %d yinelenen başlık içe "
-"aktarıldı."
+"%d yinelenen başlık, yinelenenlere izin verildiği için içe aktarıldı."
 
 #: includes/pages/wordset-pages.php:5125
 #, php-format
@@ -261,8 +259,8 @@ msgid ""
 "%d line was skipped because it did not include a prompt and answer pair."
 msgid_plural ""
 "%d lines were skipped because they did not include prompt and answer pairs."
-msgstr[0] "bir istem ve yanıt çifti içermediği için %d satırı atlandı."
-msgstr[1] "%d satır, soru ve yanıt çifti içermediği için atlandı."
+msgstr[0] "%d satır, soru ve cevap çifti içermediği için atlandı."
+msgstr[1] "%d satır, soru ve cevap çifti içermediği için atlandı."
 
 #. translators: %d: number of new recordings
 #: includes/shortcodes/audio-recording-shortcode.php:5911
@@ -548,7 +546,7 @@ msgstr "Ekle"
 #: includes/shortcodes/word-grid-shortcode.php:2955
 #, php-format
 msgid "Add %s"
-msgstr "Ekleme %s"
+msgstr "%s ekle"
 
 #: includes/admin/admin-dashboard-menu.php:343
 msgid "Add and edit vocabulary entries, meanings, and metadata."
@@ -677,11 +675,11 @@ msgstr "Tüm kategori resimleri zaten bu oranla eşleşmektedir."
 
 #: includes/post-types/dictionary-entry-post-type.php:1547
 msgid "All Dictionary Entries"
-msgstr "Tüm Sözlük Girişleri"
+msgstr "Tüm Sözlük Girdileri"
 
 #: includes/admin/audio-image-matcher.php:85
 msgid "All done in this category."
-msgstr "Hepsi bu kategoride yapıldı."
+msgstr "Bu kategorideki tüm işler tamamlandı."
 
 #: includes/shortcodes/editor-hub-shortcode.php:1072
 msgid "All missing items are complete."
@@ -735,7 +733,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3270
 msgid "Already undone"
-msgstr "Çoktan çözüldü"
+msgstr "Zaten geri alındı"
 
 #: includes/taxonomies/word-category-taxonomy.php:1871
 #: includes/taxonomies/word-category-taxonomy.php:1981
@@ -796,7 +794,7 @@ msgstr "Yanıt seçeneği metin boyutu"
 #: includes/pages/wordset-pages.php:9126
 #: includes/taxonomies/wordset-taxonomy.php:2860
 msgid "Answer option text weight"
-msgstr "Cevap seçeneği metin ağırlığı"
+msgstr "Cevap seçeneği metin kalınlığı"
 
 #: includes/admin/uploads/audio-upload-form.php:517
 #: includes/admin/uploads/image-upload-form.php:674
@@ -811,7 +809,7 @@ msgstr "Herhangi bir"
 
 #: includes/shortcodes/flashcard-widget.php:463
 msgid "Any specific wrong-answer words are available for this target"
-msgstr "Bu hedef için herhangi bir özel yanlış cevap kelimesi mevcuttur"
+msgstr "Bu hedef için belirli yanlış cevap kelimeleri mevcut"
 
 #: includes/admin/image-aspect-normalizer-admin.php:92
 #, php-format
@@ -832,9 +830,9 @@ msgid ""
 "recording interface so the recorder can review and adjust trim boundaries "
 "before saving."
 msgstr ""
-"Kayıt arayüzünde kırpma, gürültü azaltma ve ses yüksekliği normalleştirme "
-"uygular, böylece kayıt cihazı kaydetmeden önce kırpma sınırlarını gözden "
-"geçirebilir ve ayarlayabilir."
+"Kayıt arayüzünde kırpma, gürültü azaltma ve ses yüksekliği normalleştirmesi "
+"uygular; böylece kaydedici, kaydetmeden önce kırpma sınırlarını gözden "
+"geçirip ayarlayabilir."
 
 #: includes/admin/image-aspect-normalizer-admin.php:89
 #: includes/admin/image-aspect-normalizer-admin.php:155
@@ -1252,8 +1250,8 @@ msgid ""
 "Bulk import assumes text-to-text (prompt -> translation, answer -> word "
 "title) and publishes items by default."
 msgstr ""
-"Toplu içe aktarma metinden metne (istem -> çeviri, cevap -> kelime başlığı) "
-"varsayar ve varsayılan olarak öğeleri yayınlar."
+"Toplu içe aktarma metinden metne çalışır (soru -> çeviri, cevap -> kelime "
+"başlığı) ve öğeleri varsayılan olarak yayınlar."
 
 #: includes/admin/admin-dashboard-menu.php:160
 #: includes/admin/admin-dashboard-menu.php:504
@@ -1321,7 +1319,7 @@ msgstr "Bir döngü oluşturacağı için %s eklenemiyor."
 #: includes/admin/image-aspect-normalizer-admin.php:85
 #: includes/admin/image-aspect-normalizer-admin.php:144
 msgid "Canonical ratio"
-msgstr "Kanonik oran"
+msgstr "Standart oran"
 
 #: templates/vocab-lesson-template.php:300
 msgid "Captions"
@@ -1506,9 +1504,9 @@ msgid ""
 "Check this box to hide word titles from audio recorders by default. This "
 "helps prevent pronunciation bias from reading the word."
 msgstr ""
-"Kelime başlıklarını varsayılan olarak ses kayıt cihazlarından gizlemek için "
-"bu kutuyu işaretle. Bu, kelimenin okunmasından kaynaklanan telaffuz "
-"önyargısını önlemeye yardımcı olur."
+"Kelime başlıklarını varsayılan olarak ses kaydedicilerden gizlemek için bu "
+"kutuyu işaretleyin. Bu, kelimeyi okumaktan kaynaklanan telaffuz yanlılığını "
+"önlemeye yardımcı olur."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1185
 msgid "Checking upload..."
@@ -1570,7 +1568,7 @@ msgid ""
 msgstr ""
 "Bu sitede şu anda mevcut olan yazı tiplerinden birini seç. Tema/cihaz "
 "varsayılanı için boş bırak. Bu yazı tipi, desteklendiği durumlarda bu kelime"
-" setinin ders/kelime ızgarası kelime metni için de kullanılır."
+" setinin ders/kelime tablosu kelime metni için de kullanılır."
 
 #: includes/taxonomies/wordset-taxonomy.php:984
 msgid "Choose from the most used word sets"
@@ -1591,8 +1589,8 @@ msgid ""
 "Choose the word set this user is allowed to manage. This is required when "
 "assigning the Word Set Manager role."
 msgstr ""
-"Bu kullanıcının yönetmesine izin verilen kelime setini seç. Bu, Sözcük "
-"Kümesi Yöneticisi rolü atanırken gereklidir."
+"Bu kullanıcının yönetmesine izin verilen kelime setini seç. Bu, Kelime Seti "
+"Yöneticisi rolü atanırken gereklidir."
 
 #: includes/admin/recording-types-admin.php:177
 msgid ""
@@ -1610,10 +1608,10 @@ msgid ""
 "/{wordset}/{category} (and a wordset landing page at /{wordset}). Saving "
 "will sync pages automatically."
 msgstr ""
-"Hangi kelime setlerinin /{kelime seti}/{kategori} adresinde kelime dersi "
-"sayfaları alması gerektiğini seç (ve /{wordset} adresinde bir kelime kümesi "
-"açılış sayfası). Kaydetme işlemi sayfaları otomatik olarak senkronize "
-"edecektir."
+"Hangi kelime setleri için /{wordset}/{category} adresinde kelime dersi "
+"sayfaları ve /{wordset} adresinde kelime seti açılış sayfası "
+"oluşturulacağını seçin. Kaydettiğinizde sayfalar otomatik olarak senkronize "
+"edilir."
 
 #: includes/post-types/words-post-type.php:661
 msgid "Choose words that should appear only as wrong answers for this word."
@@ -1666,8 +1664,8 @@ msgid ""
 "Clears cached quiz word payload transients and increments cache versions for"
 " all word-category terms."
 msgstr ""
-"Önbelleğe alınmış quiz kelime yükü geçişlerini temizler ve tüm kelime "
-"kategorisi terimleri için önbellek sürümlerini artırır."
+"Önbelleğe alınmış quiz kelime verilerini temizler ve tüm kelime kategorisi "
+"terimleri için önbellek sürümlerini artırır."
 
 #: includes/admin/word-option-rules-admin.php:1898
 msgid "Click the x to remove a pair."
@@ -1678,7 +1676,8 @@ msgid ""
 "Cloned words are moved into this new category (not kept in the source "
 "category)."
 msgstr ""
-"Klonlanan kelimeler bu yeni kategoriye taşınır (kaynak kategoride tutulmaz)."
+"Kopyalanan kelimeler bu yeni kategoriye taşınır (kaynak kategoride "
+"tutulmaz)."
 
 #: includes/pages/quiz-pages.php:762
 #: includes/pages/vocab-lesson-pages.php:2427
@@ -1712,7 +1711,7 @@ msgstr "Eril cinsiyet rozetleri için kullanılan renk."
 #: includes/admin/export-import.php:3681
 msgid ""
 "Comma-separated language codes for Gloss columns (for example: en, tr)."
-msgstr "Parlak sütunlar için virgülle ayrılmış dil kodları (örneğin: en, tr)."
+msgstr "Gloss sütunları için virgülle ayrılmış dil kodları (örneğin: en, tr)."
 
 #: includes/admin/ipa-keyboard-admin.php:547
 #: includes/lib/wordset-language-settings.php:1063
@@ -1815,7 +1814,7 @@ msgid ""
 "Controls category ordering on wordset pages. Alphabetical is used when no "
 "logical ordering is selected."
 msgstr ""
-"Kelime kümesi sayfalarındaki kategori sıralamasını kontrol eder. Mantıksal "
+"Kelime seti sayfalarındaki kategori sıralamasını kontrol eder. Mantıksal "
 "sıralama seçilmediğinde Alfabetik kullanılır."
 
 #: includes/taxonomies/word-category-taxonomy.php:1873
@@ -2073,7 +2072,7 @@ msgstr "Hesap oluştur"
 
 #: includes/post-types/dictionary-entry-post-type.php:1121
 msgid "Create and link new dictionary entry"
-msgstr "Yeni sözlük girişi oluşturma ve bağlama"
+msgstr "Yeni sözlük girdisi oluşturma ve bağlama"
 
 #: includes/admin/admin-dashboard-menu.php:336
 msgid "Create and organize categories used to build quizzes and pages."
@@ -2269,7 +2268,7 @@ msgid ""
 "word set's lesson/word-grid word text where supported."
 msgstr ""
 "Metin yanıt seçenekleri için varsayılan ağırlık. Bu ağırlık, desteklendiği "
-"durumlarda bu kelime setinin ders/kelime ızgarası kelime metni için de "
+"durumlarda bu kelime setinin ders/kelime tablosu kelime metni için de "
 "kullanılır."
 
 #: includes/pages/wordset-pages.php:111
@@ -2432,7 +2431,7 @@ msgstr "Lehçe"
 #: includes/post-types/dictionary-entry-post-type.php:625
 #: includes/post-types/dictionary-entry-post-type.php:629
 msgid "Dictionary Entries"
-msgstr "Sözlük Girişleri"
+msgstr "Sözlük Girdileri"
 
 #: includes/post-types/dictionary-entry-post-type.php:889
 msgid "Dictionary entries can only be linked to words."
@@ -2444,32 +2443,32 @@ msgstr "Sözlük girdileri yalnızca kelimelere bağlanabilir."
 #: includes/post-types/dictionary-entry-post-type.php:1469
 #: includes/post-types/dictionary-entry-post-type.php:1773
 msgid "Dictionary Entry"
-msgstr "Sözlük Girişi"
+msgstr "Sözlük Girdisi"
 
 #: includes/shortcodes/editor-hub-shortcode.php:513
 #: includes/shortcodes/editor-hub-shortcode.php:1056
 #: includes/shortcodes/word-grid-shortcode.php:4399
 msgid "Dictionary entry"
-msgstr "Sözlük girişi"
+msgstr "Sözlük girdisi"
 
 #. translators: %d: word post ID
 #: includes/admin/duplicate-category-words-admin.php:536
 #, php-format
 msgid "Dictionary Entry %d"
-msgstr "Sözlük Girişi %d"
+msgstr "Sözlük Girdisi %d"
 
 #: includes/post-types/dictionary-entry-post-type.php:1103
 msgid "Dictionary entry ID"
-msgstr "Sözlük giriş kimliği"
+msgstr "Sözlük girdisi kimliği"
 
 #: includes/lib/dictionary-browser.php:1724
 #: includes/post-types/dictionary-entry-post-type.php:932
 msgid "Dictionary entry title cannot be empty."
-msgstr "Sözlük girişi başlığı boş olamaz."
+msgstr "Sözlük girdisi başlığı boş olamaz."
 
 #: includes/post-types/dictionary-entry-post-type.php:1220
 msgid "Dictionary entry translation"
-msgstr "Sözlük girişi çevirisi"
+msgstr "Sözlük girdisi çevirisi"
 
 #: includes/admin/user-progress-report.php:993
 #: includes/pages/wordset-pages.php:13416
@@ -2526,12 +2525,12 @@ msgstr "Yinelenen"
 
 #: includes/admin/duplicate-category-words-admin.php:25
 msgid "Duplicate Category"
-msgstr "Mükerrer Kategori"
+msgstr "Kategoriyi Çoğalt"
 
 #: includes/admin/duplicate-category-words-admin.php:24
 #: includes/admin/duplicate-category-words-admin.php:621
 msgid "Duplicate Category Words"
-msgstr "Yinelenen Kategori Sözcükleri"
+msgstr "Yinelenen Kategori Kelimeleri"
 
 #: includes/admin/audio-processor-admin.php:591
 msgid "Duplicate in queue"
@@ -2539,7 +2538,7 @@ msgstr "Kuyrukta kopya"
 
 #: includes/admin/duplicate-category-words-admin.php:930
 msgid "Duplicate Words"
-msgstr "Mükerrer Kelimeler"
+msgstr "Kelimeleri Çoğalt"
 
 #: includes/admin/audio-processor-admin.php:846
 msgid "Duplicates"
@@ -2584,7 +2583,7 @@ msgstr "Ses Kaydını Düzenle"
 
 #: includes/post-types/dictionary-entry-post-type.php:619
 msgid "Edit Dictionary Entry"
-msgstr "Sözlük Girişini Düzenle"
+msgstr "Sözlük Girdisini Düzenle"
 
 #: includes/admin/admin-dashboard-menu.php:606
 msgid "Edit lesson post content and ordering used for vocab lesson pages."
@@ -2730,7 +2729,7 @@ msgstr "Adları virgül, sekme veya satır sonuyla ayırarak gir…"
 
 #: includes/post-types/words-post-type.php:95
 msgid "Enter the Post ID of a word that looks similar:"
-msgstr "Benzer görünen bir kelimenin Posta Kimliğini gir:"
+msgstr "Benzer görünen bir kelimenin gönderi kimliğini girin:"
 
 #: includes/taxonomies/word-category-taxonomy.php:783
 #: includes/taxonomies/word-category-taxonomy.php:810
@@ -2818,7 +2817,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3908
 msgid "Example imported item"
-msgstr "Örnek ithal ürün"
+msgstr "Örnek içe aktarılan öğe"
 
 #: includes/admin/ipa-keyboard-admin.php:270
 #: includes/admin/ipa-keyboard-admin.php:368
@@ -2847,7 +2846,7 @@ msgstr "Mevcut Hedef Kategorisi"
 #: includes/admin/export-import.php:3486
 #: includes/admin/word-option-rules-admin.php:1911
 msgid "Export"
-msgstr "İhracat"
+msgstr "Dışa Aktar"
 
 #: includes/admin/export-import.php:4454
 msgid "Export download has expired. Generate a new export and try again."
@@ -2942,7 +2941,7 @@ msgstr "\"%s\" kelime seti oluşturulamadı: %s"
 #: includes/shortcodes/audio-recording-shortcode.php:3496
 #, php-format
 msgid "Failed to create word: %s"
-msgstr "Sözcük oluşturulamadı: %s"
+msgstr "Kelime oluşturulamadı: %s"
 
 #: includes/shortcodes/audio-recording-shortcode.php:6322
 #, php-format
@@ -3155,7 +3154,8 @@ msgstr ""
 #: includes/post-types/words-post-type.php:97
 msgid "Find the Post ID in the list of words. Use numerical ID only."
 msgstr ""
-"Sözcük listesinde Posta Kimliğini bul. Yalnızca sayısal kimliği kullan."
+"Kelime listesindeki gönderi kimliğini bulun. Yalnızca sayısal kimliği "
+"kullanın."
 
 #: includes/admin/image-webp-optimizer-admin.php:1541
 msgid ""
@@ -3212,7 +3212,7 @@ msgstr "Quiz önbelleklerini temizle"
 #: includes/admin/settings.php:301
 msgid "Flushed quiz caches and bumped category cache versions."
 msgstr ""
-"Quiz önbellekleri temizlendi ve kategori önbellek sürümleri yükseltildi."
+"Quiz önbellekleri temizlendi ve kategori önbellek sürümleri artırıldı."
 
 #: includes/admin/settings.php:428
 msgid "Font stylesheet URL (Google Fonts or local CSS)"
@@ -3256,11 +3256,11 @@ msgstr "Tam kategori paketi"
 
 #: includes/admin/export-import.php:3531
 msgid "Full export categories (optional multi-select)"
-msgstr "Tam ihracat kategorileri (isteğe bağlı çoklu seçim)"
+msgstr "Tam dışa aktarma kategorileri (isteğe bağlı çoklu seçim)"
 
 #: includes/admin/export-import.php:3515
 msgid "Full export word set"
-msgstr "Tam ihracat kelime seti"
+msgstr "Tam dışa aktarma kelime seti"
 
 #: includes/admin/image-aspect-normalizer-admin.php:661
 msgid "GD image library is not available for white-padding."
@@ -3477,8 +3477,8 @@ msgid ""
 "Hide word text on lesson pages/word grids when the category quiz shows only "
 "images/audio."
 msgstr ""
-"Kategori testi yalnızca resim/ses gösterdiğinde ders sayfalarındaki/kelime "
-"ızgaralarındaki kelime metnini gizle."
+"Kategori quizi yalnızca görsel/ses gösterdiğinde ders sayfalarındaki ve "
+"kelime tablolarındaki kelime metnini gizleyin."
 
 #: includes/admin/settings.php:377
 msgid "Hide Word Titles in Recording Interface:"
@@ -3641,11 +3641,11 @@ msgstr "Güncellenmesi gereken görüntüler"
 #: includes/admin/word-option-rules-admin.php:1923
 #: includes/pages/wordset-pages.php:8362
 msgid "Import"
-msgstr "İthalat"
+msgstr "İçe Aktar"
 
 #: includes/admin/word-option-rules-admin.php:1908
 msgid "Import / Export"
-msgstr "İthalat / İhracat"
+msgstr "İçe Aktar / Dışa Aktar"
 
 #: includes/admin/export-import.php:12240
 msgid "Import complete with warnings."
@@ -3653,7 +3653,7 @@ msgstr "Uyarılarla birlikte içe aktarma tamamlandı."
 
 #: includes/admin/export-import.php:12242
 msgid "Import complete."
-msgstr "İthalat tamamlandı."
+msgstr "İçe aktarma tamamlandı."
 
 #: includes/admin/export-import.php:1500 includes/admin/export-import.php:1507
 #: includes/admin/export-import.php:14502
@@ -3847,16 +3847,16 @@ msgstr "İçe aktarma oturumunun süresi doldu. Lütfen dosyayı tekrar yükle."
 
 #: includes/admin/export-import.php:3837
 msgid "Import warnings:"
-msgstr "İthalat uyarıları:"
+msgstr "İçe aktarma uyarıları:"
 
 #: includes/pages/wordset-pages.php:8407
 #: includes/pages/wordset-pages.php:10398
 msgid "Import Words"
-msgstr "İthal Kelimeler"
+msgstr "Kelimeleri içe aktar"
 
 #: includes/admin/bulk-word-import-admin.php:675
 msgid "Import words"
-msgstr "İthal kelimeler"
+msgstr "Kelimeleri içe aktar"
 
 #: includes/admin/export-import.php:14155
 msgid "Imported audio file is missing or unreadable."
@@ -3990,7 +3990,7 @@ msgstr "Geçersiz kategori."
 
 #: includes/post-types/dictionary-entry-post-type.php:908
 msgid "Invalid dictionary entry."
-msgstr "Geçersiz sözlük girişi."
+msgstr "Geçersiz sözlük girdisi."
 
 #: includes/admin/audio-image-matcher.php:365
 msgid "Invalid image"
@@ -4181,20 +4181,20 @@ msgstr "Dil Eğitimi Araçları"
 
 #: includes/admin/audio-image-matcher.php:12
 msgid "Language Learner Tools - Audio/Image Matcher"
-msgstr "Dil Öğrenici Araçları - Ses/Görüntü Eşleştirici"
+msgstr "Language Learner Tools - Ses/Görsel Eşleştirici"
 
 #: includes/taxonomies/language-taxonomy.php:237
 #: includes/taxonomies/language-taxonomy.php:261
 msgid "Language Learner Tools - Languages"
-msgstr "Dil Öğrenici Araçları - Diller"
+msgstr "Language Learner Tools - Diller"
 
 #: includes/admin/recording-types-admin.php:11
 msgid "Language Learner Tools - Recording Types"
-msgstr "Dil Öğrenici Araçları - Kayıt Türleri"
+msgstr "Language Learner Tools - Kayıt Türleri"
 
 #: includes/admin/word-option-rules-admin.php:8
 msgid "Language Learner Tools - Word Option Rules"
-msgstr "Dil Öğrenici Araçları - Kelime Seçeneği Kuralları"
+msgstr "Language Learner Tools - Kelime Seçeneği Kuralları"
 
 #. translators: %s: available plugin version
 #: language-learner-tools.php:512
@@ -4484,7 +4484,7 @@ msgstr "Seviye 3: Güveninizi Yeniden Kazan"
 
 #: includes/post-types/dictionary-entry-post-type.php:1084
 msgid "Link this word to an umbrella dictionary entry."
-msgstr "Bu kelimeyi bir şemsiye sözlük girişine bağla."
+msgstr "Bu kelimeyi bir şemsiye sözlük girdisine bağla."
 
 #: includes/post-types/dictionary-entry-post-type.php:1785
 #: includes/post-types/dictionary-entry-post-type.php:2189
@@ -4521,7 +4521,7 @@ msgstr "LL Toplu Çeviriler"
 #: includes/admin/export-import.php:48 includes/admin/export-import.php:49
 #: includes/admin/export-import.php:75
 msgid "LL Export"
-msgstr "LL İhracat"
+msgstr "LL Dışa Aktarma"
 
 #: includes/admin/word-images-fixer.php:9
 msgid "LL Fix Word Images"
@@ -4530,7 +4530,7 @@ msgstr "LL Kelime Görsellerini Düzelt"
 #: includes/admin/export-import.php:59 includes/admin/export-import.php:60
 #: includes/admin/export-import.php:82
 msgid "LL Import"
-msgstr "LL İthalat"
+msgstr "LL İçe Aktarma"
 
 #: includes/admin/image-aspect-normalizer-admin.php:31
 msgid "LL Normalize Images"
@@ -4548,41 +4548,41 @@ msgstr "Kayıt türleri"
 
 #: includes/admin/bulk-translation-admin.php:41
 msgid "LL Tools - Bulk Translations"
-msgstr "LL Araçları - Toplu Çeviriler"
+msgstr "LL Tools - Toplu Çeviriler"
 
 #: includes/admin/image-aspect-normalizer-admin.php:30
 msgid "LL Tools - Image Aspect Normalizer"
-msgstr "LL Araçları - Görüntü En Boy Normalleştirici"
+msgstr "LL Tools - Görüntü En Boy Normalleştirici"
 
 #: includes/admin/image-webp-optimizer-admin.php:1430
 msgid "LL Tools - WebP Image Optimizer"
-msgstr "LL Araçları - WebP Görüntü İyileştirici"
+msgstr "LL Tools - WebP Görüntü İyileştirici"
 
 #: includes/admin/audio-processor-admin.php:1606
 msgid "LL Tools Admin Tasks"
-msgstr "LL Araçları Yönetici Görevleri"
+msgstr "LL Tools Yönetici Görevleri"
 
 #: includes/admin/audio-image-matcher.php:13
 msgid "LL Tools Audio/Image Matcher"
-msgstr "LL Araçları Ses/Görüntü Eşleştirici"
+msgstr "LL Tools Ses/Görüntü Eşleştirici"
 
 #: includes/admin/export-import.php:3473
 msgid "LL Tools Export"
-msgstr "LL Araçları Dışa Aktarma"
+msgstr "LL Tools Dışa Aktarma"
 
 #: includes/admin/export-import.php:3471
 msgid "LL Tools Export/Import"
-msgstr "LL Araçları Dışa Aktarma/İçe Aktarma"
+msgstr "LL Tools Dışa Aktarma / İçe Aktarma"
 
 #: includes/admin/export-import.php:3475
 msgid "LL Tools Import"
-msgstr "LL Araçları İçe Aktarma"
+msgstr "LL Tools İçe Aktarma"
 
 #: includes/admin/admin-dashboard-menu.php:174
 #: includes/admin/admin-dashboard-menu.php:652
 #: includes/taxonomies/language-taxonomy.php:238
 msgid "LL Tools Languages"
-msgstr "LL Araçları Diller"
+msgstr "LL Tools Diller"
 
 #: includes/admin/admin-dashboard-menu.php:43
 #: includes/admin/admin-dashboard-menu.php:152
@@ -4590,15 +4590,15 @@ msgstr "LL Araçları Diller"
 #: includes/admin/admin-dashboard-menu.php:798
 #: includes/admin/admin-dashboard-menu.php:891
 msgid "LL Tools Utilities"
-msgstr "LL Araçları Yardımcı Programlar"
+msgstr "LL Tools Yardımcı Programlar"
 
 #: includes/admin/bulk-word-import-admin.php:611
 msgid "LL Tools — Bulk Word Import"
-msgstr "LL Araçları - Toplu Kelime İçe Aktarma"
+msgstr "LL Tools - Toplu Kelime İçe Aktarma"
 
 #: includes/admin/word-images-fixer.php:8
 msgid "LL Tools — Fix Word Images"
-msgstr "LL Araçları - Kelime Görsellerini Düzeltme"
+msgstr "LL Tools - Kelime Görsellerini Düzeltme"
 
 #: includes/admin/duplicate-category-words-admin.php:698
 msgid "Load"
@@ -4774,7 +4774,7 @@ msgstr "Yönetici"
 #: includes/pages/wordset-pages.php:12601
 #: includes/taxonomies/wordset-taxonomy.php:1984
 msgid "Manual order"
-msgstr "Manuel sipariş"
+msgstr "Elle sıralama"
 
 #: includes/taxonomies/wordset-taxonomy.php:2001
 msgid ""
@@ -4873,9 +4873,9 @@ msgid ""
 "Microphone access was not granted. If no browser prompt appears, open Site "
 "settings from the lock icon and allow Microphone for this site, then reload."
 msgstr ""
-"Mikrofon erişimi verilmedi. Tarayıcı istemi görüntülenmezse, kilit "
-"simgesinden Site ayarlarını aç ve bu site için Mikrofona izin ver, ardından "
-"yeniden yükle."
+"Mikrofon erişimi verilmedi. Tarayıcı izin penceresi görünmezse kilit "
+"simgesinden Site ayarlarını açın, bu site için Mikrofona izin verin ve "
+"sayfayı yeniden yükleyin."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1236
 msgid ""
@@ -5130,7 +5130,7 @@ msgstr "Yeni kategori adı"
 
 #: includes/post-types/dictionary-entry-post-type.php:620
 msgid "New Dictionary Entry"
-msgstr "Yeni Sözlük Girişi"
+msgstr "Yeni Sözlük Girdisi"
 
 #: includes/admin/metabox-word-audio-parent.php:58
 msgid "New Parent Word ID"
@@ -5275,19 +5275,19 @@ msgstr "Henüz veri yok."
 
 #: includes/post-types/dictionary-entry-post-type.php:623
 msgid "No dictionary entries found"
-msgstr "Sözlük girişi bulunamadı"
+msgstr "Sözlük girdisi bulunamadı"
 
 #: includes/post-types/dictionary-entry-post-type.php:624
 msgid "No dictionary entries found in Trash"
-msgstr "Trash içinde sözlük girdisi bulunamadı"
+msgstr "Çöp Kutusu’nda sözlük girdisi bulunamadı"
 
 #: includes/post-types/dictionary-entry-post-type.php:1548
 msgid "No Dictionary Entry"
-msgstr "Sözlük Girişi Yok"
+msgstr "Sözlük Girdisi Yok"
 
 #: includes/admin/audio-processor-admin.php:896
 msgid "No duplicates found."
-msgstr "Mükerrer bulunamadı."
+msgstr "Yinelenen öğe bulunamadı."
 
 #: includes/pages/editor-hub-page.php:23
 msgid "No editor hub page found."
@@ -5379,7 +5379,7 @@ msgstr "Henüz ders kategorisi yok."
 
 #: includes/admin/ipa-keyboard-admin.php:263
 msgid "No letter mappings found for this word set."
-msgstr "Bu kelime grubu için harf eşleştirmesi bulunamadı."
+msgstr "Bu kelime seti için harf eşleştirmesi bulunamadı."
 
 #: includes/taxonomies/wordset-taxonomy.php:1983
 msgid "No logical ordering (alphabetical)"
@@ -5455,8 +5455,8 @@ msgid ""
 "No quizzable categories were found for this word set yet. Add "
 "words/categories first, then refresh this page."
 msgstr ""
-"Bu kelime seti için henüz quiz yapılabilir bir kategori bulunamadı. Önce "
-"kelimeleri/kategorileri ekle, sonra bu sayfayı yenile."
+"Bu kelime seti için henüz quiz’e uygun kategori bulunamadı. Önce "
+"kelimeleri/kategorileri ekleyin, sonra bu sayfayı yenileyin."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1064
 msgid "No quizzes found."
@@ -5575,8 +5575,8 @@ msgid ""
 "No valid prompt and answer pairs were found. Use one pair per line (tab-"
 "separated is recommended)."
 msgstr ""
-"Geçerli bir istem ve yanıt çifti bulunamadı. Satır başına bir çift kullan "
-"(sekmeyle ayrılmış olması önerilir)."
+"Geçerli bir soru ve cevap çifti bulunamadı. Her satıra bir çift yazın "
+"(sekmeyle ayırmanız önerilir)."
 
 #: includes/post-types/vocab-lesson-post-type.php:17
 msgid "No vocab lessons found"
@@ -5659,7 +5659,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:5155
 msgid "No words were imported."
-msgstr "Hiçbir kelime ithal edilmedi."
+msgstr "Hiçbir kelime içe aktarılmadı."
 
 #: includes/admin/export-import.php:3798
 msgid "No zip files found in the server import folder yet."
@@ -5836,7 +5836,7 @@ msgstr "Görüntüleri Optimize Etme (WebP)"
 #: includes/admin/image-webp-optimizer-admin.php:1483
 #, php-format
 msgid "Optimize to %s"
-msgstr "%s'a optimize et"
+msgstr "Optimize et: %s"
 
 #: includes/admin/image-webp-optimizer-admin.php:589
 msgid "Optimize to WebP"
@@ -5929,7 +5929,7 @@ msgstr "Veya zaten sunucuda bulunan bir zip seç"
 
 #: includes/admin/bulk-translation-admin.php:149
 msgid "Order"
-msgstr "Sipariş"
+msgstr "Sıra"
 
 #: includes/admin/split-word-admin.php:348
 msgid "Original title (optional)"
@@ -6063,7 +6063,7 @@ msgstr "İçe aktarmak için en az bir soru ve yanıt çifti yapıştırın."
 
 #: includes/pages/wordset-pages.php:10333
 msgid "Paste Prompt + Answer Pairs"
-msgstr "İstemi Yapıştır + Yanıt Çiftleri"
+msgstr "Soru + Cevap Çiftlerini Yapıştır"
 
 #: includes/shortcodes/flashcard-widget.php:377
 msgid "Perfect!"
@@ -6703,7 +6703,7 @@ msgstr "Quiz Sayfası Yönetimi"
 #: includes/taxonomies/word-category-taxonomy.php:1839
 #: includes/taxonomies/word-category-taxonomy.php:1939
 msgid "Quiz Prompt Type"
-msgstr "Soru Başlangıcı"
+msgstr "Quiz soru türü"
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:751
 #: templates/flashcard-widget-template.php:115
@@ -6756,7 +6756,7 @@ msgstr "Sebep"
 
 #: includes/admin/export-import.php:3148
 msgid "Recent Imports"
-msgstr "Son İthalatlar"
+msgstr "Son İçe Aktarmalar"
 
 #: includes/lib/wordset-language-settings.php:114
 #: includes/pages/wordset-pages.php:12971
@@ -7086,7 +7086,7 @@ msgstr "%s için ilerlemeyi sıfırla"
 #: templates/flashcard-widget-template.php:172
 #: templates/offline-app-shell-template.php:976
 msgid "Restart Quiz"
-msgstr "Yeniden Başla"
+msgstr "Yeniden başla"
 
 #: includes/admin/export-import.php:3159
 msgid "Result"
@@ -7324,7 +7324,7 @@ msgstr "Arama kategorileri"
 
 #: includes/post-types/dictionary-entry-post-type.php:622
 msgid "Search Dictionary Entries"
-msgstr "Sözlük Girişlerini Ara"
+msgstr "Sözlük Girdilerini Ara"
 
 #: templates/vocab-lesson-template.php:529
 msgid "Search prerequisite categories"
@@ -7397,7 +7397,7 @@ msgstr "İçe aktarmak için bir dosya seç."
 
 #: includes/shortcodes/quiz-pages-shortcodes.php:1158
 msgid "Select a quiz…"
-msgstr "Bir quiz seç.."
+msgstr "Bir quiz seç…"
 
 #: includes/pages/wordset-pages.php:11160
 msgid "Select a recorder user"
@@ -7433,7 +7433,7 @@ msgstr "Bir kelime seti seç"
 #: includes/admin/word-option-rules-admin.php:2011
 msgid "Select a word set and category to manage word option rules."
 msgstr ""
-"Sözcük seçeneği kurallarını yönetmek için bir kelime seti ve kategori seç."
+"Kelime seçeneği kurallarını yönetmek için bir kelime seti ve kategori seçin."
 
 #: templates/audio-image-matcher-template.php:16
 msgid "Select a word set and category, then click Start Matching."
@@ -7592,17 +7592,17 @@ msgid ""
 "Selected words are excluded from prompt rounds across quiz modes and only "
 "appear as wrong answers for this word."
 msgstr ""
-"Seçilen kelimeler, quiz modları arasında hızlı turların dışında tutulur ve "
-"yalnızca bu kelime için yanlış cevaplar olarak görünür."
+"Seçilen kelimeler, quiz modlarındaki soru turlarının dışında tutulur ve "
+"yalnızca bu kelime için yanlış cevap olarak görünür."
 
 #: includes/admin/export-import.php:3505
 msgid ""
 "Selecting a category exports that category and its children, plus all word "
 "images assigned to them. Choose “All categories” for a full export."
 msgstr ""
-"Bir kategori seçildiğinde, o kategori ve alt kategorileri ile bunlara "
-"atanmış tüm kelime görselleri dışa aktarılır. Tam bir dışa aktarma için "
-"\"Tüm kategoriler \"i seç."
+"Bir kategori seçildiğinde o kategori, alt kategorileri ve bunlara atanmış "
+"tüm kelime görselleri dışa aktarılır. Tam dışa aktarma için “Tüm "
+"kategoriler” seçeneğini seçin."
 
 #: includes/pages/wordset-pages.php:13089
 #: includes/shortcodes/flashcard-widget.php:407
@@ -7742,7 +7742,7 @@ msgstr "Metni göster (çeviri)"
 
 #: includes/post-types/dictionary-entry-post-type.php:1231
 msgid "Shown in dictionary entry listings and dictionary views."
-msgstr "Sözlük girişi listelerinde ve sözlük görünümlerinde gösterilir."
+msgstr "Sözlük girdisi listelerinde ve sözlük görünümlerinde gösterilir."
 
 #: includes/admin/offline-app-export.php:1595 includes/login-window.php:1367
 #: includes/pages/wordset-pages.php:14369
@@ -7906,7 +7906,7 @@ msgid ""
 "Skipped row %1$d in CSV \"%2$s\": prompt text is required for text-to-text "
 "quizzes."
 msgstr ""
-"CSV \"%2$s\" içinde %1$d satırı atlandı: metinden metne quizler için istem "
+"CSV \"%2$s\" içinde %1$d satırı atlandı: metinden metne quizler için soru "
 "metni gereklidir."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1191
@@ -7948,7 +7948,7 @@ msgid ""
 "Some selected images are larger than %s. They may fail to upload or load "
 "slowly in quizzes."
 msgstr ""
-"Seçilen bazı resimler %s'den daha büyük. Yüklenemeyebilir veya testlerde "
+"Seçilen bazı görseller %s değerinden büyük. Yüklenmeyebilir veya quizlerde "
 "yavaş yüklenebilirler."
 
 #: includes/shortcodes/flashcard-widget.php:448
@@ -8497,7 +8497,7 @@ msgid ""
 msgstr ""
 "Bu ayarlar quiz cevap-seçenek metni için kullanılır. Yazı tipi ailesi ve "
 "yazı tipi ağırlığı, desteklendiği durumlarda bu kelime setinin ders/kelime "
-"ızgarası kelime metnine de uygulanır."
+"tablosu kelime metnine de uygulanır."
 
 #: includes/admin/image-webp-optimizer-admin.php:1111
 #: includes/admin/image-webp-optimizer-admin.php:1147
@@ -8510,7 +8510,7 @@ msgstr "Bu görüntü formatı WebP optimizasyonu için desteklenmez."
 
 #: includes/shortcodes/word-grid-shortcode.php:6055
 msgid "This lesson category is not available for prerequisite ordering."
-msgstr "Bu ders kategorisi ön koşul siparişi için mevcut değildir."
+msgstr "Bu ders kategorisi önkoşul sıralaması için kullanılamaz."
 
 #: includes/admin/word-option-rules-admin.php:1282
 msgid "This lesson editor link expired. Reload the lesson page and try again."
@@ -8531,8 +8531,8 @@ msgid ""
 "This means all available images already have the required recording types. "
 "Great work!"
 msgstr ""
-"Bu, mevcut tüm görüntülerin zaten gerekli kayıt türlerine sahip olduğu "
-"anlamına gelir. Harika bir çalışma!"
+"Bu, mevcut tüm görsellerin zaten gerekli kayıt türlerine sahip olduğu "
+"anlamına gelir."
 
 #: includes/shortcodes/flashcard-widget.php:458
 msgid ""
@@ -8796,7 +8796,7 @@ msgstr "Tip"
 #: includes/shortcodes/editor-hub-shortcode.php:1057
 #: includes/shortcodes/word-grid-shortcode.php:4400
 msgid "Type to select or create dictionary entry"
-msgstr "Sözlük girişi seçmek veya oluşturmak için yazın"
+msgstr "Sözlük girdisi seçmek veya oluşturmak için yazın"
 
 #: includes/user-roles/audio-recorder-role.php:176
 #: includes/user-roles/audio-recorder-role.php:301
@@ -8815,7 +8815,7 @@ msgstr "İçe aktarma kuralları uygulanamıyor."
 
 #: includes/post-types/dictionary-entry-post-type.php:1011
 msgid "Unable to create dictionary entry."
-msgstr "Sözlük girişi oluşturulamıyor."
+msgstr "Sözlük girdisi oluşturulamıyor."
 
 #: includes/login-window.php:1249
 msgid "Unable to create the account right now."
@@ -8834,11 +8834,11 @@ msgstr "Bu ses kaydedici bulunamadı."
 #: includes/pages/wordset-pages.php:4339 includes/pages/wordset-pages.php:5183
 #: includes/pages/wordset-pages.php:6295 includes/pages/wordset-pages.php:6391
 msgid "Unable to find that word set."
-msgstr "Bu kelime grubu bulunamıyor."
+msgstr "Bu kelime seti bulunamıyor."
 
 #: includes/admin/word-option-rules-admin.php:1339
 msgid "Unable to import word option settings."
-msgstr "Sözcük seçeneği ayarları içe aktarılamıyor."
+msgstr "Kelime seçeneği ayarları içe aktarılamıyor."
 
 #: includes/pages/wordset-pages.php:5207
 msgid "Unable to import words right now."
@@ -8862,7 +8862,7 @@ msgstr "Şu anda ilerleme sıfırlanamıyor."
 
 #: includes/admin/image-aspect-normalizer-admin.php:872
 msgid "Unable to resolve a canonical ratio."
-msgstr "Kanonik oran çözümlenemiyor."
+msgstr "Standart oran belirlenemiyor."
 
 #: includes/shortcodes/editor-hub-shortcode.php:1069
 #: includes/shortcodes/word-grid-shortcode.php:2907
@@ -9092,7 +9092,7 @@ msgstr "Güncelleme Şubesi:"
 #: includes/pages/wordset-pages.php:13758
 #, php-format
 msgid "Update Language Learner Tools to version %s"
-msgstr "Dil Öğrenici Araçlarını %s sürümüne güncelle"
+msgstr "Language Learner Tools’u %s sürümüne güncelle"
 
 #: includes/admin/image-aspect-normalizer-admin.php:88
 #: includes/admin/image-aspect-normalizer-admin.php:152
@@ -9218,7 +9218,7 @@ msgstr "Devam etmek için kayıt erişimi olan bir hesapla giriş yap."
 
 #: includes/admin/image-aspect-normalizer-admin.php:105
 msgid "Use as canonical"
-msgstr "Kanonik olarak kullan"
+msgstr "Standart olarak kullan"
 
 #: includes/login-window.php:1206
 msgid "Use at least 8 characters for your password."
@@ -9239,13 +9239,13 @@ msgid ""
 "Use overrides to bulk-change grammatical flags such as tense, mood, and "
 "plurality on the cloned words."
 msgstr ""
-"Klonlanmış kelimelerde zaman, kip ve çoğulluk gibi dilbilgisi işaretlerini "
-"toplu olarak değiştirmek için geçersiz kılmaları kullan."
+"Kopyalanan kelimelerde zaman, kip ve çoğulluk gibi dilbilgisi işaretlerini "
+"toplu olarak değiştirmek için geçersiz kılmaları kullanın."
 
 #: includes/admin/image-aspect-normalizer-admin.php:106
 #, php-format
 msgid "Use ratio %s as the canonical ratio and refresh preview."
-msgstr "Kanonik oran olarak %s oranını kullan ve önizlemeyi yenile."
+msgstr "%s oranını standart oran olarak kullan ve önizlemeyi yenile."
 
 #: includes/taxonomies/word-category-taxonomy.php:1864
 #: includes/taxonomies/word-category-taxonomy.php:1970
@@ -9387,7 +9387,7 @@ msgstr "Ses Kaydını Görüntüle"
 
 #: includes/post-types/dictionary-entry-post-type.php:621
 msgid "View Dictionary Entry"
-msgstr "Sözlük Girişini Görüntüle"
+msgstr "Sözlük Girdisini Görüntüle"
 
 #: includes/post-types/dictionary-entry-post-type.php:1514
 msgid "View linked words"
@@ -10160,8 +10160,8 @@ msgstr[1] "Sadece önizleme. %2$d gönderi içinde %1$d eşleşme bulundu."
 #, php-format
 msgid "Inserted %1$d shortcode across %2$d post."
 msgid_plural "Inserted %1$d shortcodes across %2$d posts."
-msgstr[0] "%2$d gönderi içinde %1$d kısaltma eklendi."
-msgstr[1] "%2$d gönderi içinde %1$d kısaltma eklendi."
+msgstr[0] "%2$d gönderi içinde %1$d kısa kod eklendi."
+msgstr[1] "%2$d gönderi içinde %1$d kısa kod eklendi."
 
 #: includes/admin/missing-audio-admin-page.php:189
 msgid "Please choose at least one header to target."
@@ -10184,7 +10184,7 @@ msgstr "Kelime eksik ses listesinden kaldırıldı"
 
 #: includes/admin/missing-audio-admin-page.php:290
 msgid " and stripped [word_audio] shortcode"
-msgstr " ve [word_audio] kısaltması silindi"
+msgstr " ve [word_audio] kısa kodu silindi"
 
 #: includes/admin/missing-audio-admin-page.php:294
 msgid "No changes made. The word may have already been removed."
@@ -10212,7 +10212,7 @@ msgid ""
 "Find text via regex and wrap it with the %s shortcode. Patterns are stored "
 "for re-use and tagged with a comment label."
 msgstr ""
-"Metni regex ile bul ve %s kısaltmasıyla sar. Kalıplar yeniden kullanım için "
+"Metni regex ile bul ve %s kısa koduyla sar. Kalıplar yeniden kullanım için "
 "saklanır ve yorum etiketiyle işaretlenir."
 
 #: includes/admin/missing-audio-admin-page.php:320
@@ -10245,7 +10245,7 @@ msgstr "Henüz kaydedilmiş kalıp yok."
 
 #: includes/admin/missing-audio-admin-page.php:373
 msgid "Find Matches & Insert Shortcodes"
-msgstr "Eşleşmeleri Bul ve Kısaltmaları Ekle"
+msgstr "Eşleşmeleri Bul ve Kısa Kodları Ekle"
 
 #: includes/admin/missing-audio-admin-page.php:377
 msgid "Saved pattern"
@@ -10274,7 +10274,7 @@ msgstr "Eşleşmeleri Önizle"
 
 #: includes/admin/missing-audio-admin-page.php:394
 msgid "Insert Shortcodes Now"
-msgstr "Kısaltmaları Şimdi Ekle"
+msgstr "Kısa Kodları Şimdi Ekle"
 
 #: includes/admin/missing-audio-admin-page.php:401
 msgid "Preview Results"
@@ -10313,8 +10313,8 @@ msgstr "Ekleme Özeti"
 #, php-format
 msgid "Updated %1$d post, inserted %2$d shortcode."
 msgid_plural "Updated %1$d posts, inserted %2$d shortcodes."
-msgstr[0] "%1$d gönderi güncellendi, %2$d kısaltma eklendi."
-msgstr[1] "%1$d gönderi güncellendi, %2$d kısaltma eklendi."
+msgstr[0] "%1$d gönderi güncellendi, %2$d kısa kod eklendi."
+msgstr[1] "%1$d gönderi güncellendi, %2$d kısa kod eklendi."
 
 #: includes/admin/missing-audio-admin-page.php:489
 msgid "Table Column → Insert [word_audio]"
@@ -10327,7 +10327,7 @@ msgid ""
 "with %s. Existing shortcodes are skipped."
 msgstr ""
 "HTML tabloları bul, başlık(lar) seç ve o sütunlardaki her hücreyi %s ile "
-"sar. Mevcut kısaltmalar atlanır."
+"sar. Mevcut kısa kodlar atlanır."
 
 #: includes/admin/missing-audio-admin-page.php:494
 msgid "Select column headers to target"
@@ -10358,7 +10358,7 @@ msgstr "Tablo Eşleşmelerini Önizle"
 
 #: includes/admin/missing-audio-admin-page.php:530
 msgid "Insert Shortcodes in Column Now"
-msgstr "Kısaltmaları Sütuna Şimdi Ekle"
+msgstr "Kısa Kodları Sütuna Şimdi Ekle"
 
 #: includes/admin/missing-audio-admin-page.php:537
 msgid "Table Preview Results"
@@ -10401,7 +10401,7 @@ msgstr "Yok"
 
 #: includes/admin/missing-audio-admin-page.php:658
 msgid "Remove & strip shortcode"
-msgstr "Kaldır ve kısaltmayı sil"
+msgstr "Kaldır ve kısa kodu sil"
 
 #: includes/admin/missing-audio-admin-page.php:667
 msgid "No missing audio instances found."
@@ -10413,7 +10413,7 @@ msgstr "Doğrudan medya URL'sini buraya yapıştır."
 
 #: includes/admin/admin-dashboard-menu.php:37
 msgid "LL Tools"
-msgstr "LL Araçları"
+msgstr "LL Tools"
 
 #: includes/admin/admin-dashboard-menu.php:158
 #: includes/admin/admin-dashboard-menu.php:486
@@ -10491,29 +10491,29 @@ msgid ""
 "default dialects used by dictionary entries."
 msgstr ""
 "Yeniden kullanılabilir kaynak etiketlerini, atıf metnini, kaynak sayfa "
-"URL'lerini ve sözlük girişleri tarafından kullanılan varsayılan lehçeleri "
+"URL'lerini ve sözlük girdileri tarafından kullanılan varsayılan lehçeleri "
 "koruyun."
 
 #: includes/admin/admin-dashboard-menu.php:514
 msgid "Review learner activity and progress summaries by word set."
 msgstr ""
-"Öğrenci etkinliğini ve ilerleme özetlerini kelime kümesine göre inceleyin."
+"Öğrenci etkinliğini ve ilerleme özetlerini kelime setine göre inceleyin."
 
 #: includes/admin/admin-dashboard-menu.php:541
 msgid ""
 "Build a one-wordset offline quiz bundle that can be turned into an Android "
 "APK."
 msgstr ""
-"Android APK'sına dönüştürülebilecek tek kelimelik bir çevrimdışı test paketi"
-" oluşturun."
+"Android APK’sına dönüştürülebilecek tek kelime setli bir çevrimdışı quiz "
+"paketi oluşturun."
 
 #: includes/admin/admin-dashboard-menu.php:550
 msgid ""
 "Review transcriptions by word set, search recordings, and catch likely IPA "
 "issues."
 msgstr ""
-"Transkripsiyonları kelime kümesine göre inceleyin, kayıtları arayın ve olası"
-" IPA sorunlarını yakalayın."
+"Transkripsiyonları kelime setine göre inceleyin, kayıtları arayın ve olası "
+"IPA sorunlarını yakalayın."
 
 #: includes/admin/admin-dashboard-menu.php:596
 #: includes/post-types/content-lesson-post-type.php:47
@@ -10650,8 +10650,8 @@ msgstr ""
 #, php-format
 msgid "%d word is not in any quizzable category"
 msgid_plural "%d words are not in any quizzable category"
-msgstr[0] "%d kelime test edilebilir herhangi bir kategoride değil"
-msgstr[1] "%d kelime test edilebilir herhangi bir kategoride değil"
+msgstr[0] "%d kelime quiz’e uygun hiçbir kategoride değil"
+msgstr[1] "%d kelime quiz’e uygun hiçbir kategoride değil"
 
 #. translators: %s: wordset name
 #: includes/admin/audio-processor-admin.php:1487
@@ -10691,8 +10691,8 @@ msgid ""
 "each item’s assigned word set. Legacy site settings are used only as a "
 "fallback."
 msgstr ""
-"Kaynak dil, hedef dil ve sözcük-başlık dili, her öğenin atanan sözcük "
-"kümesinden çözümlenir. Eski site ayarları yalnızca yedek olarak kullanılır."
+"Kaynak dil, hedef dil ve kelime başlığı dili, her öğenin atandığı kelime "
+"setinden belirlenir. Eski site ayarları yalnızca yedek olarak kullanılır."
 
 #: includes/admin/bulk-translation-admin.php:59
 msgid "Save API key"
@@ -10770,9 +10770,9 @@ msgid ""
 " tab-separated rows and works as-is. If a word or translation contains a "
 "comma, wrap that value in double quotes."
 msgstr ""
-"Excel'den veya Google E-Tablolar'dan iki e-tablo sütununun kopyalanması "
-"genellikle sekmeyle ayrılmış satırlar oluşturur ve olduğu gibi çalışır. Bir "
-"sözcük veya çeviri virgül içeriyorsa bu değeri çift tırnak içine alın."
+"Excel veya Google E-Tablolar’dan iki e-tablo sütunu kopyalamak genellikle "
+"sekmeyle ayrılmış satırlar oluşturur ve olduğu gibi çalışır. Bir kelime veya"
+" çeviri virgül içeriyorsa bu değeri çift tırnak içine alın."
 
 #: includes/admin/dictionary-import-admin.php:48
 #: includes/admin/dictionary-import-admin.php:49
@@ -10810,8 +10810,8 @@ msgstr "Boş satırlar atlandı: %d."
 #, php-format
 msgid "%d dictionary entry was touched."
 msgid_plural "%d dictionary entries were touched."
-msgstr[0] "%d sözlük girişine dokunuldu."
-msgstr[1] "%d sözlük girişine dokunuldu."
+msgstr[0] "%d sözlük girdisi etkilendi."
+msgstr[1] "%d sözlük girdisi etkilendi."
 
 #: includes/admin/dictionary-import-admin.php:309
 msgid "Some rows could not be imported:"
@@ -10925,7 +10925,7 @@ msgstr "Eski sözlük geçişi tamamlandı."
 
 #: includes/admin/dictionary-import-admin.php:1170
 msgid "Dictionary snapshot override completed."
-msgstr "Sözlük anlık görüntüsünü geçersiz kılma işlemi tamamlandı."
+msgstr "Sözlük anlık görüntüsüyle üzerine yazma tamamlandı."
 
 #: includes/admin/dictionary-import-admin.php:1171
 msgid "Dictionary snapshot import completed."
@@ -10944,7 +10944,7 @@ msgid ""
 "Processed %1$d dictionary entries. Created: %2$d. Updated: %3$d. Deleted: "
 "%4$d."
 msgstr ""
-"%1$d sözlük girişi işlendi. Oluşturuldu: %2$d. Güncellendi: %3$d. Silindi: "
+"%1$d sözlük girdisi işlendi. Oluşturuldu: %2$d. Güncellendi: %3$d. Silindi: "
 "%4$d."
 
 #. translators: 1: updated sources count, 2: replaced sources count
@@ -10993,9 +10993,9 @@ msgid ""
 "backup snapshot still exists. Undo restores the whole dictionary using the "
 "same resumable batch importer."
 msgstr ""
-"Geri alma, en son tamamlanan sözlüğün içe aktarımı için, yedek anlık "
-"görüntüsü hala mevcutken kullanılabilir. Geri al, aynı devam ettirilebilir "
-"toplu içe aktarıcıyı kullanarak sözlüğün tamamını geri yükler."
+"Yedek anlık görüntüsü hâlâ mevcutsa en son tamamlanan sözlük içe aktarma "
+"işlemi geri alınabilir. Geri alma, aynı devam ettirilebilir toplu içe "
+"aktarıcıyı kullanarak sözlüğün tamamını geri yükler."
 
 #: includes/admin/dictionary-import-admin.php:1332
 msgid "No dictionary import history found yet."
@@ -11056,7 +11056,7 @@ msgstr "%1$d oluşturuldu, %2$d güncellendi, şu ana kadar %3$d satır atlandı
 #: includes/admin/dictionary-import-admin.php:1444
 #, php-format
 msgid "Processed %1$d of %2$d dictionary entries."
-msgstr "%2$d sözlük girişinin %1$d tanesi işlendi."
+msgstr "%2$d sözlük girdisinin %1$d tanesi işlendi."
 
 #. translators: 1: created entries, 2: updated entries, 3: deleted entries, 4:
 #. updated sources
@@ -11231,15 +11231,14 @@ msgid ""
 "mode without breaking linked learning words that already point at those "
 "dictionary entries."
 msgstr ""
-"Tüm site sözlüğünün anlık görüntüleri, kararlı içe aktarma anahtarlarını "
-"korur; böylece site sözlüğünü dışa aktarabilir, yerel olarak düzenleyebilir "
-"ve daha sonra, zaten söz konusu sözlük girişlerine işaret eden bağlantılı "
-"öğrenme sözcüklerini bozmadan geçersiz kılma modunda yeniden içe "
-"aktarabilirsiniz."
+"Tüm site sözlüğü anlık görüntüleri kararlı içe aktarma anahtarlarını korur; "
+"böylece site sözlüğünü dışa aktarabilir, yerel olarak düzenleyebilir ve daha"
+" sonra bu sözlük girdilerine zaten bağlı olan öğrenme kelimelerini bozmadan "
+"üzerine yazma modunda yeniden içe aktarabilirsiniz."
 
 #: includes/admin/dictionary-import-admin.php:1809
 msgid "Export Whole Dictionary Snapshot"
-msgstr "Tüm Sözlüğün Anlık Görüntüsünü Dışa Aktar"
+msgstr "Tüm Sözlük Anlık Görüntüsünü Dışa Aktar"
 
 #: includes/admin/dictionary-import-admin.php:1810
 msgid ""
@@ -11248,10 +11247,10 @@ msgid ""
 "when editing so override imports update the existing entry instead of "
 "creating a new one."
 msgstr ""
-"Bu sitedeki her LL Tools sözlük girişini ve ayrıca sözlük kaynak kaydını "
-"JSON anlık görüntüsü olarak dışa aktarır. Düzenleme sırasında her girişin "
-"import_anahtarını olduğu gibi tutun, böylece içe aktarmaları geçersiz "
-"kılarak yeni bir giriş oluşturmak yerine mevcut girişi güncelleyin."
+"Bu sitedeki her LL Tools sözlük girdisini ve sözlük kaynak kaydını JSON "
+"anlık görüntüsü olarak dışa aktarır. Düzenlerken her girdinin import_key "
+"değerini olduğu gibi tutun; böylece üzerine yazma içe aktarmaları yeni bir "
+"girdi oluşturmak yerine mevcut girdiyi günceller."
 
 #: includes/admin/dictionary-import-admin.php:1814
 msgid "Export Dictionary Snapshot"
@@ -11269,11 +11268,11 @@ msgid ""
 "dialects, and multilingual gloss columns like definition_full_tr, "
 "definition_tr, gloss_tr, translation_en, and definition_full_de."
 msgstr ""
-"Beklenen sütunlar: giriş, tanım, cinsiyet_numarası, giriş_türü, ebeveyn, "
-"gözden geçirme ihtiyacı, sayfa_numarası. Başlık tabanlı TSV'ler aynı zamanda"
-" source_id, source_dictionary, source_row_idx, raw_headword, title_keys, "
-"lehçeleri, lehçeleri ve define_full_tr, define_tr, gloss_tr, Translation_en "
-"ve define_full_de gibi çok dilli parlak sütunları da içerebilir."
+"Beklenen sütunlar: entry, definition, gender_number, entry_type, parent, "
+"needs_review, page_number. Başlık tabanlı TSV’ler ayrıca source_id, "
+"source_dictionary, source_row_idx, raw_headword, title_keys, dialect, "
+"dialects ve definition_full_tr, definition_tr, gloss_tr, translation_en, "
+"definition_full_de gibi çok dilli gloss sütunlarını içerebilir."
 
 #: includes/admin/dictionary-import-admin.php:1865
 msgid ""
@@ -11287,7 +11286,7 @@ msgstr ""
 
 #: includes/admin/dictionary-import-admin.php:1873
 msgid "No word set scope"
-msgstr "Kelime kümesi kapsamı yok"
+msgstr "Kelime seti kapsamı yok"
 
 #: includes/admin/dictionary-import-admin.php:1881
 msgid ""
@@ -11301,7 +11300,7 @@ msgstr ""
 
 #: includes/admin/dictionary-import-admin.php:1886
 msgid "Entry Language"
-msgstr "Giriş Dili"
+msgstr "Girdi Dili"
 
 #: includes/admin/dictionary-import-admin.php:1890
 msgid "Definition Language"
@@ -11316,8 +11315,8 @@ msgid ""
 "Replace existing structured senses for matching headwords instead of "
 "merging."
 msgstr ""
-"Birleştirmek yerine başlık sözcüklerini eşleştirmek için mevcut "
-"yapılandırılmış anlamları değiştirin."
+"Birleştirmek yerine eşleşen madde başları için mevcut yapılandırılmış "
+"anlamları değiştirin."
 
 #: includes/admin/dictionary-import-admin.php:1904
 msgid "Import Dictionary TSV"
@@ -11334,11 +11333,10 @@ msgid ""
 "match the file exactly, deleting dictionary entries and source-registry "
 "items that are not present in the uploaded snapshot."
 msgstr ""
-"Daha önce LL Tools'tan dışa aktarılan bir JSON anlık görüntüsünü yükleyin. "
-"Birleştirme modu, dosyadaki girişleri ekler ve günceller. Geçersiz kılma "
-"modu, site sözlüğünün dosyayla tam olarak eşleşmesini sağlar ve yüklenen "
-"anlık görüntüde bulunmayan sözlük girişlerini ve kaynak kayıt defteri "
-"öğelerini siler."
+"Daha önce LL Tools’tan dışa aktarılan bir JSON anlık görüntüsü yükleyin. "
+"Birleştirme modu dosyadaki girdileri ekler ve günceller. Üzerine yazma modu,"
+" site sözlüğünü dosyayla bire bir eşleştirir ve yüklenen anlık görüntüde "
+"bulunmayan sözlük girdilerini ve kaynak kaydı öğelerini siler."
 
 #: includes/admin/dictionary-import-admin.php:1917
 msgid "Snapshot File"
@@ -11363,7 +11361,7 @@ msgstr "Mevcut sözlüğe birleştir"
 
 #: includes/admin/dictionary-import-admin.php:1928
 msgid "Override site dictionary from snapshot"
-msgstr "Anlık görüntüden site sözlüğünü geçersiz kıl"
+msgstr "Site sözlüğünü anlık görüntüyle değiştir"
 
 #: includes/admin/dictionary-import-admin.php:1930
 msgid ""
@@ -11371,9 +11369,9 @@ msgid ""
 "words attached to those entries, and deletes dictionary entries that are "
 "missing from the snapshot."
 msgstr ""
-"Geçersiz kılma modu, eşleşen girişleri import_key ile günceller, bağlantılı "
-"öğrenme sözcüklerini bu girişlere eklenmiş halde tutar ve anlık görüntüde "
-"eksik olan sözlük girişlerini siler."
+"Üzerine yazma modu, import_key ile eşleşen girdileri günceller, bağlantılı "
+"öğrenme kelimelerini bu girdilere bağlı tutar ve anlık görüntüde eksik olan "
+"sözlük girdilerini siler."
 
 #: includes/admin/dictionary-import-admin.php:1935
 msgid "Import Dictionary Snapshot"
@@ -11593,11 +11591,11 @@ msgstr ""
 
 #: includes/admin/export-import.php:171 includes/admin/export-import.php:2008
 msgid "Preparing export bundle..."
-msgstr "İhracat paketi hazırlanıyor..."
+msgstr "Dışa aktarma paketi hazırlanıyor..."
 
 #: includes/admin/export-import.php:172 includes/admin/export-import.php:1997
 msgid "Export ready. Starting download..."
-msgstr "İhracata hazır. İndirme başlatılıyor..."
+msgstr "Dışa aktarma hazır. İndirme başlatılıyor..."
 
 #: includes/admin/export-import.php:173
 msgid ""
@@ -11634,8 +11632,8 @@ msgstr "Bu kelime seti için kategori bulunamadı"
 msgid ""
 "Could not load categories for this word set. Reload the page and try again."
 msgstr ""
-"Bu kelime kümesi için kategoriler yüklenemedi. Sayfayı yeniden yükleyip "
-"tekrar deneyin."
+"Bu kelime seti için kategoriler yüklenemedi. Sayfayı yeniden yükleyip tekrar"
+" deneyin."
 
 #: includes/admin/export-import.php:205
 msgid "You do not have permission to access export tools."
@@ -11690,9 +11688,9 @@ msgid ""
 "This export hit one or more large-bundle safeguards. Review the estimates "
 "below, then tick \"Force large export and run it anyway\" to continue."
 msgstr ""
-"Bu ihracat bir veya daha fazla büyük paket korumayı vurdu. Aşağıdaki "
-"tahminleri inceleyin ve devam etmek için \"Büyük dışa aktarmayı zorla ve "
-"yine de çalıştır\" seçeneğini işaretleyin."
+"Bu dışa aktarma bir veya daha fazla büyük paket korumasına takıldı. Devam "
+"etmek için aşağıdaki tahminleri inceleyin ve \"Büyük dışa aktarmayı zorla ve"
+" yine de çalıştır\" seçeneğini işaretleyin."
 
 #: includes/admin/export-import.php:312
 msgid ""
@@ -11707,8 +11705,9 @@ msgid ""
 "This export hit one or more large-bundle safeguards. Tick \"Force large "
 "export and run it anyway\" to continue."
 msgstr ""
-"Bu ihracat bir veya daha fazla büyük paket korumayı vurdu. Devam etmek için "
-"\"Büyük dışa aktarmayı zorla ve yine de çalıştır\" seçeneğini işaretleyin."
+"Bu dışa aktarma bir veya daha fazla büyük paket korumasına takıldı. Devam "
+"etmek için \"Büyük dışa aktarmayı zorla ve yine de çalıştır\" seçeneğini "
+"işaretleyin."
 
 #: includes/admin/export-import.php:337
 msgid ""
@@ -11761,7 +11760,7 @@ msgstr "Paket dosyaları çıkarılıyor: %1$d / %2$d"
 
 #: includes/admin/export-import.php:1596
 msgid "Preparing import batches…"
-msgstr "İthalat partileri hazırlanıyor…"
+msgstr "İçe aktarma grupları hazırlanıyor…"
 
 #: includes/admin/export-import.php:1600
 #, php-format
@@ -11789,7 +11788,7 @@ msgstr "Kelimeler içe aktarılıyor: %1$d / %2$d"
 
 #: includes/admin/export-import.php:1630
 msgid "Importing word set template…"
-msgstr "Kelime kümesi şablonu içe aktarılıyor…"
+msgstr "Kelime seti şablonu içe aktarılıyor…"
 
 #: includes/admin/export-import.php:1633
 msgid "Finalizing import…"
@@ -11910,7 +11909,7 @@ msgstr "Resim -> metin + ses"
 
 #: includes/admin/export-import.php:2663
 msgid "Uses /images for prompts and /audio for answer audio."
-msgstr "Bilgi istemleri için /images ve yanıt sesi için /audio kullanır."
+msgstr "Sorular için /images, cevap sesi için /audio kullanır."
 
 #: includes/admin/export-import.php:2667
 msgid "Text -> image"
@@ -11922,9 +11921,9 @@ msgid ""
 "\"correct_image_file\". Optional wrong_image_* columns are imported as "
 "preferred image distractor groups."
 msgstr ""
-"Kanonik başlık \"görüntü\"dür. İthalatçı ayrıca \"correct_image_file\" gibi "
-"takma adları da kabul eder. İsteğe bağlı false_image_* sütunları, tercih "
-"edilen görüntü dikkat dağıtıcı gruplar olarak içe aktarılır."
+"Asıl başlık \"image\" olmalıdır. İçe aktarıcı \"correct_image_file\" gibi "
+"takma adları da kabul eder. İsteğe bağlı wrong_image_* sütunları, tercih "
+"edilen görsel çeldirici grupları olarak içe aktarılır."
 
 #: includes/admin/export-import.php:2672
 msgid "Text -> text"
@@ -11932,7 +11931,7 @@ msgstr "Metin -> metin"
 
 #: includes/admin/export-import.php:2673
 msgid "Prompt text is imported into the word translation field."
-msgstr "Bilgi istemi metni sözcük çeviri alanına aktarılır."
+msgstr "Soru metni kelime çevirisi alanına içe aktarılır."
 
 #: includes/admin/export-import.php:2677
 msgid "Audio -> text"
@@ -11948,7 +11947,7 @@ msgstr "Ses + metin -> metin"
 
 #: includes/admin/export-import.php:2683
 msgid "Combines an audio prompt with visible prompt text."
-msgstr "Sesli istemi görünür bilgi istemi metniyle birleştirir."
+msgstr "Sesli soruyu görünür soru metniyle birleştirir."
 
 #: includes/admin/export-import.php:2696
 msgid "CSV Column Reference"
@@ -11961,10 +11960,10 @@ msgid ""
 "\"quiz\" column. Extra metadata columns such as url, page, source_type, "
 "source_url, and status are ignored."
 msgstr ""
-"CSV tabanlı zip içe aktarmalarını hazırlarken bu şablonlardan birinden bir "
-"başlık satırı kopyalayın. CSV dosyaları zip'in en üst düzeyinde yer almalı "
-"ve bir \"sınav\" sütunu içermelidir. URL, sayfa, kaynak_türü, kaynak_url ve "
-"durum gibi ekstra meta veri sütunları dikkate alınmaz."
+"CSV tabanlı zip içe aktarmaları hazırlarken bu şablonlardan birinden bir "
+"başlık satırı kopyalayın. CSV dosyaları zip’in en üst düzeyinde bulunmalı ve"
+" \"quiz\" sütununu içermelidir. url, page, source_type, source_url ve status"
+" gibi ekstra meta veri sütunları yok sayılır."
 
 #: includes/admin/export-import.php:2738
 msgid "Word translation"
@@ -12030,7 +12029,7 @@ msgstr ""
 #: includes/admin/export-import.php:2835
 #, php-format
 msgid "The importer accepts these editable fields: %s."
-msgstr "İthalatçı şu düzenlenebilir alanları kabul eder: %s."
+msgstr "İçe aktarıcı şu düzenlenebilir alanları kabul eder: %s."
 
 #: includes/admin/export-import.php:2838
 msgid ""
@@ -12056,9 +12055,10 @@ msgid ""
 "whichever field text_field names: recording_text, recording_ipa, "
 "recording_translation, word_title, or word_translation."
 msgstr ""
-"STT dışa aktarma sütunlarını metin + metin_alanı olarak korursanız, "
-"metin_alanı adlarından hangisi olursa olsun metin güncellenir: kayıt_metni, "
-"kayıt_ipa, kayıt_çevirisi, kelime_başlığı veya kelime_çevirisi."
+"STT dışa aktarma sütunları olan text + text_field sütunlarını korursanız, "
+"text değerini değiştirmek text_field hangi alanı adlandırıyorsa onu "
+"günceller: recording_text, recording_ipa, recording_translation, word_title "
+"veya word_translation."
 
 #: includes/admin/export-import.php:2841
 msgid ""
@@ -12163,11 +12163,11 @@ msgid ""
 "removes items created by bundle imports and restores previous values for "
 "metadata-update imports when snapshot data is available."
 msgstr ""
-"Bugün ve dün tamamlanan ithalatları gösterir. Yeni bir şey yoksa, en son "
-"depolanan içe aktarma gösterilmeye devam eder, böylece geri alma işlemi "
-"kullanılabilir durumda kalır. Geri al, paket içe aktarmaları tarafından "
-"oluşturulan öğeleri kaldırır ve anlık görüntü verileri mevcut olduğunda meta"
-" veri güncelleme içe aktarmaları için önceki değerleri geri yükler."
+"Bugün ve dün tamamlanan içe aktarmaları gösterir. Yakın tarihli bir işlem "
+"yoksa geri alma kullanılabilir kalsın diye en son saklanan içe aktarma yine "
+"gösterilir. Geri alma, paket içe aktarmalarıyla oluşturulan öğeleri kaldırır"
+" ve anlık görüntü verisi varsa meta veri güncelleme içe aktarmaları için "
+"önceki değerleri geri yükler."
 
 #: includes/admin/export-import.php:3152
 msgid "No import history found."
@@ -12198,11 +12198,11 @@ msgid ""
 " mode exports one word set's isolated categories, images, and template-safe "
 "settings for reuse on another site."
 msgstr ""
-"LL Tools paketlerini zip olarak dışa aktarın. Resim modu, kategorileri ve "
-"kelime resimlerini içerir; tam mod aynı zamanda sözcükleri, sesi ve kaynak "
-"sözcük kümelerini de içerir; şablon modu, bir kelime kümesinin yalıtılmış "
-"kategorilerini, resimlerini ve şablon açısından güvenli ayarlarını başka bir"
-" sitede yeniden kullanılmak üzere dışa aktarır."
+"LL Tools paketlerini zip olarak dışa aktarın. Görsel modu kategorileri ve "
+"kelime görsellerini içerir; tam mod ayrıca kelimeleri, sesi ve kaynak kelime"
+" setlerini içerir; şablon modu ise başka bir sitede yeniden kullanmak için "
+"bir kelime setinin yalıtılmış kategorilerini, görsellerini ve şablon için "
+"güvenli ayarlarını dışa aktarır."
 
 #: includes/admin/export-import.php:3484
 msgid ""
@@ -12269,7 +12269,7 @@ msgid ""
 "Checking this bypasses all export safeguards on this page. The server may "
 "still time out or fail while preparing the zip."
 msgstr ""
-"Bunun kontrol edilmesi bu sayfadaki tüm ihracat korumalarını atlar. Zip "
+"Bu kutuyu işaretlemek bu sayfadaki tüm dışa aktarma korumalarını atlar. Zip "
 "hazırlanırken sunucu yine de zaman aşımına uğrayabilir veya hata verebilir."
 
 #: includes/admin/export-import.php:3623
@@ -12299,7 +12299,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3702
 msgid "Export STT Training Data"
-msgstr "STT Eğitim Verilerini Dışa Aktarma"
+msgstr "STT eğitim verilerini dışa aktar"
 
 #: includes/admin/export-import.php:3708
 msgid ""
@@ -12313,7 +12313,7 @@ msgstr ""
 
 #: includes/admin/export-import.php:3723
 msgid "Exports recordings attached to words in the selected word set."
-msgstr "Seçilen kelime kümesindeki kelimelere eklenen kayıtları dışa aktarır."
+msgstr "Seçilen kelime setindeki kelimelere eklenen kayıtları dışa aktarır."
 
 #: includes/admin/export-import.php:3727
 msgid "Training text field"
@@ -12371,11 +12371,10 @@ msgid ""
 "media folders (/images and/or /audio). CSV mode supports image->text, "
 "text->image, text->text, and audio->text mappings."
 msgstr ""
-"Desteklenen zip formatları: (1) Kelime seti şablonları da dahil olmak üzere "
-"LL Tools ihracat paketleri ve (2) \"quiz\" sütunu artı harici medya "
-"klasörleri (/images ve/veya /audio) içeren üst düzey CSV dosyaları. CSV modu"
-" resim->metin, metin->resim, metin->metin ve ses->metin eşlemelerini "
-"destekler."
+"Desteklenen zip formatları: (1) kelime seti şablonları dahil LL Tools dışa "
+"aktarma paketleri ve (2) \"quiz\" sütunu ile harici medya klasörleri "
+"(/images ve/veya /audio) içeren üst düzey CSV dosyaları. CSV modu "
+"image->text, text->image, text->text ve audio->text eşlemelerini destekler."
 
 #: includes/admin/export-import.php:4014
 msgid "Template import behavior"
@@ -12387,7 +12386,7 @@ msgid ""
 " rename that new word set below before confirming the import."
 msgstr ""
 "Şablon paketleri her zaman bu sitede yeni bir izole kelime seti oluşturur. "
-"İçe aktarmayı onaylamadan önce aşağıdan bu yeni kelime kümesini yeniden "
+"İçe aktarmayı onaylamadan önce aşağıdan bu yeni kelime setini yeniden "
 "adlandırabilirsiniz."
 
 #: includes/admin/export-import.php:4029
@@ -12395,7 +12394,7 @@ msgid ""
 "Edit the destination word set name here before confirming the template "
 "import."
 msgstr ""
-"Şablonun içe aktarımını onaylamadan önce hedef kelime kümesi adını burada "
+"Şablonun içe aktarımını onaylamadan önce hedef kelime seti adını burada "
 "düzenleyin."
 
 #: includes/admin/export-import.php:4068
@@ -12547,11 +12546,11 @@ msgstr "Bir şablon paketini dışa aktarırken bir kelime seti seçin."
 #: includes/admin/export-import.php:4239
 #: includes/admin/export-import.php:10195
 msgid "The selected word set for template export is invalid."
-msgstr "Şablon dışa aktarımı için seçilen kelime kümesi geçersiz."
+msgstr "Şablon dışa aktarımı için seçilen kelime seti geçersiz."
 
 #: includes/admin/export-import.php:4576
 msgid "Missing word set selection for STT export."
-msgstr "STT dışa aktarma için eksik kelime kümesi seçimi."
+msgstr "STT dışa aktarma için eksik kelime seti seçimi."
 
 #: includes/admin/export-import.php:4581
 msgid "Invalid word set selection for STT export."
@@ -12571,8 +12570,8 @@ msgid ""
 "Skipped row %1$d in CSV \"%2$s\": prompt text and audio are required for "
 "audio+text quizzes."
 msgstr ""
-"\"%2$s\" CSV'sinde %1$d. satır atlandı: sesli+metin sınavları için bilgi "
-"istemi metni ve ses gereklidir."
+"\"%2$s\" CSV dosyasında %1$d. satır atlandı: ses+metin quizleri için soru "
+"metni ve ses gereklidir."
 
 #: includes/admin/export-import.php:6263
 #, php-format
@@ -12720,7 +12719,7 @@ msgstr "Satır %d: word_id ve word_slug farklı kelimelere işaret ediyor."
 
 #: includes/admin/export-import.php:7584
 msgid "Recording slug is ambiguous without a parent word identifier."
-msgstr "Kayıt bilgisi, ana sözcük tanımlayıcısı olmadan belirsizdir."
+msgstr "Üst kelime tanımlayıcısı olmadan kayıt slug’ı belirsizdir."
 
 #. translators: 1 row word ID, 2 recording type
 #: includes/admin/export-import.php:7616
@@ -12966,7 +12965,7 @@ msgstr "LL Tools içe aktarmalarını iptal etme izniniz yok."
 
 #: includes/admin/export-import.php:10198
 msgid "Word set template export is not available right now."
-msgstr "Kelime kümesi şablonunu dışa aktarma şu anda kullanılamıyor."
+msgstr "Kelime seti şablonunu dışa aktarma şu anda kullanılamıyor."
 
 #: includes/admin/export-import.php:10203
 msgid "The selected word set does not have any template categories to export."
@@ -12976,7 +12975,7 @@ msgstr "Seçilen kelime setinde dışa aktarılacak şablon kategorisi yok."
 msgid ""
 "The selected word set does not have any valid template categories to export."
 msgstr ""
-"Seçilen kelime kümesinin dışa aktarılacak geçerli şablon kategorisi yok."
+"Seçilen kelime setinin dışa aktarılacak geçerli şablon kategorisi yok."
 
 #: includes/admin/export-import.php:11060
 msgid "Recording transcription"
@@ -13088,7 +13087,7 @@ msgid ""
 "matched to another imported word in the same category/word set."
 msgstr ""
 "\"%2$s\" kelimesi için içe aktarılan yanlış resim tercihi \"%1$s\", aynı "
-"kategori/kelime kümesinde içe aktarılan başka bir kelimeyle eşleştirilemedi."
+"kategori/kelime setinde içe aktarılan başka bir kelimeyle eşleştirilemedi."
 
 #: includes/admin/export-import.php:13860
 #, php-format
@@ -13218,7 +13217,7 @@ msgstr "Kayıtlar aranıyor..."
 
 #: includes/admin/ipa-keyboard-admin.php:297
 msgid "This can take a moment for larger word sets."
-msgstr "Daha büyük kelime kümeleri için bu biraz zaman alabilir."
+msgstr "Daha büyük kelime setleri için bu biraz zaman alabilir."
 
 #: includes/admin/ipa-keyboard-admin.php:298
 msgid "No recordings matched this search."
@@ -13349,7 +13348,7 @@ msgid ""
 "Custom IPA checks are only available when this word set uses IPA "
 "transcription mode."
 msgstr ""
-"Özel IPA kontrolleri yalnızca bu kelime kümesi IPA transkripsiyon modunu "
+"Özel IPA kontrolleri yalnızca bu kelime seti IPA transkripsiyon modunu "
 "kullandığında kullanılabilir."
 
 #: includes/admin/ipa-keyboard-admin.php:333
@@ -13687,7 +13686,7 @@ msgid ""
 "Mappings inferred from this word set. Add manual overrides to fix suggestion"
 " mistakes."
 msgstr ""
-"Bu kelime kümesinden çıkarılan eşlemeler. Öneri hatalarını düzeltmek için "
+"Bu kelime setinden çıkarılan eşlemeler. Öneri hatalarını düzeltmek için "
 "manuel geçersiz kılmalar ekleyin."
 
 #: includes/admin/ipa-keyboard-admin.php:471
@@ -13857,11 +13856,11 @@ msgstr "%2$s'dan önce %1$s'a izin vermeyin."
 #: includes/admin/ipa-keyboard-admin.php:1796
 #, php-format
 msgid "Do not allow %s anywhere in this word set."
-msgstr "Bu kelime kümesinin hiçbir yerinde %s'ye izin vermeyin."
+msgstr "Bu kelime setinin hiçbir yerinde %s'ye izin vermeyin."
 
 #: includes/admin/ipa-keyboard-admin.php:2874
 msgid "Invalid word for this word set."
-msgstr "Bu kelime kümesi için geçersiz kelime."
+msgstr "Bu kelime seti için geçersiz kelime."
 
 #: includes/admin/ipa-keyboard-admin.php:2879
 msgid "This word already has written text."
@@ -13878,7 +13877,7 @@ msgstr "Bu kaynak kaydında zaten metin var."
 #: includes/admin/ipa-keyboard-admin.php:2900
 msgid "Current rules cannot fully convert this IPA transcription yet."
 msgstr ""
-"Mevcut kurallar henüz bu IPA transkripsiyonunu tam olarak dönüştüremiyor."
+"Mevcut kurallar bu IPA transkripsiyonunu henüz tam olarak dönüştüremiyor."
 
 #: includes/admin/ipa-keyboard-admin.php:2907
 msgid "Failed to save the converted recording text."
@@ -13957,22 +13956,21 @@ msgid ""
 "contains a standalone web app plus exported content and can be turned into "
 "an Android APK on an admin machine or CI."
 msgstr ""
-"Tek bir kelime seti için bağımsız bir çevrimdışı sınav paketi oluşturun. "
-"Paket, bağımsız bir web uygulamasına ek olarak dışa aktarılan içerik içerir "
-"ve bir yönetici makinesinde veya CI'da bir Android APK'sına "
+"Tek bir kelime seti için kendi kendine yeten bir çevrimdışı quiz paketi "
+"oluşturun. Paket, bağımsız bir web uygulaması ve dışa aktarılan içeriği "
+"içerir; bir yönetici makinesinde veya CI’da Android APK’sına "
 "dönüştürülebilir."
 
 #: includes/admin/offline-app-export.php:599
 msgid "Create at least one word set before exporting an offline app."
 msgstr ""
-"Çevrimdışı bir uygulamayı dışa aktarmadan önce en az bir kelime kümesi "
+"Çevrimdışı bir uygulamayı dışa aktarmadan önce en az bir kelime seti "
 "oluşturun."
 
 #: includes/admin/offline-app-export.php:698
 msgid "Exactly one word set is exported per offline app bundle."
 msgstr ""
-"Çevrimdışı uygulama paketi başına tam olarak bir kelime kümesi dışa "
-"aktarılır."
+"Çevrimdışı uygulama paketi başına tam olarak bir kelime seti dışa aktarılır."
 
 #: includes/admin/offline-app-export.php:709
 msgid "Include all categories in this word set"
@@ -14096,11 +14094,11 @@ msgid ""
 "optionally link a site account later to sync study state and progress when "
 "they reconnect."
 msgstr ""
-"Çevrimdışı paket, bağımsız APK kabuğunu ve desteklenen test modları için "
+"Çevrimdışı paket, bağımsız APK kabuğunu ve desteklenen quiz modları için "
 "paketlenmiş medyayı dışa aktarır. Öğrenciler uygulamayı yerel olarak "
-"kullanmaya devam edebilir ve daha sonra isteğe bağlı olarak bir site hesabı "
-"bağlayarak yeniden bağlandıklarında çalışma durumunu ve ilerlemeyi "
-"senkronize edebilir."
+"kullanmaya devam edebilir, ardından yeniden bağlandıklarında çalışma "
+"durumunu ve ilerlemeyi eşitlemek için isteğe bağlı olarak bir site hesabı "
+"bağlayabilir."
 
 #: includes/admin/offline-app-export.php:825
 msgid "Download Offline App Bundle (.zip)"
@@ -14116,7 +14114,7 @@ msgstr ""
 
 #: includes/admin/offline-app-export.php:841
 msgid "Choose the specific categories to include from this word set."
-msgstr "Bu kelime kümesinden dahil edilecek belirli kategorileri seçin."
+msgstr "Bu kelime setinden dahil edilecek belirli kategorileri seçin."
 
 #: includes/admin/offline-app-export.php:844
 msgid "Using a custom icon for this export only."
@@ -14143,8 +14141,8 @@ msgid ""
 "The selected word set has no categories with published words available for "
 "offline export."
 msgstr ""
-"Seçilen kelime kümesinde, çevrimdışı dışa aktarma için yayınlanmış "
-"kelimelerin bulunduğu hiçbir kategori yok."
+"Seçilen kelime setinde, çevrimdışı dışa aktarma için yayınlanmış kelimelerin"
+" bulunduğu hiçbir kategori yok."
 
 #: includes/admin/offline-app-export.php:1229
 msgid ""
@@ -14159,8 +14157,7 @@ msgstr "Çevrimdışı uygulama dışa aktarımı bir zip dosyası oluşturmadı
 
 #: includes/admin/offline-app-export.php:1318
 msgid "Offline app export requires a valid word set."
-msgstr ""
-"Çevrimdışı uygulama dışa aktarımı geçerli bir kelime kümesi gerektirir."
+msgstr "Çevrimdışı uygulama dışa aktarımı geçerli bir kelime seti gerektirir."
 
 #: includes/admin/offline-app-export.php:1323
 msgid "The selected word set is invalid."
@@ -14168,7 +14165,7 @@ msgstr "Seçilen kelime seti geçersiz."
 
 #: includes/admin/offline-app-export.php:1350
 msgid "No quizzable categories were found for this word set and selection."
-msgstr "Bu kelime seti ve seçimi için test edilebilir kategori bulunamadı."
+msgstr "Bu kelime seti ve seçim için quiz’e uygun kategori bulunamadı."
 
 #. translators: 1: category name, 2: minimum words
 #: includes/admin/offline-app-export.php:1385
@@ -14326,10 +14323,10 @@ msgid ""
 "quiz runtime data. Learners can keep studying fully offline, then optionally"
 " sign in later to sync saved progress back to the source site."
 msgstr ""
-"Bu paket, çevrimdışı test kabuğunu, paket medyayı ve yerel öncelikli test "
-"çalışma zamanı verilerini içerir. Öğrenciler tamamen çevrimdışı çalışmaya "
-"devam edebilir, ardından isteğe bağlı olarak daha sonra oturum açarak "
-"kaydedilen ilerlemeyi kaynak siteyle senkronize edebilir."
+"Bu paket çevrimdışı quiz kabuğunu, paketlenmiş medyayı ve yerel öncelikli "
+"quiz çalışma zamanı verilerini içerir. Öğrenciler tamamen çevrimdışı "
+"çalışmaya devam edebilir, ardından kayıtlı ilerlemeyi kaynak siteyle "
+"eşitlemek için daha sonra isteğe bağlı olarak oturum açabilir."
 
 #: includes/admin/offline-app-export.php:1771
 msgid ""
@@ -14718,25 +14715,25 @@ msgstr "Bu artık medya öğesi silinsin mi? Bu geri alınamaz."
 #: includes/admin/prompt-audio-import-admin.php:23
 #: includes/admin/prompt-audio-import-admin.php:24
 msgid "LL Prompt Audio Queue"
-msgstr "LL İstemi Ses Sırası"
+msgstr "LL Soru Sesi Kuyruğu"
 
 #: includes/admin/prompt-audio-import-admin.php:116 includes/privacy.php:473
 #: includes/privacy.php:558
 msgid "Prompt card"
-msgstr "Bilgi istemi kartı"
+msgstr "Soru kartı"
 
 #: includes/admin/prompt-audio-import-admin.php:135
 #: templates/vocab-lesson-template.php:877
 msgid "Prompt"
-msgstr "İstemi"
+msgstr "Soru"
 
 #: includes/admin/prompt-audio-import-admin.php:258
 msgid "Please provide at least one prompt to import."
-msgstr "Lütfen içe aktarmak için en az bir istem sağlayın."
+msgstr "Lütfen içe aktarmak için en az bir soru girin."
 
 #: includes/admin/prompt-audio-import-admin.php:261
 msgid "Prompt cards are not available in this installation."
-msgstr "Bu kurulumda bilgi istemi kartları mevcut değildir."
+msgstr "Bu kurulumda soru kartları kullanılamıyor."
 
 #. translators: 1: prompt title, 2: error message
 #: includes/admin/prompt-audio-import-admin.php:310
@@ -14744,7 +14741,7 @@ msgstr "Bu kurulumda bilgi istemi kartları mevcut değildir."
 msgid ""
 "The prompt \"%1$s\" was created but could not be assigned to the category: "
 "%2$s"
-msgstr "\"%1$s\" istemi oluşturuldu ancak şu kategoriye atanamadı: %2$s"
+msgstr "\"%1$s\" sorusu oluşturuldu ancak kategoriye atanamadı: %2$s"
 
 #. translators: 1: prompt title, 2: error message
 #: includes/admin/prompt-audio-import-admin.php:322
@@ -14752,21 +14749,21 @@ msgstr "\"%1$s\" istemi oluşturuldu ancak şu kategoriye atanamadı: %2$s"
 msgid ""
 "The prompt \"%1$s\" was created but could not be assigned to the word set: "
 "%2$s"
-msgstr "\"%1$s\" istemi oluşturuldu ancak kelime kümesine atanamadı: %2$s"
+msgstr "\"%1$s\" sorusu oluşturuldu ancak kelime setine atanamadı: %2$s"
 
 #: includes/admin/prompt-audio-import-admin.php:336
 #, php-format
 msgid "%d prompt card was added to the audio queue as a draft."
 msgid_plural "%d prompt cards were added to the audio queue as drafts."
-msgstr[0] "%d bilgi istemi kartı ses kuyruğuna taslak olarak eklendi."
-msgstr[1] "%d bilgi istemi kartı ses kuyruğuna taslak olarak eklendi."
+msgstr[0] "%d soru kartı ses kuyruğuna taslak olarak eklendi."
+msgstr[1] "%d soru kartı ses kuyruğuna taslak olarak eklendi."
 
 #: includes/admin/prompt-audio-import-admin.php:345
 #, php-format
 msgid "%1$d prompt was skipped because it already exists: %2$s"
 msgid_plural "%1$d prompts were skipped because they already exist: %2$s"
-msgstr[0] "%1$d istem zaten mevcut olduğundan atlandı: %2$s"
-msgstr[1] "%1$d istem zaten mevcut olduğundan atlandı: %2$s"
+msgstr[0] "%1$d soru zaten mevcut olduğu için atlandı: %2$s"
+msgstr[1] "%1$d soru zaten mevcut olduğu için atlandı: %2$s"
 
 #: includes/admin/prompt-audio-import-admin.php:364
 #, php-format
@@ -14777,27 +14774,27 @@ msgid_plural ""
 "Ignored extra columns on %d rows. Only the prompt text and optional title "
 "were imported."
 msgstr[0] ""
-"%d satırdaki ekstra sütunlar yoksayıldı. Yalnızca bilgi istemi metni ve "
-"isteğe bağlı başlık içe aktarıldı."
+"%d satırdaki ekstra sütunlar yok sayıldı. Yalnızca soru metni ve isteğe "
+"bağlı başlık içe aktarıldı."
 msgstr[1] ""
-"%d satırdaki ekstra sütunlar yoksayıldı. Yalnızca bilgi istemi metni ve "
-"isteğe bağlı başlık içe aktarıldı."
+"%d satırdaki ekstra sütunlar yok sayıldı. Yalnızca soru metni ve isteğe "
+"bağlı başlık içe aktarıldı."
 
 #: includes/admin/prompt-audio-import-admin.php:398
 msgid "LL Tools - Prompt Audio Queue"
-msgstr "LL Tools - Ses Sırasını İsteme"
+msgstr "LL Tools - Soru Sesi Kuyruğu"
 
 #: includes/admin/prompt-audio-import-admin.php:419
 msgid "Prompts to record"
-msgstr "Kaydetme istemleri"
+msgstr "Kaydedilecek sorular"
 
 #: includes/admin/prompt-audio-import-admin.php:421
 msgid ""
 "Enter one prompt per line, or prompt text + admin title separated by a tab "
 "or comma"
 msgstr ""
-"Her satıra bir bilgi istemi veya bilgi istemi metni + sekme veya virgülle "
-"ayrılmış yönetici başlığı girin"
+"Her satıra bir soru yazın veya soru metni + yönetici başlığını sekme ya da "
+"virgülle ayırın"
 
 #: includes/admin/prompt-audio-import-admin.php:422
 msgid ""
@@ -14805,40 +14802,39 @@ msgid ""
 " the recorder as a text-only prompt item until a recorder uploads audio for "
 "it."
 msgstr ""
-"Her satır, istem sesi olmayan bir taslak bilgi istemi kartı oluşturur. "
-"Kaydedici bunun için ses yükleyene kadar, kaydedicide salt metinden oluşan "
-"bir bilgi istemi öğesi olarak görünecektir."
+"Her satır, soru sesi olmayan taslak bir soru kartı oluşturur. Bir kaydedici "
+"ses yükleyene kadar kaydedicide yalnızca metin içeren bir soru öğesi olarak "
+"görünür."
 
 #: includes/admin/prompt-audio-import-admin.php:423
 #, php-format
 msgid "Prompt only: %s"
-msgstr "Yalnızca bilgi istemi: %s"
+msgstr "Yalnızca soru: %s"
 
 #: includes/admin/prompt-audio-import-admin.php:424
 #, php-format
 msgid "Prompt + title with a tab: %s"
-msgstr "Bilgi istemi + sekmeli başlık: %s"
+msgstr "Sekmeyle ayrılmış soru + başlık: %s"
 
 #: includes/admin/prompt-audio-import-admin.php:436
 msgid "Choose the word set whose recorder should see these prompt cards."
-msgstr ""
-"Kaydedicisinin bu bilgi kartlarını görmesi gereken kelime setini seçin."
+msgstr "Bu soru kartlarını görecek kaydedicinin kelime setini seçin."
 
 #: includes/admin/prompt-audio-import-admin.php:448
 msgid "Use the same category structure as the normal recorder queue."
-msgstr "Normal kayıt cihazı sırası ile aynı kategori yapısını kullanın."
+msgstr "Normal kaydedici kuyruğuyla aynı kategori yapısını kullanın."
 
 #: includes/admin/prompt-audio-import-admin.php:455
 msgid ""
 "Optional. If provided, the new category will be created and used for all "
 "imported prompt cards."
 msgstr ""
-"İsteğe bağlı. Sağlandığı takdirde yeni kategori oluşturulacak ve içe "
-"aktarılan tüm bilgi istem kartları için kullanılacaktır."
+"İsteğe bağlı. Girilirse yeni kategori oluşturulur ve içe aktarılan tüm soru "
+"kartları için kullanılır."
 
 #: includes/admin/prompt-audio-import-admin.php:460
 msgid "Add prompts to audio queue"
-msgstr "Ses kuyruğuna istemler ekleyin"
+msgstr "Soruları ses kuyruğuna ekle"
 
 #: includes/admin/settings.php:269 includes/admin/settings.php:296
 #: includes/shortcodes/site-tools-shortcode.php:258
@@ -14855,11 +14851,11 @@ msgid ""
 "and word-title language now live on each word set."
 msgstr ""
 "Hedef dil, çeviri dili, kategori adı çeviri ayarları ve kelime başlığı dili "
-"artık her kelime setinde yayında."
+"artık her kelime setinde ayarlanır."
 
 #: includes/admin/settings.php:340
 msgid "Open Word Sets"
-msgstr "Kelime Kümelerini Aç"
+msgstr "Kelime Setlerini Aç"
 
 #: includes/admin/settings.php:345
 msgid "Auto-detect Browser Language:"
@@ -14906,8 +14902,8 @@ msgid ""
 "Quiz cache flushing and legacy meta purges require administrator-level "
 "access."
 msgstr ""
-"Sınav önbelleği temizleme ve eski meta temizleme işlemleri, yönetici "
-"düzeyinde erişim gerektirir."
+"Quiz önbelleğini temizlemek ve eski meta verileri silmek için yönetici "
+"düzeyinde erişim gerekir."
 
 #: includes/admin/teacher-classes-page.php:163
 msgid "Class creation is currently unavailable."
@@ -15285,7 +15281,7 @@ msgstr "Kategori oluşturma şu anda kullanılamıyor."
 #: includes/admin/uploads/audio-upload-form.php:321
 msgid "Matching existing words only supports one word set at a time."
 msgstr ""
-"Mevcut kelimelerin eşleştirilmesi aynı anda yalnızca bir kelime kümesini "
+"Mevcut kelimelerin eşleştirilmesi aynı anda yalnızca bir kelime setini "
 "destekler."
 
 #: includes/admin/uploads/audio-upload-form.php:372
@@ -15296,7 +15292,7 @@ msgstr "Hedef Kapsamı"
 #: includes/admin/uploads/audio-upload-form.php:383
 #: includes/admin/uploads/image-upload-form.php:539
 msgid "Only accessible word set"
-msgstr "Yalnızca erişilebilir kelime kümesi"
+msgstr "Yalnızca erişebildiğiniz kelime seti"
 
 #: includes/admin/uploads/audio-upload-form.php:388
 msgid "Audio uploads will use this word set automatically."
@@ -15310,7 +15306,7 @@ msgstr "Bir kelime seti"
 #: includes/admin/uploads/audio-upload-form.php:397
 #: includes/admin/uploads/image-upload-form.php:553
 msgid "Multiple word sets"
-msgstr "Çoklu kelime kümeleri"
+msgstr "Birden fazla kelime seti"
 
 #: includes/admin/uploads/audio-upload-form.php:400
 #: includes/admin/uploads/image-upload-form.php:556
@@ -15323,7 +15319,7 @@ msgid ""
 "New words will be created in the same logical category across every selected"
 " word set."
 msgstr ""
-"Seçilen her kelime kümesinde aynı mantıksal kategoride yeni kelimeler "
+"Seçilen her kelime setinde aynı mantıksal kategoride yeni kelimeler "
 "oluşturulacaktır."
 
 #: includes/admin/uploads/audio-upload-form.php:433
@@ -15351,7 +15347,7 @@ msgid ""
 "The selected logical category will be resolved into the chosen word set "
 "scope automatically."
 msgstr ""
-"Seçilen mantıksal kategori, seçilen kelime kümesi kapsamına otomatik olarak "
+"Seçilen mantıksal kategori, seçilen kelime seti kapsamına otomatik olarak "
 "çözümlenecektir."
 
 #: includes/admin/uploads/audio-upload-form.php:476
@@ -15516,14 +15512,14 @@ msgstr "Kullanıcı adı otomatik olarak oluşturulmuş görünüyor."
 
 #: includes/admin/user-progress-report.php:330
 msgid "Very high 30-day quiz activity volume."
-msgstr "30 günlük quiz aktivite hacmi çok yüksek."
+msgstr "30 günlük quiz etkinliği hacmi çok yüksek."
 
 #. translators: 1: rounds count, 2: outcomes count
 #: includes/admin/user-progress-report.php:335
 #, php-format
 msgid "Unusually heavy recent quiz activity (%1$d rounds / %2$d outcomes)."
 msgstr ""
-"Yakın zamanda alışılmadık derecede yoğun sınav etkinliği (%1$d tur / %2$d "
+"Yakın zamanda alışılmadık derecede yoğun quiz etkinliği (%1$d tur / %2$d "
 "sonuç)."
 
 #. translators: %d: call count
@@ -15540,8 +15536,7 @@ msgstr "30 günde yüksek konuşma-metin hacmi: %d arama."
 
 #: includes/admin/user-progress-report.php:359
 msgid "Speech-to-text usage is far higher than quiz outcomes."
-msgstr ""
-"Konuşmayı metne dönüştürme kullanımı sınav sonuçlarından çok daha yüksektir."
+msgstr "Konuşmayı yazıya dökme kullanımı quiz sonuçlarından çok daha yüksek."
 
 #: includes/admin/user-progress-report.php:364
 msgid "Recent activity was recorded without completed study sessions."
@@ -15663,7 +15658,7 @@ msgstr "%s için ilerleme ayrıntıları"
 #: includes/admin/user-progress-report.php:896
 #, php-format
 msgid "Showing analytics for word set: %s"
-msgstr "Kelime kümesine ilişkin analizler gösteriliyor: %s"
+msgstr "Kelime setine ilişkin analizler gösteriliyor: %s"
 
 #: includes/admin/user-progress-report.php:900
 msgid ""
@@ -15757,15 +15752,15 @@ msgstr "Aynı %s metni"
 msgid ""
 "You do not have permission to edit word option rules for this word set."
 msgstr ""
-"Bu kelime kümesi için kelime seçeneği kurallarını düzenleme izniniz yok."
+"Bu kelime seti için kelime seçeneği kurallarını düzenleme izniniz yok."
 
 #: includes/admin/word-option-rules-admin.php:1722
 msgid ""
 "Pairs with the same image, title, translation, or active prompt recording "
 "text are locked and cannot be removed."
 msgstr ""
-"Aynı görsele, başlığa, çeviriye veya etkin bilgi istemi kayıt metnine sahip "
-"çiftler kilitlenir ve kaldırılamaz."
+"Aynı görsele, başlığa, çeviriye veya etkin soru kaydı metnine sahip çiftler "
+"kilitlidir ve kaldırılamaz."
 
 #: includes/admin/word-option-rules-admin.php:1724
 msgid ""
@@ -15780,12 +15775,12 @@ msgid ""
 "Manual pairs default to all prompt recording types. Uncheck any type to "
 "allow the pair for that prompt."
 msgstr ""
-"Manuel çiftler varsayılan olarak tüm hızlı kayıt türlerini kullanır. Bu "
-"istem için çifte izin vermek üzere herhangi bir türün işaretini kaldırın."
+"Elle eklenen çiftler varsayılan olarak tüm soru kaydı türlerinde engellenir."
+" Bu soru için çifte izin vermek istediğiniz türlerin işaretini kaldırın."
 
 #: includes/admin/word-option-rules-admin.php:1764
 msgid "Blocked prompt recordings"
-msgstr "Engellenen istem kayıtları"
+msgstr "Engellenen soru kayıtları"
 
 #: includes/admin/word-option-rules-admin.php:1786
 msgid "Same title"
@@ -15853,7 +15848,7 @@ msgstr "Bu kelime seti için dahili inceleme notlarını yönetemezsiniz."
 
 #: includes/api/automation-rest.php:309
 msgid "You cannot create word sets through LL Tools automation."
-msgstr "LL Tools otomasyonu aracılığıyla kelime kümeleri oluşturamazsınız."
+msgstr "LL Tools otomasyonu aracılığıyla kelime setleri oluşturamazsınız."
 
 #: includes/api/automation-rest.php:327
 msgid "You cannot import LL Tools bundles through automation."
@@ -15872,8 +15867,8 @@ msgstr "Desteklenmeyen güncelleme alanı \"%1$s\". İzin verilen alanlar: %2$s"
 #: includes/api/automation-rest.php:406
 msgid "Provide set as either \"field=value\" or an object with field/value."
 msgstr ""
-"Kümeyi \"alan=değer\" olarak veya alan/değer içeren bir nesne olarak "
-"sağlayın."
+"set değerini \"field=value\" olarak veya field/value içeren bir nesne olarak"
+" sağlayın."
 
 #: includes/api/automation-rest.php:502
 msgid "Provide a name for the new word set."
@@ -15895,7 +15890,7 @@ msgstr "Kelime kategorisi çözülemiyor: %s"
 
 #: includes/api/automation-rest.php:937
 msgid "That word category belongs to a different word set."
-msgstr "Bu kelime kategorisi farklı bir kelime grubuna aittir."
+msgstr "Bu kelime kategorisi farklı bir kelime setine aittir."
 
 #: includes/api/automation-rest.php:1076
 msgid "Groups must be an array."
@@ -15936,8 +15931,7 @@ msgstr "Bir not değeri girin. Notu temizlemek için boş bir dize gönderin."
 
 #: includes/api/automation-rest.php:1402
 msgid "Provide the word or prompt card object_id to update."
-msgstr ""
-"Güncellemek için kelime veya bilgi istemi kartı object_id'yi sağlayın."
+msgstr "Güncellenecek kelime veya soru kartı object_id değerini girin."
 
 #: includes/api/automation-rest.php:1413
 #: includes/lib/internal-review-notes.php:308
@@ -15947,7 +15941,7 @@ msgstr "Bu öğe dahili inceleme notunu saklayamaz."
 #: includes/api/automation-rest.php:1420
 #: includes/lib/internal-review-notes.php:320
 msgid "This item does not belong to the selected word set."
-msgstr "Bu öğe seçilen kelime grubuna ait değil."
+msgstr "Bu öğe seçilen kelime setine ait değil."
 
 #: includes/api/automation-rest.php:1502
 msgid ""
@@ -16002,13 +15996,13 @@ msgstr "--set bağımsız değişkeninde alan adı eksik."
 
 #: includes/cli/cli-support.php:144
 msgid "Missing word set identifier."
-msgstr "Eksik kelime kümesi tanımlayıcısı."
+msgstr "Eksik kelime seti tanımlayıcısı."
 
 #. translators: %s: wordset identifier
 #: includes/cli/cli-support.php:194
 #, php-format
 msgid "Unable to resolve word set: %s"
-msgstr "Kelime kümesi çözülemiyor: %s"
+msgstr "Kelime seti çözülemiyor: %s"
 
 #: includes/cli/cli-support.php:203
 msgid "Missing user identifier."
@@ -16034,11 +16028,11 @@ msgstr "Eksik kelime tanımlayıcı."
 #: includes/cli/cli-support.php:357
 #, php-format
 msgid "Unable to resolve word in this word set: %s"
-msgstr "Bu kelime kümesindeki kelime çözülemiyor: %s"
+msgstr "Bu kelime setindeki kelime çözülemiyor: %s"
 
 #: includes/cli/cli-support.php:366
 msgid "Missing word set ID."
-msgstr "Eksik kelime kümesi kimliği."
+msgstr "Eksik kelime seti kimliği."
 
 #: includes/cli/cli-support.php:384
 msgid "Editor Hub helpers are not available."
@@ -16054,7 +16048,7 @@ msgstr "Geçerli kelime durumu yüklenemiyor."
 
 #: includes/cli/cli-support.php:676
 msgid "Dictionary entry helpers are not available."
-msgstr "Sözlük girişi yardımcıları mevcut değil."
+msgstr "Sözlük girdisi yardımcıları mevcut değil."
 
 #. translators: %s: part-of-speech slug
 #: includes/cli/cli-support.php:701
@@ -16064,7 +16058,7 @@ msgstr "Konuşmanın bilinmeyen kısmı: %s"
 
 #: includes/cli/cli-support.php:723
 msgid "Gender can only be set on noun words."
-msgstr "Cinsiyet yalnızca isim sözcüklerinde ayarlanabilir."
+msgstr "Cinsiyet yalnızca isim olan kelimelerde ayarlanabilir."
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:746
@@ -16074,7 +16068,7 @@ msgstr "Geçersiz cinsiyet değeri. İzin verilen değerler: %s"
 
 #: includes/cli/cli-support.php:758
 msgid "Plurality can only be set on noun words."
-msgstr "Çoğulluk yalnızca isim sözcüklerinde ayarlanabilir."
+msgstr "Çoğulluk yalnızca isim olan kelimelerde ayarlanabilir."
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:781
@@ -16084,7 +16078,7 @@ msgstr "Geçersiz çoğulluk değeri. İzin verilen değerler: %s"
 
 #: includes/cli/cli-support.php:793
 msgid "Verb tense can only be set on verb words."
-msgstr "Fiil zamanı yalnızca fiil sözcüklerinde ayarlanabilir."
+msgstr "Fiil zamanı yalnızca fiil olan kelimelerde ayarlanabilir."
 
 #. translators: %s: comma-separated options
 #: includes/cli/cli-support.php:816
@@ -16195,15 +16189,15 @@ msgstr "Sayfa %s"
 
 #: includes/lib/dictionary-browser.php:1809
 msgid "Unable to save dictionary entry."
-msgstr "Sözlük girişi kaydedilemiyor."
+msgstr "Sözlük girdisi kaydedilemiyor."
 
 #: includes/lib/dictionary-browser.php:3711
 msgid "Imported Senses"
-msgstr "İthal Duyular"
+msgstr "İçe Aktarılan Anlamlar"
 
 #: includes/lib/dictionary-browser.php:3733
 msgid "No structured senses have been imported for this entry yet."
-msgstr "Bu giriş için henüz yapılandırılmış duyular içe aktarılmadı."
+msgstr "Bu girdi için henüz yapılandırılmış anlamlar içe aktarılmadı."
 
 #: includes/lib/dictionary-browser.php:3740
 msgid "Glosses"
@@ -16614,7 +16608,7 @@ msgstr "Yaygın harf çevirisi karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1089
 msgid "Wordset transliteration characters"
-msgstr "Kelime kümesi harf çevirisi karakterleri"
+msgstr "Kelime seti harf çevirisi karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1090
 msgid "Transliteration Characters"
@@ -16683,7 +16677,7 @@ msgstr "Yaygın transkripsiyon karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1114
 msgid "Wordset transcription characters"
-msgstr "Kelime kümesi transkripsiyon karakterleri"
+msgstr "Kelime seti transkripsiyon karakterleri"
 
 #: includes/lib/wordset-language-settings.php:1115
 msgid "Transcription Characters"
@@ -16821,11 +16815,11 @@ msgstr "Kaydedici hesabı oluştur"
 #: includes/login-window.php:1491
 #, php-format
 msgid "Create a recorder account to record for %s."
-msgstr "%s için kayıt yapmak üzere bir kayıt cihazı hesabı oluşturun."
+msgstr "%s için kayıt yapacak bir kaydedici hesabı oluşturun."
 
 #: includes/login-window.php:1494
 msgid "Create a recorder account for this word set."
-msgstr "Bu kelime seti için bir kayıt cihazı hesabı oluşturun."
+msgstr "Bu kelime seti için bir kaydedici hesabı oluşturun."
 
 #: includes/login-window.php:1568
 msgid "Create a new account"
@@ -16947,7 +16941,7 @@ msgstr "Yeni bir sözlük sayfası mı oluşturacaksınız?"
 #: includes/shortcodes/flashcard-widget.php:449
 msgid "Close this quiz? Your current progress in this popup will be lost."
 msgstr ""
-"Bu test kapatılsın mı? Bu açılır penceredeki mevcut ilerlemeniz kaybolacak."
+"Bu quiz kapatılsın mı? Bu açılır penceredeki mevcut ilerlemeniz kaybolacak."
 
 #: includes/pages/site-tools-page.php:16 includes/pages/wordset-pages.php:8166
 #: includes/shortcodes/site-tools-shortcode.php:575
@@ -17266,7 +17260,7 @@ msgstr "Kelime bulunamadı."
 
 #: includes/pages/wordset-games.php:3310
 msgid "Word does not belong to the selected word set."
-msgstr "Kelime seçilen kelime grubuna ait değil."
+msgstr "Kelime seçilen kelime setine ait değil."
 
 #: includes/pages/wordset-games.php:3313
 msgid "Transcript is empty."
@@ -17395,7 +17389,7 @@ msgstr "Önce bu kategorideki kelimeleri kaldırın veya taşıyın."
 
 #: includes/pages/wordset-pages.php:1078
 msgid "Remove prompt cards in this category first."
-msgstr "Önce bu kategorideki bilgi istemi kartlarını kaldırın."
+msgstr "Önce bu kategorideki soru kartlarını kaldırın."
 
 #: includes/pages/wordset-pages.php:1081
 msgid "Remove word images in this category first."
@@ -17472,7 +17466,7 @@ msgstr "Kelime kayıtlarına ihtiyaç var."
 
 #: includes/pages/wordset-pages.php:1475
 msgid "Needs published prompt cards."
-msgstr "Yayınlanmış bilgi istemi kartlarına ihtiyaç var."
+msgstr "Yayınlanmış soru kartları gerekir."
 
 #: includes/pages/wordset-pages.php:1477
 msgid "No words yet."
@@ -17500,7 +17494,7 @@ msgstr "Görüntülere ihtiyaç var."
 
 #: includes/pages/wordset-pages.php:1513
 msgid "Needs more quiz-ready words."
-msgstr "Sınava hazır daha fazla kelimeye ihtiyaç var."
+msgstr "Quiz için hazır daha fazla kelime gerekiyor."
 
 #: includes/pages/wordset-pages.php:2517
 #, php-format
@@ -17556,8 +17550,7 @@ msgstr "Çevrimdışı uygulama aktarımı indirilmeye hazır."
 
 #: includes/pages/wordset-pages.php:4309
 msgid "You do not have permission to export offline apps for this word set."
-msgstr ""
-"Bu kelime grubu için çevrimdışı uygulamaları dışa aktarma izniniz yok."
+msgstr "Bu kelime seti için çevrimdışı uygulamaları dışa aktarma izniniz yok."
 
 #: includes/pages/wordset-pages.php:4333
 msgid "Unable to export an offline app right now."
@@ -17614,7 +17607,7 @@ msgstr "Bu şablondan yeni bir kelime seti oluşturma izniniz yok."
 
 #: includes/pages/wordset-pages.php:5306 includes/wordset-templates.php:256
 msgid "Unable to find that template word set."
-msgstr "Bu şablon kelime kümesi bulunamadı."
+msgstr "Bu şablon kelime seti bulunamadı."
 
 #: includes/pages/wordset-pages.php:5312 includes/wordset-templates.php:262
 msgid "Enter a name for the new word set."
@@ -17622,7 +17615,7 @@ msgstr "Yeni kelime seti için bir ad girin."
 
 #: includes/pages/wordset-pages.php:5318
 msgid "Unable to create a word set from this template right now."
-msgstr "Şu anda bu şablondan kelime kümesi oluşturulamıyor."
+msgstr "Şu anda bu şablondan kelime seti oluşturulamıyor."
 
 #: includes/pages/wordset-pages.php:5725
 msgid "Template creation is not available right now."
@@ -17641,7 +17634,7 @@ msgstr "Bu kaydedici davet bağlantısı geçersiz."
 
 #: includes/pages/wordset-pages.php:5937 includes/pages/wordset-pages.php:6117
 msgid "This recorder invitation no longer matches an available word set."
-msgstr "Bu kaydedici daveti artık mevcut bir kelime grubuyla eşleşmiyor."
+msgstr "Bu kaydedici daveti artık mevcut bir kelime setiyle eşleşmiyor."
 
 #: includes/pages/wordset-pages.php:5943
 msgid "This recorder invitation link has expired."
@@ -17673,8 +17666,8 @@ msgstr "Kelime seti yöneticisi: %s"
 msgid ""
 "Open this link to create or connect a recorder account for this word set:"
 msgstr ""
-"Bu kelime seti için bir kayıt cihazı hesabı oluşturmak veya bağlanmak üzere "
-"bu bağlantıyı açın:"
+"Bu kelime seti için bir kaydedici hesabı oluşturmak veya bağlamak üzere bu "
+"bağlantıyı açın:"
 
 #: includes/pages/wordset-pages.php:6090 includes/pages/wordset-pages.php:6325
 msgid "The recorder invitation email could not be sent."
@@ -17695,12 +17688,11 @@ msgstr "Kaydedici erişimi şu anda etkinleştirilemiyor."
 #: includes/pages/wordset-pages.php:6254
 #, php-format
 msgid "Recorder access enabled for %s and assigned to this word set."
-msgstr ""
-"Kaydedici erişimi %s için etkinleştirildi ve bu kelime grubuna atandı."
+msgstr "Kaydedici erişimi %s için etkinleştirildi ve bu kelime setine atandı."
 
 #: includes/pages/wordset-pages.php:6255
 msgid "Recorder access enabled and assigned to this word set."
-msgstr "Kaydedici erişimi etkinleştirildi ve bu kelime grubuna atandı."
+msgstr "Kaydedici erişimi etkinleştirildi ve bu kelime setine atandı."
 
 #: includes/pages/wordset-pages.php:6262
 #, php-format
@@ -17731,12 +17723,12 @@ msgstr "Kaydedici kuyruğu güncellendi. Gizli kelime geri yüklendi."
 
 #: includes/pages/wordset-pages.php:6368
 msgid "Recorder queue updated. Word hidden for that recorder."
-msgstr "Kaydedici kuyruğu güncellendi. Bu kaydedici için gizli kelime."
+msgstr "Kaydedici kuyruğu güncellendi. Kelime bu kaydedici için gizlendi."
 
 #: includes/pages/wordset-pages.php:6379
 msgid ""
 "You do not have permission to update recorder queues for this word set."
-msgstr "Bu kelime seti için kayıt cihazı kuyruklarını güncelleme izniniz yok."
+msgstr "Bu kelime seti için kaydedici kuyruklarını güncelleme izniniz yok."
 
 #: includes/pages/wordset-pages.php:6409
 msgid "That recorder is not assigned to this word set."
@@ -17748,7 +17740,7 @@ msgstr "Bu kuyruk öğesi tanımlanamıyor."
 
 #: includes/pages/wordset-pages.php:6421
 msgid "Unable to update the recorder queue right now."
-msgstr "Kaydedici sırası şu anda güncellenemiyor."
+msgstr "Kaydedici kuyruğu şu anda güncellenemiyor."
 
 #: includes/pages/wordset-pages.php:7075
 msgid "Sign in to manage classes"
@@ -17836,14 +17828,14 @@ msgstr "Bu oyunun kilidini açmak için %1$d kelimeye daha ihtiyacınız var."
 #: includes/pages/wordset-pages.php:7568
 #, php-format
 msgid "Each Line-Up sequence needs at least %d cards."
-msgstr "Her Diziliş dizisi en az %d karta ihtiyaç duyar."
+msgstr "Her sıralama dizisi için en az %d kart gerekir."
 
 #: includes/pages/wordset-pages.php:7572
 msgid ""
 "Speaking games are hidden because the speaking service for this word set is "
 "not responding on this device."
 msgstr ""
-"Bu kelime kümesinin konuşma hizmeti bu cihazda yanıt vermediğinden konuşma "
+"Bu kelime setinin konuşma hizmeti bu cihazda yanıt vermediğinden konuşma "
 "oyunları gizlendi."
 
 #: includes/pages/wordset-pages.php:7573
@@ -17899,7 +17891,7 @@ msgstr "Kabarcık Pop oyun tahtası"
 
 #: includes/pages/wordset-pages.php:7600
 msgid "Line-Up sequence board"
-msgstr "Sıralama sırası panosu"
+msgstr "Sıralama dizisi panosu"
 
 #: includes/pages/wordset-pages.php:7601
 msgid "Unscramble game board"
@@ -17938,7 +17930,7 @@ msgstr "Bitiş"
 
 #: includes/pages/wordset-pages.php:7613
 msgid "Correct order."
-msgstr "Doğru sipariş."
+msgstr "Doğru sıra."
 
 #: includes/pages/wordset-pages.php:7614
 #, php-format
@@ -17947,7 +17939,7 @@ msgstr "Henüz değil. %2$d öğeden %1$d tanesi doğru yerde."
 
 #: includes/pages/wordset-pages.php:7615
 msgid "Line-Up complete"
-msgstr "Kadro tamamlandı"
+msgstr "Sıralama tamamlandı"
 
 #: includes/pages/wordset-pages.php:7616
 #, php-format
@@ -18004,7 +17996,7 @@ msgstr "Bu resim için kelimeyi söyleyin."
 
 #: includes/pages/wordset-pages.php:7630
 msgid "Say the word for this prompt."
-msgstr "Bu istemin sözcüğünü söyleyin."
+msgstr "Bu soru için kelimeyi söyleyin."
 
 #: includes/pages/wordset-pages.php:7631
 #: includes/pages/wordset-pages.php:14504
@@ -18239,8 +18231,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:8452
 msgid "Create words quickly from pasted prompt and answer pairs."
-msgstr ""
-"Yapıştırılan bilgi istemi ve yanıt çiftlerinden hızla sözcükler oluşturun."
+msgstr "Yapıştırılan soru ve cevap çiftlerinden hızla kelimeler oluşturun."
 
 #: includes/pages/wordset-pages.php:8455
 msgid ""
@@ -18266,8 +18257,8 @@ msgid ""
 "Choose whether lesson transcription uses AssemblyAI or a localhost model in "
 "your browser."
 msgstr ""
-"Ders transkripsiyonunun tarayıcınızda AssemblyAI veya localhost modelini "
-"kullanıp kullanmayacağını seçin."
+"Ders transkripsiyonunun tarayıcınızda AssemblyAI mı yoksa localhost modeli "
+"mi kullanacağını seçin."
 
 #: includes/pages/wordset-pages.php:8467
 msgid "Export this word set as a standalone offline learner app bundle."
@@ -18331,7 +18322,7 @@ msgstr "Metin depolama ve kaydetme"
 #: includes/pages/wordset-pages.php:8747
 #: includes/taxonomies/wordset-taxonomy.php:2731
 msgid "Word title language"
-msgstr "Kelime başlık dili"
+msgstr "Kelime başlığı dili"
 
 #: includes/pages/wordset-pages.php:8750
 msgid "Translation (helper or known language)"
@@ -18342,8 +18333,8 @@ msgid ""
 "Controls whether word post titles are stored in the target language or the "
 "translation language for this word set."
 msgstr ""
-"Bu kelime kümesi için kelime yazısı başlıklarının hedef dilde mi yoksa "
-"çeviri dilinde mi saklanacağını kontrol eder."
+"Bu kelime seti için kelime gönderisi başlıklarının hedef dilde mi yoksa "
+"çeviri dilinde mi saklanacağını belirler."
 
 #: includes/pages/wordset-pages.php:8758
 #: includes/taxonomies/wordset-taxonomy.php:2743
@@ -18371,9 +18362,9 @@ msgid ""
 "Transliteration is better for romanized systems that do not need IPA "
 "formatting."
 msgstr ""
-"İkincil kayıt metin alanının bu kelime setinde nasıl davranacağını seçin. "
-"Harf çevirisi, IPA biçimlendirmesine ihtiyaç duymayan romanlaştırılmış "
-"sistemler için daha iyidir."
+"Bu kelime setinde ikincil kayıt metni alanının nasıl davranacağını seçin. "
+"Harf çevirisi, IPA biçimlendirmesine ihtiyaç duymayan Latinleştirilmiş "
+"sistemler için daha uygundur."
 
 #: includes/pages/wordset-pages.php:8771
 msgid "Category labels"
@@ -18446,7 +18437,7 @@ msgid ""
 " gating for this word set only."
 msgstr ""
 "Bu kontroller yalnızca bu kelime seti için ders sırasını, önerilen çalışma "
-"akışını ve önkoşul geçişini etkiler."
+"akışını ve önkoşul kilitlerini etkiler."
 
 #: includes/pages/wordset-pages.php:9031
 msgid "Navigation"
@@ -18550,9 +18541,8 @@ msgid ""
 "Preferred size for quiz text answer cards. LL Tools still shrinks text when "
 "needed for smaller screens or longer words."
 msgstr ""
-"Sınav metni cevap kartları için tercih edilen boyut. LL Tools, daha küçük "
-"ekranlar veya daha uzun kelimeler için gerektiğinde metni küçültmeye devam "
-"ediyor."
+"Quiz metni cevap kartları için tercih edilen boyut. LL Tools, daha küçük "
+"ekranlar veya uzun kelimeler için gerektiğinde metni küçültmeye devam eder."
 
 #: includes/pages/wordset-pages.php:9157
 msgid "Answer option preview"
@@ -18569,7 +18559,7 @@ msgstr "Dil bilgisi cinsiyetini etkinleştir"
 #: includes/pages/wordset-pages.php:9170
 msgid "Adds gender controls, badges, and bulk-edit options for this word set."
 msgstr ""
-"Bu kelime kümesine cinsiyet kontrolleri, rozetler ve toplu düzenleme "
+"Bu kelime setine cinsiyet kontrolleri, rozetler ve toplu düzenleme "
 "seçenekleri eklenir."
 
 #: includes/pages/wordset-pages.php:9175
@@ -18595,7 +18585,7 @@ msgstr "Fiil zamanını etkinleştir"
 #: includes/pages/wordset-pages.php:9196
 msgid "Adds tense tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
-"Bu kelime kümesindeki fiiller için zaman etiketleri ve toplu düzenleme "
+"Bu kelime setindeki fiiller için zaman etiketleri ve toplu düzenleme "
 "yardımcıları ekler."
 
 #: includes/pages/wordset-pages.php:9201
@@ -18609,7 +18599,7 @@ msgstr "Fiil ruh halini etkinleştir"
 #: includes/pages/wordset-pages.php:9209
 msgid "Adds mood tags and bulk-edit helpers for verbs in this word set."
 msgstr ""
-"Bu kelime kümesindeki fiiller için ruh hali etiketleri ve toplu düzenleme "
+"Bu kelime setindeki fiiller için ruh hali etiketleri ve toplu düzenleme "
 "yardımcıları ekler."
 
 #: includes/pages/wordset-pages.php:9214
@@ -18630,7 +18620,7 @@ msgstr "Geçerli bir üst kategori seçin."
 
 #: includes/pages/wordset-pages.php:9572
 msgid "Parent category must belong to this word set."
-msgstr "Ana kategori bu kelime grubuna ait olmalıdır."
+msgstr "Ana kategori bu kelime setine ait olmalıdır."
 
 #: includes/pages/wordset-pages.php:9575
 msgid "A category cannot be its own parent."
@@ -18642,7 +18632,7 @@ msgstr "Bir kategori kendi alt öğelerinden birinin altına giremez."
 
 #: includes/pages/wordset-pages.php:9667
 msgid "You do not have permission to manage categories for this word set."
-msgstr "Bu kelime kümesi için kategorileri yönetme izniniz yok."
+msgstr "Bu kelime seti için kategorileri yönetme izniniz yok."
 
 #: includes/pages/wordset-pages.php:9674
 msgid "Choose a valid category action."
@@ -18666,7 +18656,7 @@ msgstr "Kategori oluşturuldu."
 
 #: includes/pages/wordset-pages.php:9751
 msgid "Choose a category from this word set."
-msgstr "Bu kelime kümesinden bir kategori seçin."
+msgstr "Bu kelime setinden bir kategori seçin."
 
 #: includes/pages/wordset-pages.php:9781
 msgid "Unable to delete that category right now."
@@ -18692,7 +18682,7 @@ msgstr "Kategori Oluştur"
 
 #: includes/pages/wordset-pages.php:9883
 msgid "Categories created here stay scoped to this word set."
-msgstr "Burada oluşturulan kategoriler bu kelime kümesi kapsamında kalır."
+msgstr "Burada oluşturulan kategoriler bu kelime seti kapsamında kalır."
 
 #: includes/pages/wordset-pages.php:9896 includes/pages/wordset-pages.php:9990
 msgid "Category name"
@@ -18788,7 +18778,7 @@ msgid ""
 "transliteration, or another alternate transcription instead of normal word "
 "text."
 msgstr ""
-"Yerel veya barındırılan modeliniz normal sözcük metni yerine IPA, harf "
+"Yerel veya barındırılan modeliniz normal kelime metni yerine IPA, harf "
 "çevirisi veya başka bir alternatif transkripsiyon döndürdüğünde ikincil "
 "alanı kullanın."
 
@@ -19019,7 +19009,7 @@ msgstr "Yeni kelime seti ayrıntıları"
 
 #: includes/pages/wordset-pages.php:10452
 msgid "Word set name"
-msgstr "Kelime kümesi adı"
+msgstr "Kelime seti adı"
 
 #: includes/pages/wordset-pages.php:10465
 msgid "Slug (optional)"
@@ -19038,8 +19028,8 @@ msgid ""
 "Copy non-language word set settings too (visibility, study tools, category "
 "order, and transcription settings)."
 msgstr ""
-"Dil dışı kelime kümesi ayarlarını da kopyalayın (görünürlük, çalışma "
-"araçları, kategori sırası ve transkripsiyon ayarları)."
+"Dil dışı kelime seti ayarlarını da kopyalayın (görünürlük, çalışma araçları,"
+" kategori sırası ve transkripsiyon ayarları)."
 
 #: includes/pages/wordset-pages.php:10492
 msgid ""
@@ -19124,7 +19114,7 @@ msgstr "Kaydedici Erişimini Aç"
 
 #: includes/pages/wordset-pages.php:11039
 msgid "No words currently need recordings for this recorder."
-msgstr "Bu kaydedici için şu anda hiçbir kelimenin kayda ihtiyacı yoktur."
+msgstr "Bu kaydedici için şu anda kayıt gerektiren kelime yok."
 
 #: includes/pages/wordset-pages.php:11062
 msgid "No hidden words for this recorder."
@@ -19148,8 +19138,8 @@ msgid ""
 "Assigning a recorder locks their recording interface to this word set and "
 "resets any stale category filter."
 msgstr ""
-"Bir kayıt cihazının atanması, kayıt arayüzünü bu kelime setine kilitler ve "
-"eski kategori filtrelerini sıfırlar."
+"Bir kaydedici atamak, kayıt arayüzünü bu kelime setine kilitler ve eski "
+"kategori filtrelerini sıfırlar."
 
 #: includes/pages/wordset-pages.php:11189
 msgid "Upgrade Existing User"
@@ -19160,8 +19150,8 @@ msgid ""
 "Find an existing user by username or email, add the Audio Recorder role, and"
 " assign them to this word set in one step."
 msgstr ""
-"Kullanıcı adına veya e-posta adresine göre mevcut bir kullanıcıyı bulun, Ses"
-" Kaydedici rolünü ekleyin ve onu tek adımda bu kelime grubuna atayın."
+"Mevcut bir kullanıcıyı kullanıcı adı veya e-posta adresiyle bulun, Ses "
+"Kaydedici rolünü ekleyin ve tek adımda bu kelime setine atayın."
 
 #: includes/pages/wordset-pages.php:11213
 msgid "Enable Recorder Access"
@@ -19180,8 +19170,8 @@ msgid ""
 "This sends a special signup link that creates or connects a recorder account"
 " and assigns that person to this word set."
 msgstr ""
-"Bu, bir kayıt cihazı hesabı oluşturan veya bağlayan ve o kişiyi bu kelime "
-"grubuna atayan özel bir kayıt bağlantısı gönderir."
+"Bu işlem, bir kaydedici hesabı oluşturan veya bağlayan ve o kişiyi bu kelime"
+" setine atayan özel bir kayıt bağlantısı gönderir."
 
 #: includes/pages/wordset-pages.php:11243
 msgid "Send Recorder Invite"
@@ -19249,8 +19239,8 @@ msgid ""
 "Letters, numbers, underscores, and dots are allowed. The exporter sanitizes "
 "this automatically."
 msgstr ""
-"Harflere, sayılara, alt çizgilere ve noktalara izin verilir. İhracatçı bunu "
-"otomatik olarak sterilize eder."
+"Harfler, sayılar, alt çizgiler ve noktalara izin verilir. Dışa aktarıcı bunu"
+" otomatik olarak temizler."
 
 #: includes/pages/wordset-pages.php:11397
 msgid "Version name"
@@ -19288,7 +19278,7 @@ msgid ""
 msgstr ""
 "Bu dışa aktarma, geçerli site simgesini otomatik olarak kullanır. Gelişmiş "
 "tek seferlik simge geçersiz kılmaları, biz o parçayı da taşıyana kadar "
-"gösterge tablosu dışa aktarıcısında kalabilir."
+"kontrol paneli dışa aktarıcısında kalabilir."
 
 #: includes/pages/wordset-pages.php:11439
 msgid ""
@@ -19304,10 +19294,10 @@ msgid ""
 "supported quiz modes. Learners can keep using the app locally, then link a "
 "site account later to sync study state and progress."
 msgstr ""
-"Çevrimdışı paket, bağımsız kabuğun yanı sıra desteklenen test modları için "
+"Çevrimdışı paket, bağımsız kabuğu ve desteklenen quiz modları için "
 "paketlenmiş medyayı içerir. Öğrenciler uygulamayı yerel olarak kullanmaya "
-"devam edebilir, daha sonra çalışma durumunu ve ilerlemeyi senkronize etmek "
-"için daha sonra bir site hesabı bağlayabilir."
+"devam edebilir, ardından çalışma durumunu ve ilerlemeyi eşitlemek için daha "
+"sonra bir site hesabı bağlayabilir."
 
 #: includes/pages/wordset-pages.php:11445
 msgid "Export Offline App"
@@ -19315,15 +19305,14 @@ msgstr "Çevrimdışı Uygulamayı Dışa Aktar"
 
 #: includes/pages/wordset-pages.php:11718
 msgid "Quiz display"
-msgstr "Sınav ekranı"
+msgstr "Quiz görünümü"
 
 #: includes/pages/wordset-pages.php:11737
 #: includes/taxonomies/wordset-taxonomy.php:2799
 msgid ""
 "Automatically play the audio for text + audio answer options during quizzes."
 msgstr ""
-"Sınavlar sırasında metin + sesli yanıt seçenekleri için sesi otomatik olarak"
-" oynatın."
+"Quizlerde metin + sesli cevap seçenekleri için sesi otomatik olarak oynatın."
 
 #: includes/pages/wordset-pages.php:11740
 #: includes/taxonomies/wordset-taxonomy.php:2801
@@ -19343,8 +19332,8 @@ msgid ""
 "Hide word text on lesson pages and word grids when the category quiz uses "
 "only images or audio."
 msgstr ""
-"Kategori sınavında yalnızca görseller veya ses kullanıldığında ders "
-"sayfalarındaki ve kelime tablolarındaki kelime metnini gizleyin."
+"Kategori quizi yalnızca görseller veya ses kullandığında ders sayfalarındaki"
+" ve kelime tablolarındaki kelime metnini gizleyin."
 
 #: includes/pages/wordset-pages.php:11763
 msgid "Save Study Settings"
@@ -19424,7 +19413,7 @@ msgstr[1] "%d kaydedici atandı"
 #: includes/pages/wordset-pages.php:12685
 #: includes/pages/wordset-pages.php:12699
 msgid "No recorders assigned"
-msgstr "Kayıt cihazı atanmadı"
+msgstr "Kaydedici atanmadı"
 
 #: includes/pages/wordset-pages.php:12696
 #, php-format
@@ -19466,7 +19455,7 @@ msgstr "Bu seçim için yeni kelime yok."
 
 #: includes/pages/wordset-pages.php:13003
 msgid "No in progress words are available for this selection."
-msgstr "Bu seçim için devam eden sözcük yok."
+msgstr "Bu seçim için devam eden kelime yok."
 
 #: includes/pages/wordset-pages.php:13004
 msgid "No learned words are available for this selection."
@@ -19846,9 +19835,9 @@ msgid ""
 "selected vocab lessons. If multiple mixed content lessons share the same "
 "prerequisites, their Order value breaks ties."
 msgstr ""
-"Bu ders ana tabloya karıştırıldığında seçilen kelime derslerinden sonra "
-"eklenir. Birden fazla karma içerikli ders aynı önkoşulları paylaşıyorsa Sıra"
-" değeri bağları koparır."
+"Bu ders ana tabloya dahil edildiğinde seçilen kelime derslerinden sonra "
+"eklenir. Birden fazla karma içerik dersi aynı önkoşulları paylaşıyorsa Sıra "
+"değeri aralarındaki sıralamayı belirler."
 
 #: includes/post-types/content-lesson-post-type.php:1309
 msgid "Content lesson prerequisites"
@@ -19860,9 +19849,9 @@ msgid ""
 "earlier content lessons. Use this to keep story, review, and follow-up "
 "practice lessons in sequence."
 msgstr ""
-"Bu ders ana tabloya karıştırıldığında daha önceki içerik derslerinin "
-"sonrasına da yerleştirilebilir. Hikayeyi, incelemeyi ve takip pratik "
-"derslerini sırayla tutmak için bunu kullanın."
+"Bu ders ana tabloya dahil edildiğinde daha önceki içerik derslerinin "
+"sonrasına da yerleştirilebilir. Hikaye, inceleme ve takip alıştırması "
+"derslerini sırada tutmak için bunu kullanın."
 
 #: includes/post-types/dictionary-entry-post-type.php:1775
 #: includes/shortcodes/dictionary-shortcode.php:1852
@@ -19931,56 +19920,56 @@ msgstr "Bağlantılı Kelimeler Olmadan"
 #: includes/post-types/prompt-card-post-type.php:42
 #: includes/post-types/prompt-card-post-type.php:52
 msgid "Prompt Cards"
-msgstr "Bilgi İstemi Kartları"
+msgstr "Soru Kartları"
 
 #: includes/post-types/prompt-card-post-type.php:41
 #: includes/post-types/prompt-card-post-type.php:43
 msgid "Prompt Card"
-msgstr "Bilgi İstemi Kartı"
+msgstr "Soru Kartı"
 
 #: includes/post-types/prompt-card-post-type.php:44
 msgid "Add Prompt Card"
-msgstr "Bilgi İstemi Kartı Ekle"
+msgstr "Soru Kartı Ekle"
 
 #: includes/post-types/prompt-card-post-type.php:45
 msgid "Add New Prompt Card"
-msgstr "Yeni Bilgi İstemi Kartı Ekle"
+msgstr "Yeni Soru Kartı Ekle"
 
 #: includes/post-types/prompt-card-post-type.php:46
 msgid "Edit Prompt Card"
-msgstr "Bilgi İstemi Kartını Düzenle"
+msgstr "Soru Kartını Düzenle"
 
 #: includes/post-types/prompt-card-post-type.php:47
 msgid "New Prompt Card"
-msgstr "Yeni Bilgi İstemi Kartı"
+msgstr "Yeni Soru Kartı"
 
 #: includes/post-types/prompt-card-post-type.php:48
 msgid "View Prompt Card"
-msgstr "İstem Kartını Görüntüle"
+msgstr "Soru Kartını Görüntüle"
 
 #: includes/post-types/prompt-card-post-type.php:49
 msgid "Search Prompt Cards"
-msgstr "Arama İstemi Kartları"
+msgstr "Soru Kartlarında Ara"
 
 #: includes/post-types/prompt-card-post-type.php:50
 msgid "No prompt cards found."
-msgstr "Bilgi istemi kartı bulunamadı."
+msgstr "Soru kartı bulunamadı."
 
 #: includes/post-types/prompt-card-post-type.php:51
 msgid "No prompt cards found in Trash."
-msgstr "Çöp Kutusu'nda bilgi istemi kartı bulunamadı."
+msgstr "Çöp Kutusu’nda soru kartı bulunamadı."
 
 #: includes/post-types/prompt-card-post-type.php:53
 msgid "Prompt card published."
-msgstr "Bilgi istemi kartı yayınlandı."
+msgstr "Soru kartı yayınlandı."
 
 #: includes/post-types/prompt-card-post-type.php:54
 msgid "Prompt card updated."
-msgstr "Bilgi istemi kartı güncellendi."
+msgstr "Soru kartı güncellendi."
 
 #: includes/post-types/prompt-card-post-type.php:283
 msgid "Prompt Card Setup"
-msgstr "İstem Kartı Kurulumu"
+msgstr "Soru Kartı Kurulumu"
 
 #: includes/post-types/prompt-card-post-type.php:306
 msgid ""
@@ -19989,20 +19978,20 @@ msgid ""
 "from normal words and their recordings."
 msgstr ""
 "Kenar çubuğundaki sınıflandırma kutularını kullanarak bu kartı ders "
-"kategorisine ve kelime kümesine atayın. Hızlı taraf burada yaşıyor; cevap "
-"seçenekleri hala normal kelimelerden ve bunların kayıtlarından geliyor."
+"kategorisine ve kelime setine atayın. Soru tarafı burada tanımlanır; cevap "
+"seçenekleri hâlâ normal kelimelerden ve onların kayıtlarından gelir."
 
 #: includes/post-types/prompt-card-post-type.php:312 includes/privacy.php:474
 msgid "Prompt text"
-msgstr "Bilgi istemi metni"
+msgstr "Soru metni"
 
 #: includes/post-types/prompt-card-post-type.php:315
 msgid "Optional visible text or transcript for the question prompt."
-msgstr "Soru istemi için isteğe bağlı görünür metin veya transkript."
+msgstr "Soru için isteğe bağlı görünür metin veya transkript."
 
 #: includes/post-types/prompt-card-post-type.php:320
 msgid "Prompt audio"
-msgstr "Ses istemi"
+msgstr "Soru sesi"
 
 #: includes/post-types/prompt-card-post-type.php:323
 msgid "Select audio"
@@ -20018,7 +20007,7 @@ msgstr ""
 
 #: includes/post-types/prompt-card-post-type.php:334
 msgid "Prompt image word ID"
-msgstr "Bilgi istemi resmi kelime kimliği"
+msgstr "Soru görseli kelime kimliği"
 
 #: includes/post-types/prompt-card-post-type.php:337
 msgid ""
@@ -20065,13 +20054,13 @@ msgid ""
 "vocabulary word. Turn it off for yes/no grammar cards so only prompt-card "
 "progress is tracked."
 msgstr ""
-"\"At mı inek mi?\" gibi kartlar için bunu açık bırakın. cevabın hala bir "
-"sözcük olduğu yer. Evet/hayır dilbilgisi kartları için bu özelliği kapatın, "
-"böylece yalnızca bilgi istemi kartındaki ilerleme izlenir."
+"Cevabın hâlâ bir kelime olduğu “at mı inek mi?” gibi kartlar için bunu açık "
+"bırakın. Evet/hayır dilbilgisi kartlarında kapatın; böylece yalnızca soru "
+"kartı ilerlemesi izlenir."
 
 #: includes/post-types/prompt-card-post-type.php:490
 msgid "Select prompt audio"
-msgstr "İstem sesini seç"
+msgstr "Soru sesini seç"
 
 #: includes/post-types/prompt-card-post-type.php:490
 msgid "Use this audio"
@@ -20199,8 +20188,8 @@ msgid ""
 "Manage images from the linked word image so one change updates connected "
 "words."
 msgstr ""
-"Bağlantılı sözcük görüntüsündeki görüntüleri yönetin, böylece tek bir "
-"değişiklik bağlı sözcükleri günceller."
+"Görselleri bağlantılı kelime görseli üzerinden yönetin; böylece tek bir "
+"değişiklik bağlı kelimeleri günceller."
 
 #: includes/post-types/words-post-type.php:162
 msgid "Edit linked image"
@@ -20231,17 +20220,17 @@ msgid ""
 "Use the linked image record or the frontend word editor to change images. "
 "The standard Featured Image box is hidden during migration."
 msgstr ""
-"Görüntüleri değiştirmek için bağlantılı görüntü kaydını veya ön uç sözcük "
-"düzenleyiciyi kullanın. Standart Öne Çıkan Görsel kutusu geçiş sırasında "
+"Görselleri değiştirmek için bağlantılı görsel kaydını veya ön yüz kelime "
+"düzenleyicisini kullanın. Standart Öne Çıkan Görsel kutusu geçiş sırasında "
 "gizlenir."
 
 #: includes/post-types/words-post-type.php:1182
 msgid "All Quiz Category Statuses"
-msgstr "Tüm Sınav Kategorisi Durumları"
+msgstr "Tüm Quiz Kategorisi Durumları"
 
 #: includes/post-types/words-post-type.php:1187
 msgid "No Quizzable Category"
-msgstr "Test Edilebilir Kategori Yok"
+msgstr "Quiz için uygun kategori yok"
 
 #: includes/post-types/words-post-type.php:1848
 msgid "Select a word set to edit categories."
@@ -20251,7 +20240,7 @@ msgstr "Kategorileri düzenlemek için bir kelime seti seçin."
 msgid ""
 "This category is currently assigned but does not belong to the selected word"
 " set."
-msgstr "Bu kategori şu anda atanmış ancak seçilen kelime grubuna ait değil."
+msgstr "Bu kategori şu anda atanmış ancak seçilen kelime setine ait değil."
 
 #. translators: 1: blocked word title, 2: edit post URL
 #: includes/post-types/words-post-type.php:2219
@@ -20309,7 +20298,7 @@ msgstr "LL Tools Çalışma İlerlemesi"
 
 #: includes/privacy.php:229 includes/privacy.php:469
 msgid "LL Tools Prompt Card Progress"
-msgstr "LL Tools Bilgi İstemi Kartı İlerlemesi"
+msgstr "LL Tools Soru Kartı İlerlemesi"
 
 #: includes/privacy.php:233 includes/privacy.php:549
 msgid "LL Tools Study Activity"
@@ -20321,7 +20310,7 @@ msgstr "LL Tools Çevrimdışı Oturumları"
 
 #: includes/privacy.php:288
 msgid "Selected word set ID"
-msgstr "Seçilen kelime kümesi kimliği"
+msgstr "Seçilen kelime seti kimliği"
 
 #: includes/privacy.php:289
 msgid "Selected word set"
@@ -20349,7 +20338,7 @@ msgstr "Yoksayılan kategori kimlikleri"
 
 #: includes/privacy.php:305
 msgid "Preferred word set IDs"
-msgstr "Tercih edilen kelime kümesi kimlikleri"
+msgstr "Tercih edilen kelime seti kimlikleri"
 
 #: includes/privacy.php:306
 msgid "Placement-known category IDs"
@@ -20401,7 +20390,7 @@ msgstr "Kategori Kimliği"
 
 #: includes/privacy.php:390 includes/privacy.php:479 includes/privacy.php:561
 msgid "Word set ID"
-msgstr "Kelime kümesi kimliği"
+msgstr "Kelime seti kimliği"
 
 #: includes/privacy.php:392 includes/privacy.php:481
 msgid "First seen at (UTC)"
@@ -20485,7 +20474,7 @@ msgstr "Doğru pratik kayıt türleri"
 
 #: includes/privacy.php:472 includes/privacy.php:557
 msgid "Prompt card ID"
-msgstr "İstemi kartı kimliği"
+msgstr "Soru kartı kimliği"
 
 #: includes/privacy.php:476
 msgid "Correct answer word"
@@ -20575,21 +20564,21 @@ msgid ""
 "personal data. You can request an export or erasure of this data through the"
 " site’s privacy request tools."
 msgstr ""
-"Oturum açtığınızda LL Tools'u kullandığınızda, bu site çalışma ilerlemenizi,"
-" öğrenme tercihlerinizi, seçilen kelime kümesini/kategorilerini, yıldızlı "
-"kelimeleri, çalışılan kelimelere ilişkin ilerleme özetlerini ve test "
-"gösterimleri ve sonuçları gibi ayrıntılı etkinlik geçmişini saklar. "
-"Çevrimdışı senkronizasyon özelliğini kullanırsanız site, senkronizasyonun "
-"çalışmaya devam etmesi için gereken sınırlı çevrimdışı oturum cihaz/profil "
+"Oturum açmışken LL Tools’u kullandığınızda bu site çalışma ilerlemenizi, "
+"öğrenme tercihlerinizi, seçilen kelime setini/kategorileri, yıldızlı "
+"kelimeleri, çalışılan kelimeler için ilerleme özetlerini ve quiz "
+"gösterimleri ile sonuçları gibi ayrıntılı etkinlik geçmişini saklar. "
+"Çevrimdışı senkronizasyon özelliğini kullanırsanız site, bu senkronizasyonun"
+" çalışması için gereken sınırlı çevrimdışı oturum cihaz/profil "
 "tanımlayıcılarını da saklar. Bu bilgiler ilerlemenizi kaydetmek, sonraki "
 "çalışma önerilerini kişiselleştirmek, oturumlar arasında çalışma durumunuzu "
-"geri yüklemek, çevrimdışı çalışma etkinliğini tekrar hesabınızla senkronize "
-"etmek ve site operasyonları için gerektiğinde site yöneticilerinin "
-"öğrencinin ilerlemesini incelemesine olanak sağlamak için kullanılır. "
-"Ayrıntılı etkinlik günlüğü girişleri %d gün boyunca saklanır. Özet ilerleme "
-"verileri, hesabınız silinene veya site LL Tools kişisel verilerinizi silene "
-"kadar kalır. Sitenin gizlilik isteği araçlarını kullanarak bu verilerin dışa"
-" aktarılmasını veya silinmesini talep edebilirsiniz."
+"geri yüklemek, çevrimdışı çalışma etkinliğini hesabınızla eşitlemek ve site "
+"işlemleri için gerektiğinde site yöneticilerinin öğrenci ilerlemesini "
+"incelemesini sağlamak amacıyla kullanılır. Ayrıntılı etkinlik günlüğü "
+"kayıtları %d gün boyunca saklanır. Özet ilerleme verileri, hesabınız "
+"silinene veya site LL Tools kişisel verilerinizi silene kadar kalır. Bu "
+"verilerin dışa aktarılmasını veya silinmesini sitenin gizlilik isteği "
+"araçları üzerinden talep edebilirsiniz."
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:287
 msgid "Credit"
@@ -20604,8 +20593,8 @@ msgid ""
 "This invite can create a recorder account for this word set or connect an "
 "existing account with the invited email address."
 msgstr ""
-"Bu davet, bu kelime seti için bir kayıt cihazı hesabı oluşturabilir veya "
-"mevcut bir hesabı davet edilen e-posta adresine bağlayabilir."
+"Bu davet, bu kelime seti için bir kaydedici hesabı oluşturabilir veya mevcut"
+" bir hesabı davet edilen e-posta adresiyle bağlayabilir."
 
 #: includes/shortcodes/audio-recording-shortcode.php:1198
 msgid "Starting..."
@@ -20628,14 +20617,14 @@ msgstr "Bu kategoriye erişiminiz yok."
 #: includes/shortcodes/audio-recording-shortcode.php:3446
 #: includes/shortcodes/audio-recording-shortcode.php:5163
 msgid "You do not have access to that prompt card."
-msgstr "Bu bilgi istemi kartına erişiminiz yok."
+msgstr "Bu soru kartına erişiminiz yok."
 
 #. translators: %d: prompt card post ID
 #: includes/shortcodes/audio-recording-shortcode.php:3790
 #: includes/shortcodes/audio-recording-shortcode.php:5224
 #, php-format
 msgid "Prompt card #%d"
-msgstr "Bilgi istemi kartı #%d"
+msgstr "Soru kartı #%d"
 
 #: includes/shortcodes/audio-recording-shortcode.php:5213
 #: includes/shortcodes/audio-recording-shortcode.php:6186
@@ -20657,7 +20646,7 @@ msgstr "Bilinmeyen ekleme hatası"
 #: includes/shortcodes/audio-recording-shortcode.php:5300
 #, php-format
 msgid "Failed to create prompt audio attachment: %s"
-msgstr "İstem ses eki oluşturulamadı: %s"
+msgstr "Soru sesi eki oluşturulamadı: %s"
 
 #: includes/shortcodes/audio-recording-shortcode.php:5572
 msgid "Admin Notification Email"
@@ -20696,7 +20685,7 @@ msgstr "Sözlük filtreleri yükleniyor..."
 #: includes/shortcodes/dictionary-shortcode.php:37
 #: includes/shortcodes/dictionary-shortcode.php:2296
 msgid "Enter a dictionary entry title."
-msgstr "Bir sözlük girişi başlığı girin."
+msgstr "Bir sözlük girdisi başlığı girin."
 
 #: includes/shortcodes/dictionary-shortcode.php:38
 #: includes/shortcodes/dictionary-shortcode.php:2354
@@ -20707,7 +20696,7 @@ msgstr "Bir tanım girin."
 #: includes/shortcodes/dictionary-shortcode.php:2310
 #: includes/shortcodes/dictionary-shortcode.php:2409
 msgid "Unable to save this dictionary entry right now."
-msgstr "Bu sözlük girişi şu anda kaydedilemiyor."
+msgstr "Bu sözlük girdisi şu anda kaydedilemiyor."
 
 #: includes/shortcodes/dictionary-shortcode.php:272
 msgid "Zazaki"
@@ -20724,7 +20713,7 @@ msgstr "Almanca"
 #: includes/shortcodes/dictionary-shortcode.php:464
 #: includes/shortcodes/dictionary-shortcode.php:2287
 msgid "Dictionary entry not found."
-msgstr "Sözlük girişi bulunamadı."
+msgstr "Sözlük girdisi bulunamadı."
 
 #: includes/shortcodes/dictionary-shortcode.php:600
 #: includes/shortcodes/dictionary-shortcode.php:809
@@ -20733,12 +20722,12 @@ msgstr "İncelendi"
 
 #: includes/shortcodes/dictionary-shortcode.php:733
 msgid "Edit dictionary entry title"
-msgstr "Sözlük girişi başlığını düzenle"
+msgstr "Sözlük girdisi başlığını düzenle"
 
 #: includes/shortcodes/dictionary-shortcode.php:741
 #: includes/shortcodes/dictionary-shortcode.php:742
 msgid "Dictionary entry title"
-msgstr "Sözlük girişi başlığı"
+msgstr "Sözlük girdisi başlığı"
 
 #. translators: %s: glossary language label.
 #: includes/shortcodes/dictionary-shortcode.php:763
@@ -20808,12 +20797,12 @@ msgstr "Daha az göster"
 #, php-format
 msgid "+ %d more sense"
 msgid_plural "+ %d more senses"
-msgstr[0] "+ %d daha fazla anlam"
-msgstr[1] "+ %d daha fazla duyu"
+msgstr[0] "+ %d anlam daha"
+msgstr[1] "+ %d anlam daha"
 
 #: includes/shortcodes/dictionary-shortcode.php:1671
 msgid "That dictionary entry could not be found."
-msgstr "Bu sözlük girişi bulunamadı."
+msgstr "Bu sözlük girdisi bulunamadı."
 
 #: includes/shortcodes/dictionary-shortcode.php:1717
 msgid "Back to dictionary"
@@ -20825,7 +20814,7 @@ msgstr "Tanımlar"
 
 #: includes/shortcodes/dictionary-shortcode.php:1788
 msgid "Senses"
-msgstr "Duyular"
+msgstr "Anlamlar"
 
 #: includes/shortcodes/dictionary-shortcode.php:1834
 msgid "Definition"
@@ -20898,17 +20887,17 @@ msgstr "Sözlüğe harfe göre göz atın"
 
 #: includes/shortcodes/dictionary-shortcode.php:2268
 msgid "Missing dictionary entry."
-msgstr "Sözlük girişi eksik."
+msgstr "Sözlük girdisi eksik."
 
 #: includes/shortcodes/dictionary-shortcode.php:2280
 msgid "You do not have permission to edit this dictionary entry."
-msgstr "Bu sözlük girişini düzenleme izniniz yok."
+msgstr "Bu sözlük girdisini düzenleme izniniz yok."
 
 #: includes/shortcodes/dictionary-shortcode.php:2319
 #: includes/shortcodes/dictionary-shortcode.php:2344
 #: includes/shortcodes/dictionary-shortcode.php:2415
 msgid "Dictionary entry updated."
-msgstr "Sözlük girişi güncellendi."
+msgstr "Sözlük girdisi güncellendi."
 
 #: includes/shortcodes/dictionary-shortcode.php:2363
 msgid "Dictionary definition not found."
@@ -20934,7 +20923,7 @@ msgstr "%d cevap"
 
 #: includes/shortcodes/flashcard-widget.php:393
 msgid "Turn on sound to continue the quiz."
-msgstr "Teste devam etmek için sesi açın."
+msgstr "Quiz’e devam etmek için sesi açın."
 
 #: includes/shortcodes/flashcard-widget.php:394
 msgid "Resume audio"
@@ -21041,8 +21030,8 @@ msgid ""
 "Flushed quiz caches. Deleted %1$d transient rows, bumped %2$d categories, "
 "object cache flushed: %3$s."
 msgstr ""
-"Temizlenmiş test önbellekleri. %1$d geçici satır silindi, %2$d kategori "
-"düzeltildi, nesne önbelleği temizlendi: %3$s."
+"Quiz önbellekleri temizlendi. %1$d transient satırı silindi, %2$d kategori "
+"sürümü artırıldı, nesne önbelleği temizlendi: %3$s."
 
 #. translators: 1: deleted rows, 2: total rows found
 #: includes/shortcodes/site-tools-shortcode.php:241
@@ -21084,7 +21073,7 @@ msgstr "Genel ayarlar ve bakım için bu sayfa."
 
 #: includes/shortcodes/site-tools-shortcode.php:588
 msgid "Complete missing word metadata in the custom editor workflow."
-msgstr "Özel düzenleyici iş akışında eksik sözcük meta verilerini tamamlayın."
+msgstr "Özel düzenleyici iş akışında eksik kelime meta verilerini tamamlayın."
 
 #: includes/shortcodes/site-tools-shortcode.php:599
 msgid "Open the custom recording interface."
@@ -21284,7 +21273,7 @@ msgstr "Site yöneticisi e-postasını kullanma"
 
 #: includes/shortcodes/site-tools-shortcode.php:842
 msgid "Hide word titles for recorders by default"
-msgstr "Kayıt cihazları için kelime başlıklarını varsayılan olarak gizle"
+msgstr "Kelime başlıklarını varsayılan olarak kaydedicilerden gizle"
 
 #: includes/shortcodes/site-tools-shortcode.php:847
 msgid "Admin notification email"
@@ -21411,14 +21400,14 @@ msgid ""
 "These dashboard-only maintenance actions now have a first custom UI home "
 "too."
 msgstr ""
-"Yalnızca gösterge tablosuna yönelik bu bakım eylemleri artık ilk özel "
-"kullanıcı arayüzü ana sayfasına da sahip."
+"Yalnızca kontrol paneline yönelik bu bakım eylemlerinin artık özel kullanıcı"
+" arayüzünde de bir yeri var."
 
 #: includes/shortcodes/site-tools-shortcode.php:971
 msgid "Clear cached quiz payloads and bump word-category cache versions."
 msgstr ""
-"Önbelleğe alınmış sınav yüklerini temizleyin ve kelime kategorisi önbellek "
-"sürümlerini yükseltin."
+"Önbelleğe alınmış quiz verilerini temizleyin ve kelime kategorisi önbellek "
+"sürümlerini artırın."
 
 #: includes/shortcodes/site-tools-shortcode.php:973
 #: includes/shortcodes/site-tools-shortcode.php:985
@@ -21574,11 +21563,11 @@ msgstr "Dalga formu mevcut değil."
 
 #: includes/shortcodes/word-grid-shortcode.php:2927
 msgid "Saving order..."
-msgstr "Sipariş kaydediliyor..."
+msgstr "Sıra kaydediliyor..."
 
 #: includes/shortcodes/word-grid-shortcode.php:2928
 msgid "Order saved."
-msgstr "Sipariş kaydedildi."
+msgstr "Sıra kaydedildi."
 
 #: includes/shortcodes/word-grid-shortcode.php:2929
 msgid "Unable to save the lesson order."
@@ -21658,7 +21647,7 @@ msgstr "Çeviri ekle"
 
 #: includes/shortcodes/word-grid-shortcode.php:3867
 msgid "Updates the linked word image and keeps existing recordings."
-msgstr "Bağlantılı sözcük görüntüsünü günceller ve mevcut kayıtları tutar."
+msgstr "Bağlantılı kelime görselini günceller ve mevcut kayıtları korur."
 
 #: includes/shortcodes/word-grid-shortcode.php:3874
 msgid "Audio processing"
@@ -21710,7 +21699,7 @@ msgstr "Geçersiz kayıt."
 
 #: includes/shortcodes/word-grid-shortcode.php:5269
 msgid "Invalid parent word."
-msgstr "Geçersiz üst sözcük."
+msgstr "Geçersiz üst kelime."
 
 #: includes/shortcodes/word-grid-shortcode.php:5278
 msgid "Audio upload validation is unavailable."
@@ -21730,19 +21719,19 @@ msgstr "Dosya kaydedilemedi."
 
 #: includes/shortcodes/word-grid-shortcode.php:5439
 msgid "You do not have permission to upload images."
-msgstr "Resim yükleme izniniz yok."
+msgstr "Görsel yükleme izniniz yok."
 
 #: includes/shortcodes/word-grid-shortcode.php:5452
 msgid "Unable to upload the image."
-msgstr "Resim yüklenemiyor."
+msgstr "Görsel yüklenemedi."
 
 #: includes/shortcodes/word-grid-shortcode.php:5814
 msgid "Image syncing is not available right now."
-msgstr "Görüntü senkronizasyonu şu anda kullanılamıyor."
+msgstr "Görsel senkronizasyonu şu anda kullanılamıyor."
 
 #: includes/shortcodes/word-grid-shortcode.php:5822
 msgid "Could not update the linked word image."
-msgstr "Bağlantılı sözcük resmi güncellenemedi."
+msgstr "Bağlantılı kelime görseli güncellenemedi."
 
 #: includes/shortcodes/word-grid-shortcode.php:6014
 msgid "You must be logged in to edit prerequisites."
@@ -21811,23 +21800,23 @@ msgstr "%1$s -> %2$s"
 #: includes/taxonomies/word-category-taxonomy.php:1354
 #: templates/vocab-lesson-template.php:950
 msgid "Line-Up"
-msgstr "Kadro"
+msgstr "Sıralama"
 
 #: includes/taxonomies/word-category-taxonomy.php:1851
 msgid ""
 "Choose whether the quiz starts with audio, an image, text, or a mixed prompt"
 " for this category."
 msgstr ""
-"Bu kategori için sınavın sesle mi, resimle mi, metinle mi yoksa karışık bir "
-"istemle mi başlayacağını seçin."
+"Bu kategori için quizin sesle, görselle, metinle veya karma soruyla "
+"başlayacağını seçin."
 
 #: includes/taxonomies/word-category-taxonomy.php:1953
 msgid ""
 "Whether to start rounds with audio, with the word image, with text, or with "
 "a mixed prompt."
 msgstr ""
-"Turlara sesle mi, kelime görüntüsüyle mi, metinle mi yoksa karışık bir "
-"istemle mi başlayacağınız."
+"Turların sesle, kelime görseliyle, metinle veya karma soruyla başlayıp "
+"başlamayacağını belirler."
 
 #: includes/taxonomies/word-category-taxonomy.php:2046
 #: includes/taxonomies/word-category-taxonomy.php:2067
@@ -21855,7 +21844,7 @@ msgstr ""
 #: includes/taxonomies/word-category-taxonomy.php:2087
 #: includes/taxonomies/word-category-taxonomy.php:2104
 msgid "Line-Up Sequence"
-msgstr "Sıralama Sırası"
+msgstr "Sıralama dizisi"
 
 #: includes/taxonomies/word-category-taxonomy.php:2088
 msgid ""
@@ -21869,7 +21858,7 @@ msgstr ""
 #: templates/vocab-lesson-template.php:982
 msgid "Add words to this category before configuring the Line-Up sequence."
 msgstr ""
-"Diziliş sırasını yapılandırmadan önce bu kategoriye sözcükler ekleyin."
+"Sıralama dizisini yapılandırmadan önce bu kategoriye kelimeler ekleyin."
 
 #: includes/taxonomies/word-category-taxonomy.php:2112
 #: templates/vocab-lesson-template.php:953
@@ -21896,8 +21885,8 @@ msgid ""
 "Choose the visual reading direction used by the game. The saved word order "
 "always stays logical and is never reversed in storage."
 msgstr ""
-"Oyunun kullandığı görsel okuma yönünü seçin. Kaydedilen sözcük sırası her "
-"zaman mantıksal kalır ve depolamada hiçbir zaman tersine çevrilmez."
+"Oyunun kullanacağı görsel okuma yönünü seçin. Kaydedilen kelime sırası her "
+"zaman mantıksal kalır ve depoda hiçbir zaman tersine çevrilmez."
 
 #: includes/taxonomies/word-category-taxonomy.php:2137
 msgid ""
@@ -21925,10 +21914,10 @@ msgid_plural ""
 "%d published words do not match this presentation and will not appear on "
 "lesson or quiz pages."
 msgstr[0] ""
-"Yayınlanan %d kelime bu sunumla eşleşmiyor ve ders veya sınav sayfalarında "
+"Yayınlanan %d kelime bu sunumla eşleşmiyor ve ders veya quiz sayfalarında "
 "görünmeyecek."
 msgstr[1] ""
-"Yayınlanan %d kelime bu sunumla eşleşmiyor ve ders veya sınav sayfalarında "
+"Yayınlanan %d kelime bu sunumla eşleşmiyor ve ders veya quiz sayfalarında "
 "görünmeyecek."
 
 #: includes/taxonomies/word-category-taxonomy.php:3484
@@ -21947,9 +21936,9 @@ msgid ""
 "href=\"%2$s\">edit the words in this category</a> so they match the current "
 "presentation."
 msgstr ""
-"Ya <a href=\"%1$s\">bu kategorinin sınav sunumunu değiştirin</a> veya <a "
-"href=\"%2$s\">bu kategorideki kelimeleri mevcut sunumla eşleşecek şekilde "
-"düzenleyin</a>."
+"Ya <a href=\"%1$s\">bu kategorinin quiz sunumunu değiştirin</a> ya da <a "
+"href=\"%2$s\">bu kategorideki kelimeleri düzenleyin</a>, böylece mevcut "
+"sunumla eşleşsinler."
 
 #. translators: 1: category name, 2: owning word set name
 #: includes/taxonomies/word-category-taxonomy.php:5676
@@ -21973,8 +21962,8 @@ msgid ""
 "Controls whether word post titles are stored in the target language or the "
 "translation/helper language for this word set."
 msgstr ""
-"Bu kelime kümesi için kelime yazısı başlıklarının hedef dilde mi yoksa "
-"çeviri/yardımcı dilde mi saklanacağını kontrol eder."
+"Bu kelime seti için kelime gönderisi başlıklarının hedef dilde mi yoksa "
+"çeviri/yardımcı dilde mi saklanacağını belirler."
 
 #: includes/taxonomies/wordset-taxonomy.php:2750
 msgid ""
@@ -21982,10 +21971,10 @@ msgid ""
 "set. IPA keeps phonetic formatting; transliteration removes IPA-specific "
 "formatting and is better for latinized Hebrew and similar systems."
 msgstr ""
-"Bu kelime setinde ikincil kayıt metin alanının nasıl davranması gerektiğini "
-"seçin. IPA fonetik biçimlendirmeyi korur; Harf çevirisi, IPA'ya özgü "
-"biçimlendirmeyi kaldırır ve latinleştirilmiş İbranice ve benzeri sistemler "
-"için daha iyidir."
+"Bu kelime setinde ikincil kayıt metni alanının nasıl davranacağını seçin. "
+"IPA fonetik biçimlendirmeyi korur; harf çevirisi IPA’ya özgü biçimlendirmeyi"
+" kaldırır ve Latinleştirilmiş İbranice ile benzer sistemler için daha "
+"uygundur."
 
 #: includes/taxonomies/wordset-taxonomy.php:2756
 msgid "Category name translations"
@@ -22088,7 +22077,7 @@ msgstr "Sınıf daveti bağlantısı oluşturulamadı."
 #: includes/teacher-classes.php:1198
 #, php-format
 msgid "Invitation to join %s"
-msgstr "%s'e katılma daveti"
+msgstr "Katılım daveti: %s"
 
 #. translators: %1$s: site name, %2$s: class name
 #: includes/teacher-classes.php:1205
@@ -22110,7 +22099,7 @@ msgstr "Davet e-postası gönderilemedi."
 #: includes/teacher-classes.php:1284
 #, php-format
 msgid "Create a learner account to join %s."
-msgstr "%s'a katılmak için bir öğrenci hesabı oluşturun."
+msgstr "Katılmak için bir öğrenci hesabı oluşturun: %s."
 
 #: includes/teacher-classes.php:1285 includes/teacher-classes.php:1290
 #: includes/teacher-classes.php:1310 includes/teacher-classes.php:1315
@@ -22121,7 +22110,7 @@ msgstr "bu sınıf"
 #: includes/teacher-classes.php:1289
 #, php-format
 msgid "Sign in with the invited learner account to join %s."
-msgstr "%s'a katılmak için davet edilen öğrenci hesabıyla oturum açın."
+msgstr "Katılmak için davet edilen öğrenci hesabıyla oturum açın: %s."
 
 #. translators: %s: class name
 #: includes/teacher-classes.php:1309
@@ -22133,7 +22122,7 @@ msgstr "Zaten %s üyesisiniz."
 #: includes/teacher-classes.php:1314
 #, php-format
 msgid "You joined %s."
-msgstr "%s'e katıldınız."
+msgstr "Katıldınız: %s."
 
 #: includes/user-roles/teacher-role.php:86
 msgid "The teacher role could not be assigned to that user."
@@ -22156,11 +22145,11 @@ msgid ""
 "updated: %5$d. Lessons repaired: %6$d. Wordsets repaired: %7$d. Word option "
 "rule scopes repaired: %8$d. User study records repaired: %9$d."
 msgstr ""
-"Kelime kümesi izolasyon geçişi tamamlandı. Taranan kelimeler: %1$d. "
-"Güncellenen kelimeler: %2$d. Oluşturulan kategoriler: %3$d. Oluşturulan "
-"kelime görselleri: %4$d. Word-resim bağlantıları güncellendi: %5$d. Onarılan"
-" dersler: %6$d. Onarılan kelime kümeleri: %7$d. Word seçeneği kural "
-"kapsamları onarıldı: %8$d. Kullanıcı çalışması kayıtları onarıldı: %9$d."
+"Kelime seti yalıtım geçişi tamamlandı. Taranan kelimeler: %1$d. Güncellenen "
+"kelimeler: %2$d. Oluşturulan kategoriler: %3$d. Oluşturulan kelime "
+"görselleri: %4$d. Güncellenen kelime-görsel bağlantıları: %5$d. Onarılan "
+"dersler: %6$d. Onarılan kelime setleri: %7$d. Onarılan kelime seçeneği kural"
+" kapsamları: %8$d. Onarılan kullanıcı çalışma kayıtları: %9$d."
 
 #: includes/wordset-isolation.php:1901 includes/wordset-isolation.php:1918
 #: includes/wordset-isolation.php:1940 includes/wordset-isolation.php:1961
@@ -22170,7 +22159,7 @@ msgstr "hiçbiri"
 #: includes/wordset-isolation.php:2449
 #, php-format
 msgid "Stored migration version is %1$d, expected %2$d."
-msgstr "Saklanan geçiş sürümü %1$d, beklenen %2$d."
+msgstr "Saklanan geçiş sürümü %1$d, beklenen sürüm %2$d."
 
 #: includes/wordset-isolation.php:2458
 #, php-format
@@ -22203,11 +22192,11 @@ msgid_plural ""
 "%d wordsets have category ordering or prerequisite metadata that still "
 "reference non-owned categories."
 msgstr[0] ""
-"%d kelime kümesinde, hâlâ sahip olunmayan kategorilere referans veren "
-"kategori sıralaması veya önkoşul meta verileri var."
+"%d kelime setinde hâlâ sahip olunmayan kategorilere başvuran kategori "
+"sıralaması veya önkoşul meta verileri var."
 msgstr[1] ""
-"%d kelime kümesinde, hâlâ sahip olunmayan kategorilere referans veren "
-"kategori sıralaması veya önkoşul meta verileri var."
+"%d kelime setinde hâlâ sahip olunmayan kategorilere başvuran kategori "
+"sıralaması veya önkoşul meta verileri var."
 
 #: includes/wordset-isolation.php:2508
 msgid "LL Tools Maintenance Alert"
@@ -22216,7 +22205,7 @@ msgstr "LL Tools Bakım Uyarısı"
 #: includes/wordset-isolation.php:2509
 msgid "Wordset isolation health checks found data that may need repair."
 msgstr ""
-"Kelime kümesi yalıtımı durum denetimleri, onarılması gerekebilecek veriler "
+"Kelime seti yalıtımı durum denetimleri, onarılması gerekebilecek veriler "
 "buldu."
 
 #: includes/wordset-isolation.php:2511
@@ -22237,7 +22226,7 @@ msgstr "Kelime örnekleri"
 #: includes/wordset-isolation.php:2536
 #, php-format
 msgid "Wordsets: %s."
-msgstr "Kelime kümeleri: %s."
+msgstr "Kelime setleri: %s."
 
 #: includes/wordset-isolation.php:2537 includes/wordset-isolation.php:2571
 #, php-format
@@ -22252,7 +22241,7 @@ msgstr "Paylaşılan kategoriler: %s."
 #: includes/wordset-isolation.php:2543 includes/wordset-isolation.php:2577
 #, php-format
 msgid "Foreign-owner categories: %s."
-msgstr "Yabancı sahip kategorileri: %s."
+msgstr "Başka sahibe ait kategoriler: %s."
 
 #: includes/wordset-isolation.php:2546 includes/wordset-isolation.php:2580
 #, php-format
@@ -22266,7 +22255,7 @@ msgstr "Kelime görseli örnekleri"
 #: includes/wordset-isolation.php:2570
 #, php-format
 msgid "Owner wordset: %s."
-msgstr "Sahip kelime kümesi: %s."
+msgstr "Sahip kelime seti: %s."
 
 #: includes/wordset-isolation.php:2596
 msgid "Vocab lesson samples"
@@ -22275,7 +22264,7 @@ msgstr "Kelime dersi örnekleri"
 #: includes/wordset-isolation.php:2604
 #, php-format
 msgid "Wordset: %s."
-msgstr "Kelime kümesi: %s."
+msgstr "Kelime seti: %s."
 
 #: includes/wordset-isolation.php:2605
 #, php-format
@@ -22289,12 +22278,12 @@ msgstr "Mevcut sahip olunan kopya: %s."
 
 #: includes/wordset-isolation.php:2624
 msgid "Wordset metadata samples"
-msgstr "Kelime kümesi meta veri örnekleri"
+msgstr "Kelime seti meta veri örnekleri"
 
 #: includes/wordset-isolation.php:2633
 #, php-format
 msgid "Manual order refs: %s."
-msgstr "Manuel sipariş referansları: %s."
+msgstr "Elle sıralama referansları: %s."
 
 #: includes/wordset-isolation.php:2636
 #, php-format
@@ -22308,7 +22297,7 @@ msgstr "Önkoşul bağımlılıkları: %s."
 
 #: includes/wordset-templates.php:281
 msgid "Unable to create the new word set right now."
-msgstr "Yeni kelime kümesi şu anda oluşturulamıyor."
+msgstr "Yeni kelime seti şu anda oluşturulamıyor."
 
 #. translators: 1: minimum supported PHP version, 2: current PHP version
 #: language-learner-tools.php:43
@@ -22350,7 +22339,7 @@ msgstr ""
 
 #: templates/content-lesson-template.php:179
 msgid "Practice This Lesson"
-msgstr "Bu Dersi Uygulayın"
+msgstr "Bu dersi çalış"
 
 #: templates/content-lesson-template.php:180
 msgid "Open the related vocab drills for the words from this main lesson."
@@ -22362,7 +22351,7 @@ msgstr "Notlar"
 
 #: templates/offline-app-shell-template.php:4
 msgid "Offline Quiz"
-msgstr "Çevrimdışı Sınav"
+msgstr "Çevrimdışı Quiz"
 
 #: templates/offline-app-shell-template.php:708
 msgid "Offline export warnings"
@@ -22370,7 +22359,7 @@ msgstr "Çevrimdışı dışa aktarma uyarıları"
 
 #: templates/offline-app-shell-template.php:709
 msgid "Export warnings"
-msgstr "Uyarıları dışa aktar"
+msgstr "Dışa aktarma uyarıları"
 
 #: templates/offline-app-shell-template.php:718
 msgid "Offline app sections"
@@ -22378,7 +22367,7 @@ msgstr "Çevrimdışı uygulama bölümleri"
 
 #: templates/offline-app-shell-template.php:735
 msgid "Offline quiz launcher"
-msgstr "Çevrimdışı sınav başlatıcısı"
+msgstr "Çevrimdışı quiz başlatıcısı"
 
 #. translators: %s is the lesson/category title.
 #: templates/vocab-lesson-print-template.php:20
@@ -22409,7 +22398,7 @@ msgstr "Yazdır"
 
 #: templates/vocab-lesson-template.php:301
 msgid "Auto-transcribe missing recordings for this lesson"
-msgstr "Bu ders için eksik kayıtları otomatik olarak metne dönüştürün"
+msgstr "Bu ders için eksik kayıtları otomatik olarak yazıya dök"
 
 #: templates/vocab-lesson-template.php:309
 msgid "Auto transcription"
@@ -22417,7 +22406,7 @@ msgstr "Otomatik transkripsiyon"
 
 #: templates/vocab-lesson-template.php:311
 msgid "Replace transcription for this lesson"
-msgstr "Bu dersin transkripsiyonunu değiştirin"
+msgstr "Bu dersin transkripsiyonunu değiştir"
 
 #: templates/vocab-lesson-template.php:322
 msgid "Clear transcription for this lesson"
@@ -22429,11 +22418,11 @@ msgstr "Metin her zaman görünür"
 
 #: templates/vocab-lesson-template.php:800
 msgid "Text hidden by default"
-msgstr "Varsayılan olarak gizlenen metin"
+msgstr "Metin varsayılan olarak gizli"
 
 #: templates/vocab-lesson-template.php:803
 msgid "Text uses word set default"
-msgstr "Metin varsayılan kelime kümesini kullanır"
+msgstr "Metin kelime seti varsayılanını kullanır"
 
 #: templates/vocab-lesson-template.php:817
 msgid "Recording off"
@@ -22473,8 +22462,8 @@ msgstr ""
 msgid ""
 "Move words up or down to set the Line-Up teaching order for this category."
 msgstr ""
-"Bu kategori için Sıralama öğretme sırasını ayarlamak için kelimeleri yukarı "
-"veya aşağı hareket ettirin."
+"Bu kategori için sıralama öğretim düzenini ayarlamak üzere kelimeleri yukarı"
+" veya aşağı taşıyın."
 
 #: templates/vocab-lesson-template.php:1008
 msgid "Print lesson"
