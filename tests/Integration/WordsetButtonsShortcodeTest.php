@@ -18,29 +18,44 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         $public_term = wp_insert_term('Buttons Public Wordset', 'wordset');
         $private_term = wp_insert_term('Buttons Private Wordset', 'wordset');
         $empty_term = wp_insert_term('Buttons Empty Wordset', 'wordset');
+        $draft_only_term = wp_insert_term('Buttons Draft Only Wordset', 'wordset');
 
         $this->assertIsArray($public_term);
         $this->assertIsArray($private_term);
         $this->assertIsArray($empty_term);
+        $this->assertIsArray($draft_only_term);
         $this->assertFalse(is_wp_error($public_term));
         $this->assertFalse(is_wp_error($private_term));
         $this->assertFalse(is_wp_error($empty_term));
+        $this->assertFalse(is_wp_error($draft_only_term));
 
         $public_term_id = (int) ($public_term['term_id'] ?? 0);
         $private_term_id = (int) ($private_term['term_id'] ?? 0);
         $empty_term_id = (int) ($empty_term['term_id'] ?? 0);
+        $draft_only_term_id = (int) ($draft_only_term['term_id'] ?? 0);
         update_term_meta($private_term_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
 
         $this->createPublishedLessonForWordset($public_term_id, 'Public Buttons Lesson A');
         $this->createPublishedLessonForWordset($public_term_id, 'Public Buttons Lesson B');
+        $this->createUnquizzablePublishedLessonForWordset($public_term_id, 'Public Buttons Unquizzable Lesson');
+        $this->createPreviewOnlyLessonForWordset($public_term_id, 'Public Buttons Preview Lesson');
         $this->createPublishedLessonForWordset($private_term_id, 'Private Buttons Lesson');
+        $this->createPreviewOnlyLessonForWordset($draft_only_term_id, 'Draft Only Buttons Preview Lesson');
+        $this->createUnquizzablePublishedLessonForWordset($draft_only_term_id, 'Draft Only Buttons Unquizzable Lesson');
 
         $public_wordset = get_term($public_term_id, 'wordset');
         $private_wordset = get_term($private_term_id, 'wordset');
         $empty_wordset = get_term($empty_term_id, 'wordset');
+        $draft_only_wordset = get_term($draft_only_term_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $public_wordset);
         $this->assertInstanceOf(WP_Term::class, $private_wordset);
         $this->assertInstanceOf(WP_Term::class, $empty_wordset);
+        $this->assertInstanceOf(WP_Term::class, $draft_only_wordset);
+
+        $lesson_counts = ll_tools_get_wordset_button_lesson_counts([$public_term_id, $draft_only_term_id, $empty_term_id]);
+        $this->assertSame(2, (int) ($lesson_counts[$public_term_id] ?? 0));
+        $this->assertSame(0, (int) ($lesson_counts[$draft_only_term_id] ?? 0));
+        $this->assertSame(0, (int) ($lesson_counts[$empty_term_id] ?? 0));
 
         $html = do_shortcode('[ll_wordset_buttons]');
 
@@ -55,6 +70,7 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         );
         $this->assertStringNotContainsString($private_wordset->name, $html);
         $this->assertStringNotContainsString($empty_wordset->name, $html);
+        $this->assertStringNotContainsString($draft_only_wordset->name, $html);
 
         $this->assertTrue(wp_style_is('ll-wordset-pages-css', 'enqueued'));
         $this->assertTrue(wp_style_is('ll-tools-style', 'enqueued'));
@@ -152,6 +168,27 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
 
     private function createPublishedLessonForWordset(int $wordset_id, string $title): int
     {
+        $category_id = $this->createLessonCategoryForWordset($wordset_id, $title, $this->quizMinWordCount());
+        return $this->createLessonPostForWordsetCategory($wordset_id, $category_id, $title);
+    }
+
+    private function createUnquizzablePublishedLessonForWordset(int $wordset_id, string $title): int
+    {
+        $category_id = $this->createLessonCategoryForWordset($wordset_id, $title, max(0, $this->quizMinWordCount() - 1));
+        return $this->createLessonPostForWordsetCategory($wordset_id, $category_id, $title);
+    }
+
+    private function createPreviewOnlyLessonForWordset(int $wordset_id, string $title): int
+    {
+        $category_id = $this->createLessonCategoryForWordset($wordset_id, $title, $this->quizMinWordCount());
+        $lesson_id = $this->createLessonPostForWordsetCategory($wordset_id, $category_id, $title);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_PREVIEW_ONLY_META, '1');
+
+        return $lesson_id;
+    }
+
+    private function createLessonPostForWordsetCategory(int $wordset_id, int $category_id, string $title): int
+    {
         $lesson_id = self::factory()->post->create([
             'post_type' => 'll_vocab_lesson',
             'post_status' => 'publish',
@@ -159,8 +196,66 @@ final class WordsetButtonsShortcodeTest extends LL_Tools_TestCase
         ]);
 
         update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
 
         return (int) $lesson_id;
+    }
+
+    private function createLessonCategoryForWordset(int $wordset_id, string $title, int $word_count): int
+    {
+        $term = wp_insert_term($title . ' Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($term);
+        $this->assertFalse(is_wp_error($term));
+
+        $category_id = (int) ($term['term_id'] ?? 0);
+        $this->assertGreaterThan(0, $category_id);
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_title');
+
+        for ($index = 1; $index <= $word_count; $index++) {
+            $this->createWordWithAudio(
+                $title . ' Word ' . $index,
+                $title . ' Translation ' . $index,
+                $category_id,
+                $wordset_id,
+                sanitize_title($title) . '-' . $index . '.mp3'
+            );
+        }
+
+        return $category_id;
+    }
+
+    private function createWordWithAudio(string $title, string $translation, int $category_id, int $wordset_id, string $audio_file_name): int
+    {
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(4, false),
+        ]);
+
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($word_id, 'word_translation', $translation);
+
+        $audio_post_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Audio ' . $title,
+        ]);
+        update_post_meta($audio_post_id, 'audio_file_path', '/wp-content/uploads/' . $audio_file_name);
+
+        return (int) $word_id;
+    }
+
+    private function quizMinWordCount(): int
+    {
+        $min_word_count = defined('LL_TOOLS_MIN_WORDS_PER_QUIZ')
+            ? (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)
+            : 5;
+
+        return max(1, $min_word_count);
     }
 
     private function createImageAttachment(string $filename): int

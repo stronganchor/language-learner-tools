@@ -94,7 +94,7 @@ function ll_tools_wordset_buttons_shortcode_cache_key(array $atts, string $tag =
         : 1;
 
     $payload = [
-        'schema' => 1,
+        'schema' => 2,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'locale' => function_exists('get_locale') ? (string) get_locale() : '',
@@ -176,7 +176,11 @@ function ll_tools_get_wordset_button_lesson_counts(array $wordset_ids): array {
     $wordset_ids = array_values(array_unique(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
         return $wordset_id > 0;
     })));
-    if (empty($wordset_ids) || !defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')) {
+    if (
+        empty($wordset_ids)
+        || !defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META')
+        || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')
+    ) {
         return [];
     }
 
@@ -188,34 +192,68 @@ function ll_tools_get_wordset_button_lesson_counts(array $wordset_ids): array {
 
     $counts = array_fill_keys($wordset_ids, 0);
     $placeholders = implode(',', array_fill(0, count($wordset_ids), '%d'));
+    $preview_only_meta_key = defined('LL_TOOLS_VOCAB_LESSON_PREVIEW_ONLY_META')
+        ? (string) LL_TOOLS_VOCAB_LESSON_PREVIEW_ONLY_META
+        : '_ll_tools_vocab_preview_only';
     $sql = $wpdb->prepare(
         "
-        SELECT CAST(pm.meta_value AS UNSIGNED) AS wordset_id, COUNT(DISTINCT p.ID) AS lesson_count
+        SELECT
+            CAST(wordset_pm.meta_value AS UNSIGNED) AS wordset_id,
+            CAST(category_pm.meta_value AS UNSIGNED) AS category_id
         FROM {$wpdb->posts} p
-        INNER JOIN {$wpdb->postmeta} pm
-            ON pm.post_id = p.ID
-           AND pm.meta_key = %s
+        INNER JOIN {$wpdb->postmeta} wordset_pm
+            ON wordset_pm.post_id = p.ID
+           AND wordset_pm.meta_key = %s
+        INNER JOIN {$wpdb->postmeta} category_pm
+            ON category_pm.post_id = p.ID
+           AND category_pm.meta_key = %s
+        LEFT JOIN {$wpdb->postmeta} preview_pm
+            ON preview_pm.post_id = p.ID
+           AND preview_pm.meta_key = %s
+           AND preview_pm.meta_value = %s
         WHERE p.post_type = %s
           AND p.post_status = %s
-          AND CAST(pm.meta_value AS UNSIGNED) IN ($placeholders)
-        GROUP BY wordset_id
+          AND preview_pm.post_id IS NULL
+          AND CAST(wordset_pm.meta_value AS UNSIGNED) IN ($placeholders)
+          AND CAST(category_pm.meta_value AS UNSIGNED) > 0
+        GROUP BY wordset_id, category_id
         ",
         array_merge(
-            [LL_TOOLS_VOCAB_LESSON_WORDSET_META, 'll_vocab_lesson', 'publish'],
+            [
+                LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                LL_TOOLS_VOCAB_LESSON_CATEGORY_META,
+                $preview_only_meta_key,
+                '1',
+                'll_vocab_lesson',
+                'publish',
+            ],
             $wordset_ids
         )
     );
 
     $rows = $wpdb->get_results($sql, ARRAY_A);
+    $min_word_count = defined('LL_TOOLS_MIN_WORDS_PER_QUIZ')
+        ? (int) apply_filters('ll_tools_quiz_min_words', LL_TOOLS_MIN_WORDS_PER_QUIZ)
+        : 5;
+    if ($min_word_count < 1) {
+        $min_word_count = 1;
+    }
+
     foreach ((array) $rows as $row) {
         if (!is_array($row)) {
             continue;
         }
 
         $wordset_id = isset($row['wordset_id']) ? (int) $row['wordset_id'] : 0;
-        $lesson_count = isset($row['lesson_count']) ? (int) $row['lesson_count'] : 0;
-        if ($wordset_id > 0 && array_key_exists($wordset_id, $counts)) {
-            $counts[$wordset_id] = max(0, $lesson_count);
+        $category_id = isset($row['category_id']) ? (int) $row['category_id'] : 0;
+        if ($wordset_id <= 0 || $category_id <= 0 || !array_key_exists($wordset_id, $counts)) {
+            continue;
+        }
+
+        $can_generate_quiz = !function_exists('ll_can_category_generate_quiz')
+            || ll_can_category_generate_quiz($category_id, $min_word_count, [$wordset_id]);
+        if ($can_generate_quiz) {
+            $counts[$wordset_id]++;
         }
     }
 
