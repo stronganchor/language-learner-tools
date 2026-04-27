@@ -1131,14 +1131,103 @@ function ll_tools_flashcards_redact_public_speaker_ids(array $rows): array {
     return $rows;
 }
 
+function ll_tools_flashcards_public_ajax_cache_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_flashcards_public_ajax_cache_ttl', 10 * MINUTE_IN_SECONDS);
+    return max(60, $ttl);
+}
+
+function ll_tools_flashcards_public_ajax_cache_enabled(): bool {
+    return !is_user_logged_in();
+}
+
+function ll_tools_flashcards_public_ajax_cache_epoch_args(): array {
+    return [
+        'category_epoch' => function_exists('ll_tools_get_category_cache_epoch') ? max(1, (int) ll_tools_get_category_cache_epoch()) : 1,
+        'wordset_epoch' => function_exists('ll_tools_get_wordset_cache_epoch') ? max(1, (int) ll_tools_get_wordset_cache_epoch()) : 1,
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
+    ];
+}
+
+function ll_tools_flashcards_normalize_public_ajax_cache_value($value) {
+    if (is_array($value)) {
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            if (!is_string($key) && !is_int($key)) {
+                continue;
+            }
+            $normalized[$key] = ll_tools_flashcards_normalize_public_ajax_cache_value($item);
+        }
+
+        $keys = array_keys($normalized);
+        if ($keys === range(0, count($normalized) - 1)) {
+            sort($normalized, SORT_REGULAR);
+        } else {
+            ksort($normalized, SORT_STRING);
+        }
+
+        return $normalized;
+    }
+
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+
+    if (is_scalar($value)) {
+        return trim((string) $value);
+    }
+
+    return '';
+}
+
+function ll_tools_flashcards_public_ajax_cache_key(array $args): string {
+    $payload = array_merge(
+        ll_tools_flashcards_public_ajax_cache_epoch_args(),
+        ll_tools_flashcards_normalize_public_ajax_cache_value($args)
+    );
+
+    return 'll_fc_ajax_' . md5((string) wp_json_encode($payload));
+}
+
+function ll_tools_flashcards_public_ajax_cache_get(array $args) {
+    if (!ll_tools_flashcards_public_ajax_cache_enabled()) {
+        return null;
+    }
+
+    $key = ll_tools_flashcards_public_ajax_cache_key($args);
+    $cached = wp_cache_get($key, 'll_tools_flashcards');
+    if ($cached === false) {
+        $cached = get_transient($key);
+    }
+
+    return is_array($cached) ? $cached : null;
+}
+
+function ll_tools_flashcards_public_ajax_cache_set(array $args, array $rows): void {
+    if (!ll_tools_flashcards_public_ajax_cache_enabled()) {
+        return;
+    }
+
+    $key = ll_tools_flashcards_public_ajax_cache_key($args);
+    $ttl = ll_tools_flashcards_public_ajax_cache_ttl();
+    wp_cache_set($key, $rows, 'll_tools_flashcards', $ttl);
+    set_transient($key, $rows, $ttl);
+}
+
+function ll_tools_flashcards_send_public_ajax_cache_header(string $status): void {
+    if (!headers_sent()) {
+        header('X-LL-Flashcard-Ajax-Cache: ' . strtoupper($status));
+    }
+}
+
 function ll_get_words_by_category_ajax() {
-    $category     = isset($_POST['category'])     ? sanitize_text_field($_POST['category'])     : '';
-    $category_slug = isset($_POST['category_slug']) ? sanitize_title((string) $_POST['category_slug']) : '';
-    $display_mode = isset($_POST['display_mode']) ? sanitize_text_field($_POST['display_mode']) : 'image';
-    $wordset_spec = isset($_POST['wordset'])      ? sanitize_text_field($_POST['wordset'])      : '';
-    $wordset_fallback = isset($_POST['wordset_fallback']) ? (bool) $_POST['wordset_fallback'] : true;
-    $prompt_type  = isset($_POST['prompt_type'])  ? sanitize_text_field($_POST['prompt_type'])  : '';
-    $option_type  = isset($_POST['option_type'])  ? sanitize_text_field($_POST['option_type'])  : '';
+    $category = isset($_POST['category']) ? sanitize_text_field(wp_unslash((string) $_POST['category'])) : '';
+    $category_slug = isset($_POST['category_slug']) ? sanitize_title(wp_unslash((string) $_POST['category_slug'])) : '';
+    $display_mode = isset($_POST['display_mode']) ? sanitize_text_field(wp_unslash((string) $_POST['display_mode'])) : 'image';
+    $wordset_spec = isset($_POST['wordset']) ? sanitize_text_field(wp_unslash((string) $_POST['wordset'])) : '';
+    $wordset_fallback = isset($_POST['wordset_fallback']) ? (wp_unslash((string) $_POST['wordset_fallback']) !== '0') : true;
+    $prompt_type = isset($_POST['prompt_type']) ? sanitize_text_field(wp_unslash((string) $_POST['prompt_type'])) : '';
+    $option_type = isset($_POST['option_type']) ? sanitize_text_field(wp_unslash((string) $_POST['option_type'])) : '';
 
     if (!$category && !$category_slug) { wp_send_json_error(__('Invalid category.', 'll-tools-text-domain')); }
 
@@ -1177,6 +1266,30 @@ function ll_get_words_by_category_ajax() {
         $base_config = array_merge($meta_config, $base_config);
     }
 
+    $public_wordset_ids = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    }));
+    sort($public_wordset_ids, SORT_NUMERIC);
+
+    $public_cache_args = [
+        'category' => $category,
+        'category_slug' => $category_slug,
+        'display_mode' => $display_mode,
+        'wordset_ids' => $public_wordset_ids,
+        'wordset_fallback' => $wordset_fallback,
+        'prompt_type' => (string) ($base_config['prompt_type'] ?? ''),
+        'option_type' => (string) ($base_config['option_type'] ?? ''),
+        'use_titles' => !empty($base_config['use_titles']),
+        'term_id' => ($term instanceof WP_Term) ? (int) $term->term_id : 0,
+        'term_slug' => ($term instanceof WP_Term) ? (string) $term->slug : '',
+        'quiz_config' => $base_config,
+    ];
+    $cached_words = ll_tools_flashcards_public_ajax_cache_get($public_cache_args);
+    if (is_array($cached_words)) {
+        ll_tools_flashcards_send_public_ajax_cache_header('HIT');
+        wp_send_json_success($cached_words);
+    }
+
     $category_ref = $term instanceof WP_Term
         ? $term
         : ($category_slug !== '' ? $category_slug : $category);
@@ -1195,6 +1308,8 @@ function ll_get_words_by_category_ajax() {
     // Frontend flashcard payloads should not expose internal speaker user IDs.
     $words = ll_tools_flashcards_redact_public_speaker_ids((array) $words);
 
+    ll_tools_flashcards_public_ajax_cache_set($public_cache_args, $words);
+    ll_tools_flashcards_send_public_ajax_cache_header('MISS');
     wp_send_json_success($words);
 }
 

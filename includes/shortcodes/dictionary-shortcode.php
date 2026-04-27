@@ -2108,6 +2108,81 @@ function ll_tools_dictionary_resolve_live_base_url(string $raw_base_url = ''): s
     return $base_url;
 }
 
+function ll_tools_dictionary_ajax_cache_ttl(): int {
+    $ttl = (int) apply_filters('ll_tools_dictionary_ajax_cache_ttl', 10 * MINUTE_IN_SECONDS);
+    return max(60, $ttl);
+}
+
+function ll_tools_dictionary_ajax_cache_enabled(): bool {
+    return !is_user_logged_in();
+}
+
+function ll_tools_dictionary_ajax_cache_locale(): string {
+    if (function_exists('determine_locale')) {
+        return (string) determine_locale();
+    }
+
+    return function_exists('get_locale') ? (string) get_locale() : '';
+}
+
+function ll_tools_dictionary_send_ajax_cache_header(string $status): void {
+    if (!headers_sent()) {
+        header('X-LL-Dictionary-Ajax-Cache: ' . strtoupper($status));
+    }
+}
+
+function ll_tools_dictionary_ajax_cache_args(array $args): array {
+    $args['locale'] = ll_tools_dictionary_ajax_cache_locale();
+    $args['plugin_version'] = defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '';
+    ksort($args, SORT_STRING);
+
+    return $args;
+}
+
+function ll_tools_dictionary_ajax_cache_get(string $namespace, array $args) {
+    static $request_cache = [];
+
+    if (!ll_tools_dictionary_ajax_cache_enabled() || !function_exists('ll_tools_dictionary_browser_get_cached_payload')) {
+        return null;
+    }
+
+    $cached = ll_tools_dictionary_browser_get_cached_payload(
+        'ajax_' . sanitize_key($namespace),
+        ll_tools_dictionary_ajax_cache_args($args),
+        $request_cache
+    );
+
+    return is_array($cached) ? $cached : null;
+}
+
+function ll_tools_dictionary_ajax_cache_set(string $namespace, array $args, array $payload): void {
+    static $request_cache = [];
+
+    if (!ll_tools_dictionary_ajax_cache_enabled() || !function_exists('ll_tools_dictionary_browser_store_cached_payload')) {
+        return;
+    }
+
+    ll_tools_dictionary_browser_store_cached_payload(
+        'ajax_' . sanitize_key($namespace),
+        ll_tools_dictionary_ajax_cache_args($args),
+        $payload,
+        ll_tools_dictionary_ajax_cache_ttl(),
+        $request_cache
+    );
+}
+
+function ll_tools_dictionary_live_search_min_chars(): int {
+    return max(1, (int) apply_filters('ll_tools_dictionary_live_search_min_chars', 2));
+}
+
+function ll_tools_dictionary_live_search_length(string $search): int {
+    if (function_exists('mb_strlen')) {
+        return (int) mb_strlen($search, 'UTF-8');
+    }
+
+    return strlen($search);
+}
+
 function ll_tools_dictionary_build_toolbar_panel_context(int $wordset_id, string $source_id = '', string $dialect = ''): array {
     $letters = function_exists('ll_tools_dictionary_get_available_letters')
         ? ll_tools_dictionary_get_available_letters($wordset_id)
@@ -2441,9 +2516,27 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
     }
     $dialect = isset($_POST['ll_dictionary_dialect']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_dialect']))) : '';
 
-    wp_send_json_success([
+    $cache_args = [
+        'wordset_id' => $wordset_id,
+        'base_url' => $base_url,
+        'search_scopes' => $search_scopes,
+        'letter' => $letter,
+        'pos_slug' => $pos_slug,
+        'source_id' => $source_id,
+        'dialect' => $dialect,
+    ];
+    $cached = ll_tools_dictionary_ajax_cache_get('toolbar_bootstrap', $cache_args);
+    if (is_array($cached)) {
+        ll_tools_dictionary_send_ajax_cache_header('HIT');
+        wp_send_json_success($cached);
+    }
+
+    $payload = [
         'html' => ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_id, $dialect),
-    ]);
+    ];
+    ll_tools_dictionary_ajax_cache_set('toolbar_bootstrap', $cache_args, $payload);
+    ll_tools_dictionary_send_ajax_cache_header('MISS');
+    wp_send_json_success($payload);
 }
 add_action('wp_ajax_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
 add_action('wp_ajax_nopriv_ll_tools_dictionary_toolbar_bootstrap', 'll_tools_dictionary_handle_toolbar_bootstrap');
@@ -2455,7 +2548,10 @@ function ll_tools_dictionary_handle_live_search(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
-    $per_page = isset($_POST['per_page']) ? max(1, min(100, (int) wp_unslash((string) $_POST['per_page']))) : 20;
+    $per_page_cap = is_user_logged_in()
+        ? 100
+        : max(1, min(100, (int) apply_filters('ll_tools_dictionary_anonymous_live_search_per_page_cap', 40)));
+    $per_page = isset($_POST['per_page']) ? max(1, min($per_page_cap, (int) wp_unslash((string) $_POST['per_page']))) : 20;
     $sense_limit = isset($_POST['sense_limit']) ? max(1, min(8, (int) wp_unslash((string) $_POST['sense_limit']))) : 3;
     $linked_word_limit = isset($_POST['linked_word_limit']) ? max(0, min(8, (int) wp_unslash((string) $_POST['linked_word_limit']))) : 4;
     $gloss_lang = isset($_POST['gloss_lang']) ? sanitize_text_field(wp_unslash((string) $_POST['gloss_lang'])) : '';
@@ -2476,7 +2572,16 @@ function ll_tools_dictionary_handle_live_search(): void {
         $letter = '';
     }
 
-    $has_active_browse_query = ($search !== '' || $letter !== '' || $pos_slug !== '' || $source_id !== '' || $dialect !== '');
+    $has_non_search_filter = ($letter !== '' || $pos_slug !== '' || $source_id !== '' || $dialect !== '');
+    if (
+        $search !== ''
+        && ll_tools_dictionary_live_search_length($search) < ll_tools_dictionary_live_search_min_chars()
+        && !$has_non_search_filter
+    ) {
+        $search = '';
+    }
+
+    $has_active_browse_query = ($search !== '' || $has_non_search_filter);
     $query = [
         'items' => [],
         'total' => 0,
@@ -2484,6 +2589,29 @@ function ll_tools_dictionary_handle_live_search(): void {
         'per_page' => $per_page,
         'total_pages' => 1,
     ];
+    $cache_args = [
+        'wordset_id' => $wordset_id,
+        'per_page' => $per_page,
+        'sense_limit' => $sense_limit,
+        'linked_word_limit' => $linked_word_limit,
+        'gloss_lang' => $gloss_lang,
+        'base_url' => $base_url,
+        'search' => $search,
+        'search_scopes' => $search_scopes,
+        'letter' => $letter,
+        'page' => $page,
+        'pos_slug' => $pos_slug,
+        'source_id' => $source_id,
+        'dialect' => $dialect,
+        'preferred_languages' => $preferred_languages,
+        'has_active_query' => $has_active_browse_query,
+    ];
+    $cached = ll_tools_dictionary_ajax_cache_get('live_search', $cache_args);
+    if (is_array($cached)) {
+        ll_tools_dictionary_send_ajax_cache_header('HIT');
+        wp_send_json_success($cached);
+    }
+
     if ($has_active_browse_query) {
         $query = ll_tools_dictionary_run_browse_query(
             $wordset_id,
@@ -2501,7 +2629,7 @@ function ll_tools_dictionary_handle_live_search(): void {
         );
     }
 
-    wp_send_json_success([
+    $payload = [
         'html' => $has_active_browse_query
             ? ll_tools_dictionary_render_browse_results($query, $base_url, $search, $search_scopes, $letter, $pos_slug, $source_id, $dialect)
             : '',
@@ -2517,7 +2645,10 @@ function ll_tools_dictionary_handle_live_search(): void {
                 'll_dictionary_page' => (string) max(1, (int) ($query['page'] ?? $page)),
             ])
             : $base_url,
-    ]);
+    ];
+    ll_tools_dictionary_ajax_cache_set('live_search', $cache_args, $payload);
+    ll_tools_dictionary_send_ajax_cache_header('MISS');
+    wp_send_json_success($payload);
 }
 add_action('wp_ajax_ll_tools_dictionary_live_search', 'll_tools_dictionary_handle_live_search');
 add_action('wp_ajax_nopriv_ll_tools_dictionary_live_search', 'll_tools_dictionary_handle_live_search');
@@ -2680,7 +2811,9 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
                     </fieldset>
                     <?php
                     if ($defer_toolbar_panel) {
-                        echo '<div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel></div>';
+                        echo '<div class="ll-dictionary__toolbar-panel ll-dictionary__toolbar-panel--deferred" data-ll-dictionary-toolbar-panel role="status" aria-live="polite">';
+                        echo '<span class="screen-reader-text">' . esc_html__('Loading dictionary filters...', 'll-tools-text-domain') . '</span>';
+                        echo '</div>';
                     } else {
                         echo ll_tools_dictionary_render_toolbar_panel($base_url, $wordset_id, $search_scopes, $letter, $pos_slug, $source_id, $dialect); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     }

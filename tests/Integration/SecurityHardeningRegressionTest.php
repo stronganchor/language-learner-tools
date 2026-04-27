@@ -181,6 +181,38 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_public_flashcard_ajax_cache_is_anonymous_and_epoch_scoped(): void
+    {
+        wp_set_current_user(0);
+
+        $args = [
+            'category_slug' => 'cache-scope',
+            'display_mode' => 'text_title',
+            'wordset_ids' => [12],
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+        ];
+        $rows = [
+            [
+                'id' => 123,
+                'title' => 'Cached public row',
+                'preferred_speaker_user_id' => 0,
+            ],
+        ];
+
+        ll_tools_flashcards_public_ajax_cache_set($args, $rows);
+
+        $this->assertSame($rows, ll_tools_flashcards_public_ajax_cache_get($args));
+
+        $user_id = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($user_id);
+        $this->assertNull(ll_tools_flashcards_public_ajax_cache_get($args));
+
+        wp_set_current_user(0);
+        ll_tools_bump_category_cache_epoch();
+        $this->assertNull(ll_tools_flashcards_public_ajax_cache_get($args));
+    }
+
     public function test_wordset_speaking_transcribe_attempt_rejects_invalid_audio_before_external_calls(): void
     {
         $wordset = wp_insert_term('Speaking Upload Guard ' . wp_generate_password(6, false), 'wordset');

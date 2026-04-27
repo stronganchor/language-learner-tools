@@ -212,6 +212,59 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString(LL_TOOLS_DICTIONARY_STATIC_CACHE_LOCALE_NONCE_PLACEHOLDER, $output);
     }
 
+    public function test_dictionary_ajax_cache_refreshes_with_browser_cache_version(): void
+    {
+        wp_set_current_user(0);
+
+        $args = [
+            'wordset_id' => 0,
+            'search' => 'roc',
+            'page' => 1,
+        ];
+        $payload = [
+            'html' => '<article>Cached</article>',
+            'has_active_query' => true,
+            'url' => 'https://example.com/sozluk/?ll_dictionary_q=roc',
+        ];
+
+        ll_tools_dictionary_ajax_cache_set('live_search', $args, $payload);
+
+        $this->assertSame($payload, ll_tools_dictionary_ajax_cache_get('live_search', $args));
+
+        ll_tools_bump_dictionary_browser_cache_version();
+
+        $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', $args));
+    }
+
+    public function test_dictionary_live_search_ignores_direct_one_character_ajax_search_without_filters(): void
+    {
+        wp_set_current_user(0);
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_live_search',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'll_dictionary_q' => 'a',
+            'll_dictionary_page' => '1',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_live_search();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $data = is_array($response['data'] ?? null) ? $response['data'] : [];
+        $this->assertSame('', (string) ($data['html'] ?? 'missing'));
+        $this->assertFalse((bool) ($data['has_active_query'] ?? true));
+        $this->assertSame('https://example.com/sozluk/', (string) ($data['url'] ?? ''));
+    }
+
     public function test_import_groups_duplicate_headwords_and_shortcode_paginates_results(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -1802,5 +1855,44 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $result = wp_insert_term($label, 'part_of_speech', ['slug' => $slug]);
         $this->assertTrue(is_array($result) || is_wp_error($result));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function run_json_endpoint(callable $callback): array
+    {
+        $die_handler = static function (): void {
+            throw new RuntimeException('wp_die');
+        };
+        $die_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $die_ajax_filter = static function () use ($die_handler) {
+            return $die_handler;
+        };
+        $doing_ajax_filter = static function (): bool {
+            return true;
+        };
+
+        add_filter('wp_die_handler', $die_filter);
+        add_filter('wp_die_ajax_handler', $die_ajax_filter);
+        add_filter('wp_doing_ajax', $doing_ajax_filter);
+
+        ob_start();
+        try {
+            $callback();
+        } catch (RuntimeException $e) {
+            $this->assertSame('wp_die', $e->getMessage());
+        } finally {
+            $output = (string) ob_get_clean();
+            remove_filter('wp_die_handler', $die_filter);
+            remove_filter('wp_die_ajax_handler', $die_ajax_filter);
+            remove_filter('wp_doing_ajax', $doing_ajax_filter);
+        }
+
+        $decoded = json_decode($output, true);
+        $this->assertIsArray($decoded, 'Expected JSON response payload.');
+        return $decoded;
     }
 }
