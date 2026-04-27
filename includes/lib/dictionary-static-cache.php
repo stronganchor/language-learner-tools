@@ -359,11 +359,8 @@ function ll_tools_dictionary_static_cache_request_identity(): ?array {
  * Return whether dictionary-cache debug logging should be active.
  */
 function ll_tools_dictionary_static_cache_debug_enabled(): bool {
-    if (defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEBUG') && LL_TOOLS_DICTIONARY_STATIC_CACHE_DEBUG) {
-        return true;
-    }
-
-    return defined('WP_DEBUG') && WP_DEBUG;
+    $enabled = defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEBUG') && LL_TOOLS_DICTIONARY_STATIC_CACHE_DEBUG;
+    return (bool) apply_filters('ll_tools_dictionary_static_cache_debug_enabled', $enabled);
 }
 
 /**

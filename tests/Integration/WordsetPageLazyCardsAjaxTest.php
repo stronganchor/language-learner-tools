@@ -158,6 +158,37 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_guest_lazy_cards_ajax_response_cache_uses_shared_token_and_epochs(): void
+    {
+        wp_set_current_user(0);
+
+        $args = [
+            'token' => 'shared_' . str_repeat('a', 32),
+            'wordset_id' => 123,
+            'preview_limit' => 2,
+            'offset' => 6,
+            'count' => 6,
+        ];
+        $payload = [
+            'html' => '<article>Cached lazy card</article>',
+            'loaded' => 12,
+            'nextOffset' => 12,
+            'hasMore' => false,
+        ];
+
+        $this->assertNull(ll_tools_wordset_page_lazy_cards_ajax_cache_get($args));
+
+        ll_tools_wordset_page_lazy_cards_ajax_cache_set($args, $payload);
+        $this->assertSame($payload, ll_tools_wordset_page_lazy_cards_ajax_cache_get($args));
+
+        ll_tools_bump_category_cache_epoch();
+        $this->assertNull(ll_tools_wordset_page_lazy_cards_ajax_cache_get($args));
+
+        $uncacheable_args = array_merge($args, ['token' => 'missing-token']);
+        ll_tools_wordset_page_lazy_cards_ajax_cache_set($uncacheable_args, $payload);
+        $this->assertNull(ll_tools_wordset_page_lazy_cards_ajax_cache_get($uncacheable_args));
+    }
+
     /**
      * @return array{wordset_id:int}
      */

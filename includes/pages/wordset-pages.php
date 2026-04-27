@@ -2616,9 +2616,13 @@ function ll_tools_wordset_page_store_lazy_cards_payload(array $payload, int $ttl
     }
 
     $cache_key = ll_tools_wordset_page_lazy_cards_cache_key($token);
+    $default_ttl = 30 * MINUTE_IN_SECONDS;
+    if ($preferred_token !== '' && function_exists('ll_tools_public_static_cache_ttl')) {
+        $default_ttl = max($default_ttl, ll_tools_public_static_cache_ttl());
+    }
     $ttl = $ttl > 0
         ? $ttl
-        : ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_lazy_cards_cache_ttl', 30 * MINUTE_IN_SECONDS);
+        : ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_lazy_cards_cache_ttl', $default_ttl);
 
     if ($preferred_token !== '') {
         $cached = ll_tools_wordset_page_get_cached_payload($cache_key, $request_cache);
@@ -2647,6 +2651,80 @@ function ll_tools_wordset_page_get_lazy_cards_payload(string $token): ?array {
     }
 
     return $payload;
+}
+
+function ll_tools_wordset_page_lazy_cards_ajax_cache_ttl(): int {
+    $default_ttl = function_exists('ll_tools_public_static_cache_ttl')
+        ? ll_tools_public_static_cache_ttl()
+        : HOUR_IN_SECONDS;
+
+    return ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_lazy_cards_ajax_cache_ttl', $default_ttl);
+}
+
+function ll_tools_wordset_page_lazy_cards_ajax_cache_enabled(string $token): bool {
+    if (is_user_logged_in()) {
+        return false;
+    }
+
+    return preg_match('/^shared_[a-f0-9]{32}$/', sanitize_key($token)) === 1;
+}
+
+function ll_tools_wordset_page_lazy_cards_ajax_cache_key(array $args): string {
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+
+    $payload = [
+        'schema' => 1,
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
+        'category_epoch' => $category_epoch,
+        'wordset_epoch' => $wordset_epoch,
+        'args' => $args,
+    ];
+
+    return ll_tools_wordset_page_build_cache_key('lazy_cards_ajax', $payload);
+}
+
+function ll_tools_wordset_page_lazy_cards_ajax_cache_get(array $args) {
+    static $request_cache = [];
+
+    $token = isset($args['token']) ? sanitize_key((string) $args['token']) : '';
+    if (!ll_tools_wordset_page_lazy_cards_ajax_cache_enabled($token)) {
+        return null;
+    }
+
+    $cached = ll_tools_wordset_page_get_cached_payload(
+        ll_tools_wordset_page_lazy_cards_ajax_cache_key($args),
+        $request_cache
+    );
+
+    return is_array($cached) ? $cached : null;
+}
+
+function ll_tools_wordset_page_lazy_cards_ajax_cache_set(array $args, array $payload): void {
+    static $request_cache = [];
+
+    $token = isset($args['token']) ? sanitize_key((string) $args['token']) : '';
+    if (!ll_tools_wordset_page_lazy_cards_ajax_cache_enabled($token)) {
+        return;
+    }
+
+    ll_tools_wordset_page_store_cached_payload(
+        ll_tools_wordset_page_lazy_cards_ajax_cache_key($args),
+        $payload,
+        ll_tools_wordset_page_lazy_cards_ajax_cache_ttl(),
+        $request_cache
+    );
+}
+
+function ll_tools_wordset_page_lazy_cards_ajax_send_cache_header(string $status): void {
+    if (!headers_sent()) {
+        header('X-LL-Wordset-Lazy-Cards-Cache: ' . strtoupper($status));
+    }
 }
 
 function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id, int $preview_limit = 2): array {
@@ -14050,6 +14128,19 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $preview_limit = isset($_POST['preview_limit']) ? max(1, (int) wp_unslash((string) $_POST['preview_limit'])) : 2;
     $offset = isset($_POST['offset']) ? max(0, (int) wp_unslash((string) $_POST['offset'])) : 0;
     $requested_count = isset($_POST['count']) ? max(1, (int) wp_unslash((string) $_POST['count'])) : 0;
+    $public_cache_args = [
+        'token' => $token,
+        'wordset_id' => $wordset_id,
+        'preview_limit' => $preview_limit,
+        'offset' => $offset,
+        'count' => $requested_count,
+    ];
+    $cached_response = ll_tools_wordset_page_lazy_cards_ajax_cache_get($public_cache_args);
+    if (is_array($cached_response)) {
+        ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('HIT');
+        wp_send_json_success($cached_response);
+    }
+
     $payload = ll_tools_wordset_page_get_lazy_cards_payload($token);
     $used_fallback_payload = false;
     if (!is_array($payload) && $wordset_id > 0) {
@@ -14089,12 +14180,15 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $render_context = (isset($payload['render_context']) && is_array($payload['render_context'])) ? $payload['render_context'] : [];
     $next_offset = min($total, $offset + count($slice));
 
-    wp_send_json_success([
+    $response = [
         'html' => ll_tools_wordset_page_render_mixed_cards($slice, $render_context),
         'loaded' => $next_offset,
         'nextOffset' => $next_offset,
         'hasMore' => ($next_offset < $total),
-    ]);
+    ];
+    ll_tools_wordset_page_lazy_cards_ajax_cache_set($public_cache_args, $response);
+    ll_tools_wordset_page_lazy_cards_ajax_send_cache_header('MISS');
+    wp_send_json_success($response);
 }
 add_action('wp_ajax_ll_tools_wordset_page_lazy_cards', 'll_tools_wordset_page_handle_lazy_cards_ajax');
 add_action('wp_ajax_nopriv_ll_tools_wordset_page_lazy_cards', 'll_tools_wordset_page_handle_lazy_cards_ajax');

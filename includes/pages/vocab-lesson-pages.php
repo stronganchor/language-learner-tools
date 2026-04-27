@@ -3514,6 +3514,79 @@ function ll_tools_get_vocab_lesson_print_items(int $wordset_id, int $category_id
     return array_values($items);
 }
 
+function ll_tools_vocab_lesson_grid_public_cache_ttl(): int {
+    $default_ttl = function_exists('ll_tools_public_static_cache_ttl')
+        ? ll_tools_public_static_cache_ttl()
+        : HOUR_IN_SECONDS;
+    $ttl = (int) apply_filters('ll_tools_vocab_lesson_grid_public_cache_ttl', $default_ttl);
+
+    return max(MINUTE_IN_SECONDS, $ttl);
+}
+
+function ll_tools_vocab_lesson_grid_public_cache_enabled(): bool {
+    if (is_user_logged_in()) {
+        return false;
+    }
+    if (is_admin() && !(function_exists('wp_doing_ajax') && wp_doing_ajax())) {
+        return false;
+    }
+
+    return (bool) apply_filters('ll_tools_vocab_lesson_grid_public_cache_enabled', true);
+}
+
+function ll_tools_vocab_lesson_grid_public_cache_key(int $lesson_id, int $wordset_id, int $category_id): string {
+    $category_epoch = function_exists('ll_tools_get_category_cache_epoch')
+        ? max(1, (int) ll_tools_get_category_cache_epoch())
+        : 1;
+    $wordset_epoch = function_exists('ll_tools_get_wordset_cache_epoch')
+        ? max(1, (int) ll_tools_get_wordset_cache_epoch())
+        : 1;
+
+    $payload = [
+        'schema' => 1,
+        'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
+        'locale' => function_exists('determine_locale') ? (string) determine_locale() : (function_exists('get_locale') ? (string) get_locale() : ''),
+        'lesson_id' => max(0, $lesson_id),
+        'wordset_id' => max(0, $wordset_id),
+        'category_id' => max(0, $category_id),
+        'category_epoch' => $category_epoch,
+        'wordset_epoch' => $wordset_epoch,
+    ];
+
+    return 'll_vl_grid_' . md5((string) wp_json_encode($payload));
+}
+
+function ll_tools_vocab_lesson_grid_public_cache_get(int $lesson_id, int $wordset_id, int $category_id) {
+    if (!ll_tools_vocab_lesson_grid_public_cache_enabled()) {
+        return null;
+    }
+
+    $key = ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id);
+    $cached = wp_cache_get($key, 'll_tools_vocab_lesson');
+    if ($cached === false) {
+        $cached = get_transient($key);
+    }
+
+    return is_string($cached) ? $cached : null;
+}
+
+function ll_tools_vocab_lesson_grid_public_cache_set(int $lesson_id, int $wordset_id, int $category_id, string $html): void {
+    if (!ll_tools_vocab_lesson_grid_public_cache_enabled() || $html === '') {
+        return;
+    }
+
+    $key = ll_tools_vocab_lesson_grid_public_cache_key($lesson_id, $wordset_id, $category_id);
+    $ttl = ll_tools_vocab_lesson_grid_public_cache_ttl();
+    wp_cache_set($key, $html, 'll_tools_vocab_lesson', $ttl);
+    set_transient($key, $html, $ttl);
+}
+
+function ll_tools_vocab_lesson_grid_public_cache_send_header(string $status): void {
+    if (!headers_sent()) {
+        header('X-LL-Vocab-Lesson-Grid-Cache: ' . strtoupper($status));
+    }
+}
+
 add_action('wp_ajax_ll_tools_get_vocab_lesson_grid', 'll_tools_get_vocab_lesson_grid_handler');
 add_action('wp_ajax_nopriv_ll_tools_get_vocab_lesson_grid', 'll_tools_get_vocab_lesson_grid_handler');
 function ll_tools_get_vocab_lesson_grid_handler() {
@@ -3557,6 +3630,14 @@ function ll_tools_get_vocab_lesson_grid_handler() {
         wp_send_json_error(['message' => __('Lesson terms are missing.', 'll-tools-text-domain')], 400);
     }
 
+    $cached_html = ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id);
+    if (is_string($cached_html)) {
+        ll_tools_vocab_lesson_grid_public_cache_send_header('HIT');
+        wp_send_json_success([
+            'html' => $cached_html,
+        ]);
+    }
+
     $html = ll_tools_render_vocab_lesson_prompt_cards_grid($wordset_id, $category, $lesson_id);
     if ($html === '') {
         $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
@@ -3572,6 +3653,8 @@ function ll_tools_get_vocab_lesson_grid_handler() {
         }
     }
 
+    ll_tools_vocab_lesson_grid_public_cache_set($lesson_id, $wordset_id, $category_id, is_string($html) ? $html : '');
+    ll_tools_vocab_lesson_grid_public_cache_send_header('MISS');
     wp_send_json_success([
         'html' => is_string($html) ? $html : '',
     ]);

@@ -56,6 +56,13 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-word-grid', $html);
         $this->assertStringContainsString('Nehir', $html);
         $this->assertStringContainsString('River', $html);
+
+        $cached_html = ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id);
+        $this->assertIsString($cached_html);
+        $this->assertStringContainsString('Nehir', $cached_html);
+
+        ll_tools_bump_category_cache_version([$category_id]);
+        $this->assertNull(ll_tools_vocab_lesson_grid_public_cache_get($lesson_id, $wordset_id, $category_id));
     }
 
     public function test_lesson_grid_ajax_shows_draft_words_to_staff_with_audio_status_notes(): void

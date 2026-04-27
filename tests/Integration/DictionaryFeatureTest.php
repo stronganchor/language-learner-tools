@@ -182,6 +182,24 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('', (string) wp_parse_url($invalid, PHP_URL_QUERY));
     }
 
+    public function test_dictionary_static_cache_debug_logging_is_filterable(): void
+    {
+        $disabled = static function (): bool {
+            return false;
+        };
+        $enabled = static function (): bool {
+            return true;
+        };
+
+        add_filter('ll_tools_dictionary_static_cache_debug_enabled', $disabled);
+        $this->assertFalse(ll_tools_dictionary_static_cache_debug_enabled());
+        remove_filter('ll_tools_dictionary_static_cache_debug_enabled', $disabled);
+
+        add_filter('ll_tools_dictionary_static_cache_debug_enabled', $enabled);
+        $this->assertTrue(ll_tools_dictionary_static_cache_debug_enabled());
+        remove_filter('ll_tools_dictionary_static_cache_debug_enabled', $enabled);
+    }
+
     public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
     {
         $clean_url = ll_tools_dictionary_strip_noise_query_args_from_url(
