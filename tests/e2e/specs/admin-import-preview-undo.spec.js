@@ -3,32 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-
-const ADMIN_USER = process.env.LL_E2E_ADMIN_USER || '';
-const ADMIN_PASS = process.env.LL_E2E_ADMIN_PASS || '';
-
-async function dismissAdminEmailVerification(page) {
-  if (!/action=confirm_admin_email/.test(page.url())) {
-    return;
-  }
-
-  const remindLaterLink = page.getByRole('link', { name: /Remind me later/i }).first();
-  if ((await remindLaterLink.count()) > 0) {
-    await remindLaterLink.click();
-    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
-      timeout: 60000
-    }).catch(() => {});
-    return;
-  }
-
-  const confirmButton = page.getByRole('button', { name: /The email is correct/i }).first();
-  if ((await confirmButton.count()) > 0) {
-    await confirmButton.click();
-    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
-      timeout: 60000
-    }).catch(() => {});
-  }
-}
+const { ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
 
 function psQuote(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
@@ -125,20 +100,7 @@ function createMinimalImportBundleZip() {
 }
 
 async function ensureLoggedIntoImportPage(page) {
-  await page.goto('/wp-admin/tools.php?page=ll-import', { waitUntil: 'domcontentloaded' });
-
-  const loginForm = page.locator('#loginform');
-  if ((await loginForm.count()) > 0) {
-    await expect(page.locator('#user_login')).toBeVisible({ timeout: 30000 });
-    await page.fill('#user_login', ADMIN_USER);
-    await page.fill('#user_pass', ADMIN_PASS);
-    await page.click('#wp-submit');
-    await page.waitForURL((url) => !/wp-login\.php/.test(url.toString()), {
-      timeout: 60000
-    }).catch(() => {});
-  }
-
-  await dismissAdminEmailVerification(page);
+  await ensureLoggedIntoAdmin(page, '/wp-admin/tools.php?page=ll-import');
   await expect(page).toHaveURL(/\/wp-admin\/tools\.php\?page=ll-import/);
   await expect(previewImportForm(page).locator('#ll_import_existing')).toBeVisible({ timeout: 60000 });
 }
@@ -157,7 +119,7 @@ function confirmImportForm(page) {
 
 test('admin import page previews, imports, and undoes a minimal server zip bundle', async ({ page }) => {
   test.setTimeout(240000);
-  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for admin E2E tests.');
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for admin E2E tests.');
 
   const fixture = createMinimalImportBundleZip();
 

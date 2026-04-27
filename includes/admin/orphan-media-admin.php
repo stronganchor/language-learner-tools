@@ -1071,17 +1071,27 @@ function ll_tools_orphan_media_prepare_snapshot_for_storage(array $snapshot): ar
     return $stored_snapshot;
 }
 
+function ll_tools_orphan_media_get_stored_snapshot(): array {
+    $snapshot = get_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT, []);
+
+    if (!is_array($snapshot)
+        || empty($snapshot['generated_at_gmt'])
+        || !isset($snapshot['items'])
+        || !is_array($snapshot['items'])
+        || !isset($snapshot['summary'])
+        || !is_array($snapshot['summary'])
+    ) {
+        return [];
+    }
+
+    return $snapshot;
+}
+
 function ll_tools_orphan_media_get_snapshot(bool $force = false): array {
     $max_age = (int) apply_filters('ll_tools_orphan_media_snapshot_max_age', (int) LL_TOOLS_ORPHAN_MEDIA_SNAPSHOT_MAX_AGE);
     $is_stale = !empty($GLOBALS['ll_tools_orphan_media_snapshot_stale']);
-    $snapshot = get_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT, []);
-
-    $has_snapshot = is_array($snapshot)
-        && !empty($snapshot['generated_at_gmt'])
-        && isset($snapshot['items'])
-        && is_array($snapshot['items'])
-        && isset($snapshot['summary'])
-        && is_array($snapshot['summary']);
+    $snapshot = ll_tools_orphan_media_get_stored_snapshot();
+    $has_snapshot = !empty($snapshot);
 
     if (!$force && !$is_stale && $has_snapshot) {
         $generated = mysql2date('U', (string) $snapshot['generated_at_gmt'], false);
@@ -1219,7 +1229,7 @@ function ll_tools_orphan_media_add_maintenance_task(array $tasks): array {
         return $tasks;
     }
 
-    $snapshot = ll_tools_orphan_media_get_snapshot(false);
+    $snapshot = ll_tools_orphan_media_get_stored_snapshot();
     $count = (int) (($snapshot['summary']['total_count'] ?? 0));
     if ($count <= 0) {
         return $tasks;

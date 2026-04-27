@@ -62,4 +62,34 @@ final class OrphanMediaAdminTest extends LL_Tools_TestCase
         $this->assertArrayNotHasKey('items_truncated', $stored_snapshot);
         $this->assertArrayNotHasKey('stored_item_count', $stored_snapshot);
     }
+
+    public function test_maintenance_task_uses_cached_snapshot_without_refreshing_stale_scan(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        update_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT, [
+            'generated_at_gmt' => '2026-04-26 12:00:00',
+            'summary' => [
+                'total_count' => 7,
+                'image_count' => 4,
+                'audio_count' => 3,
+            ],
+            'items' => [
+                ['kind' => 'audio', 'filename' => 'stale.mp3'],
+            ],
+        ], false);
+        $GLOBALS['ll_tools_orphan_media_snapshot_stale'] = true;
+
+        try {
+            $tasks = ll_tools_orphan_media_add_maintenance_task([]);
+        } finally {
+            unset($GLOBALS['ll_tools_orphan_media_snapshot_stale']);
+            delete_option(LL_TOOLS_ORPHAN_MEDIA_OPTION_SNAPSHOT);
+        }
+
+        $this->assertCount(1, $tasks);
+        $this->assertSame('orphan_media', (string) ($tasks[0]['key'] ?? ''));
+        $this->assertStringContainsString('7 orphaned media items', (string) ($tasks[0]['message'] ?? ''));
+    }
 }

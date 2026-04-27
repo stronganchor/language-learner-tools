@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { createWpPage, deleteWpPage, hasAdminCredentials } = require('../helpers/admin');
 
 async function gotoPageWithWidgetStartButton(page) {
   const envStandalone = process.env.LL_E2E_STANDALONE_PATH || '';
@@ -34,35 +35,71 @@ async function gotoPageWithWidgetStartButton(page) {
 }
 
 test('standalone flashcard widget start flow reaches quiz popup', async ({ page }) => {
-  const selectedPath = await gotoPageWithWidgetStartButton(page);
-  test.skip(!selectedPath, 'No standalone flashcard page found with a visible start button; set LL_E2E_STANDALONE_PATH for this environment.');
+  let createdPage = null;
+  let selectedPath = null;
 
-  const startButton = page.locator('#ll-tools-start-flashcard');
-  await expect(startButton).toBeVisible({ timeout: 60000 });
-  await startButton.click();
+  if (hasAdminCredentials()) {
+    createdPage = await createWpPage(page, {
+      title: `E2E Flashcard Widget ${Date.now()}`,
+      content: '[flashcard_widget embed="false" wordset="" wordset_fallback="true" quiz_mode="practice"]'
+    });
 
-  await page.waitForFunction(() => {
-    const isVisible = (id) => {
-      const el = document.getElementById(id);
-      if (!el) return false;
-      const style = window.getComputedStyle(el);
-      return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
-    };
-    return isVisible('ll-tools-category-selection-popup') || isVisible('ll-tools-flashcard-quiz-popup');
-  }, { timeout: 30000 });
-
-  const categoryPopup = page.locator('#ll-tools-category-selection-popup');
-  const quizPopup = page.locator('#ll-tools-flashcard-quiz-popup');
-
-  if (await categoryPopup.isVisible()) {
-    await expect(page.locator('#ll-tools-category-checkboxes input[type="checkbox"]').first()).toBeVisible();
-    await page.locator('#ll-tools-check-all').click();
-    await page.locator('#ll-tools-start-selected-quiz').click();
+    await page.goto(createdPage.link, { waitUntil: 'domcontentloaded' });
+    const startButton = page.locator('#ll-tools-start-flashcard');
+    if ((await startButton.count()) > 0) {
+      try {
+        await startButton.first().waitFor({ state: 'visible', timeout: 10000 });
+        selectedPath = createdPage.link;
+      } catch {
+        // The shortcode rendered, but the local site still has no compatible quiz data.
+      }
+    }
   }
 
-  await expect(quizPopup).toBeVisible({ timeout: 60000 });
-  await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: 60000 });
+  if (!selectedPath) {
+    selectedPath = await gotoPageWithWidgetStartButton(page);
+  }
 
-  await page.locator('#ll-tools-close-flashcard').click({ force: true });
-  await expect(quizPopup).toBeHidden({ timeout: 30000 });
+  if (!selectedPath) {
+    if (createdPage) {
+      await deleteWpPage(page, createdPage.id);
+    }
+    test.skip(true, 'No standalone flashcard page found with a visible start button and no generated page could render one.');
+    return;
+  }
+
+  try {
+    const startButton = page.locator('#ll-tools-start-flashcard');
+    await expect(startButton).toBeVisible({ timeout: 60000 });
+    await startButton.click();
+
+    await page.waitForFunction(() => {
+      const isVisible = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
+      };
+      return isVisible('ll-tools-category-selection-popup') || isVisible('ll-tools-flashcard-quiz-popup');
+    }, { timeout: 30000 });
+
+    const categoryPopup = page.locator('#ll-tools-category-selection-popup');
+    const quizPopup = page.locator('#ll-tools-flashcard-quiz-popup');
+
+    if (await categoryPopup.isVisible()) {
+      await expect(page.locator('#ll-tools-category-checkboxes input[type="checkbox"]').first()).toBeVisible();
+      await page.locator('#ll-tools-check-all').click();
+      await page.locator('#ll-tools-start-selected-quiz').click();
+    }
+
+    await expect(quizPopup).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('#ll-tools-mode-switcher-wrap')).toBeVisible({ timeout: 60000 });
+
+    await page.locator('#ll-tools-close-flashcard').click({ force: true });
+    await expect(quizPopup).toBeHidden({ timeout: 30000 });
+  } finally {
+    if (createdPage) {
+      await deleteWpPage(page, createdPage.id);
+    }
+  }
 });

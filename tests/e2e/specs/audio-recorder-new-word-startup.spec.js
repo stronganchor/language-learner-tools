@@ -1,127 +1,17 @@
 const { test, expect } = require('@playwright/test');
-
-const ADMIN_USER = process.env.LL_E2E_ADMIN_USER || '';
-const ADMIN_PASS = process.env.LL_E2E_ADMIN_PASS || '';
+const { createWpPage, deleteWpPage, ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
 
 test.describe.configure({ timeout: 240000 });
 
-async function dismissAdminEmailVerification(page) {
-  if (!/action=confirm_admin_email/.test(page.url())) {
-    return;
-  }
-
-  const remindLaterLink = page.getByRole('link', { name: /Remind me later/i }).first();
-  if ((await remindLaterLink.count()) > 0) {
-    await remindLaterLink.click();
-    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
-      timeout: 60000
-    }).catch(() => {});
-    return;
-  }
-
-  const confirmButton = page.getByRole('button', { name: /The email is correct/i }).first();
-  if ((await confirmButton.count()) > 0) {
-    await confirmButton.click();
-    await page.waitForURL((url) => !/action=confirm_admin_email/.test(url.toString()), {
-      timeout: 60000
-    }).catch(() => {});
-  }
-}
-
-async function ensureLoggedIntoAdmin(page) {
-  await page.goto('/wp-admin/', { waitUntil: 'domcontentloaded' });
-
-  const loginForm = page.locator('#loginform');
-  if ((await loginForm.count()) > 0) {
-    await expect(page.locator('#user_login')).toBeVisible({ timeout: 30000 });
-    await page.fill('#user_login', ADMIN_USER);
-    await page.fill('#user_pass', ADMIN_PASS);
-    await page.click('#wp-submit');
-    await page.waitForURL((url) => !/wp-login\.php/.test(url.toString()), {
-      timeout: 60000
-    }).catch(() => {});
-  }
-
-  await dismissAdminEmailVerification(page);
-  await expect(page).toHaveURL(/\/wp-admin\/?/);
-}
-
 async function createRecorderPage(page, title) {
-  await page.goto('/wp-admin/post-new.php?post_type=page', { waitUntil: 'domcontentloaded' });
-
-  const result = await page.evaluate(async (pageTitle) => {
-    const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
-    if (!nonce) {
-      return { error: 'missing-rest-nonce' };
-    }
-
-    const response = await fetch('/wp-json/wp/v2/pages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-WP-Nonce': nonce
-      },
-      body: JSON.stringify({
-        title: pageTitle,
-        status: 'publish',
-        content: '[audio_recording_interface allow_new_words="1"]'
-      })
-    });
-
-    return {
-      ok: response.ok,
-      status: response.status,
-      data: await response.json()
-    };
-  }, title);
-
-  if (!result || result.error) {
-    throw new Error(`Failed to create recorder page: ${result && result.error ? result.error : 'unknown error'}`);
-  }
-  if (!result.ok || !result.data || !result.data.id || !result.data.link) {
-    throw new Error(`Failed to create recorder page: HTTP ${result ? result.status : 'unknown'}`);
-  }
-
-  return {
-    id: result.data.id,
-    link: result.data.link
-  };
+  return createWpPage(page, {
+    title,
+    content: '[audio_recording_interface allow_new_words="1"]'
+  });
 }
 
 async function deletePage(page, pageId) {
-  if (!pageId || page.isClosed()) {
-    return;
-  }
-
-  try {
-    await page.goto('/wp-admin/post-new.php?post_type=page', {
-      waitUntil: 'domcontentloaded',
-      timeout: 30000
-    });
-    await dismissAdminEmailVerification(page);
-    await page.evaluate(async (id) => {
-      const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
-      if (!nonce || !id) return;
-
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 10000);
-      try {
-        await fetch(`/wp-json/wp/v2/pages/${id}?force=true`, {
-          method: 'DELETE',
-          headers: {
-            'X-WP-Nonce': nonce
-          },
-          signal: controller.signal
-        });
-      } catch (_) {
-        // Best-effort cleanup should not hide the recorder behavior under test.
-      } finally {
-        window.clearTimeout(timeout);
-      }
-    }, pageId);
-  } catch (_) {
-    // Best-effort cleanup should not hide the recorder behavior under test.
-  }
+  await deleteWpPage(page, pageId);
 }
 
 async function installFakeRecorderRuntime(page) {
@@ -274,7 +164,7 @@ async function installFakeRecorderRuntime(page) {
 }
 
 test('new-word recorder shows startup state immediately and defers preparation until save', async ({ page }) => {
-  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
 
   await ensureLoggedIntoAdmin(page);
 
@@ -335,7 +225,7 @@ test('new-word recorder shows startup state immediately and defers preparation u
 });
 
 test('new-word redo keeps entered text and translation intact', async ({ page }) => {
-  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
 
   await ensureLoggedIntoAdmin(page);
 
@@ -421,7 +311,7 @@ test('new-word redo keeps entered text and translation intact', async ({ page })
 });
 
 test('new-word recorder shows a visible error when no microphone is available', async ({ page }) => {
-  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
 
   await ensureLoggedIntoAdmin(page);
 
@@ -472,7 +362,7 @@ test('new-word recorder shows a visible error when no microphone is available', 
 });
 
 test('new-word recorder closes from the header button and backdrop on non-fullscreen layouts', async ({ page }) => {
-  test.skip(!ADMIN_USER || !ADMIN_PASS, 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for recorder E2E tests.');
 
   await ensureLoggedIntoAdmin(page);
   await page.setViewportSize({ width: 1280, height: 900 });

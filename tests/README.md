@@ -193,6 +193,10 @@ find tests/e2e/specs -maxdepth 1 -name '*.spec.js' | sort
 
 Representative E2E coverage areas:
 
+- `tests/e2e/helpers/admin.js`
+  - Provides the shared admin login, temporary page creation, and cleanup helpers used by admin-authenticated browser specs.
+- `tests/e2e/specs/admin-maintenance-pages.spec.js`
+  - Verifies the WebP optimizer and orphaned-media admin pages load their review controls without unrelated maintenance scans breaking the page.
 - `tests/e2e/specs/admin-import-preview-undo.spec.js`
   - Verifies the admin import UI can preview a server-side zip bundle, confirm import, and undo the resulting import record.
 - `tests/e2e/specs/flashcard-gender-support-normalization.spec.js`
