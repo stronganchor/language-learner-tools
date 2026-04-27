@@ -2065,6 +2065,7 @@
     const bulkStatusHideDelayMs = 1400;
     const prereqStatusHideDelayMs = 1400;
     const dictionaryEntryCache = {};
+    const wordImageCache = {};
 
     function syncDictionaryEntrySelectionState($item) {
         const $lookup = $item.find('[data-ll-word-input="dictionary_entry_lookup"]').first();
@@ -2089,6 +2090,165 @@
             $lookup.val(title);
             $lookup.data('llEntrySelectedId', id);
             $lookup.data('llEntrySelectedLabel', title);
+        }
+    }
+
+    function clearWordImagePickerSelection($item) {
+        const $idInput = $item.find('[data-ll-word-image-existing-id]').first();
+        const $lookup = $item.find('[data-ll-word-image-existing-search]').first();
+        if ($idInput.length) {
+            $idInput.val('');
+        }
+        if ($lookup.length) {
+            $lookup.val('');
+            $lookup.data('llWordImageSelectedId', 0);
+            $lookup.data('llWordImageSelectedLabel', '');
+        }
+    }
+
+    function restoreWordImagePickerSelection($item) {
+        const state = $item.data('llWordImagePickerState') || {};
+        const id = parseInt(state.id, 10) || 0;
+        const label = (state.label || '').toString();
+        const $idInput = $item.find('[data-ll-word-image-existing-id]').first();
+        const $lookup = $item.find('[data-ll-word-image-existing-search]').first();
+        if ($idInput.length) {
+            $idInput.val(id ? String(id) : '');
+        }
+        if ($lookup.length) {
+            $lookup.val(label);
+            $lookup.data('llWordImageSelectedId', id);
+            $lookup.data('llWordImageSelectedLabel', label);
+        }
+    }
+
+    function fetchWordImages(term, wordsetId, wordId, done) {
+        const query = (term || '').toString();
+        const normalizedWordset = parseInt(wordsetId, 10) || 0;
+        const normalizedWordId = parseInt(wordId, 10) || 0;
+        const key = [normalizedWordset, normalizedWordId, query.toLowerCase()].join('|');
+        if (Object.prototype.hasOwnProperty.call(wordImageCache, key)) {
+            done((wordImageCache[key] || []).slice());
+            return;
+        }
+        $.post(ajaxUrl, {
+            action: 'll_tools_search_word_images',
+            nonce: editNonce,
+            q: query,
+            wordset_id: normalizedWordset,
+            word_id: normalizedWordId,
+            limit: 20
+        }).done(function (response) {
+            const images = (response && response.success === true && response.data && Array.isArray(response.data.images))
+                ? response.data.images
+                : [];
+            wordImageCache[key] = images;
+            done(images.slice());
+        }).fail(function () {
+            done([]);
+        });
+    }
+
+    function initWordImageAutocomplete($input) {
+        if (!$input.length || typeof $input.autocomplete !== 'function') { return; }
+        if ($input.data('llWordImageAutocompleteReady')) { return; }
+        $input.data('llWordImageAutocompleteReady', true);
+        const $item = $input.closest('.word-item');
+        const $idInput = $item.find('[data-ll-word-image-existing-id]').first();
+        const $grid = $item.closest('[data-ll-word-grid]');
+        const wordId = parseInt($item.data('word-id'), 10) || 0;
+        const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+
+        $input.autocomplete({
+            minLength: 0,
+            delay: 150,
+            classes: {
+                'ui-autocomplete': 'll-word-image-autocomplete'
+            },
+            source: function (request, response) {
+                fetchWordImages(request.term, wordsetId, wordId, function (images) {
+                    response((images || []).map(function (image) {
+                        const item = image || {};
+                        const label = (item.label || item.alt || '').toString();
+                        const wordImageId = parseInt(item.word_image_id || item.id, 10) || 0;
+                        const attachmentId = parseInt(item.attachment_id, 10) || 0;
+                        return {
+                            label: label,
+                            value: label,
+                            id: wordImageId,
+                            word_image_id: wordImageId,
+                            attachment_id: attachmentId,
+                            url: (item.url || '').toString(),
+                            alt: (item.alt || label).toString(),
+                            width: parseInt(item.width, 10) || 0,
+                            height: parseInt(item.height, 10) || 0
+                        };
+                    }));
+                });
+            },
+            focus: function (event, ui) {
+                event.preventDefault();
+                $input.val((ui.item && ui.item.label) ? ui.item.label : '');
+            },
+            select: function (event, ui) {
+                event.preventDefault();
+                const selectedId = parseInt(ui.item && ui.item.word_image_id, 10) || 0;
+                const selectedLabel = (ui.item && ui.item.label) ? ui.item.label.toString() : '';
+                const attachmentId = parseInt(ui.item && ui.item.attachment_id, 10) || 0;
+                $input.val(selectedLabel);
+                if ($idInput.length) {
+                    $idInput.val(selectedId ? String(selectedId) : '');
+                }
+                $input.data('llWordImageSelectedId', selectedId);
+                $input.data('llWordImageSelectedLabel', selectedLabel);
+                revokePendingImagePreviewUrl($item);
+                const $fileInput = $item.find('[data-ll-word-image-input]').first();
+                if ($fileInput.length) {
+                    $fileInput.val('');
+                }
+                setWordEditImagePreview($item, {
+                    id: attachmentId,
+                    attachment_id: attachmentId,
+                    word_image_id: selectedId,
+                    url: (ui.item && ui.item.url) ? ui.item.url.toString() : '',
+                    alt: (ui.item && ui.item.alt) ? ui.item.alt.toString() : selectedLabel,
+                    width: parseInt(ui.item && ui.item.width, 10) || 0,
+                    height: parseInt(ui.item && ui.item.height, 10) || 0
+                });
+                $item.find('[data-ll-word-image-selected]').first().text(selectedLabel);
+            },
+            change: function (_event, ui) {
+                if (ui && ui.item) { return; }
+                const typed = ($input.val() || '').toString();
+                const selectedLabel = ($input.data('llWordImageSelectedLabel') || '').toString();
+                if (typed.trim() === '' || typed !== selectedLabel) {
+                    if ($idInput.length) {
+                        $idInput.val('');
+                    }
+                    $input.data('llWordImageSelectedId', 0);
+                    $input.data('llWordImageSelectedLabel', '');
+                    if (typed.trim() === '') {
+                        $item.find('[data-ll-word-image-selected]').first().text('');
+                    }
+                }
+            }
+        });
+
+        const instance = $input.autocomplete('instance');
+        if (instance) {
+            instance._renderItem = function (ul, item) {
+                const $row = $('<div class="ll-word-image-autocomplete-item"></div>');
+                if (item.url) {
+                    $('<img class="ll-word-image-autocomplete-thumb" loading="lazy" decoding="async" />')
+                        .attr('src', item.url)
+                        .attr('alt', item.alt || item.label || '')
+                        .appendTo($row);
+                }
+                $('<span class="ll-word-image-autocomplete-label"></span>')
+                    .text((item.label || '') + ' #' + (item.word_image_id || 0))
+                    .appendTo($row);
+                return $('<li>').append($row).appendTo(ul);
+            };
         }
     }
 
@@ -2268,13 +2428,16 @@
 
     function normalizeWordImageData(imageData) {
         const data = (imageData && typeof imageData === 'object') ? imageData : {};
+        const attachmentId = parseInt(data.attachment_id, 10) || parseInt(data.id, 10) || 0;
         return {
-            id: parseInt(data.id, 10) || 0,
+            id: attachmentId,
+            attachment_id: attachmentId,
             url: (data.url || '').toString(),
             alt: (data.alt || '').toString(),
             width: parseInt(data.width, 10) || 0,
             height: parseInt(data.height, 10) || 0,
-            word_image_id: parseInt(data.word_image_id, 10) || 0
+            word_image_id: parseInt(data.word_image_id, 10) || 0,
+            label: (data.label || '').toString()
         };
     }
 
@@ -2290,6 +2453,9 @@
         const $preview = $item.find('[data-ll-word-image-preview]').first();
         if ($preview.length) {
             return normalizeWordImageData({
+                id: ($preview.attr('data-ll-word-image-attachment-id') || '').toString(),
+                attachment_id: ($preview.attr('data-ll-word-image-attachment-id') || '').toString(),
+                word_image_id: ($preview.attr('data-ll-word-image-id') || '').toString(),
                 url: ($preview.attr('src') || '').toString(),
                 alt: ($preview.attr('alt') || '').toString()
             });
@@ -2313,6 +2479,8 @@
             }
             $preview.attr('src', data.url);
             $preview.attr('alt', data.alt || '');
+            $preview.attr('data-ll-word-image-id', data.word_image_id ? String(data.word_image_id) : '');
+            $preview.attr('data-ll-word-image-attachment-id', data.attachment_id ? String(data.attachment_id) : (data.id ? String(data.id) : ''));
             if ($empty.length) {
                 $empty.remove();
             }
@@ -2330,6 +2498,10 @@
 
     function cacheOriginalImageState($item) {
         $item.data('llWordImageState', getCurrentWordImageState($item));
+        $item.data('llWordImagePickerState', {
+            id: ($item.find('[data-ll-word-image-existing-id]').first().val() || '').toString(),
+            label: ($item.find('[data-ll-word-image-existing-search]').first().val() || '').toString()
+        });
     }
 
     function restoreOriginalImageState($item) {
@@ -2340,6 +2512,7 @@
         if ($fileInput.length) {
             $fileInput.val('');
         }
+        restoreWordImagePickerSelection($item);
         $item.find('[data-ll-word-image-selected]').first().text('');
     }
 
@@ -2976,13 +3149,14 @@
             const $input = $(this);
             $input.data('original', $input.val() || '');
         });
-        cacheOriginalImageState($item);
         const $fileInput = $item.find('[data-ll-word-image-input]').first();
         if ($fileInput.length) {
             $fileInput.val('');
         }
+        clearWordImagePickerSelection($item);
         revokePendingImagePreviewUrl($item);
         $item.find('[data-ll-word-image-selected]').first().text('');
+        cacheOriginalImageState($item);
         syncDictionaryEntrySelectionState($item);
     }
 
@@ -3044,6 +3218,9 @@
         });
         $root.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
             initDictionaryEntryAutocomplete($(this));
+        });
+        $root.find('[data-ll-word-image-existing-search]').each(function () {
+            initWordImageAutocomplete($(this));
         });
         syncEditModalBodyLock();
     };
@@ -6936,10 +7113,12 @@
             if (!file) {
                 const originalState = normalizeWordImageData($item.data('llWordImageState') || {});
                 setWordEditImagePreview($item, originalState);
+                restoreWordImagePickerSelection($item);
                 $item.find('[data-ll-word-image-selected]').first().text('');
                 return;
             }
 
+            clearWordImagePickerSelection($item);
             if (window.URL && typeof window.URL.createObjectURL === 'function') {
                 const previewUrl = window.URL.createObjectURL(file);
                 $item.data('llWordImagePreviewUrl', previewUrl);
@@ -6950,6 +7129,30 @@
             }
 
             $item.find('[data-ll-word-image-selected]').first().text((file.name || '').toString());
+        });
+
+        $grids.on('focus', '[data-ll-word-image-existing-search]', function () {
+            const $input = $(this);
+            initWordImageAutocomplete($input);
+            if (typeof $input.autocomplete === 'function') {
+                $input.autocomplete('search', ($input.val() || '').toString());
+            }
+        });
+
+        $grids.on('input', '[data-ll-word-image-existing-search]', function () {
+            const $input = $(this);
+            const $item = $input.closest('.word-item');
+            const typed = ($input.val() || '').toString();
+            const selectedLabel = ($input.data('llWordImageSelectedLabel') || '').toString();
+            if (typed.trim() === '') {
+                $item.find('[data-ll-word-image-existing-id]').first().val('');
+                $input.data('llWordImageSelectedId', 0);
+                $input.data('llWordImageSelectedLabel', '');
+                return;
+            }
+            if (selectedLabel && typed !== selectedLabel) {
+                $item.find('[data-ll-word-image-existing-id]').first().val('');
+            }
         });
 
         $grids.on('focus', '[data-ll-word-input="dictionary_entry_lookup"]', function () {
@@ -7149,6 +7352,9 @@
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
             const imageInputEl = $item.find('[data-ll-word-image-input]').get(0);
             const imageFile = imageInputEl && imageInputEl.files && imageInputEl.files[0] ? imageInputEl.files[0] : null;
+            const selectedWordImageId = imageFile
+                ? 0
+                : (parseInt($item.find('[data-ll-word-image-existing-id]').first().val(), 10) || 0);
             const recordings = [];
 
             $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
@@ -7224,6 +7430,8 @@
             }
             if (imageFile) {
                 requestData.append('word_image_file', imageFile, (imageFile.name || 'image').toString());
+            } else if (selectedWordImageId > 0) {
+                requestData.append('existing_word_image_id', String(selectedWordImageId));
             }
 
             $.ajax({

@@ -157,6 +157,94 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ajax_word_update_can_select_existing_word_image(): void
+    {
+        $editor_id = self::factory()->user->create(['role' => 'administrator']);
+        $editor = get_user_by('id', $editor_id);
+        $this->assertInstanceOf(WP_User::class, $editor);
+        $editor->add_cap('view_ll_tools');
+        clean_user_cache($editor_id);
+        wp_set_current_user($editor_id);
+
+        $wordset_id = $this->ensureTerm('wordset', 'Existing Image Wordset', 'existing-image-wordset');
+        $category_id = $this->ensureTerm('word-category', 'Existing Image Category', 'existing-image-category');
+
+        $old_attachment_id = $this->createImageAttachment('word-grid-existing-old.png');
+        $new_attachment_id = $this->createImageAttachment('word-grid-existing-new.png');
+
+        $old_word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Old Existing Image',
+        ]);
+        wp_set_post_terms($old_word_image_id, [$category_id], 'word-category', false);
+        set_post_thumbnail($old_word_image_id, $old_attachment_id);
+
+        $new_word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'New Existing Image',
+        ]);
+        wp_set_post_terms($new_word_image_id, [$category_id], 'word-category', false);
+        set_post_thumbnail($new_word_image_id, $new_attachment_id);
+
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($old_word_image_id, $wordset_id, $old_word_image_id);
+            ll_tools_set_word_image_wordset_owner($new_word_image_id, $wordset_id, $new_word_image_id);
+        }
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Existing Image Word',
+            'post_author' => $editor_id,
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        set_post_thumbnail($word_id, $old_attachment_id);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $old_word_image_id);
+        update_post_meta($word_id, 'word_translation', 'Existing Image Translation');
+        update_post_meta($word_id, 'word_english_meaning', 'Existing Image Translation');
+
+        $choices = ll_tools_word_grid_search_word_images_for_word('New', 20, $wordset_id, $word_id);
+        $choice_ids = array_map(static function (array $choice): int {
+            return (int) ($choice['word_image_id'] ?? 0);
+        }, $choices);
+        $this->assertContains($new_word_image_id, $choice_ids);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'word_id' => $word_id,
+            'word_text' => 'Existing Image Word',
+            'word_translation' => 'Existing Image Translation',
+            'wordset_id' => $wordset_id,
+            'existing_word_image_id' => $new_word_image_id,
+        ];
+        $_REQUEST = $_POST;
+        $_FILES = [];
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_grid_update_word_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame($new_word_image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
+        $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($word_id));
+        $this->assertSame($old_attachment_id, (int) get_post_thumbnail_id($old_word_image_id));
+        $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($new_word_image_id));
+
+        $image_payload = (array) (($response['data'] ?? [])['image'] ?? []);
+        $this->assertSame($new_word_image_id, (int) ($image_payload['word_image_id'] ?? 0));
+        $this->assertSame($new_attachment_id, (int) ($image_payload['id'] ?? 0));
+        $this->assertNotSame('', (string) ($image_payload['url'] ?? ''));
+    }
+
+    public function test_words_post_type_does_not_advertise_featured_image_support(): void
+    {
+        $this->assertFalse(post_type_supports('words', 'thumbnail'));
+        $this->assertTrue(post_type_supports('word_images', 'thumbnail'));
+    }
+
     private function ensureTerm(string $taxonomy, string $name, string $slug): int
     {
         $existing = get_term_by('slug', $slug, $taxonomy);

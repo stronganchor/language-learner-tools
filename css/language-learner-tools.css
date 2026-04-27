@@ -976,6 +976,15 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     cursor: pointer;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-existing-image {
+    display: grid;
+    gap: 6px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-image-search {
+    min-height: 38px;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-image-frame {
     display: flex;
     align-items: center;
@@ -1041,6 +1050,37 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     overflow-y: auto;
     overflow-x: hidden;
     z-index: 100000 !important;
+}
+
+.ll-word-image-autocomplete {
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    z-index: 100000 !important;
+}
+
+.ll-word-image-autocomplete .ll-word-image-autocomplete-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+}
+
+.ll-word-image-autocomplete .ll-word-image-autocomplete-thumb {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #f1f5f9;
+}
+
+.ll-word-image-autocomplete .ll-word-image-autocomplete-label {
+    min-width: 0;
+    color: #0f172a;
+    font-size: 13px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-input:focus {

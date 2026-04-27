@@ -41,7 +41,7 @@ function ll_tools_register_words_post_type() {
         "can_export" => false,
         "rewrite" => [ "slug" => "words", "with_front" => true ],
         "query_var" => true,
-        "supports" => [ "title", "editor", "thumbnail", "custom-fields" ],
+        "supports" => [ "title", "editor", "custom-fields" ],
         "show_in_graphql" => false,
     ];
 
