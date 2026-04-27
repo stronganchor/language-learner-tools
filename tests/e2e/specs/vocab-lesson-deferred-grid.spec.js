@@ -202,3 +202,59 @@ test('prompt-card loading shell renders full-row skeleton cards', async ({ page 
   expect(metrics.firstWidth).toBeGreaterThan(800);
   expect(metrics.verticalGap).toBeGreaterThan(80);
 });
+
+test('prompt-card lesson images keep their intrinsic aspect ratio', async ({ page }) => {
+  const squareImage = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320"><rect width="320" height="320" fill="#2563eb"/></svg>'
+  )}`;
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('about:blank');
+  await page.setContent(`
+    <div class="ll-vocab-lesson-page">
+      <div class="ll-vocab-lesson-content">
+        <div id="word-grid" class="word-grid ll-word-grid ll-vocab-prompt-card-grid" data-ll-word-grid data-ll-prompt-card-lesson-grid="1">
+          <article class="ll-vocab-prompt-card">
+            <div class="ll-vocab-prompt-card__image">
+              <img src="${squareImage}" alt="Square prompt image" loading="lazy" decoding="async" />
+            </div>
+            <div class="ll-vocab-prompt-card__body">
+              <div class="ll-vocab-prompt-card__prompt">Is this square?</div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  `);
+  await page.addStyleTag({ content: vocabLessonCssSource });
+  await page.locator('.ll-vocab-prompt-card__image img').evaluate((img) => {
+    if (img.complete && img.naturalWidth > 0) {
+      return;
+    }
+
+    return new Promise((resolve, reject) => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', reject, { once: true });
+    });
+  });
+
+  const metrics = await page.evaluate(() => {
+    const wrapper = document.querySelector('.ll-vocab-prompt-card__image');
+    const image = wrapper.querySelector('img');
+    const wrapperRect = wrapper.getBoundingClientRect();
+    const imageRect = image.getBoundingClientRect();
+    const imageStyle = window.getComputedStyle(image);
+
+    return {
+      wrapperRatio: wrapperRect.width / wrapperRect.height,
+      imageRatio: imageRect.width / imageRect.height,
+      imageWidth: imageRect.width,
+      objectFit: imageStyle.objectFit
+    };
+  });
+
+  expect(Math.abs(metrics.wrapperRatio - 1)).toBeLessThan(0.02);
+  expect(Math.abs(metrics.imageRatio - 1)).toBeLessThan(0.02);
+  expect(metrics.imageWidth).toBeGreaterThan(200);
+  expect(metrics.objectFit).toBe('contain');
+});

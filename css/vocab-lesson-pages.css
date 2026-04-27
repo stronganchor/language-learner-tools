@@ -2455,18 +2455,19 @@
 }
 
 .ll-vocab-prompt-card__image {
+    display: inline-block;
     min-width: 0;
-    width: 100% !important;
+    width: fit-content !important;
     max-width: 240px !important;
     height: auto !important;
-    max-height: 180px !important;
+    max-height: none !important;
     align-self: start;
     justify-self: start;
-    overflow: hidden !important;
+    overflow: visible !important;
     contain: paint;
     border-radius: 8px;
     background: #f3f4f6;
-    aspect-ratio: 4 / 3;
+    aspect-ratio: auto;
 }
 
 .ll-vocab-prompt-card__image img {
@@ -2474,12 +2475,13 @@
     position: static !important;
     inset: auto !important;
     transform: none !important;
-    width: 100% !important;
+    width: auto !important;
     min-width: 0 !important;
     max-width: 100% !important;
-    height: 100% !important;
-    max-height: 100% !important;
-    object-fit: cover !important;
+    height: auto !important;
+    max-height: 240px !important;
+    object-fit: contain !important;
+    border-radius: inherit;
 }
 
 .ll-vocab-prompt-card__body {
