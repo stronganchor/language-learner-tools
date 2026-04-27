@@ -14244,6 +14244,55 @@ function ll_tools_wordset_page_enqueue_assets() {
 }
 add_action('wp_enqueue_scripts', 'll_tools_wordset_page_enqueue_assets');
 
+function ll_tools_wordset_page_script_data_contains(string $handle, string $needle): bool {
+    $scripts = wp_scripts();
+    if (!($scripts instanceof WP_Scripts)) {
+        return false;
+    }
+
+    foreach (['data', 'before'] as $key) {
+        $data = $scripts->get_data($handle, $key);
+        if (is_array($data)) {
+            $data = implode("\n", array_map('strval', $data));
+        }
+        if (is_string($data) && strpos($data, $needle) !== false) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_wordset_page_ensure_elementor_frontend_config(): void {
+    if (is_admin() || !ll_tools_is_wordset_page_context()) {
+        return;
+    }
+
+    if (!wp_script_is('elementor-frontend', 'enqueued') || wp_script_is('elementor-frontend', 'done')) {
+        return;
+    }
+
+    if (ll_tools_wordset_page_script_data_contains('elementor-frontend', 'elementorFrontendConfig')) {
+        return;
+    }
+
+    if (!class_exists('Elementor\\Plugin', false)) {
+        return;
+    }
+
+    $elementor = \Elementor\Plugin::$instance ?? null;
+    if (!is_object($elementor) || empty($elementor->frontend) || !is_object($elementor->frontend)) {
+        return;
+    }
+
+    if (!method_exists($elementor->frontend, 'enqueue_scripts')) {
+        return;
+    }
+
+    $elementor->frontend->enqueue_scripts();
+}
+add_action('wp_footer', 'll_tools_wordset_page_ensure_elementor_frontend_config', 11);
+
 function ll_tools_wordset_page_enqueue_styles(): void {
     ll_enqueue_asset_by_timestamp('/css/wordset-pages.css', 'll-wordset-pages-css');
     if (ll_tools_get_wordset_page_view() === 'games') {

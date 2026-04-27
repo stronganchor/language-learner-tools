@@ -16,8 +16,19 @@ function resolveSitesFilePath(rawPath) {
   return path.resolve(process.cwd(), rawPath);
 }
 
-function escapeRegExp(value) {
-  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function normalizeComparableText(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function expectTextIncludes(actual, expected, label) {
+  const expectedText = normalizeComparableText(expected);
+  expect(expectedText, label + ' expected text should not be empty.').not.toBe('');
+  expect(normalizeComparableText(actual), label).toContain(expectedText);
 }
 
 function normalizeList(value) {
@@ -532,11 +543,11 @@ if (loadSitesError) {
       summary.h1 = summary.snapshot.h1;
 
       if (expected.titleIncludes) {
-        expect(summary.title).toMatch(new RegExp(escapeRegExp(expected.titleIncludes), 'i'));
+        expectTextIncludes(summary.title, expected.titleIncludes, 'Expected document title to include configured text.');
       }
 
       if (expected.h1Includes) {
-        expect(summary.h1).toMatch(new RegExp(escapeRegExp(expected.h1Includes), 'i'));
+        expectTextIncludes(summary.h1, expected.h1Includes, 'Expected primary heading to include configured text.');
       }
 
       if (typeof expected.hasWordsetPage === 'boolean') {
@@ -572,7 +583,11 @@ if (loadSitesError) {
       }
 
       if (expected.emptyTextIncludes) {
-        expect(summary.snapshot.emptyTexts.join(' ')).toContain(String(expected.emptyTextIncludes));
+        expectTextIncludes(
+          summary.snapshot.emptyTexts.join(' '),
+          expected.emptyTextIncludes,
+          'Expected empty-state text to include configured text.'
+        );
       }
 
       if (exercise.wordsetSearch) {
