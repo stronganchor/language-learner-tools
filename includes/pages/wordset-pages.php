@@ -1643,6 +1643,9 @@ function ll_tools_get_wordset_page_category_rows(int $wordset_id, int $preview_l
                 ? ll_tools_get_vocab_lesson_category_word_count($term_id, $wordset_id, $counts)
                 : max(0, (int) ($counts['all'][$term_id] ?? 0));
             $content_summary = ll_tools_wordset_page_get_category_content_summary($term_id, $wordset_id);
+            if (max(0, (int) ($content_summary['content_count'] ?? 0)) <= 0) {
+                continue;
+            }
             $action_state = ll_tools_wordset_page_get_inactive_category_action_state($term, $wordset_id, $content_summary);
             $rows[] = [
                 'term_id' => $term_id,

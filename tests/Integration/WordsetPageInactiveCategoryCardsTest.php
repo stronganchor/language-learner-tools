@@ -22,14 +22,12 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         wp_set_current_user($admin_id);
         $staff_html = $this->renderWordsetMainView($wordset_id);
         $inactive_card = $this->extractCategoryCardMarkupByText($staff_html, 'Inactive Staff Only Category');
-        $empty_card = $this->extractCategoryCardMarkupByText($staff_html, 'Empty Owned Staff Category');
         $image_card = $this->extractCategoryCardMarkupByText($staff_html, 'Image Only Staff Category');
 
         $this->assertStringContainsString('Inactive Staff Only Category', $staff_html);
-        $this->assertStringContainsString('Empty Owned Staff Category', $staff_html);
+        $this->assertStringNotContainsString('Empty Owned Staff Category', $staff_html);
         $this->assertStringContainsString('Image Only Staff Category', $staff_html);
         $this->assertCategoryAppearsBefore($staff_html, 'Public Staff Visible Category', 'Inactive Staff Only Category');
-        $this->assertCategoryAppearsBefore($staff_html, 'Public Staff Visible Category', 'Empty Owned Staff Category');
         $this->assertCategoryAppearsBefore($staff_html, 'Public Staff Visible Category', 'Image Only Staff Category');
         $this->assertStringContainsString('ll-wordset-card--inactive', $inactive_card);
         $this->assertStringContainsString('data-ll-wordset-public="0"', $inactive_card);
@@ -49,15 +47,6 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('data-ll-wordset-select', $inactive_card);
         $this->assertStringNotContainsString('data-ll-wordset-category-mode', $inactive_card);
         $this->assertStringNotContainsString('href="', $inactive_card);
-
-        $this->assertStringContainsString('No words yet.', $empty_card);
-        $this->assertStringNotContainsString('data-ll-wordset-inactive-preview-card="true"', $empty_card);
-        $this->assertStringNotContainsString('data-ll-wordset-inactive-preview-trigger', $empty_card);
-        $this->assertStringNotContainsString('ll-wordset-card__inactive-preview-form', $empty_card);
-        $this->assertStringNotContainsString('ll_wordset_inactive_category_action" value="preview"', $empty_card);
-        $this->assertStringContainsString('ll_wordset_inactive_category_action" value="delete"', $empty_card);
-        $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $empty_card);
-        $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $empty_card);
 
         $this->assertStringContainsString('Needs word records.', $image_card);
         $this->assertStringContainsString('data-ll-wordset-inactive-preview-card="true"', $image_card);
