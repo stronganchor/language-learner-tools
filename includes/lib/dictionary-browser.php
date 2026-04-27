@@ -2581,7 +2581,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
     $used_published_scope_cache = false;
     $search_results_pre_ranked = false;
     if ($search === '' && $statuses === ['publish']) {
-        if ($pos_slug !== '' || $source_id !== '' || $dialect !== '') {
+        if ($letter !== '' || $pos_slug !== '' || $source_id !== '' || $dialect !== '') {
             $candidate_ids = ll_tools_dictionary_query_entry_ids_by_browse_constraints(
                 $statuses,
                 $wordset_id,
@@ -2595,7 +2595,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
             $candidate_ids = ll_tools_dictionary_get_published_entry_ids_for_scope($wordset_id);
         }
 
-        if (!empty($candidate_ids)) {
+        if (!empty($candidate_ids) && ($pos_slug !== '' || $source_id !== '' || $dialect !== '' || ($wordset_id > 0 && !$used_published_scope_cache))) {
             update_postmeta_cache($candidate_ids);
         }
     } elseif (

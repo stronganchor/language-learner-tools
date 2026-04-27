@@ -402,19 +402,10 @@ function ll_tools_dictionary_shortcode_resolve_requested_entry_id(int $wordset_i
 }
 
 /**
- * Build one entry-detail URL that preserves the current dictionary query context.
+ * Build one canonical entry-detail URL.
  */
 function ll_tools_dictionary_build_detail_url(string $base_url, int $entry_id, string $search, array $search_scopes, string $letter, string $pos_slug, int $page, string $source_id = '', string $dialect = ''): string {
-    $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
-
     return ll_tools_dictionary_build_url($base_url, [
-        'll_dictionary_q' => $search,
-        'll_dictionary_scope' => $search_scopes,
-        'll_dictionary_letter' => $letter,
-        'll_dictionary_pos' => $pos_slug,
-        'll_dictionary_source' => $source_id,
-        'll_dictionary_dialect' => $dialect,
-        'll_dictionary_page' => (string) $page,
         'll_dictionary_entry' => (string) $entry_id,
     ]);
 }
@@ -2012,7 +2003,8 @@ function ll_tools_dictionary_run_browse_query(
 
     $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($search_scopes);
 
-    return ll_tools_dictionary_query_entries([
+    $started = microtime(true);
+    $query = ll_tools_dictionary_query_entries([
         'search' => $search,
         'search_scopes' => $search_scopes,
         'letter' => $letter,
@@ -2027,6 +2019,18 @@ function ll_tools_dictionary_run_browse_query(
         'preferred_languages' => $preferred_languages,
         'post_status' => ['publish'],
     ]);
+
+    if (function_exists('ll_tools_dictionary_static_cache_debug_log')) {
+        ll_tools_dictionary_static_cache_debug_log('browse_query', [
+            'elapsed_ms' => round((microtime(true) - $started) * 1000, 2),
+            'search' => $search !== '',
+            'letter' => $letter,
+            'page' => (int) ($query['page'] ?? $page),
+            'total' => (int) ($query['total'] ?? 0),
+        ]);
+    }
+
+    return $query;
 }
 
 /**

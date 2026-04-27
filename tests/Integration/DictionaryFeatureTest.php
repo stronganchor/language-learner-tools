@@ -109,7 +109,7 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_tools_auth' => 'login',
             'll_locale_nonce' => 'second',
             'll_locale' => 'tr_TR',
-            'll_dictionary_letter' => 'I',
+            'll_dictionary_letter' => 'J',
             'll_dictionary_entry' => '70456',
         ], 'tr_TR');
 
@@ -117,23 +117,21 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertNotSame(
             $first_key,
             ll_tools_dictionary_static_cache_key($identity, [
-                'll_dictionary_entry' => '70456',
-                'll_dictionary_letter' => 'J',
-                'll_locale' => 'tr_TR',
+                'll_dictionary_entry' => '70457',
             ], 'tr_TR')
         );
 
         $normalized = ll_tools_dictionary_static_cache_normalize_query_args([
             'letter' => 'H',
+            'll_dictionary_entry' => '70456',
             'll_dictionary_letter' => 'I',
-            'll_dictionary_page' => '1',
+            'll_dictionary_page' => '9',
             'll_locale_nonce' => 'ignored',
             'll_tools_auth' => 'ignored',
             'll_locale' => 'tr_TR',
         ]);
         $this->assertSame([
-            'll_dictionary_letter' => 'I',
-            'll_locale' => 'tr_TR',
+            'll_dictionary_entry' => '70456',
         ], $normalized);
 
         $legacy_normalized = ll_tools_dictionary_static_cache_normalize_query_args(['letter' => 'H']);
@@ -144,6 +142,44 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
             'll_dictionary_letter' => 'B',
         ]);
         $this->assertSame(['ll_dictionary_q' => 'ro'], $search_normalized);
+    }
+
+    public function test_dictionary_static_cache_canonical_url_drops_conflicting_and_unsigned_args(): void
+    {
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Canonical Dar',
+        ]);
+        $identity = [
+            'page_id' => 123,
+            'path' => '/sozluk',
+        ];
+
+        $canonical = ll_tools_dictionary_static_cache_canonical_url($identity, [
+            'letter' => 'J',
+            'll_dictionary_entry' => (string) $entry_id,
+            'll_dictionary_letter' => 'Ü',
+            'll_dictionary_page' => '9',
+            'll_locale' => 'tr_TR',
+            'll_locale_nonce' => 'nonce',
+            'foo' => 'bar',
+        ]);
+        $query = [];
+        wp_parse_str((string) wp_parse_url($canonical, PHP_URL_QUERY), $query);
+
+        $this->assertStringContainsString('/sozluk/', $canonical);
+        $this->assertSame([
+            'll_dictionary_entry' => (string) $entry_id,
+        ], $query);
+
+        $invalid = ll_tools_dictionary_static_cache_canonical_url($identity, [
+            'll_dictionary_entry' => '999999',
+            'll_dictionary_letter' => 'A',
+            'll_locale_nonce' => 'nonce',
+        ]);
+
+        $this->assertSame('', (string) wp_parse_url($invalid, PHP_URL_QUERY));
     }
 
     public function test_dictionary_public_navigation_drops_nonce_auth_and_tracking_noise(): void
@@ -1488,8 +1524,9 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
 
         $this->assertSame(2, (int) ($results['total'] ?? 0));
         $queries_sql = implode("\n", $queries);
-        $this->assertStringContainsString("SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'", $queries_sql);
-        $this->assertStringNotContainsString('lookup_title.meta_value', $queries_sql);
+        $this->assertStringContainsString('ll_dictionary_entry_lookup_title', $queries_sql);
+        $this->assertStringContainsString('lookup_title.meta_value LIKE', $queries_sql);
+        $this->assertStringNotContainsString("SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'", $queries_sql);
         $this->assertStringNotContainsString('lookup_translation.meta_value', $queries_sql);
         $this->assertStringNotContainsString('search_index.meta_value', $queries_sql);
     }

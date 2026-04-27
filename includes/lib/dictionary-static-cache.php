@@ -116,7 +116,6 @@ function ll_tools_dictionary_static_cache_query_keys(): array {
         'll_dictionary_source',
         'll_dictionary_dialect',
         'll_dictionary_entry',
-        'll_locale',
     ];
 
     $filtered = apply_filters('ll_tools_dictionary_static_cache_query_keys', $keys);
@@ -125,6 +124,27 @@ function ll_tools_dictionary_static_cache_query_keys(): array {
     }
 
     return array_values(array_unique(array_filter(array_map('strval', $filtered))));
+}
+
+/**
+ * Return the first scalar submitted value from a request argument.
+ *
+ * @param mixed $value
+ */
+function ll_tools_dictionary_static_cache_first_scalar_value($value): string {
+    $value = wp_unslash($value);
+    if (is_array($value)) {
+        foreach ($value as $item) {
+            $first = ll_tools_dictionary_static_cache_first_scalar_value($item);
+            if ($first !== '') {
+                return $first;
+            }
+        }
+
+        return '';
+    }
+
+    return is_scalar($value) ? trim(sanitize_text_field((string) $value)) : '';
 }
 
 /**
@@ -167,6 +187,60 @@ function ll_tools_dictionary_static_cache_normalize_value($value) {
 }
 
 /**
+ * Normalize a positive integer request argument.
+ *
+ * @param mixed $value
+ */
+function ll_tools_dictionary_static_cache_positive_int_value($value): int {
+    $value = ll_tools_dictionary_static_cache_first_scalar_value($value);
+    if ($value === '' || !ctype_digit($value)) {
+        return 0;
+    }
+
+    return max(0, (int) $value);
+}
+
+/**
+ * Normalize a submitted dictionary browse letter.
+ *
+ * @param mixed $value
+ */
+function ll_tools_dictionary_static_cache_letter_value($value): string {
+    $value = ll_tools_dictionary_static_cache_first_scalar_value($value);
+    if ($value === '') {
+        return '';
+    }
+
+    return function_exists('ll_tools_dictionary_normalize_browse_letter')
+        ? ll_tools_dictionary_normalize_browse_letter($value)
+        : $value;
+}
+
+/**
+ * Normalize the compact public search-scope query value.
+ *
+ * @param mixed $value
+ */
+function ll_tools_dictionary_static_cache_scope_value($value): string {
+    $value = wp_unslash($value);
+    if (function_exists('ll_tools_dictionary_shortcode_resolve_search_scopes') && function_exists('ll_tools_dictionary_shortcode_uses_default_search_scopes')) {
+        $scopes = ll_tools_dictionary_shortcode_resolve_search_scopes($value);
+        if (ll_tools_dictionary_shortcode_uses_default_search_scopes($scopes)) {
+            return '';
+        }
+
+        return implode(',', $scopes);
+    }
+
+    $normalized = ll_tools_dictionary_static_cache_normalize_value($value);
+    if (is_array($normalized)) {
+        return implode(',', array_values(array_filter(array_map('strval', $normalized))));
+    }
+
+    return is_scalar($normalized) ? trim((string) $normalized) : '';
+}
+
+/**
  * Normalize dictionary display query args for cache-key generation.
  *
  * @param array<string,mixed>|null $raw_args
@@ -185,34 +259,56 @@ function ll_tools_dictionary_static_cache_normalize_query_args(?array $raw_args 
             continue;
         }
 
-        $value = wp_unslash($value);
-        $normalized[$key] = ll_tools_dictionary_static_cache_normalize_value($value);
+        $normalized[$key] = $value;
     }
 
-    if (isset($normalized['ll_dictionary_letter'])) {
-        unset($normalized['letter']);
-    } elseif (isset($normalized['letter'])) {
-        $normalized['ll_dictionary_letter'] = $normalized['letter'];
-        unset($normalized['letter']);
+    $entry_id = ll_tools_dictionary_static_cache_positive_int_value($normalized['ll_dictionary_entry'] ?? '');
+    if ($entry_id > 0) {
+        return [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
     }
 
-    if (!empty($normalized['ll_dictionary_q'])) {
-        unset($normalized['ll_dictionary_letter']);
-    }
+    $search = ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_q'] ?? '');
+    $page = ll_tools_dictionary_static_cache_positive_int_value($normalized['ll_dictionary_page'] ?? '');
+    $letter = isset($normalized['ll_dictionary_letter'])
+        ? ll_tools_dictionary_static_cache_letter_value($normalized['ll_dictionary_letter'])
+        : ll_tools_dictionary_static_cache_letter_value($normalized['letter'] ?? '');
 
-    if (isset($normalized['ll_dictionary_page']) && (int) $normalized['ll_dictionary_page'] <= 1) {
-        unset($normalized['ll_dictionary_page']);
-    }
+    $pos_slug = sanitize_title(ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_pos'] ?? ''));
+    $source_id = ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_source'] ?? '');
+    $source_id = function_exists('ll_tools_dictionary_normalize_source_id')
+        ? ll_tools_dictionary_normalize_source_id($source_id)
+        : sanitize_title($source_id);
+    $dialect = ll_tools_dictionary_static_cache_first_scalar_value($normalized['ll_dictionary_dialect'] ?? '');
 
-    foreach ($normalized as $key => $value) {
-        if ($value === '' || $value === []) {
-            unset($normalized[$key]);
+    $display_args = [];
+    if ($search !== '') {
+        $display_args['ll_dictionary_q'] = $search;
+        $scope = ll_tools_dictionary_static_cache_scope_value($normalized['ll_dictionary_scope'] ?? '');
+        if ($scope !== '') {
+            $display_args['ll_dictionary_scope'] = $scope;
         }
+    } elseif ($letter !== '') {
+        $display_args['ll_dictionary_letter'] = $letter;
     }
 
-    ksort($normalized, SORT_STRING);
+    if ($pos_slug !== '') {
+        $display_args['ll_dictionary_pos'] = $pos_slug;
+    }
+    if ($source_id !== '') {
+        $display_args['ll_dictionary_source'] = $source_id;
+    }
+    if ($dialect !== '') {
+        $display_args['ll_dictionary_dialect'] = $dialect;
+    }
+    if ($page > 1 && !empty($display_args)) {
+        $display_args['ll_dictionary_page'] = (string) $page;
+    }
 
-    return $normalized;
+    ksort($display_args, SORT_STRING);
+
+    return $display_args;
 }
 
 /**
@@ -257,6 +353,116 @@ function ll_tools_dictionary_static_cache_request_identity(): ?array {
         'page_id' => (int) $post->ID,
         'path' => ll_tools_dictionary_static_cache_request_path(),
     ];
+}
+
+/**
+ * Return whether dictionary-cache debug logging should be active.
+ */
+function ll_tools_dictionary_static_cache_debug_enabled(): bool {
+    if (defined('LL_TOOLS_DICTIONARY_STATIC_CACHE_DEBUG') && LL_TOOLS_DICTIONARY_STATIC_CACHE_DEBUG) {
+        return true;
+    }
+
+    return defined('WP_DEBUG') && WP_DEBUG;
+}
+
+/**
+ * Write one dictionary-cache debug event when debugging is enabled.
+ */
+function ll_tools_dictionary_static_cache_debug_log(string $event, array $context = []): void {
+    if (!ll_tools_dictionary_static_cache_debug_enabled() || !function_exists('error_log')) {
+        return;
+    }
+
+    $payload = [
+        'event' => $event,
+        'context' => $context,
+    ];
+
+    error_log('[ll-tools dictionary-cache] ' . wp_json_encode($payload)); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+}
+
+/**
+ * Confirm that one public entry-detail ID is a real published dictionary entry.
+ */
+function ll_tools_dictionary_static_cache_entry_is_public(int $entry_id): bool {
+    if ($entry_id <= 0) {
+        return false;
+    }
+
+    $post = get_post($entry_id);
+    return $post instanceof WP_Post
+        && $post->post_type === 'll_dictionary_entry'
+        && $post->post_status === 'publish'
+        && !post_password_required($post);
+}
+
+/**
+ * Normalize query args for a live request, including cheap entry-ID verification.
+ *
+ * @param array<string,mixed>|null $raw_args
+ * @return array<string,string>
+ */
+function ll_tools_dictionary_static_cache_normalize_request_query_args(?array $raw_args = null): array {
+    $normalized = ll_tools_dictionary_static_cache_normalize_query_args($raw_args);
+
+    if (isset($normalized['ll_dictionary_entry'])) {
+        $entry_id = (int) $normalized['ll_dictionary_entry'];
+        if (!ll_tools_dictionary_static_cache_entry_is_public($entry_id)) {
+            ll_tools_dictionary_static_cache_debug_log('invalid_entry_arg', [
+                'entry_id' => $entry_id,
+            ]);
+            unset($normalized['ll_dictionary_entry']);
+        }
+    }
+
+    return $normalized;
+}
+
+/**
+ * Build the canonical public dictionary URL for a normalized dictionary request.
+ *
+ * @param array{page_id:int,path:string} $identity
+ * @param array<string,mixed>|null       $raw_args
+ */
+function ll_tools_dictionary_static_cache_canonical_url(array $identity, ?array $raw_args = null): string {
+    $path = '/' . trim((string) ($identity['path'] ?? ll_tools_dictionary_static_cache_request_path()), '/');
+    $path = $path === '/' ? '/' : trailingslashit($path);
+    $url = home_url($path);
+    $args = ll_tools_dictionary_static_cache_normalize_request_query_args($raw_args);
+
+    return empty($args) ? $url : (string) add_query_arg($args, $url);
+}
+
+/**
+ * Return the current request URL using WordPress' configured home URL.
+ */
+function ll_tools_dictionary_static_cache_current_url(): string {
+    $request_uri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '/';
+    return home_url($request_uri);
+}
+
+/**
+ * Redirect anonymous dictionary requests with duplicate, junk, or conflicting args.
+ *
+ * @param array{page_id:int,path:string} $identity
+ */
+function ll_tools_dictionary_static_cache_maybe_redirect_canonical(array $identity): void {
+    $canonical_url = ll_tools_dictionary_static_cache_canonical_url($identity, $_GET);
+    $current_url = ll_tools_dictionary_static_cache_current_url();
+
+    if ($canonical_url === '' || $current_url === '' || $canonical_url === $current_url) {
+        return;
+    }
+
+    ll_tools_dictionary_static_cache_debug_log('canonical_redirect', [
+        'from' => $current_url,
+        'to' => $canonical_url,
+        'args' => ll_tools_dictionary_static_cache_normalize_request_query_args($_GET),
+    ]);
+
+    wp_safe_redirect($canonical_url, 301);
+    exit;
 }
 
 /**
@@ -339,7 +545,7 @@ function ll_tools_dictionary_static_cache_key(?array $identity = null, ?array $r
     }
 
     $payload = [
-        'schema' => 1,
+        'schema' => 2,
         'plugin_version' => defined('LL_TOOLS_VERSION') ? (string) LL_TOOLS_VERSION : '',
         'site' => home_url('/'),
         'identity' => [
@@ -447,6 +653,8 @@ function ll_tools_serve_dictionary_static_cache(): void {
         return;
     }
 
+    ll_tools_dictionary_static_cache_maybe_redirect_canonical($identity);
+
     $key = ll_tools_dictionary_static_cache_key($identity);
     $file = ll_tools_dictionary_static_cache_file_path($key);
     $ttl = ll_tools_dictionary_static_cache_ttl();
@@ -457,6 +665,10 @@ function ll_tools_serve_dictionary_static_cache(): void {
         if (is_string($html)) {
             $output_html = ll_tools_dictionary_static_cache_prepare_html_for_output($html);
             ll_tools_dictionary_static_cache_send_headers('HIT');
+            ll_tools_dictionary_static_cache_debug_log('hit', [
+                'key' => $key,
+                'args' => ll_tools_dictionary_static_cache_normalize_query_args(),
+            ]);
             header('Content-Type: text/html; charset=' . get_bloginfo('charset'));
             header('Content-Length: ' . strlen($output_html));
             if ($method === 'HEAD') {
@@ -468,6 +680,10 @@ function ll_tools_serve_dictionary_static_cache(): void {
     }
 
     ll_tools_dictionary_static_cache_send_headers('MISS');
+    ll_tools_dictionary_static_cache_debug_log('miss', [
+        'key' => $key,
+        'args' => ll_tools_dictionary_static_cache_normalize_query_args(),
+    ]);
 
     if ($file === '') {
         return;
@@ -566,6 +782,11 @@ function ll_tools_store_dictionary_static_cache(): void {
         @chmod($tmp, 0644);
         if (!@rename($tmp, $file)) {
             @unlink($tmp);
+        } else {
+            ll_tools_dictionary_static_cache_debug_log('stored', [
+                'file' => basename($file),
+                'bytes' => (int) $written,
+            ]);
         }
     } finally {
         if ($method === 'HEAD' && ob_get_level() > $buffer_level) {
