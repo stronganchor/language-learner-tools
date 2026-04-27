@@ -56,6 +56,7 @@
     const WORD_GRID_IMAGE_SELECTOR = '.word-image-container img.word-image';
     const WORD_GRID_IMAGE_WRAPPER_SELECTOR = '.word-image-container';
     const LESSON_ORDER_HANDLE_SELECTOR = '[data-ll-word-grid-order-handle]';
+    const EDITABLE_INPUT_SELECTOR = 'input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-word-category-input], input[data-ll-recording-input], select[data-ll-recording-input]';
     const wordGridImageObservers = [];
 
     function shouldRequireLessonOrderHandle() {
@@ -2405,17 +2406,28 @@
     }
 
     function cacheOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
+        $item.find(EDITABLE_INPUT_SELECTOR).each(function () {
             const $input = $(this);
-            $input.data('original', $input.val() || '');
+            if ($input.is(':checkbox')) {
+                $input.data('originalChecked', $input.prop('checked') ? '1' : '0');
+            } else {
+                $input.data('original', $input.val() || '');
+            }
         });
         cacheOriginalImageState($item);
         syncDictionaryEntrySelectionState($item);
     }
 
     function restoreOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
+        $item.find(EDITABLE_INPUT_SELECTOR).each(function () {
             const $input = $(this);
+            if ($input.is(':checkbox')) {
+                const originalChecked = $input.data('originalChecked');
+                if (typeof originalChecked === 'string') {
+                    $input.prop('checked', originalChecked === '1');
+                }
+                return;
+            }
             const original = $input.data('original');
             if (typeof original === 'string') {
                 $input.val(original);
@@ -3144,10 +3156,43 @@
         }
     }
 
-    function updateOriginalInputs($item) {
-        $item.find('input[data-ll-word-input], textarea[data-ll-word-input], select[data-ll-word-input], input[data-ll-recording-input], select[data-ll-recording-input]').each(function () {
+    function getSelectedCategoryIds($item) {
+        const ids = [];
+        const seen = {};
+        $item.find('[data-ll-word-category-input]:checked').each(function () {
+            const categoryId = parseInt($(this).val(), 10) || 0;
+            if (!categoryId || seen[categoryId]) { return; }
+            seen[categoryId] = true;
+            ids.push(categoryId);
+        });
+        return ids;
+    }
+
+    function applyCategorySelection($item, categoryIds) {
+        const selected = {};
+        if (Array.isArray(categoryIds)) {
+            categoryIds.forEach(function (categoryId) {
+                const normalized = parseInt(categoryId, 10) || 0;
+                if (normalized) {
+                    selected[normalized] = true;
+                }
+            });
+        }
+        $item.find('[data-ll-word-category-input]').each(function () {
             const $input = $(this);
-            $input.data('original', $input.val() || '');
+            const categoryId = parseInt($input.val(), 10) || 0;
+            $input.prop('checked', !!(categoryId && selected[categoryId]));
+        });
+    }
+
+    function updateOriginalInputs($item) {
+        $item.find(EDITABLE_INPUT_SELECTOR).each(function () {
+            const $input = $(this);
+            if ($input.is(':checkbox')) {
+                $input.data('originalChecked', $input.prop('checked') ? '1' : '0');
+            } else {
+                $input.data('original', $input.val() || '');
+            }
         });
         const $fileInput = $item.find('[data-ll-word-image-input]').first();
         if ($fileInput.length) {
@@ -7350,6 +7395,9 @@
             const $wrongAnswerTextsInput = $item.find('[data-ll-word-input="specific_wrong_answer_texts"]').first();
             const $grid = $item.closest('[data-ll-word-grid]');
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            const lessonCategoryId = parseInt($grid.attr('data-ll-category-id'), 10) || 0;
+            const $categoryInputs = $item.find('[data-ll-word-category-input]');
+            const categoryIds = $categoryInputs.length ? getSelectedCategoryIds($item) : [];
             const imageInputEl = $item.find('[data-ll-word-image-input]').get(0);
             const imageFile = imageInputEl && imageInputEl.files && imageInputEl.files[0] ? imageInputEl.files[0] : null;
             const selectedWordImageId = imageFile
@@ -7424,7 +7472,14 @@
             requestData.append('dictionary_entry_id', String(dictionaryEntryId));
             requestData.append('dictionary_entry_title', dictionaryEntryTitle);
             requestData.append('wordset_id', String(wordsetId));
+            requestData.append('lesson_category_id', String(lessonCategoryId));
             requestData.append('recordings', JSON.stringify(recordings));
+            if ($categoryInputs.length) {
+                requestData.append('category_ids_submitted', '1');
+                categoryIds.forEach(function (categoryId) {
+                    requestData.append('category_ids[]', String(categoryId));
+                });
+            }
             if ($wrongAnswerTextsInput.length) {
                 requestData.append('specific_wrong_answer_texts', ($wrongAnswerTextsInput.val() || '').toString());
             }
@@ -7473,6 +7528,9 @@
                 if (data.dictionary_entry) {
                     applyDictionaryEntryData($item, data.dictionary_entry);
                 }
+                if (data.categories && Array.isArray(data.categories.ids)) {
+                    applyCategorySelection($item, data.categories.ids);
+                }
                 if (Array.isArray(data.recordings)) {
                     data.recordings.forEach(function (rec) {
                         const recId = parseInt(rec.id, 10) || 0;
@@ -7495,6 +7553,11 @@
                     applyPosMetaUpdate($item, data.part_of_speech || {}, data.grammatical_gender || {}, data.grammatical_plurality || {}, data.verb_tense || {}, data.verb_mood || {});
                 }
                 updateGridLayouts();
+                if (data.lesson_visible === false) {
+                    $item.remove();
+                    updateGridLayouts();
+                    return;
+                }
                 updateOriginalInputs($item);
                 const $bulkWrap = $item.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page').find('[data-ll-word-grid-bulk]').first();
                 if ($bulkWrap.length) {

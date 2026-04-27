@@ -888,6 +888,14 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     gap: 6px;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-categories {
+    margin: 2px 0 0;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-label {
     font-size: 11px;
     font-weight: 700;
@@ -907,6 +915,54 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     line-height: 1.3;
     box-sizing: border-box;
     appearance: none;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 6px;
+    max-height: 190px;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 7px 9px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 13px;
+    line-height: 1.25;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-option:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex: 0 0 auto;
+    accent-color: #2563eb;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-checkbox:focus-visible {
+    outline: 3px solid rgba(37, 99, 235, 0.28);
+    outline-offset: 2px;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-category-label {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .word-grid.ll-word-grid .ll-word-edit-textarea {
