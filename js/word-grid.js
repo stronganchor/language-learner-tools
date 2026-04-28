@@ -1449,7 +1449,19 @@
         playSelection: editI18n.playSelection || 'Play clip',
         pauseSelection: editI18n.pauseSelection || 'Pause clip',
         waveformLoading: editI18n.waveformLoading || 'Loading waveform...',
-        waveformUnavailable: editI18n.waveformUnavailable || 'Waveform unavailable.'
+        waveformUnavailable: editI18n.waveformUnavailable || 'Waveform unavailable.',
+        recordings: editI18n.recordings || 'Recordings',
+        deletingWord: editI18n.deletingWord || 'Deleting word...',
+        wordDeleted: editI18n.wordDeleted || 'Word moved to Trash.',
+        deleteWordError: editI18n.deleteWordError || 'Unable to delete word.',
+        deletingRecording: editI18n.deletingRecording || 'Deleting recording...',
+        recordingDeleted: editI18n.recordingDeleted || 'Recording moved to Trash.',
+        deleteRecordingError: editI18n.deleteRecordingError || 'Unable to delete recording.',
+        movingRecording: editI18n.movingRecording || 'Moving recording...',
+        recordingMoved: editI18n.recordingMoved || 'Recording moved.',
+        moveRecordingError: editI18n.moveRecordingError || 'Unable to move recording.',
+        selectMoveTarget: editI18n.selectMoveTarget || 'Choose a target word.',
+        noMatchingWords: editI18n.noMatchingWords || 'No matching words.'
     };
     const lessonEditTargetLufs = -18.0;
     let lessonEditAudioContext = null;
@@ -2067,6 +2079,7 @@
     const prereqStatusHideDelayMs = 1400;
     const dictionaryEntryCache = {};
     const wordImageCache = {};
+    const moveWordCache = {};
 
     function syncDictionaryEntrySelectionState($item) {
         const $lookup = $item.find('[data-ll-word-input="dictionary_entry_lookup"]').first();
@@ -2248,6 +2261,132 @@
                 $('<span class="ll-word-image-autocomplete-label"></span>')
                     .text((item.label || '') + ' #' + (item.word_image_id || 0))
                     .appendTo($row);
+                return $('<li>').append($row).appendTo(ul);
+            };
+        }
+    }
+
+    function fetchMoveWords(term, wordsetId, excludeWordId, done) {
+        const query = (term || '').toString();
+        const normalizedWordset = parseInt(wordsetId, 10) || 0;
+        const normalizedExclude = parseInt(excludeWordId, 10) || 0;
+        const key = [normalizedWordset, normalizedExclude, query.toLowerCase()].join('|');
+        if (Object.prototype.hasOwnProperty.call(moveWordCache, key)) {
+            done((moveWordCache[key] || []).slice());
+            return;
+        }
+        $.post(ajaxUrl, {
+            action: 'll_tools_word_grid_search_words',
+            nonce: editNonce,
+            q: query,
+            wordset_id: normalizedWordset,
+            exclude_word_id: normalizedExclude,
+            limit: 20
+        }).done(function (response) {
+            const words = (response && response.success === true && response.data && Array.isArray(response.data.words))
+                ? response.data.words
+                : [];
+            moveWordCache[key] = words;
+            done(words.slice());
+        }).fail(function () {
+            done([]);
+        });
+    }
+
+    function clearMoveWordCache() {
+        Object.keys(moveWordCache).forEach(function (key) {
+            delete moveWordCache[key];
+        });
+    }
+
+    function setRecordingMoveTarget($panel, targetId, targetLabel) {
+        const id = parseInt(targetId, 10) || 0;
+        const label = (targetLabel || '').toString();
+        const $input = $panel.find('[data-ll-recording-move-search]').first();
+        const $target = $panel.find('[data-ll-recording-move-target]').first();
+        if ($input.length && label) {
+            $input.val(label);
+        }
+        if ($target.length) {
+            $target.val(id ? String(id) : '');
+        }
+        $panel.find('[data-ll-recording-move-confirm]').prop('disabled', !id);
+        $input.data('llMoveWordSelectedId', id);
+        $input.data('llMoveWordSelectedLabel', label);
+    }
+
+    function initRecordingMoveAutocomplete($input) {
+        if (!$input.length || typeof $input.autocomplete !== 'function') { return; }
+        if ($input.data('llMoveWordAutocompleteReady')) { return; }
+        $input.data('llMoveWordAutocompleteReady', true);
+
+        $input.autocomplete({
+            minLength: 0,
+            delay: 150,
+            classes: {
+                'ui-autocomplete': 'll-word-move-autocomplete'
+            },
+            source: function (request, response) {
+                const $recording = $input.closest('.ll-word-edit-recording');
+                const $item = $recording.closest('.word-item');
+                const $grid = $item.closest('[data-ll-word-grid]');
+                const sourceWordId = parseInt($item.data('word-id'), 10) || 0;
+                const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+                fetchMoveWords(request.term, wordsetId, sourceWordId, function (words) {
+                    const items = (words || []).map(function (word) {
+                        const item = word || {};
+                        const label = (item.label || '').toString();
+                        const id = parseInt(item.id, 10) || 0;
+                        return {
+                            label: label,
+                            value: label,
+                            id: id,
+                            word_text: (item.word_text || '').toString(),
+                            translation: (item.translation || '').toString(),
+                            status: (item.status || '').toString(),
+                            categories: Array.isArray(item.categories) ? item.categories : []
+                        };
+                    });
+                    const $panel = $input.closest('[data-ll-recording-move-panel]');
+                    const $status = $panel.find('[data-ll-recording-move-status]').first();
+                    if ($status.length) {
+                        $status
+                            .removeClass('is-error is-success')
+                            .text(items.length ? '' : editMessages.noMatchingWords);
+                    }
+                    response(items);
+                });
+            },
+            focus: function (event, ui) {
+                event.preventDefault();
+                $input.val((ui.item && ui.item.label) ? ui.item.label : '');
+            },
+            select: function (event, ui) {
+                event.preventDefault();
+                setRecordingMoveTarget($input.closest('[data-ll-recording-move-panel]'), ui.item && ui.item.id, ui.item && ui.item.label);
+            },
+            change: function (_event, ui) {
+                if (ui && ui.item) { return; }
+                const typed = ($input.val() || '').toString();
+                const selectedLabel = ($input.data('llMoveWordSelectedLabel') || '').toString();
+                if (typed.trim() === '' || typed !== selectedLabel) {
+                    setRecordingMoveTarget($input.closest('[data-ll-recording-move-panel]'), 0, '');
+                }
+            }
+        });
+
+        const instance = $input.autocomplete('instance');
+        if (instance) {
+            instance._renderItem = function (ul, item) {
+                const $row = $('<div class="ll-word-move-autocomplete-item"></div>');
+                $('<span class="ll-word-move-autocomplete-main"></span>')
+                    .text(item.label || ('#' + (item.id || 0)))
+                    .appendTo($row);
+                if (item.categories && item.categories.length) {
+                    $('<span class="ll-word-move-autocomplete-meta"></span>')
+                        .text(item.categories.slice(0, 2).join(' / '))
+                        .appendTo($row);
+                }
                 return $('<li>').append($row).appendTo(ul);
             };
         }
@@ -3267,6 +3406,9 @@
         $root.find('[data-ll-word-image-existing-search]').each(function () {
             initWordImageAutocomplete($(this));
         });
+        $root.find('[data-ll-recording-move-search]').each(function () {
+            initRecordingMoveAutocomplete($(this));
+        });
         syncEditModalBodyLock();
     };
 
@@ -3414,6 +3556,184 @@
             currentAudio = null;
             currentAudioButton = null;
         }
+    }
+
+    function stopRecordingPlayback(recordingId) {
+        const recId = parseInt(recordingId, 10) || 0;
+        if (!recId) { return; }
+        if (currentAudioButton && parseInt($(currentAudioButton).attr('data-recording-id'), 10) === recId && currentAudio) {
+            try { currentAudio.pause(); } catch (_) {}
+            currentAudio = null;
+            currentAudioButton = null;
+        }
+    }
+
+    function closeRecordingPanels($recording) {
+        if (!$recording || !$recording.length) { return; }
+        $recording.find('[data-ll-recording-delete-confirm]').prop('hidden', true);
+        const $movePanel = $recording.find('[data-ll-recording-move-panel]').first();
+        $movePanel.prop('hidden', true);
+        $movePanel.find('[data-ll-recording-move-status]').text('').removeClass('is-error is-success');
+    }
+
+    function setRecordingMoveStatus($recording, message, tone) {
+        const $status = $recording.find('[data-ll-recording-move-status]').first();
+        if (!$status.length) { return; }
+        $status
+            .removeClass('is-error is-success')
+            .toggleClass('is-error', tone === 'error')
+            .toggleClass('is-success', tone === 'success')
+            .text(message || '');
+    }
+
+    function cleanupEmptyRecordingContainers($item) {
+        if (!$item || !$item.length) { return; }
+        const $recordingPanel = $item.find('[data-ll-word-recordings-panel]').first();
+        if ($recordingPanel.length && !$recordingPanel.find('.ll-word-edit-recording[data-recording-id]').length) {
+            $recordingPanel.remove();
+            $item.find('[data-ll-word-recordings-toggle]').first().remove();
+        }
+
+        const $visibleWrap = $item.find('> .ll-word-recordings').first();
+        if ($visibleWrap.length && !$visibleWrap.find('.ll-word-grid-recording-btn[data-recording-id]').length && !$visibleWrap.find('.ll-word-recording-launch').length) {
+            $visibleWrap.remove();
+        }
+    }
+
+    function ensureRecordingEditorPanel($item) {
+        if (!$item || !$item.length) { return $(); }
+        let $panel = $item.find('[data-ll-word-recordings-panel]').first();
+        if ($panel.length) { return $panel; }
+
+        const $body = $item.find('[data-ll-word-edit-body]').first();
+        if (!$body.length) { return $(); }
+
+        const $toggle = $('<button>', {
+            type: 'button',
+            class: 'll-word-edit-recordings-toggle',
+            'aria-expanded': 'true'
+        }).attr('data-ll-word-recordings-toggle', '');
+        $('<span>', { class: 'll-word-edit-recordings-icon', 'aria-hidden': 'true' })
+            .append('<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 10v4M9 6v12M14 8v8M19 11v2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>')
+            .appendTo($toggle);
+        $('<span>', { class: 'll-word-edit-recordings-label' })
+            .text(editMessages.recordings)
+            .appendTo($toggle);
+
+        $panel = $('<div>', {
+            class: 'll-word-edit-recordings',
+            'aria-hidden': 'false'
+        }).attr('data-ll-word-recordings-panel', '');
+
+        const $danger = $body.find('[data-ll-word-edit-danger]').first();
+        if ($danger.length) {
+            $toggle.insertBefore($danger);
+            $panel.insertBefore($danger);
+        } else {
+            $body.append($toggle, $panel);
+        }
+        $item.addClass('ll-word-recordings-open');
+
+        return $panel;
+    }
+
+    function ensureVisibleRecordingWrap($item) {
+        if (!$item || !$item.length) { return $(); }
+        let $wrap = $item.find('> .ll-word-recordings').first();
+        if ($wrap.length) { return $wrap; }
+
+        $wrap = $('<div>', {
+            class: 'll-word-recordings',
+            'aria-label': editMessages.recordings
+        });
+        const $editPanel = $item.find('> [data-ll-word-edit-panel]').first();
+        if ($editPanel.length) {
+            $wrap.insertAfter($editPanel);
+        } else {
+            $item.append($wrap);
+        }
+
+        return $wrap;
+    }
+
+    function removeRecordingDom($item, recordingId) {
+        const recId = parseInt(recordingId, 10) || 0;
+        if (!recId || !$item || !$item.length) { return; }
+        stopRecordingPlayback(recId);
+
+        const selector = '[data-recording-id="' + recId + '"]';
+        const $recording = $item.find('.ll-word-edit-recording' + selector).first();
+        if ($recording.length) {
+            clearLessonEditProcessingState($recording);
+            $recording.remove();
+        }
+
+        $item.find('.ll-word-recording-row' + selector).remove();
+        const $visibleButton = $item.find('> .ll-word-recordings .ll-word-grid-recording-btn' + selector).first();
+        if ($visibleButton.length) {
+            const $buttonRow = $visibleButton.closest('.ll-word-recording-row');
+            if ($buttonRow.length) {
+                $buttonRow.remove();
+            } else {
+                $visibleButton.remove();
+            }
+        }
+
+        cleanupEmptyRecordingContainers($item);
+        applyRecordingCaptions($item, collectRecordingInputs($item));
+        updateOriginalInputs($item);
+        updateGridLayouts();
+    }
+
+    function attachMovedRecordingDom($sourceItem, $targetItem, recordingId) {
+        const recId = parseInt(recordingId, 10) || 0;
+        if (!recId || !$sourceItem || !$sourceItem.length || !$targetItem || !$targetItem.length) {
+            return false;
+        }
+
+        const selector = '[data-recording-id="' + recId + '"]';
+        const $recording = $sourceItem.find('.ll-word-edit-recording' + selector).first();
+        const $targetPanel = ensureRecordingEditorPanel($targetItem);
+        let movedAny = false;
+
+        if ($recording.length && $targetPanel.length) {
+            closeRecordingPanels($recording);
+            clearLessonEditProcessingState($recording);
+            $recording.detach().appendTo($targetPanel);
+            initRecordingMoveAutocomplete($recording.find('[data-ll-recording-move-search]').first());
+            movedAny = true;
+        } else if ($recording.length) {
+            clearLessonEditProcessingState($recording);
+            $recording.remove();
+        }
+
+        const $row = $sourceItem.find('.ll-word-recording-row' + selector).first();
+        const $targetVisibleWrap = ensureVisibleRecordingWrap($targetItem);
+        if ($row.length && $targetVisibleWrap.length) {
+            $row.detach().appendTo($targetVisibleWrap);
+            movedAny = true;
+        } else if ($row.length) {
+            $row.remove();
+        } else {
+            const $visibleButton = $sourceItem.find('> .ll-word-recordings .ll-word-grid-recording-btn' + selector).first();
+            if ($visibleButton.length && $targetVisibleWrap.length) {
+                $visibleButton.detach().appendTo($targetVisibleWrap);
+                movedAny = true;
+            } else if ($visibleButton.length) {
+                $visibleButton.remove();
+            }
+        }
+
+        if (movedAny) {
+            cleanupEmptyRecordingContainers($sourceItem);
+            applyRecordingCaptions($sourceItem, collectRecordingInputs($sourceItem));
+            applyRecordingCaptions($targetItem, collectRecordingInputs($targetItem));
+            updateOriginalInputs($sourceItem);
+            updateOriginalInputs($targetItem);
+            updateGridLayouts();
+        }
+
+        return movedAny;
     }
 
     function setTranscribeStatus($wrap, message, isError) {
@@ -6889,6 +7209,236 @@
                     initLessonEditProcessingWaveforms($item);
                 });
             }
+        });
+
+        $grids.on('click', '[data-ll-word-delete-toggle]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            $item.find('[data-ll-word-delete-confirm]').first().prop('hidden', false);
+            setEditStatus($item, '');
+        });
+
+        $grids.on('click', '[data-ll-word-delete-cancel]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $item = $(this).closest('.word-item');
+            $item.find('[data-ll-word-delete-confirm]').first().prop('hidden', true);
+            setEditStatus($item, '');
+        });
+
+        $grids.on('click', '[data-ll-word-delete-confirm-action]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $button = $(this);
+            if ($button.prop('disabled')) { return; }
+
+            const $item = $button.closest('.word-item');
+            const $grid = $item.closest('[data-ll-word-grid]');
+            const wordId = parseInt($item.data('word-id'), 10) || 0;
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            if (!wordId || !ajaxUrl || !editNonce) {
+                setEditStatus($item, editMessages.deleteWordError, true);
+                return;
+            }
+
+            $button.prop('disabled', true);
+            setWordSaveBusy($item, true);
+            setEditStatus($item, editMessages.deletingWord, false);
+            setWordSaveStatus($item, editMessages.deletingWord, 'pending');
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_delete_word',
+                nonce: editNonce,
+                word_id: String(wordId),
+                wordset_id: String(wordsetId)
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const message = readResponseErrorMessage(response, editMessages.deleteWordError);
+                    setEditStatus($item, message, true);
+                    setWordSaveStatus($item, message, 'error');
+                    return;
+                }
+
+                setEditPanelOpen($item, false);
+                clearMoveWordCache();
+                $item.addClass('ll-word-item--deleted');
+                window.setTimeout(function () {
+                    $item.remove();
+                    updateGridLayouts();
+                }, 120);
+            }).fail(function (jqXHR) {
+                const message = readAjaxErrorMessage(jqXHR, editMessages.deleteWordError);
+                setEditStatus($item, message, true);
+                setWordSaveStatus($item, message, 'error');
+            }).always(function () {
+                $button.prop('disabled', false);
+                setWordSaveBusy($item, false);
+            });
+        });
+
+        $grids.on('click', '[data-ll-recording-delete-toggle]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $recording = $(this).closest('.ll-word-edit-recording');
+            $recording.find('[data-ll-recording-move-panel]').first().prop('hidden', true);
+            $recording.find('[data-ll-recording-delete-confirm]').first().prop('hidden', false);
+            setRecordingMoveStatus($recording, '', '');
+        });
+
+        $grids.on('click', '[data-ll-recording-delete-cancel]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $recording = $(this).closest('.ll-word-edit-recording');
+            $recording.find('[data-ll-recording-delete-confirm]').first().prop('hidden', true);
+        });
+
+        $grids.on('click', '[data-ll-recording-delete-confirm-action]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $button = $(this);
+            if ($button.prop('disabled')) { return; }
+            const $recording = $button.closest('.ll-word-edit-recording');
+            const $item = $recording.closest('.word-item');
+            const $grid = $item.closest('[data-ll-word-grid]');
+            const recordingId = parseInt($recording.attr('data-recording-id'), 10) || 0;
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            if (!recordingId || !ajaxUrl || !editNonce) {
+                setEditStatus($item, editMessages.deleteRecordingError, true);
+                return;
+            }
+
+            $button.prop('disabled', true);
+            setEditStatus($item, editMessages.deletingRecording, false);
+            setWordSaveStatus($item, editMessages.deletingRecording, 'pending');
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_delete_recording',
+                nonce: editNonce,
+                recording_id: String(recordingId),
+                wordset_id: String(wordsetId)
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const message = readResponseErrorMessage(response, editMessages.deleteRecordingError);
+                    setEditStatus($item, message, true);
+                    setWordSaveStatus($item, message, 'error');
+                    return;
+                }
+
+                const data = (response.data && typeof response.data === 'object') ? response.data : {};
+                removeRecordingDom($item, recordingId);
+                if (data.word_status) {
+                    $item.attr('data-ll-word-status', data.word_status.toString());
+                }
+                setEditStatus($item, editMessages.recordingDeleted, false);
+                setWordSaveStatus($item, editMessages.recordingDeleted, 'success');
+                scheduleWordSaveStatusClear($item, 1800);
+            }).fail(function (jqXHR) {
+                const message = readAjaxErrorMessage(jqXHR, editMessages.deleteRecordingError);
+                setEditStatus($item, message, true);
+                setWordSaveStatus($item, message, 'error');
+            }).always(function () {
+                $button.prop('disabled', false);
+            });
+        });
+
+        $grids.on('click', '[data-ll-recording-move-toggle]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $recording = $(this).closest('.ll-word-edit-recording');
+            const $panel = $recording.find('[data-ll-recording-move-panel]').first();
+            $recording.find('[data-ll-recording-delete-confirm]').first().prop('hidden', true);
+            $panel.prop('hidden', false);
+            setRecordingMoveStatus($recording, '', '');
+            const $input = $panel.find('[data-ll-recording-move-search]').first();
+            initRecordingMoveAutocomplete($input);
+            window.setTimeout(function () {
+                $input.trigger('focus');
+                if (typeof $input.autocomplete === 'function') {
+                    $input.autocomplete('search', ($input.val() || '').toString());
+                }
+            }, 0);
+        });
+
+        $grids.on('input', '[data-ll-recording-move-search]', function () {
+            const $input = $(this);
+            const typed = ($input.val() || '').toString();
+            const selectedLabel = ($input.data('llMoveWordSelectedLabel') || '').toString();
+            if (typed.trim() === '' || typed !== selectedLabel) {
+                setRecordingMoveTarget($input.closest('[data-ll-recording-move-panel]'), 0, '');
+            }
+        });
+
+        $grids.on('click', '[data-ll-recording-move-cancel]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $panel = $(this).closest('[data-ll-recording-move-panel]');
+            $panel.prop('hidden', true);
+            $panel.find('[data-ll-recording-move-search]').val('');
+            setRecordingMoveTarget($panel, 0, '');
+            setRecordingMoveStatus($panel.closest('.ll-word-edit-recording'), '', '');
+        });
+
+        $grids.on('click', '[data-ll-recording-move-confirm]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const $button = $(this);
+            if ($button.prop('disabled')) { return; }
+            const $recording = $button.closest('.ll-word-edit-recording');
+            const $panel = $recording.find('[data-ll-recording-move-panel]').first();
+            const $sourceItem = $recording.closest('.word-item');
+            const $grid = $sourceItem.closest('[data-ll-word-grid]');
+            const recordingId = parseInt($recording.attr('data-recording-id'), 10) || 0;
+            const sourceWordId = parseInt($sourceItem.data('word-id'), 10) || 0;
+            const targetWordId = parseInt($panel.find('[data-ll-recording-move-target]').val(), 10) || 0;
+            const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
+            if (!recordingId || !targetWordId || targetWordId === sourceWordId) {
+                setRecordingMoveStatus($recording, editMessages.selectMoveTarget, 'error');
+                return;
+            }
+
+            $button.prop('disabled', true);
+            setRecordingMoveStatus($recording, editMessages.movingRecording, '');
+            setWordSaveStatus($sourceItem, editMessages.movingRecording, 'pending');
+
+            $.post(ajaxUrl, {
+                action: 'll_tools_word_grid_move_recording',
+                nonce: editNonce,
+                recording_id: String(recordingId),
+                source_word_id: String(sourceWordId),
+                target_word_id: String(targetWordId),
+                wordset_id: String(wordsetId)
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    const message = readResponseErrorMessage(response, editMessages.moveRecordingError);
+                    setRecordingMoveStatus($recording, message, 'error');
+                    setWordSaveStatus($sourceItem, message, 'error');
+                    return;
+                }
+
+                const data = (response.data && typeof response.data === 'object') ? response.data : {};
+                const movedTargetId = parseInt(data.target_word_id, 10) || targetWordId;
+                const $targetItem = $grid.find('.word-item[data-word-id="' + movedTargetId + '"]').first();
+                const movedInDom = $targetItem.length ? attachMovedRecordingDom($sourceItem, $targetItem, recordingId) : false;
+                if (!movedInDom) {
+                    removeRecordingDom($sourceItem, recordingId);
+                }
+                if (data.source_word_status) {
+                    $sourceItem.attr('data-ll-word-status', data.source_word_status.toString());
+                }
+                clearMoveWordCache();
+                setWordSaveStatus($sourceItem, editMessages.recordingMoved, 'success');
+                scheduleWordSaveStatusClear($sourceItem, 1800);
+            }).fail(function (jqXHR) {
+                const message = readAjaxErrorMessage(jqXHR, editMessages.moveRecordingError);
+                setRecordingMoveStatus($recording, message, 'error');
+                setWordSaveStatus($sourceItem, message, 'error');
+            }).always(function () {
+                $button.prop('disabled', false);
+            });
         });
 
         $grids.on('change', '[data-ll-processing-option="trim"]', function () {
