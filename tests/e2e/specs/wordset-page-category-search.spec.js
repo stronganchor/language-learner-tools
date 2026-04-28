@@ -21,6 +21,16 @@ function buildMarkup() {
             data-ll-wordset-page-search
             autocomplete="off"
           />
+          <button
+            type="button"
+            class="ll-wordset-progress-search__clear"
+            data-ll-wordset-page-search-clear
+            aria-label="Clear search"
+            hidden>
+            <svg class="ll-wordset-progress-search__clear-icon" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+              <path d="M4.5 4.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+            </svg>
+          </button>
           <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
         </div>
         <button type="button" class="ll-wordset-select-all ll-wordset-progress-select-all" data-ll-wordset-select-all aria-pressed="false">Select all</button>
@@ -330,5 +340,32 @@ test('main wordset search matches words when only diacritics differ', async ({ p
       .map((card) => Number(card.getAttribute('data-cat-id'))));
   }).toEqual([33]);
 
+  await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
+});
+
+test('main wordset search clear button appears only for active filters and resets visible cards', async ({ page }) => {
+  await mountWordsetPage(page);
+
+  const clearButton = page.locator('[data-ll-wordset-page-search-clear]');
+  await expect(clearButton).toBeHidden();
+
+  await setSearchValue(page, 'app');
+  await expect(clearButton).toBeVisible();
+
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11]);
+
+  await clearButton.click();
+
+  await expect(page.locator('[data-ll-wordset-page-search]')).toHaveValue('');
+  await expect(clearButton).toBeHidden();
+  await expect.poll(async () => {
+    return page.evaluate(() => Array.from(document.querySelectorAll('.ll-wordset-card[data-cat-id]'))
+      .filter((card) => !card.hidden)
+      .map((card) => Number(card.getAttribute('data-cat-id'))));
+  }).toEqual([11, 22, 33]);
   await expect(page.locator('[data-ll-wordset-page-search-empty]')).toBeHidden();
 });

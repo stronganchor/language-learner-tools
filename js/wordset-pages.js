@@ -539,6 +539,7 @@
         : $root.find('.ll-wordset-grid').not('.ll-wordset-grid--content-lessons').first();
     const $selectAllButton = $root.find('[data-ll-wordset-select-all]');
     const $mainCategorySearchInput = $root.find('[data-ll-wordset-page-search]');
+    const $mainCategorySearchClear = $root.find('[data-ll-wordset-page-search-clear]');
     const $mainCategorySearchLoading = $root.find('[data-ll-wordset-page-search-loading]');
     const $mainCategorySearchEmpty = $root.find('[data-ll-wordset-page-search-empty]');
     const $mainCategorySortRoot = $root.find('[data-ll-wordset-main-sort-root]').first();
@@ -6597,6 +6598,16 @@
         return String(mainCategorySearchQuery || '').trim() !== '';
     }
 
+    function syncMainCategorySearchClearButton() {
+        if (!$mainCategorySearchClear.length) {
+            return;
+        }
+        const isActive = isMainCategorySearchActive();
+        $mainCategorySearchClear
+            .prop('hidden', !isActive)
+            .attr('aria-hidden', isActive ? 'false' : 'true');
+    }
+
     function getCategoryOrderIndex(categoryId) {
         const id = parseInt(categoryId, 10) || 0;
         if (!id || !Object.prototype.hasOwnProperty.call(categoryOrderLookup, id)) {
@@ -7893,6 +7904,7 @@
         }
 
         const query = String(mainCategorySearchQuery || '').trim().toLowerCase();
+        syncMainCategorySearchClearButton();
         const visibleLookup = {};
         let totalMatchingCount = 0;
         categories.forEach(function (category) {
@@ -13204,6 +13216,7 @@
 
         if ($mainCategorySearchInput.length) {
             mainCategorySearchQuery = String($mainCategorySearchInput.val() || '');
+            syncMainCategorySearchClearButton();
             renderMainCategorySearch();
         }
 
@@ -13274,9 +13287,18 @@
             renderSelectionBar();
         });
 
-        $root.on('input', '[data-ll-wordset-page-search]', function () {
+        $root.on('input search', '[data-ll-wordset-page-search]', function () {
             mainCategorySearchQuery = String($(this).val() || '');
+            syncMainCategorySearchClearButton();
             scheduleMainCategorySearchRender({ showLoading: true });
+        });
+
+        $root.on('click', '[data-ll-wordset-page-search-clear]', function (event) {
+            event.preventDefault();
+            if (!$mainCategorySearchInput.length) {
+                return;
+            }
+            $mainCategorySearchInput.val('').trigger('input').trigger('focus');
         });
 
         $root.on('change', '[data-ll-wordset-selection-priority-only]', function () {

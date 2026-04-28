@@ -13985,6 +13985,16 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
                                     placeholder="<?php echo esc_attr__('Search words or translations', 'll-tools-text-domain'); ?>"
                                     autocomplete="off"
                                 />
+                                <button
+                                    type="button"
+                                    class="ll-wordset-progress-search__clear"
+                                    data-ll-wordset-page-search-clear
+                                    aria-label="<?php echo esc_attr__('Clear search', 'll-tools-text-domain'); ?>"
+                                    hidden>
+                                    <svg class="ll-wordset-progress-search__clear-icon" viewBox="0 0 16 16" focusable="false" aria-hidden="true">
+                                        <path d="M4.5 4.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+                                    </svg>
+                                </button>
                                 <span class="ll-wordset-progress-search__loading" data-ll-wordset-page-search-loading hidden aria-hidden="true"></span>
                             </div>
                             <div class="ll-wordset-main-sort" data-ll-wordset-main-sort-root>
