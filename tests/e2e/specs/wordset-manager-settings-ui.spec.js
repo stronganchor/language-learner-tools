@@ -423,7 +423,7 @@ function buildEditorToolMarkup() {
             </div>
             <div class="ll-wordset-editor-row" role="row">
               <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell"><input type="checkbox" data-ll-wordset-editor-word /></label>
-              <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell">
+              <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell" data-label="Word">
                 <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
                 <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
                 <details class="ll-wordset-editor-inline-edit" open>
@@ -446,23 +446,45 @@ function buildEditorToolMarkup() {
                   </form>
                 </details>
               </div>
-              <div class="ll-wordset-editor-cell" role="cell">
+              <div class="ll-wordset-editor-cell ll-wordset-editor-cell--categories" role="cell" data-label="Categories">
                 <div class="ll-wordset-editor-pill-list">
                   <span class="ll-wordset-editor-pill">Conversation Practice</span>
                   <span class="ll-wordset-editor-pill">Review Queue</span>
                 </div>
               </div>
-              <div class="ll-wordset-editor-cell" role="cell"><span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span></div>
-              <div class="ll-wordset-editor-cell" role="cell">
+              <div class="ll-wordset-editor-cell ll-wordset-editor-cell--state" role="cell" data-label="State"><span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span></div>
+              <div class="ll-wordset-editor-cell ll-wordset-editor-cell--media" role="cell" data-label="Media">
                 <div class="ll-wordset-editor-media">
                   <span class="ll-wordset-editor-media__item is-ready">Audio <span>2</span></span>
                   <span class="ll-wordset-editor-media__item is-missing">Image</span>
                 </div>
+              </div>
+              <div class="ll-wordset-editor-row__details" role="cell" aria-colspan="4" data-label="Recordings">
                 <div class="ll-wordset-editor-recordings">
                   <div class="ll-wordset-editor-recording">
                     <div class="ll-wordset-editor-recording__main">
                       <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
                       <span class="ll-wordset-editor-recording__label">Isolation recording</span>
+                      <span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span>
+                    </div>
+                    <div class="ll-wordset-editor-recording__actions">
+                      <button type="button" class="ll-wordset-editor-icon-button ll-wordset-editor-icon-button--danger" aria-label="Trash recording">
+                        <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h10M10 8V6h4v2M9 10.5v6M15 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      </button>
+                      <form class="ll-wordset-editor-move-form">
+                        <select aria-label="Move recording to word">
+                          <option>Move to another word with a long visible title</option>
+                        </select>
+                        <button type="button" class="ll-wordset-editor-icon-button" aria-label="Move recording">
+                          <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                  <div class="ll-wordset-editor-recording">
+                    <div class="ll-wordset-editor-recording__main">
+                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                      <span class="ll-wordset-editor-recording__label">Question recording with long type label</span>
                       <span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span>
                     </div>
                     <div class="ll-wordset-editor-recording__actions">
@@ -612,6 +634,45 @@ test('manager advanced settings tool stacks dense controls without horizontal ov
   expect(fieldGridMetrics.distinctRows).toBeGreaterThan(1);
 });
 
+test('manager wordset editor table gives recordings usable desktop width', async ({ page }) => {
+  await mountSettingsTool(page, buildEditorToolMarkup(), { width: 1180, height: 900 });
+
+  await expect(page.locator('.ll-wordset-editor-row__details')).toBeVisible();
+  await expect(page.locator('.ll-wordset-editor-recording')).toHaveCount(2);
+
+  await assertPageFitsViewport(page);
+
+  const layoutMetrics = await page.evaluate(() => {
+    const wordCell = document.querySelector('.ll-wordset-editor-cell--word[role="cell"]');
+    const mediaCell = document.querySelector('.ll-wordset-editor-cell--media[role="cell"]');
+    const details = document.querySelector('.ll-wordset-editor-row__details');
+    const recordings = Array.from(document.querySelectorAll('.ll-wordset-editor-recording'));
+    if (!wordCell || !mediaCell || !details || recordings.length === 0) {
+      return null;
+    }
+    const wordRect = wordCell.getBoundingClientRect();
+    const mediaRect = mediaCell.getBoundingClientRect();
+    const detailsRect = details.getBoundingClientRect();
+    const recordingRects = recordings.map((recording) => recording.getBoundingClientRect());
+    return {
+      wordWidth: Math.round(wordRect.width),
+      mediaWidth: Math.round(mediaRect.width),
+      detailsWidth: Math.round(detailsRect.width),
+      detailsLeft: Math.round(detailsRect.left),
+      wordLeft: Math.round(wordRect.left),
+      recordingMinWidth: Math.round(Math.min(...recordingRects.map((rect) => rect.width))),
+      recordingRows: new Set(recordingRects.map((rect) => Math.round(rect.top))).size
+    };
+  });
+
+  expect(layoutMetrics).not.toBeNull();
+  expect(layoutMetrics.wordWidth).toBeGreaterThan(layoutMetrics.mediaWidth);
+  expect(layoutMetrics.detailsWidth).toBeGreaterThan(layoutMetrics.mediaWidth * 2);
+  expect(layoutMetrics.detailsLeft).toBeLessThanOrEqual(layoutMetrics.wordLeft + 2);
+  expect(layoutMetrics.recordingMinWidth).toBeGreaterThan(320);
+  expect(layoutMetrics.recordingRows).toBe(1);
+});
+
 test('manager wordset editor table keeps recording controls usable on mobile', async ({ page }) => {
   await mountSettingsTool(page, buildEditorToolMarkup(), { width: 390, height: 844 });
 
@@ -620,11 +681,11 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
   await expect(page.locator('.ll-wordset-editor-saved-view-form')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-table-card')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-inline-form')).toBeVisible();
-  await expect(page.locator('.ll-wordset-editor-recording')).toBeVisible();
+  await expect(page.locator('.ll-wordset-editor-recording').first()).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-history-filter')).toBeVisible();
-  await expect(page.getByLabel('Move recording to word')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Trash recording' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Move recording' })).toBeVisible();
+  await expect(page.getByLabel('Move recording to word').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Trash recording' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move recording' }).first()).toBeVisible();
 
   await assertPageFitsViewport(page);
 
@@ -633,20 +694,23 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
     const inlineForm = document.querySelector('.ll-wordset-editor-inline-form');
     const statCard = document.querySelector('.ll-wordset-editor-stat');
     const savedViewForm = document.querySelector('.ll-wordset-editor-saved-view-form');
+    const details = document.querySelector('.ll-wordset-editor-row__details');
     const buttons = Array.from(document.querySelectorAll('.ll-wordset-editor-icon-button'));
-    if (!select || !inlineForm || !statCard || !savedViewForm || buttons.length < 2) {
+    if (!select || !inlineForm || !statCard || !savedViewForm || !details || buttons.length < 2) {
       return null;
     }
     const selectRect = select.getBoundingClientRect();
     const inlineRect = inlineForm.getBoundingClientRect();
     const statRect = statCard.getBoundingClientRect();
     const savedViewRect = savedViewForm.getBoundingClientRect();
+    const detailsRect = details.getBoundingClientRect();
     return {
       selectWidth: Math.round(selectRect.width),
       selectRight: Math.round(selectRect.right),
       inlineRight: Math.round(inlineRect.right),
       statRight: Math.round(statRect.right),
       savedViewRight: Math.round(savedViewRect.right),
+      detailsRight: Math.round(detailsRect.right),
       buttonSizes: buttons.map((button) => Math.round(button.getBoundingClientRect().width))
     };
   });
@@ -657,6 +721,7 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
   expect(controlMetrics.inlineRight).toBeLessThanOrEqual(392);
   expect(controlMetrics.statRight).toBeLessThanOrEqual(392);
   expect(controlMetrics.savedViewRight).toBeLessThanOrEqual(392);
+  expect(controlMetrics.detailsRight).toBeLessThanOrEqual(392);
   controlMetrics.buttonSizes.forEach((width) => {
     expect(width).toBeGreaterThanOrEqual(32);
   });

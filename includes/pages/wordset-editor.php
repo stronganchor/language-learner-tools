@@ -1874,7 +1874,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                 <input type="checkbox" name="ll_wordset_editor_word_ids[]" value="<?php echo esc_attr((string) $word_id); ?>" form="<?php echo esc_attr($bulk_form_id); ?>" data-ll-wordset-editor-word />
                                 <span class="screen-reader-text"><?php echo esc_html(sprintf(__('Select %s', 'll-tools-text-domain'), (string) ($row['title'] ?? ''))); ?></span>
                             </label>
-                            <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell">
+                            <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell" data-label="<?php echo esc_attr__('Word', 'll-tools-text-domain'); ?>">
                                 <strong class="ll-wordset-editor-word-title"><?php echo esc_html((string) ($row['title'] ?? '')); ?></strong>
                                 <?php if ((string) ($row['translation'] ?? '') !== '') : ?>
                                     <span class="ll-wordset-editor-word-translation"><?php echo esc_html((string) ($row['translation'] ?? '')); ?></span>
@@ -1906,7 +1906,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                     </form>
                                 </details>
                             </div>
-                            <div class="ll-wordset-editor-cell" role="cell">
+                            <div class="ll-wordset-editor-cell ll-wordset-editor-cell--categories" role="cell" data-label="<?php echo esc_attr__('Categories', 'll-tools-text-domain'); ?>">
                                 <div class="ll-wordset-editor-pill-list">
                                     <?php if (empty($category_labels)) : ?>
                                         <span class="ll-wordset-editor-pill ll-wordset-editor-pill--muted"><?php echo esc_html__('No category', 'll-tools-text-domain'); ?></span>
@@ -1917,12 +1917,12 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <div class="ll-wordset-editor-cell" role="cell">
+                            <div class="ll-wordset-editor-cell ll-wordset-editor-cell--state" role="cell" data-label="<?php echo esc_attr__('State', 'll-tools-text-domain'); ?>">
                                 <span class="ll-wordset-editor-state ll-wordset-editor-state--<?php echo esc_attr(sanitize_html_class($status)); ?>">
                                     <?php echo esc_html(ll_tools_wordset_editor_status_label($status)); ?>
                                 </span>
                             </div>
-                            <div class="ll-wordset-editor-cell" role="cell">
+                            <div class="ll-wordset-editor-cell ll-wordset-editor-cell--media" role="cell" data-label="<?php echo esc_attr__('Media', 'll-tools-text-domain'); ?>">
                                 <div class="ll-wordset-editor-media">
                                     <span class="ll-wordset-editor-media__item <?php echo !empty($row['has_image']) ? 'is-ready' : 'is-missing'; ?>" title="<?php echo esc_attr(!empty($row['has_image']) ? __('Has image', 'll-tools-text-domain') : __('Missing image', 'll-tools-text-domain')); ?>">
                                         <?php echo ll_tools_wordset_editor_icon('image'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
@@ -1932,8 +1932,10 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                         <span><?php echo esc_html((string) ((int) ($row['published_audio_count'] ?? 0))); ?></span>
                                     </span>
                                 </div>
-                                <?php $recording_rows = (array) ($recordings_by_word_id[$word_id] ?? []); ?>
-                                <?php if (!empty($recording_rows)) : ?>
+                            </div>
+                            <?php $recording_rows = (array) ($recordings_by_word_id[$word_id] ?? []); ?>
+                            <?php if (!empty($recording_rows)) : ?>
+                                <div class="ll-wordset-editor-row__details" role="cell" aria-colspan="4" data-label="<?php echo esc_attr__('Recordings', 'll-tools-text-domain'); ?>">
                                     <div class="ll-wordset-editor-recordings">
                                         <?php foreach ($recording_rows as $recording_row) : ?>
                                             <?php
@@ -1990,8 +1992,8 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
-                                <?php endif; ?>
-                            </div>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
