@@ -610,6 +610,97 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll-word-grid--text', (string) ($spec['class'] ?? ''));
     }
 
+    public function test_text_answer_mixed_image_lesson_grid_shows_inactive_images_only_to_staff(): void
+    {
+        $wordset = wp_insert_term('Deferred Mixed Image Staff Wordset', 'wordset', ['slug' => 'deferred-mixed-image-staff-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Mixed Image Staff Category', 'word-category', ['slug' => 'deferred-mixed-image-staff-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $image_word_id = $this->createWordWithThumbnail('Image Backed Staff Word', $category_id, $wordset_id, 'deferred-staff-inactive-image.png');
+        update_post_meta($image_word_id, 'word_translation', 'Image backed');
+
+        $text_only_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Plain Staff Word',
+        ]);
+        wp_set_post_terms($text_only_word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($text_only_word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($text_only_word_id, 'word_translation', 'Plain');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Mixed Image Staff Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        wp_set_current_user(0);
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $public_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($public_response['success']);
+        $public_html = (string) (($public_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Image Backed Staff Word', $public_html);
+        $this->assertStringContainsString('Plain Staff Word', $public_html);
+        $this->assertStringContainsString('ll-word-grid--text', $public_html);
+        $this->assertStringNotContainsString('class="word-image', $public_html);
+        $this->assertStringNotContainsString('ll-word-image-staff-overlay', $public_html);
+        $this->assertStringNotContainsString('Not public: quiz does not use pictures.', $public_html);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        wp_set_current_user($admin_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $staff_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($staff_response['success']);
+        $staff_html = (string) (($staff_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Image Backed Staff Word', $staff_html);
+        $this->assertStringContainsString('Plain Staff Word', $staff_html);
+        $this->assertStringContainsString('ll-word-grid--staff-inactive-images', $staff_html);
+        $this->assertStringContainsString('ll-word-item--staff-inactive-image', $staff_html);
+        $this->assertStringContainsString('ll-word-image-container--staff-inactive', $staff_html);
+        $this->assertStringContainsString('class="word-image', $staff_html);
+        $this->assertSame(1, substr_count($staff_html, 'll-word-image-staff-overlay'));
+        $this->assertStringContainsString('Not public: quiz does not use pictures.', $staff_html);
+    }
+
     public function test_lesson_grid_naturally_sorts_visible_word_titles(): void
     {
         $wordset = wp_insert_term('Deferred Sort Wordset', 'wordset', ['slug' => 'deferred-sort-wordset']);

@@ -2101,6 +2101,35 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     opacity: 0.56;
 }
 
+.word-grid.ll-word-grid .word-item.ll-word-item--staff-inactive-image .word-image {
+    filter: grayscale(1) !important;
+    opacity: 0.42 !important;
+}
+
+.word-grid.ll-word-grid .ll-word-image-container--staff-inactive {
+    background: #0f172a !important;
+}
+
+.word-grid.ll-word-grid .ll-word-image-staff-overlay {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 3 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-sizing: border-box !important;
+    padding: 10px !important;
+    background: rgba(15, 23, 42, 0.58) !important;
+    color: #ffffff !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1.25 !important;
+    text-align: center !important;
+    text-shadow: none !important;
+    letter-spacing: 0 !important;
+    pointer-events: none !important;
+}
+
 .word-grid.ll-word-grid .word-item.ll-word-item--draft .word-title,
 .word-grid.ll-word-grid .word-item.ll-word-item--draft .ll-word-text,
 .word-grid.ll-word-grid .word-item.ll-word-item--draft .ll-word-translation,

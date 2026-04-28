@@ -2968,6 +2968,10 @@ function ll_tools_word_grid_get_presentation_hidden_word_note(int $word_id): str
     return __('Published but hidden. Reason: missing image.', 'll-tools-text-domain');
 }
 
+function ll_tools_word_grid_get_staff_inactive_image_note(): string {
+    return __('Not public: quiz does not use pictures.', 'll-tools-text-domain');
+}
+
 function ll_tools_word_grid_move_lookup_posts_to_end(array $posts, array $end_lookup): array {
     if (empty($posts) || empty($end_lookup)) {
         return $posts;
@@ -3029,6 +3033,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
     $is_text_based = false;
     $has_text_only_answer_options = false;
     $hide_lesson_grid_text = false;
+    $category_quiz_uses_images = true;
     if ($sanitized_category !== '') {
         if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
             $category_term = ll_tools_resolve_word_category_term_for_wordsets(
@@ -3055,6 +3060,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         $requires_images = function_exists('ll_tools_quiz_requires_image')
             ? ll_tools_quiz_requires_image(['prompt_type' => $prompt_type, 'option_type' => $option_type], $option_type)
             : (($prompt_type === 'image') || ($option_type === 'image'));
+        $category_quiz_uses_images = $requires_images;
         $is_text_based = !$requires_images && (strpos($option_type, 'text') === 0);
         $has_text_only_answer_options = in_array($option_type, ['text', 'text_translation', 'text_title'], true);
     }
@@ -3095,6 +3101,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         || (!empty($GLOBALS['ll_tools_word_grid_force_lesson_context']) && wp_doing_ajax())
     );
     $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id) && $is_lesson_context;
+    $show_staff_inactive_images = $can_edit_words && $is_text_based && !$category_quiz_uses_images;
     $can_manage_internal_notes = $is_lesson_context
         && function_exists('ll_tools_current_user_can_manage_internal_review_notes')
         && ll_tools_current_user_can_manage_internal_review_notes($wordset_id);
@@ -3124,6 +3131,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'is_text_based'                => $is_text_based,
         'has_text_only_answer_options' => $has_text_only_answer_options,
         'hide_lesson_grid_text'        => $hide_lesson_grid_text,
+        'show_staff_inactive_images'   => $show_staff_inactive_images,
         'wordset_has_gender'           => $wordset_has_gender,
         'wordset_has_plurality'        => $wordset_has_plurality,
         'wordset_has_verb_tense'       => $wordset_has_verb_tense,
@@ -4122,6 +4130,9 @@ function ll_tools_word_grid_get_shell_spec(array $context): array {
     if (!empty($context['is_text_based'])) {
         $grid_classes .= ' ll-word-grid--text';
     }
+    if (!empty($context['show_staff_inactive_images'])) {
+        $grid_classes .= ' ll-word-grid--staff-inactive-images';
+    }
     if (!empty($context['hide_lesson_grid_text'])) {
         $grid_classes .= ' ll-word-grid--hide-text';
     }
@@ -4192,7 +4203,7 @@ function ll_tools_word_grid_get_shell_spec(array $context): array {
         'class' => $grid_classes,
         'attributes' => $attributes,
         'cards' => $shell_cards,
-        'show_media' => empty($context['is_text_based']),
+        'show_media' => empty($context['is_text_based']) || !empty($context['show_staff_inactive_images']),
         'show_title' => empty($context['hide_lesson_grid_text']),
     ];
 }
@@ -4221,6 +4232,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $is_text_based = !empty($context['is_text_based']);
     $has_text_only_answer_options = !empty($context['has_text_only_answer_options']);
     $hide_lesson_grid_text = !empty($context['hide_lesson_grid_text']);
+    $show_staff_inactive_images = !empty($context['show_staff_inactive_images']);
     $wordset_has_gender = !empty($context['wordset_has_gender']);
     $wordset_has_plurality = !empty($context['wordset_has_plurality']);
     $wordset_has_verb_tense = !empty($context['wordset_has_verb_tense']);
@@ -4520,6 +4532,9 @@ function ll_tools_word_grid_shortcode($atts) {
         if ($is_text_based) {
             $grid_classes .= ' ll-word-grid--text';
         }
+        if ($show_staff_inactive_images) {
+            $grid_classes .= ' ll-word-grid--staff-inactive-images';
+        }
         if ($hide_lesson_grid_text) {
             $grid_classes .= ' ll-word-grid--hide-text';
         }
@@ -4702,12 +4717,20 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
             }
 
-            $word_has_effective_image = !$is_text_based
-                && (
+            $word_has_any_effective_image = (!$is_text_based || $show_staff_inactive_images)
+                ? (
                     function_exists('ll_tools_word_has_effective_image')
                         ? ll_tools_word_has_effective_image((int) $word_id, true)
                         : has_post_thumbnail((int) $word_id)
-                );
+                )
+                : false;
+            $word_has_staff_inactive_image = $is_text_based
+                && $show_staff_inactive_images
+                && !$is_draft_word
+                && !$is_presentation_hidden_word
+                && $word_has_any_effective_image;
+            $word_has_effective_image = !$is_text_based && $word_has_any_effective_image;
+            $should_render_word_image = $word_has_effective_image || $word_has_staff_inactive_image;
 
             // Individual item
             $word_item_classes = 'word-item';
@@ -4717,20 +4740,30 @@ function ll_tools_word_grid_shortcode($atts) {
             if ($is_presentation_hidden_word) {
                 $word_item_classes .= ' ll-word-item--presentation-hidden';
             }
+            if ($word_has_staff_inactive_image) {
+                $word_item_classes .= ' ll-word-item--staff-inactive-image';
+            }
             if (!$is_text_based && !$word_has_effective_image) {
                 $word_item_classes .= ' ll-word-item--no-image';
             }
             $presentation_hidden_attr = $is_presentation_hidden_word ? ' data-ll-word-presentation-hidden="1"' : '';
             echo '<div class="' . esc_attr($word_item_classes) . '" data-word-id="' . esc_attr($word_id) . '" data-ll-word-status="' . esc_attr($word_status) . '"' . $presentation_hidden_attr . '>';
             // Featured image with container
-            if ($word_has_effective_image) {
-                echo '<div class="word-image-container">'; // Start new container
+            if ($should_render_word_image) {
+                $image_container_classes = 'word-image-container';
+                if ($word_has_staff_inactive_image) {
+                    $image_container_classes .= ' ll-word-image-container--staff-inactive';
+                }
+                echo '<div class="' . esc_attr($image_container_classes) . '">'; // Start new container
                 echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, array(
                     'class' => 'word-image',
                     'loading' => 'lazy',
                     'decoding' => 'async',
                     'fetchpriority' => 'low',
                 ));
+                if ($word_has_staff_inactive_image) {
+                    echo '<span class="ll-word-image-staff-overlay">' . esc_html(ll_tools_word_grid_get_staff_inactive_image_note()) . '</span>';
+                }
                 echo '</div>'; // Close container
             }
 
