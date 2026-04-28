@@ -265,9 +265,10 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Zebra Visible', $staff_html);
         $this->assertStringContainsString('Middle Hidden', $staff_html);
         $this->assertStringContainsString('ll-word-item--presentation-hidden', $staff_html);
+        $this->assertStringContainsString('ll-word-item--no-image', $staff_html);
         $this->assertStringContainsString('data-ll-word-status="publish" data-ll-word-presentation-hidden="1"', $staff_html);
         $this->assertStringContainsString('ll-word-draft-notice__badge">Hidden', $staff_html);
-        $this->assertStringContainsString('does not match the category quiz presentation', $staff_html);
+        $this->assertStringContainsString('Published but hidden. Reason: missing image.', $staff_html);
 
         $position_alpha = strpos($staff_html, 'Alpha Visible');
         $position_zebra = strpos($staff_html, 'Zebra Visible');

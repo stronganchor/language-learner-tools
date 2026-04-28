@@ -2950,7 +2950,7 @@ function ll_tools_word_grid_get_presentation_hidden_word_note(int $word_id): str
         return '';
     }
 
-    return __('Published, but hidden from public lesson and quiz pages because it does not match the category quiz presentation.', 'll-tools-text-domain');
+    return __('Published but hidden. Reason: missing image.', 'll-tools-text-domain');
 }
 
 function ll_tools_word_grid_move_lookup_posts_to_end(array $posts, array $end_lookup): array {
@@ -4666,6 +4666,13 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
             }
 
+            $word_has_effective_image = !$is_text_based
+                && (
+                    function_exists('ll_tools_word_has_effective_image')
+                        ? ll_tools_word_has_effective_image((int) $word_id, true)
+                        : has_post_thumbnail((int) $word_id)
+                );
+
             // Individual item
             $word_item_classes = 'word-item';
             if ($is_draft_word || $is_presentation_hidden_word) {
@@ -4674,17 +4681,13 @@ function ll_tools_word_grid_shortcode($atts) {
             if ($is_presentation_hidden_word) {
                 $word_item_classes .= ' ll-word-item--presentation-hidden';
             }
+            if (!$is_text_based && !$word_has_effective_image) {
+                $word_item_classes .= ' ll-word-item--no-image';
+            }
             $presentation_hidden_attr = $is_presentation_hidden_word ? ' data-ll-word-presentation-hidden="1"' : '';
             echo '<div class="' . esc_attr($word_item_classes) . '" data-word-id="' . esc_attr($word_id) . '" data-ll-word-status="' . esc_attr($word_status) . '"' . $presentation_hidden_attr . '>';
             // Featured image with container
-            if (
-                !$is_text_based
-                && (
-                    function_exists('ll_tools_word_has_effective_image')
-                        ? ll_tools_word_has_effective_image((int) get_the_ID(), true)
-                        : has_post_thumbnail()
-                )
-            ) {
+            if ($word_has_effective_image) {
                 echo '<div class="word-image-container">'; // Start new container
                 echo ll_tools_word_grid_get_post_thumbnail_html((int) get_the_ID(), $word_grid_image_size, array(
                     'class' => 'word-image',

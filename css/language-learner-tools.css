@@ -1874,6 +1874,10 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     box-shadow: none !important;
 }
 
+.word-grid.ll-word-grid .word-item.ll-word-item--draft.ll-word-item--no-image {
+    padding-top: 34px !important;
+}
+
 .word-grid.ll-word-grid .word-item.ll-word-item--draft .word-image {
     filter: grayscale(1);
     opacity: 0.56;
