@@ -25,7 +25,9 @@ For a normal Codex session against a live LL Tools site:
 8. Use `GET /wordsets/{wordset}/missing-meta` to discover the current backlog.
 9. Use `POST /wordsets/{wordset}/bulk-update` with `dry_run=true` before any
    write operation.
-10. Re-run the same request without `dry_run` to apply changes.
+10. Re-run the same request without `dry_run` to apply changes. The server
+    applies write batches in small chunks by default, so keep the returned
+    `resume_state` and repeat until `batch.has_more` is false.
 11. For word-option groups, call
     `POST /wordsets/{wordset}/word-option-rules` with `dry_run=true` before
     applying the same payload without `dry_run`.
@@ -38,6 +40,28 @@ For a normal Codex session against a live LL Tools site:
 
 This sequence keeps the workflow close to how Codex already operates in
 wp-admin, but removes nonce scraping and form replay.
+
+## Server-side safety limits
+
+LL Tools intentionally limits automation writes so a Codex session cannot flood
+the server with image, media, or metadata updates:
+
+- `bulk-update` defaults to 10 write rows per request, with a hard default max
+  of 10. Dry runs default to 50 rows, with a hard default max of 100.
+- `missing-meta` returns a paged response by default: 100 rows per request, with
+  a hard default max of 250.
+- Basic-auth REST writes to `/wp/v2/media`, `/wp/v2/word_images`, and
+  `/wp/v2/words` are serialized by a lightweight resource guard.
+- The guarded routes return HTTP `429` with `Retry-After` and
+  `data.retry_after_seconds` when another automation write just ran. Wait that
+  long before retrying the exact same request.
+- REST-driven bundle imports process word images in smaller chunks than the
+  wp-admin path.
+
+Check `GET /automation/status` for the live site's current `resource_guard`
+values before starting large work. Site owners can adjust the defaults with the
+documented WordPress filters in the plugin code, but automation callers should
+always honor the response payload instead of assuming a fixed batch size.
 
 ## Authentication
 
@@ -130,7 +154,7 @@ List words that are still missing metadata:
 
 ```bash
 curl -u codex-temp:YOUR_PASSWORD \
-  "https://example.com/wp-json/ll-tools/v1/wordsets/spanish/missing-meta?fields=part_of_speech,grammatical_gender"
+  "https://example.com/wp-json/ll-tools/v1/wordsets/spanish/missing-meta?fields=part_of_speech,grammatical_gender&limit=100"
 ```
 
 Dry-run a bulk update:
@@ -144,6 +168,7 @@ curl -u codex-temp:YOUR_PASSWORD \
     "category": "household-items",
     "where_missing": ["grammatical_gender"],
     "set": { "field": "grammatical_gender", "value": "feminine" },
+    "limit": 10,
     "dry_run": true
   }'
 ```
@@ -158,7 +183,8 @@ curl -u codex-temp:YOUR_PASSWORD \
   -d '{
     "category": "household-items",
     "where_missing": ["grammatical_gender"],
-    "set": { "field": "grammatical_gender", "value": "feminine" }
+    "set": { "field": "grammatical_gender", "value": "feminine" },
+    "limit": 10
   }'
 ```
 
@@ -282,9 +308,12 @@ Query params:
 
 - `category` optional category slug or name
 - `fields` optional comma-separated list or repeated array
+- `limit` optional, default 100 and capped at 250 unless the site customizes it
+- `offset` optional
 
 Use this route before a metadata-editing session so Codex can see the exact
-remaining rows instead of inferring gaps from the UI.
+remaining rows instead of inferring gaps from the UI. Large wordsets are paged:
+continue with `batch.next_offset` until `batch.has_more` is false.
 
 ### `POST /wordsets/{wordset}/bulk-update`
 
@@ -298,10 +327,15 @@ Body fields:
 - `word` optional
 - `where_missing` optional list or comma-separated string
 - `where_pos` optional part-of-speech slug
-- `limit` optional
+- `limit` optional, default 10 for writes and capped at 10 unless the site
+  customizes it
 - `offset` optional
 - `dry_run` optional
 - `resume_state` optional object returned by a prior run
+
+Responses include `total_matched_count`, `matched_count`, `batch.has_more`, and
+the next `resume_state`. For writes, prefer resume-state pagination over a large
+`offset` so retries do not repeat rows that were already processed.
 
 Supported update fields:
 

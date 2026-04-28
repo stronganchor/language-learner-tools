@@ -450,6 +450,251 @@ function ll_tools_rest_automation_resume_mark_processed(array &$resume_state, in
     $resume_state['updated_at_gmt'] = gmdate('c');
 }
 
+function ll_tools_rest_automation_batch_limit(string $context, bool $dry_run): array {
+    $defaults = [
+        'bulk_update' => [
+            'default' => $dry_run ? 50 : 10,
+            'max' => $dry_run ? 100 : 10,
+        ],
+        'missing_meta' => [
+            'default' => 100,
+            'max' => 250,
+        ],
+    ];
+
+    $settings = $defaults[$context] ?? [
+        'default' => 25,
+        'max' => 50,
+    ];
+
+    $settings['default'] = max(1, (int) apply_filters('ll_tools_rest_automation_default_batch_limit', (int) $settings['default'], $context, $dry_run));
+    $settings['max'] = max(1, (int) apply_filters('ll_tools_rest_automation_max_batch_limit', (int) $settings['max'], $context, $dry_run));
+    if ($settings['default'] > $settings['max']) {
+        $settings['default'] = $settings['max'];
+    }
+
+    return $settings;
+}
+
+function ll_tools_rest_automation_resolve_batch_limit(WP_REST_Request $request, string $context, bool $dry_run): array {
+    $settings = ll_tools_rest_automation_batch_limit($context, $dry_run);
+    $raw_limit = $request->get_param('limit');
+    $requested_limit = (is_scalar($raw_limit) && trim((string) $raw_limit) !== '')
+        ? max(0, (int) $raw_limit)
+        : 0;
+
+    $effective_limit = $requested_limit > 0 ? $requested_limit : (int) $settings['default'];
+    $clamped = $effective_limit > (int) $settings['max'];
+    $effective_limit = min($effective_limit, (int) $settings['max']);
+
+    return [
+        'requested' => $requested_limit,
+        'effective' => $effective_limit,
+        'default' => (int) $settings['default'],
+        'max' => (int) $settings['max'],
+        'clamped' => $clamped,
+    ];
+}
+
+function ll_tools_rest_resource_guard_option_name(string $scope, string $suffix): string {
+    return 'll_tools_rest_guard_' . sanitize_key($suffix) . '_' . md5($scope);
+}
+
+function ll_tools_rest_resource_guard_has_authorization_header(): bool {
+    foreach (['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION', 'PHP_AUTH_USER'] as $key) {
+        if (!empty($_SERVER[$key])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
+    if (!(bool) apply_filters('ll_tools_rest_resource_guard_enabled', true, $request)) {
+        return [];
+    }
+
+    $method = strtoupper((string) $request->get_method());
+    if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        return [];
+    }
+
+    if (rest_sanitize_boolean($request->get_param('dry_run'))) {
+        return [];
+    }
+
+    if (!ll_tools_rest_resource_guard_has_authorization_header()) {
+        return [];
+    }
+
+    $route = (string) $request->get_route();
+    $resource = '';
+    $delay_seconds = 1.25;
+
+    if (preg_match('#^/wp/v2/(media|word_images|words)(?:/\d+)?$#', $route, $matches)) {
+        $resource = (string) $matches[1];
+        $delay_seconds = in_array($resource, ['media', 'word_images'], true) ? 2.0 : 1.25;
+    } elseif ($route === '/ll-tools/v1/wordsets') {
+        $resource = 'll_tools_wordset_create';
+        $delay_seconds = 2.0;
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-option-rules|review-notes)$#', $route, $matches)) {
+        $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
+        $delay_seconds = 1.25;
+    }
+
+    if ($resource === '') {
+        return [];
+    }
+
+    return [
+        'scope' => (string) apply_filters('ll_tools_rest_resource_guard_scope', 'll_tools_rest_automation_write', $request, $resource),
+        'resource' => $resource,
+        'route' => $route,
+        'delay_seconds' => max(0.1, (float) apply_filters('ll_tools_rest_resource_guard_delay_seconds', $delay_seconds, $request, $resource)),
+        'lock_ttl_seconds' => max(10.0, (float) apply_filters('ll_tools_rest_resource_guard_lock_ttl_seconds', 90.0, $request, $resource)),
+    ];
+}
+
+function ll_tools_rest_resource_guard_wait_response(array $policy, float $retry_after_seconds): WP_REST_Response {
+    $retry_after_seconds = max(1.0, $retry_after_seconds);
+    $retry_after_header = (string) max(1, (int) ceil($retry_after_seconds));
+
+    $response = new WP_REST_Response([
+        'code' => 'll_tools_rest_resource_guard_wait',
+        'message' => __('LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates.', 'll-tools-text-domain'),
+        'data' => [
+            'status' => 429,
+            'retry_after_seconds' => (float) round($retry_after_seconds, 3),
+            'scope' => (string) ($policy['scope'] ?? ''),
+            'resource' => (string) ($policy['resource'] ?? ''),
+            'route' => (string) ($policy['route'] ?? ''),
+        ],
+    ], 429);
+    $response->header('Retry-After', $retry_after_header);
+    $response->header('X-LL-Tools-Rest-Guard', 'wait');
+
+    return $response;
+}
+
+function ll_tools_rest_resource_guard_before_callbacks($response, array $handler, WP_REST_Request $request) {
+    unset($handler);
+
+    if (!empty($response)) {
+        return $response;
+    }
+
+    $policy = ll_tools_rest_resource_guard_policy($request);
+    if (empty($policy['scope'])) {
+        return $response;
+    }
+
+    $scope = (string) $policy['scope'];
+    $lock_option = ll_tools_rest_resource_guard_option_name($scope, 'lock');
+    $next_option = ll_tools_rest_resource_guard_option_name($scope, 'next');
+    $now = microtime(true);
+    $next_allowed = (float) get_option($next_option, 0);
+    if ($next_allowed > $now) {
+        return ll_tools_rest_resource_guard_wait_response($policy, $next_allowed - $now);
+    }
+
+    $owner = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : wp_generate_password(24, false, false);
+    $lock = [
+        'owner' => $owner,
+        'route' => (string) ($policy['route'] ?? ''),
+        'resource' => (string) ($policy['resource'] ?? ''),
+        'user_id' => (int) get_current_user_id(),
+        'created_at' => $now,
+        'expires_at' => $now + (float) ($policy['lock_ttl_seconds'] ?? 90.0),
+    ];
+
+    $added = add_option($lock_option, $lock, '', 'no');
+    if (!$added) {
+        $existing = get_option($lock_option, []);
+        $expires_at = is_array($existing) ? (float) ($existing['expires_at'] ?? 0) : 0.0;
+        if ($expires_at > $now) {
+            $active_retry_after = min(
+                $expires_at - $now,
+                max(1.0, (float) ($policy['delay_seconds'] ?? 1.25))
+            );
+            return ll_tools_rest_resource_guard_wait_response($policy, $active_retry_after);
+        }
+
+        delete_option($lock_option);
+        $added = add_option($lock_option, $lock, '', 'no');
+        if (!$added) {
+            return ll_tools_rest_resource_guard_wait_response($policy, 1.0);
+        }
+    }
+
+    if (!isset($GLOBALS['ll_tools_rest_resource_guard_locks']) || !is_array($GLOBALS['ll_tools_rest_resource_guard_locks'])) {
+        $GLOBALS['ll_tools_rest_resource_guard_locks'] = [];
+    }
+    $GLOBALS['ll_tools_rest_resource_guard_locks'][] = [
+        'scope' => $scope,
+        'owner' => $owner,
+        'lock_option' => $lock_option,
+        'next_option' => $next_option,
+        'delay_seconds' => (float) ($policy['delay_seconds'] ?? 1.25),
+    ];
+
+    return $response;
+}
+add_filter('rest_request_before_callbacks', 'll_tools_rest_resource_guard_before_callbacks', 8, 3);
+
+function ll_tools_rest_resource_guard_release($response, $server, WP_REST_Request $request) {
+    unset($server, $request);
+
+    $locks = isset($GLOBALS['ll_tools_rest_resource_guard_locks']) && is_array($GLOBALS['ll_tools_rest_resource_guard_locks'])
+        ? $GLOBALS['ll_tools_rest_resource_guard_locks']
+        : [];
+    if (empty($locks)) {
+        return $response;
+    }
+
+    foreach ($locks as $lock) {
+        if (!is_array($lock)) {
+            continue;
+        }
+
+        $lock_option = (string) ($lock['lock_option'] ?? '');
+        $next_option = (string) ($lock['next_option'] ?? '');
+        $owner = (string) ($lock['owner'] ?? '');
+        if ($lock_option === '' || $next_option === '' || $owner === '') {
+            continue;
+        }
+
+        $existing = get_option($lock_option, []);
+        if (is_array($existing) && (string) ($existing['owner'] ?? '') === $owner) {
+            delete_option($lock_option);
+        }
+
+        update_option($next_option, microtime(true) + max(0.1, (float) ($lock['delay_seconds'] ?? 1.25)), false);
+    }
+
+    $GLOBALS['ll_tools_rest_resource_guard_locks'] = [];
+    return $response;
+}
+add_filter('rest_post_dispatch', 'll_tools_rest_resource_guard_release', 999, 3);
+
+function ll_tools_rest_resource_guard_clear_state(): void {
+    $scope = 'll_tools_rest_automation_write';
+    delete_option(ll_tools_rest_resource_guard_option_name($scope, 'lock'));
+    delete_option(ll_tools_rest_resource_guard_option_name($scope, 'next'));
+    $GLOBALS['ll_tools_rest_resource_guard_locks'] = [];
+}
+
+function ll_tools_rest_automation_rest_import_word_image_chunk_size($chunk_size, array $job, array $payload): int {
+    unset($job, $payload);
+
+    if (!ll_tools_rest_automation_is_request()) {
+        return (int) $chunk_size;
+    }
+
+    return min((int) $chunk_size, (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8));
+}
+add_filter('ll_tools_import_job_word_image_chunk_size', 'll_tools_rest_automation_rest_import_word_image_chunk_size', 10, 3);
+
 function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Response {
     unset($request);
 
@@ -490,6 +735,25 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'import_process' => '/ll-tools/v1/imports/{job_id}/process',
             'import_discard' => '/ll-tools/v1/imports/{job_id}/discard',
             'import_result' => '/ll-tools/v1/imports/{job_id}/result',
+        ],
+        'resource_guard' => [
+            'retry_status' => 429,
+            'core_write_routes' => [
+                '/wp/v2/media',
+                '/wp/v2/word_images',
+                '/wp/v2/words',
+            ],
+            'bulk_update_batch' => [
+                'default_write_limit' => ll_tools_rest_automation_batch_limit('bulk_update', false)['default'],
+                'max_write_limit' => ll_tools_rest_automation_batch_limit('bulk_update', false)['max'],
+                'default_dry_run_limit' => ll_tools_rest_automation_batch_limit('bulk_update', true)['default'],
+                'max_dry_run_limit' => ll_tools_rest_automation_batch_limit('bulk_update', true)['max'],
+            ],
+            'missing_meta_batch' => [
+                'default_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['default'],
+                'max_limit' => ll_tools_rest_automation_batch_limit('missing_meta', false)['max'],
+            ],
+            'rest_import_word_image_chunk_size' => (int) apply_filters('ll_tools_rest_import_word_image_chunk_size', 8),
         ],
     ]);
 }
@@ -606,6 +870,13 @@ function ll_tools_rest_automation_wordset_missing_meta(WP_REST_Request $request)
         ]);
     }
 
+    $total_count = count($rows);
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'missing_meta', false);
+    $limit = (int) $limit_info['effective'];
+    $rows = array_slice($rows, $offset, $limit);
+    $next_offset = $offset + count($rows);
+
     return rest_ensure_response([
         'generated_at_gmt' => gmdate('c'),
         'wordset' => [
@@ -616,8 +887,19 @@ function ll_tools_rest_automation_wordset_missing_meta(WP_REST_Request $request)
         'filters' => [
             'category' => $category_spec,
             'fields' => $missing_fields,
+            'limit' => $limit,
+            'offset' => $offset,
+        ],
+        'batch' => [
+            'requested_limit' => (int) $limit_info['requested'],
+            'effective_limit' => $limit,
+            'max_limit' => (int) $limit_info['max'],
+            'limit_clamped' => (bool) $limit_info['clamped'],
+            'has_more' => $next_offset < $total_count,
+            'next_offset' => $next_offset < $total_count ? $next_offset : null,
         ],
         'count' => count($rows),
+        'total_count' => $total_count,
         'rows' => ll_tools_cli_prepare_word_rows_for_output($rows),
     ]);
 }
@@ -659,11 +941,14 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
         }));
     }
 
-    $offset = max(0, (int) $request->get_param('offset'));
-    $limit = max(0, (int) $request->get_param('limit'));
-    $rows = ll_tools_cli_slice_rows($rows, $offset, $limit);
-
     $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $total_matched_count = count($rows);
+    $offset = max(0, (int) $request->get_param('offset'));
+    $limit_info = ll_tools_rest_automation_resolve_batch_limit($request, 'bulk_update', $dry_run);
+    $limit = (int) $limit_info['effective'];
+    $rows = ll_tools_cli_slice_rows($rows, $offset, $limit);
+    $next_offset = $offset + count($rows);
+
     $summary = [
         'generated_at_gmt' => gmdate('c'),
         'dry_run' => $dry_run,
@@ -680,8 +965,17 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
             'limit' => $limit,
             'offset' => $offset,
         ],
+        'batch' => [
+            'requested_limit' => (int) $limit_info['requested'],
+            'effective_limit' => $limit,
+            'max_limit' => (int) $limit_info['max'],
+            'limit_clamped' => (bool) $limit_info['clamped'],
+            'has_more' => $next_offset < $total_matched_count,
+            'next_offset' => $next_offset < $total_matched_count ? $next_offset : null,
+        ],
         'set' => $set_args,
         'matched_count' => count($rows),
+        'total_matched_count' => $total_matched_count,
         'matched_rows' => ll_tools_cli_prepare_word_rows_for_output($rows),
         'updated_count' => 0,
         'updated' => [],

@@ -15,6 +15,9 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         if (function_exists('ll_tools_rest_automation_clear_auth_runtime_state')) {
             ll_tools_rest_automation_clear_auth_runtime_state();
         }
+        if (function_exists('ll_tools_rest_resource_guard_clear_state')) {
+            ll_tools_rest_resource_guard_clear_state();
+        }
         parent::tearDown();
     }
 
@@ -156,6 +159,97 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $resume_data = $resume->get_data();
         $this->assertIsArray($resume_data);
         $this->assertSame(0, (int) ($resume_data['matched_count'] ?? 0));
+    }
+
+    public function test_bulk_update_route_caps_write_batches_by_default(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Batch Cap Wordset', 'rest-batch-cap-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Batch Cap Category', 'rest-batch-cap-category');
+        $this->ensure_term('part_of_speech', 'Noun', 'noun');
+
+        $word_ids = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $word_ids[] = $this->create_word($wordset_id, [$category_id], 'REST Batch Cap Word ' . $i, 'Batch Translation ' . $i);
+        }
+
+        wp_set_current_user($admin_id);
+
+        $first = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-batch-cap-wordset/bulk-update', [
+            'set' => [
+                'field' => 'part_of_speech',
+                'value' => 'noun',
+            ],
+            'where_missing' => ['part_of_speech'],
+        ]);
+
+        $this->assertSame(200, $first->get_status());
+        $first_data = $first->get_data();
+        $this->assertIsArray($first_data);
+        $this->assertSame(12, (int) ($first_data['total_matched_count'] ?? 0));
+        $this->assertSame(10, (int) ($first_data['matched_count'] ?? 0));
+        $this->assertSame(10, (int) ($first_data['updated_count'] ?? 0));
+        $this->assertTrue((bool) (($first_data['batch']['has_more'] ?? false)));
+        $this->assertSame(10, (int) (($first_data['batch']['effective_limit'] ?? 0)));
+
+        $second = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-batch-cap-wordset/bulk-update', [
+            'set' => [
+                'field' => 'part_of_speech',
+                'value' => 'noun',
+            ],
+            'where_missing' => ['part_of_speech'],
+            'resume_state' => $first_data['resume_state'] ?? [],
+        ]);
+
+        $this->assertSame(200, $second->get_status());
+        $second_data = $second->get_data();
+        $this->assertIsArray($second_data);
+        $this->assertSame(2, (int) ($second_data['total_matched_count'] ?? 0));
+        $this->assertSame(2, (int) ($second_data['updated_count'] ?? 0));
+        $this->assertFalse((bool) (($second_data['batch']['has_more'] ?? true)));
+
+        foreach ($word_ids as $word_id) {
+            $assigned_terms = wp_get_post_terms($word_id, 'part_of_speech', ['fields' => 'slugs']);
+            $this->assertContains('noun', array_map('strval', (array) $assigned_terms));
+        }
+    }
+
+    public function test_basic_auth_image_rest_writes_are_rate_limited(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $server = [
+            'HTTP_AUTHORIZATION' => 'Basic ' . base64_encode('lltools-image-rest:TempPass!789'),
+            'HTTP_HOST' => '127.0.0.1:10036',
+        ];
+
+        try {
+            $first = $this->dispatch_ll_tools_rest_request('POST', '/wp/v2/word_images', [
+                'title' => 'Guarded REST Image One',
+                'status' => 'publish',
+            ], $server);
+
+            $this->assertSame(201, $first->get_status());
+
+            $second = $this->dispatch_ll_tools_rest_request('POST', '/wp/v2/word_images', [
+                'title' => 'Guarded REST Image Two',
+                'status' => 'publish',
+            ], $server);
+
+            $this->assertSame(429, $second->get_status());
+            $data = $second->get_data();
+            $this->assertIsArray($data);
+            $this->assertSame('ll_tools_rest_resource_guard_wait', (string) ($data['code'] ?? ''));
+            $this->assertGreaterThan(0, (float) (($data['data']['retry_after_seconds'] ?? 0)));
+            $this->assertSame('/wp/v2/word_images', (string) (($data['data']['route'] ?? '')));
+            $headers = $second->get_headers();
+            $this->assertNotSame('', (string) ($headers['Retry-After'] ?? ''));
+        } finally {
+            if (function_exists('ll_tools_rest_resource_guard_clear_state')) {
+                ll_tools_rest_resource_guard_clear_state();
+            }
+        }
     }
 
     public function test_report_summary_route_returns_lightweight_counts(): void
