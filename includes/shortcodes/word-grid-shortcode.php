@@ -6966,6 +6966,23 @@ function ll_tools_word_grid_delete_word_handler() {
     foreach ($wordset_ids as $affected_wordset_id) {
         wp_cache_delete('ll_vocab_lesson_deep_counts_' . (int) $affected_wordset_id, 'll_tools');
     }
+    if (function_exists('ll_tools_wordset_editor_log_action')) {
+        $log_wordset_ids = ($wordset_id > 0) ? [$wordset_id] : $wordset_ids;
+        foreach (array_values(array_unique(array_map('intval', $log_wordset_ids))) as $log_wordset_id) {
+            if ($log_wordset_id <= 0) {
+                continue;
+            }
+            ll_tools_wordset_editor_log_action(
+                $log_wordset_id,
+                'word_trash',
+                sprintf(__('Moved "%s" to Trash.', 'll-tools-text-domain'), get_the_title($word_id)),
+                [
+                    'word_id'         => $word_id,
+                    'previous_status' => (string) $word->post_status,
+                ]
+            );
+        }
+    }
 
     wp_send_json_success([
         'message' => __('Word moved to Trash.', 'll-tools-text-domain'),
@@ -7035,6 +7052,19 @@ function ll_tools_word_grid_delete_recording_handler() {
         'fields'         => 'ids',
         'no_found_rows'  => true,
     ]);
+    if (function_exists('ll_tools_wordset_editor_log_action')) {
+        ll_tools_wordset_editor_log_action(
+            $wordset_id,
+            'recording_trash',
+            sprintf(__('Moved a recording from "%s" to Trash.', 'll-tools-text-domain'), get_the_title($word_id)),
+            [
+                'recording_id'     => $recording_id,
+                'word_id'          => $word_id,
+                'previous_status'  => (string) $recording->post_status,
+                'recording_title'  => (string) $recording->post_title,
+            ]
+        );
+    }
 
     wp_send_json_success([
         'message' => __('Recording moved to Trash.', 'll-tools-text-domain'),
@@ -7113,6 +7143,18 @@ function ll_tools_word_grid_move_recording_handler() {
         ll_tools_invalidate_wordset_page_lesson_cache();
     }
     wp_cache_delete('ll_vocab_lesson_deep_counts_' . $wordset_id, 'll_tools');
+    if (function_exists('ll_tools_wordset_editor_log_action')) {
+        ll_tools_wordset_editor_log_action(
+            $wordset_id,
+            'recording_move',
+            sprintf(__('Moved a recording from "%1$s" to "%2$s".', 'll-tools-text-domain'), get_the_title($source_word_id), get_the_title($target_word_id)),
+            [
+                'recording_id'   => $recording_id,
+                'source_word_id' => $source_word_id,
+                'target_word_id' => $target_word_id,
+            ]
+        );
+    }
 
     $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
         ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)

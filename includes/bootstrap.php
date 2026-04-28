@@ -145,6 +145,7 @@ require_once(__DIR__ . '/pages/vocab-lesson-pages.php');
 require_once(__DIR__ . '/pages/content-lesson-pages.php');
 require_once(__DIR__ . '/pages/wordset-games.php');
 require_once(__DIR__ . '/pages/wordset-pages.php');
+require_once(__DIR__ . '/pages/wordset-editor.php');
 require_once(__DIR__ . '/pages/default-shortcode-page-helper.php');
 require_once(__DIR__ . '/pages/recording-page.php');
 require_once(__DIR__ . '/pages/editor-hub-page.php');

@@ -14,6 +14,7 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         parent::setUp();
         $this->postBackup = $_POST;
         $this->requestBackup = $_REQUEST;
+        delete_option(LL_TOOLS_WORDSET_EDITOR_HISTORY_OPTION);
     }
 
     protected function tearDown(): void
@@ -21,6 +22,7 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $_POST = $this->postBackup;
         $_REQUEST = $this->requestBackup;
         unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        delete_option(LL_TOOLS_WORDSET_EDITOR_HISTORY_OPTION);
         wp_set_current_user(0);
         parent::tearDown();
     }
@@ -72,6 +74,8 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
         $this->assertSame('trash', get_post_status((int) $fixture['source_word_id']));
         $this->assertSame((int) $fixture['source_word_id'], (int) ($response['data']['word_id'] ?? 0));
+        $recent_actions = ll_tools_wordset_editor_get_recent_actions((int) $fixture['wordset_id'], 1);
+        $this->assertSame('word_trash', (string) ($recent_actions[0]['type'] ?? ''));
     }
 
     public function test_lesson_editor_can_move_recording_to_trash(): void
@@ -95,6 +99,8 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertSame('draft', get_post_status((int) $fixture['source_word_id']));
         $this->assertSame((int) $fixture['source_word_id'], (int) ($response['data']['word_id'] ?? 0));
         $this->assertFalse((bool) ($response['data']['has_remaining_recordings'] ?? true));
+        $recent_actions = ll_tools_wordset_editor_get_recent_actions((int) $fixture['wordset_id'], 1);
+        $this->assertSame('recording_trash', (string) ($recent_actions[0]['type'] ?? ''));
     }
 
     public function test_lesson_editor_can_move_recording_to_another_word_in_wordset(): void
@@ -120,6 +126,8 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertSame((int) $fixture['source_word_id'], (int) ($response['data']['source_word_id'] ?? 0));
         $this->assertSame((int) $fixture['target_word_id'], (int) ($response['data']['target_word_id'] ?? 0));
         $this->assertSame((int) $fixture['recording_id'], (int) ($response['data']['recording']['id'] ?? 0));
+        $recent_actions = ll_tools_wordset_editor_get_recent_actions((int) $fixture['wordset_id'], 1);
+        $this->assertSame('recording_move', (string) ($recent_actions[0]['type'] ?? ''));
     }
 
     public function test_lesson_editor_word_search_finds_move_targets_by_translation(): void

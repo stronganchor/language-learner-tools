@@ -13560,10 +13560,69 @@
         });
     }
 
+    function bindWordsetEditorInteractions() {
+        const $editor = $root.find('[data-ll-wordset-editor]').first();
+        if (!$editor.length) {
+            return;
+        }
+
+        const updateSelectionState = function () {
+            const $checks = $editor.find('[data-ll-wordset-editor-word]');
+            const $checked = $checks.filter(':checked');
+            const checkedCount = $checked.length;
+            const singularLabel = String($editor.attr('data-ll-wordset-editor-selected-singular') || '1 selected');
+            const pluralTemplate = String($editor.attr('data-ll-wordset-editor-selected-plural') || '%d selected');
+            $editor.find('[data-ll-wordset-editor-selected-count]').text(
+                checkedCount === 1 ? singularLabel : pluralTemplate.replace('%d', String(checkedCount))
+            );
+            $editor.find('[data-ll-wordset-editor-select-all]').each(function () {
+                this.checked = checkedCount > 0 && checkedCount === $checks.length;
+                this.indeterminate = checkedCount > 0 && checkedCount < $checks.length;
+            });
+        };
+
+        $root.on('change', '[data-ll-wordset-editor-select-all]', function () {
+            const checked = !!$(this).is(':checked');
+            $editor.find('[data-ll-wordset-editor-word]').prop('checked', checked);
+            updateSelectionState();
+        });
+
+        $root.on('change', '[data-ll-wordset-editor-word]', updateSelectionState);
+
+        $root.on('submit', '[data-ll-wordset-editor-bulk-form]', function (evt) {
+            const $form = $(this);
+            const selectedCount = $form.find('[data-ll-wordset-editor-word]:checked').length;
+            if (!selectedCount) {
+                evt.preventDefault();
+                alert(String($form.attr('data-ll-wordset-editor-empty-selection') || 'Select at least one word first.'));
+                return;
+            }
+
+            const action = String($form.find('select[name="ll_wordset_manager_editor_action"]').val() || '');
+            if (['add_category', 'remove_category', 'move_category'].indexOf(action) !== -1) {
+                const targetCategory = parseInt($form.find('select[name="ll_wordset_editor_target_category"]').val(), 10) || 0;
+                if (!targetCategory) {
+                    evt.preventDefault();
+                    alert(String($form.attr('data-ll-wordset-editor-category-required') || 'Choose a category target.'));
+                    return;
+                }
+            }
+            if (action === 'trash') {
+                const message = String($form.attr('data-ll-wordset-editor-trash-confirm') || '').trim();
+                if (message && !window.confirm(message)) {
+                    evt.preventDefault();
+                }
+            }
+        });
+
+        updateSelectionState();
+    }
+
     function bindSettingsPageInteractions() {
         syncSettingsButtons();
         syncGlobalPrefs();
         renderSettingsQueue();
+        bindWordsetEditorInteractions();
         scheduleUniformQueueItemWidth();
         $(window).off('resize.llWordsetQueueWidth').on('resize.llWordsetQueueWidth', function () {
             scheduleUniformQueueItemWidth();
