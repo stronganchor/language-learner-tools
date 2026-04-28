@@ -3462,7 +3462,7 @@ function ll_tools_render_category_quiz_presentation_mismatch_notice(): void {
         $published_count = max($current_count, (int) ($notice['published_count'] ?? 0));
 
         $message = sprintf(
-            __('Category "%1$s" is set to %2$s, so %3$d of %4$d published words currently appear.', 'll-tools-text-domain'),
+            __('Category "%1$s" is set to %2$s, so %3$d of %4$d published words currently appear for learners.', 'll-tools-text-domain'),
             (string) ($notice['category_name'] ?? ''),
             (string) ($notice['current_label'] ?? ''),
             $current_count,
@@ -3471,8 +3471,8 @@ function ll_tools_render_category_quiz_presentation_mismatch_notice(): void {
         $message .= ' ';
         $message .= sprintf(
             _n(
-                '%d published word does not match this presentation and will not appear on lesson or quiz pages.',
-                '%d published words do not match this presentation and will not appear on lesson or quiz pages.',
+                '%d published word does not match this presentation and will not appear for learners on lesson or quiz pages.',
+                '%d published words do not match this presentation and will not appear for learners on lesson or quiz pages.',
                 $mismatch_count,
                 'll-tools-text-domain'
             ),

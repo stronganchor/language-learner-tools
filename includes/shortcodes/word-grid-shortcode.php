@@ -2891,6 +2891,10 @@ function ll_tools_word_grid_should_show_draft_words(array $context): bool {
     return ll_tools_word_grid_is_lesson_context($context);
 }
 
+function ll_tools_word_grid_should_show_staff_hidden_words(array $context): bool {
+    return ll_tools_word_grid_should_show_draft_words($context);
+}
+
 function ll_tools_word_grid_get_draft_word_note(int $word_id): string {
     $word = get_post((int) $word_id);
     if (!($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'draft') {
@@ -2938,6 +2942,34 @@ function ll_tools_word_grid_get_draft_word_note(int $word_id): string {
     }
 
     return __('Word has not been published yet.', 'll-tools-text-domain');
+}
+
+function ll_tools_word_grid_get_presentation_hidden_word_note(int $word_id): string {
+    $word = get_post((int) $word_id);
+    if (!($word instanceof WP_Post) || $word->post_type !== 'words' || $word->post_status !== 'publish') {
+        return '';
+    }
+
+    return __('Published, but hidden from public lesson and quiz pages because it does not match the category quiz presentation.', 'll-tools-text-domain');
+}
+
+function ll_tools_word_grid_move_lookup_posts_to_end(array $posts, array $end_lookup): array {
+    if (empty($posts) || empty($end_lookup)) {
+        return $posts;
+    }
+
+    $front_posts = [];
+    $end_posts = [];
+    foreach ($posts as $post_obj) {
+        $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+        if ($post_id > 0 && isset($end_lookup[$post_id])) {
+            $end_posts[] = $post_obj;
+        } else {
+            $front_posts[] = $post_obj;
+        }
+    }
+
+    return array_merge($front_posts, $end_posts);
 }
 
 function ll_tools_word_grid_resolve_context($atts): array {
@@ -4179,6 +4211,8 @@ function ll_tools_word_grid_shortcode($atts) {
         ];
     $sort_visible_titles = ll_tools_word_grid_should_sort_visible_titles($context);
     $show_draft_words = ll_tools_word_grid_should_show_draft_words($context);
+    $show_staff_hidden_words = ll_tools_word_grid_should_show_staff_hidden_words($context);
+    $presentation_hidden_word_lookup = [];
 
     ll_tools_word_grid_enqueue_frontend_assets_for_context($context);
 
@@ -4276,18 +4310,29 @@ function ll_tools_word_grid_shortcode($atts) {
         }
     }
     if (!$is_text_based && !empty($query->posts) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
-        $visible_word_ids = ll_tools_filter_word_ids_with_effective_images(array_map(static function ($post_obj): int {
+        $image_filter_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
             return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
-        }, (array) $query->posts), true);
+        }, (array) $query->posts), static function (int $post_id): bool {
+            return $post_id > 0;
+        }));
+        $visible_word_ids = ll_tools_filter_word_ids_with_effective_images($image_filter_word_ids, true);
         $visible_lookup = array_fill_keys($visible_word_ids, true);
         if (count($visible_lookup) !== count((array) $query->posts)) {
-            $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($visible_lookup): bool {
-                $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
-                return $post_id > 0 && isset($visible_lookup[$post_id]);
-            }));
-            $query->posts = $visible_posts;
-            $query->post_count = count($visible_posts);
-            $query->current_post = -1;
+            if ($show_staff_hidden_words && empty($specific_word_ids)) {
+                foreach ($image_filter_word_ids as $post_id) {
+                    if (!isset($visible_lookup[$post_id]) && get_post_status($post_id) === 'publish') {
+                        $presentation_hidden_word_lookup[$post_id] = true;
+                    }
+                }
+            } else {
+                $visible_posts = array_values(array_filter((array) $query->posts, static function ($post_obj) use ($visible_lookup): bool {
+                    $post_id = isset($post_obj->ID) ? (int) $post_obj->ID : 0;
+                    return $post_id > 0 && isset($visible_lookup[$post_id]);
+                }));
+                $query->posts = $visible_posts;
+                $query->post_count = count($visible_posts);
+                $query->current_post = -1;
+            }
         }
     }
 
@@ -4334,6 +4379,9 @@ function ll_tools_word_grid_shortcode($atts) {
     }
     if ($sort_visible_titles && empty($specific_word_ids) && !$manual_order_applied) {
         $query->posts = ll_tools_word_grid_sort_posts_by_display_title($query->posts, $display_values_cache);
+    }
+    if (!empty($presentation_hidden_word_lookup)) {
+        $query->posts = ll_tools_word_grid_move_lookup_posts_to_end($query->posts, $presentation_hidden_word_lookup);
     }
     $query->post_count = count($query->posts);
     $query->current_post = -1;
@@ -4517,7 +4565,12 @@ function ll_tools_word_grid_shortcode($atts) {
             $word_id = get_the_ID();
             $word_status = (string) get_post_status($word_id);
             $is_draft_word = ($word_status === 'draft');
+            $is_presentation_hidden_word = isset($presentation_hidden_word_lookup[(int) $word_id]);
             $draft_note = $is_draft_word ? ll_tools_word_grid_get_draft_word_note((int) $word_id) : '';
+            $presentation_hidden_note = (!$is_draft_word && $is_presentation_hidden_word)
+                ? ll_tools_word_grid_get_presentation_hidden_word_note((int) $word_id)
+                : '';
+            $hide_text_for_word = $hide_lesson_grid_text && !$is_presentation_hidden_word;
             $display_values = $display_values_cache[$word_id] ?? ll_tools_word_grid_resolve_display_text($word_id);
             $word_text = $display_values['word_text'];
             $translation_text = $display_values['translation_text'];
@@ -4615,10 +4668,14 @@ function ll_tools_word_grid_shortcode($atts) {
 
             // Individual item
             $word_item_classes = 'word-item';
-            if ($is_draft_word) {
+            if ($is_draft_word || $is_presentation_hidden_word) {
                 $word_item_classes .= ' ll-word-item--draft';
             }
-            echo '<div class="' . esc_attr($word_item_classes) . '" data-word-id="' . esc_attr($word_id) . '" data-ll-word-status="' . esc_attr($word_status) . '">';
+            if ($is_presentation_hidden_word) {
+                $word_item_classes .= ' ll-word-item--presentation-hidden';
+            }
+            $presentation_hidden_attr = $is_presentation_hidden_word ? ' data-ll-word-presentation-hidden="1"' : '';
+            echo '<div class="' . esc_attr($word_item_classes) . '" data-word-id="' . esc_attr($word_id) . '" data-ll-word-status="' . esc_attr($word_status) . '"' . $presentation_hidden_attr . '>';
             // Featured image with container
             if (
                 !$is_text_based
@@ -4812,7 +4869,7 @@ function ll_tools_word_grid_shortcode($atts) {
             $title_row_html .= '<h3 class="word-title">';
             $show_inline_title_edit = $can_edit_words
                 && ll_tools_word_grid_is_lesson_context($context)
-                && !$hide_lesson_grid_text;
+                && !$hide_text_for_word;
             if ($show_inline_title_edit) {
                 $title_row_html .= ll_tools_word_grid_render_inline_title_editor([
                     'field' => 'word',
@@ -4839,7 +4896,7 @@ function ll_tools_word_grid_shortcode($atts) {
             $title_row_html .= '</h3>';
             $title_row_html .= '</div>';
 
-            if ($hide_lesson_grid_text) {
+            if ($hide_text_for_word) {
                 if ($actions_row_html !== '') {
                     echo $actions_row_html;
                 }
@@ -4854,10 +4911,11 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
                 echo $title_row_html;
             }
-            if ($draft_note !== '') {
+            $visibility_note = $draft_note !== '' ? $draft_note : $presentation_hidden_note;
+            if ($visibility_note !== '') {
                 echo '<div class="ll-word-draft-notice" data-ll-word-draft-notice>';
-                echo '<span class="ll-word-draft-notice__badge">' . esc_html__('Draft', 'll-tools-text-domain') . '</span>';
-                echo '<span class="ll-word-draft-notice__text">' . esc_html($draft_note) . '</span>';
+                echo '<span class="ll-word-draft-notice__badge">' . ($draft_note !== '' ? esc_html__('Draft', 'll-tools-text-domain') : esc_html__('Hidden', 'll-tools-text-domain')) . '</span>';
+                echo '<span class="ll-word-draft-notice__text">' . esc_html($visibility_note) . '</span>';
                 echo '</div>';
             }
             $meta_row_class = 'll-word-meta-row';
@@ -4885,7 +4943,7 @@ function ll_tools_word_grid_shortcode($atts) {
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-tense" data-ll-word-verb-tense>' . esc_html($verb_tense_label) . '</span>';
             echo '<span class="ll-word-meta-tag ll-word-meta-tag--verb-mood" data-ll-word-verb-mood>' . esc_html($verb_mood_label) . '</span>';
             echo '</div>';
-            if (!$hide_lesson_grid_text) {
+            if (!$hide_text_for_word) {
                 $note_class = 'll-word-note';
                 if ($word_note === '') {
                     $note_class .= ' ll-word-note--empty';
@@ -5225,10 +5283,10 @@ function ll_tools_word_grid_shortcode($atts) {
 
             // Audio buttons
             if ($has_recordings || $recording_launch_html !== '') {
-                $use_recording_rows = ($has_recording_caption && !$hide_lesson_grid_text) || $show_lesson_recording_edit_triggers;
+                $use_recording_rows = ($has_recording_caption && !$hide_text_for_word) || $show_lesson_recording_edit_triggers;
                 if ($use_recording_rows) {
                     $recordings_wrap_classes = 'll-word-recordings';
-                    if ($has_recording_caption && !$hide_lesson_grid_text) {
+                    if ($has_recording_caption && !$hide_text_for_word) {
                         $recordings_wrap_classes .= ' ll-word-recordings--with-text';
                     }
                     $recordings_html .= '<div class="' . esc_attr($recordings_wrap_classes) . '" aria-label="' . esc_attr__('Recordings', 'll-tools-text-domain') . '">';

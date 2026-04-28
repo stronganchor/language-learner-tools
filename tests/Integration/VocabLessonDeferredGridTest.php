@@ -175,6 +175,110 @@ final class VocabLessonDeferredGridTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Audio exists but is not published yet.', $staff_html);
     }
 
+    public function test_lesson_grid_ajax_shows_published_image_mismatches_to_staff_at_bottom(): void
+    {
+        $wordset = wp_insert_term('Deferred Presentation Hidden Wordset', 'wordset', ['slug' => 'deferred-presentation-hidden-wordset']);
+        $this->assertIsArray($wordset);
+        $wordset_id = (int) $wordset['term_id'];
+
+        $category = wp_insert_term('Deferred Presentation Hidden Category', 'word-category', ['slug' => 'deferred-presentation-hidden-category']);
+        $this->assertIsArray($category);
+        $category_id = (int) $category['term_id'];
+
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'image');
+        $this->createRecordingType('isolation', 'Isolation');
+
+        $alpha_id = $this->createWordWithThumbnail('Alpha Visible', $category_id, $wordset_id, 'alpha-visible.png');
+        update_post_meta($alpha_id, 'word_translation', 'Alpha');
+        $this->createAudioRecording($alpha_id, 'isolation', 'alpha-visible.mp3');
+
+        $hidden_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Middle Hidden',
+        ]);
+        wp_set_post_terms($hidden_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($hidden_id, [$wordset_id], 'wordset', false);
+        update_post_meta($hidden_id, 'word_translation', 'Middle');
+        $this->createAudioRecording($hidden_id, 'isolation', 'middle-hidden.mp3');
+
+        $zebra_id = $this->createWordWithThumbnail('Zebra Visible', $category_id, $wordset_id, 'zebra-visible.png');
+        update_post_meta($zebra_id, 'word_translation', 'Zebra');
+        $this->createAudioRecording($zebra_id, 'isolation', 'zebra-visible.mp3');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Deferred Presentation Hidden Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        wp_set_current_user(0);
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $public_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($public_response['success']);
+        $public_html = (string) (($public_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Alpha Visible', $public_html);
+        $this->assertStringContainsString('Zebra Visible', $public_html);
+        $this->assertStringNotContainsString('Middle Hidden', $public_html);
+        $this->assertStringNotContainsString('presentation-hidden', $public_html);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $admin = get_user_by('id', $admin_id);
+        $this->assertInstanceOf(WP_User::class, $admin);
+        $admin->add_cap('view_ll_tools');
+        wp_set_current_user($admin_id);
+
+        $_POST = [
+            'lesson_id' => $lesson_id,
+            'nonce' => wp_create_nonce('ll_vocab_lesson_grid_' . $lesson_id),
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $staff_response = $this->run_json_endpoint(static function (): void {
+                ll_tools_get_vocab_lesson_grid_handler();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue($staff_response['success']);
+        $staff_html = (string) (($staff_response['data'] ?? [])['html'] ?? '');
+        $this->assertStringContainsString('Alpha Visible', $staff_html);
+        $this->assertStringContainsString('Zebra Visible', $staff_html);
+        $this->assertStringContainsString('Middle Hidden', $staff_html);
+        $this->assertStringContainsString('ll-word-item--presentation-hidden', $staff_html);
+        $this->assertStringContainsString('data-ll-word-status="publish" data-ll-word-presentation-hidden="1"', $staff_html);
+        $this->assertStringContainsString('ll-word-draft-notice__badge">Hidden', $staff_html);
+        $this->assertStringContainsString('does not match the category quiz presentation', $staff_html);
+
+        $position_alpha = strpos($staff_html, 'Alpha Visible');
+        $position_zebra = strpos($staff_html, 'Zebra Visible');
+        $position_hidden = strpos($staff_html, 'Middle Hidden');
+        $this->assertIsInt($position_alpha);
+        $this->assertIsInt($position_zebra);
+        $this->assertIsInt($position_hidden);
+        $this->assertGreaterThan($position_alpha, $position_hidden);
+        $this->assertGreaterThan($position_zebra, $position_hidden);
+    }
+
     public function test_lesson_grid_ajax_renders_prompt_card_question_and_audio_answers(): void
     {
         $wordset = wp_insert_term('Deferred Prompt Card Wordset', 'wordset', ['slug' => 'deferred-prompt-card-wordset']);

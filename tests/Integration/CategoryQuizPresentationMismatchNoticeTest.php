@@ -146,8 +146,8 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString((string) $fixture['term']->name, $decoded_output);
         $this->assertStringContainsString('Play audio -> Images', $decoded_output);
         $this->assertStringContainsString('Play audio -> Text (translation)', $decoded_output);
-        $this->assertStringContainsString('published words currently appear', $decoded_output);
-        $this->assertStringContainsString('will not appear on lesson or quiz pages', $decoded_output);
+        $this->assertStringContainsString('published words currently appear for learners', $decoded_output);
+        $this->assertStringContainsString('will not appear for learners on lesson or quiz pages', $decoded_output);
         $this->assertStringContainsString('change this category\'s quiz presentation', $decoded_output);
         $this->assertStringContainsString('edit the words in this category', $decoded_output);
         $this->assertStringContainsString('word_category=' . (string) $fixture['term']->term_id, $decoded_output);
@@ -227,7 +227,7 @@ final class CategoryQuizPresentationMismatchNoticeTest extends LL_Tools_TestCase
         $this->assertStringContainsString('notice notice-warning', $decoded_output);
         $this->assertStringContainsString('word_category=' . (string) $fixture['term']->term_id, $decoded_output);
         $this->assertStringContainsString('wordset=' . (string) $fixture['wordset']->slug, $decoded_output);
-        $this->assertStringContainsString('10 of 12 published words currently appear', $decoded_output);
+        $this->assertStringContainsString('10 of 12 published words currently appear for learners', $decoded_output);
     }
 
     public function test_mismatch_data_returns_null_when_current_option_is_already_best(): void
