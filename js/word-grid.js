@@ -8102,6 +8102,12 @@
                 if (data.part_of_speech || data.grammatical_gender || data.grammatical_plurality || data.verb_tense || data.verb_mood) {
                     applyPosMetaUpdate($item, data.part_of_speech || {}, data.grammatical_gender || {}, data.grammatical_plurality || {}, data.verb_tense || {}, data.verb_mood || {});
                 }
+                $(document).trigger('lltools:word-grid-word-updated', [{
+                    wordId: wordId,
+                    data: data,
+                    item: $item.get(0),
+                    grid: $grid.get(0)
+                }]);
                 updateGridLayouts();
                 if (data.lesson_visible === false) {
                     $item.remove();

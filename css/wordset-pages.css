@@ -3974,11 +3974,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     overflow-wrap: anywhere;
 }
 
-.ll-wordset-editor-inline-edit {
+.ll-wordset-editor-inline-edit,
+.ll-wordset-editor-edit-trigger {
     margin-top: 4px;
 }
 
-.ll-wordset-editor-inline-edit summary {
+.ll-wordset-editor-inline-edit summary,
+.ll-wordset-editor-edit-trigger {
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -3996,11 +3998,18 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     list-style: none;
 }
 
+.ll-wordset-editor-edit-trigger {
+    appearance: none;
+    -webkit-appearance: none;
+}
+
 .ll-wordset-editor-inline-edit summary::-webkit-details-marker {
     display: none;
 }
 
-.ll-wordset-editor-inline-edit[open] summary {
+.ll-wordset-editor-inline-edit[open] summary,
+.ll-wordset-editor-edit-trigger:hover,
+.ll-wordset-editor-edit-trigger:focus-visible {
     border-color: #9fc5e8;
     background: #eef5fb;
     color: #135e96;
@@ -4068,6 +4077,17 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-editor-pill {
     background: #eef5fb;
     color: #36506b;
+}
+
+.ll-wordset-editor-pill--link {
+    text-decoration: none;
+}
+
+.ll-wordset-editor-pill--link:hover,
+.ll-wordset-editor-pill--link:focus-visible {
+    background: #dbeafe;
+    color: #1d4ed8;
+    text-decoration: none;
 }
 
 .ll-wordset-editor-pill--muted {
@@ -4143,6 +4163,48 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     grid-column: 2 / -1;
     min-width: 0;
     padding-top: 2px;
+}
+
+.ll-wordset-editor-modal-grid {
+    position: relative;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.ll-wordset-editor-modal-grid .word-grid.ll-word-grid {
+    display: block;
+    width: 0;
+    height: 0;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+}
+
+.ll-wordset-editor-modal-grid .word-grid.ll-word-grid > .word-item {
+    display: block;
+    position: static;
+    width: 0;
+    height: 0;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    pointer-events: none;
+}
+
+.ll-wordset-editor-modal-grid .word-grid.ll-word-grid > .word-item > :not(.ll-word-edit-backdrop):not(.ll-word-edit-panel) {
+    display: none !important;
+}
+
+.ll-wordset-editor-modal-grid .word-grid.ll-word-grid .ll-word-edit-backdrop,
+.ll-wordset-editor-modal-grid .word-grid.ll-word-grid .ll-word-edit-panel {
+    pointer-events: auto;
 }
 
 .ll-wordset-editor-recording {

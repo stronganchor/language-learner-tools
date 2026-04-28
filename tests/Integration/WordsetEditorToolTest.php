@@ -39,6 +39,13 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $fixture = $this->createFixture('wordset-editor-render');
         $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Alpha Lesson',
+        ]);
+        update_post_meta((int) $lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $fixture['wordset_id']);
+        update_post_meta((int) $lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $fixture['category_a_id']);
 
         $_GET = [
             'll_wordset_tool' => 'editor',
@@ -83,7 +90,11 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('Missing required audio', $html);
         $this->assertStringContainsString('Saved views', $html);
         $this->assertStringContainsString('ll_wordset_editor_filter_name', $html);
-        $this->assertStringContainsString('value="quick_update"', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-open-word-edit', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-modal-grid', $html);
+        $this->assertStringContainsString('data-ll-word-edit-panel', $html);
+        $this->assertStringContainsString('ll-wordset-editor-pill--link', $html);
+        $this->assertStringContainsString(esc_url(get_permalink((int) $lesson_id)), $html);
         $this->assertStringContainsString('missing_image_review', $html);
         $this->assertStringContainsString('Action history', $html);
         $this->assertStringContainsString('ll_editor_history_type', $html);

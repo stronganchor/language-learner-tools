@@ -248,6 +248,66 @@ function ll_tools_wordset_editor_get_category_labels(array $category_rows): arra
     return $labels;
 }
 
+function ll_tools_wordset_editor_get_vocab_lesson_urls(int $wordset_id): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0 || !defined('LL_TOOLS_VOCAB_LESSON_WORDSET_META') || !defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META')) {
+        return [];
+    }
+
+    $lesson_ids = get_posts([
+        'post_type'      => 'll_vocab_lesson',
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'fields'         => 'ids',
+        'no_found_rows'  => true,
+        'meta_query'     => [
+            [
+                'key'   => LL_TOOLS_VOCAB_LESSON_WORDSET_META,
+                'value' => (string) $wordset_id,
+            ],
+        ],
+    ]);
+    if (empty($lesson_ids)) {
+        return [];
+    }
+
+    $urls = [];
+    foreach ($lesson_ids as $lesson_id) {
+        $lesson_id = (int) $lesson_id;
+        if ($lesson_id <= 0 || (function_exists('ll_tools_vocab_lesson_is_preview_only') && ll_tools_vocab_lesson_is_preview_only($lesson_id))) {
+            continue;
+        }
+
+        $stored_category_id = (int) get_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, true);
+        if ($stored_category_id <= 0) {
+            continue;
+        }
+
+        $category_ids = [$stored_category_id];
+        if (function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')) {
+            $category_ids = ll_tools_get_vocab_lesson_category_meta_candidates($stored_category_id, $wordset_id);
+        } elseif (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+            $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($stored_category_id, $wordset_id, false);
+            if ($effective_category_id > 0) {
+                $category_ids[] = $effective_category_id;
+            }
+        }
+
+        $url = get_permalink($lesson_id);
+        if (!is_string($url) || $url === '') {
+            continue;
+        }
+
+        foreach (ll_tools_wordset_editor_normalize_word_ids($category_ids) as $category_id) {
+            if (!isset($urls[$category_id])) {
+                $urls[$category_id] = $url;
+            }
+        }
+    }
+
+    return $urls;
+}
+
 function ll_tools_wordset_editor_category_row_label(array $category_row): string {
     foreach (['label', 'display_name', 'name'] as $key) {
         $label = trim((string) ($category_row[$key] ?? ''));
@@ -704,6 +764,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     $audio_counts = ll_tools_wordset_editor_get_audio_counts($word_ids);
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
     $category_labels = ll_tools_wordset_editor_get_category_labels($category_rows);
+    $category_lesson_urls = ll_tools_wordset_editor_get_vocab_lesson_urls($wordset_id);
     $search = strtolower(trim((string) ($filters['q'] ?? '')));
     $recording_filter = sanitize_key((string) ($filters['recording'] ?? ''));
     if ($recording_filter === 'none') {
@@ -729,9 +790,16 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
             ? ll_tools_word_grid_get_selected_category_ids_for_editor($word_id, $wordset_id, $available_category_ids)
             : [];
         $selected_category_labels = [];
+        $selected_categories = [];
         foreach ($selected_category_ids as $category_id) {
             if (isset($category_labels[$category_id])) {
-                $selected_category_labels[] = $category_labels[$category_id];
+                $label = $category_labels[$category_id];
+                $selected_category_labels[] = $label;
+                $selected_categories[] = [
+                    'id'    => $category_id,
+                    'label' => $label,
+                    'url'   => (string) ($category_lesson_urls[$category_id] ?? ''),
+                ];
             }
         }
 
@@ -785,6 +853,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
             'status'                   => (string) $post->post_status,
             'selected_category_ids'    => $selected_category_ids,
             'selected_category_labels' => $selected_category_labels,
+            'selected_categories'      => $selected_categories,
             'has_image'                => $has_image,
             'published_audio_count'    => $published_audio_count,
             'total_audio_count'        => $total_audio_count,
@@ -1609,6 +1678,34 @@ function ll_tools_wordset_editor_sort_link(WP_Term $wordset_term, string $key, s
     return '<a class="' . esc_attr($classes) . '" href="' . esc_url($url) . '"><span>' . esc_html($label) . '</span><span class="ll-wordset-editor-sort-link__icon" aria-hidden="true">' . esc_html($indicator) . '</span></a>';
 }
 
+function ll_tools_wordset_editor_render_modal_grid(WP_Term $wordset_term, int $wordset_id, array $word_ids, array $filters = []): string {
+    $word_ids = ll_tools_wordset_editor_normalize_word_ids($word_ids);
+    if (empty($word_ids) || !function_exists('ll_tools_word_grid_shortcode')) {
+        return '';
+    }
+
+    $atts = [
+        'wordset'        => (string) $wordset_id,
+        'word_ids'       => implode(',', $word_ids),
+        'editor_context' => '1',
+    ];
+
+    $category_id = isset($filters['category']) ? (int) $filters['category'] : 0;
+    if ($category_id > 0) {
+        $category = get_term($category_id, 'word-category');
+        if ($category instanceof WP_Term && !is_wp_error($category)) {
+            $atts['category'] = (string) $category->slug;
+        }
+    }
+
+    $html = ll_tools_word_grid_shortcode($atts);
+    if (!is_string($html) || trim($html) === '') {
+        return '';
+    }
+
+    return '<div class="ll-wordset-editor-modal-grid" data-ll-wordset-editor-modal-grid>' . $html . '</div>';
+}
+
 function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term, int $wordset_id, string $back_url, array $category_rows): string {
     $action_url = ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor', $back_url);
     $filters = ll_tools_wordset_editor_get_filters();
@@ -1875,9 +1972,18 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                         <?php
                         $word_id = (int) ($row['id'] ?? 0);
                         $status = (string) ($row['status'] ?? '');
-                        $category_labels = (array) ($row['selected_category_labels'] ?? []);
+                        $selected_categories = (array) ($row['selected_categories'] ?? []);
+                        if (empty($selected_categories)) {
+                            foreach ((array) ($row['selected_category_labels'] ?? []) as $category_label) {
+                                $selected_categories[] = [
+                                    'id' => 0,
+                                    'label' => (string) $category_label,
+                                    'url' => '',
+                                ];
+                            }
+                        }
                         ?>
-                        <div class="ll-wordset-editor-row" role="row">
+                        <div class="ll-wordset-editor-row" role="row" data-ll-wordset-editor-row data-word-id="<?php echo esc_attr((string) $word_id); ?>">
                             <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell">
                                 <input type="checkbox" name="ll_wordset_editor_word_ids[]" value="<?php echo esc_attr((string) $word_id); ?>" form="<?php echo esc_attr($bulk_form_id); ?>" data-ll-wordset-editor-word />
                                 <span class="screen-reader-text"><?php echo esc_html(sprintf(__('Select %s', 'll-tools-text-domain'), (string) ($row['title'] ?? ''))); ?></span>
@@ -1887,40 +1993,29 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                 <?php if ((string) ($row['translation'] ?? '') !== '') : ?>
                                     <span class="ll-wordset-editor-word-translation"><?php echo esc_html((string) ($row['translation'] ?? '')); ?></span>
                                 <?php endif; ?>
-                                <details class="ll-wordset-editor-inline-edit">
-                                    <summary aria-label="<?php echo esc_attr__('Quick edit word', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Quick edit word', 'll-tools-text-domain'); ?>">
-                                        <?php echo ll_tools_wordset_editor_icon('edit'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                        <span><?php echo esc_html__('Edit', 'll-tools-text-domain'); ?></span>
-                                    </summary>
-                                    <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-editor-inline-form">
-                                        <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
-                                        <input type="hidden" name="ll_wordset_manager_editor_action" value="quick_update" />
-                                        <input type="hidden" name="ll_wordset_editor_word_id" value="<?php echo esc_attr((string) $word_id); ?>" />
-                                        <input type="hidden" name="ll_wordset_tool" value="editor" />
-                                        <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                                        <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                        <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                        <label>
-                                            <span><?php echo esc_html__('Word', 'll-tools-text-domain'); ?></span>
-                                            <input type="text" name="ll_wordset_editor_word_title" value="<?php echo esc_attr((string) ($row['title'] ?? '')); ?>" required />
-                                        </label>
-                                        <label>
-                                            <span><?php echo esc_html__('Translation', 'll-tools-text-domain'); ?></span>
-                                            <input type="text" name="ll_wordset_editor_word_translation" value="<?php echo esc_attr((string) ($row['translation'] ?? '')); ?>" />
-                                        </label>
-                                        <button type="submit" class="ll-wordset-editor-icon-button" aria-label="<?php echo esc_attr__('Save quick edit', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Save quick edit', 'll-tools-text-domain'); ?>">
-                                            <?php echo ll_tools_wordset_editor_icon('check'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                        </button>
-                                    </form>
-                                </details>
+                                <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="<?php echo esc_attr((string) $word_id); ?>" data-ll-wordset-editor-edit-url="<?php echo esc_url((string) ($row['edit_url'] ?? '')); ?>" aria-label="<?php echo esc_attr__('Edit word', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Edit word', 'll-tools-text-domain'); ?>">
+                                    <?php echo ll_tools_wordset_editor_icon('edit'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                    <span><?php echo esc_html__('Edit', 'll-tools-text-domain'); ?></span>
+                                </button>
                             </div>
                             <div class="ll-wordset-editor-cell ll-wordset-editor-cell--categories" role="cell" data-label="<?php echo esc_attr__('Categories', 'll-tools-text-domain'); ?>">
                                 <div class="ll-wordset-editor-pill-list">
-                                    <?php if (empty($category_labels)) : ?>
+                                    <?php if (empty($selected_categories)) : ?>
                                         <span class="ll-wordset-editor-pill ll-wordset-editor-pill--muted"><?php echo esc_html__('No category', 'll-tools-text-domain'); ?></span>
                                     <?php else : ?>
-                                        <?php foreach ($category_labels as $category_label) : ?>
-                                            <span class="ll-wordset-editor-pill"><?php echo esc_html((string) $category_label); ?></span>
+                                        <?php foreach ($selected_categories as $selected_category) : ?>
+                                            <?php
+                                            $category_label = (string) ($selected_category['label'] ?? '');
+                                            $category_url = (string) ($selected_category['url'] ?? '');
+                                            if ($category_label === '') {
+                                                continue;
+                                            }
+                                            ?>
+                                            <?php if ($category_url !== '') : ?>
+                                                <a class="ll-wordset-editor-pill ll-wordset-editor-pill--link" href="<?php echo esc_url($category_url); ?>"><?php echo esc_html($category_label); ?></a>
+                                            <?php else : ?>
+                                                <span class="ll-wordset-editor-pill"><?php echo esc_html($category_label); ?></span>
+                                            <?php endif; ?>
                                         <?php endforeach; ?>
                                     <?php endif; ?>
                                 </div>
@@ -2001,6 +2096,8 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
+
+            <?php echo ll_tools_wordset_editor_render_modal_grid($wordset_term, $wordset_id, $page_word_ids, $filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
 
             <?php if ($total_pages > 1) : ?>
                 <nav class="ll-wordset-editor-pagination" aria-label="<?php echo esc_attr__('Word editor pages', 'll-tools-text-domain'); ?>">

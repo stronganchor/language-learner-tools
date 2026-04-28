@@ -438,29 +438,14 @@ function buildEditorToolMarkup() {
               <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell" data-label="Word">
                 <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
                 <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
-                <details class="ll-wordset-editor-inline-edit" open>
-                  <summary aria-label="Quick edit word">
-                    <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 16.5-.5 3 3-.5L17 9.5 14.5 7 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                    <span>Edit</span>
-                  </summary>
-                  <form class="ll-wordset-editor-inline-form">
-                    <label>
-                      <span>Word</span>
-                      <input type="text" value="Very Long Multilingual Word Title" />
-                    </label>
-                    <label>
-                      <span>Translation</span>
-                      <input type="text" value="A compact but long translation shown in the editor table" />
-                    </label>
-                    <button type="button" class="ll-wordset-editor-icon-button" aria-label="Save quick edit">
-                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                    </button>
-                  </form>
-                </details>
+                <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="101" aria-label="Edit word">
+                  <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 16.5-.5 3 3-.5L17 9.5 14.5 7 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  <span>Edit</span>
+                </button>
               </div>
               <div class="ll-wordset-editor-cell ll-wordset-editor-cell--categories" role="cell" data-label="Categories">
                 <div class="ll-wordset-editor-pill-list">
-                  <span class="ll-wordset-editor-pill">Conversation Practice</span>
+                  <a class="ll-wordset-editor-pill ll-wordset-editor-pill--link" href="/conversation-practice/">Conversation Practice</a>
                   <span class="ll-wordset-editor-pill">Review Queue</span>
                 </div>
               </div>
@@ -721,7 +706,7 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
   await expect(page.getByRole('link', { name: 'Show words missing published audio' })).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-saved-view-form')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-table-card')).toBeVisible();
-  await expect(page.locator('.ll-wordset-editor-inline-form')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit word' })).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-recording').first()).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-history-filter')).toBeVisible();
   await expect(page.getByLabel('Move recording to word').first()).toBeVisible();
@@ -732,23 +717,23 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
 
   const controlMetrics = await page.evaluate(() => {
     const select = document.querySelector('.ll-wordset-editor-move-form select');
-    const inlineForm = document.querySelector('.ll-wordset-editor-inline-form');
+    const editTrigger = document.querySelector('.ll-wordset-editor-edit-trigger');
     const statCard = document.querySelector('.ll-wordset-editor-stat');
     const savedViewForm = document.querySelector('.ll-wordset-editor-saved-view-form');
     const details = document.querySelector('.ll-wordset-editor-row__details');
     const buttons = Array.from(document.querySelectorAll('.ll-wordset-editor-icon-button'));
-    if (!select || !inlineForm || !statCard || !savedViewForm || !details || buttons.length < 2) {
+    if (!select || !editTrigger || !statCard || !savedViewForm || !details || buttons.length < 2) {
       return null;
     }
     const selectRect = select.getBoundingClientRect();
-    const inlineRect = inlineForm.getBoundingClientRect();
+    const editTriggerRect = editTrigger.getBoundingClientRect();
     const statRect = statCard.getBoundingClientRect();
     const savedViewRect = savedViewForm.getBoundingClientRect();
     const detailsRect = details.getBoundingClientRect();
     return {
       selectWidth: Math.round(selectRect.width),
       selectRight: Math.round(selectRect.right),
-      inlineRight: Math.round(inlineRect.right),
+      editTriggerRight: Math.round(editTriggerRect.right),
       statRight: Math.round(statRect.right),
       savedViewRight: Math.round(savedViewRect.right),
       detailsRight: Math.round(detailsRect.right),
@@ -759,7 +744,7 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
   expect(controlMetrics).not.toBeNull();
   expect(controlMetrics.selectWidth).toBeGreaterThan(180);
   expect(controlMetrics.selectRight).toBeLessThanOrEqual(392);
-  expect(controlMetrics.inlineRight).toBeLessThanOrEqual(392);
+  expect(controlMetrics.editTriggerRight).toBeLessThanOrEqual(392);
   expect(controlMetrics.statRight).toBeLessThanOrEqual(392);
   expect(controlMetrics.savedViewRight).toBeLessThanOrEqual(392);
   expect(controlMetrics.detailsRight).toBeLessThanOrEqual(392);

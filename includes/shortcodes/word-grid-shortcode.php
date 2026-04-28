@@ -2393,7 +2393,7 @@ function ll_tools_word_grid_group_same_name_or_image(array $posts, array &$displ
 }
 
 function ll_tools_word_grid_is_lesson_context(array $context): bool {
-    return !empty($context['lesson_id']) || is_singular('ll_vocab_lesson') || !empty($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+    return !empty($context['lesson_id']) || is_singular('ll_vocab_lesson') || !empty($GLOBALS['ll_tools_word_grid_force_lesson_context']) || !empty($context['editor_context']);
 }
 
 function ll_tools_word_grid_should_force_media_for_lesson_context(array $context): bool {
@@ -2898,6 +2898,10 @@ function ll_tools_word_grid_update_word_categories_for_wordset(int $word_id, int
 }
 
 function ll_tools_word_grid_should_show_draft_words(array $context): bool {
+    if (!empty($context['editor_context']) && !empty($context['can_edit_words'])) {
+        return true;
+    }
+
     $lesson_id = isset($context['lesson_id']) ? (int) $context['lesson_id'] : 0;
     if ($lesson_id <= 0 || empty($context['can_edit_words'])) {
         return false;
@@ -2998,6 +3002,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'deepest_only' => '',
         'word_ids' => '',
         'lesson_id' => '',
+        'editor_context' => '',
     ], (array) $atts);
 
     $sanitized_category = sanitize_text_field((string) ($atts['category'] ?? ''));
@@ -3014,6 +3019,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
     if (!empty($atts['deepest_only'])) {
         $deepest_only = filter_var($atts['deepest_only'], FILTER_VALIDATE_BOOLEAN);
     }
+    $editor_context = !empty($atts['editor_context']) && filter_var($atts['editor_context'], FILTER_VALIDATE_BOOLEAN);
 
     $wordset_term = null;
     $wordset_id = 0;
@@ -3099,6 +3105,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
     $is_lesson_context = (
         is_singular('ll_vocab_lesson')
         || (!empty($GLOBALS['ll_tools_word_grid_force_lesson_context']) && wp_doing_ajax())
+        || $editor_context
     );
     $can_edit_words = ll_tools_user_can_edit_vocab_words($wordset_id) && $is_lesson_context;
     $show_staff_inactive_images = $can_edit_words && $is_text_based && !$category_quiz_uses_images;
@@ -3132,6 +3139,7 @@ function ll_tools_word_grid_resolve_context($atts): array {
         'has_text_only_answer_options' => $has_text_only_answer_options,
         'hide_lesson_grid_text'        => $hide_lesson_grid_text,
         'show_staff_inactive_images'   => $show_staff_inactive_images,
+        'editor_context'                => $editor_context,
         'wordset_has_gender'           => $wordset_has_gender,
         'wordset_has_plurality'        => $wordset_has_plurality,
         'wordset_has_verb_tense'       => $wordset_has_verb_tense,
@@ -4250,6 +4258,7 @@ function ll_tools_word_grid_shortcode($atts) {
         ];
     $sort_visible_titles = ll_tools_word_grid_should_sort_visible_titles($context);
     $show_draft_words = ll_tools_word_grid_should_show_draft_words($context);
+    $show_editor_statuses = !empty($context['editor_context']) && $can_edit_words;
     $show_staff_hidden_words = ll_tools_word_grid_should_show_staff_hidden_words($context);
     $presentation_hidden_word_lookup = [];
 
@@ -4290,7 +4299,7 @@ function ll_tools_word_grid_shortcode($atts) {
     // WP_Query arguments
     $args = array(
         'post_type' => 'words',
-        'post_status' => $show_draft_words ? ['publish', 'draft'] : 'publish',
+        'post_status' => $show_editor_statuses ? ['publish', 'draft', 'pending', 'future', 'private'] : ($show_draft_words ? ['publish', 'draft'] : 'publish'),
         'posts_per_page' => -1,
         'no_found_rows' => true,
         'orderby' => 'date', // Order by date
@@ -4333,7 +4342,7 @@ function ll_tools_word_grid_shortcode($atts) {
     }
 
     // Words reserved as specific wrong answers should not appear in lesson grids.
-    if (empty($specific_word_ids) && !empty($query->posts) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
+    if (empty($context['editor_context']) && empty($specific_word_ids) && !empty($query->posts) && function_exists('ll_tools_filter_specific_wrong_answer_only_word_ids')) {
         $visible_word_ids = ll_tools_filter_specific_wrong_answer_only_word_ids(array_map(static function ($post_obj): int {
             return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
         }, (array) $query->posts));
@@ -4348,7 +4357,7 @@ function ll_tools_word_grid_shortcode($atts) {
             $query->current_post = -1;
         }
     }
-    if (!$is_text_based && !empty($query->posts) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
+    if (empty($context['editor_context']) && !$is_text_based && !empty($query->posts) && function_exists('ll_tools_filter_word_ids_with_effective_images')) {
         $image_filter_word_ids = array_values(array_filter(array_map(static function ($post_obj): int {
             return isset($post_obj->ID) ? (int) $post_obj->ID : 0;
         }, (array) $query->posts), static function (int $post_id): bool {

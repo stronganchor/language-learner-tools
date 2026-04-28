@@ -13624,6 +13624,55 @@
 
         $root.on('change', '[data-ll-wordset-editor-all-filtered]', updateSelectionState);
 
+        $root.on('click', '[data-ll-wordset-editor-open-word-edit]', function (evt) {
+            evt.preventDefault();
+            const $button = $(this);
+            const wordId = parseInt($button.attr('data-word-id'), 10) || 0;
+            if (!wordId) {
+                return;
+            }
+
+            const $modalGrid = $editor.find('[data-ll-wordset-editor-modal-grid] [data-ll-word-grid]').first();
+            const $wordItem = $modalGrid.find('.word-item[data-word-id="' + wordId + '"]').first();
+            const $toggle = $wordItem.find('[data-ll-word-edit-toggle]').first();
+            if ($toggle.length) {
+                $toggle.trigger('click');
+                return;
+            }
+
+            const fallbackUrl = String($button.attr('data-ll-wordset-editor-edit-url') || '');
+            if (fallbackUrl) {
+                window.location.href = fallbackUrl;
+            }
+        });
+
+        $(document).off('lltools:word-grid-word-updated.llWordsetEditor').on('lltools:word-grid-word-updated.llWordsetEditor', function (_evt, detail) {
+            const payload = detail && typeof detail === 'object' ? detail : {};
+            const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
+            const wordId = parseInt(payload.wordId || payload.word_id || data.word_id, 10) || 0;
+            if (!wordId) {
+                return;
+            }
+
+            const $row = $editor.find('[data-ll-wordset-editor-row][data-word-id="' + wordId + '"]').first();
+            if (!$row.length) {
+                return;
+            }
+
+            if (typeof data.word_text === 'string') {
+                $row.find('.ll-wordset-editor-word-title').first().text(data.word_text);
+            }
+            if (typeof data.word_translation === 'string') {
+                const $translation = $row.find('.ll-wordset-editor-word-translation').first();
+                if ($translation.length) {
+                    $translation.text(data.word_translation).toggle(data.word_translation !== '');
+                } else if (data.word_translation !== '') {
+                    $('<span>', { class: 'll-wordset-editor-word-translation', text: data.word_translation })
+                        .insertAfter($row.find('.ll-wordset-editor-word-title').first());
+                }
+            }
+        });
+
         $root.on('submit', '[data-ll-wordset-editor-bulk-form]', function (evt) {
             const $form = $(this);
             const selectedCount = $editor.find('[data-ll-wordset-editor-word]:checked').length;
