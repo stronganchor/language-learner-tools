@@ -454,6 +454,58 @@ add_filter('show_admin_bar', 'll_hide_admin_bar_for_ll_tools_limited_roles', 999
  *
  * Returns an empty string when the current request should be allowed through.
  */
+function ll_tools_limited_role_admin_post_action_is_allowed($user = null): bool {
+    $pagenow = isset($GLOBALS['pagenow']) ? (string) $GLOBALS['pagenow'] : '';
+    $script_names = [
+        $pagenow,
+        isset($_SERVER['PHP_SELF']) ? (string) wp_unslash($_SERVER['PHP_SELF']) : '',
+        isset($_SERVER['SCRIPT_NAME']) ? (string) wp_unslash($_SERVER['SCRIPT_NAME']) : '',
+    ];
+
+    $is_admin_post = false;
+    foreach ($script_names as $script_name) {
+        if (basename($script_name) === 'admin-post.php') {
+            $is_admin_post = true;
+            break;
+        }
+    }
+
+    if (!$is_admin_post) {
+        return false;
+    }
+
+    $action = isset($_REQUEST['action'])
+        ? sanitize_key((string) wp_unslash($_REQUEST['action']))
+        : '';
+    if ($action === '') {
+        return false;
+    }
+
+    $allowed_actions = [
+        'll_tools_teacher_create_class',
+        'll_tools_teacher_assign_class_teacher',
+        'll_tools_teacher_send_class_invite',
+        'll_tools_teacher_assign_class_student',
+        'll_tools_teacher_remove_class_student',
+        'll_tools_teacher_delete_class',
+    ];
+    $allowed_actions = (array) apply_filters('ll_tools_limited_role_allowed_admin_post_actions', $allowed_actions, $user);
+
+    if (!in_array($action, $allowed_actions, true)) {
+        return false;
+    }
+
+    if (!($user instanceof WP_User)) {
+        $user = wp_get_current_user();
+    }
+    if (!($user instanceof WP_User) || !$user->exists()) {
+        return false;
+    }
+
+    return function_exists('ll_tools_user_can_manage_classes')
+        && ll_tools_user_can_manage_classes((int) $user->ID);
+}
+
 function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin_request = null, $doing_ajax = null): string {
     if ($is_admin_request === null) {
         $is_admin_request = is_admin();
@@ -473,6 +525,9 @@ function ll_tools_get_limited_role_admin_redirect_target($user = null, $is_admin
         return '';
     }
     if (user_can($user, 'manage_options')) {
+        return '';
+    }
+    if (ll_tools_limited_role_admin_post_action_is_allowed($user)) {
         return '';
     }
     if (function_exists('ll_tools_user_can_manage_classes') && ll_tools_user_can_manage_classes((int) $user->ID)) {

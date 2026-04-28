@@ -381,6 +381,58 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         );
     }
 
+    public function test_teacher_class_admin_post_actions_are_not_blocked_by_limited_role_admin_redirect(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $user_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-admin-post@example.org',
+        ]);
+        $user = get_userdata($user_id);
+        $this->assertInstanceOf(WP_User::class, $user);
+
+        $original_pagenow = $GLOBALS['pagenow'] ?? null;
+        $original_php_self = $_SERVER['PHP_SELF'] ?? null;
+        $original_script_name = $_SERVER['SCRIPT_NAME'] ?? null;
+        $original_request = $_REQUEST;
+
+        try {
+            $GLOBALS['pagenow'] = 'admin-post.php';
+            $_SERVER['PHP_SELF'] = '/wp-admin/admin-post.php';
+            $_SERVER['SCRIPT_NAME'] = '/wp-admin/admin-post.php';
+            $_REQUEST['action'] = 'll_tools_teacher_create_class';
+
+            $this->assertSame('', ll_tools_get_limited_role_admin_redirect_target($user, true, false));
+
+            $_REQUEST['action'] = 'unrelated_frontend_action';
+            $this->assertSame(
+                ll_tools_get_teacher_classes_frontend_url(),
+                ll_tools_get_limited_role_admin_redirect_target($user, true, false)
+            );
+        } finally {
+            if ($original_pagenow === null) {
+                unset($GLOBALS['pagenow']);
+            } else {
+                $GLOBALS['pagenow'] = $original_pagenow;
+            }
+
+            if ($original_php_self === null) {
+                unset($_SERVER['PHP_SELF']);
+            } else {
+                $_SERVER['PHP_SELF'] = $original_php_self;
+            }
+
+            if ($original_script_name === null) {
+                unset($_SERVER['SCRIPT_NAME']);
+            } else {
+                $_SERVER['SCRIPT_NAME'] = $original_script_name;
+            }
+
+            $_REQUEST = $original_request;
+        }
+    }
+
     public function test_admin_classes_page_renders_manual_assignment_controls(): void
     {
         ll_tools_register_or_refresh_teacher_role();
