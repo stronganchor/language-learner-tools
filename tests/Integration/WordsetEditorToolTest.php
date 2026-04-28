@@ -69,7 +69,15 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_editor_target_word_id', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-confirm', $html);
         $this->assertStringContainsString('ll_wordset_manager_editor_action', $html);
-        $this->assertStringContainsString('Review queues', $html);
+        $this->assertStringContainsString('aria-label="Show all words"', $html);
+        $this->assertStringContainsString('aria-label="Show words missing published audio"', $html);
+        $this->assertStringContainsString('ll_editor_recording=missing', $html);
+        $this->assertStringContainsString('aria-label="Show words missing images"', $html);
+        $this->assertStringContainsString('ll_editor_image=missing', $html);
+        $this->assertStringContainsString('#ll-wordset-editor-history', $html);
+        $this->assertStringNotContainsString('Review queues', $html);
+        $this->assertStringNotContainsString('No published audio', $html);
+        $this->assertStringNotContainsString('Missing required audio', $html);
         $this->assertStringContainsString('Saved views', $html);
         $this->assertStringContainsString('ll_wordset_editor_filter_name', $html);
         $this->assertStringContainsString('value="quick_update"', $html);
@@ -77,6 +85,36 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Action history', $html);
         $this->assertStringContainsString('ll_editor_history_type', $html);
         $this->assertStringContainsString('Recent actions', $html);
+    }
+
+    public function test_missing_audio_filter_includes_words_with_no_published_audio_even_when_audio_is_not_required(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-missing-audio');
+        update_term_meta((int) $fixture['category_a_id'], 'll_quiz_prompt_type', 'text_title');
+        update_term_meta((int) $fixture['category_a_id'], 'll_quiz_option_type', 'text_translation');
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows((int) $fixture['wordset_id'])
+            : [];
+        $result = ll_tools_wordset_editor_build_rows((int) $fixture['wordset_id'], $category_rows, [
+            'q'         => '',
+            'category'  => 0,
+            'status'    => '',
+            'image'     => '',
+            'recording' => 'missing',
+            'sort'      => 'word',
+            'dir'       => 'asc',
+            'paged'     => 1,
+        ]);
+
+        $rows = (array) ($result['rows'] ?? []);
+        $summary = (array) ($result['summary'] ?? []);
+        $this->assertSame(1, (int) ($summary['missing_audio'] ?? 0));
+        $this->assertCount(1, $rows);
+        $this->assertSame((int) $fixture['beta_word_id'], (int) ($rows[0]['id'] ?? 0));
+        $this->assertFalse((bool) ($rows[0]['requires_audio'] ?? true));
+        $this->assertTrue((bool) ($rows[0]['missing_audio'] ?? false));
     }
 
     public function test_quick_update_changes_word_fields_and_is_undoable(): void

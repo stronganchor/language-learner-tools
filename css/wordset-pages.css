@@ -3673,6 +3673,17 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     border: 1px solid var(--ll-wp-border);
     border-radius: 12px;
     background: #ffffff;
+    color: var(--ll-wp-text) !important;
+    text-decoration: none !important;
+    transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.ll-wordset-editor-stat:hover,
+.ll-wordset-editor-stat:focus-visible {
+    border-color: #9fc5e8;
+    background: #eef5fb;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(19, 94, 150, 0.12);
 }
 
 .ll-wordset-editor-stat .ll-wordset-editor-icon {
@@ -3741,12 +3752,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     align-items: end;
 }
 
-.ll-wordset-editor-utility-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
-    gap: 12px;
-}
-
 .ll-wordset-editor-panel-head {
     display: flex;
     flex-wrap: wrap;
@@ -3755,17 +3760,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     justify-content: space-between;
 }
 
-.ll-wordset-editor-queue-grid,
 .ll-wordset-editor-saved-view-list {
     display: grid;
     gap: 8px;
 }
 
-.ll-wordset-editor-queue-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.ll-wordset-editor-queue-card,
 .ll-wordset-editor-saved-view a {
     display: grid;
     gap: 4px;
@@ -3777,41 +3776,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     text-decoration: none !important;
 }
 
-.ll-wordset-editor-queue-card {
-    grid-template-columns: auto 1fr;
-    grid-template-areas:
-        "icon count"
-        "icon label";
-    align-items: center;
-    min-height: 74px;
-    padding: 10px;
-}
-
-.ll-wordset-editor-queue-card .ll-wordset-editor-icon {
-    grid-area: icon;
-    width: 26px;
-    height: 26px;
-    color: #135e96;
-}
-
-.ll-wordset-editor-queue-card__count {
-    grid-area: count;
-    color: var(--ll-wp-text);
-    font-size: 1rem;
-    font-weight: 900;
-    line-height: 1;
-}
-
-.ll-wordset-editor-queue-card__label {
-    grid-area: label;
-    color: var(--ll-wp-muted);
-    font-size: 0.76rem;
-    font-weight: 800;
-    line-height: 1.2;
-}
-
-.ll-wordset-editor-queue-card:hover,
-.ll-wordset-editor-queue-card:focus-visible,
 .ll-wordset-editor-saved-view a:hover,
 .ll-wordset-editor-saved-view a:focus-visible {
     border-color: #9fc5e8;
@@ -9388,10 +9352,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .ll-wordset-editor-utility-grid {
-        grid-template-columns: 1fr;
-    }
-
     .ll-wordset-editor-field--search {
         grid-column: 1 / -1;
     }
@@ -9416,7 +9376,6 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 @media (max-width: 780px) {
     .ll-wordset-editor-stats,
     .ll-wordset-editor-filters__grid,
-    .ll-wordset-editor-queue-grid,
     .ll-wordset-editor-inline-form {
         grid-template-columns: 1fr;
     }

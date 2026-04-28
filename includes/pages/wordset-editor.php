@@ -465,7 +465,10 @@ function ll_tools_wordset_editor_get_filters_from_source(array $source): array {
     }
     if (isset($source['ll_editor_recording'])) {
         $recording = sanitize_key(wp_unslash((string) $source['ll_editor_recording']));
-        $filters['recording'] = in_array($recording, ['has', 'missing', 'none'], true) ? $recording : '';
+        if ($recording === 'none') {
+            $recording = 'missing';
+        }
+        $filters['recording'] = in_array($recording, ['has', 'missing'], true) ? $recording : '';
     }
     if (isset($source['ll_editor_sort'])) {
         $sort = sanitize_key(wp_unslash((string) $source['ll_editor_sort']));
@@ -505,6 +508,9 @@ function ll_tools_wordset_editor_filter_query_args_from_filters(array $filters):
         'recording' => 'll_editor_recording',
     ] as $filter_key => $query_key) {
         $value = sanitize_key((string) ($filters[$filter_key] ?? ''));
+        if ($filter_key === 'recording' && $value === 'none') {
+            $value = 'missing';
+        }
         if ($value !== '') {
             $args[$query_key] = $value;
         }
@@ -528,12 +534,17 @@ function ll_tools_wordset_editor_filter_query_args_from_source(array $source): a
 }
 
 function ll_tools_wordset_editor_filter_preset_from_filters(array $filters): array {
+    $recording = sanitize_key((string) ($filters['recording'] ?? ''));
+    if ($recording === 'none') {
+        $recording = 'missing';
+    }
+
     return [
         'q'         => (string) ($filters['q'] ?? ''),
         'category'  => (int) ($filters['category'] ?? 0),
         'status'    => sanitize_key((string) ($filters['status'] ?? '')),
         'image'     => sanitize_key((string) ($filters['image'] ?? '')),
-        'recording' => sanitize_key((string) ($filters['recording'] ?? '')),
+        'recording' => $recording,
         'sort'      => sanitize_key((string) ($filters['sort'] ?? 'word')),
         'dir'       => ((string) ($filters['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc',
     ];
@@ -694,6 +705,10 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
     $category_labels = ll_tools_wordset_editor_get_category_labels($category_rows);
     $search = strtolower(trim((string) ($filters['q'] ?? '')));
+    $recording_filter = sanitize_key((string) ($filters['recording'] ?? ''));
+    if ($recording_filter === 'none') {
+        $recording_filter = 'missing';
+    }
     $filtered_rows = [];
     $summary = [
         'total'         => count($word_ids),
@@ -726,7 +741,7 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
         $published_audio_count = (int) ($audio_counts[$word_id]['published'] ?? 0);
         $total_audio_count = (int) ($audio_counts[$word_id]['total'] ?? 0);
         $requires_audio = ll_tools_wordset_editor_word_requires_audio($word_id);
-        $missing_audio = $requires_audio && $published_audio_count <= 0;
+        $missing_audio = $published_audio_count <= 0;
 
         if ($missing_audio) {
             $summary['missing_audio']++;
@@ -756,13 +771,10 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
         if ((string) ($filters['image'] ?? '') === 'missing' && $has_image) {
             continue;
         }
-        if ((string) ($filters['recording'] ?? '') === 'has' && $published_audio_count <= 0) {
+        if ($recording_filter === 'has' && $published_audio_count <= 0) {
             continue;
         }
-        if ((string) ($filters['recording'] ?? '') === 'missing' && !$missing_audio) {
-            continue;
-        }
-        if ((string) ($filters['recording'] ?? '') === 'none' && $published_audio_count > 0) {
+        if ($recording_filter === 'missing' && !$missing_audio) {
             continue;
         }
 
@@ -1628,48 +1640,47 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
         $history_paged = $history_total_pages;
     }
     $history_page_rows = array_slice($history_rows, ($history_paged - 1) * $history_per_page, $history_per_page);
+    $editor_base_url = add_query_arg([
+        'll_wordset_tool' => 'editor',
+    ], ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+    if ($back_url !== '') {
+        $editor_base_url = add_query_arg('ll_wordset_back', $back_url, $editor_base_url);
+    }
+    $all_words_url = $editor_base_url;
     $missing_audio_url = add_query_arg([
         'll_wordset_tool' => 'editor',
         'll_editor_recording' => 'missing',
-    ], ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+    ], $editor_base_url);
     $missing_image_url = add_query_arg([
         'll_wordset_tool' => 'editor',
         'll_editor_image' => 'missing',
-    ], ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
-    $no_audio_url = add_query_arg([
-        'll_wordset_tool' => 'editor',
-        'll_editor_recording' => 'none',
-    ], ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
-    if ($back_url !== '') {
-        $missing_audio_url = add_query_arg('ll_wordset_back', $back_url, $missing_audio_url);
-        $missing_image_url = add_query_arg('ll_wordset_back', $back_url, $missing_image_url);
-        $no_audio_url = add_query_arg('ll_wordset_back', $back_url, $no_audio_url);
-    }
+    ], $editor_base_url);
+    $recent_actions_url = $editor_base_url . '#ll-wordset-editor-history';
 
     ob_start();
     ?>
     <section class="ll-wordset-settings-page ll-wordset-editor" data-ll-wordset-editor data-ll-wordset-editor-selected-singular="<?php echo esc_attr__('1 selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-selected-plural="<?php echo esc_attr__('%d selected', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-all-filtered="<?php echo esc_attr(sprintf(_n('All %d filtered word selected', 'All %d filtered words selected', $total_filtered, 'll-tools-text-domain'), $total_filtered)); ?>">
         <div class="ll-wordset-editor-stats" aria-label="<?php echo esc_attr__('Wordset editor summary', 'll-tools-text-domain'); ?>">
-            <div class="ll-wordset-editor-stat">
+            <a class="ll-wordset-editor-stat" href="<?php echo esc_url($all_words_url); ?>" aria-label="<?php echo esc_attr__('Show all words', 'll-tools-text-domain'); ?>">
                 <?php echo ll_tools_wordset_editor_icon('table'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 <span class="ll-wordset-editor-stat__value"><?php echo esc_html((string) ((int) ($summary['total'] ?? 0))); ?></span>
                 <span class="ll-wordset-editor-stat__label"><?php echo esc_html__('Words', 'll-tools-text-domain'); ?></span>
-            </div>
-            <div class="ll-wordset-editor-stat">
+            </a>
+            <a class="ll-wordset-editor-stat" href="<?php echo esc_url($missing_audio_url); ?>" aria-label="<?php echo esc_attr__('Show words missing published audio', 'll-tools-text-domain'); ?>">
                 <?php echo ll_tools_wordset_editor_icon('audio'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 <span class="ll-wordset-editor-stat__value"><?php echo esc_html((string) ((int) ($summary['missing_audio'] ?? 0))); ?></span>
                 <span class="ll-wordset-editor-stat__label"><?php echo esc_html__('Missing audio', 'll-tools-text-domain'); ?></span>
-            </div>
-            <div class="ll-wordset-editor-stat">
+            </a>
+            <a class="ll-wordset-editor-stat" href="<?php echo esc_url($missing_image_url); ?>" aria-label="<?php echo esc_attr__('Show words missing images', 'll-tools-text-domain'); ?>">
                 <?php echo ll_tools_wordset_editor_icon('image'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 <span class="ll-wordset-editor-stat__value"><?php echo esc_html((string) ((int) ($summary['missing_image'] ?? 0))); ?></span>
                 <span class="ll-wordset-editor-stat__label"><?php echo esc_html__('Missing images', 'll-tools-text-domain'); ?></span>
-            </div>
-            <div class="ll-wordset-editor-stat">
+            </a>
+            <a class="ll-wordset-editor-stat" href="<?php echo esc_url($recent_actions_url); ?>" aria-label="<?php echo esc_attr__('Jump to recent actions', 'll-tools-text-domain'); ?>">
                 <?php echo ll_tools_wordset_editor_icon('undo'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 <span class="ll-wordset-editor-stat__value"><?php echo esc_html((string) count($recent_actions)); ?></span>
                 <span class="ll-wordset-editor-stat__label"><?php echo esc_html__('Recent actions', 'll-tools-text-domain'); ?></span>
-            </div>
+            </a>
         </div>
 
         <form class="ll-wordset-settings-card ll-wordset-editor-filters" method="get" action="<?php echo esc_url(ll_tools_get_wordset_page_view_url($wordset_term, 'settings')); ?>">
@@ -1720,8 +1731,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                     <select name="ll_editor_recording">
                         <option value=""><?php echo esc_html__('All', 'll-tools-text-domain'); ?></option>
                         <option value="has" <?php selected((string) ($filters['recording'] ?? ''), 'has'); ?>><?php echo esc_html__('Has published audio', 'll-tools-text-domain'); ?></option>
-                        <option value="missing" <?php selected((string) ($filters['recording'] ?? ''), 'missing'); ?>><?php echo esc_html__('Missing required audio', 'll-tools-text-domain'); ?></option>
-                        <option value="none" <?php selected((string) ($filters['recording'] ?? ''), 'none'); ?>><?php echo esc_html__('No published audio', 'll-tools-text-domain'); ?></option>
+                        <option value="missing" <?php selected((string) ($filters['recording'] ?? ''), 'missing'); ?>><?php echo esc_html__('Missing audio', 'll-tools-text-domain'); ?></option>
                     </select>
                 </label>
             </div>
@@ -1736,84 +1746,58 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
             </div>
         </form>
 
-        <div class="ll-wordset-editor-utility-grid">
-            <section class="ll-wordset-settings-card ll-wordset-editor-queues" aria-label="<?php echo esc_attr__('Editor review queues', 'll-tools-text-domain'); ?>">
-                <div class="ll-wordset-editor-panel-head">
-                    <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Review queues', 'll-tools-text-domain'); ?></h2>
-                    <span class="ll-wordset-editor-history__hint"><?php echo esc_html__('Open a queue, then use all-filtered bulk actions.', 'll-tools-text-domain'); ?></span>
+        <section class="ll-wordset-settings-card ll-wordset-editor-saved-views" aria-label="<?php echo esc_attr__('Saved editor views', 'll-tools-text-domain'); ?>">
+            <div class="ll-wordset-editor-panel-head">
+                <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Saved views', 'll-tools-text-domain'); ?></h2>
+                <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-editor-saved-view-form">
+                    <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
+                    <input type="hidden" name="ll_wordset_manager_editor_action" value="save_filter" />
+                    <input type="hidden" name="ll_wordset_tool" value="editor" />
+                    <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                    <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    <label class="screen-reader-text" for="ll-wordset-editor-filter-name"><?php echo esc_html__('Saved view name', 'll-tools-text-domain'); ?></label>
+                    <input id="ll-wordset-editor-filter-name" type="text" name="ll_wordset_editor_filter_name" placeholder="<?php echo esc_attr__('View name', 'll-tools-text-domain'); ?>" required />
+                    <button type="submit" class="ll-wordset-editor-icon-button" aria-label="<?php echo esc_attr__('Save current view', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Save current view', 'll-tools-text-domain'); ?>">
+                        <?php echo ll_tools_wordset_editor_icon('bookmark'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                    </button>
+                </form>
+            </div>
+            <?php if (empty($saved_filters)) : ?>
+                <p class="ll-wordset-settings-empty"><?php echo esc_html__('No saved views yet.', 'll-tools-text-domain'); ?></p>
+            <?php else : ?>
+                <div class="ll-wordset-editor-saved-view-list">
+                    <?php foreach ($saved_filters as $saved_filter) : ?>
+                        <?php
+                        $saved_filter_args = ll_tools_wordset_editor_filter_query_args_from_filters((array) ($saved_filter['filters'] ?? []));
+                        $saved_filter_args['ll_wordset_tool'] = 'editor';
+                        if ($back_url !== '') {
+                            $saved_filter_args['ll_wordset_back'] = $back_url;
+                        }
+                        $saved_filter_url = add_query_arg($saved_filter_args, ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
+                        ?>
+                        <div class="ll-wordset-editor-saved-view">
+                            <a href="<?php echo esc_url($saved_filter_url); ?>">
+                                <?php echo ll_tools_wordset_editor_icon('filter'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <span><?php echo esc_html((string) ($saved_filter['name'] ?? '')); ?></span>
+                            </a>
+                            <form method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-editor-confirm="<?php echo esc_attr__('Delete this saved view?', 'll-tools-text-domain'); ?>">
+                                <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
+                                <input type="hidden" name="ll_wordset_manager_editor_action" value="delete_filter" />
+                                <input type="hidden" name="ll_wordset_editor_filter_id" value="<?php echo esc_attr((string) ($saved_filter['id'] ?? '')); ?>" />
+                                <input type="hidden" name="ll_wordset_tool" value="editor" />
+                                <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
+                                <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                <button type="submit" class="ll-wordset-editor-icon-button ll-wordset-editor-icon-button--danger" aria-label="<?php echo esc_attr__('Delete saved view', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Delete saved view', 'll-tools-text-domain'); ?>">
+                                    <?php echo ll_tools_wordset_editor_icon('trash'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                </button>
+                            </form>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
-                <div class="ll-wordset-editor-queue-grid">
-                    <a class="ll-wordset-editor-queue-card" href="<?php echo esc_url($missing_audio_url); ?>">
-                        <?php echo ll_tools_wordset_editor_icon('audio'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <span class="ll-wordset-editor-queue-card__count"><?php echo esc_html((string) ((int) ($summary['missing_audio'] ?? 0))); ?></span>
-                        <span class="ll-wordset-editor-queue-card__label"><?php echo esc_html__('Missing audio', 'll-tools-text-domain'); ?></span>
-                    </a>
-                    <a class="ll-wordset-editor-queue-card" href="<?php echo esc_url($missing_image_url); ?>">
-                        <?php echo ll_tools_wordset_editor_icon('image'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <span class="ll-wordset-editor-queue-card__count"><?php echo esc_html((string) ((int) ($summary['missing_image'] ?? 0))); ?></span>
-                        <span class="ll-wordset-editor-queue-card__label"><?php echo esc_html__('Missing images', 'll-tools-text-domain'); ?></span>
-                    </a>
-                    <a class="ll-wordset-editor-queue-card" href="<?php echo esc_url($no_audio_url); ?>">
-                        <?php echo ll_tools_wordset_editor_icon('review'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <span class="ll-wordset-editor-queue-card__count"><?php echo esc_html((string) ((int) ($summary['no_audio'] ?? 0))); ?></span>
-                        <span class="ll-wordset-editor-queue-card__label"><?php echo esc_html__('No published audio', 'll-tools-text-domain'); ?></span>
-                    </a>
-                </div>
-            </section>
-
-            <section class="ll-wordset-settings-card ll-wordset-editor-saved-views" aria-label="<?php echo esc_attr__('Saved editor views', 'll-tools-text-domain'); ?>">
-                <div class="ll-wordset-editor-panel-head">
-                    <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Saved views', 'll-tools-text-domain'); ?></h2>
-                    <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-editor-saved-view-form">
-                        <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
-                        <input type="hidden" name="ll_wordset_manager_editor_action" value="save_filter" />
-                        <input type="hidden" name="ll_wordset_tool" value="editor" />
-                        <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                        <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        <label class="screen-reader-text" for="ll-wordset-editor-filter-name"><?php echo esc_html__('Saved view name', 'll-tools-text-domain'); ?></label>
-                        <input id="ll-wordset-editor-filter-name" type="text" name="ll_wordset_editor_filter_name" placeholder="<?php echo esc_attr__('View name', 'll-tools-text-domain'); ?>" required />
-                        <button type="submit" class="ll-wordset-editor-icon-button" aria-label="<?php echo esc_attr__('Save current view', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Save current view', 'll-tools-text-domain'); ?>">
-                            <?php echo ll_tools_wordset_editor_icon('bookmark'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                        </button>
-                    </form>
-                </div>
-                <?php if (empty($saved_filters)) : ?>
-                    <p class="ll-wordset-settings-empty"><?php echo esc_html__('No saved views yet.', 'll-tools-text-domain'); ?></p>
-                <?php else : ?>
-                    <div class="ll-wordset-editor-saved-view-list">
-                        <?php foreach ($saved_filters as $saved_filter) : ?>
-                            <?php
-                            $saved_filter_args = ll_tools_wordset_editor_filter_query_args_from_filters((array) ($saved_filter['filters'] ?? []));
-                            $saved_filter_args['ll_wordset_tool'] = 'editor';
-                            if ($back_url !== '') {
-                                $saved_filter_args['ll_wordset_back'] = $back_url;
-                            }
-                            $saved_filter_url = add_query_arg($saved_filter_args, ll_tools_get_wordset_page_view_url($wordset_term, 'settings'));
-                            ?>
-                            <div class="ll-wordset-editor-saved-view">
-                                <a href="<?php echo esc_url($saved_filter_url); ?>">
-                                    <?php echo ll_tools_wordset_editor_icon('filter'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <span><?php echo esc_html((string) ($saved_filter['name'] ?? '')); ?></span>
-                                </a>
-                                <form method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-editor-confirm="<?php echo esc_attr__('Delete this saved view?', 'll-tools-text-domain'); ?>">
-                                    <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
-                                    <input type="hidden" name="ll_wordset_manager_editor_action" value="delete_filter" />
-                                    <input type="hidden" name="ll_wordset_editor_filter_id" value="<?php echo esc_attr((string) ($saved_filter['id'] ?? '')); ?>" />
-                                    <input type="hidden" name="ll_wordset_tool" value="editor" />
-                                    <input type="hidden" name="ll_wordset_back" value="<?php echo esc_attr($back_url); ?>" />
-                                    <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    <button type="submit" class="ll-wordset-editor-icon-button ll-wordset-editor-icon-button--danger" aria-label="<?php echo esc_attr__('Delete saved view', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Delete saved view', 'll-tools-text-domain'); ?>">
-                                        <?php echo ll_tools_wordset_editor_icon('trash'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
-                                    </button>
-                                </form>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </section>
-        </div>
+            <?php endif; ?>
+        </section>
 
         <form id="<?php echo esc_attr($bulk_form_id); ?>" class="ll-wordset-settings-card ll-wordset-editor-bulk" method="post" action="<?php echo esc_url($action_url); ?>" data-ll-wordset-editor-bulk-form data-ll-wordset-editor-empty-selection="<?php echo esc_attr__('Select at least one visible word first.', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-category-required="<?php echo esc_attr__('Choose a category target for this action.', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-trash-confirm="<?php echo esc_attr__('Move the selected words to Trash?', 'll-tools-text-domain'); ?>">
             <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />
@@ -1943,7 +1927,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                     <span class="ll-wordset-editor-media__item <?php echo !empty($row['has_image']) ? 'is-ready' : 'is-missing'; ?>" title="<?php echo esc_attr(!empty($row['has_image']) ? __('Has image', 'll-tools-text-domain') : __('Missing image', 'll-tools-text-domain')); ?>">
                                         <?php echo ll_tools_wordset_editor_icon('image'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                     </span>
-                                    <span class="ll-wordset-editor-media__item <?php echo ((int) ($row['published_audio_count'] ?? 0) > 0) ? 'is-ready' : (!empty($row['missing_audio']) ? 'is-missing' : 'is-muted'); ?>" title="<?php echo esc_attr(!empty($row['missing_audio']) ? __('Missing required audio', 'll-tools-text-domain') : sprintf(_n('%d published recording', '%d published recordings', (int) ($row['published_audio_count'] ?? 0), 'll-tools-text-domain'), (int) ($row['published_audio_count'] ?? 0))); ?>">
+                                    <span class="ll-wordset-editor-media__item <?php echo ((int) ($row['published_audio_count'] ?? 0) > 0) ? 'is-ready' : (!empty($row['missing_audio']) ? 'is-missing' : 'is-muted'); ?>" title="<?php echo esc_attr(!empty($row['missing_audio']) ? __('Missing audio', 'll-tools-text-domain') : sprintf(_n('%d published recording', '%d published recordings', (int) ($row['published_audio_count'] ?? 0), 'll-tools-text-domain'), (int) ($row['published_audio_count'] ?? 0))); ?>">
                                         <?php echo ll_tools_wordset_editor_icon('audio'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                         <span><?php echo esc_html((string) ((int) ($row['published_audio_count'] ?? 0))); ?></span>
                                     </span>
@@ -2030,7 +2014,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
             <?php endif; ?>
         </div>
 
-        <section class="ll-wordset-settings-card ll-wordset-editor-history" aria-label="<?php echo esc_attr__('Editor action history', 'll-tools-text-domain'); ?>">
+        <section id="ll-wordset-editor-history" class="ll-wordset-settings-card ll-wordset-editor-history" aria-label="<?php echo esc_attr__('Editor action history', 'll-tools-text-domain'); ?>">
             <div class="ll-wordset-editor-history__head">
                 <h2 class="ll-wordset-settings-card__title"><?php echo esc_html__('Action history', 'll-tools-text-domain'); ?></h2>
                 <span class="ll-wordset-editor-history__hint"><?php echo esc_html__('Undo is available for recent quick edits, Trash, recording moves, status, category, and review actions.', 'll-tools-text-domain'); ?></span>
