@@ -13572,6 +13572,13 @@
             const checkedCount = $checked.length;
             const singularLabel = String($editor.attr('data-ll-wordset-editor-selected-singular') || '1 selected');
             const pluralTemplate = String($editor.attr('data-ll-wordset-editor-selected-plural') || '%d selected');
+            const allFiltered = !!$editor.find('[data-ll-wordset-editor-all-filtered]').is(':checked');
+            if (allFiltered) {
+                $editor.find('[data-ll-wordset-editor-selected-count]').text(
+                    String($editor.attr('data-ll-wordset-editor-all-filtered') || '')
+                );
+                return;
+            }
             $editor.find('[data-ll-wordset-editor-selected-count]').text(
                 checkedCount === 1 ? singularLabel : pluralTemplate.replace('%d', String(checkedCount))
             );
@@ -13589,10 +13596,13 @@
 
         $root.on('change', '[data-ll-wordset-editor-word]', updateSelectionState);
 
+        $root.on('change', '[data-ll-wordset-editor-all-filtered]', updateSelectionState);
+
         $root.on('submit', '[data-ll-wordset-editor-bulk-form]', function (evt) {
             const $form = $(this);
-            const selectedCount = $form.find('[data-ll-wordset-editor-word]:checked').length;
-            if (!selectedCount) {
+            const selectedCount = $editor.find('[data-ll-wordset-editor-word]:checked').length;
+            const allFiltered = !!$form.find('[data-ll-wordset-editor-all-filtered]').is(':checked');
+            if (!selectedCount && !allFiltered) {
                 evt.preventDefault();
                 alert(String($form.attr('data-ll-wordset-editor-empty-selection') || 'Select at least one word first.'));
                 return;
@@ -13613,6 +13623,24 @@
                     evt.preventDefault();
                 }
             }
+        });
+
+        $root.on('submit', '[data-ll-wordset-editor-confirm]', function (evt) {
+            const message = String($(this).attr('data-ll-wordset-editor-confirm') || '').trim();
+            if (message && !window.confirm(message)) {
+                evt.preventDefault();
+            }
+        });
+
+        $root.on('submit', '[data-ll-wordset-editor-target-required]', function (evt) {
+            const $form = $(this);
+            const targetWordId = parseInt($form.find('select[name="ll_wordset_editor_target_word_id"]').val(), 10) || 0;
+            if (targetWordId > 0) {
+                return;
+            }
+
+            evt.preventDefault();
+            alert(String($form.attr('data-ll-wordset-editor-target-required') || 'Choose a target word first.'));
         });
 
         updateSelectionState();

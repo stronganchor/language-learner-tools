@@ -35,7 +35,7 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
 
     public function test_wordset_editor_tool_renders_searchable_filterable_word_table(): void
     {
-        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $this->loginEditor();
         $fixture = $this->createFixture('wordset-editor-render');
         $wordset_term = get_term((int) $fixture['wordset_id'], 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
@@ -43,6 +43,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $_GET = [
             'll_wordset_tool' => 'editor',
             'll_editor_q' => 'Alpha Translation',
+            'll_editor_sort' => 'recording',
+            'll_editor_dir' => 'desc',
         ];
         $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
         set_query_var('ll_wordset_page', (string) $wordset_term->slug);
@@ -56,11 +58,60 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_editor_status"', $html);
         $this->assertStringContainsString('name="ll_editor_image"', $html);
         $this->assertStringContainsString('name="ll_editor_recording"', $html);
+        $this->assertStringContainsString('name="ll_editor_sort"', $html);
+        $this->assertStringContainsString('ll_editor_sort=word', $html);
+        $this->assertStringContainsString('ll_editor_sort=translation', $html);
+        $this->assertStringContainsString('ll_wordset_editor_all_filtered', $html);
+        $this->assertStringContainsString('All 1 filtered word', $html);
         $this->assertStringContainsString('Alpha Word', $html);
         $this->assertStringContainsString('Alpha Translation', $html);
-        $this->assertStringNotContainsString('Beta Word', $html);
+        $this->assertStringContainsString('ll_wordset_editor_recording_id', $html);
+        $this->assertStringContainsString('ll_wordset_editor_target_word_id', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-confirm', $html);
         $this->assertStringContainsString('ll_wordset_manager_editor_action', $html);
         $this->assertStringContainsString('Recent actions', $html);
+    }
+
+    public function test_all_filtered_bulk_category_move_uses_current_filters(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-all-filtered');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'move_category',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_all_filtered' => '1',
+            'll_editor_q' => 'Alpha Translation',
+            'll_editor_sort' => 'word',
+            'll_editor_dir' => 'asc',
+            'll_wordset_editor_target_category' => (string) $fixture['category_b_id'],
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect);
+        $this->assertSame('move_category', (string) ($query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('1', (string) ($query['ll_wordset_manager_editor_count'] ?? ''));
+        $this->assertSame('Alpha Translation', (string) ($query['ll_editor_q'] ?? ''));
+
+        $alpha_categories = array_map('intval', wp_get_post_terms((int) $fixture['alpha_word_id'], 'word-category', ['fields' => 'ids']));
+        $beta_categories = array_map('intval', wp_get_post_terms((int) $fixture['beta_word_id'], 'word-category', ['fields' => 'ids']));
+        $this->assertContains((int) $fixture['category_b_id'], $alpha_categories);
+        $this->assertNotContains((int) $fixture['category_a_id'], $alpha_categories);
+        $this->assertContains((int) $fixture['category_a_id'], $beta_categories);
+        $this->assertNotContains((int) $fixture['category_b_id'], $beta_categories);
     }
 
     public function test_bulk_category_move_logs_undo_and_restores_previous_category(): void
@@ -163,8 +214,110 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertSame('', ll_tools_get_internal_review_note((int) $fixture['beta_word_id']));
     }
 
+    public function test_recording_move_logs_recent_action_and_is_undoable(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-recording-move');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'move_recording',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_recording_id' => (string) $fixture['alpha_recording_id'],
+            'll_wordset_editor_target_word_id' => (string) $fixture['beta_word_id'],
+            'll_editor_recording' => 'has',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $move_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $move_query = $this->parseRedirectQuery($move_redirect);
+        $this->assertSame('move_recording', (string) ($move_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('has', (string) ($move_query['ll_editor_recording'] ?? ''));
+        $this->assertSame((int) $fixture['beta_word_id'], (int) wp_get_post_parent_id((int) $fixture['alpha_recording_id']));
+
+        $recent = ll_tools_wordset_editor_get_recent_actions($wordset_id, 1);
+        $this->assertCount(1, $recent);
+        $this->assertSame('recording_move', (string) ($recent[0]['type'] ?? ''));
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'undo',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_action_id' => (string) ($recent[0]['id'] ?? ''),
+            'll_wordset_tool' => 'editor',
+        ];
+
+        $undo_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $undo_query = $this->parseRedirectQuery($undo_redirect);
+        $this->assertSame('undo', (string) ($undo_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame((int) $fixture['alpha_word_id'], (int) wp_get_post_parent_id((int) $fixture['alpha_recording_id']));
+    }
+
+    public function test_recording_delete_moves_to_trash_and_can_be_undone(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-recording-delete');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'delete_recording',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_recording_id' => (string) $fixture['alpha_recording_id'],
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $delete_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $delete_query = $this->parseRedirectQuery($delete_redirect);
+        $this->assertSame('delete_recording', (string) ($delete_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('trash', get_post_status((int) $fixture['alpha_recording_id']));
+
+        $recent = ll_tools_wordset_editor_get_recent_actions($wordset_id, 1);
+        $this->assertCount(1, $recent);
+        $this->assertSame('recording_trash', (string) ($recent[0]['type'] ?? ''));
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'undo',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_action_id' => (string) ($recent[0]['id'] ?? ''),
+            'll_wordset_tool' => 'editor',
+        ];
+
+        $undo_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $undo_query = $this->parseRedirectQuery($undo_redirect);
+        $this->assertSame('undo', (string) ($undo_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('publish', get_post_status((int) $fixture['alpha_recording_id']));
+        $this->assertSame((int) $fixture['alpha_word_id'], (int) wp_get_post_parent_id((int) $fixture['alpha_recording_id']));
+    }
+
     /**
-     * @return array{wordset_id:int,category_a_id:int,category_b_id:int,alpha_word_id:int,beta_word_id:int}
+     * @return array{wordset_id:int,category_a_id:int,category_b_id:int,alpha_word_id:int,beta_word_id:int,alpha_recording_id:int}
      */
     private function createFixture(string $prefix): array
     {
@@ -227,6 +380,7 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
             'category_b_id' => $category_b_id,
             'alpha_word_id' => (int) $alpha_word_id,
             'beta_word_id' => (int) $beta_word_id,
+            'alpha_recording_id' => (int) $alpha_recording_id,
         ];
     }
 
@@ -240,6 +394,20 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $created = wp_insert_term($name, $taxonomy, ['slug' => $slug]);
         $this->assertFalse(is_wp_error($created));
         return (int) ($created['term_id'] ?? 0);
+    }
+
+    private function loginEditor(): void
+    {
+        if (function_exists('ll_create_ll_tools_editor_role')) {
+            ll_create_ll_tools_editor_role();
+        }
+        $role = get_role('ll_tools_editor') ? 'll_tools_editor' : 'administrator';
+        $editor_id = self::factory()->user->create(['role' => $role]);
+        $editor = get_user_by('id', $editor_id);
+        $this->assertInstanceOf(WP_User::class, $editor);
+        $editor->add_cap('view_ll_tools');
+        clean_user_cache($editor_id);
+        wp_set_current_user($editor_id);
     }
 
     private function requestUriFromUrl(string $url): string

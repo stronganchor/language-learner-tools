@@ -324,6 +324,119 @@ function buildAdvancedToolMarkup() {
   `;
 }
 
+function buildEditorToolMarkup() {
+  return `
+    <main class="ll-wordset-page" style="padding: 20px;">
+      <section
+        class="ll-wordset-settings-page ll-wordset-editor"
+        data-ll-wordset-editor
+        data-ll-wordset-editor-selected-singular="1 selected"
+        data-ll-wordset-editor-selected-plural="%d selected"
+        data-ll-wordset-editor-all-filtered="All 8 filtered words selected"
+      >
+        <div class="ll-wordset-editor-stats">
+          <div class="ll-wordset-editor-stat">
+            <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>
+            <span class="ll-wordset-editor-stat__value">42</span>
+            <span class="ll-wordset-editor-stat__label">Words</span>
+          </div>
+          <div class="ll-wordset-editor-stat">
+            <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+            <span class="ll-wordset-editor-stat__value">7</span>
+            <span class="ll-wordset-editor-stat__label">Missing audio</span>
+          </div>
+        </div>
+
+        <form class="ll-wordset-settings-card ll-wordset-editor-filters">
+          <div class="ll-wordset-editor-filters__grid">
+            <label class="ll-wordset-editor-field ll-wordset-editor-field--search">
+              <span class="ll-wordset-editor-field__label">Word or translation</span>
+              <input type="search" value="long translation" />
+            </label>
+            <label class="ll-wordset-editor-field">
+              <span class="ll-wordset-editor-field__label">Category</span>
+              <select><option>Long category name used by editors</option></select>
+            </label>
+            <label class="ll-wordset-editor-field">
+              <span class="ll-wordset-editor-field__label">Recording</span>
+              <select><option>Missing required audio</option></select>
+            </label>
+          </div>
+        </form>
+
+        <form class="ll-wordset-settings-card ll-wordset-editor-bulk" data-ll-wordset-editor-bulk-form>
+          <div class="ll-wordset-editor-bulk__bar">
+            <span class="ll-wordset-editor-selected-count" data-ll-wordset-editor-selected-count>0 selected</span>
+            <label class="ll-wordset-editor-all-filtered">
+              <input type="checkbox" data-ll-wordset-editor-all-filtered />
+              <span>All 8 filtered words</span>
+            </label>
+            <label class="ll-wordset-editor-field">
+              <span class="ll-wordset-editor-field__label">Action</span>
+              <select><option>Move to category</option></select>
+            </label>
+            <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--primary">Apply</button>
+          </div>
+        </form>
+
+        <div class="ll-wordset-settings-card ll-wordset-editor-table-card">
+          <div class="ll-wordset-editor-table" role="table">
+            <div class="ll-wordset-editor-row ll-wordset-editor-row--head" role="row">
+              <span class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="columnheader"><input type="checkbox" /></span>
+              <span class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="columnheader"><a class="ll-wordset-editor-sort-link" href="#"><span>Word</span><span class="ll-wordset-editor-sort-link__icon">&lt;&gt;</span></a></span>
+              <span class="ll-wordset-editor-cell" role="columnheader">Categories</span>
+              <span class="ll-wordset-editor-cell" role="columnheader">State</span>
+              <span class="ll-wordset-editor-cell" role="columnheader">Media</span>
+            </div>
+            <div class="ll-wordset-editor-row" role="row">
+              <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell"><input type="checkbox" data-ll-wordset-editor-word /></label>
+              <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell">
+                <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
+                <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
+              </div>
+              <div class="ll-wordset-editor-cell" role="cell">
+                <div class="ll-wordset-editor-pill-list">
+                  <span class="ll-wordset-editor-pill">Conversation Practice</span>
+                  <span class="ll-wordset-editor-pill">Review Queue</span>
+                </div>
+              </div>
+              <div class="ll-wordset-editor-cell" role="cell"><span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span></div>
+              <div class="ll-wordset-editor-cell" role="cell">
+                <div class="ll-wordset-editor-media">
+                  <span class="ll-wordset-editor-media__item is-ready">Audio <span>2</span></span>
+                  <span class="ll-wordset-editor-media__item is-missing">Image</span>
+                </div>
+                <div class="ll-wordset-editor-recordings">
+                  <div class="ll-wordset-editor-recording">
+                    <div class="ll-wordset-editor-recording__main">
+                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                      <span class="ll-wordset-editor-recording__label">Isolation recording</span>
+                      <span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span>
+                    </div>
+                    <div class="ll-wordset-editor-recording__actions">
+                      <button type="button" class="ll-wordset-editor-icon-button ll-wordset-editor-icon-button--danger" aria-label="Trash recording">
+                        <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h10M10 8V6h4v2M9 10.5v6M15 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      </button>
+                      <form class="ll-wordset-editor-move-form">
+                        <select aria-label="Move recording to word">
+                          <option>Move to another word with a long visible title</option>
+                        </select>
+                        <button type="button" class="ll-wordset-editor-icon-button" aria-label="Move recording">
+                          <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  `;
+}
+
 async function mountSettingsTool(page, markup, viewport) {
   await page.setViewportSize(viewport);
   await page.goto('about:blank');
@@ -414,4 +527,37 @@ test('manager advanced settings tool stacks dense controls without horizontal ov
   expect(fieldGridMetrics).not.toBeNull();
   expect(fieldGridMetrics.width).toBeLessThanOrEqual(360);
   expect(fieldGridMetrics.distinctRows).toBeGreaterThan(1);
+});
+
+test('manager wordset editor table keeps recording controls usable on mobile', async ({ page }) => {
+  await mountSettingsTool(page, buildEditorToolMarkup(), { width: 390, height: 844 });
+
+  await expect(page.locator('.ll-wordset-editor-table-card')).toBeVisible();
+  await expect(page.locator('.ll-wordset-editor-recording')).toBeVisible();
+  await expect(page.getByLabel('Move recording to word')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Trash recording' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move recording' })).toBeVisible();
+
+  await assertPageFitsViewport(page);
+
+  const controlMetrics = await page.evaluate(() => {
+    const select = document.querySelector('.ll-wordset-editor-move-form select');
+    const buttons = Array.from(document.querySelectorAll('.ll-wordset-editor-icon-button'));
+    if (!select || buttons.length < 2) {
+      return null;
+    }
+    const selectRect = select.getBoundingClientRect();
+    return {
+      selectWidth: Math.round(selectRect.width),
+      selectRight: Math.round(selectRect.right),
+      buttonSizes: buttons.map((button) => Math.round(button.getBoundingClientRect().width))
+    };
+  });
+
+  expect(controlMetrics).not.toBeNull();
+  expect(controlMetrics.selectWidth).toBeGreaterThan(180);
+  expect(controlMetrics.selectRight).toBeLessThanOrEqual(392);
+  controlMetrics.buttonSizes.forEach((width) => {
+    expect(width).toBeGreaterThanOrEqual(32);
+  });
 });
