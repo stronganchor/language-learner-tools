@@ -67,6 +67,9 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Alpha Translation', $html);
         $this->assertStringContainsString('ll_wordset_editor_recording_id', $html);
         $this->assertStringContainsString('ll_wordset_editor_target_word_id', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-move-target', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-options-template="ll-wordset-editor-move-options-', $html);
+        $this->assertSame(1, substr_count($html, '<template id="ll-wordset-editor-move-options-'));
         $this->assertStringContainsString('data-ll-wordset-editor-confirm', $html);
         $this->assertStringContainsString('ll_wordset_manager_editor_action', $html);
         $this->assertStringContainsString('aria-label="Show all words"', $html);

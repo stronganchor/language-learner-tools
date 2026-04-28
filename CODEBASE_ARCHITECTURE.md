@@ -104,6 +104,7 @@ includes/
     dictionary-page.php       # Dictionary page creation + settings-row controls
     site-tools-page.php       # Front-end Site Tools page creation + URL helper
     wordset-pages.php         # Wordset hub pages (main/progress/settings/hidden)
+    wordset-editor.php        # Frontend wordset editor tool for filtering, bulk edits, media review, recording moves, and action undo
     vocab-lesson-pages.php    # Vocab lesson pages + enable/sync flows
     content-lesson-pages.php  # Content lesson routing/rendering
     wordset-games.php         # Wordset game catalog/runtime helpers
@@ -314,6 +315,7 @@ Core settings live in `includes/admin/settings.php`:
   - Optional params: `?wordset=<slug>` and `?mode=practice|learning|listening|gender|self-check`.
 - `/<wordset>` wordset hub pages (handled by `includes/pages/wordset-pages.php`).
   - Views: main, `progress`, `hidden-categories`, `settings`, `games`, and `classes`.
+  - The settings view can launch the Wordset Editor tool (`ll_wordset_tool=editor`, implemented in `includes/pages/wordset-editor.php`) for searchable word tables, media-status filters, bulk category/status/review actions, recording moves, saved views, and recent-action undo.
 - `/<wordset>/<category>` vocab lesson pages (handled by `includes/pages/vocab-lesson-pages.php`).
 - `/lesson/<slug>` content lesson pages (handled by `includes/pages/content-lesson-pages.php`).
 - `/wp-json/ll-tools/v1/...` REST automation routes (handled by `includes/api/automation-rest.php`).

@@ -3,6 +3,7 @@ const {
   collectPageSpeedMetrics,
   createPageSpeedSession,
   readEnvNumber,
+  warmPageSpeedRoute,
   waitForVisibleActionable
 } = require('../helpers/page-speed');
 
@@ -12,13 +13,18 @@ const ACTIONABLE_SELECTOR = process.env.LL_E2E_PAGE_SPEED_SELECTOR || '.ll-quiz-
 const MAX_DOMCONTENTLOADED_MS = readEnvNumber('LL_E2E_PAGE_SPEED_MAX_DOMCONTENTLOADED_MS', 7000);
 const MAX_ACTIONABLE_MS = readEnvNumber('LL_E2E_PAGE_SPEED_MAX_ACTIONABLE_MS', 10000);
 const MAX_LOAD_MS = readEnvNumber('LL_E2E_PAGE_SPEED_MAX_LOAD_MS', 15000);
+const WARMUP_ATTEMPTS = readEnvNumber('LL_E2E_PAGE_SPEED_WARMUP_ATTEMPTS', 2);
+const WARMUP_RETRY_DELAY_MS = readEnvNumber('LL_E2E_PAGE_SPEED_WARMUP_RETRY_DELAY_MS', 1000);
 
 test('learn page stays within the throttled load budget', async ({ page, request }, testInfo) => {
   test.slow();
 
   const navigationTimeoutMs = Math.max(MAX_DOMCONTENTLOADED_MS, MAX_ACTIONABLE_MS, MAX_LOAD_MS) + 10000;
-  const warmupResponse = await request.get(PAGE_PATH, { timeout: navigationTimeoutMs });
-  expect(warmupResponse.ok()).toBeTruthy();
+  await warmPageSpeedRoute(request, PAGE_PATH, {
+    attempts: WARMUP_ATTEMPTS,
+    retryDelayMs: WARMUP_RETRY_DELAY_MS,
+    timeoutMs: navigationTimeoutMs
+  });
 
   const session = await createPageSpeedSession(page);
 

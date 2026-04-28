@@ -8,6 +8,32 @@ function readEnvNumber(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+async function warmPageSpeedRoute(request, path, options = {}) {
+  const timeoutMs = Math.max(1, Number(options.timeoutMs) || 25000);
+  const attempts = Math.max(1, Math.round(Number(options.attempts) || 1));
+  const retryDelayMs = Math.max(0, Number(options.retryDelayMs) || 0);
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await request.get(path, { timeout: timeoutMs });
+      if (response.ok()) {
+        return response;
+      }
+
+      lastError = new Error(`Warmup request returned HTTP ${response.status()} ${response.statusText()}`);
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt < attempts && retryDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+  }
+
+  throw lastError || new Error('Warmup request failed.');
+}
+
 function kbpsToBytesPerSecond(kbps) {
   const normalized = Math.max(0, Number(kbps) || 0);
   return Math.round((normalized * 1000) / 8);
@@ -154,5 +180,6 @@ module.exports = {
   collectPageSpeedMetrics,
   createPageSpeedSession,
   readEnvNumber,
+  warmPageSpeedRoute,
   waitForVisibleActionable
 };

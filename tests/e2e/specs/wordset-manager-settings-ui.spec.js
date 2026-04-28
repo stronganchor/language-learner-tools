@@ -10,6 +10,14 @@ const wordsetPagesCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/wordset-pages.css'),
   'utf8'
 );
+const jquerySource = fs.readFileSync(
+  path.resolve(__dirname, '../node_modules/jquery/dist/jquery.min.js'),
+  'utf8'
+);
+const wordsetPagesJsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/wordset-pages.js'),
+  'utf8'
+);
 
 const hostileThemeCss = `
   .ll-wordset-page button,
@@ -28,7 +36,7 @@ const hostileThemeCss = `
 
 function buildRecorderToolMarkup() {
   return `
-    <main class="ll-wordset-page" style="padding: 20px;">
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
       <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
         <div class="ll-wordset-settings-card">
           <h2 class="ll-wordset-settings-card__title">Recorder Access</h2>
@@ -113,7 +121,7 @@ function buildRecorderToolMarkup() {
 
 function buildCategoriesToolMarkup() {
   return `
-    <main class="ll-wordset-page" style="padding: 20px;">
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
       <section class="ll-wordset-settings-page ll-wordset-settings-page--tool" data-ll-wordset-settings-page>
         <div class="ll-wordset-settings-card">
           <h2 class="ll-wordset-settings-card__title">Categories</h2>
@@ -326,7 +334,7 @@ function buildAdvancedToolMarkup() {
 
 function buildEditorToolMarkup() {
   return `
-    <main class="ll-wordset-page" style="padding: 20px;">
+    <main class="ll-wordset-page" data-ll-wordset-page style="padding: 20px;">
       <section
         class="ll-wordset-settings-page ll-wordset-editor"
         data-ll-wordset-editor
@@ -413,6 +421,10 @@ function buildEditorToolMarkup() {
         </form>
 
         <div class="ll-wordset-settings-card ll-wordset-editor-table-card">
+          <template id="ll-wordset-editor-move-options-1">
+            <option value="101">Very Long Multilingual Word Title - A compact but long translation shown in the editor table</option>
+            <option value="102">Move target word - translation</option>
+          </template>
           <div class="ll-wordset-editor-table" role="table">
             <div class="ll-wordset-editor-row ll-wordset-editor-row--head" role="row">
               <span class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="columnheader"><input type="checkbox" /></span>
@@ -472,8 +484,8 @@ function buildEditorToolMarkup() {
                         <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h10M10 8V6h4v2M9 10.5v6M15 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                       </button>
                       <form class="ll-wordset-editor-move-form">
-                        <select aria-label="Move recording to word">
-                          <option>Move to another word with a long visible title</option>
+                        <select aria-label="Move recording to word" data-ll-wordset-editor-move-target data-ll-wordset-editor-source-word-id="101" data-ll-wordset-editor-options-template="ll-wordset-editor-move-options-1">
+                          <option value="0">Move to...</option>
                         </select>
                         <button type="button" class="ll-wordset-editor-icon-button" aria-label="Move recording">
                           <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -492,8 +504,8 @@ function buildEditorToolMarkup() {
                         <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h10M10 8V6h4v2M9 10.5v6M15 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                       </button>
                       <form class="ll-wordset-editor-move-form">
-                        <select aria-label="Move recording to word">
-                          <option>Move to another word with a long visible title</option>
+                        <select aria-label="Move recording to word" data-ll-wordset-editor-move-target data-ll-wordset-editor-source-word-id="101" data-ll-wordset-editor-options-template="ll-wordset-editor-move-options-1">
+                          <option value="0">Move to...</option>
                         </select>
                         <button type="button" class="ll-wordset-editor-icon-button" aria-label="Move recording">
                           <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -549,6 +561,14 @@ async function mountSettingsTool(page, markup, viewport) {
   await page.addStyleTag({ content: languageLearnerToolsCssSource });
   await page.addStyleTag({ content: wordsetPagesCssSource });
   await page.addStyleTag({ content: hostileThemeCss });
+}
+
+async function enableWordsetPageScript(page) {
+  await page.evaluate(() => {
+    window.llWordsetPageData = { view: 'settings' };
+  });
+  await page.addScriptTag({ content: jquerySource });
+  await page.addScriptTag({ content: wordsetPagesJsSource });
 }
 
 async function assertPageFitsViewport(page) {
@@ -647,7 +667,9 @@ test('manager wordset editor table gives recordings usable desktop width', async
     const mediaCell = document.querySelector('.ll-wordset-editor-cell--media[role="cell"]');
     const details = document.querySelector('.ll-wordset-editor-row__details');
     const recordings = Array.from(document.querySelectorAll('.ll-wordset-editor-recording'));
-    if (!wordCell || !mediaCell || !details || recordings.length === 0) {
+    const targetSelects = Array.from(document.querySelectorAll('[data-ll-wordset-editor-move-target]'));
+    const targetTemplate = document.querySelector('#ll-wordset-editor-move-options-1');
+    if (!wordCell || !mediaCell || !details || recordings.length === 0 || !targetTemplate) {
       return null;
     }
     const wordRect = wordCell.getBoundingClientRect();
@@ -661,7 +683,9 @@ test('manager wordset editor table gives recordings usable desktop width', async
       detailsLeft: Math.round(detailsRect.left),
       wordLeft: Math.round(wordRect.left),
       recordingMinWidth: Math.round(Math.min(...recordingRects.map((rect) => rect.width))),
-      recordingRows: new Set(recordingRects.map((rect) => Math.round(rect.top))).size
+      recordingRows: new Set(recordingRects.map((rect) => Math.round(rect.top))).size,
+      selectOptionCounts: targetSelects.map((select) => select.options.length),
+      templateOptionCount: targetTemplate.content.querySelectorAll('option').length
     };
   });
 
@@ -671,6 +695,23 @@ test('manager wordset editor table gives recordings usable desktop width', async
   expect(layoutMetrics.detailsLeft).toBeLessThanOrEqual(layoutMetrics.wordLeft + 2);
   expect(layoutMetrics.recordingMinWidth).toBeGreaterThan(320);
   expect(layoutMetrics.recordingRows).toBe(1);
+  expect(layoutMetrics.selectOptionCounts).toEqual([1, 1]);
+  expect(layoutMetrics.templateOptionCount).toBe(2);
+});
+
+test('manager wordset editor move targets hydrate only when needed', async ({ page }) => {
+  await mountSettingsTool(page, buildEditorToolMarkup(), { width: 1180, height: 900 });
+  await enableWordsetPageScript(page);
+
+  const firstTarget = page.locator('[data-ll-wordset-editor-move-target]').first();
+  await expect(firstTarget).toBeVisible();
+
+  await expect.poll(async () => firstTarget.evaluate((select) => select.options.length)).toBe(1);
+  await firstTarget.focus();
+  await expect.poll(async () => firstTarget.evaluate((select) => select.options.length)).toBe(2);
+
+  const values = await firstTarget.evaluate((select) => Array.from(select.options).map((option) => option.value));
+  expect(values).toEqual(['0', '102']);
 });
 
 test('manager wordset editor table keeps recording controls usable on mobile', async ({ page }) => {

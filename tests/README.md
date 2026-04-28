@@ -211,6 +211,8 @@ Representative E2E coverage areas:
   - Verifies standalone `[flashcard_widget]` start flow reaches the quiz popup.
 - `tests/e2e/specs/page-speed-throttled-load.spec.js`
   - Verifies the learn page still becomes usable within a configurable budget while Chromium throttles localhost traffic to a slower network profile.
+- `tests/e2e/specs/wordset-manager-settings-ui.spec.js`
+  - Verifies frontend wordset-manager tools stay usable under narrow/mobile layouts, including the Wordset Editor table, full-width recording details, and lazy move-target option hydration.
 - `tests/e2e/specs/gender-mode-adaptive.spec.js`
   - Verifies adaptive Gender mode rules: "I don't know" behaves as wrong with 2-correct recovery, Level 1 requires 3 correct answers and learn-like intro pacing, and dashboard results always expose next-activity + next-set actions with chunk-scoped categories.
 - `tests/e2e/specs/listening-sequence-weighting.spec.js`

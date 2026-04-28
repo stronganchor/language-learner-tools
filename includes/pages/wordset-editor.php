@@ -1630,6 +1630,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $page_word_ids = ll_tools_wordset_editor_normalize_word_ids(wp_list_pluck($page_rows, 'id'));
     $recordings_by_word_id = ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids);
     $move_choices = ll_tools_wordset_editor_get_move_choices($wordset_id);
+    $move_target_template_id = 'll-wordset-editor-move-options-' . (int) $wordset_id;
     $saved_filters = ll_tools_wordset_editor_get_saved_filters($wordset_id);
     $history_filters = ll_tools_wordset_editor_get_history_filters();
     $history_rows = ll_tools_wordset_editor_get_filtered_history($wordset_id, $history_filters);
@@ -1845,6 +1846,13 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
         </form>
 
         <div class="ll-wordset-settings-card ll-wordset-editor-table-card">
+            <template id="<?php echo esc_attr($move_target_template_id); ?>">
+                <?php foreach ($move_choices as $choice) : ?>
+                    <?php $choice_id = (int) ($choice['id'] ?? 0); ?>
+                    <?php if ($choice_id <= 0) { continue; } ?>
+                    <option value="<?php echo esc_attr((string) $choice_id); ?>"><?php echo esc_html((string) ($choice['label'] ?? '')); ?></option>
+                <?php endforeach; ?>
+            </template>
             <div class="ll-wordset-editor-table" role="table" aria-label="<?php echo esc_attr__('Words in this word set', 'll-tools-text-domain'); ?>">
                 <div class="ll-wordset-editor-row ll-wordset-editor-row--head" role="row">
                     <span class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="columnheader">
@@ -1976,13 +1984,8 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                                         <?php echo ll_tools_wordset_editor_filter_hidden_inputs($filters); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                                         <?php echo ll_tools_wordset_editor_nonce_input($wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                                                         <label class="screen-reader-text" for="<?php echo esc_attr('ll-wordset-editor-recording-target-' . $recording_id); ?>"><?php echo esc_html__('Move recording to word', 'll-tools-text-domain'); ?></label>
-                                                        <select id="<?php echo esc_attr('ll-wordset-editor-recording-target-' . $recording_id); ?>" name="ll_wordset_editor_target_word_id">
+                                                        <select id="<?php echo esc_attr('ll-wordset-editor-recording-target-' . $recording_id); ?>" name="ll_wordset_editor_target_word_id" data-ll-wordset-editor-move-target data-ll-wordset-editor-source-word-id="<?php echo esc_attr((string) $word_id); ?>" data-ll-wordset-editor-options-template="<?php echo esc_attr($move_target_template_id); ?>">
                                                             <option value="0"><?php echo esc_html__('Move to...', 'll-tools-text-domain'); ?></option>
-                                                            <?php foreach ($move_choices as $choice) : ?>
-                                                                <?php $choice_id = (int) ($choice['id'] ?? 0); ?>
-                                                                <?php if ($choice_id <= 0 || $choice_id === $word_id) { continue; } ?>
-                                                                <option value="<?php echo esc_attr((string) $choice_id); ?>"><?php echo esc_html((string) ($choice['label'] ?? '')); ?></option>
-                                                            <?php endforeach; ?>
                                                         </select>
                                                         <button type="submit" class="ll-wordset-editor-icon-button" aria-label="<?php echo esc_attr__('Move recording', 'll-tools-text-domain'); ?>" title="<?php echo esc_attr__('Move recording', 'll-tools-text-domain'); ?>">
                                                             <?php echo ll_tools_wordset_editor_icon('check'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>

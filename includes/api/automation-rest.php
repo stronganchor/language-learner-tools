@@ -577,6 +577,22 @@ function ll_tools_rest_resource_guard_wait_response(array $policy, float $retry_
     return $response;
 }
 
+function ll_tools_rest_resource_guard_wait_error(array $policy, float $retry_after_seconds): WP_Error {
+    $retry_after_seconds = max(1.0, $retry_after_seconds);
+
+    return new WP_Error(
+        'll_tools_rest_resource_guard_wait',
+        __('LL Tools automation is already processing a write request. Wait and retry this request instead of running parallel updates.', 'll-tools-text-domain'),
+        [
+            'status' => 429,
+            'retry_after_seconds' => (float) round($retry_after_seconds, 3),
+            'scope' => (string) ($policy['scope'] ?? ''),
+            'resource' => (string) ($policy['resource'] ?? ''),
+            'route' => (string) ($policy['route'] ?? ''),
+        ]
+    );
+}
+
 function ll_tools_rest_resource_guard_before_callbacks($response, array $handler, WP_REST_Request $request) {
     unset($handler);
 
@@ -595,7 +611,7 @@ function ll_tools_rest_resource_guard_before_callbacks($response, array $handler
     $now = microtime(true);
     $next_allowed = (float) get_option($next_option, 0);
     if ($next_allowed > $now) {
-        return ll_tools_rest_resource_guard_wait_response($policy, $next_allowed - $now);
+        return ll_tools_rest_resource_guard_wait_error($policy, $next_allowed - $now);
     }
 
     $owner = function_exists('wp_generate_uuid4') ? wp_generate_uuid4() : wp_generate_password(24, false, false);
@@ -617,13 +633,13 @@ function ll_tools_rest_resource_guard_before_callbacks($response, array $handler
                 $expires_at - $now,
                 max(1.0, (float) ($policy['delay_seconds'] ?? 1.25))
             );
-            return ll_tools_rest_resource_guard_wait_response($policy, $active_retry_after);
+            return ll_tools_rest_resource_guard_wait_error($policy, $active_retry_after);
         }
 
         delete_option($lock_option);
         $added = add_option($lock_option, $lock, '', 'no');
         if (!$added) {
-            return ll_tools_rest_resource_guard_wait_response($policy, 1.0);
+            return ll_tools_rest_resource_guard_wait_error($policy, 1.0);
         }
     }
 
@@ -641,6 +657,27 @@ function ll_tools_rest_resource_guard_before_callbacks($response, array $handler
     return $response;
 }
 add_filter('rest_request_before_callbacks', 'll_tools_rest_resource_guard_before_callbacks', 8, 3);
+
+function ll_tools_rest_resource_guard_after_callbacks($response, array $handler, WP_REST_Request $request) {
+    unset($handler, $request);
+
+    if (!is_wp_error($response) || !in_array('ll_tools_rest_resource_guard_wait', $response->get_error_codes(), true)) {
+        return $response;
+    }
+
+    $data = $response->get_error_data('ll_tools_rest_resource_guard_wait');
+    $policy = is_array($data) ? $data : [];
+
+    return ll_tools_rest_resource_guard_wait_response(
+        [
+            'scope' => (string) ($policy['scope'] ?? ''),
+            'resource' => (string) ($policy['resource'] ?? ''),
+            'route' => (string) ($policy['route'] ?? ''),
+        ],
+        (float) ($policy['retry_after_seconds'] ?? 1.0)
+    );
+}
+add_filter('rest_request_after_callbacks', 'll_tools_rest_resource_guard_after_callbacks', 1000, 3);
 
 function ll_tools_rest_resource_guard_release($response, $server, WP_REST_Request $request) {
     unset($server, $request);
@@ -676,6 +713,7 @@ function ll_tools_rest_resource_guard_release($response, $server, WP_REST_Reques
     return $response;
 }
 add_filter('rest_post_dispatch', 'll_tools_rest_resource_guard_release', 999, 3);
+add_filter('rest_request_after_callbacks', 'll_tools_rest_resource_guard_release', 999, 3);
 
 function ll_tools_rest_resource_guard_clear_state(): void {
     $scope = 'll_tools_rest_automation_write';
