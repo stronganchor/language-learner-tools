@@ -3741,6 +3741,132 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     align-items: end;
 }
 
+.ll-wordset-editor-utility-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.85fr);
+    gap: 12px;
+}
+
+.ll-wordset-editor-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ll-wordset-editor-queue-grid,
+.ll-wordset-editor-saved-view-list {
+    display: grid;
+    gap: 8px;
+}
+
+.ll-wordset-editor-queue-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ll-wordset-editor-queue-card,
+.ll-wordset-editor-saved-view a {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ll-wp-text) !important;
+    text-decoration: none !important;
+}
+
+.ll-wordset-editor-queue-card {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+        "icon count"
+        "icon label";
+    align-items: center;
+    min-height: 74px;
+    padding: 10px;
+}
+
+.ll-wordset-editor-queue-card .ll-wordset-editor-icon {
+    grid-area: icon;
+    width: 26px;
+    height: 26px;
+    color: #135e96;
+}
+
+.ll-wordset-editor-queue-card__count {
+    grid-area: count;
+    color: var(--ll-wp-text);
+    font-size: 1rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.ll-wordset-editor-queue-card__label {
+    grid-area: label;
+    color: var(--ll-wp-muted);
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.ll-wordset-editor-queue-card:hover,
+.ll-wordset-editor-queue-card:focus-visible,
+.ll-wordset-editor-saved-view a:hover,
+.ll-wordset-editor-saved-view a:focus-visible {
+    border-color: #9fc5e8;
+    background: #eef5fb;
+    outline: none;
+}
+
+.ll-wordset-editor-saved-view-form,
+.ll-wordset-editor-saved-view {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    align-items: center;
+}
+
+.ll-wordset-editor-saved-view-form {
+    margin: 0;
+}
+
+.ll-wordset-editor-saved-view-form input[type="text"] {
+    width: min(100%, 190px);
+    min-height: 34px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ll-wp-text);
+    font: inherit;
+    font-size: 0.82rem;
+}
+
+.ll-wordset-editor-saved-view {
+    justify-content: space-between;
+    padding: 7px;
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.ll-wordset-editor-saved-view a {
+    display: inline-flex;
+    flex: 1 1 160px;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    font-size: 0.84rem;
+    font-weight: 800;
+}
+
+.ll-wordset-editor-saved-view form {
+    margin: 0;
+}
+
 .ll-wordset-editor-all-filtered {
     display: inline-flex;
     align-items: center;
@@ -3869,6 +3995,70 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     color: var(--ll-wp-muted);
     font-size: 0.82rem;
     line-height: 1.3;
+}
+
+.ll-wordset-editor-inline-edit {
+    margin-top: 4px;
+}
+
+.ll-wordset-editor-inline-edit summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: fit-content;
+    min-height: 30px;
+    padding: 4px 8px;
+    border: 1px solid #d8dde6;
+    border-radius: 999px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.76rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    list-style: none;
+}
+
+.ll-wordset-editor-inline-edit summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-wordset-editor-inline-edit[open] summary {
+    border-color: #9fc5e8;
+    background: #eef5fb;
+    color: #135e96;
+}
+
+.ll-wordset-editor-inline-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+    margin: 8px 0 0;
+    padding: 8px;
+    border: 1px solid #d8dde6;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.ll-wordset-editor-inline-form label {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    color: var(--ll-wp-muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+
+.ll-wordset-editor-inline-form input[type="text"] {
+    width: 100%;
+    min-height: 34px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #ffffff;
+    color: var(--ll-wp-text);
+    font: inherit;
+    font-size: 0.82rem;
 }
 
 .ll-wordset-editor-pill-list {
@@ -4089,6 +4279,14 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     gap: 12px;
 }
 
+.ll-wordset-editor-history-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: end;
+    margin: 10px 0 12px;
+}
+
 .ll-wordset-editor-history__hint,
 .ll-wordset-editor-history__time {
     color: var(--ll-wp-muted);
@@ -4114,6 +4312,13 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-width: 0;
 }
 
+.ll-wordset-editor-history__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
 .ll-wordset-editor-history__summary {
     color: var(--ll-wp-text);
     font-size: 0.88rem;
@@ -4124,6 +4329,22 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 .ll-wordset-editor-history__undo {
     margin: 0;
     flex: 0 0 auto;
+}
+
+.ll-wordset-editor-history__details {
+    color: var(--ll-wp-muted);
+    font-size: 0.78rem;
+}
+
+.ll-wordset-editor-history__details summary {
+    width: fit-content;
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.ll-wordset-editor-history__details ul {
+    margin: 6px 0 0 18px;
+    padding: 0;
 }
 
 .ll-wordset-settings-category-row__delete-note {
@@ -9167,6 +9388,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+    .ll-wordset-editor-utility-grid {
+        grid-template-columns: 1fr;
+    }
+
     .ll-wordset-editor-field--search {
         grid-column: 1 / -1;
     }
@@ -9190,7 +9415,9 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
 @media (max-width: 780px) {
     .ll-wordset-editor-stats,
-    .ll-wordset-editor-filters__grid {
+    .ll-wordset-editor-filters__grid,
+    .ll-wordset-editor-queue-grid,
+    .ll-wordset-editor-inline-form {
         grid-template-columns: 1fr;
     }
 
@@ -9213,6 +9440,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 
     .ll-wordset-editor-bulk__bar,
     .ll-wordset-editor-filters__actions,
+    .ll-wordset-editor-panel-head,
+    .ll-wordset-editor-history-filter,
     .ll-wordset-editor-history__head,
     .ll-wordset-editor-history__row {
         align-items: stretch;
@@ -9220,8 +9449,11 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     }
 
     .ll-wordset-editor-history__undo,
+    .ll-wordset-editor-history-filter .ll-wordset-editor-field,
     .ll-wordset-editor-bulk__bar .ll-wordset-editor-field,
     .ll-wordset-editor-all-filtered,
+    .ll-wordset-editor-saved-view-form,
+    .ll-wordset-editor-saved-view-form input[type="text"],
     .ll-wordset-editor-bulk__bar .ll-wordset-settings-action,
     .ll-wordset-editor-filters__actions .ll-wordset-settings-action,
     .ll-wordset-editor-move-form,

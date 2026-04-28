@@ -69,7 +69,148 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_editor_target_word_id', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-confirm', $html);
         $this->assertStringContainsString('ll_wordset_manager_editor_action', $html);
+        $this->assertStringContainsString('Review queues', $html);
+        $this->assertStringContainsString('Saved views', $html);
+        $this->assertStringContainsString('ll_wordset_editor_filter_name', $html);
+        $this->assertStringContainsString('value="quick_update"', $html);
+        $this->assertStringContainsString('missing_image_review', $html);
+        $this->assertStringContainsString('Action history', $html);
+        $this->assertStringContainsString('ll_editor_history_type', $html);
         $this->assertStringContainsString('Recent actions', $html);
+    }
+
+    public function test_quick_update_changes_word_fields_and_is_undoable(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-quick-update');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'quick_update',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_word_id' => (string) $fixture['beta_word_id'],
+            'll_wordset_editor_word_title' => 'Beta Updated',
+            'll_wordset_editor_word_translation' => 'Beta Updated Translation',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $update_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $update_query = $this->parseRedirectQuery($update_redirect);
+        $this->assertSame('quick_update', (string) ($update_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('1', (string) ($update_query['ll_wordset_manager_editor_count'] ?? ''));
+        $this->assertSame('Beta Updated', get_the_title((int) $fixture['beta_word_id']));
+        $this->assertSame('Beta Updated Translation', (string) get_post_meta((int) $fixture['beta_word_id'], 'word_translation', true));
+        $this->assertSame('Beta Updated Translation', (string) get_post_meta((int) $fixture['beta_word_id'], 'word_english_meaning', true));
+
+        $recent = ll_tools_wordset_editor_get_recent_actions($wordset_id, 1);
+        $this->assertCount(1, $recent);
+        $this->assertSame('quick_update', (string) ($recent[0]['type'] ?? ''));
+
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_history_type' => 'quick_update',
+        ];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+        $this->assertStringContainsString('Quick edits', $html);
+        $this->assertStringContainsString('Details', $html);
+        $this->assertStringContainsString('Beta Updated', $html);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'undo',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_action_id' => (string) ($recent[0]['id'] ?? ''),
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $undo_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $undo_query = $this->parseRedirectQuery($undo_redirect);
+        $this->assertSame('undo', (string) ($undo_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('Beta Word', get_the_title((int) $fixture['beta_word_id']));
+        $this->assertSame('Beta Translation', (string) get_post_meta((int) $fixture['beta_word_id'], 'word_translation', true));
+        $this->assertSame('', (string) get_post_meta((int) $fixture['beta_word_id'], 'word_english_meaning', true));
+    }
+
+    public function test_saved_filter_views_can_be_created_rendered_and_deleted(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-saved-view');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'save_filter',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_filter_name' => 'Needs media',
+            'll_editor_image' => 'missing',
+            'll_editor_recording' => 'missing',
+            'll_editor_sort' => 'translation',
+            'll_editor_dir' => 'desc',
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $save_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $save_query = $this->parseRedirectQuery($save_redirect);
+        $this->assertSame('save_filter', (string) ($save_query['ll_wordset_manager_editor_result'] ?? ''));
+        $saved_filters = ll_tools_wordset_editor_get_saved_filters($wordset_id);
+        $this->assertCount(1, $saved_filters);
+        $this->assertSame('Needs media', (string) ($saved_filters[0]['name'] ?? ''));
+        $this->assertSame('missing', (string) ($saved_filters[0]['filters']['image'] ?? ''));
+        $this->assertSame('missing', (string) ($saved_filters[0]['filters']['recording'] ?? ''));
+
+        $_GET = ['ll_wordset_tool' => 'editor'];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+        $this->assertStringContainsString('Needs media', $html);
+        $this->assertStringContainsString('ll_editor_image=missing', $html);
+        $this->assertStringContainsString('Delete saved view', $html);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'delete_filter',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_filter_id' => (string) ($saved_filters[0]['id'] ?? ''),
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+
+        $delete_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $delete_query = $this->parseRedirectQuery($delete_redirect);
+        $this->assertSame('delete_filter', (string) ($delete_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame([], ll_tools_wordset_editor_get_saved_filters($wordset_id));
     }
 
     public function test_all_filtered_bulk_category_move_uses_current_filters(): void
@@ -212,6 +353,56 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         });
 
         $this->assertSame('', ll_tools_get_internal_review_note((int) $fixture['beta_word_id']));
+    }
+
+    public function test_missing_image_review_adds_internal_note_and_is_undoable(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+        $fixture = $this->createFixture('wordset-editor-image-review');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'missing_image_review',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_word_ids' => [(string) $fixture['alpha_word_id']],
+            'll_wordset_tool' => 'editor',
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $review_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $review_query = $this->parseRedirectQuery($review_redirect);
+        $this->assertSame('missing_image_review', (string) ($review_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertStringContainsString('Missing image review', ll_tools_get_internal_review_note((int) $fixture['alpha_word_id']));
+        $this->assertSame('draft', get_post_status((int) $fixture['alpha_word_id']));
+
+        $recent = ll_tools_wordset_editor_get_recent_actions($wordset_id, 1);
+        $this->assertSame('bulk_missing_image_review', (string) ($recent[0]['type'] ?? ''));
+
+        $_POST = [
+            'll_wordset_manager_editor_action' => 'undo',
+            'll_wordset_manager_editor_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_editor_nonce' => wp_create_nonce('ll_wordset_manager_editor_' . $wordset_id),
+            'll_wordset_editor_action_id' => (string) ($recent[0]['id'] ?? ''),
+            'll_wordset_tool' => 'editor',
+        ];
+
+        $undo_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_editor_action();
+        });
+
+        $undo_query = $this->parseRedirectQuery($undo_redirect);
+        $this->assertSame('undo', (string) ($undo_query['ll_wordset_manager_editor_result'] ?? ''));
+        $this->assertSame('', ll_tools_get_internal_review_note((int) $fixture['alpha_word_id']));
+        $this->assertSame('publish', get_post_status((int) $fixture['alpha_word_id']));
     }
 
     public function test_recording_move_logs_recent_action_and_is_undoable(): void

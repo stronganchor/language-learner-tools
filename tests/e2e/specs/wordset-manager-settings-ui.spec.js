@@ -364,6 +364,55 @@ function buildEditorToolMarkup() {
           </div>
         </form>
 
+        <div class="ll-wordset-editor-utility-grid">
+          <section class="ll-wordset-settings-card ll-wordset-editor-queues">
+            <div class="ll-wordset-editor-panel-head">
+              <h2 class="ll-wordset-settings-card__title">Review queues</h2>
+              <span class="ll-wordset-editor-history__hint">Open a queue, then use all-filtered bulk actions.</span>
+            </div>
+            <div class="ll-wordset-editor-queue-grid">
+              <a class="ll-wordset-editor-queue-card" href="#">
+                <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                <span class="ll-wordset-editor-queue-card__count">7</span>
+                <span class="ll-wordset-editor-queue-card__label">Missing audio</span>
+              </a>
+              <a class="ll-wordset-editor-queue-card" href="#">
+                <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>
+                <span class="ll-wordset-editor-queue-card__count">13</span>
+                <span class="ll-wordset-editor-queue-card__label">Missing images</span>
+              </a>
+              <a class="ll-wordset-editor-queue-card" href="#">
+                <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 12h12M12 6v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                <span class="ll-wordset-editor-queue-card__count">5</span>
+                <span class="ll-wordset-editor-queue-card__label">No published audio</span>
+              </a>
+            </div>
+          </section>
+
+          <section class="ll-wordset-settings-card ll-wordset-editor-saved-views">
+            <div class="ll-wordset-editor-panel-head">
+              <h2 class="ll-wordset-settings-card__title">Saved views</h2>
+              <form class="ll-wordset-editor-saved-view-form">
+                <input type="text" value="Needs media review" aria-label="Saved view name" />
+                <button type="button" class="ll-wordset-editor-icon-button" aria-label="Save current view">
+                  <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4.5h10v15l-5-3-5 3v-15Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                </button>
+              </form>
+            </div>
+            <div class="ll-wordset-editor-saved-view-list">
+              <div class="ll-wordset-editor-saved-view">
+                <a href="#">
+                  <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 7h14M8 12h8M10 17h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                  <span>Long saved filter title for missing media review</span>
+                </a>
+                <button type="button" class="ll-wordset-editor-icon-button ll-wordset-editor-icon-button--danger" aria-label="Delete saved view">
+                  <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 8h10M10 8V6h4v2M9 10.5v6M15 10.5v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
         <form class="ll-wordset-settings-card ll-wordset-editor-bulk" data-ll-wordset-editor-bulk-form>
           <div class="ll-wordset-editor-bulk__bar">
             <span class="ll-wordset-editor-selected-count" data-ll-wordset-editor-selected-count>0 selected</span>
@@ -393,6 +442,25 @@ function buildEditorToolMarkup() {
               <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell">
                 <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
                 <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
+                <details class="ll-wordset-editor-inline-edit" open>
+                  <summary aria-label="Quick edit word">
+                    <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 16.5-.5 3 3-.5L17 9.5 14.5 7 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                    <span>Edit</span>
+                  </summary>
+                  <form class="ll-wordset-editor-inline-form">
+                    <label>
+                      <span>Word</span>
+                      <input type="text" value="Very Long Multilingual Word Title" />
+                    </label>
+                    <label>
+                      <span>Translation</span>
+                      <input type="text" value="A compact but long translation shown in the editor table" />
+                    </label>
+                    <button type="button" class="ll-wordset-editor-icon-button" aria-label="Save quick edit">
+                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5.5 12.5 10 17l8.5-10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                    </button>
+                  </form>
+                </details>
               </div>
               <div class="ll-wordset-editor-cell" role="cell">
                 <div class="ll-wordset-editor-pill-list">
@@ -432,6 +500,37 @@ function buildEditorToolMarkup() {
             </div>
           </div>
         </div>
+
+        <section class="ll-wordset-settings-card ll-wordset-editor-history">
+          <div class="ll-wordset-editor-history__head">
+            <h2 class="ll-wordset-settings-card__title">Action history</h2>
+            <span class="ll-wordset-editor-history__hint">Undo is available for recent actions.</span>
+          </div>
+          <form class="ll-wordset-editor-history-filter">
+            <label class="ll-wordset-editor-field">
+              <span class="ll-wordset-editor-field__label">History type</span>
+              <select><option>All actions</option></select>
+            </label>
+            <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--secondary">Show</button>
+          </form>
+          <div class="ll-wordset-editor-history__list">
+            <div class="ll-wordset-editor-history__row">
+              <div class="ll-wordset-editor-history__main">
+                <div class="ll-wordset-editor-history__meta">
+                  <span class="ll-wordset-editor-pill">Quick edits</span>
+                  <span class="ll-wordset-editor-history__time">April 28, 2026</span>
+                  <span class="ll-wordset-editor-history__time">Editor user with a long name</span>
+                </div>
+                <span class="ll-wordset-editor-history__summary">Quick edited a long multilingual word title.</span>
+                <details class="ll-wordset-editor-history__details" open>
+                  <summary>Details</summary>
+                  <ul><li>Title: Old title to new title</li></ul>
+                </details>
+              </div>
+              <button type="button" class="ll-wordset-settings-action ll-wordset-settings-action--secondary">Undo</button>
+            </div>
+          </div>
+        </section>
       </section>
     </main>
   `;
@@ -532,8 +631,12 @@ test('manager advanced settings tool stacks dense controls without horizontal ov
 test('manager wordset editor table keeps recording controls usable on mobile', async ({ page }) => {
   await mountSettingsTool(page, buildEditorToolMarkup(), { width: 390, height: 844 });
 
+  await expect(page.locator('.ll-wordset-editor-queue-card').first()).toBeVisible();
+  await expect(page.locator('.ll-wordset-editor-saved-view-form')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-table-card')).toBeVisible();
+  await expect(page.locator('.ll-wordset-editor-inline-form')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-recording')).toBeVisible();
+  await expect(page.locator('.ll-wordset-editor-history-filter')).toBeVisible();
   await expect(page.getByLabel('Move recording to word')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Trash recording' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move recording' })).toBeVisible();
@@ -542,14 +645,23 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
 
   const controlMetrics = await page.evaluate(() => {
     const select = document.querySelector('.ll-wordset-editor-move-form select');
+    const inlineForm = document.querySelector('.ll-wordset-editor-inline-form');
+    const queueCard = document.querySelector('.ll-wordset-editor-queue-card');
+    const savedViewForm = document.querySelector('.ll-wordset-editor-saved-view-form');
     const buttons = Array.from(document.querySelectorAll('.ll-wordset-editor-icon-button'));
-    if (!select || buttons.length < 2) {
+    if (!select || !inlineForm || !queueCard || !savedViewForm || buttons.length < 2) {
       return null;
     }
     const selectRect = select.getBoundingClientRect();
+    const inlineRect = inlineForm.getBoundingClientRect();
+    const queueRect = queueCard.getBoundingClientRect();
+    const savedViewRect = savedViewForm.getBoundingClientRect();
     return {
       selectWidth: Math.round(selectRect.width),
       selectRight: Math.round(selectRect.right),
+      inlineRight: Math.round(inlineRect.right),
+      queueRight: Math.round(queueRect.right),
+      savedViewRight: Math.round(savedViewRect.right),
       buttonSizes: buttons.map((button) => Math.round(button.getBoundingClientRect().width))
     };
   });
@@ -557,6 +669,9 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
   expect(controlMetrics).not.toBeNull();
   expect(controlMetrics.selectWidth).toBeGreaterThan(180);
   expect(controlMetrics.selectRight).toBeLessThanOrEqual(392);
+  expect(controlMetrics.inlineRight).toBeLessThanOrEqual(392);
+  expect(controlMetrics.queueRight).toBeLessThanOrEqual(392);
+  expect(controlMetrics.savedViewRight).toBeLessThanOrEqual(392);
   controlMetrics.buttonSizes.forEach((width) => {
     expect(width).toBeGreaterThanOrEqual(32);
   });
