@@ -13566,32 +13566,6 @@
             return;
         }
 
-        const hydrateMoveTarget = function (select) {
-            const $select = $(select);
-            if ($select.attr('data-ll-wordset-editor-options-loaded') === '1') {
-                return;
-            }
-
-            const templateId = String($select.attr('data-ll-wordset-editor-options-template') || '');
-            const sourceWordId = String($select.attr('data-ll-wordset-editor-source-word-id') || '');
-            const template = templateId ? document.getElementById(templateId) : null;
-            if (!template) {
-                return;
-            }
-
-            const optionNodes = template.content
-                ? Array.prototype.slice.call(template.content.querySelectorAll('option'))
-                : Array.prototype.slice.call(template.querySelectorAll('option'));
-
-            optionNodes.forEach(function (option) {
-                if (sourceWordId && String(option.value) === sourceWordId) {
-                    return;
-                }
-                $select.append(option.cloneNode(true));
-            });
-            $select.attr('data-ll-wordset-editor-options-loaded', '1');
-        };
-
         const categoryBulkActions = ['add_category', 'remove_category', 'move_category'];
 
         const syncBulkCategoryTarget = function ($form) {
@@ -13839,25 +13813,6 @@
             if (message && !window.confirm(message)) {
                 evt.preventDefault();
             }
-        });
-
-        $root.on('focusin pointerdown', '[data-ll-wordset-editor-move-target]', function () {
-            hydrateMoveTarget(this);
-        });
-
-        $root.on('submit', '[data-ll-wordset-editor-target-required]', function (evt) {
-            const $form = $(this);
-            const select = $form.find('[data-ll-wordset-editor-move-target]').get(0);
-            if (select) {
-                hydrateMoveTarget(select);
-            }
-            const targetWordId = parseInt($form.find('select[name="ll_wordset_editor_target_word_id"]').val(), 10) || 0;
-            if (targetWordId > 0) {
-                return;
-            }
-
-            evt.preventDefault();
-            alert(String($form.attr('data-ll-wordset-editor-target-required') || 'Choose a target word first.'));
         });
 
         updateSelectionState();
