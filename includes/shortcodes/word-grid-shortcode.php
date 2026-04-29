@@ -3444,6 +3444,24 @@ function ll_tools_word_grid_get_post_thumbnail_html(int $post_id, $size = 'post-
     return ll_tools_word_grid_sanitize_thumbnail_html((string) $thumbnail_html);
 }
 
+function ll_tools_word_grid_decode_plain_text_entities($text): string {
+    $decoded = trim(wp_strip_all_tags((string) $text));
+    if ($decoded === '') {
+        return '';
+    }
+
+    $flags = defined('ENT_HTML5') ? ENT_QUOTES | ENT_HTML5 : ENT_QUOTES;
+    for ($i = 0; $i < 3; $i++) {
+        $next = html_entity_decode($decoded, $flags, 'UTF-8');
+        if ($next === $decoded) {
+            break;
+        }
+        $decoded = $next;
+    }
+
+    return trim($decoded);
+}
+
 function ll_tools_word_grid_get_image_data_for_word(int $word_id): array {
     $fallback = function_exists('ll_tools_get_effective_word_image_data_for_word')
         ? ll_tools_get_effective_word_image_data_for_word($word_id, 'large', true)
@@ -3459,12 +3477,12 @@ function ll_tools_word_grid_get_image_data_for_word(int $word_id): array {
         ];
 
     $display_values = ll_tools_word_grid_resolve_display_text($word_id);
-    $alt = trim((string) ($fallback['alt'] ?? ''));
+    $alt = ll_tools_word_grid_decode_plain_text_entities((string) ($fallback['alt'] ?? ''));
     if ($alt === '') {
-        $alt = trim((string) ($display_values['word_text'] ?? ''));
+        $alt = ll_tools_word_grid_decode_plain_text_entities((string) ($display_values['word_text'] ?? ''));
     }
     if ($alt === '') {
-        $alt = trim((string) get_the_title($word_id));
+        $alt = ll_tools_word_grid_decode_plain_text_entities((string) get_the_title($word_id));
     }
 
     $fallback['id'] = (int) ($fallback['attachment_id'] ?? 0);
@@ -3497,7 +3515,7 @@ function ll_tools_word_grid_get_image_data_for_word_image(int $word_image_id, $s
     }
 
     $attachment_id = (int) get_post_thumbnail_id($word_image_id);
-    $label = trim((string) get_the_title($word_image_id));
+    $label = ll_tools_word_grid_decode_plain_text_entities((string) get_the_title($word_image_id));
     if ($label === '') {
         $label = sprintf(__('Word image #%d', 'll-tools-text-domain'), $word_image_id);
     }
@@ -3527,7 +3545,7 @@ function ll_tools_word_grid_get_image_data_for_word_image(int $word_image_id, $s
         $height = (int) $size_data[2];
     }
 
-    $alt = trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+    $alt = ll_tools_word_grid_decode_plain_text_entities((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
     if ($alt === '') {
         $alt = $label;
     }

@@ -296,6 +296,51 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         $this->assertContains($word_image_id, $translation_choice_ids);
     }
 
+    public function test_word_image_search_decodes_title_and_alt_entities(): void
+    {
+        $wordset_id = $this->ensureTerm('wordset', 'Entity Image Wordset', 'entity-image-wordset');
+        $category_id = $this->ensureTerm('word-category', 'Entity Image Category', 'entity-image-category');
+        $attachment_id = $this->createImageAttachment('word-grid-entity-image.png');
+
+        $encoded_label = '&#8216;Aceli ken &amp; A&#287;a';
+        $encoded_alt = '&#8216;Alt &amp; A&#287;a';
+
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => $encoded_label,
+        ]);
+        wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        update_post_meta($attachment_id, '_wp_attachment_image_alt', $encoded_alt);
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($word_image_id, $wordset_id, $word_image_id);
+        }
+
+        $search_target_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Entity Search Target',
+        ]);
+        wp_set_post_terms($search_target_word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($search_target_word_id, [$wordset_id], 'wordset', false);
+
+        $choices = ll_tools_word_grid_search_word_images_for_word('', 20, $wordset_id, $search_target_word_id);
+        $choice = null;
+        foreach ($choices as $candidate) {
+            if ((int) ($candidate['word_image_id'] ?? 0) === $word_image_id) {
+                $choice = $candidate;
+                break;
+            }
+        }
+
+        $this->assertIsArray($choice);
+        $this->assertSame(html_entity_decode($encoded_label, ENT_QUOTES, 'UTF-8'), (string) ($choice['label'] ?? ''));
+        $this->assertSame(html_entity_decode($encoded_alt, ENT_QUOTES, 'UTF-8'), (string) ($choice['alt'] ?? ''));
+        $this->assertStringNotContainsString('&#8216;', (string) ($choice['label'] ?? ''));
+        $this->assertStringNotContainsString('&amp;', (string) ($choice['label'] ?? ''));
+    }
+
     public function test_ajax_word_update_can_update_linked_word_image_copyright_without_changing_image(): void
     {
         $editor_id = self::factory()->user->create(['role' => 'administrator']);
