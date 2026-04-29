@@ -1888,6 +1888,86 @@
     margin-top: 12px;
 }
 
+.ll-vocab-lesson-add-word {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin: 24px auto 0;
+}
+
+.ll-vocab-lesson-add-word__button.ll-vocab-lesson-add-word__button {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px !important;
+    min-height: 56px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 2px solid rgba(31, 107, 92, 0.24) !important;
+    border-radius: 50% !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: var(--ll-vlp-accent) !important;
+    box-shadow: 0 10px 24px rgba(46, 42, 36, 0.12) !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    text-transform: none !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.ll-vocab-lesson-add-word__button svg {
+    display: block;
+    width: 28px;
+    height: 28px;
+    pointer-events: none;
+}
+
+.ll-vocab-lesson-add-word__button:hover,
+.ll-vocab-lesson-add-word__button:focus-visible {
+    border-color: rgba(31, 107, 92, 0.5) !important;
+    box-shadow: 0 14px 28px rgba(46, 42, 36, 0.16) !important;
+    transform: translateY(-2px);
+    outline: none !important;
+}
+
+.ll-vocab-lesson-add-word__button:focus-visible {
+    outline: 3px solid rgba(31, 107, 92, 0.32) !important;
+    outline-offset: 3px;
+}
+
+.ll-vocab-lesson-add-word__button:disabled {
+    cursor: wait !important;
+    opacity: 0.65;
+    transform: none;
+}
+
+.ll-vocab-lesson-add-word__status {
+    min-height: 18px;
+    color: var(--ll-vlp-muted);
+    font-size: 13px;
+    line-height: 1.35;
+    text-align: center;
+}
+
+.ll-vocab-lesson-add-word__status[hidden] {
+    display: none;
+}
+
+.ll-vocab-lesson-add-word__status.is-success {
+    color: #166534;
+}
+
+.ll-vocab-lesson-add-word__status.is-error {
+    color: #b42318;
+}
+
 .ll-vocab-lesson-print-body {
     background: #edf2f7;
     color: #111827;

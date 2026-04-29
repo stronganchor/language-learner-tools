@@ -49,6 +49,25 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_vocab_lesson_category_lineup_word_ids"', $html);
     }
 
+    public function test_managed_lesson_page_renders_add_word_button_for_editors(): void
+    {
+        $manager_id = $this->createManagerUser();
+        wp_set_current_user($manager_id);
+
+        $fixture = $this->createManagedLessonFixture($manager_id);
+
+        $this->go_to('/?post_type=ll_vocab_lesson&p=' . $fixture['lesson_id']);
+        $this->assertTrue(is_singular('ll_vocab_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/vocab-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $this->assertStringContainsString('data-ll-add-lesson-word', $html);
+        $this->assertStringContainsString('data-lesson-id="' . (int) $fixture['lesson_id'] . '"', $html);
+        $this->assertStringContainsString('ll-vocab-lesson-add-word__button', $html);
+    }
+
     public function test_wordset_manager_can_save_category_settings_from_lesson_page(): void
     {
         wp_insert_term('Isolation', 'recording_type', ['slug' => 'isolation']);

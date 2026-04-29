@@ -181,6 +181,7 @@ if (have_posts()) {
         $lesson_prompt_card_posts = ll_tools_get_vocab_lesson_prompt_card_posts($wordset_id, $category, true);
     }
     $lesson_uses_prompt_cards = !empty($lesson_prompt_card_posts);
+    $can_add_lesson_word = $can_edit_words && $wordset_id > 0 && $category_id > 0 && !$lesson_uses_prompt_cards;
     $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
         $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
         if (!empty($cfg['svg'])) {
@@ -1285,6 +1286,23 @@ if (have_posts()) {
                 </div>
             <?php else : ?>
                 <?php the_content(); ?>
+            <?php endif; ?>
+            <?php if ($can_add_lesson_word) : ?>
+                <div class="ll-vocab-lesson-add-word" data-ll-add-lesson-word-wrap>
+                    <button
+                        type="button"
+                        class="ll-vocab-lesson-add-word__button"
+                        data-ll-add-lesson-word
+                        data-lesson-id="<?php echo esc_attr((string) $post_id); ?>"
+                        aria-label="<?php echo esc_attr__('Add word to this lesson', 'll-tools-text-domain'); ?>"
+                        title="<?php echo esc_attr__('Add word to this lesson', 'll-tools-text-domain'); ?>">
+                        <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                        </svg>
+                        <span class="screen-reader-text"><?php echo esc_html__('Add word', 'll-tools-text-domain'); ?></span>
+                    </button>
+                    <span class="ll-vocab-lesson-add-word__status" data-ll-add-lesson-word-status role="status" aria-live="polite" hidden></span>
+                </div>
             <?php endif; ?>
         </div>
     </main>

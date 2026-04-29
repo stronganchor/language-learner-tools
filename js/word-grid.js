@@ -1454,6 +1454,10 @@
         deletingWord: editI18n.deletingWord || 'Deleting word...',
         wordDeleted: editI18n.wordDeleted || 'Word moved to Trash.',
         deleteWordError: editI18n.deleteWordError || 'Unable to delete word.',
+        addingWord: editI18n.addingWord || 'Adding word...',
+        wordAdded: editI18n.wordAdded || 'Word added.',
+        addWordError: editI18n.addWordError || 'Unable to add word.',
+        lessonGridLoading: editI18n.lessonGridLoading || 'Lesson words are still loading.',
         deletingRecording: editI18n.deletingRecording || 'Deleting recording...',
         recordingDeleted: editI18n.recordingDeleted || 'Recording moved to Trash.',
         deleteRecordingError: editI18n.deleteRecordingError || 'Unable to delete recording.',
@@ -5508,6 +5512,179 @@
         });
         $grids.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
             initDictionaryEntryAutocomplete($(this));
+        });
+
+        function getLessonAddWordWrap($button) {
+            const $wrap = $button.closest('[data-ll-add-lesson-word-wrap]');
+            return $wrap.length ? $wrap : $button.parent();
+        }
+
+        function clearLessonAddWordStatusTimer($wrap) {
+            const timerId = parseInt($wrap.data('llAddWordStatusTimerId'), 10) || 0;
+            if (timerId > 0) {
+                window.clearTimeout(timerId);
+            }
+            $wrap.removeData('llAddWordStatusTimerId');
+        }
+
+        function setLessonAddWordStatus($wrap, message, stateName) {
+            const $status = $wrap.find('[data-ll-add-lesson-word-status]').first();
+            if (!$status.length) { return; }
+
+            clearLessonAddWordStatusTimer($wrap);
+
+            const stateValue = ['pending', 'success', 'error'].indexOf((stateName || '').toString()) >= 0
+                ? stateName.toString()
+                : '';
+            const text = (message || '').toString();
+
+            $status.removeClass('is-pending is-success is-error');
+            if (!text) {
+                $status.text('').attr('hidden', 'hidden').removeAttr('data-state');
+                return;
+            }
+
+            $status
+                .text(text)
+                .removeAttr('hidden')
+                .attr('data-state', stateValue)
+                .toggleClass('is-pending', stateValue === 'pending')
+                .toggleClass('is-success', stateValue === 'success')
+                .toggleClass('is-error', stateValue === 'error');
+        }
+
+        function scheduleLessonAddWordStatusClear($wrap, delayMs) {
+            clearLessonAddWordStatusTimer($wrap);
+            const timerId = window.setTimeout(function () {
+                setLessonAddWordStatus($wrap, '', '');
+            }, Math.max(400, delayMs || 0));
+            $wrap.data('llAddWordStatusTimerId', timerId);
+        }
+
+        function syncCreatedLessonGridAttributes(sourceGrid, targetGrid) {
+            if (!sourceGrid || !targetGrid || !targetGrid.attributes) { return; }
+            Array.from(targetGrid.attributes).forEach(function (attr) {
+                targetGrid.removeAttribute(attr.name);
+            });
+            Array.from(sourceGrid.attributes).forEach(function (attr) {
+                targetGrid.setAttribute(attr.name, attr.value);
+            });
+        }
+
+        function insertCreatedLessonWord($grid, html, wordId) {
+            const targetGrid = $grid.get(0);
+            if (!targetGrid || typeof document === 'undefined') { return $(); }
+
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = (html || '').toString();
+            const sourceGrid = wrapper.querySelector('[data-ll-word-grid]');
+            if (sourceGrid) {
+                syncCreatedLessonGridAttributes(sourceGrid, targetGrid);
+            }
+
+            const selector = wordId > 0 ? '.word-item[data-word-id="' + wordId + '"]' : '.word-item[data-word-id]';
+            const sourceItem = sourceGrid
+                ? sourceGrid.querySelector(selector)
+                : wrapper.querySelector(selector);
+            if (!sourceItem) { return $(); }
+
+            const $sourceItem = $(sourceItem);
+            const itemWordId = parseInt($sourceItem.attr('data-word-id'), 10) || wordId;
+            const $existing = itemWordId > 0
+                ? $grid.children('.word-item[data-word-id="' + itemWordId + '"]').first()
+                : $();
+
+            if (!$grid.children('.word-item[data-word-id]').length) {
+                $grid.empty();
+            }
+            $grid.children('.ll-vocab-lesson-skeleton-card').remove();
+            $grid.removeClass('ll-vocab-lesson-grid-empty');
+
+            if ($existing.length) {
+                $existing.replaceWith($sourceItem);
+            } else {
+                $grid.append($sourceItem);
+            }
+
+            return $sourceItem;
+        }
+
+        $('[data-ll-add-lesson-word]').on('click', function (event) {
+            event.preventDefault();
+
+            const $button = $(this);
+            if ($button.prop('disabled')) { return; }
+
+            const $wrap = getLessonAddWordWrap($button);
+            const $scope = $button.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page');
+            const $grid = ($scope.length ? $scope : $(document)).find('[data-ll-word-grid]').first();
+            const lessonId = parseInt($button.attr('data-lesson-id'), 10)
+                || parseInt($grid.attr('data-ll-lesson-id'), 10)
+                || 0;
+            const $shell = $grid.closest('[data-ll-vocab-lesson-grid-shell]');
+
+            if (!$grid.length || !lessonId) {
+                setLessonAddWordStatus($wrap, editMessages.addWordError, 'error');
+                return;
+            }
+            if ($shell.length && ($shell.hasClass('is-loading') || $shell.data('llGridLoading'))) {
+                setLessonAddWordStatus($wrap, editMessages.lessonGridLoading, 'error');
+                return;
+            }
+
+            $button.prop('disabled', true).attr('aria-busy', 'true');
+            setLessonAddWordStatus($wrap, editMessages.addingWord, 'pending');
+
+            $.ajax({
+                url: ajaxUrl,
+                type: 'POST',
+                dataType: 'json',
+                data: {
+                    action: 'll_tools_word_grid_create_lesson_word',
+                    nonce: editNonce,
+                    lesson_id: String(lessonId)
+                }
+            }).done(function (response) {
+                if (!response || response.success !== true) {
+                    setLessonAddWordStatus($wrap, readResponseErrorMessage(response, editMessages.addWordError), 'error');
+                    return;
+                }
+
+                const data = (response.data && typeof response.data === 'object') ? response.data : {};
+                const wordId = parseInt(data.word_id, 10) || 0;
+                const $item = insertCreatedLessonWord($grid, data.html || '', wordId);
+                if (!$item.length) {
+                    setLessonAddWordStatus($wrap, editMessages.addWordError, 'error');
+                    return;
+                }
+
+                cacheOriginalInputs($item);
+                updateOriginalInputs($item);
+                updateGridLayouts();
+                $(document).trigger('lltools:word-grid-rendered', [{ scope: $item }]);
+
+                const $bulkWrap = $item.closest('[data-ll-vocab-lesson],.ll-vocab-lesson-page').find('[data-ll-word-grid-bulk]').first();
+                if ($bulkWrap.length) {
+                    clearAllBulkControlUndoSnapshots($bulkWrap);
+                    syncBulkControlSelectDefaults($bulkWrap);
+                }
+                if ($grid.attr('data-ll-word-grid-reorderable') === '1') {
+                    scheduleLessonOrderSave($grid, 300);
+                }
+
+                setEditPanelOpen($item, true);
+                const $wordInput = $item.find('[data-ll-word-input="word"]').first();
+                if ($wordInput.length) {
+                    $wordInput.trigger('focus').trigger('select');
+                }
+
+                setLessonAddWordStatus($wrap, editMessages.wordAdded, 'success');
+                scheduleLessonAddWordStatusClear($wrap, 1800);
+            }).fail(function (jqXHR) {
+                setLessonAddWordStatus($wrap, readAjaxErrorMessage(jqXHR, editMessages.addWordError), 'error');
+            }).always(function () {
+                $button.prop('disabled', false).removeAttr('aria-busy');
+            });
         });
 
         function getLessonOrderStatusElement($grid) {

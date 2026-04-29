@@ -154,6 +154,49 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertNotContains((int) $fixture['source_word_id'], $ids);
     }
 
+    public function test_lesson_editor_can_create_draft_word_for_lesson(): void
+    {
+        $fixture = $this->createFixture('lesson-edit-actions-create-word');
+        $this->loginEditor();
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Lesson Edit Actions Create Word Lesson',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (int) $fixture['wordset_id']);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (int) $fixture['category_id']);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'lesson_id' => (string) $lesson_id,
+        ];
+        $_REQUEST = $_POST;
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_grid_create_lesson_word_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false), wp_json_encode($response));
+        $word_id = (int) ($response['data']['word_id'] ?? 0);
+        $this->assertGreaterThan(0, $word_id);
+        $this->assertSame('draft', get_post_status($word_id));
+        $wordset_ids = array_map('intval', (array) wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']));
+        $category_ids = array_map('intval', (array) wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']));
+        $expected_category_id = function_exists('ll_tools_get_effective_category_id_for_wordset')
+            ? (int) ll_tools_get_effective_category_id_for_wordset((int) $fixture['category_id'], (int) $fixture['wordset_id'], false)
+            : (int) $fixture['category_id'];
+        $this->assertContains((int) $fixture['wordset_id'], $wordset_ids, wp_json_encode($wordset_ids));
+        $this->assertContains($expected_category_id, $category_ids, wp_json_encode($category_ids));
+        $this->assertSame((int) $fixture['category_id'], (int) ($response['data']['lesson_category_id'] ?? 0));
+        $this->assertSame($expected_category_id, (int) ($response['data']['category_id'] ?? 0));
+        $this->assertSame($lesson_id, (int) get_post_meta($word_id, '_ll_created_from_vocab_lesson_id', true));
+        $this->assertStringContainsString('data-word-id="' . $word_id . '"', (string) ($response['data']['html'] ?? ''));
+        $this->assertStringContainsString('data-ll-word-edit-toggle', (string) ($response['data']['html'] ?? ''));
+        $recent_actions = ll_tools_wordset_editor_get_recent_actions((int) $fixture['wordset_id'], 1);
+        $this->assertSame('word_create', (string) ($recent_actions[0]['type'] ?? ''));
+    }
+
     /**
      * @return array{wordset_id:int,category_id:int,source_word_id:int,target_word_id:int,recording_id:int}
      */

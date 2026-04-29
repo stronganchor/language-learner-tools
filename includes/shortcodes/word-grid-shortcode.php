@@ -3293,6 +3293,10 @@ function ll_tools_word_grid_build_base_frontend_config(array $context): array {
             'deletingWord' => __('Deleting word...', 'll-tools-text-domain'),
             'wordDeleted' => __('Word moved to Trash.', 'll-tools-text-domain'),
             'deleteWordError' => __('Unable to delete word.', 'll-tools-text-domain'),
+            'addingWord' => __('Adding word...', 'll-tools-text-domain'),
+            'wordAdded' => __('Word added.', 'll-tools-text-domain'),
+            'addWordError' => __('Unable to add word.', 'll-tools-text-domain'),
+            'lessonGridLoading' => __('Lesson words are still loading.', 'll-tools-text-domain'),
             'deletingRecording' => __('Deleting recording...', 'll-tools-text-domain'),
             'recordingDeleted' => __('Recording moved to Trash.', 'll-tools-text-domain'),
             'deleteRecordingError' => __('Unable to delete recording.', 'll-tools-text-domain'),
@@ -6350,6 +6354,126 @@ function ll_tools_word_grid_process_recording_audio_handler() {
         'uses_original_audio' => !empty($payload['uses_original_audio']),
         'has_original_audio' => !empty($payload['has_original_audio']),
         'file_path' => $relative_path,
+    ]);
+}
+
+add_action('wp_ajax_ll_tools_word_grid_create_lesson_word', 'll_tools_word_grid_create_lesson_word_handler');
+function ll_tools_word_grid_create_lesson_word_handler() {
+    check_ajax_referer('ll_word_grid_edit', 'nonce');
+
+    if (!is_user_logged_in()) {
+        wp_send_json_error(__('You must be logged in', 'll-tools-text-domain'), 401);
+    }
+
+    $lesson_id = isset($_POST['lesson_id']) ? absint($_POST['lesson_id']) : 0;
+    $lesson = $lesson_id > 0 ? get_post($lesson_id) : null;
+    if (!$lesson || $lesson->post_type !== 'll_vocab_lesson') {
+        wp_send_json_error(__('Invalid lesson', 'll-tools-text-domain'), 400);
+    }
+
+    [$wordset_id, $category_id] = ll_tools_get_vocab_lesson_ids_from_post($lesson_id);
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        wp_send_json_error(__('Missing lesson metadata', 'll-tools-text-domain'), 400);
+    }
+    if (!ll_tools_word_grid_user_can_manage_wordset_scope($wordset_id)) {
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
+    }
+
+    $wordset = get_term($wordset_id, 'wordset');
+    $lesson_category_id = $category_id;
+    $lesson_category = get_term($lesson_category_id, 'word-category');
+    if (!($wordset instanceof WP_Term) || is_wp_error($wordset) || !($lesson_category instanceof WP_Term) || is_wp_error($lesson_category)) {
+        wp_send_json_error(__('Lesson terms are missing.', 'll-tools-text-domain'), 400);
+    }
+
+    if (function_exists('ll_tools_get_effective_category_id_for_wordset')) {
+        $effective_category_id = (int) ll_tools_get_effective_category_id_for_wordset($lesson_category_id, $wordset_id, false);
+        if ($effective_category_id > 0) {
+            $category_id = $effective_category_id;
+        }
+    }
+
+    $category = get_term($category_id, 'word-category');
+    if (!($category instanceof WP_Term) || is_wp_error($category)) {
+        wp_send_json_error(__('Lesson terms are missing.', 'll-tools-text-domain'), 400);
+    }
+    if (!ll_tools_word_grid_category_belongs_to_wordset_editor_scope($category_id, $wordset_id)) {
+        wp_send_json_error(__('This category is outside the lesson word set.', 'll-tools-text-domain'), 400);
+    }
+
+    $placeholder_title = __('New word', 'll-tools-text-domain');
+    $word_id = wp_insert_post([
+        'post_type'   => 'words',
+        'post_status' => 'draft',
+        'post_title'  => $placeholder_title,
+        'post_author' => get_current_user_id(),
+    ], true);
+    if (is_wp_error($word_id) || (int) $word_id <= 0) {
+        $message = is_wp_error($word_id)
+            ? $word_id->get_error_message()
+            : __('Unable to create the word.', 'll-tools-text-domain');
+        wp_send_json_error(['message' => $message], 500);
+    }
+    $word_id = (int) $word_id;
+
+    $wordset_result = wp_set_object_terms($word_id, [$wordset_id], 'wordset', false);
+    if (is_wp_error($wordset_result)) {
+        wp_delete_post($word_id, true);
+        wp_send_json_error(['message' => $wordset_result->get_error_message()], 500);
+    }
+
+    $category_result = wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+    if (is_wp_error($category_result)) {
+        wp_delete_post($word_id, true);
+        wp_send_json_error(['message' => $category_result->get_error_message()], 500);
+    }
+
+    update_post_meta($word_id, '_ll_created_from_vocab_lesson_id', $lesson_id);
+    clean_post_cache($word_id);
+
+    if (function_exists('ll_tools_bump_category_cache_version')) {
+        ll_tools_bump_category_cache_version(array_values(array_unique(array_filter([$lesson_category_id, $category_id]))));
+    }
+    if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
+        ll_tools_invalidate_wordset_page_lesson_cache();
+    }
+    wp_cache_delete('ll_vocab_lesson_deep_counts_' . $wordset_id, 'll_tools');
+
+    $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+    try {
+        $html = ll_tools_word_grid_shortcode([
+            'category'     => (string) $lesson_category->slug,
+            'wordset'      => (string) $wordset->slug,
+            'deepest_only' => true,
+            'lesson_id'    => $lesson_id,
+            'word_ids'     => (string) $word_id,
+        ]);
+    } finally {
+        unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+    }
+
+    if (function_exists('ll_tools_wordset_editor_log_action')) {
+        ll_tools_wordset_editor_log_action(
+            $wordset_id,
+            'word_create',
+            sprintf(__('Created a new word in "%s".', 'll-tools-text-domain'), (string) $category->name),
+            [
+                'word_id'     => $word_id,
+                'lesson_id'   => $lesson_id,
+                'category_id' => $category_id,
+            ]
+        );
+    }
+
+    wp_send_json_success([
+        'message' => __('Word created.', 'll-tools-text-domain'),
+        'word_id' => $word_id,
+        'lesson_id' => $lesson_id,
+        'wordset_id' => $wordset_id,
+        'category_id' => $category_id,
+        'lesson_category_id' => $lesson_category_id,
+        'html' => is_string($html) ? $html : '',
+        'word' => ll_tools_word_grid_get_word_meta_payload($word_id, $wordset_id),
     ]);
 }
 
