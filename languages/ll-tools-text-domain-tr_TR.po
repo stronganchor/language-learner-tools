@@ -289,7 +289,7 @@ msgid_plural "%d recordings moved."
 msgstr[0] "%d kayıt taşındı."
 msgstr[1] "%d kayıt taşındı."
 
-#: includes/pages/wordset-editor.php:2169
+#: includes/pages/wordset-editor.php:2295
 #: includes/pages/wordset-pages.php:13134
 #, php-format
 msgid "%d selected"
@@ -497,7 +497,7 @@ msgstr "Seviye 1'de hızlı bir gözden geçirme döngüsü yardımcı olacaktı
 
 #: includes/admin/dictionary-import-admin.php:1341
 #: includes/admin/export-import.php:3161
-#: includes/pages/wordset-editor.php:2324
+#: includes/pages/wordset-editor.php:2441
 msgid "Action"
 msgstr "Eylem"
 
@@ -615,10 +615,11 @@ msgstr "Yaş"
 #: includes/admin/bulk-translation-admin.php:130
 #: includes/admin/bulk-translation-admin.php:140
 #: includes/admin/bulk-translation-admin.php:299
-#: includes/pages/wordset-editor.php:2208
-#: includes/pages/wordset-editor.php:2221
-#: includes/pages/wordset-editor.php:2231
-#: includes/pages/wordset-editor.php:2239
+#: includes/pages/wordset-editor.php:2126
+#: includes/pages/wordset-editor.php:2164
+#: includes/pages/wordset-editor.php:2338
+#: includes/pages/wordset-editor.php:2348
+#: includes/pages/wordset-editor.php:2356
 #: includes/pages/wordset-pages.php:7669
 #: includes/pages/wordset-pages.php:13191
 #: includes/pages/wordset-pages.php:14554
@@ -633,6 +634,7 @@ msgstr "Tüm Kategoriler"
 
 #: includes/admin/export-import.php:3500
 #: includes/admin/image-webp-optimizer-admin.php:1559
+#: includes/shortcodes/image-copyright-grid-shortcode.php:193
 msgid "All categories"
 msgstr "Tüm kategoriler"
 
@@ -1258,8 +1260,8 @@ msgstr "Başlıklar"
 #: includes/admin/ipa-keyboard-admin.php:317
 #: includes/admin/offline-app-export.php:703
 #: includes/admin/user-progress-report.php:951
-#: includes/pages/wordset-editor.php:2373
-#: includes/pages/wordset-editor.php:2427
+#: includes/pages/wordset-editor.php:2490
+#: includes/pages/wordset-editor.php:2544
 #: includes/pages/wordset-pages.php:8438
 #: includes/pages/wordset-pages.php:9982
 #: includes/pages/wordset-pages.php:11467
@@ -1326,7 +1328,7 @@ msgstr "Kategoriler: %d"
 #: includes/admin/image-webp-optimizer-admin.php:1557
 #: includes/admin/user-progress-report.php:955
 #: includes/admin/word-option-rules-admin.php:1358
-#: includes/pages/wordset-editor.php:2206
+#: includes/pages/wordset-editor.php:2332
 #: includes/pages/wordset-pages.php:10479
 #: includes/pages/wordset-pages.php:13176
 #: includes/pages/wordset-pages.php:13437
@@ -1339,6 +1341,7 @@ msgstr "Kategoriler: %d"
 #: includes/shortcodes/audio-recording-shortcode.php:1390
 #: includes/shortcodes/editor-hub-shortcode.php:1077
 #: includes/shortcodes/editor-hub-shortcode.php:1109
+#: includes/shortcodes/image-copyright-grid-shortcode.php:187
 #: includes/taxonomies/wordset-taxonomy.php:2049
 #: templates/vocab-lesson-template.php:850
 msgid "Category"
@@ -1511,6 +1514,7 @@ msgstr "Artık geçerli quizler oluşturamayan kategoriler için quiz sayfaları
 #: includes/admin/ipa-keyboard-admin.php:378
 #: includes/pages/wordset-pages.php:13155
 #: includes/post-types/prompt-card-post-type.php:324
+#: includes/shortcodes/image-copyright-grid-shortcode.php:204
 #: templates/vocab-lesson-template.php:334
 msgid "Clear"
 msgstr "Temiz"
@@ -1905,9 +1909,9 @@ msgstr "Yeni bir kayıt sayfası mı oluşturuyorsun?"
 msgid "Create a word image"
 msgstr "Bir kelime görseli oluştur"
 
-#: includes/login-window.php:1374
-#: includes/login-window.php:1376
-#: includes/login-window.php:1450
+#: includes/login-window.php:1428
+#: includes/login-window.php:1430
+#: includes/login-window.php:1504
 #: includes/pages/wordset-pages.php:13300
 #: includes/pages/wordset-pages.php:13326
 #: includes/pages/wordset-pages.php:14637
@@ -2375,7 +2379,7 @@ msgstr "örneğin, Gıda"
 
 #: includes/admin/recording-types-admin.php:158
 #: includes/pages/default-shortcode-page-helper.php:303
-#: includes/pages/wordset-editor.php:2422
+#: includes/pages/wordset-editor.php:2539
 #: includes/post-types/word-audio-post-type.php:549
 msgid "Edit"
 msgstr "Düzenle"
@@ -2414,7 +2418,7 @@ msgstr "Kelime Dersini Düzenle"
 
 #: includes/admin/audio-processor-admin.php:155
 #: includes/admin/audio-processor-admin.php:654
-#: includes/pages/wordset-editor.php:2420
+#: includes/pages/wordset-editor.php:2537
 #: includes/shortcodes/word-grid-shortcode.php:4485
 msgid "Edit word"
 msgstr "Kelimeyi düzenle"
@@ -2445,7 +2449,7 @@ msgstr "Editör Merkezi Sayfası Oluşturuldu!"
 
 #: includes/admin/teacher-classes-page.php:806
 #: includes/admin/user-progress-report.php:757
-#: includes/login-window.php:1645
+#: includes/login-window.php:1699
 #: includes/pages/wordset-pages.php:7396
 msgid "Email"
 msgstr "E-posta"
@@ -2892,7 +2896,8 @@ msgstr "getiriyorum."
 #: includes/admin/bulk-translation-admin.php:159
 #: includes/admin/orphan-media-admin.php:1782
 #: includes/admin/user-progress-report.php:749
-#: includes/pages/wordset-editor.php:2248
+#: includes/pages/wordset-editor.php:2365
+#: includes/shortcodes/image-copyright-grid-shortcode.php:202
 msgid "Filter"
 msgstr "Filtre"
 
@@ -3048,7 +3053,7 @@ msgstr "İznin yok"
 msgid "Forbidden."
 msgstr "İznin yok."
 
-#: includes/login-window.php:1771
+#: includes/login-window.php:1825
 msgid "Forgot password?"
 msgstr "Şifreni mi unuttun?"
 
@@ -3356,7 +3361,7 @@ msgstr "Kelime setleri kullanılıyorsa, kelime seti bu kategori için kelimeler
 #: includes/admin/ipa-keyboard-admin.php:316
 #: includes/admin/orphan-media-admin.php:1848
 #: includes/admin/word-option-rules-admin.php:1627
-#: includes/pages/wordset-editor.php:2229
+#: includes/pages/wordset-editor.php:2346
 #: includes/shortcodes/editor-hub-shortcode.php:1083
 #: includes/shortcodes/word-grid-shortcode.php:4499
 msgid "Image"
@@ -4442,18 +4447,18 @@ msgstr "Kilitli"
 msgid "Locked to this word set"
 msgstr "Bu kelime setine kilitlendi"
 
-#: includes/login-window.php:1369
-#: includes/login-window.php:1763
+#: includes/login-window.php:1423
+#: includes/login-window.php:1817
 #: includes/pages/wordset-pages.php:8381
 msgid "Log in"
 msgstr "Giriş yap"
 
-#: includes/login-window.php:1761
+#: includes/login-window.php:1815
 msgid "Already have an account?"
 msgstr "Zaten bir hesabın var mı?"
 
-#: includes/login-window.php:1611
-#: includes/login-window.php:1709
+#: includes/login-window.php:1665
+#: includes/login-window.php:1763
 msgid "Keep me signed in"
 msgstr "Oturumum açık kalsın"
 
@@ -4692,8 +4697,8 @@ msgid "Missing hide key."
 msgstr "Gizleme anahtarı eksik."
 
 #: includes/admin/image-webp-optimizer-admin.php:488
-#: includes/pages/wordset-editor.php:2233
-#: includes/pages/wordset-editor.php:2456
+#: includes/pages/wordset-editor.php:2350
+#: includes/pages/wordset-editor.php:2573
 msgid "Missing image"
 msgstr "Eksik görüntü"
 
@@ -4845,10 +4850,10 @@ msgstr "Asla"
 msgid "New"
 msgstr "Yeni"
 
-#: includes/login-window.php:1134
-#: includes/login-window.php:1307
-#: includes/login-window.php:1377
-#: includes/login-window.php:1454
+#: includes/login-window.php:1188
+#: includes/login-window.php:1361
+#: includes/login-window.php:1431
+#: includes/login-window.php:1508
 msgid "New account registration is currently disabled."
 msgstr "Yeni hesap kaydı şu anda devre dışıdır."
 
@@ -4944,7 +4949,7 @@ msgid "Next Set"
 msgstr "Sonraki Set"
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:321
-#: includes/shortcodes/image-copyright-grid-shortcode.php:85
+#: includes/shortcodes/image-copyright-grid-shortcode.php:425
 msgid "Next »"
 msgstr "Sonraki \""
 
@@ -5067,7 +5072,7 @@ msgstr "Bu kelime setinde gizlenmiş kategori yoktur."
 msgid "No hidden words yet."
 msgstr "Henüz gizlenmiş bir kelime yok."
 
-#: includes/shortcodes/image-copyright-grid-shortcode.php:60
+#: includes/shortcodes/image-copyright-grid-shortcode.php:401
 msgid "No Image"
 msgstr "Resim yok"
 
@@ -5283,10 +5288,6 @@ msgstr "Çöp kutusunda kelime dersi bulunamadı"
 #: includes/admin/image-webp-optimizer-admin.php:1480
 msgid "No word images currently need WebP optimization."
 msgstr "Şu anda hiçbir kelime görseli WebP optimizasyonuna ihtiyaç duymamaktadır."
-
-#: includes/shortcodes/image-copyright-grid-shortcode.php:89
-msgid "No Word Images found with copyright info."
-msgstr "Telif hakkı bilgisi içeren kelime görseli bulunamadı."
 
 #: includes/shortcodes/audio-recording-shortcode.php:2191
 msgid "No word images have been created yet. Please create some word images first."
@@ -5684,8 +5685,8 @@ msgid "Parts of Speech"
 msgstr "Sözcük Türleri"
 
 #: includes/admin/offline-app-export.php:1594
-#: includes/login-window.php:1596
-#: includes/login-window.php:1667
+#: includes/login-window.php:1650
+#: includes/login-window.php:1721
 #: templates/offline-app-shell-template.php:686
 msgid "Password"
 msgstr "Şifre"
@@ -5763,7 +5764,7 @@ msgstr "Oyna"
 #: includes/admin/export-import.php:3950
 #: includes/admin/ipa-keyboard-admin.php:856
 #: includes/admin/word-option-rules-admin.php:1672
-#: includes/pages/wordset-editor.php:1985
+#: includes/pages/wordset-editor.php:2057
 #: includes/shortcodes/flashcard-widget.php:415
 #: includes/shortcodes/word-grid-shortcode.php:4483
 #, php-format
@@ -5934,7 +5935,7 @@ msgstr "Sesi çal (varsayılan)"
 msgid "Please choose a managed word set when assigning the Word Set Manager role."
 msgstr "Kelime Seti Yöneticisi rolünü atarken lütfen yönetilen bir kelime seti seç."
 
-#: includes/login-window.php:1196
+#: includes/login-window.php:1250
 msgid "Please choose a username."
 msgstr "Lütfen bir kullanıcı adı seç."
 
@@ -5942,7 +5943,7 @@ msgstr "Lütfen bir kullanıcı adı seç."
 msgid "Please choose a valid category with recorded progress."
 msgstr "Lütfen kaydedilmiş ilerleme ile geçerli bir kategori seç."
 
-#: includes/login-window.php:1204
+#: includes/login-window.php:1258
 msgid "Please enter a password."
 msgstr "Lütfen bir şifre gir."
 
@@ -6158,8 +6159,8 @@ msgstr "Kelime, medya ve sözlük verileri için birincil içerik yönetimi sayf
 msgid "Print view unavailable."
 msgstr "Baskı görünümü kullanılamıyor."
 
-#: includes/pages/wordset-editor.php:1920
-#: includes/pages/wordset-editor.php:2225
+#: includes/pages/wordset-editor.php:1992
+#: includes/pages/wordset-editor.php:2342
 #: includes/pages/wordset-pages.php:8926
 #: includes/pages/wordset-pages.php:12703
 #: includes/taxonomies/word-category-taxonomy.php:825
@@ -6463,7 +6464,7 @@ msgstr "Kaydediciler:"
 #: includes/admin/split-word-admin.php:395
 #: includes/admin/split-word-admin.php:407
 #: includes/admin/split-word-admin.php:414
-#: includes/pages/wordset-editor.php:2237
+#: includes/pages/wordset-editor.php:2354
 #: includes/post-types/words-post-type.php:998
 #: includes/post-types/words-post-type.php:1001
 #: includes/shortcodes/editor-hub-shortcode.php:653
@@ -6514,7 +6515,7 @@ msgstr "Kayıt türleri"
 msgid "Recording Types Management"
 msgstr "Kayıt Türleri Yönetimi"
 
-#: includes/pages/wordset-editor.php:2487
+#: includes/pages/wordset-editor.php:2604
 #: includes/shortcodes/editor-hub-shortcode.php:1063
 #: includes/shortcodes/flashcard-widget.php:418
 #: includes/shortcodes/word-grid-shortcode.php:3292
@@ -6550,7 +6551,7 @@ msgstr "Dil Listesini Yenile"
 msgid "Refresh Queue"
 msgstr "Yenileme Kuyruğu"
 
-#: includes/login-window.php:1145
+#: includes/login-window.php:1199
 msgid "Registration security check failed. Please try again."
 msgstr "Kayıt güvenlik kontrolü başarısız oldu. Lütfen tekrar dene."
 
@@ -6880,6 +6881,7 @@ msgstr "Öne çıkan görseli olan ama buna karşılık gelen bir \"word_images\
 #: includes/admin/ipa-keyboard-admin.php:481
 #: includes/admin/ipa-keyboard-admin.php:504
 #: includes/shortcodes/dictionary-shortcode.php:2830
+#: includes/shortcodes/image-copyright-grid-shortcode.php:161
 msgid "Search"
 msgstr "Arama"
 
@@ -6944,7 +6946,7 @@ msgstr "Güvenlik kontrolü başarısız oldu. Lütfen tekrar dene."
 msgid "Seen"
 msgstr "Görüldü"
 
-#: includes/pages/wordset-editor.php:2406
+#: includes/pages/wordset-editor.php:2523
 #: includes/pages/wordset-pages.php:3196
 #: includes/pages/wordset-pages.php:13144
 #, php-format
@@ -7276,7 +7278,7 @@ msgid "Shown in dictionary entry listings and dictionary views."
 msgstr "Sözlük girdisi listelerinde ve sözlük görünümlerinde gösterilir."
 
 #: includes/admin/offline-app-export.php:1595
-#: includes/login-window.php:1367
+#: includes/login-window.php:1421
 #: includes/pages/wordset-pages.php:14609
 #: templates/offline-app-shell-template.php:702
 msgid "Sign in"
@@ -7286,7 +7288,7 @@ msgstr "Oturum aç"
 msgid "Sign in to access Editor Hub"
 msgstr "Editör Merkezi'ne erişmek için oturum aç"
 
-#: includes/login-window.php:1368
+#: includes/login-window.php:1422
 msgid "Sign in to continue."
 msgstr "Devam etmek için oturum aç."
 
@@ -7302,7 +7304,7 @@ msgstr "Kayıt için oturum aç"
 msgid "Sign in to view progress"
 msgstr "İlerlemeyi görüntülemek için oturum aç"
 
-#: includes/login-window.php:1756
+#: includes/login-window.php:1810
 #: includes/pages/wordset-pages.php:8385
 msgid "Sign up"
 msgstr "Kaydol"
@@ -7482,6 +7484,7 @@ msgstr "Azalan sıralama"
 #: includes/admin/export-import.php:3158
 #: includes/admin/export-import.php:3691
 #: includes/shortcodes/audio-credit-grid-shortcode.php:294
+#: includes/shortcodes/image-copyright-grid-shortcode.php:222
 msgid "Source"
 msgstr "Kaynak"
 
@@ -7636,7 +7639,7 @@ msgstr "Görüntü için yükleme başlatılıyor:"
 #: includes/admin/ipa-keyboard-admin.php:405
 #: includes/admin/split-word-admin.php:397
 #: includes/admin/user-progress-report.php:992
-#: includes/pages/wordset-editor.php:2219
+#: includes/pages/wordset-editor.php:2336
 #: includes/pages/wordset-pages.php:13202
 #: includes/pages/wordset-pages.php:13556
 #: includes/pages/wordset-pages.php:13564
@@ -7793,7 +7796,7 @@ msgstr "Şablon bulunamadı: %s"
 
 #: includes/admin/export-import.php:11114
 #: includes/admin/ipa-keyboard-admin.php:275
-#: includes/pages/wordset-editor.php:2515
+#: includes/pages/wordset-editor.php:2632
 #: includes/shortcodes/editor-hub-shortcode.php:660
 #: includes/shortcodes/editor-hub-shortcode.php:1079
 #: includes/shortcodes/word-grid-shortcode.php:4507
@@ -7846,11 +7849,11 @@ msgstr "Metin:"
 msgid "That email is already registered."
 msgstr "Bu e-posta zaten kayıtlı."
 
-#: includes/login-window.php:1200
+#: includes/login-window.php:1254
 msgid "That username is already taken."
 msgstr "O kullanıcı adı zaten alınmış."
 
-#: includes/login-window.php:1198
+#: includes/login-window.php:1252
 msgid "That username is not valid."
 msgstr "Bu kullanıcı adı geçerli değil."
 
@@ -8149,8 +8152,8 @@ msgstr "Çeviri..."
 #: includes/admin/export-import.php:11117
 #: includes/admin/user-progress-report.php:991
 #: includes/pages/wordset-editor.php:396
-#: includes/pages/wordset-editor.php:2370
-#: includes/pages/wordset-editor.php:2516
+#: includes/pages/wordset-editor.php:2487
+#: includes/pages/wordset-editor.php:2633
 #: includes/post-types/dictionary-entry-post-type.php:1191
 #: includes/post-types/dictionary-entry-post-type.php:1313
 #: includes/post-types/dictionary-entry-post-type.php:1774
@@ -8255,7 +8258,7 @@ msgstr "İçe aktarma kuralları uygulanamıyor."
 msgid "Unable to create dictionary entry."
 msgstr "Sözlük girdisi oluşturulamıyor."
 
-#: includes/login-window.php:1249
+#: includes/login-window.php:1303
 msgid "Unable to create the account right now."
 msgstr "Şu anda hesap oluşturulamıyor."
 
@@ -8410,7 +8413,7 @@ msgstr "Seçimleri Kaldır"
 
 #: includes/admin/ipa-keyboard-admin.php:283
 #: includes/pages/vocab-lesson-pages.php:3768
-#: includes/pages/wordset-editor.php:2655
+#: includes/pages/wordset-editor.php:2772
 #: templates/vocab-lesson-template.php:391
 msgid "Undo"
 msgstr "Geri al"
@@ -8450,7 +8453,7 @@ msgstr "Bu içe aktarmayı geri al? Bu, bu içe aktarma tarafından oluşturulan
 
 #: includes/admin/dictionary-import-admin.php:1366
 #: includes/admin/export-import.php:3197
-#: includes/pages/wordset-editor.php:2629
+#: includes/pages/wordset-editor.php:2746
 msgid "Undone"
 msgstr "Bitmemiş"
 
@@ -8653,7 +8656,7 @@ msgstr "Devam etmek için kayıt erişimi olan bir hesapla giriş yap."
 msgid "Use as canonical"
 msgstr "Standart olarak kullan"
 
-#: includes/login-window.php:1206
+#: includes/login-window.php:1260
 msgid "Use at least 8 characters for your password."
 msgstr "Parolanız için en az 8 karakter kullan."
 
@@ -8713,11 +8716,11 @@ msgstr "Kullanıcı menüsü"
 msgid "User not found"
 msgstr "Kullanıcı bulunamadı"
 
-#: includes/login-window.php:1656
+#: includes/login-window.php:1710
 msgid "Username"
 msgstr "Kullanıcı Adı"
 
-#: includes/login-window.php:1586
+#: includes/login-window.php:1640
 msgid "Username or Email"
 msgstr "Kullanıcı Adı veya E-posta"
 
@@ -8903,8 +8906,8 @@ msgstr "Windows/Chrome: Kilit simgesine tıkla → Site ayarları → Mikrofon: 
 #: includes/admin/orphan-media-admin.php:854
 #: includes/admin/user-progress-report.php:990
 #: includes/admin/word-option-rules-admin.php:1629
-#: includes/pages/wordset-editor.php:2369
-#: includes/pages/wordset-editor.php:2408
+#: includes/pages/wordset-editor.php:2486
+#: includes/pages/wordset-editor.php:2525
 #: includes/pages/wordset-pages.php:7723
 #: includes/pages/wordset-pages.php:13175
 #: includes/pages/wordset-pages.php:13512
@@ -8968,7 +8971,7 @@ msgstr "Kelime kategorileri:"
 msgid "Word Category"
 msgstr "Kelime Kategorisi"
 
-#: includes/pages/wordset-editor.php:2466
+#: includes/pages/wordset-editor.php:2583
 #: templates/vocab-lesson-template.php:500
 msgid "Word details"
 msgstr "Kelime detayları"
@@ -9072,6 +9075,7 @@ msgstr "Kelime Seti"
 #: includes/privacy.php:391
 #: includes/privacy.php:480
 #: includes/privacy.php:562
+#: includes/shortcodes/image-copyright-grid-shortcode.php:172
 msgid "Word set"
 msgstr "Kelime seti"
 
@@ -9158,7 +9162,7 @@ msgstr "Kelime yönetimi, ses/görüntü yüklemeleri, kullanıma hazır bilgi k
 #: includes/admin/bulk-translation-admin.php:124
 #: includes/admin/image-aspect-normalizer-admin.php:102
 #: includes/admin/user-progress-report.php:956
-#: includes/pages/wordset-editor.php:2174
+#: includes/pages/wordset-editor.php:2300
 #: includes/pages/wordset-pages.php:13189
 #: includes/pages/wordset-pages.php:13393
 #: includes/post-types/words-post-type.php:18
@@ -9502,7 +9506,7 @@ msgid "ZipArchive is not available on this server. Please enable it to use the e
 msgstr "ZipArchive bu sunucuda mevcut değil. Lütfen dışa/içe aktarma aracını kullanmak için etkinleştir."
 
 #: includes/shortcodes/audio-credit-grid-shortcode.php:320
-#: includes/shortcodes/image-copyright-grid-shortcode.php:84
+#: includes/shortcodes/image-copyright-grid-shortcode.php:424
 msgid "« Prev"
 msgstr "\" Prev"
 
@@ -13343,8 +13347,8 @@ msgid "Delete the selected orphaned media files? This cannot be undone."
 msgstr "Seçilen artık medya dosyaları silinsin mi? Bu geri alınamaz."
 
 #: includes/admin/orphan-media-admin.php:1817
-#: includes/pages/wordset-editor.php:2375
-#: includes/pages/wordset-editor.php:2454
+#: includes/pages/wordset-editor.php:2492
+#: includes/pages/wordset-editor.php:2571
 msgid "Media"
 msgstr "Medya"
 
@@ -14152,6 +14156,7 @@ msgid "Search by username, display name, or email"
 msgstr "Kullanıcı adına, görünen ada veya e-postaya göre arayın"
 
 #: includes/admin/user-progress-report.php:742
+#: includes/shortcodes/image-copyright-grid-shortcode.php:178
 msgid "All word sets"
 msgstr "Tüm kelime setleri"
 
@@ -15222,67 +15227,70 @@ msgstr "Lütfen matematik sorusunu çözün."
 msgid "Too many login attempts from this connection. Please try again in a few minutes."
 msgstr "Bu bağlantıdan çok fazla oturum açma denemesi yapıldı. Lütfen birkaç dakika sonra tekrar deneyin."
 
-#: includes/login-window.php:1020
+#: includes/login-window.php:1077
 msgid "Login security check failed. Please try again."
 msgstr "Giriş güvenliği kontrolü başarısız oldu. Lütfen tekrar deneyin."
 
-#: includes/login-window.php:1048
+#: includes/login-window.php:1017
+#: includes/login-window.php:1105
 msgid "Please enter your username or email address."
 msgstr "Lütfen kullanıcı adınızı veya e-posta adresinizi girin."
 
-#: includes/login-window.php:1051
+#: includes/login-window.php:1021
+#: includes/login-window.php:1108
 msgid "Please enter your password."
 msgstr "Lütfen şifreni gir."
 
-#: includes/login-window.php:1078
+#: includes/login-window.php:1008
+#: includes/login-window.php:1055
 msgid "Unable to sign you in right now. Please try again."
 msgstr "Şu anda oturumunuz açılamıyor. Lütfen tekrar deneyin."
 
-#: includes/login-window.php:1182
+#: includes/login-window.php:1236
 msgid "Please use the invited recorder email address for this signup link."
 msgstr "Lütfen bu kayıt bağlantısı için davet edilen kaydedicinin e-posta adresini kullanın."
 
-#: includes/login-window.php:1487
-#: includes/login-window.php:1495
+#: includes/login-window.php:1541
+#: includes/login-window.php:1549
 #: includes/shortcodes/audio-recording-shortcode.php:963
 #: includes/shortcodes/audio-recording-shortcode.php:965
 msgid "Create recorder account"
 msgstr "Kaydedici hesabı oluştur"
 
 #. translators: %s: word set name
-#: includes/login-window.php:1491
+#: includes/login-window.php:1545
 #, php-format
 msgid "Create a recorder account to record for %s."
 msgstr "%s için kayıt yapacak bir kaydedici hesabı oluşturun."
 
-#: includes/login-window.php:1494
+#: includes/login-window.php:1548
 msgid "Create a recorder account for this word set."
 msgstr "Bu kelime seti için bir kaydedici hesabı oluşturun."
 
-#: includes/login-window.php:1568
+#: includes/login-window.php:1622
 msgid "Create a new account"
 msgstr "Yeni bir hesap oluştur"
 
-#: includes/login-window.php:1683
-#: includes/login-window.php:1686
-#: includes/login-window.php:1697
-#: includes/pages/wordset-editor.php:2605
+#: includes/login-window.php:1737
+#: includes/login-window.php:1740
+#: includes/login-window.php:1751
+#: includes/pages/wordset-editor.php:2722
 msgid "Show"
 msgstr "Göster"
 
-#: includes/login-window.php:1684
-#: includes/login-window.php:1686
-#: includes/login-window.php:1696
+#: includes/login-window.php:1738
+#: includes/login-window.php:1740
+#: includes/login-window.php:1750
 #: includes/pages/wordset-pages.php:10982
 #: includes/pages/wordset-pages.php:13121
 msgid "Hide"
 msgstr "Gizle"
 
-#: includes/login-window.php:1712
+#: includes/login-window.php:1766
 msgid "Leave this field empty"
 msgstr "Bu alanı boş bırakın"
 
-#: includes/login-window.php:1754
+#: includes/login-window.php:1808
 msgid "Need an account?"
 msgstr "Bir hesaba mı ihtiyacınız var?"
 
@@ -16743,6 +16751,7 @@ msgstr "Dil Ayarlarını Kaydet"
 msgid "Alphabetical"
 msgstr "alfabetik"
 
+#: includes/pages/wordset-editor.php:2132
 #: includes/pages/wordset-pages.php:9092
 #: includes/pages/wordset-pages.php:9987
 #: includes/pages/wordset-pages.php:12710
@@ -19351,8 +19360,8 @@ msgstr "Hala kontrol paneli ayarları satırı eylemlerine dayanan, eklentiye ai
 msgid "No managed LL Tools pages are configured yet."
 msgstr "Henüz hiçbir yönetilen LL Tools sayfası yapılandırılmadı."
 
-#: includes/pages/wordset-editor.php:1911
-#: includes/pages/wordset-editor.php:2222
+#: includes/pages/wordset-editor.php:1983
+#: includes/pages/wordset-editor.php:2339
 #: includes/shortcodes/site-tools-shortcode.php:1496
 msgid "Published"
 msgstr "Yayınlandı"
@@ -19589,8 +19598,8 @@ msgstr "Bitiş sınırı"
 msgid "Drag to reorder word"
 msgstr "Kelimeyi yeniden sıralamak için sürükleyin"
 
-#: includes/pages/wordset-editor.php:1914
-#: includes/pages/wordset-editor.php:2223
+#: includes/pages/wordset-editor.php:1986
+#: includes/pages/wordset-editor.php:2340
 #: includes/shortcodes/word-grid-shortcode.php:5007
 msgid "Draft"
 msgstr "Taslak"
@@ -20390,416 +20399,416 @@ msgstr "Kategori işlemi: %s"
 msgid "Title: %1$s -> %2$s"
 msgstr "Başlık: %1$s -> %2$s"
 
-#: includes/pages/wordset-editor.php:1241
+#: includes/pages/wordset-editor.php:1313
 msgid "Recent action was not found."
 msgstr "Son işlem bulunamadı."
 
-#: includes/pages/wordset-editor.php:1244
+#: includes/pages/wordset-editor.php:1316
 msgid "This action cannot be undone here."
 msgstr "Bu işlem burada geri alınamaz."
 
-#: includes/pages/wordset-editor.php:1247
+#: includes/pages/wordset-editor.php:1319
 msgid "This action has already been undone."
 msgstr "Bu işlem zaten geri alınmış."
 
-#: includes/pages/wordset-editor.php:1380
+#: includes/pages/wordset-editor.php:1452
 msgid "Nothing could be restored from that action."
 msgstr "Bu işlemden geri yüklenecek bir şey bulunamadı."
 
-#: includes/pages/wordset-editor.php:1466
+#: includes/pages/wordset-editor.php:1538
 msgid "Choose an action to undo."
 msgstr "Geri almak için bir işlem seç."
 
-#: includes/pages/wordset-editor.php:1548
+#: includes/pages/wordset-editor.php:1620
 #, php-format
 msgid "Quick edited \"%s\"."
 msgstr "\"%s\" hızlı düzenlendi."
 
-#: includes/pages/wordset-editor.php:1589
+#: includes/pages/wordset-editor.php:1661
 #: includes/shortcodes/word-grid-shortcode.php:7244
 #, php-format
 msgid "Moved a recording from \"%s\" to Trash."
 msgstr "\"%s\" üzerinden bir ses kaydı Çöp Kutusu'na taşındı."
 
-#: includes/pages/wordset-editor.php:1622
+#: includes/pages/wordset-editor.php:1694
 #: includes/shortcodes/word-grid-shortcode.php:7335
 #, php-format
 msgid "Moved a recording from \"%1$s\" to \"%2$s\"."
 msgstr "Bir ses kaydı \"%1$s\" üzerinden \"%2$s\" hedefine taşındı."
 
-#: includes/pages/wordset-editor.php:1680
-#: includes/pages/wordset-editor.php:1874
+#: includes/pages/wordset-editor.php:1752
+#: includes/pages/wordset-editor.php:1946
 #, php-format
 msgid "Published %d word."
 msgid_plural "Published %d words."
 msgstr[0] "%d kelime yayınlandı."
 msgstr[1] "%d kelime yayınlandı."
 
-#: includes/pages/wordset-editor.php:1681
-#: includes/pages/wordset-editor.php:1876
+#: includes/pages/wordset-editor.php:1753
+#: includes/pages/wordset-editor.php:1948
 #, php-format
 msgid "Moved %d word to draft."
 msgid_plural "Moved %d words to draft."
 msgstr[0] "%d kelime taslağa taşındı."
 msgstr[1] "%d kelime taslağa taşındı."
 
-#: includes/pages/wordset-editor.php:1722
-#: includes/pages/wordset-editor.php:1878
+#: includes/pages/wordset-editor.php:1794
+#: includes/pages/wordset-editor.php:1950
 #, php-format
 msgid "Updated categories for %d word."
 msgid_plural "Updated categories for %d words."
 msgstr[0] "%d kelime için kategoriler güncellendi."
 msgstr[1] "%d kelime için kategoriler güncellendi."
 
-#: includes/pages/wordset-editor.php:1736
+#: includes/pages/wordset-editor.php:1808
 msgid "Missing audio review: this word needs a published recording before it is learner-ready."
 msgstr "Eksik ses kaydı incelemesi: Bu kelimenin öğrencilere hazır olması için yayınlanmış bir ses kaydı gerekir."
 
-#: includes/pages/wordset-editor.php:1769
+#: includes/pages/wordset-editor.php:1841
 #, php-format
 msgid "Flagged %d word for missing audio."
 msgid_plural "Flagged %d words for missing audio."
 msgstr[0] "%d kelime eksik ses kaydı için işaretlendi."
 msgstr[1] "%d kelime eksik ses kaydı için işaretlendi."
 
-#: includes/pages/wordset-editor.php:1778
+#: includes/pages/wordset-editor.php:1850
 msgid "Missing image review: this word needs an image before it is learner-ready."
 msgstr "Eksik görsel incelemesi: Bu kelimenin öğrencilere hazır olması için bir görsel gerekir."
 
-#: includes/pages/wordset-editor.php:1813
+#: includes/pages/wordset-editor.php:1885
 #, php-format
 msgid "Flagged %d word for missing images."
 msgid_plural "Flagged %d words for missing images."
 msgstr[0] "%d kelime eksik görsel için işaretlendi."
 msgstr[1] "%d kelime eksik görsel için işaretlendi."
 
-#: includes/pages/wordset-editor.php:1839
-#: includes/pages/wordset-editor.php:1884
+#: includes/pages/wordset-editor.php:1911
+#: includes/pages/wordset-editor.php:1956
 #, php-format
 msgid "Moved %d word to Trash."
 msgid_plural "Moved %d words to Trash."
 msgstr[0] "%d kelime Çöp Kutusu'na taşındı."
 msgstr[1] "%d kelime Çöp Kutusu'na taşındı."
 
-#: includes/pages/wordset-editor.php:1868
+#: includes/pages/wordset-editor.php:1940
 msgid "The editor action could not be completed. Check the selection and try again."
 msgstr "Editör işlemi tamamlanamadı. Seçimi kontrol et ve tekrar dene."
 
-#: includes/pages/wordset-editor.php:1872
+#: includes/pages/wordset-editor.php:1944
 msgid "Editor action completed."
 msgstr "Editör işlemi tamamlandı."
 
-#: includes/pages/wordset-editor.php:1880
+#: includes/pages/wordset-editor.php:1952
 #, php-format
 msgid "Flagged %d word for missing audio review."
 msgid_plural "Flagged %d words for missing audio review."
 msgstr[0] "%d kelime eksik ses kaydı incelemesi için işaretlendi."
 msgstr[1] "%d kelime eksik ses kaydı incelemesi için işaretlendi."
 
-#: includes/pages/wordset-editor.php:1882
+#: includes/pages/wordset-editor.php:1954
 #, php-format
 msgid "Flagged %d word for missing image review."
 msgid_plural "Flagged %d words for missing image review."
 msgstr[0] "%d kelime eksik görsel incelemesi için işaretlendi."
 msgstr[1] "%d kelime eksik görsel incelemesi için işaretlendi."
 
-#: includes/pages/wordset-editor.php:1886
+#: includes/pages/wordset-editor.php:1958
 #, php-format
 msgid "Undid %d item."
 msgid_plural "Undid %d items."
 msgstr[0] "%d öğe geri alındı."
 msgstr[1] "%d öğe geri alındı."
 
-#: includes/pages/wordset-editor.php:1888
+#: includes/pages/wordset-editor.php:1960
 #: includes/shortcodes/word-grid-shortcode.php:3301
 #: includes/shortcodes/word-grid-shortcode.php:7255
 msgid "Recording moved to Trash."
 msgstr "Ses kaydı Çöp Kutusu'na taşındı."
 
-#: includes/pages/wordset-editor.php:1890
+#: includes/pages/wordset-editor.php:1962
 #: includes/shortcodes/word-grid-shortcode.php:3304
 #: includes/shortcodes/word-grid-shortcode.php:7349
 msgid "Recording moved."
 msgstr "Ses kaydı taşındı."
 
-#: includes/pages/wordset-editor.php:1892
+#: includes/pages/wordset-editor.php:1964
 msgid "Word updated."
 msgstr "Kelime güncellendi."
 
-#: includes/pages/wordset-editor.php:1892
+#: includes/pages/wordset-editor.php:1964
 msgid "No word changes were needed."
 msgstr "Kelime değişikliği gerekmedi."
 
-#: includes/pages/wordset-editor.php:1894
+#: includes/pages/wordset-editor.php:1966
 msgid "Saved editor view."
 msgstr "Editör görünümü kaydedildi."
 
-#: includes/pages/wordset-editor.php:1896
+#: includes/pages/wordset-editor.php:1968
 msgid "Deleted editor view."
 msgstr "Editör görünümü silindi."
 
-#: includes/pages/wordset-editor.php:1900
+#: includes/pages/wordset-editor.php:1972
 #, php-format
 msgid "%d item was skipped."
 msgid_plural "%d items were skipped."
 msgstr[0] "%d öğe atlandı."
 msgstr[1] "%d öğe atlandı."
 
-#: includes/pages/wordset-editor.php:1917
-#: includes/pages/wordset-editor.php:2224
+#: includes/pages/wordset-editor.php:1989
+#: includes/pages/wordset-editor.php:2341
 msgid "Pending"
 msgstr "Beklemede"
 
-#: includes/pages/wordset-editor.php:2169
+#: includes/pages/wordset-editor.php:2295
 msgid "1 selected"
 msgstr "1 seçildi"
 
-#: includes/pages/wordset-editor.php:2169
+#: includes/pages/wordset-editor.php:2295
 #, php-format
 msgid "All %d filtered word selected"
 msgid_plural "All %d filtered words selected"
 msgstr[0] "Filtrelenmiş %d kelimenin tümü seçildi"
 msgstr[1] "Filtrelenmiş %d kelimenin tümü seçildi"
 
-#: includes/pages/wordset-editor.php:2170
+#: includes/pages/wordset-editor.php:2296
 msgid "Wordset editor summary"
 msgstr "Kelime seti editörü özeti"
 
-#: includes/pages/wordset-editor.php:2171
+#: includes/pages/wordset-editor.php:2297
 msgid "Show all words"
 msgstr "Tüm kelimeleri göster"
 
-#: includes/pages/wordset-editor.php:2176
+#: includes/pages/wordset-editor.php:2302
 msgid "Show words missing published audio"
 msgstr "Yayınlanmış ses kaydı olmayan kelimeleri göster"
 
-#: includes/pages/wordset-editor.php:2179
-#: includes/pages/wordset-editor.php:2241
-#: includes/pages/wordset-editor.php:2459
+#: includes/pages/wordset-editor.php:2305
+#: includes/pages/wordset-editor.php:2358
+#: includes/pages/wordset-editor.php:2576
 msgid "Missing audio"
 msgstr "Eksik ses kaydı"
 
-#: includes/pages/wordset-editor.php:2181
+#: includes/pages/wordset-editor.php:2307
 msgid "Show words missing images"
 msgstr "Görseli eksik olan kelimeleri göster"
 
-#: includes/pages/wordset-editor.php:2184
+#: includes/pages/wordset-editor.php:2310
 msgid "Missing images"
 msgstr "Eksik görseller"
 
-#: includes/pages/wordset-editor.php:2186
+#: includes/pages/wordset-editor.php:2312
 msgid "Jump to recent actions"
 msgstr "Son işlemlere git"
 
-#: includes/pages/wordset-editor.php:2189
+#: includes/pages/wordset-editor.php:2315
 msgid "Recent actions"
 msgstr "Son işlemler"
 
-#: includes/pages/wordset-editor.php:2202
+#: includes/pages/wordset-editor.php:2328
 msgid "Word or translation"
 msgstr "Kelime veya çeviri"
 
-#: includes/pages/wordset-editor.php:2232
-#: includes/pages/wordset-editor.php:2456
+#: includes/pages/wordset-editor.php:2349
+#: includes/pages/wordset-editor.php:2573
 msgid "Has image"
 msgstr "Görseli var"
 
-#: includes/pages/wordset-editor.php:2240
+#: includes/pages/wordset-editor.php:2357
 msgid "Has published audio"
 msgstr "Yayınlanmış ses kaydı var"
 
-#: includes/pages/wordset-editor.php:2251
+#: includes/pages/wordset-editor.php:2368
 msgid "Reset"
 msgstr "Sıfırla"
 
-#: includes/pages/wordset-editor.php:2256
+#: includes/pages/wordset-editor.php:2373
 msgid "Saved editor views"
 msgstr "Kaydedilmiş editör görünümleri"
 
-#: includes/pages/wordset-editor.php:2258
+#: includes/pages/wordset-editor.php:2375
 msgid "Saved views"
 msgstr "Kaydedilmiş görünümler"
 
-#: includes/pages/wordset-editor.php:2266
+#: includes/pages/wordset-editor.php:2383
 msgid "Saved view name"
 msgstr "Kaydedilmiş görünüm adı"
 
-#: includes/pages/wordset-editor.php:2267
+#: includes/pages/wordset-editor.php:2384
 msgid "View name"
 msgstr "Görünüm adı"
 
-#: includes/pages/wordset-editor.php:2268
+#: includes/pages/wordset-editor.php:2385
 msgid "Save current view"
 msgstr "Geçerli görünümü kaydet"
 
-#: includes/pages/wordset-editor.php:2274
+#: includes/pages/wordset-editor.php:2391
 msgid "No saved views yet."
 msgstr "Henüz kaydedilmiş görünüm yok."
 
-#: includes/pages/wordset-editor.php:2291
+#: includes/pages/wordset-editor.php:2408
 msgid "Delete this saved view?"
 msgstr "Bu kaydedilmiş görünüm silinsin mi?"
 
-#: includes/pages/wordset-editor.php:2299
+#: includes/pages/wordset-editor.php:2416
 msgid "Delete saved view"
 msgstr "Kaydedilmiş görünümü sil"
 
-#: includes/pages/wordset-editor.php:2309
+#: includes/pages/wordset-editor.php:2426
 msgid "Select at least one visible word first."
 msgstr "Önce en az bir görünür kelime seç."
 
-#: includes/pages/wordset-editor.php:2309
+#: includes/pages/wordset-editor.php:2426
 msgid "Choose a category target for this action."
 msgstr "Bu işlem için bir hedef kategori seç."
 
-#: includes/pages/wordset-editor.php:2309
+#: includes/pages/wordset-editor.php:2426
 msgid "Move the selected words to Trash?"
 msgstr "Seçili kelimeler Çöp Kutusu'na taşınsın mı?"
 
-#: includes/pages/wordset-editor.php:2317
+#: includes/pages/wordset-editor.php:2434
 msgid "0 selected"
 msgstr "0 seçildi"
 
-#: includes/pages/wordset-editor.php:2321
+#: includes/pages/wordset-editor.php:2438
 #, php-format
 msgid "All %d filtered word"
 msgid_plural "All %d filtered words"
 msgstr[0] "Filtrelenmiş %d kelimenin tümü"
 msgstr[1] "Filtrelenmiş %d kelimenin tümü"
 
-#: includes/pages/wordset-editor.php:2326
+#: includes/pages/wordset-editor.php:2443
 msgid "Move to draft"
 msgstr "Taslağa taşı"
 
-#: includes/pages/wordset-editor.php:2327
+#: includes/pages/wordset-editor.php:2444
 msgid "Publish"
 msgstr "Yayınla"
 
-#: includes/pages/wordset-editor.php:2328
+#: includes/pages/wordset-editor.php:2445
 msgid "Add category"
 msgstr "Kategori ekle"
 
-#: includes/pages/wordset-editor.php:2329
+#: includes/pages/wordset-editor.php:2446
 msgid "Remove category"
 msgstr "Kategoriyi kaldır"
 
-#: includes/pages/wordset-editor.php:2330
+#: includes/pages/wordset-editor.php:2447
 msgid "Move to category"
 msgstr "Kategoriye taşı"
 
-#: includes/pages/wordset-editor.php:2331
+#: includes/pages/wordset-editor.php:2448
 msgid "Missing-audio review"
 msgstr "Eksik ses kaydı incelemesi"
 
-#: includes/pages/wordset-editor.php:2332
+#: includes/pages/wordset-editor.php:2449
 msgid "Missing-image review"
 msgstr "Eksik görsel incelemesi"
 
-#: includes/pages/wordset-editor.php:2333
+#: includes/pages/wordset-editor.php:2450
 msgid "Move to Trash"
 msgstr "Çöp Kutusu'na taşı"
 
-#: includes/pages/wordset-editor.php:2337
+#: includes/pages/wordset-editor.php:2454
 msgid "Category target"
 msgstr "Hedef kategori"
 
-#: includes/pages/wordset-editor.php:2339
+#: includes/pages/wordset-editor.php:2456
 msgid "Choose category"
 msgstr "Kategori seç"
 
-#: includes/pages/wordset-editor.php:2349
+#: includes/pages/wordset-editor.php:2466
 msgid "Apply"
 msgstr "Uygula"
 
-#: includes/pages/wordset-editor.php:2362
+#: includes/pages/wordset-editor.php:2479
 msgid "Words in this word set"
 msgstr "Bu kelime setindeki kelimeler"
 
-#: includes/pages/wordset-editor.php:2365
+#: includes/pages/wordset-editor.php:2482
 msgid "Select all visible words"
 msgstr "Tüm görünür kelimeleri seç"
 
-#: includes/pages/wordset-editor.php:2374
-#: includes/pages/wordset-editor.php:2449
+#: includes/pages/wordset-editor.php:2491
+#: includes/pages/wordset-editor.php:2566
 msgid "State"
 msgstr "Durum"
 
-#: includes/pages/wordset-editor.php:2378
+#: includes/pages/wordset-editor.php:2495
 msgid "No words match these filters."
 msgstr "Bu filtrelerle eşleşen kelime yok."
 
-#: includes/pages/wordset-editor.php:2430
+#: includes/pages/wordset-editor.php:2547
 msgid "No category"
 msgstr "Kategori yok"
 
-#: includes/pages/wordset-editor.php:2497
+#: includes/pages/wordset-editor.php:2614
 #, php-format
 msgid "Recording %d"
 msgstr "Ses kaydı %d"
 
-#: includes/pages/wordset-editor.php:2525
+#: includes/pages/wordset-editor.php:2642
 msgid "Move this recording to Trash?"
 msgstr "Bu ses kaydı Çöp Kutusu'na taşınsın mı?"
 
-#: includes/pages/wordset-editor.php:2533
+#: includes/pages/wordset-editor.php:2650
 #: includes/shortcodes/word-grid-shortcode.php:4529
 msgid "Move recording to Trash"
 msgstr "Ses kaydını Çöp Kutusu'na taşı"
 
-#: includes/pages/wordset-editor.php:2533
+#: includes/pages/wordset-editor.php:2650
 msgid "Trash recording"
 msgstr "Ses kaydını çöpe taşı"
 
-#: includes/pages/wordset-editor.php:2537
+#: includes/pages/wordset-editor.php:2654
 msgid "Choose a target word first."
 msgstr "Önce bir hedef kelime seç."
 
-#: includes/pages/wordset-editor.php:2545
+#: includes/pages/wordset-editor.php:2662
 msgid "Move recording to word"
 msgstr "Ses kaydını kelimeye taşı"
 
-#: includes/pages/wordset-editor.php:2547
+#: includes/pages/wordset-editor.php:2664
 msgid "Move to..."
 msgstr "Şuraya taşı..."
 
-#: includes/pages/wordset-editor.php:2549
+#: includes/pages/wordset-editor.php:2666
 #: includes/shortcodes/word-grid-shortcode.php:4524
 msgid "Move recording"
 msgstr "Ses kaydını taşı"
 
-#: includes/pages/wordset-editor.php:2567
+#: includes/pages/wordset-editor.php:2684
 msgid "Word editor pages"
 msgstr "Kelime editörü sayfaları"
 
-#: includes/pages/wordset-editor.php:2583
+#: includes/pages/wordset-editor.php:2700
 msgid "Editor action history"
 msgstr "Editör işlem geçmişi"
 
-#: includes/pages/wordset-editor.php:2585
+#: includes/pages/wordset-editor.php:2702
 msgid "Action history"
 msgstr "İşlem geçmişi"
 
-#: includes/pages/wordset-editor.php:2586
+#: includes/pages/wordset-editor.php:2703
 msgid "Undo is available for recent quick edits, Trash, recording moves, status, category, and review actions."
 msgstr "Son hızlı düzenlemeler, Çöp Kutusu, ses kaydı taşıma, durum, kategori ve inceleme işlemleri geri alınabilir."
 
-#: includes/pages/wordset-editor.php:2595
+#: includes/pages/wordset-editor.php:2712
 msgid "History type"
 msgstr "Geçmiş türü"
 
-#: includes/pages/wordset-editor.php:2597
+#: includes/pages/wordset-editor.php:2714
 msgid "All actions"
 msgstr "Tüm işlemler"
 
-#: includes/pages/wordset-editor.php:2609
+#: includes/pages/wordset-editor.php:2726
 msgid "No editor actions match this view."
 msgstr "Bu görünümle eşleşen editör işlemi yok."
 
-#: includes/pages/wordset-editor.php:2635
+#: includes/pages/wordset-editor.php:2752
 msgid "Details"
 msgstr "Ayrıntılar"
 
-#: includes/pages/wordset-editor.php:2663
+#: includes/pages/wordset-editor.php:2780
 msgid "Editor history pages"
 msgstr "Editör geçmişi sayfaları"
 
@@ -21325,65 +21334,96 @@ msgstr "Zaman"
 msgid "Mood"
 msgstr "Kip"
 
-#: includes/pages/wordset-editor.php:2469
+#: includes/pages/wordset-editor.php:2586
 msgid "Word metadata"
 msgstr "Kelime meta verileri"
 
 #: includes/pages/wordset-pages.php:3241
 #: includes/pages/wordset-pages.php:13123
 msgid "Delete this category and any linked vocab lesson? This cannot be undone."
-msgstr ""
+msgstr "Bu kategoriyi ve bağlı kelime dersini silmek istiyor musun? Bu işlem geri alınamaz."
 
 #: includes/pages/wordset-pages.php:9774
 msgid "Unable to delete the linked vocab lesson right now."
-msgstr ""
+msgstr "Bağlı kelime dersi şu anda silinemiyor."
 
 #: includes/pages/wordset-pages.php:10077
 msgid "Delete this category and any linked vocab lesson?"
-msgstr ""
+msgstr "Bu kategoriyi ve bağlı kelime dersini silmek istiyor musun?"
 
 #: includes/shortcodes/word-grid-shortcode.php:3296
 msgid "Adding word..."
-msgstr ""
+msgstr "Kelime ekleniyor..."
 
 #: includes/shortcodes/word-grid-shortcode.php:3297
 msgid "Word added."
-msgstr ""
+msgstr "Kelime eklendi."
 
 #: includes/shortcodes/word-grid-shortcode.php:3298
 msgid "Unable to add word."
-msgstr ""
+msgstr "Kelime eklenemedi."
 
 #: includes/shortcodes/word-grid-shortcode.php:3299
 msgid "Lesson words are still loading."
-msgstr ""
+msgstr "Ders kelimeleri hala yükleniyor."
 
 #: includes/shortcodes/word-grid-shortcode.php:4496
 msgid "Wordset order"
-msgstr ""
+msgstr "Kelime seti sırası"
 
 #: includes/shortcodes/word-grid-shortcode.php:4498
 msgid "No categories match."
-msgstr ""
+msgstr "Eşleşen kategori yok."
 
 #: includes/shortcodes/word-grid-shortcode.php:6420
 msgid "This category is outside the lesson word set."
-msgstr ""
+msgstr "Bu kategori dersin kelime setinin dışında."
 
 #: includes/shortcodes/word-grid-shortcode.php:6433
 msgid "Unable to create the word."
-msgstr ""
+msgstr "Kelime oluşturulamadı."
 
 #: includes/shortcodes/word-grid-shortcode.php:6478
 #, php-format
 msgid "Created a new word in \"%s\"."
-msgstr ""
+msgstr "\"%s\" içinde yeni bir kelime oluşturuldu."
 
 #: includes/shortcodes/word-grid-shortcode.php:6488
 msgid "Word created."
-msgstr ""
+msgstr "Kelime oluşturuldu."
 
 #: templates/vocab-lesson-template.php:1297
 #: templates/vocab-lesson-template.php:1298
 msgid "Add word to this lesson"
-msgstr ""
+msgstr "Bu derse kelime ekle"
+
+#: includes/login-window.php:1033
+msgid "This account cannot sign in right now."
+msgstr "Bu hesap şu anda giriş yapamıyor."
+
+#: includes/login-window.php:1050
+msgid "The username, email, or password you entered is incorrect."
+msgstr "Girdiğin kullanıcı adı, e-posta adresi veya şifre yanlış."
+
+#: includes/pages/wordset-editor.php:2164
+#, php-format
+msgid "%d categories"
+msgstr "%d kategori"
+
+#: includes/pages/wordset-editor.php:2170
+msgid "No matching categories"
+msgstr "Eşleşen kategori yok"
+
+#: includes/shortcodes/image-copyright-grid-shortcode.php:168
+msgid "Image, credit, source"
+msgstr "Görsel, atıf, kaynak"
+
+#. translators: %d is the source link number.
+#: includes/shortcodes/image-copyright-grid-shortcode.php:217
+#, php-format
+msgid "Source %d"
+msgstr "Kaynak %d"
+
+#: includes/shortcodes/image-copyright-grid-shortcode.php:435
+msgid "No word images found with matching copyright info."
+msgstr "Eşleşen telif hakkı bilgisi olan kelime görseli bulunamadı."

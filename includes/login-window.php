@@ -1002,6 +1002,63 @@ if (!function_exists('ll_tools_login_window_login_rate_limit_message')) {
     }
 }
 
+if (!function_exists('ll_tools_login_window_auth_error_messages')) {
+    function ll_tools_login_window_auth_error_messages($error): array {
+        if (!is_wp_error($error)) {
+            return [__('Unable to sign you in right now. Please try again.', 'll-tools-text-domain')];
+        }
+
+        $messages = [];
+        $invalid_credentials = false;
+
+        foreach ($error->get_error_codes() as $code) {
+            switch ((string) $code) {
+                case 'empty_username':
+                    $messages[] = __('Please enter your username or email address.', 'll-tools-text-domain');
+                    break;
+
+                case 'empty_password':
+                    $messages[] = __('Please enter your password.', 'll-tools-text-domain');
+                    break;
+
+                case 'incorrect_password':
+                case 'invalid_email':
+                case 'invalid_username':
+                case 'invalidcombo':
+                case 'authentication_failed':
+                    $invalid_credentials = true;
+                    break;
+
+                case 'spammer_account':
+                    $messages[] = __('This account cannot sign in right now.', 'll-tools-text-domain');
+                    break;
+
+                default:
+                    foreach ($error->get_error_messages((string) $code) as $raw_message) {
+                        $message = trim(html_entity_decode(wp_strip_all_tags((string) $raw_message, true), ENT_QUOTES, get_bloginfo('charset')));
+                        $message = preg_replace('/\s+/', ' ', $message);
+                        $message = is_string($message) ? trim($message) : '';
+                        if ($message !== '') {
+                            $messages[] = $message;
+                        }
+                    }
+                    break;
+            }
+        }
+
+        if ($invalid_credentials) {
+            array_unshift($messages, __('The username, email, or password you entered is incorrect.', 'll-tools-text-domain'));
+        }
+
+        $messages = array_values(array_unique(array_filter(array_map('strval', $messages))));
+        if (empty($messages)) {
+            $messages[] = __('Unable to sign you in right now. Please try again.', 'll-tools-text-domain');
+        }
+
+        return $messages;
+    }
+}
+
 if (!function_exists('ll_tools_handle_frontend_login')) {
     function ll_tools_handle_frontend_login(): void {
         $raw_redirect = isset($_POST['redirect_to']) ? wp_unslash((string) $_POST['redirect_to']) : '';
@@ -1073,10 +1130,7 @@ if (!function_exists('ll_tools_handle_frontend_login')) {
         ], is_ssl());
 
         if (is_wp_error($user)) {
-            $messages = array_values(array_filter(array_map('strval', $user->get_error_messages())));
-            if (empty($messages)) {
-                $messages = [__('Unable to sign you in right now. Please try again.', 'll-tools-text-domain')];
-            }
+            $messages = ll_tools_login_window_auth_error_messages($user);
 
             $redirect_to = ll_tools_login_window_append_feedback_to_url($redirect_to, [
                 'type' => 'error',

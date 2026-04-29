@@ -56,6 +56,45 @@ final class LoginWindowLoginTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_frontend_login_failure_uses_plain_plugin_message_for_invalid_credentials(): void
+    {
+        $ip = '203.0.113.26';
+
+        self::factory()->user->create([
+            'user_login' => 'invalidcredentialuser',
+            'user_email' => 'invalidcredential@example.org',
+            'user_pass' => 'CorrectHorse1!',
+        ]);
+
+        try {
+            ll_tools_login_window_reset_login_attempts($ip);
+
+            $redirect = $this->runLoginRequest($ip, [
+                'log' => 'invalidcredential@example.org',
+                'pwd' => 'WrongHorse1!',
+            ]);
+            $payload = $this->getFeedbackPayloadFromRedirect($redirect);
+
+            $this->assertSame('login', (string) ($payload['form'] ?? ''));
+            $this->assertSame('error', (string) ($payload['type'] ?? ''));
+            $this->assertSame(
+                ['The username, email, or password you entered is incorrect.'],
+                $payload['messages']
+            );
+
+            $message = (string) ($payload['messages'][0] ?? '');
+            $this->assertStringNotContainsString('<strong>', $message);
+            $this->assertStringNotContainsString('Lost your password', $message);
+
+            $notice = ll_tools_render_login_window_notice($payload['messages'], (string) ($payload['type'] ?? 'error'));
+            $this->assertStringContainsString('The username, email, or password you entered is incorrect.', $notice);
+            $this->assertStringNotContainsString('&lt;strong&gt;', $notice);
+            $this->assertStringNotContainsString('lostpassword', $notice);
+        } finally {
+            ll_tools_login_window_reset_login_attempts($ip);
+        }
+    }
+
     public function test_frontend_login_success_resets_rate_limit_attempts(): void
     {
         $ip = '203.0.113.25';
