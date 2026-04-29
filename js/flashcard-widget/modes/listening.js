@@ -184,8 +184,10 @@
             const vh = Math.max(0, (typeof window !== 'undefined' ? window.innerHeight : 0));
             // Cap width to viewport and a sensible desktop max, also respect vertical space
             const maxByVw = Math.floor(vw * 0.92);
-            const maxByRule = 700; // match CSS cap used for listening placeholder
-            const heightAllowance = Math.max(0, vh - 300); // mirrors CSS calc(100vh - 300px)
+            const isRoomyDesktop = vw >= 900 && vh >= 560;
+            const maxByRule = isRoomyDesktop ? 620 : 520; // match CSS cap used for listening placeholder
+            const heightReserve = isRoomyDesktop ? 190 : 260;
+            const heightAllowance = Math.max(0, vh - heightReserve);
             const maxByVh = heightAllowance ? Math.floor(aspect * heightAllowance) : Number.POSITIVE_INFINITY;
             targetWidth = Math.max(1, Math.min(targetWidth, maxByVw || targetWidth, maxByRule, maxByVh));
         } catch (_) { /* no-op */ }
