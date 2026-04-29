@@ -436,12 +436,19 @@ function buildEditorToolMarkup() {
             <div class="ll-wordset-editor-row" role="row">
               <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell"><input type="checkbox" data-ll-wordset-editor-word /></label>
               <div class="ll-wordset-editor-cell ll-wordset-editor-cell--word" role="cell" data-label="Word">
-                <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
-                <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
-                <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="101" aria-label="Edit word">
-                  <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 16.5-.5 3 3-.5L17 9.5 14.5 7 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-                  <span>Edit</span>
-                </button>
+                <div class="ll-wordset-editor-word-layout">
+                  <span class="ll-wordset-editor-thumb" data-ll-wordset-editor-thumb>
+                    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=" alt="Very Long Multilingual Word Title" loading="lazy" decoding="async" />
+                  </span>
+                  <span class="ll-wordset-editor-word-main">
+                    <strong class="ll-wordset-editor-word-title">Very Long Multilingual Word Title</strong>
+                    <span class="ll-wordset-editor-word-translation">A compact but long translation shown in the editor table</span>
+                    <button type="button" class="ll-wordset-editor-edit-trigger" data-ll-wordset-editor-open-word-edit data-word-id="101" aria-label="Edit word">
+                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m5 16.5-.5 3 3-.5L17 9.5 14.5 7 5 16.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                      <span>Edit</span>
+                    </button>
+                  </span>
+                </div>
               </div>
               <div class="ll-wordset-editor-cell ll-wordset-editor-cell--categories" role="cell" data-label="Categories">
                 <div class="ll-wordset-editor-pill-list">
@@ -460,7 +467,10 @@ function buildEditorToolMarkup() {
                 <div class="ll-wordset-editor-recordings">
                   <div class="ll-wordset-editor-recording">
                     <div class="ll-wordset-editor-recording__main">
-                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                      <button type="button" class="ll-wordset-editor-recording-play ll-study-recording-btn ll-study-recording-btn--isolation" data-ll-wordset-editor-audio data-audio-url="/wp-content/uploads/isolation.mp3" data-recording-type="isolation" data-recording-id="201" aria-label="Play Isolation recording">
+                        <span class="ll-study-recording-icon" aria-hidden="true"></span>
+                        <span class="ll-study-recording-visualizer" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
+                      </button>
                       <span class="ll-wordset-editor-recording__label">Isolation recording</span>
                       <span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span>
                     </div>
@@ -480,7 +490,10 @@ function buildEditorToolMarkup() {
                   </div>
                   <div class="ll-wordset-editor-recording">
                     <div class="ll-wordset-editor-recording__main">
-                      <svg class="ll-wordset-editor-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9.5v5M12 5.5v13M18 9.5v5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+                      <button type="button" class="ll-wordset-editor-recording-play ll-study-recording-btn ll-study-recording-btn--question" data-ll-wordset-editor-audio data-audio-url="/wp-content/uploads/question.mp3" data-recording-type="question" data-recording-id="202" aria-label="Play Question recording">
+                        <span class="ll-study-recording-icon" aria-hidden="true"></span>
+                        <span class="ll-study-recording-visualizer" aria-hidden="true"><span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span></span>
+                      </button>
                       <span class="ll-wordset-editor-recording__label">Question recording with long type label</span>
                       <span class="ll-wordset-editor-state ll-wordset-editor-state--publish">Published</span>
                     </div>
@@ -644,6 +657,8 @@ test('manager wordset editor table gives recordings usable desktop width', async
 
   await expect(page.locator('.ll-wordset-editor-row__details')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-recording')).toHaveCount(2);
+  await expect(page.locator('[data-ll-wordset-editor-thumb] img')).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-editor-audio]')).toHaveCount(2);
 
   await assertPageFitsViewport(page);
 
@@ -707,7 +722,9 @@ test('manager wordset editor table keeps recording controls usable on mobile', a
   await expect(page.locator('.ll-wordset-editor-saved-view-form')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-table-card')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit word' })).toBeVisible();
+  await expect(page.locator('[data-ll-wordset-editor-thumb] img')).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-recording').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Play Isolation recording' })).toBeVisible();
   await expect(page.locator('.ll-wordset-editor-history-filter')).toBeVisible();
   await expect(page.getByLabel('Move recording to word').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Trash recording' }).first()).toBeVisible();

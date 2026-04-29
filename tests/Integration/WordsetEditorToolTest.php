@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 final class WordsetEditorToolTest extends LL_Tools_TestCase
 {
+    private const ONE_PIXEL_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+tmP8AAAAASUVORK5CYII=';
+
     /** @var array<string,mixed> */
     private $getBackup = [];
 
@@ -46,6 +48,7 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         ]);
         update_post_meta((int) $lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $fixture['wordset_id']);
         update_post_meta((int) $lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $fixture['category_a_id']);
+        set_post_thumbnail((int) $fixture['alpha_word_id'], $this->createImageAttachment('wordset-editor-alpha.png'));
 
         $_GET = [
             'll_wordset_tool' => 'editor',
@@ -72,6 +75,10 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('All 1 filtered word', $html);
         $this->assertStringContainsString('Alpha Word', $html);
         $this->assertStringContainsString('Alpha Translation', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-thumb', $html);
+        $this->assertStringContainsString('class="ll-wordset-editor-recording-play ll-study-recording-btn', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-audio', $html);
+        $this->assertStringContainsString('wordset-editor-render-alpha.wav', $html);
         $this->assertStringContainsString('ll_wordset_editor_recording_id', $html);
         $this->assertStringContainsString('ll_wordset_editor_target_word_id', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-move-target', $html);
@@ -625,6 +632,41 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
             'beta_word_id' => (int) $beta_word_id,
             'alpha_recording_id' => (int) $alpha_recording_id,
         ];
+    }
+
+    private function createImageAttachment(string $filename): int
+    {
+        $bytes = base64_decode(self::ONE_PIXEL_PNG_BASE64, true);
+        $this->assertIsString($bytes);
+
+        $upload = wp_upload_bits($filename, null, $bytes);
+        $this->assertIsArray($upload);
+        $this->assertSame('', (string) ($upload['error'] ?? ''));
+
+        $file_path = (string) ($upload['file'] ?? '');
+        $this->assertNotSame('', $file_path);
+        $this->assertFileExists($file_path);
+
+        $filetype = wp_check_filetype(basename($file_path), null);
+        $attachment_id = wp_insert_attachment([
+            'post_mime_type' => (string) ($filetype['type'] ?? 'image/png'),
+            'post_title' => preg_replace('/\.[^.]+$/', '', basename($file_path)),
+            'post_content' => '',
+            'post_status' => 'inherit',
+        ], $file_path);
+
+        $this->assertIsInt($attachment_id);
+        $this->assertGreaterThan(0, $attachment_id);
+
+        $relative_path = function_exists('_wp_relative_upload_path')
+            ? (string) _wp_relative_upload_path($file_path)
+            : '';
+        if ($relative_path === '') {
+            $relative_path = ltrim((string) wp_normalize_path($file_path), '/');
+        }
+        update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
+
+        return (int) $attachment_id;
     }
 
     private function ensureTerm(string $taxonomy, string $name, string $slug): int

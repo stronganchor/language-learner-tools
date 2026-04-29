@@ -13646,6 +13646,12 @@
             }
         });
 
+        $root.on('click', '[data-ll-wordset-editor-audio]', function (evt) {
+            evt.preventDefault();
+            evt.stopPropagation();
+            handleProgressWordAudioClick(this);
+        });
+
         $(document).off('lltools:word-grid-word-updated.llWordsetEditor').on('lltools:word-grid-word-updated.llWordsetEditor', function (_evt, detail) {
             const payload = detail && typeof detail === 'object' ? detail : {};
             const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
@@ -13669,6 +13675,46 @@
                 } else if (data.word_translation !== '') {
                     $('<span>', { class: 'll-wordset-editor-word-translation', text: data.word_translation })
                         .insertAfter($row.find('.ll-wordset-editor-word-title').first());
+                }
+            }
+            if (data.image && typeof data.image === 'object') {
+                const imageUrl = String(data.image.url || '').trim();
+                const imageAlt = String(data.image.alt || data.word_text || $row.find('.ll-wordset-editor-word-title').first().text() || '').trim();
+                const $layout = $row.find('.ll-wordset-editor-word-layout').first();
+                let $thumb = $row.find('[data-ll-wordset-editor-thumb]').first();
+                if (imageUrl) {
+                    if (!$thumb.length) {
+                        $thumb = $('<span>', {
+                            class: 'll-wordset-editor-thumb',
+                            'data-ll-wordset-editor-thumb': ''
+                        });
+                        if ($layout.length) {
+                            $layout.prepend($thumb);
+                        }
+                    }
+                    let $img = $thumb.find('img').first();
+                    if (!$img.length) {
+                        $img = $('<img>', {
+                            loading: 'lazy',
+                            decoding: 'async'
+                        }).appendTo($thumb);
+                    }
+                    $img.attr({
+                        src: imageUrl,
+                        alt: imageAlt
+                    });
+                } else {
+                    $thumb.remove();
+                }
+
+                const $imageStatus = $row.find('[data-ll-wordset-editor-image-status]').first();
+                if ($imageStatus.length) {
+                    const readyTitle = String($imageStatus.attr('data-ready-title') || $imageStatus.attr('title') || '');
+                    const missingTitle = String($imageStatus.attr('data-missing-title') || $imageStatus.attr('title') || '');
+                    $imageStatus
+                        .toggleClass('is-ready', !!imageUrl)
+                        .toggleClass('is-missing', !imageUrl)
+                        .attr('title', imageUrl ? readyTitle : missingTitle);
                 }
             }
         });
