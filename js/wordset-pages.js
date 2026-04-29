@@ -13652,6 +13652,29 @@
             handleProgressWordAudioClick(this);
         });
 
+        const updateExistingEditorField = function ($row, key, value) {
+            const cleanKey = String(key || '').trim();
+            if (!cleanKey) { return; }
+            const text = String(value || '').trim();
+            const $field = $row.find('[data-ll-wordset-editor-field="' + cleanKey + '"]').first();
+            if (!$field.length) { return; }
+            $field.toggle(text !== '');
+            $field.find('[data-ll-wordset-editor-field-value="' + cleanKey + '"]').first().text(text);
+        };
+
+        const updateExistingRecordingField = function ($row, recId, key, value) {
+            const id = parseInt(recId, 10) || 0;
+            const cleanKey = String(key || '').trim();
+            if (!id || !cleanKey) { return; }
+            const text = String(value || '').trim();
+            const $rec = $row.find('[data-ll-wordset-editor-recording][data-recording-id="' + id + '"]').first();
+            if (!$rec.length) { return; }
+            const $field = $rec.find('[data-ll-wordset-editor-recording-field="' + cleanKey + '"]').first();
+            if (!$field.length) { return; }
+            $field.toggle(text !== '');
+            $field.find('[data-ll-wordset-editor-recording-field-value="' + cleanKey + '"]').first().text(text);
+        };
+
         $(document).off('lltools:word-grid-word-updated.llWordsetEditor').on('lltools:word-grid-word-updated.llWordsetEditor', function (_evt, detail) {
             const payload = detail && typeof detail === 'object' ? detail : {};
             const data = payload.data && typeof payload.data === 'object' ? payload.data : payload;
@@ -13667,6 +13690,7 @@
 
             if (typeof data.word_text === 'string') {
                 $row.find('.ll-wordset-editor-word-title').first().text(data.word_text);
+                updateExistingEditorField($row, 'word_text', data.word_text);
             }
             if (typeof data.word_translation === 'string') {
                 const $translation = $row.find('.ll-wordset-editor-word-translation').first();
@@ -13676,6 +13700,25 @@
                     $('<span>', { class: 'll-wordset-editor-word-translation', text: data.word_translation })
                         .insertAfter($row.find('.ll-wordset-editor-word-title').first());
                 }
+                updateExistingEditorField($row, 'word_translation', data.word_translation);
+            }
+            if (typeof data.word_note === 'string') {
+                updateExistingEditorField($row, 'word_note', data.word_note);
+            }
+            if (Array.isArray(data.recordings)) {
+                data.recordings.forEach(function (rec) {
+                    const recId = parseInt(rec && rec.id, 10) || 0;
+                    if (!recId) { return; }
+                    if (typeof rec.recording_text === 'string') {
+                        updateExistingRecordingField($row, recId, 'recording_text', rec.recording_text);
+                    }
+                    if (typeof rec.recording_translation === 'string') {
+                        updateExistingRecordingField($row, recId, 'recording_translation', rec.recording_translation);
+                    }
+                    if (typeof rec.recording_ipa === 'string') {
+                        updateExistingRecordingField($row, recId, 'recording_ipa', rec.recording_ipa);
+                    }
+                });
             }
             if (data.image && typeof data.image === 'object') {
                 const imageUrl = String(data.image.url || '').trim();

@@ -351,6 +351,199 @@ function ll_tools_wordset_editor_get_translation(int $word_id): string {
     return $translation;
 }
 
+function ll_tools_wordset_editor_get_display_text(int $word_id): array {
+    if (function_exists('ll_tools_word_grid_resolve_display_text')) {
+        $display = ll_tools_word_grid_resolve_display_text($word_id);
+        return [
+            'word_text'        => trim((string) ($display['word_text'] ?? '')),
+            'translation_text' => trim((string) ($display['translation_text'] ?? '')),
+            'store_in_title'   => !empty($display['store_in_title']),
+        ];
+    }
+
+    return [
+        'word_text'        => trim((string) get_the_title($word_id)),
+        'translation_text' => ll_tools_wordset_editor_get_translation($word_id),
+        'store_in_title'   => true,
+    ];
+}
+
+function ll_tools_wordset_editor_add_text_field(array &$fields, string $key, string $label, string $value): void {
+    $value = trim($value);
+    if ($value === '') {
+        return;
+    }
+
+    $fields[] = [
+        'key'   => sanitize_key($key),
+        'label' => $label,
+        'value' => $value,
+    ];
+}
+
+function ll_tools_wordset_editor_get_word_text_fields(int $word_id, array $display_text): array {
+    $fields = [];
+
+    ll_tools_wordset_editor_add_text_field(
+        $fields,
+        'word_text',
+        __('Word text', 'll-tools-text-domain'),
+        (string) ($display_text['word_text'] ?? '')
+    );
+    ll_tools_wordset_editor_add_text_field(
+        $fields,
+        'word_translation',
+        __('Translation', 'll-tools-text-domain'),
+        (string) ($display_text['translation_text'] ?? '')
+    );
+
+    $legacy_meaning = trim((string) get_post_meta($word_id, 'word_english_meaning', true));
+    $display_translation = trim((string) ($display_text['translation_text'] ?? ''));
+    if ($legacy_meaning !== '' && strcasecmp($legacy_meaning, $display_translation) !== 0) {
+        ll_tools_wordset_editor_add_text_field($fields, 'word_english_meaning', __('Legacy meaning', 'll-tools-text-domain'), $legacy_meaning);
+    }
+
+    ll_tools_wordset_editor_add_text_field(
+        $fields,
+        'word_example_sentence',
+        __('Example', 'll-tools-text-domain'),
+        (string) get_post_meta($word_id, 'word_example_sentence', true)
+    );
+    ll_tools_wordset_editor_add_text_field(
+        $fields,
+        'word_example_sentence_translation',
+        __('Example translation', 'll-tools-text-domain'),
+        (string) get_post_meta($word_id, 'word_example_sentence_translation', true)
+    );
+    ll_tools_wordset_editor_add_text_field(
+        $fields,
+        'word_note',
+        __('Note', 'll-tools-text-domain'),
+        (string) get_post_meta($word_id, 'll_word_usage_note', true)
+    );
+
+    $content = trim(wp_strip_all_tags(strip_shortcodes((string) get_post_field('post_content', $word_id))));
+    ll_tools_wordset_editor_add_text_field($fields, 'post_content', __('Content', 'll-tools-text-domain'), $content);
+
+    if (function_exists('ll_tools_get_word_specific_wrong_answer_texts')) {
+        $wrong_answer_texts = array_values(array_filter(array_map('trim', array_map('strval', (array) ll_tools_get_word_specific_wrong_answer_texts($word_id)))));
+        if (!empty($wrong_answer_texts)) {
+            ll_tools_wordset_editor_add_text_field($fields, 'specific_wrong_answer_texts', __('Specific wrong answers', 'll-tools-text-domain'), implode(', ', $wrong_answer_texts));
+        }
+    }
+
+    if (function_exists('ll_tools_get_word_dictionary_entry_id')) {
+        $dictionary_entry_id = (int) ll_tools_get_word_dictionary_entry_id($word_id);
+        if ($dictionary_entry_id > 0) {
+            ll_tools_wordset_editor_add_text_field($fields, 'dictionary_entry', __('Dictionary entry', 'll-tools-text-domain'), (string) get_the_title($dictionary_entry_id));
+        }
+    }
+
+    if (function_exists('ll_tools_get_internal_review_note')) {
+        ll_tools_wordset_editor_add_text_field($fields, 'internal_review_note', __('Review note', 'll-tools-text-domain'), (string) ll_tools_get_internal_review_note($word_id));
+    }
+
+    return $fields;
+}
+
+function ll_tools_wordset_editor_get_word_metadata_tags(int $word_id, int $wordset_id, array $pos_by_word = []): array {
+    $tags = [];
+    $pos_entry = isset($pos_by_word[$word_id]) && is_array($pos_by_word[$word_id]) ? $pos_by_word[$word_id] : [];
+
+    if (empty($pos_entry) && function_exists('ll_tools_word_grid_collect_part_of_speech_terms')) {
+        $pos_map = ll_tools_word_grid_collect_part_of_speech_terms([$word_id]);
+        $pos_entry = isset($pos_map[$word_id]) && is_array($pos_map[$word_id]) ? $pos_map[$word_id] : [];
+    }
+
+    $pos_label = trim((string) ($pos_entry['label'] ?? ''));
+    if ($pos_label !== '') {
+        $tags[] = [
+            'key'   => 'part_of_speech',
+            'label' => __('POS', 'll-tools-text-domain'),
+            'value' => $pos_label,
+            'role'  => '',
+            'style' => '',
+            'html'  => '',
+        ];
+    }
+
+    $gender_value = trim((string) get_post_meta($word_id, 'll_grammatical_gender', true));
+    if ($gender_value !== '') {
+        $gender_label = $gender_value;
+        $gender_role = '';
+        $gender_style = '';
+        $gender_html = '';
+        if (function_exists('ll_tools_wordset_get_gender_display_data')) {
+            $gender_display = ll_tools_wordset_get_gender_display_data($wordset_id, $gender_value);
+            $gender_label = (string) ($gender_display['label'] ?? $gender_label);
+            $gender_role = (string) ($gender_display['role'] ?? '');
+            $gender_style = (string) ($gender_display['style'] ?? '');
+            $gender_html = (string) ($gender_display['html'] ?? '');
+        } elseif (function_exists('ll_tools_wordset_get_gender_label')) {
+            $gender_label = (string) ll_tools_wordset_get_gender_label($wordset_id, $gender_value);
+        }
+        if ($gender_label === '') {
+            $gender_label = $gender_value;
+        }
+
+        $tags[] = [
+            'key'   => 'grammatical_gender',
+            'label' => __('Gender', 'll-tools-text-domain'),
+            'value' => $gender_label,
+            'role'  => $gender_role,
+            'style' => $gender_style,
+            'html'  => $gender_html,
+        ];
+    }
+
+    $plurality_value = trim((string) get_post_meta($word_id, 'll_grammatical_plurality', true));
+    if ($plurality_value !== '') {
+        $plurality_label = function_exists('ll_tools_wordset_get_plurality_label')
+            ? (string) ll_tools_wordset_get_plurality_label($wordset_id, $plurality_value)
+            : $plurality_value;
+        $tags[] = [
+            'key'   => 'grammatical_plurality',
+            'label' => __('Plurality', 'll-tools-text-domain'),
+            'value' => $plurality_label !== '' ? $plurality_label : $plurality_value,
+            'role'  => '',
+            'style' => '',
+            'html'  => '',
+        ];
+    }
+
+    $verb_tense_value = trim((string) get_post_meta($word_id, 'll_verb_tense', true));
+    if ($verb_tense_value !== '') {
+        $verb_tense_label = function_exists('ll_tools_wordset_get_verb_tense_label')
+            ? (string) ll_tools_wordset_get_verb_tense_label($wordset_id, $verb_tense_value)
+            : $verb_tense_value;
+        $tags[] = [
+            'key'   => 'verb_tense',
+            'label' => __('Tense', 'll-tools-text-domain'),
+            'value' => $verb_tense_label !== '' ? $verb_tense_label : $verb_tense_value,
+            'role'  => '',
+            'style' => '',
+            'html'  => '',
+        ];
+    }
+
+    $verb_mood_value = trim((string) get_post_meta($word_id, 'll_verb_mood', true));
+    if ($verb_mood_value !== '') {
+        $verb_mood_label = function_exists('ll_tools_wordset_get_verb_mood_label')
+            ? (string) ll_tools_wordset_get_verb_mood_label($wordset_id, $verb_mood_value)
+            : $verb_mood_value;
+        $tags[] = [
+            'key'   => 'verb_mood',
+            'label' => __('Mood', 'll-tools-text-domain'),
+            'value' => $verb_mood_label !== '' ? $verb_mood_label : $verb_mood_value,
+            'role'  => '',
+            'style' => '',
+            'html'  => '',
+        ];
+    }
+
+    return $tags;
+}
+
 function ll_tools_wordset_editor_get_image_data(int $word_id): array {
     $fallback = [
         'url'           => '',
@@ -465,11 +658,44 @@ function ll_tools_wordset_editor_get_audio_counts(array $word_ids): array {
     return $counts;
 }
 
-function ll_tools_wordset_editor_get_recordings_for_word_ids(array $word_ids): array {
+function ll_tools_wordset_editor_get_recording_transcription_mode(int $wordset_id): string {
+    if ($wordset_id > 0 && function_exists('ll_tools_get_wordset_recording_transcription_mode')) {
+        return (string) ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true);
+    }
+
+    return 'ipa';
+}
+
+function ll_tools_wordset_editor_get_recording_transcription_label(int $wordset_id): string {
+    if ($wordset_id > 0 && function_exists('ll_tools_get_wordset_recording_transcription_config')) {
+        $config = ll_tools_get_wordset_recording_transcription_config([$wordset_id], true);
+        $label = trim((string) ($config['label'] ?? ''));
+        if ($label !== '') {
+            return $label;
+        }
+    }
+
+    return __('IPA', 'll-tools-text-domain');
+}
+
+function ll_tools_wordset_editor_normalize_recording_ipa(string $recording_ipa, string $transcription_mode): string {
+    $recording_ipa = trim($recording_ipa);
+    if ($recording_ipa === '') {
+        return '';
+    }
+
+    return function_exists('ll_tools_word_grid_normalize_ipa_output')
+        ? ll_tools_word_grid_normalize_ipa_output($recording_ipa, $transcription_mode)
+        : $recording_ipa;
+}
+
+function ll_tools_wordset_editor_get_recordings_for_word_ids(array $word_ids, int $wordset_id = 0): array {
     $word_ids = ll_tools_wordset_editor_normalize_word_ids($word_ids);
     if (empty($word_ids)) {
         return [];
     }
+
+    $transcription_mode = ll_tools_wordset_editor_get_recording_transcription_mode($wordset_id);
 
     $recordings = get_posts([
         'post_type'      => 'word_audio',
@@ -508,15 +734,22 @@ function ll_tools_wordset_editor_get_recordings_for_word_ids(array $word_ids): a
         }
 
         $file_path = (string) get_post_meta((int) $recording->ID, 'audio_file_path', true);
+        $recording_ipa = ll_tools_wordset_editor_normalize_recording_ipa(
+            (string) get_post_meta((int) $recording->ID, 'recording_ipa', true),
+            $transcription_mode
+        );
         $by_word[$word_id][] = [
-            'id'          => (int) $recording->ID,
-            'title'       => (string) $recording->post_title,
-            'status'      => (string) $recording->post_status,
-            'word_id'     => $word_id,
-            'type_labels' => $type_labels,
-            'type_slugs'  => $type_slugs,
-            'file_path'   => $file_path,
-            'audio_url'   => ll_tools_wordset_editor_audio_url_from_path($file_path),
+            'id'                    => (int) $recording->ID,
+            'title'                 => (string) $recording->post_title,
+            'status'                => (string) $recording->post_status,
+            'word_id'               => $word_id,
+            'type_labels'           => $type_labels,
+            'type_slugs'            => $type_slugs,
+            'file_path'             => $file_path,
+            'audio_url'             => ll_tools_wordset_editor_audio_url_from_path($file_path),
+            'recording_text'        => trim((string) get_post_meta((int) $recording->ID, 'recording_text', true)),
+            'recording_translation' => trim((string) get_post_meta((int) $recording->ID, 'recording_translation', true)),
+            'recording_ipa'         => $recording_ipa,
         ];
     }
 
@@ -526,11 +759,15 @@ function ll_tools_wordset_editor_get_recordings_for_word_ids(array $word_ids): a
 function ll_tools_wordset_editor_get_move_choices(int $wordset_id): array {
     $choices = [];
     foreach (ll_tools_wordset_editor_get_all_word_ids($wordset_id) as $word_id) {
-        $title = trim((string) get_the_title($word_id));
+        $display_text = ll_tools_wordset_editor_get_display_text($word_id);
+        $title = trim((string) ($display_text['word_text'] ?? ''));
+        if ($title === '') {
+            $title = trim((string) get_the_title($word_id));
+        }
         if ($title === '') {
             continue;
         }
-        $translation = ll_tools_wordset_editor_get_translation($word_id);
+        $translation = trim((string) ($display_text['translation_text'] ?? ''));
         $choices[] = [
             'id'    => $word_id,
             'label' => $translation !== '' ? $title . ' - ' . $translation : $title,
@@ -833,6 +1070,12 @@ function ll_tools_wordset_editor_sort_rows(array $rows, array $filters): array {
 function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_rows, array $filters = []): array {
     $filters = array_merge(ll_tools_wordset_editor_get_filters(), $filters);
     $word_ids = ll_tools_wordset_editor_get_all_word_ids($wordset_id);
+    if (!empty($word_ids)) {
+        update_meta_cache('post', $word_ids);
+    }
+    $part_of_speech_by_word = function_exists('ll_tools_word_grid_collect_part_of_speech_terms')
+        ? ll_tools_word_grid_collect_part_of_speech_terms($word_ids)
+        : [];
     $audio_counts = ll_tools_wordset_editor_get_audio_counts($word_ids);
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
     $category_labels = ll_tools_wordset_editor_get_category_labels($category_rows);
@@ -856,8 +1099,14 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
             continue;
         }
 
-        $title = get_the_title($word_id);
-        $translation = ll_tools_wordset_editor_get_translation($word_id);
+        $display_text = ll_tools_wordset_editor_get_display_text($word_id);
+        $title = (string) ($display_text['word_text'] ?? '');
+        $translation = (string) ($display_text['translation_text'] ?? '');
+        if ($title === '') {
+            $title = get_the_title($word_id);
+        }
+        $text_fields = ll_tools_wordset_editor_get_word_text_fields($word_id, $display_text);
+        $metadata_tags = ll_tools_wordset_editor_get_word_metadata_tags($word_id, $wordset_id, $part_of_speech_by_word);
         $selected_category_ids = function_exists('ll_tools_word_grid_get_selected_category_ids_for_editor')
             ? ll_tools_word_grid_get_selected_category_ids_for_editor($word_id, $wordset_id, $available_category_ids)
             : [];
@@ -898,7 +1147,8 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
         }
 
         if ($search !== '') {
-            $haystack = strtolower($title . ' ' . $translation . ' ' . implode(' ', $selected_category_labels));
+            $search_parts = array_merge([$title, $translation, implode(' ', $selected_category_labels)], wp_list_pluck($text_fields, 'value'), wp_list_pluck($metadata_tags, 'value'));
+            $haystack = strtolower(implode(' ', array_map('strval', $search_parts)));
             if (strpos($haystack, $search) === false) {
                 continue;
             }
@@ -926,6 +1176,8 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
             'id'                       => $word_id,
             'title'                    => $title,
             'translation'              => $translation,
+            'text_fields'              => $text_fields,
+            'metadata_tags'            => $metadata_tags,
             'status'                   => (string) $post->post_status,
             'selected_category_ids'    => $selected_category_ids,
             'selected_category_labels' => $selected_category_labels,
@@ -1745,6 +1997,57 @@ function ll_tools_wordset_editor_recording_play_button(array $recording_row, str
     return $button;
 }
 
+function ll_tools_wordset_editor_render_word_text_field(array $field): string {
+    $key = sanitize_key((string) ($field['key'] ?? ''));
+    $label = trim((string) ($field['label'] ?? ''));
+    $value = trim((string) ($field['value'] ?? ''));
+    if ($key === '' || $label === '' || $value === '') {
+        return '';
+    }
+
+    return '<div class="ll-wordset-editor-word-field" data-ll-wordset-editor-field="' . esc_attr($key) . '">'
+        . '<dt>' . esc_html($label) . '</dt>'
+        . '<dd data-ll-wordset-editor-field-value="' . esc_attr($key) . '">' . esc_html($value) . '</dd>'
+        . '</div>';
+}
+
+function ll_tools_wordset_editor_render_metadata_tag(array $tag): string {
+    $key = sanitize_key((string) ($tag['key'] ?? ''));
+    $label = trim((string) ($tag['label'] ?? ''));
+    $value = trim((string) ($tag['value'] ?? ''));
+    if ($key === '' || $label === '' || $value === '') {
+        return '';
+    }
+
+    $classes = 'll-wordset-editor-meta-tag ll-wordset-editor-meta-tag--' . sanitize_html_class($key);
+    $role = sanitize_key((string) ($tag['role'] ?? ''));
+    if ($role !== '') {
+        $classes .= ' ll-wordset-editor-meta-tag--' . sanitize_html_class($role);
+    }
+    $style = trim((string) ($tag['style'] ?? ''));
+    $html = trim((string) ($tag['html'] ?? ''));
+    $value_html = $html !== '' ? $html : esc_html($value);
+
+    return '<span class="' . esc_attr($classes) . '" data-ll-wordset-editor-meta="' . esc_attr($key) . '"' . ($style !== '' ? ' style="' . esc_attr($style) . '"' : '') . ' title="' . esc_attr($label . ': ' . $value) . '">'
+        . '<span class="ll-wordset-editor-meta-tag__label">' . esc_html($label) . '</span>'
+        . '<span class="ll-wordset-editor-meta-tag__value">' . $value_html . '</span>'
+        . '</span>';
+}
+
+function ll_tools_wordset_editor_render_recording_text_field(string $key, string $label, string $value): string {
+    $key = sanitize_key($key);
+    $label = trim($label);
+    $value = trim($value);
+    if ($key === '' || $label === '' || $value === '') {
+        return '';
+    }
+
+    return '<div class="ll-wordset-editor-recording-text-field" data-ll-wordset-editor-recording-field="' . esc_attr($key) . '">'
+        . '<dt>' . esc_html($label) . '</dt>'
+        . '<dd data-ll-wordset-editor-recording-field-value="' . esc_attr($key) . '">' . esc_html($value) . '</dd>'
+        . '</div>';
+}
+
 function ll_tools_wordset_editor_sort_link(WP_Term $wordset_term, string $key, string $label, array $filters, string $back_url = ''): string {
     $key = sanitize_key($key);
     $current_sort = sanitize_key((string) ($filters['sort'] ?? 'word'));
@@ -1830,7 +2133,8 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $reset_url = $action_url;
     $bulk_form_id = 'll-wordset-editor-bulk-' . (int) $wordset_id;
     $page_word_ids = ll_tools_wordset_editor_normalize_word_ids(wp_list_pluck($page_rows, 'id'));
-    $recordings_by_word_id = ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids);
+    $recordings_by_word_id = ll_tools_wordset_editor_get_recordings_for_word_ids($page_word_ids, $wordset_id);
+    $recording_transcription_label = ll_tools_wordset_editor_get_recording_transcription_label($wordset_id);
     $move_choices = ll_tools_wordset_editor_get_move_choices($wordset_id);
     $move_target_template_id = 'll-wordset-editor-move-options-' . (int) $wordset_id;
     $saved_filters = ll_tools_wordset_editor_get_saved_filters($wordset_id);
@@ -2093,6 +2397,8 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                 ];
                             }
                         }
+                        $text_fields = (array) ($row['text_fields'] ?? []);
+                        $metadata_tags = (array) ($row['metadata_tags'] ?? []);
                         ?>
                         <div class="ll-wordset-editor-row" role="row" data-ll-wordset-editor-row data-word-id="<?php echo esc_attr((string) $word_id); ?>">
                             <label class="ll-wordset-editor-cell ll-wordset-editor-cell--check" role="cell">
@@ -2156,6 +2462,26 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                     </span>
                                 </div>
                             </div>
+                            <?php if (!empty($text_fields) || !empty($metadata_tags)) : ?>
+                                <div class="ll-wordset-editor-row__details ll-wordset-editor-row__details--word" role="cell" aria-colspan="4" data-label="<?php echo esc_attr__('Word details', 'll-tools-text-domain'); ?>">
+                                    <div class="ll-wordset-editor-word-details">
+                                        <?php if (!empty($metadata_tags)) : ?>
+                                            <div class="ll-wordset-editor-meta-tags" aria-label="<?php echo esc_attr__('Word metadata', 'll-tools-text-domain'); ?>">
+                                                <?php foreach ($metadata_tags as $metadata_tag) : ?>
+                                                    <?php echo ll_tools_wordset_editor_render_metadata_tag((array) $metadata_tag); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($text_fields)) : ?>
+                                            <dl class="ll-wordset-editor-word-fields">
+                                                <?php foreach ($text_fields as $text_field) : ?>
+                                                    <?php echo ll_tools_wordset_editor_render_word_text_field((array) $text_field); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                <?php endforeach; ?>
+                                            </dl>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
                             <?php $recording_rows = (array) ($recordings_by_word_id[$word_id] ?? []); ?>
                             <?php if (!empty($recording_rows)) : ?>
                                 <div class="ll-wordset-editor-row__details" role="cell" aria-colspan="4" data-label="<?php echo esc_attr__('Recordings', 'll-tools-text-domain'); ?>">
@@ -2171,7 +2497,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                                 $recording_label = sprintf(__('Recording %d', 'll-tools-text-domain'), $recording_id);
                                             }
                                             ?>
-                                            <div class="ll-wordset-editor-recording">
+                                            <div class="ll-wordset-editor-recording" data-ll-wordset-editor-recording data-recording-id="<?php echo esc_attr((string) $recording_id); ?>">
                                                 <div class="ll-wordset-editor-recording__main">
                                                     <?php
                                                     $play_button = ll_tools_wordset_editor_recording_play_button($recording_row, $recording_label);
@@ -2184,6 +2510,17 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                                                     <span class="ll-wordset-editor-recording__label"><?php echo esc_html($recording_label); ?></span>
                                                     <span class="ll-wordset-editor-state ll-wordset-editor-state--<?php echo esc_attr(sanitize_html_class((string) ($recording_row['status'] ?? ''))); ?>"><?php echo esc_html(ll_tools_wordset_editor_status_label((string) ($recording_row['status'] ?? ''))); ?></span>
                                                 </div>
+                                                <?php
+                                                $recording_texts_html = '';
+                                                $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_text', __('Text', 'll-tools-text-domain'), (string) ($recording_row['recording_text'] ?? ''));
+                                                $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_translation', __('Translation', 'll-tools-text-domain'), (string) ($recording_row['recording_translation'] ?? ''));
+                                                $recording_texts_html .= ll_tools_wordset_editor_render_recording_text_field('recording_ipa', $recording_transcription_label, (string) ($recording_row['recording_ipa'] ?? ''));
+                                                ?>
+                                                <?php if ($recording_texts_html !== '') : ?>
+                                                    <dl class="ll-wordset-editor-recording-texts">
+                                                        <?php echo $recording_texts_html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                    </dl>
+                                                <?php endif; ?>
                                                 <div class="ll-wordset-editor-recording__actions">
                                                     <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-editor-mini-form" data-ll-wordset-editor-confirm="<?php echo esc_attr__('Move this recording to Trash?', 'll-tools-text-domain'); ?>">
                                                         <input type="hidden" name="ll_wordset_manager_editor_wordset_id" value="<?php echo esc_attr((string) $wordset_id); ?>" />

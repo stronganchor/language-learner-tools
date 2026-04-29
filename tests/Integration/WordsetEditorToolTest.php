@@ -49,6 +49,20 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         update_post_meta((int) $lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $fixture['wordset_id']);
         update_post_meta((int) $lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $fixture['category_a_id']);
         set_post_thumbnail((int) $fixture['alpha_word_id'], $this->createImageAttachment('wordset-editor-alpha.png'));
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_has_gender', '1');
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_gender_options', ['Masculine', 'Feminine']);
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_has_plurality', '1');
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_plurality_options', ['Singular', 'Plural']);
+        $noun_id = $this->ensureTerm('part_of_speech', 'Noun', 'noun');
+        wp_set_object_terms((int) $fixture['alpha_word_id'], [$noun_id], 'part_of_speech', false);
+        update_post_meta((int) $fixture['alpha_word_id'], 'll_grammatical_gender', 'Masculine');
+        update_post_meta((int) $fixture['alpha_word_id'], 'll_grammatical_plurality', 'Singular');
+        update_post_meta((int) $fixture['alpha_word_id'], 'word_example_sentence', 'Alpha example sentence');
+        update_post_meta((int) $fixture['alpha_word_id'], 'word_example_sentence_translation', 'Alpha example translation');
+        update_post_meta((int) $fixture['alpha_word_id'], 'll_word_usage_note', 'Alpha usage note');
+        update_post_meta((int) $fixture['alpha_recording_id'], 'recording_text', 'Alpha spoken form');
+        update_post_meta((int) $fixture['alpha_recording_id'], 'recording_translation', 'Alpha recording translation');
+        update_post_meta((int) $fixture['alpha_recording_id'], 'recording_ipa', 'al.fa');
 
         $_GET = [
             'll_wordset_tool' => 'editor',
@@ -75,10 +89,29 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('All 1 filtered word', $html);
         $this->assertStringContainsString('Alpha Word', $html);
         $this->assertStringContainsString('Alpha Translation', $html);
+        $this->assertStringContainsString('ll-wordset-editor-word-details', $html);
+        $this->assertStringContainsString('Word text', $html);
+        $this->assertStringContainsString('Example', $html);
+        $this->assertStringContainsString('Alpha example sentence', $html);
+        $this->assertStringContainsString('Example translation', $html);
+        $this->assertStringContainsString('Alpha example translation', $html);
+        $this->assertStringContainsString('Alpha usage note', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-meta="part_of_speech"', $html);
+        $this->assertStringContainsString('Noun', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-meta="grammatical_gender"', $html);
+        $this->assertStringContainsString('Masculine', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-meta="grammatical_plurality"', $html);
+        $this->assertStringContainsString('Singular', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-thumb', $html);
         $this->assertStringContainsString('class="ll-wordset-editor-recording-play ll-study-recording-btn', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-audio', $html);
         $this->assertStringContainsString('wordset-editor-render-alpha.wav', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-recording-field="recording_text"', $html);
+        $this->assertStringContainsString('Alpha spoken form', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-recording-field="recording_translation"', $html);
+        $this->assertStringContainsString('Alpha recording translation', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-recording-field="recording_ipa"', $html);
+        $this->assertStringContainsString('al.fa', $html);
         $this->assertStringContainsString('ll_wordset_editor_recording_id', $html);
         $this->assertStringContainsString('ll_wordset_editor_target_word_id', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-move-target', $html);
