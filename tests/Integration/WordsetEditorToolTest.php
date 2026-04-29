@@ -78,7 +78,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('data-ll-wordset-editor', $html);
         $this->assertStringContainsString('name="ll_editor_q"', $html);
-        $this->assertStringContainsString('name="ll_editor_category"', $html);
+        $this->assertStringContainsString('name="ll_editor_category[]"', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-category-filter', $html);
         $this->assertStringContainsString('name="ll_editor_status"', $html);
         $this->assertStringContainsString('name="ll_editor_image"', $html);
         $this->assertStringContainsString('name="ll_editor_recording"', $html);
@@ -119,6 +120,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertSame(1, substr_count($html, '<template id="ll-wordset-editor-move-options-'));
         $this->assertStringContainsString('data-ll-wordset-editor-confirm', $html);
         $this->assertStringContainsString('ll_wordset_manager_editor_action', $html);
+        $this->assertStringContainsString('data-ll-wordset-editor-bulk-action', $html);
+        $this->assertMatchesRegularExpression('/<label[^>]+data-ll-wordset-editor-category-target-field[^>]+hidden/', $html);
         $this->assertStringContainsString('aria-label="Show all words"', $html);
         $this->assertStringContainsString('aria-label="Show words missing published audio"', $html);
         $this->assertStringContainsString('ll_editor_recording=missing', $html);
@@ -169,6 +172,60 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertSame((int) $fixture['beta_word_id'], (int) ($rows[0]['id'] ?? 0));
         $this->assertFalse((bool) ($rows[0]['requires_audio'] ?? true));
         $this->assertTrue((bool) ($rows[0]['missing_audio'] ?? false));
+    }
+
+    public function test_category_filter_dropdown_scopes_options_to_other_active_filters_and_supports_multiple_selection(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-category-filter');
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        set_post_thumbnail((int) $fixture['alpha_word_id'], $this->createImageAttachment('wordset-editor-category-filter-alpha.png'));
+        $image_ready_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Image Ready Word',
+        ]);
+        wp_set_object_terms((int) $image_ready_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms((int) $image_ready_word_id, [(int) $fixture['category_b_id']], 'word-category', false);
+        set_post_thumbnail((int) $image_ready_word_id, $this->createImageAttachment('wordset-editor-category-filter-ready.png'));
+
+        $category_c_id = $this->createOwnedCategory('wordset-editor-category-filter-c', $wordset_id);
+        $gamma_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Gamma Missing Image',
+        ]);
+        wp_set_object_terms((int) $gamma_word_id, [$wordset_id], 'wordset', false);
+        wp_set_object_terms((int) $gamma_word_id, [$category_c_id], 'word-category', false);
+
+        $_GET = [
+            'll_wordset_tool' => 'editor',
+            'll_editor_image' => 'missing',
+            'll_editor_category' => [
+                (string) $fixture['category_a_id'],
+                (string) $category_c_id,
+            ],
+        ];
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'editor'));
+        set_query_var('ll_wordset_page', (string) $wordset_term->slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $html = ll_tools_render_wordset_page_content($wordset_id);
+        $filter_html = $this->extractCategoryFilterHtml($html);
+
+        $this->assertStringContainsString('name="ll_editor_category[]"', $filter_html);
+        $this->assertMatchesRegularExpression('/name="ll_editor_category\\[\\]"[^>]+value="' . preg_quote((string) $fixture['category_a_id'], '/') . '"[^>]+checked/', $filter_html);
+        $this->assertMatchesRegularExpression('/name="ll_editor_category\\[\\]"[^>]+value="' . preg_quote((string) $category_c_id, '/') . '"[^>]+checked/', $filter_html);
+        $this->assertStringContainsString('data-ll-wordset-editor-category-filter-option-id="' . (int) $fixture['category_a_id'] . '"', $filter_html);
+        $this->assertStringContainsString('data-ll-wordset-editor-category-filter-option-id="' . (int) $category_c_id . '"', $filter_html);
+        $this->assertStringNotContainsString('data-ll-wordset-editor-category-filter-option-id="' . (int) $fixture['category_b_id'] . '"', $filter_html);
+        $this->assertStringContainsString('2 categories', $filter_html);
+        $this->assertStringContainsString('Beta Word', $html);
+        $this->assertStringContainsString('Gamma Missing Image', $html);
+        $this->assertStringNotContainsString('Image Ready Word</strong>', $html);
     }
 
     public function test_quick_update_changes_word_fields_and_is_undoable(): void
@@ -700,6 +757,32 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         update_post_meta($attachment_id, '_wp_attached_file', $relative_path);
 
         return (int) $attachment_id;
+    }
+
+    private function createOwnedCategory(string $slug, int $wordset_id): int
+    {
+        $name = ucwords(str_replace('-', ' ', $slug));
+        $created = wp_insert_term($name, 'word-category', ['slug' => $slug]);
+        $this->assertFalse(is_wp_error($created));
+        $category_id = (int) ($created['term_id'] ?? 0);
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+        update_term_meta($category_id, 'll_desired_recording_types', ['isolation']);
+        if (function_exists('ll_tools_set_category_wordset_owner')) {
+            ll_tools_set_category_wordset_owner($category_id, $wordset_id, $category_id);
+        }
+
+        return $category_id;
+    }
+
+    private function extractCategoryFilterHtml(string $html): string
+    {
+        $start = strpos($html, 'data-ll-wordset-editor-category-filter');
+        $this->assertIsInt($start);
+        $end = strpos($html, 'name="ll_editor_status"', $start);
+        $this->assertIsInt($end);
+
+        return substr($html, $start, $end - $start);
     }
 
     private function ensureTerm(string $taxonomy, string $name, string $slug): int

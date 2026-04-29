@@ -3722,6 +3722,10 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     min-width: 0;
 }
 
+.ll-wordset-editor-field[hidden] {
+    display: none !important;
+}
+
 .ll-wordset-editor-field__label {
     display: inline-flex;
     align-items: center;
@@ -3733,7 +3737,8 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
 }
 
 .ll-wordset-editor-field input[type="search"],
-.ll-wordset-editor-field select {
+.ll-wordset-editor-field select,
+.ll-wordset-editor-multiselect__summary {
     width: 100%;
     max-width: 100%;
     min-height: 42px;
@@ -3742,6 +3747,100 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     background: #ffffff;
     color: var(--ll-wp-text);
     font: inherit;
+}
+
+.ll-wordset-editor-multiselect {
+    position: relative;
+    min-width: 0;
+}
+
+.ll-wordset-editor-multiselect__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 11px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.ll-wordset-editor-multiselect__summary::-webkit-details-marker {
+    display: none;
+}
+
+.ll-wordset-editor-multiselect__summary::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid #64748b;
+    border-bottom: 2px solid #64748b;
+    transform: rotate(45deg);
+    transition: transform 0.15s ease;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-editor-multiselect[open] .ll-wordset-editor-multiselect__summary::after {
+    transform: rotate(225deg);
+}
+
+.ll-wordset-editor-multiselect__summary span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ll-wordset-editor-multiselect__panel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 4px);
+    left: 0;
+    width: min(360px, 90vw);
+    max-height: 280px;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #ffffff;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+}
+
+.ll-wordset-editor-multiselect__option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    color: var(--ll-wp-text);
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.ll-wordset-editor-multiselect__option:hover,
+.ll-wordset-editor-multiselect__option:focus-within {
+    background: #eef5fb;
+}
+
+.ll-wordset-editor-multiselect__option input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-editor-multiselect__option span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ll-wordset-editor-multiselect__empty {
+    margin: 0;
+    padding: 8px;
+    color: #64748b;
+    font-size: 0.84rem;
+    font-weight: 700;
 }
 
 .ll-wordset-editor-filters__actions,

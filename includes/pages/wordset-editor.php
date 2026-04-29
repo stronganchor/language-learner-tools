@@ -806,10 +806,56 @@ function ll_tools_wordset_editor_get_all_word_ids(int $wordset_id): array {
     return ll_tools_wordset_editor_normalize_word_ids($query->posts);
 }
 
+function ll_tools_wordset_editor_collect_category_filter_ids($raw, array &$ids): void {
+    if (is_array($raw)) {
+        foreach ($raw as $value) {
+            ll_tools_wordset_editor_collect_category_filter_ids($value, $ids);
+        }
+        return;
+    }
+
+    if (is_string($raw)) {
+        $raw = wp_unslash($raw);
+        $parts = preg_split('/[\s,]+/', $raw);
+        if (is_array($parts) && count($parts) > 1) {
+            foreach ($parts as $part) {
+                ll_tools_wordset_editor_collect_category_filter_ids($part, $ids);
+            }
+            return;
+        }
+    }
+
+    $id = absint($raw);
+    if ($id > 0) {
+        $ids[] = $id;
+    }
+}
+
+function ll_tools_wordset_editor_normalize_category_filter_ids($raw): array {
+    $ids = [];
+    ll_tools_wordset_editor_collect_category_filter_ids($raw, $ids);
+
+    return function_exists('ll_tools_word_grid_normalize_category_id_list')
+        ? ll_tools_word_grid_normalize_category_id_list($ids)
+        : array_values(array_unique(array_filter(array_map('absint', $ids))));
+}
+
+function ll_tools_wordset_editor_get_filter_category_ids(array $filters): array {
+    if (array_key_exists('categories', $filters)) {
+        return ll_tools_wordset_editor_normalize_category_filter_ids($filters['categories']);
+    }
+    if (array_key_exists('category_ids', $filters)) {
+        return ll_tools_wordset_editor_normalize_category_filter_ids($filters['category_ids']);
+    }
+
+    return ll_tools_wordset_editor_normalize_category_filter_ids($filters['category'] ?? []);
+}
+
 function ll_tools_wordset_editor_get_filters_from_source(array $source): array {
     $filters = [
         'q'         => '',
         'category'  => 0,
+        'categories' => [],
         'status'    => '',
         'image'     => '',
         'recording' => '',
@@ -822,7 +868,9 @@ function ll_tools_wordset_editor_get_filters_from_source(array $source): array {
         $filters['q'] = sanitize_text_field(wp_unslash((string) $source['ll_editor_q']));
     }
     if (isset($source['ll_editor_category'])) {
-        $filters['category'] = absint(wp_unslash((string) $source['ll_editor_category']));
+        $category_ids = ll_tools_wordset_editor_normalize_category_filter_ids($source['ll_editor_category']);
+        $filters['categories'] = $category_ids;
+        $filters['category'] = (int) ($category_ids[0] ?? 0);
     }
     if (isset($source['ll_editor_status'])) {
         $status = sanitize_key(wp_unslash((string) $source['ll_editor_status']));
@@ -866,9 +914,11 @@ function ll_tools_wordset_editor_filter_query_args_from_filters(array $filters):
         $args['ll_editor_q'] = $q;
     }
 
-    $category_id = (int) ($filters['category'] ?? 0);
-    if ($category_id > 0) {
-        $args['ll_editor_category'] = $category_id;
+    $category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    if (count($category_ids) === 1) {
+        $args['ll_editor_category'] = (int) $category_ids[0];
+    } elseif (count($category_ids) > 1) {
+        $args['ll_editor_category'] = $category_ids;
     }
 
     foreach ([
@@ -910,7 +960,7 @@ function ll_tools_wordset_editor_filter_preset_from_filters(array $filters): arr
 
     return [
         'q'         => (string) ($filters['q'] ?? ''),
-        'category'  => (int) ($filters['category'] ?? 0),
+        'category'  => ll_tools_wordset_editor_get_filter_category_ids($filters),
         'status'    => sanitize_key((string) ($filters['status'] ?? '')),
         'image'     => sanitize_key((string) ($filters['image'] ?? '')),
         'recording' => $recording,
@@ -999,7 +1049,6 @@ function ll_tools_wordset_editor_delete_filter_preset(int $wordset_id, string $p
 function ll_tools_wordset_editor_filter_hidden_inputs(array $filters): string {
     $fields = [
         'll_editor_q'         => (string) ($filters['q'] ?? ''),
-        'll_editor_category'  => (string) ((int) ($filters['category'] ?? 0)),
         'll_editor_status'    => (string) ($filters['status'] ?? ''),
         'll_editor_image'     => (string) ($filters['image'] ?? ''),
         'll_editor_recording' => (string) ($filters['recording'] ?? ''),
@@ -1008,6 +1057,9 @@ function ll_tools_wordset_editor_filter_hidden_inputs(array $filters): string {
     ];
 
     $html = '';
+    foreach (ll_tools_wordset_editor_get_filter_category_ids($filters) as $category_id) {
+        $html .= '<input type="hidden" name="ll_editor_category[]" value="' . esc_attr((string) $category_id) . '" />' . "\n";
+    }
     foreach ($fields as $name => $value) {
         $html .= '<input type="hidden" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '" />' . "\n";
     }
@@ -1080,12 +1132,14 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
     $available_category_ids = ll_tools_wordset_editor_get_available_category_ids($category_rows);
     $category_labels = ll_tools_wordset_editor_get_category_labels($category_rows);
     $category_lesson_urls = ll_tools_wordset_editor_get_vocab_lesson_urls($wordset_id);
+    $filter_category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
     $search = strtolower(trim((string) ($filters['q'] ?? '')));
     $recording_filter = sanitize_key((string) ($filters['recording'] ?? ''));
     if ($recording_filter === 'none') {
         $recording_filter = 'missing';
     }
     $filtered_rows = [];
+    $category_filter_lookup = [];
     $summary = [
         'total'         => count($word_ids),
         'missing_audio' => 0,
@@ -1146,29 +1200,39 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
             $summary['missing_image']++;
         }
 
+        $matches_other_filters = true;
         if ($search !== '') {
             $search_parts = array_merge([$title, $translation, implode(' ', $selected_category_labels)], wp_list_pluck($text_fields, 'value'), wp_list_pluck($metadata_tags, 'value'));
             $haystack = strtolower(implode(' ', array_map('strval', $search_parts)));
             if (strpos($haystack, $search) === false) {
-                continue;
+                $matches_other_filters = false;
             }
         }
-        if ((int) ($filters['category'] ?? 0) > 0 && !in_array((int) $filters['category'], $selected_category_ids, true)) {
+        if ($matches_other_filters && (string) ($filters['status'] ?? '') !== '' && $post->post_status !== (string) $filters['status']) {
+            $matches_other_filters = false;
+        }
+        if ($matches_other_filters && (string) ($filters['image'] ?? '') === 'has' && !$has_image) {
+            $matches_other_filters = false;
+        }
+        if ($matches_other_filters && (string) ($filters['image'] ?? '') === 'missing' && $has_image) {
+            $matches_other_filters = false;
+        }
+        if ($matches_other_filters && $recording_filter === 'has' && $published_audio_count <= 0) {
+            $matches_other_filters = false;
+        }
+        if ($matches_other_filters && $recording_filter === 'missing' && !$missing_audio) {
+            $matches_other_filters = false;
+        }
+
+        if ($matches_other_filters) {
+            foreach ($selected_category_ids as $selected_category_id) {
+                $category_filter_lookup[(int) $selected_category_id] = true;
+            }
+        } else {
             continue;
         }
-        if ((string) ($filters['status'] ?? '') !== '' && $post->post_status !== (string) $filters['status']) {
-            continue;
-        }
-        if ((string) ($filters['image'] ?? '') === 'has' && !$has_image) {
-            continue;
-        }
-        if ((string) ($filters['image'] ?? '') === 'missing' && $has_image) {
-            continue;
-        }
-        if ($recording_filter === 'has' && $published_audio_count <= 0) {
-            continue;
-        }
-        if ($recording_filter === 'missing' && !$missing_audio) {
+
+        if (!empty($filter_category_ids) && empty(array_intersect($filter_category_ids, $selected_category_ids))) {
             continue;
         }
 
@@ -1192,9 +1256,17 @@ function ll_tools_wordset_editor_build_rows(int $wordset_id, array $category_row
         ];
     }
 
+    $category_filter_ids = [];
+    foreach ($available_category_ids as $category_id) {
+        if (isset($category_filter_lookup[(int) $category_id])) {
+            $category_filter_ids[] = (int) $category_id;
+        }
+    }
+
     return [
-        'rows'    => ll_tools_wordset_editor_sort_rows($filtered_rows, $filters),
-        'summary' => $summary,
+        'rows'                => ll_tools_wordset_editor_sort_rows($filtered_rows, $filters),
+        'summary'             => $summary,
+        'category_filter_ids' => $category_filter_ids,
     ];
 }
 
@@ -2048,28 +2120,80 @@ function ll_tools_wordset_editor_render_recording_text_field(string $key, string
         . '</div>';
 }
 
+function ll_tools_wordset_editor_category_filter_summary_label(array $selected_labels): string {
+    $count = count($selected_labels);
+    if ($count <= 0) {
+        return __('All', 'll-tools-text-domain');
+    }
+    if ($count === 1) {
+        return (string) $selected_labels[0];
+    }
+
+    return sprintf(_n('%d category', '%d categories', $count, 'll-tools-text-domain'), $count);
+}
+
+function ll_tools_wordset_editor_render_category_filter_dropdown(array $category_rows, array $filters, array $category_filter_ids): string {
+    $selected_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    $selected_lookup = array_fill_keys($selected_ids, true);
+    $available_lookup = array_fill_keys(ll_tools_wordset_editor_normalize_category_filter_ids($category_filter_ids), true);
+    $options = [];
+    $selected_labels = [];
+
+    foreach ($category_rows as $category_row) {
+        $category_id = (int) ($category_row['id'] ?? 0);
+        if ($category_id <= 0 || !isset($available_lookup[$category_id])) {
+            continue;
+        }
+
+        $label = ll_tools_wordset_editor_category_row_label($category_row);
+        $selected = isset($selected_lookup[$category_id]);
+        if ($selected) {
+            $selected_labels[] = $label;
+        }
+        $options[] = [
+            'id'       => $category_id,
+            'label'    => $label,
+            'selected' => $selected,
+        ];
+    }
+
+    $summary = ll_tools_wordset_editor_category_filter_summary_label($selected_labels);
+
+    ob_start();
+    ?>
+    <details class="ll-wordset-editor-multiselect" data-ll-wordset-editor-category-filter data-ll-wordset-editor-category-all-label="<?php echo esc_attr__('All', 'll-tools-text-domain'); ?>" data-ll-wordset-editor-category-count-label="<?php echo esc_attr__('%d categories', 'll-tools-text-domain'); ?>">
+        <summary class="ll-wordset-editor-multiselect__summary">
+            <span data-ll-wordset-editor-category-filter-summary><?php echo esc_html($summary); ?></span>
+        </summary>
+        <div class="ll-wordset-editor-multiselect__panel">
+            <?php if (empty($options)) : ?>
+                <p class="ll-wordset-editor-multiselect__empty"><?php echo esc_html__('No matching categories', 'll-tools-text-domain'); ?></p>
+            <?php else : ?>
+                <?php foreach ($options as $option) : ?>
+                    <label class="ll-wordset-editor-multiselect__option" data-ll-wordset-editor-category-filter-option data-ll-wordset-editor-category-filter-option-id="<?php echo esc_attr((string) ((int) $option['id'])); ?>">
+                        <input type="checkbox" name="ll_editor_category[]" value="<?php echo esc_attr((string) ((int) $option['id'])); ?>" data-ll-wordset-editor-category-filter-input <?php checked(!empty($option['selected'])); ?> />
+                        <span data-ll-wordset-editor-category-filter-label><?php echo esc_html((string) $option['label']); ?></span>
+                    </label>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </details>
+    <?php
+    return trim((string) ob_get_clean());
+}
+
 function ll_tools_wordset_editor_sort_link(WP_Term $wordset_term, string $key, string $label, array $filters, string $back_url = ''): string {
     $key = sanitize_key($key);
     $current_sort = sanitize_key((string) ($filters['sort'] ?? 'word'));
     $current_dir = ((string) ($filters['dir'] ?? 'asc')) === 'desc' ? 'desc' : 'asc';
     $next_dir = ($current_sort === $key && $current_dir === 'asc') ? 'desc' : 'asc';
-    $query = [
+    $query = ll_tools_wordset_editor_filter_query_args_from_filters($filters);
+    unset($query['ll_editor_sort'], $query['ll_editor_dir']);
+    $query = array_merge([
         'll_wordset_tool' => 'editor',
         'll_editor_sort' => $key,
         'll_editor_dir' => $next_dir,
-    ];
-    foreach ([
-        'q' => 'll_editor_q',
-        'category' => 'll_editor_category',
-        'status' => 'll_editor_status',
-        'image' => 'll_editor_image',
-        'recording' => 'll_editor_recording',
-    ] as $filter_key => $query_key) {
-        $value = $filters[$filter_key] ?? '';
-        if ($value !== '' && $value !== 0 && $value !== '0') {
-            $query[$query_key] = $value;
-        }
-    }
+    ], $query);
     if ($back_url !== '') {
         $query['ll_wordset_back'] = $back_url;
     }
@@ -2098,7 +2222,8 @@ function ll_tools_wordset_editor_render_modal_grid(WP_Term $wordset_term, int $w
         'editor_context' => '1',
     ];
 
-    $category_id = isset($filters['category']) ? (int) $filters['category'] : 0;
+    $filter_category_ids = ll_tools_wordset_editor_get_filter_category_ids($filters);
+    $category_id = count($filter_category_ids) === 1 ? (int) $filter_category_ids[0] : 0;
     if ($category_id > 0) {
         $category = get_term($category_id, 'word-category');
         if ($category instanceof WP_Term && !is_wp_error($category)) {
@@ -2120,6 +2245,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
     $data = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $filters);
     $rows = (array) ($data['rows'] ?? []);
     $summary = (array) ($data['summary'] ?? []);
+    $category_filter_ids = (array) ($data['category_filter_ids'] ?? []);
     $per_page = 75;
     $paged = max(1, (int) ($filters['paged'] ?? 1));
     $total_filtered = count($rows);
@@ -2204,16 +2330,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 </label>
                 <label class="ll-wordset-editor-field">
                     <span class="ll-wordset-editor-field__label"><?php echo ll_tools_wordset_editor_icon('category'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
-                    <select name="ll_editor_category">
-                        <option value="0"><?php echo esc_html__('All', 'll-tools-text-domain'); ?></option>
-                        <?php foreach ($category_rows as $category_row) : ?>
-                            <?php $category_id = (int) ($category_row['id'] ?? 0); ?>
-                            <?php if ($category_id <= 0) { continue; } ?>
-                            <option value="<?php echo esc_attr((string) $category_id); ?>" <?php selected((int) ($filters['category'] ?? 0), $category_id); ?>>
-                                <?php echo esc_html(ll_tools_wordset_editor_category_row_label($category_row)); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <?php echo ll_tools_wordset_editor_render_category_filter_dropdown($category_rows, $filters, $category_filter_ids); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                 </label>
                 <label class="ll-wordset-editor-field">
                     <span class="ll-wordset-editor-field__label"><?php echo ll_tools_wordset_editor_icon('draft'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?> <?php echo esc_html__('Status', 'll-tools-text-domain'); ?></span>
@@ -2322,7 +2439,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                 </label>
                 <label class="ll-wordset-editor-field">
                     <span class="ll-wordset-editor-field__label"><?php echo esc_html__('Action', 'll-tools-text-domain'); ?></span>
-                    <select name="ll_wordset_manager_editor_action">
+                    <select name="ll_wordset_manager_editor_action" data-ll-wordset-editor-bulk-action>
                         <option value="draft"><?php echo esc_html__('Move to draft', 'll-tools-text-domain'); ?></option>
                         <option value="publish"><?php echo esc_html__('Publish', 'll-tools-text-domain'); ?></option>
                         <option value="add_category"><?php echo esc_html__('Add category', 'll-tools-text-domain'); ?></option>
@@ -2333,7 +2450,7 @@ function ll_tools_wordset_page_render_settings_editor_tool(WP_Term $wordset_term
                         <option value="trash"><?php echo esc_html__('Move to Trash', 'll-tools-text-domain'); ?></option>
                     </select>
                 </label>
-                <label class="ll-wordset-editor-field">
+                <label class="ll-wordset-editor-field" data-ll-wordset-editor-category-target-field hidden>
                     <span class="ll-wordset-editor-field__label"><?php echo esc_html__('Category target', 'll-tools-text-domain'); ?></span>
                     <select name="ll_wordset_editor_target_category">
                         <option value="0"><?php echo esc_html__('Choose category', 'll-tools-text-domain'); ?></option>
