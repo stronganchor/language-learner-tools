@@ -213,6 +213,42 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertNull(ll_tools_flashcards_public_ajax_cache_get($args));
     }
 
+    public function test_public_flashcard_ajax_caches_invalid_category_as_empty_result(): void
+    {
+        wp_set_current_user(0);
+
+        $_POST = [
+            'category' => 'Missing Public Bot Category',
+            'category_slug' => 'missing-public-bot-category',
+            'display_mode' => 'text_title',
+            'option_type' => 'text_title',
+            'prompt_type' => 'text_title',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_get_words_by_category_ajax();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame([], $response['data'] ?? null);
+        $this->assertSame([], ll_tools_flashcards_public_ajax_cache_get([
+            'category' => 'Missing Public Bot Category',
+            'category_slug' => 'missing-public-bot-category',
+            'display_mode' => 'text_title',
+            'wordset_ids' => [],
+            'wordset_fallback' => true,
+            'prompt_type' => 'text_title',
+            'option_type' => 'text_title',
+            'invalid_category' => true,
+        ]));
+    }
+
     public function test_wordset_speaking_transcribe_attempt_rejects_invalid_audio_before_external_calls(): void
     {
         $wordset = wp_insert_term('Speaking Upload Guard ' . wp_generate_password(6, false), 'wordset');

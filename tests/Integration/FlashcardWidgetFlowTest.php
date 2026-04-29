@@ -38,6 +38,8 @@ final class FlashcardWidgetFlowTest extends LL_Tools_TestCase
             $output = do_shortcode('[flashcard_widget category="Primary Flow Category"]');
 
             $this->assertStringContainsString('id="ll-tools-flashcard-container"', $output);
+            $this->assertStringContainsString('id="ll-tools-loading-status"', $output);
+            $this->assertStringContainsString('Loading quiz...', $output);
             $this->assertTrue(wp_script_is('ll-flc-main', 'enqueued'));
             $close_pos = strpos($output, 'id="ll-tools-close-flashcard"');
             $header_pos = strpos($output, 'id="ll-tools-flashcard-header"');

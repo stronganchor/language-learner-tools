@@ -72,6 +72,9 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
       </div>
 
       <div id="ll-tools-loading-animation" class="ll-tools-loading-animation" aria-hidden="true"></div>
+      <div id="ll-tools-loading-status" class="screen-reader-text" role="status" aria-live="polite" hidden>
+        <?php echo esc_html__('Loading quiz...', 'll-tools-text-domain'); ?>
+      </div>
 
       <div id="ll-tools-flashcard-content">
         <div id="ll-tools-prompt" class="ll-tools-prompt" style="display:none;"></div>

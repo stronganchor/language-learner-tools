@@ -319,6 +319,61 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         $this->assertSame('https://example.com/sozluk/', (string) ($data['url'] ?? ''));
     }
 
+    public function test_dictionary_live_search_clamps_anonymous_page_cache_keys(): void
+    {
+        wp_set_current_user(0);
+        $cap_filter = static function (): int {
+            return 3;
+        };
+        add_filter('ll_tools_dictionary_anonymous_live_search_page_cap', $cap_filter);
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_live_search',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'll_dictionary_q' => 'a',
+            'll_dictionary_page' => '999',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_live_search();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+            remove_filter('ll_tools_dictionary_anonymous_live_search_page_cap', $cap_filter);
+        }
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+
+        $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request([]);
+        $base_cache_args = [
+            'wordset_id' => 0,
+            'per_page' => 20,
+            'sense_limit' => 3,
+            'linked_word_limit' => 4,
+            'gloss_lang' => '',
+            'base_url' => 'https://example.com/sozluk/',
+            'search' => '',
+            'search_scopes' => $search_scopes,
+            'letter' => '',
+            'pos_slug' => '',
+            'source_id' => '',
+            'dialect' => '',
+            'preferred_languages' => ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, 0, ''),
+            'has_active_query' => false,
+        ];
+
+        $this->assertIsArray(ll_tools_dictionary_ajax_cache_get('live_search', array_merge($base_cache_args, [
+            'page' => 3,
+        ])));
+        $this->assertNull(ll_tools_dictionary_ajax_cache_get('live_search', array_merge($base_cache_args, [
+            'page' => 999,
+        ])));
+    }
+
     public function test_import_groups_duplicate_headwords_and_shortcode_paginates_results(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

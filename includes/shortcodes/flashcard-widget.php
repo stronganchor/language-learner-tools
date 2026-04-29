@@ -1249,6 +1249,34 @@ function ll_get_words_by_category_ajax() {
             wp_send_json_success([]);
         }
     }
+
+    $public_wordset_ids = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
+        return $wordset_id > 0;
+    }));
+    sort($public_wordset_ids, SORT_NUMERIC);
+
+    if (!($term instanceof WP_Term)) {
+        $invalid_cache_args = [
+            'category' => $category,
+            'category_slug' => $category_slug,
+            'display_mode' => $display_mode,
+            'wordset_ids' => $public_wordset_ids,
+            'wordset_fallback' => $wordset_fallback,
+            'prompt_type' => $prompt_type,
+            'option_type' => $option_type,
+            'invalid_category' => true,
+        ];
+        $cached_words = ll_tools_flashcards_public_ajax_cache_get($invalid_cache_args);
+        if (is_array($cached_words)) {
+            ll_tools_flashcards_send_public_ajax_cache_header('HIT');
+            wp_send_json_success($cached_words);
+        }
+
+        ll_tools_flashcards_public_ajax_cache_set($invalid_cache_args, []);
+        ll_tools_flashcards_send_public_ajax_cache_header('MISS');
+        wp_send_json_success([]);
+    }
+
     $meta_config = ($term instanceof WP_Term) ? ll_tools_get_category_quiz_config($term) : [];
     $normalized_prompt_type = ll_tools_normalize_quiz_prompt_type(
         $prompt_type ?: ($meta_config['prompt_type'] ?? 'audio'),
@@ -1265,11 +1293,6 @@ function ll_get_words_by_category_ajax() {
     if (!empty($meta_config)) {
         $base_config = array_merge($meta_config, $base_config);
     }
-
-    $public_wordset_ids = array_values(array_filter(array_map('intval', $wordset_ids), static function (int $wordset_id): bool {
-        return $wordset_id > 0;
-    }));
-    sort($public_wordset_ids, SORT_NUMERIC);
 
     $public_cache_args = [
         'category' => $category,

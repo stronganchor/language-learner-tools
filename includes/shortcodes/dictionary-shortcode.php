@@ -2179,6 +2179,10 @@ function ll_tools_dictionary_live_search_min_chars(): int {
     return max(1, (int) apply_filters('ll_tools_dictionary_live_search_min_chars', 2));
 }
 
+function ll_tools_dictionary_anonymous_live_search_page_cap(): int {
+    return max(1, (int) apply_filters('ll_tools_dictionary_anonymous_live_search_page_cap', 500));
+}
+
 function ll_tools_dictionary_live_search_length(string $search): int {
     if (function_exists('mb_strlen')) {
         return (int) mb_strlen($search, 'UTF-8');
@@ -2563,6 +2567,9 @@ function ll_tools_dictionary_handle_live_search(): void {
     $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST);
     $letter = isset($_POST['ll_dictionary_letter']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_letter']))) : '';
     $page = isset($_POST['ll_dictionary_page']) ? max(1, (int) wp_unslash((string) $_POST['ll_dictionary_page'])) : 1;
+    if (!is_user_logged_in()) {
+        $page = min($page, ll_tools_dictionary_anonymous_live_search_page_cap());
+    }
     $pos_slug = isset($_POST['ll_dictionary_pos']) ? sanitize_title(wp_unslash((string) $_POST['ll_dictionary_pos'])) : '';
     $source_id = isset($_POST['ll_dictionary_source']) ? sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_source'])) : '';
     if (function_exists('ll_tools_dictionary_normalize_source_id')) {

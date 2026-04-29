@@ -377,6 +377,7 @@
         const $content = $('#ll-tools-flashcard-content');
         const $listeningViz = $('#ll-tools-listening-visualizer');
         const $el = $('#ll-tools-loading-animation');
+        const $status = $('#ll-tools-loading-status');
 
         // Keep loader at document root so it cannot be trapped under popup blur layers.
         if ($body.length && $el.length && $el.parent()[0] !== $body[0]) {
@@ -416,12 +417,14 @@
                 // so countdown/audio rendering can restore it without reflow.
                 $listeningViz.removeClass('countdown-active').css('visibility', 'hidden');
             }
+            $status.prop('hidden', false);
             $el.css('display', 'block');
             return;
         }
 
         $popup.removeClass('ll-round-loading-active ll-round-loading-instant').removeAttr('aria-busy');
         $content.removeClass('ll-round-loading');
+        $status.prop('hidden', true);
         $el.hide();
     }
 
