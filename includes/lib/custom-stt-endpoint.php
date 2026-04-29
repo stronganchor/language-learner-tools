@@ -148,7 +148,13 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
     if ($endpoint === '') {
         return new WP_Error('stt_missing_endpoint', __('STT endpoint URL is not configured.', 'll-tools-text-domain'));
     }
-    if (function_exists('ll_tools_validate_hosted_stt_endpoint')) {
+    if (function_exists('ll_tools_validate_hosted_stt_endpoint_for_request')) {
+        $validated_endpoint = ll_tools_validate_hosted_stt_endpoint_for_request($endpoint);
+        if (is_wp_error($validated_endpoint)) {
+            return $validated_endpoint;
+        }
+        $endpoint = (string) $validated_endpoint;
+    } elseif (function_exists('ll_tools_validate_hosted_stt_endpoint')) {
         $validated_endpoint = ll_tools_validate_hosted_stt_endpoint($endpoint);
         if (is_wp_error($validated_endpoint)) {
             return $validated_endpoint;
@@ -210,6 +216,7 @@ function ll_tools_remote_stt_transcribe_audio_file(string $endpoint, string $fil
         'headers' => $headers,
         'body' => $body,
         'data_format' => 'body',
+        'reject_unsafe_urls' => true,
     ]);
     if (is_wp_error($response)) {
         return new WP_Error(

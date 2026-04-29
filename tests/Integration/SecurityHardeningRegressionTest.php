@@ -339,6 +339,49 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame([], $http_requests);
     }
 
+    public function test_remote_stt_transcribe_rejects_public_hostname_that_resolves_private_before_http_request(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, 'audio-bytes');
+
+        $resolve_filter = static function ($ips, string $host) {
+            if ($host === 'stt.example.test') {
+                return ['10.0.0.8'];
+            }
+
+            return $ips;
+        };
+        $http_requests = [];
+        $http_filter = static function ($preempt, $args, $url) use (&$http_requests) {
+            $http_requests[] = [
+                'url' => (string) $url,
+                'args' => $args,
+            ];
+
+            return new WP_Error('unexpected_http', 'External HTTP call should not be reached for restricted endpoints.');
+        };
+        add_filter('ll_tools_hosted_stt_endpoint_resolved_ips', $resolve_filter, 10, 2);
+        add_filter('pre_http_request', $http_filter, 10, 3);
+
+        try {
+            $result = ll_tools_remote_stt_transcribe_audio_file('https://stt.example.test/transcribe', $tmp);
+        } finally {
+            remove_filter('ll_tools_hosted_stt_endpoint_resolved_ips', $resolve_filter, 10);
+            remove_filter('pre_http_request', $http_filter, 10);
+            @unlink($tmp);
+        }
+
+        $this->assertWPError($result);
+        $this->assertSame('ll_tools_hosted_stt_private_endpoint', $result->get_error_code());
+        $this->assertSame([], $http_requests);
+    }
+
+    public function test_speaking_game_public_endpoint_payload_only_exposes_local_browser_endpoints(): void
+    {
+        $this->assertSame('', ll_tools_wordset_games_public_local_endpoint('hosted_api', 'https://stt.example.test/transcribe'));
+        $this->assertSame('http://127.0.0.1:8765/transcribe', ll_tools_wordset_games_public_local_endpoint('local_browser', ' http://127.0.0.1:8765/transcribe '));
+    }
+
     public function test_remote_stt_transcribe_rejects_plain_text_success_body_by_default(): void
     {
         $tmp = $this->create_temp_file_with_suffix('.wav');

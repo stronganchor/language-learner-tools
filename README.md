@@ -306,7 +306,7 @@ The flashcard widget intelligently selects the appropriate recording type based 
 
 - **Translations**
   - Enable category term translations (optional).
-  - If enabled, you can store a **DeepL API** key and have UI strings/terms translated automatically.
+  - If enabled, you can store a **DeepL API** key for supported translation helpers such as category-name translation.
   - Optional browser-language auto-switch uses the visitor locale until they pick a different plugin language.
 
 - **Flashcards**
@@ -319,6 +319,13 @@ The flashcard widget intelligently selects the appropriate recording type based 
   - Lightweight capability **`view_ll_tools`** gates certain admin pages.
 
 Find the settings via the plugin's **Settings** link on the Plugins page or under **Settings → Language Learner Tools**.
+
+## Testing
+
+The maintained local test entry points are documented in:
+
+- `tests/AI_TESTING_PLAYBOOK.md` for AI/operator workflow guidance.
+- `tests/README.md` for PHPUnit, Playwright, Local environment detection, and troubleshooting.
 
 ### Local Dev / Media Proxy Notes
 

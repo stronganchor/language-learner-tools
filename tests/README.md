@@ -323,6 +323,7 @@ tests/bin/run-e2e.sh specs/page-speed-throttled-load.spec.js
 - `run-tests.sh` supports either Linux PHP or Local Windows `php.exe` through `bin/php-local.sh`.
 - `install-wp-tests.sh` writes `WP_PHP_BINARY` and `$table_prefix` into `wp-tests-config.php` for Local Windows PHP compatibility.
 - Playwright failure artifacts default to `tests/e2e/test-results/` (relative to `tests/e2e/`), and the HTML report is in `tests/e2e/playwright-report/`.
+- If `tests/.run-tests.lock` is left behind after an interrupted run, first confirm no PHPUnit wrapper is active, then remove that stale lock before rerunning.
 - If needed, set `COMPOSER_PHAR` to a custom Composer PHAR path.
 - If `run-tests.sh` fails with `Could not open input file .../tests/vendor/phpunit/phpunit/phpunit`, set an explicit Local PHP binary:
   - `PHP_BIN=/mnt/c/php/8.4/php.exe tests/bin/run-tests.sh`

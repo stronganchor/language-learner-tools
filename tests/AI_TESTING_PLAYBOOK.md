@@ -161,6 +161,11 @@ WP_TEST_DB_HOST=127.0.0.1:<port> tests/bin/run-tests.sh
 - Usually caused by running multiple `tests/bin/run-tests.sh` commands in parallel against the same `wptests` DB.
 - Run PHPUnit serially (one process at a time) for reliable results.
 
+`tests/.run-tests.lock` exists but no PHPUnit runner is active:
+- Confirm there is no active `tests/bin/run-tests.sh` or PHPUnit process.
+- Remove the stale lock file, then rerun the same test command.
+- Do not remove the lock while another test command is still running against the same test DB.
+
 Playwright shows Local router `404 Site Not Found`:
 - The hostname route is not active in Local Router.
 - Use a reachable `LL_E2E_BASE_URL` in `tests/.env` (for example active Local domain or resolved localhost URL).

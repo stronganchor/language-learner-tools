@@ -374,6 +374,105 @@ final class DictionaryFeatureTest extends LL_Tools_TestCase
         ])));
     }
 
+    public function test_dictionary_ajax_rejects_private_wordset_scope_for_logged_out_users(): void
+    {
+        $wordset = wp_insert_term('Private Dictionary Ajax ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+
+        wp_set_current_user(0);
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_live_search',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'wordset_id' => $wordset_id,
+            'll_dictionary_q' => 'secret',
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $live_search = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_live_search();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($live_search['success'] ?? true));
+        $this->assertStringContainsString('permission', (string) ($live_search['data']['message'] ?? ''));
+
+        $_POST = [
+            'action' => 'll_tools_dictionary_toolbar_bootstrap',
+            'nonce' => wp_create_nonce('ll_tools_dictionary_live_search'),
+            'base_url' => 'https://example.com/sozluk/',
+            'wordset_id' => $wordset_id,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $toolbar = $this->run_json_endpoint(static function (): void {
+                ll_tools_dictionary_handle_toolbar_bootstrap();
+            });
+        } finally {
+            $_POST = [];
+            $_REQUEST = [];
+        }
+
+        $this->assertFalse((bool) ($toolbar['success'] ?? true));
+        $this->assertStringContainsString('permission', (string) ($toolbar['data']['message'] ?? ''));
+    }
+
+    public function test_unscoped_dictionary_hides_entries_explicitly_assigned_to_private_wordsets(): void
+    {
+        $wordset = wp_insert_term('Private Dictionary Entry Scope ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($wordset));
+        $this->assertIsArray($wordset);
+
+        $wordset_id = (int) $wordset['term_id'];
+        update_term_meta($wordset_id, LL_TOOLS_WORDSET_VISIBILITY_META_KEY, 'private');
+
+        $entry_id = self::factory()->post->create([
+            'post_type' => 'll_dictionary_entry',
+            'post_status' => 'publish',
+            'post_title' => 'Private Dictionary Secret ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, $wordset_id);
+        ll_tools_refresh_dictionary_entry_wordset_scope_meta($entry_id);
+        ll_tools_dictionary_refresh_entry_search_meta($entry_id);
+
+        wp_set_current_user(0);
+
+        $this->assertNotContains($entry_id, ll_tools_dictionary_get_published_entry_ids_for_scope(0));
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+        try {
+            $this->assertSame(0, ll_tools_dictionary_shortcode_resolve_requested_entry_id(0));
+        } finally {
+            $_GET = [];
+        }
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $this->assertContains($entry_id, ll_tools_dictionary_get_published_entry_ids_for_scope(0));
+
+        $_GET = [
+            'll_dictionary_entry' => (string) $entry_id,
+        ];
+        try {
+            $this->assertSame($entry_id, ll_tools_dictionary_shortcode_resolve_requested_entry_id(0));
+        } finally {
+            $_GET = [];
+        }
+    }
+
     public function test_import_groups_duplicate_headwords_and_shortcode_paginates_results(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

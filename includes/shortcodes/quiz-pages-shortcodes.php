@@ -1162,6 +1162,8 @@ function ll_quiz_pages_dropdown_shortcode($atts) {
         'quiz_pages_dropdown'
     );
 
+    ll_enqueue_asset_by_timestamp('/js/quiz-pages-shortcodes.js', 'll-quiz-pages-shortcodes-js', [], true);
+
     $filter = [];
     if (trim($atts['wordset']) !== '') {
         $filter['wordset'] = $atts['wordset'];
@@ -1183,8 +1185,8 @@ function ll_quiz_pages_dropdown_shortcode($atts) {
     echo '<label class="screen-reader-text" for="' . esc_attr($select_id) . '">'
         . esc_html__('Quiz selection', 'll-tools-text-domain') . '</label>';
 
-    echo '<select id="' . esc_attr($select_id) . '" class="ll-quiz-pages-select" '
-        . ($has_button ? '' : 'onchange="if(this.value){window.location.href=this.value;}"') . '>';
+    echo '<select id="' . esc_attr($select_id) . '" class="ll-quiz-pages-select"'
+        . ($has_button ? '' : ' data-ll-quiz-pages-auto-go="1"') . '>';
 
     echo '<option value="">' . esc_html($atts['placeholder']) . '</option>';
 
@@ -1196,19 +1198,14 @@ function ll_quiz_pages_dropdown_shortcode($atts) {
 
     if ($has_button) {
         $btn_id = 'll-quiz-pages-go-' . wp_generate_uuid4();
-        echo '<button id="' . esc_attr($btn_id) . '" class="ll-quiz-pages-go">' . esc_html__('Go', 'll-tools-text-domain') . '</button>';
-        echo '<script>
-            (function(){ var s=document.getElementById(' . json_encode($select_id) . '), b=document.getElementById(' . json_encode($btn_id) . ');
-                if(s&&b){ b.addEventListener("click", function(){ if(s.value){ window.location.href=s.value; } }); }
-            })();
-        </script>';
+        echo '<button type="button" id="' . esc_attr($btn_id) . '" class="ll-quiz-pages-go" data-ll-quiz-pages-go>' . esc_html__('Go', 'll-tools-text-domain') . '</button>';
     }
 
     echo '</div>';
 
     return ob_get_clean();
 }
-add_shortcode('quiz_pages_dropdown', 'll_quiz_pages_dropdown_shortcode'); // existed previously. :contentReference[oaicite:4]{index=4}
+add_shortcode('quiz_pages_dropdown', 'll_quiz_pages_dropdown_shortcode');
 
 /**
  * Conditionally enqueue styles used by these shortcodes (grid/dropdown only).

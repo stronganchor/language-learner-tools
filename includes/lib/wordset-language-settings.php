@@ -270,7 +270,73 @@ function ll_tools_remote_stt_host_is_restricted(string $host): bool {
     }
 
     if (filter_var($host, FILTER_VALIDATE_IP)) {
-        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+        return ll_tools_remote_stt_ip_is_restricted($host);
+    }
+
+    return false;
+}
+
+function ll_tools_remote_stt_ip_is_restricted(string $ip): bool {
+    return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+}
+
+/**
+ * Resolve a hosted STT hostname for request-time private network checks.
+ *
+ * @return string[]
+ */
+function ll_tools_remote_stt_resolve_host_ips(string $host): array {
+    $host = ll_tools_normalize_remote_stt_host($host);
+    if ($host === '') {
+        return [];
+    }
+
+    $filtered = apply_filters('ll_tools_hosted_stt_endpoint_resolved_ips', null, $host);
+    if (is_array($filtered)) {
+        return array_values(array_unique(array_filter(array_map('strval', $filtered), static function (string $ip): bool {
+            return filter_var($ip, FILTER_VALIDATE_IP) !== false;
+        })));
+    }
+
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return [$host];
+    }
+
+    $ips = [];
+    if (function_exists('gethostbynamel')) {
+        $resolved_ipv4 = @gethostbynamel($host);
+        if (is_array($resolved_ipv4)) {
+            $ips = array_merge($ips, $resolved_ipv4);
+        }
+    }
+
+    if (function_exists('dns_get_record') && defined('DNS_A') && defined('DNS_AAAA')) {
+        $records = @dns_get_record($host, DNS_A + DNS_AAAA);
+        if (is_array($records)) {
+            foreach ($records as $record) {
+                if (!is_array($record)) {
+                    continue;
+                }
+                if (!empty($record['ip'])) {
+                    $ips[] = (string) $record['ip'];
+                }
+                if (!empty($record['ipv6'])) {
+                    $ips[] = (string) $record['ipv6'];
+                }
+            }
+        }
+    }
+
+    return array_values(array_unique(array_filter($ips, static function (string $ip): bool {
+        return filter_var($ip, FILTER_VALIDATE_IP) !== false;
+    })));
+}
+
+function ll_tools_remote_stt_host_resolves_to_restricted_ip(string $host): bool {
+    foreach (ll_tools_remote_stt_resolve_host_ips($host) as $ip) {
+        if (ll_tools_remote_stt_ip_is_restricted($ip)) {
+            return true;
+        }
     }
 
     return false;
@@ -310,6 +376,31 @@ function ll_tools_validate_hosted_stt_endpoint($value) {
 
     $allow_private_hosts = (bool) apply_filters('ll_tools_allow_private_hosted_stt_endpoint', false, $sanitized, $parts);
     if (!$allow_private_hosts && ll_tools_remote_stt_host_is_restricted((string) $parts['host'])) {
+        return new WP_Error(
+            'll_tools_hosted_stt_private_endpoint',
+            __('Hosted STT API endpoint must use a public host, not localhost or a private network address.', 'll-tools-text-domain')
+        );
+    }
+
+    return $sanitized;
+}
+
+function ll_tools_validate_hosted_stt_endpoint_for_request($value) {
+    $sanitized = ll_tools_validate_hosted_stt_endpoint($value);
+    if (is_wp_error($sanitized)) {
+        return $sanitized;
+    }
+
+    $parts = wp_parse_url((string) $sanitized);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return new WP_Error(
+            'll_tools_hosted_stt_invalid_endpoint',
+            __('Hosted STT API endpoint must include a valid host.', 'll-tools-text-domain')
+        );
+    }
+
+    $allow_private_hosts = (bool) apply_filters('ll_tools_allow_private_hosted_stt_endpoint', false, (string) $sanitized, $parts);
+    if (!$allow_private_hosts && ll_tools_remote_stt_host_resolves_to_restricted_ip((string) $parts['host'])) {
         return new WP_Error(
             'll_tools_hosted_stt_private_endpoint',
             __('Hosted STT API endpoint must use a public host, not localhost or a private network address.', 'll-tools-text-domain')

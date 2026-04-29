@@ -65,6 +65,7 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
     {
         $fixture = $this->createWordsetFixture();
         $wordset_id = (int) $fixture['wordset_id'];
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
 
         $original_post = $_POST;
         $original_request = $_REQUEST;
@@ -97,6 +98,38 @@ final class WordsetPageLazyCardsAjaxTest extends LL_Tools_TestCase
         $this->assertSame(2, (int) ($data['nextOffset'] ?? 0));
         $this->assertFalse((bool) ($data['hasMore'] ?? true));
         $this->assertStringContainsString('Lazy Ajax Category B', (string) ($data['html'] ?? ''));
+    }
+
+    public function test_guest_ajax_rejects_missing_lazy_cards_payload_instead_of_rebuilding_by_wordset_id(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        wp_set_current_user(0);
+
+        $original_post = $_POST;
+        $original_request = $_REQUEST;
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_tools_wordset_page_lazy_cards'),
+            'token' => 'missing-token',
+            'wordset_id' => $wordset_id,
+            'preview_limit' => 99,
+            'offset' => 1,
+            'count' => 1,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $response = $this->runJsonEndpoint(static function (): void {
+                ll_tools_wordset_page_handle_lazy_cards_ajax();
+            });
+        } finally {
+            $_POST = $original_post;
+            $_REQUEST = $original_request;
+        }
+
+        $this->assertArrayHasKey('success', $response);
+        $this->assertFalse((bool) $response['success']);
+        $this->assertStringContainsString('Could not load more cards', (string) ($response['data']['message'] ?? ''));
     }
 
     public function test_guest_main_view_reuses_shared_lazy_cards_token_for_same_payload(): void

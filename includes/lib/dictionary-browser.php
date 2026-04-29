@@ -970,6 +970,26 @@ function ll_tools_dictionary_entry_matches_wordset_context(int $entry_id, int $w
     );
 }
 
+function ll_tools_dictionary_current_user_can_view_entry(int $entry_id): bool {
+    $entry_id = (int) $entry_id;
+    if ($entry_id <= 0) {
+        return false;
+    }
+
+    $explicit_wordset_id = function_exists('ll_tools_get_dictionary_entry_explicit_wordset_id')
+        ? (int) ll_tools_get_dictionary_entry_explicit_wordset_id($entry_id)
+        : (int) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_WORDSET_META_KEY, true);
+    if ($explicit_wordset_id <= 0 || !function_exists('ll_tools_user_can_view_wordset')) {
+        return true;
+    }
+
+    return ll_tools_user_can_view_wordset($explicit_wordset_id, (int) get_current_user_id());
+}
+
+function ll_tools_dictionary_viewer_cache_key(): string {
+    return is_user_logged_in() ? 'user_' . (int) get_current_user_id() : 'anon';
+}
+
 /**
  * Determine whether one dictionary entry contains a matching source filter.
  */
@@ -2571,6 +2591,7 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
         'linked_word_limit' => $linked_word_limit,
         'preferred_languages' => $preferred_languages,
         'statuses' => $statuses,
+        'viewer' => ll_tools_dictionary_viewer_cache_key(),
     ];
     $cached = ll_tools_dictionary_browser_get_cached_payload('query_entries', $cache_args, $request_cache);
     if (is_array($cached)) {
@@ -2627,6 +2648,9 @@ function ll_tools_dictionary_query_entries(array $args = []): array {
 
     $filtered_ids = [];
     foreach ($candidate_ids as $entry_id) {
+        if (!ll_tools_dictionary_current_user_can_view_entry($entry_id)) {
+            continue;
+        }
         if ($pos_slug !== '') {
             $entry_pos_slug = sanitize_title((string) get_post_meta($entry_id, LL_TOOLS_DICTIONARY_ENTRY_POS_META_KEY, true));
             if ($entry_pos_slug !== $pos_slug) {
@@ -2773,6 +2797,7 @@ function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id =
 
     $cached = ll_tools_dictionary_browser_get_cached_payload('published_entry_ids', [
         'wordset_id' => $wordset_id,
+        'viewer' => ll_tools_dictionary_viewer_cache_key(),
     ], $request_cache);
     if (is_array($cached)) {
         return $cached;
@@ -2782,9 +2807,16 @@ function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id =
         "SELECT ID FROM {$wpdb->posts} WHERE post_type = 'll_dictionary_entry' AND post_status = 'publish'"
     ))));
     if ($wordset_id <= 0) {
+        $ids = array_values(array_filter($ids, static function (int $entry_id): bool {
+            return ll_tools_dictionary_current_user_can_view_entry($entry_id);
+        }));
+
         return ll_tools_dictionary_browser_store_cached_payload(
             'published_entry_ids',
-            ['wordset_id' => $wordset_id],
+            [
+                'wordset_id' => $wordset_id,
+                'viewer' => ll_tools_dictionary_viewer_cache_key(),
+            ],
             $ids,
             10 * MINUTE_IN_SECONDS,
             $request_cache
@@ -2797,7 +2829,10 @@ function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id =
 
     return ll_tools_dictionary_browser_store_cached_payload(
         'published_entry_ids',
-        ['wordset_id' => $wordset_id],
+        [
+            'wordset_id' => $wordset_id,
+            'viewer' => ll_tools_dictionary_viewer_cache_key(),
+        ],
         $ids,
         10 * MINUTE_IN_SECONDS,
         $request_cache

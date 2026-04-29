@@ -1913,8 +1913,12 @@ function ll_tools_wordset_games_build_speaking_practice_pool(int $wordset_id, in
         'provider' => (string) ($config['provider'] ?? ''),
         'provider_label' => (string) ($config['provider_label'] ?? ''),
         'service_enabled' => !empty($config['service_enabled']),
-        'local_endpoint' => (string) ($config['local_endpoint'] ?? ''),
+        'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($config['provider'] ?? ''), (string) ($config['local_endpoint'] ?? '')),
     ];
+}
+
+function ll_tools_wordset_games_public_local_endpoint(string $provider, string $endpoint): string {
+    return sanitize_key($provider) === 'local_browser' ? trim($endpoint) : '';
 }
 
 function ll_tools_wordset_games_build_speaking_stack_pool(int $wordset_id, int $user_id = 0): array {
@@ -1939,7 +1943,7 @@ function ll_tools_wordset_games_build_speaking_stack_pool(int $wordset_id, int $
         'provider' => (string) ($speaking_pool['provider'] ?? ''),
         'provider_label' => (string) ($speaking_pool['provider_label'] ?? ''),
         'service_enabled' => !empty($speaking_pool['service_enabled']),
-        'local_endpoint' => (string) ($speaking_pool['local_endpoint'] ?? ''),
+        'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($speaking_pool['provider'] ?? ''), (string) ($speaking_pool['local_endpoint'] ?? '')),
     ];
 }
 
@@ -2132,7 +2136,7 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
             'target_label' => (string) ($speaking_pool['target_label'] ?? ''),
             'provider' => (string) ($speaking_pool['provider'] ?? ''),
             'provider_label' => (string) ($speaking_pool['provider_label'] ?? ''),
-            'local_endpoint' => (string) ($speaking_pool['local_endpoint'] ?? ''),
+            'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($speaking_pool['provider'] ?? ''), (string) ($speaking_pool['local_endpoint'] ?? '')),
         ];
     }
 
@@ -2163,7 +2167,7 @@ function ll_tools_wordset_games_build_catalog(int $wordset_id, int $user_id = 0)
             'target_label' => (string) ($speaking_stack_pool['target_label'] ?? ''),
             'provider' => (string) ($speaking_stack_pool['provider'] ?? ''),
             'provider_label' => (string) ($speaking_stack_pool['provider_label'] ?? ''),
-            'local_endpoint' => (string) ($speaking_stack_pool['local_endpoint'] ?? ''),
+            'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($speaking_stack_pool['provider'] ?? ''), (string) ($speaking_stack_pool['local_endpoint'] ?? '')),
         ];
     }
 
@@ -4213,7 +4217,7 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             'target_label' => (string) ($speaking_pool['target_label'] ?? ''),
             'provider' => (string) ($speaking_pool['provider'] ?? ''),
             'provider_label' => (string) ($speaking_pool['provider_label'] ?? ''),
-            'local_endpoint' => (string) ($speaking_pool['local_endpoint'] ?? ''),
+            'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($speaking_pool['provider'] ?? ''), (string) ($speaking_pool['local_endpoint'] ?? '')),
         ];
     }
 
@@ -4247,7 +4251,7 @@ function ll_tools_wordset_games_build_launch_entry(string $slug, int $wordset_id
             'target_label' => (string) ($speaking_stack_pool['target_label'] ?? ''),
             'provider' => (string) ($speaking_stack_pool['provider'] ?? ''),
             'provider_label' => (string) ($speaking_stack_pool['provider_label'] ?? ''),
-            'local_endpoint' => (string) ($speaking_stack_pool['local_endpoint'] ?? ''),
+            'local_endpoint' => ll_tools_wordset_games_public_local_endpoint((string) ($speaking_stack_pool['provider'] ?? ''), (string) ($speaking_stack_pool['local_endpoint'] ?? '')),
         ];
     }
 

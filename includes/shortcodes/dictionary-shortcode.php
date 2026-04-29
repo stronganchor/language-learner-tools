@@ -81,6 +81,25 @@ function ll_tools_dictionary_shortcode_resolve_wordset_id($raw_wordset = ''): in
     return 0;
 }
 
+function ll_tools_dictionary_current_user_can_view_wordset_id(int $wordset_id): bool {
+    $wordset_id = max(0, (int) $wordset_id);
+    if ($wordset_id <= 0) {
+        return true;
+    }
+
+    if (!function_exists('ll_tools_user_can_view_wordset')) {
+        return true;
+    }
+
+    return ll_tools_user_can_view_wordset($wordset_id, (int) get_current_user_id());
+}
+
+function ll_tools_dictionary_send_wordset_forbidden_ajax(): void {
+    wp_send_json_error([
+        'message' => __('You do not have permission to view this dictionary word set.', 'll-tools-text-domain'),
+    ], 403);
+}
+
 function ll_tools_dictionary_get_current_base_url(): string {
     $base_url = (string) remove_query_arg(ll_tools_dictionary_shortcode_query_keys(), get_pagenum_link(1, false));
     if (function_exists('ll_tools_dictionary_strip_noise_query_args_from_url')) {
@@ -389,6 +408,10 @@ function ll_tools_dictionary_shortcode_resolve_requested_entry_id(int $wordset_i
     }
 
     if (get_post_status($entry_id) !== 'publish') {
+        return 0;
+    }
+
+    if (function_exists('ll_tools_dictionary_current_user_can_view_entry') && !ll_tools_dictionary_current_user_can_view_entry($entry_id)) {
         return 0;
     }
 
@@ -2514,6 +2537,10 @@ function ll_tools_dictionary_handle_toolbar_bootstrap(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
+    if (!ll_tools_dictionary_current_user_can_view_wordset_id($wordset_id)) {
+        ll_tools_dictionary_send_wordset_forbidden_ajax();
+    }
+
     $base_url = ll_tools_dictionary_resolve_live_base_url(isset($_POST['base_url']) ? (string) wp_unslash((string) $_POST['base_url']) : '');
     $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_POST);
     $letter = isset($_POST['ll_dictionary_letter']) ? trim(sanitize_text_field(wp_unslash((string) $_POST['ll_dictionary_letter']))) : '';
@@ -2556,6 +2583,10 @@ function ll_tools_dictionary_handle_live_search(): void {
     check_ajax_referer('ll_tools_dictionary_live_search', 'nonce');
 
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
+    if (!ll_tools_dictionary_current_user_can_view_wordset_id($wordset_id)) {
+        ll_tools_dictionary_send_wordset_forbidden_ajax();
+    }
+
     $per_page_cap = is_user_logged_in()
         ? 100
         : max(1, min(100, (int) apply_filters('ll_tools_dictionary_anonymous_live_search_per_page_cap', 40)));
@@ -2678,6 +2709,10 @@ function ll_tools_dictionary_shortcode($atts = [], $content = null, $tag = ''): 
     ll_tools_dictionary_enqueue_assets();
 
     $wordset_id = ll_tools_dictionary_shortcode_resolve_wordset_id((string) $atts['wordset']);
+    if (!ll_tools_dictionary_current_user_can_view_wordset_id($wordset_id)) {
+        $wordset_id = 0;
+    }
+
     $search = isset($_GET['ll_dictionary_q']) ? trim(sanitize_text_field(wp_unslash((string) $_GET['ll_dictionary_q']))) : '';
     $search_scopes = ll_tools_dictionary_shortcode_resolve_search_scopes_from_request($_GET);
     $preferred_languages = ll_tools_dictionary_shortcode_resolve_display_languages($search_scopes, $wordset_id, (string) $atts['gloss_lang']);

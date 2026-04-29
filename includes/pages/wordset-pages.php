@@ -2661,6 +2661,11 @@ function ll_tools_wordset_page_lazy_cards_ajax_cache_ttl(): int {
     return ll_tools_wordset_page_normalize_cache_ttl('ll_tools_wordset_page_lazy_cards_ajax_cache_ttl', $default_ttl);
 }
 
+function ll_tools_wordset_page_lazy_cards_preview_limit_cap(): int {
+    $cap = (int) apply_filters('ll_tools_wordset_page_lazy_cards_preview_limit_cap', 8);
+    return max(1, min(24, $cap));
+}
+
 function ll_tools_wordset_page_lazy_cards_ajax_cache_enabled(string $token): bool {
     if (is_user_logged_in()) {
         return false;
@@ -2729,7 +2734,7 @@ function ll_tools_wordset_page_lazy_cards_ajax_send_cache_header(string $status)
 
 function ll_tools_wordset_page_build_lazy_cards_fallback_payload(int $wordset_id, int $preview_limit = 2): array {
     $wordset_id = (int) $wordset_id;
-    $preview_limit = max(1, (int) $preview_limit);
+    $preview_limit = min(max(1, (int) $preview_limit), ll_tools_wordset_page_lazy_cards_preview_limit_cap());
 
     if ($wordset_id <= 0) {
         return [
@@ -14184,6 +14189,7 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
     $token = isset($_POST['token']) ? sanitize_key(wp_unslash((string) $_POST['token'])) : '';
     $wordset_id = isset($_POST['wordset_id']) ? max(0, (int) wp_unslash((string) $_POST['wordset_id'])) : 0;
     $preview_limit = isset($_POST['preview_limit']) ? max(1, (int) wp_unslash((string) $_POST['preview_limit'])) : 2;
+    $preview_limit = min($preview_limit, ll_tools_wordset_page_lazy_cards_preview_limit_cap());
     $offset = isset($_POST['offset']) ? max(0, (int) wp_unslash((string) $_POST['offset'])) : 0;
     $requested_count = isset($_POST['count']) ? max(1, (int) wp_unslash((string) $_POST['count'])) : 0;
     $public_cache_args = [
@@ -14201,7 +14207,7 @@ function ll_tools_wordset_page_handle_lazy_cards_ajax(): void {
 
     $payload = ll_tools_wordset_page_get_lazy_cards_payload($token);
     $used_fallback_payload = false;
-    if (!is_array($payload) && $wordset_id > 0) {
+    if (!is_array($payload) && $wordset_id > 0 && is_user_logged_in()) {
         $payload = ll_tools_wordset_page_build_lazy_cards_fallback_payload($wordset_id, $preview_limit);
         $used_fallback_payload = true;
     }
