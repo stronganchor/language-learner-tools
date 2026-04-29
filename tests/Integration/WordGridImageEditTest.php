@@ -247,6 +247,55 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         $this->assertSame("Updated existing source\nhttps://example.com/existing-image", (string) ($image_payload['copyright_info'] ?? ''));
     }
 
+    public function test_word_image_search_matches_attached_word_title_and_translation(): void
+    {
+        $wordset_id = $this->ensureTerm('wordset', 'Attached Search Wordset', 'attached-search-wordset');
+        $category_id = $this->ensureTerm('word-category', 'Attached Search Category', 'attached-search-category');
+        $attachment_id = $this->createImageAttachment('word-grid-attached-search.png');
+
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Reusable Picture',
+        ]);
+        wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($word_image_id, $wordset_id, $word_image_id);
+        }
+
+        $attached_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Attached Title Needle',
+        ]);
+        wp_set_post_terms($attached_word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($attached_word_id, [$wordset_id], 'wordset', false);
+        update_post_meta($attached_word_id, '_ll_autopicked_image_id', $word_image_id);
+        update_post_meta($attached_word_id, 'word_translation', 'Attached Translation Needle');
+        update_post_meta($attached_word_id, 'word_english_meaning', 'Attached Legacy Needle');
+
+        $search_target_word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Search Target Word',
+        ]);
+        wp_set_post_terms($search_target_word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($search_target_word_id, [$wordset_id], 'wordset', false);
+
+        $title_choices = ll_tools_word_grid_search_word_images_for_word('Title Needle', 20, $wordset_id, $search_target_word_id);
+        $title_choice_ids = array_map(static function (array $choice): int {
+            return (int) ($choice['word_image_id'] ?? 0);
+        }, $title_choices);
+        $this->assertContains($word_image_id, $title_choice_ids);
+
+        $translation_choices = ll_tools_word_grid_search_word_images_for_word('Translation Needle', 20, $wordset_id, $search_target_word_id);
+        $translation_choice_ids = array_map(static function (array $choice): int {
+            return (int) ($choice['word_image_id'] ?? 0);
+        }, $translation_choices);
+        $this->assertContains($word_image_id, $translation_choice_ids);
+    }
+
     public function test_ajax_word_update_can_update_linked_word_image_copyright_without_changing_image(): void
     {
         $editor_id = self::factory()->user->create(['role' => 'administrator']);

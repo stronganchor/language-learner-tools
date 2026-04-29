@@ -3602,6 +3602,97 @@ function ll_tools_word_grid_word_image_is_selectable_for_word(int $word_image_id
     return false;
 }
 
+function ll_tools_word_grid_search_word_image_ids_by_attached_word_text(string $query, int $limit, int $wordset_id, int $word_id): array {
+    $query = trim($query);
+    if ($query === '') {
+        return [];
+    }
+
+    $limit = max(1, min(200, (int) $limit));
+    $wordset_id = (int) $wordset_id;
+    $word_id = (int) $word_id;
+
+    $base_args = [
+        'post_type'              => 'words',
+        'post_status'            => ['publish', 'draft', 'pending', 'future', 'private'],
+        'posts_per_page'         => min(300, max($limit * 4, $limit)),
+        'fields'                 => 'ids',
+        'no_found_rows'          => true,
+        'orderby'                => 'title',
+        'order'                  => 'ASC',
+        'suppress_filters'       => true,
+        'update_post_meta_cache' => true,
+        'update_post_term_cache' => false,
+    ];
+
+    if ($wordset_id > 0) {
+        $base_args['tax_query'] = [
+            [
+                'taxonomy' => 'wordset',
+                'field'    => 'term_id',
+                'terms'    => [$wordset_id],
+            ],
+        ];
+    } elseif ($word_id > 0) {
+        $word_category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+        if (!is_wp_error($word_category_ids) && !empty($word_category_ids)) {
+            $base_args['tax_query'] = [
+                [
+                    'taxonomy' => 'word-category',
+                    'field'    => 'term_id',
+                    'terms'    => array_map('intval', (array) $word_category_ids),
+                ],
+            ];
+        }
+    }
+
+    $candidate_word_ids = [];
+
+    $title_args = $base_args;
+    $title_args['s'] = $query;
+    $candidate_word_ids = array_merge($candidate_word_ids, array_map('intval', (array) get_posts($title_args)));
+
+    $meta_args = $base_args;
+    $meta_args['meta_query'] = [
+        'relation' => 'OR',
+        [
+            'key'     => 'word_translation',
+            'value'   => $query,
+            'compare' => 'LIKE',
+        ],
+        [
+            'key'     => 'word_english_meaning',
+            'value'   => $query,
+            'compare' => 'LIKE',
+        ],
+    ];
+    $candidate_word_ids = array_merge($candidate_word_ids, array_map('intval', (array) get_posts($meta_args)));
+
+    $image_ids = [];
+    $seen_image_ids = [];
+    $seen_word_ids = [];
+    foreach ($candidate_word_ids as $candidate_word_id) {
+        $candidate_word_id = (int) $candidate_word_id;
+        if ($candidate_word_id <= 0 || isset($seen_word_ids[$candidate_word_id])) {
+            continue;
+        }
+        $seen_word_ids[$candidate_word_id] = true;
+
+        $linked_image_id = (int) get_post_meta($candidate_word_id, '_ll_autopicked_image_id', true);
+        if ($linked_image_id <= 0 || isset($seen_image_ids[$linked_image_id])) {
+            continue;
+        }
+
+        $seen_image_ids[$linked_image_id] = true;
+        $image_ids[] = $linked_image_id;
+        if (count($image_ids) >= $limit) {
+            break;
+        }
+    }
+
+    return $image_ids;
+}
+
 function ll_tools_word_grid_search_word_images_for_word(string $query, int $limit, int $wordset_id, int $word_id): array {
     $limit = max(1, min(50, (int) $limit));
     $word_id = (int) $word_id;
@@ -3647,6 +3738,18 @@ function ll_tools_word_grid_search_word_images_for_word(string $query, int $limi
     }
 
     $image_ids = get_posts($args);
+    if ($query !== '') {
+        $attached_word_image_ids = ll_tools_word_grid_search_word_image_ids_by_attached_word_text(
+            $query,
+            min(200, max($limit * 5, $limit)),
+            $wordset_id,
+            $word_id
+        );
+        if (!empty($attached_word_image_ids)) {
+            $image_ids = array_merge((array) $image_ids, $attached_word_image_ids);
+        }
+    }
+
     $choices = [];
     $seen_image_ids = [];
     foreach ((array) $image_ids as $image_id) {
