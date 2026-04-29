@@ -2510,6 +2510,7 @@
                     setEditPanelOpen($otherItem, false);
                 }
             });
+            resetWordCategoryFields($item);
         }
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         if ($backdrop.length) {
@@ -2534,6 +2535,7 @@
             }
             hideIpaKeyboards();
             stopLessonEditProcessingPlayback($item);
+            resetWordCategoryFields($item);
         }
         syncEditModalBodyLock();
     }
@@ -3328,6 +3330,89 @@
         });
     }
 
+    function normalizeCategorySearchText(value) {
+        let text = (value || '').toString().trim().toLocaleLowerCase();
+        if (typeof text.normalize === 'function') {
+            text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        return text;
+    }
+
+    function getCategoryOptionWordsetOrder(option) {
+        return parseInt($(option).attr('data-ll-wordset-order'), 10) || 0;
+    }
+
+    function getCategoryOptionLabel(option) {
+        const $option = $(option);
+        return ($option.attr('data-ll-word-category-label') || $option.text() || '').toString();
+    }
+
+    function compareCategoryOptionsByLabel(left, right) {
+        const leftLabel = getCategoryOptionLabel(left);
+        const rightLabel = getCategoryOptionLabel(right);
+        const cmp = leftLabel.localeCompare(rightLabel, undefined, {
+            numeric: true,
+            sensitivity: 'base'
+        });
+        if (cmp !== 0) {
+            return cmp;
+        }
+        return getCategoryOptionWordsetOrder(left) - getCategoryOptionWordsetOrder(right);
+    }
+
+    function compareCategoryOptionsByWordsetOrder(left, right) {
+        const cmp = getCategoryOptionWordsetOrder(left) - getCategoryOptionWordsetOrder(right);
+        return cmp !== 0 ? cmp : compareCategoryOptionsByLabel(left, right);
+    }
+
+    function updateWordCategoryField($field) {
+        if (!$field || !$field.length) { return; }
+        const $list = $field.find('[data-ll-word-category-list]').first();
+        if (!$list.length) { return; }
+
+        const $search = $field.find('[data-ll-word-category-search]').first();
+        const $sort = $field.find('[data-ll-word-category-sort]').first();
+        const query = normalizeCategorySearchText($search.val() || '');
+        const sortMode = ($sort.val() || '').toString() === 'alpha' ? 'alpha' : 'wordset';
+        const options = $list.find('[data-ll-word-category-option]').get();
+
+        options.sort(sortMode === 'alpha' ? compareCategoryOptionsByLabel : compareCategoryOptionsByWordsetOrder);
+        options.forEach(function (option) {
+            $list.append(option);
+        });
+
+        let visibleCount = 0;
+        options.forEach(function (option) {
+            const $option = $(option);
+            const searchText = normalizeCategorySearchText(
+                $option.attr('data-ll-word-category-search-text') || getCategoryOptionLabel(option)
+            );
+            const visible = query === '' || searchText.indexOf(query) !== -1;
+            $option.prop('hidden', !visible);
+            if (visible) {
+                visibleCount++;
+            }
+        });
+
+        $field.toggleClass('is-filtered', query !== '');
+        $field.find('[data-ll-word-category-empty]').first().prop('hidden', visibleCount > 0);
+    }
+
+    function resetWordCategoryField($field) {
+        if (!$field || !$field.length) { return; }
+        $field.removeClass('is-expanded is-filtered');
+        $field.find('[data-ll-word-category-search]').first().val('');
+        $field.find('[data-ll-word-category-sort]').first().val('wordset');
+        updateWordCategoryField($field);
+        $field.removeClass('is-expanded');
+    }
+
+    function resetWordCategoryFields($item) {
+        $item.find('[data-ll-word-categories-field]').each(function () {
+            resetWordCategoryField($(this));
+        });
+    }
+
     function updateOriginalInputs($item) {
         $item.find(EDITABLE_INPUT_SELECTOR).each(function () {
             const $input = $(this);
@@ -3412,6 +3497,9 @@
         });
         $root.find('[data-ll-recording-move-search]').each(function () {
             initRecordingMoveAutocomplete($(this));
+        });
+        $root.find('[data-ll-word-categories-field]').each(function () {
+            updateWordCategoryField($(this));
         });
         syncEditModalBodyLock();
     };
@@ -5513,6 +5601,9 @@
         $grids.find('[data-ll-word-input="dictionary_entry_lookup"]').each(function () {
             initDictionaryEntryAutocomplete($(this));
         });
+        $grids.find('[data-ll-word-categories-field]').each(function () {
+            updateWordCategoryField($(this));
+        });
 
         function getLessonAddWordWrap($button) {
             const $wrap = $button.closest('[data-ll-add-lesson-word-wrap]');
@@ -7361,6 +7452,22 @@
             if (!isOpen) {
                 setEditStatus($item, '');
             }
+        });
+
+        $grids.on('focusin click', '[data-ll-word-categories-field]', function () {
+            $(this).addClass('is-expanded');
+        });
+
+        $grids.on('input', '[data-ll-word-category-search]', function () {
+            const $field = $(this).closest('[data-ll-word-categories-field]');
+            $field.addClass('is-expanded');
+            updateWordCategoryField($field);
+        });
+
+        $grids.on('change', '[data-ll-word-category-sort]', function () {
+            const $field = $(this).closest('[data-ll-word-categories-field]');
+            $field.addClass('is-expanded');
+            updateWordCategoryField($field);
         });
 
         $grids.on('click', '[data-ll-word-edit-backdrop]', function (e) {

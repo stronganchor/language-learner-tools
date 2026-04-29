@@ -41,29 +41,13 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
         $fixture = $this->createCategoryEditFixture();
         $this->loginEditor();
 
-        $lesson_category = get_term((int) $fixture['category_a_id'], 'word-category');
-        $wordset = get_term((int) $fixture['wordset_id'], 'wordset');
-        $this->assertInstanceOf(WP_Term::class, $lesson_category);
-        $this->assertInstanceOf(WP_Term::class, $wordset);
-
-        $ajax_filter = static function (): bool {
-            return true;
-        };
-        add_filter('wp_doing_ajax', $ajax_filter);
-        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
-
-        try {
-            $output = do_shortcode(sprintf(
-                '[word_grid category="%s" wordset="%s"]',
-                esc_attr((string) $lesson_category->slug),
-                esc_attr((string) $wordset->slug)
-            ));
-        } finally {
-            remove_filter('wp_doing_ajax', $ajax_filter);
-            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
-        }
+        $output = $this->renderLessonWordGridForFixture($fixture);
 
         $this->assertStringContainsString('data-ll-word-categories-field', $output);
+        $this->assertStringContainsString('data-ll-word-category-search', $output);
+        $this->assertStringContainsString('data-ll-word-category-sort', $output);
+        $this->assertStringContainsString('data-ll-word-category-empty', $output);
+        $this->assertStringContainsString('data-ll-word-category-option', $output);
         $this->assertMatchesRegularExpression(
             '/data-ll-word-category-input[^>]+value="' . preg_quote((string) $fixture['category_a_id'], '/') . '"[^>]+checked=/',
             $output
@@ -77,6 +61,35 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
             '/data-ll-word-category-input[^>]+value="' . preg_quote((string) $fixture['foreign_category_id'], '/') . '"/',
             $output,
             'Foreign wordset categories must not be offered in this lesson editor.'
+        );
+    }
+
+    public function test_lesson_edit_popup_category_controls_keep_wordset_order_metadata(): void
+    {
+        $fixture = $this->createCategoryEditFixture();
+        $this->loginEditor();
+
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_category_ordering_mode', 'manual');
+        update_term_meta((int) $fixture['wordset_id'], 'll_wordset_category_manual_order', [
+            (int) $fixture['category_b_id'],
+            (int) $fixture['category_a_id'],
+        ]);
+
+        $output = $this->renderLessonWordGridForFixture($fixture);
+
+        $category_b_position = strpos($output, 'value="' . (int) $fixture['category_b_id'] . '"');
+        $category_a_position = strpos($output, 'value="' . (int) $fixture['category_a_id'] . '"');
+
+        $this->assertIsInt($category_b_position);
+        $this->assertIsInt($category_a_position);
+        $this->assertLessThan($category_a_position, $category_b_position);
+        $this->assertMatchesRegularExpression(
+            '/data-ll-word-category-option[^>]+data-ll-wordset-order="0"[^>]*>\\s*<input[^>]+value="' . preg_quote((string) $fixture['category_b_id'], '/') . '"/',
+            $output
+        );
+        $this->assertMatchesRegularExpression(
+            '/data-ll-word-category-option[^>]+data-ll-wordset-order="1"[^>]*>\\s*<input[^>]+value="' . preg_quote((string) $fixture['category_a_id'], '/') . '"/',
+            $output
         );
     }
 
@@ -211,6 +224,34 @@ final class WordGridCategoryEditTest extends LL_Tools_TestCase
         $this->assertGreaterThan(0, (int) $created);
 
         return (int) $created;
+    }
+
+    /**
+     * @param array<string,int> $fixture
+     */
+    private function renderLessonWordGridForFixture(array $fixture): string
+    {
+        $lesson_category = get_term((int) $fixture['category_a_id'], 'word-category');
+        $wordset = get_term((int) $fixture['wordset_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $lesson_category);
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+
+        $ajax_filter = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $ajax_filter);
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+
+        try {
+            return do_shortcode(sprintf(
+                '[word_grid category="%s" wordset="%s"]',
+                esc_attr((string) $lesson_category->slug),
+                esc_attr((string) $wordset->slug)
+            ));
+        } finally {
+            remove_filter('wp_doing_ajax', $ajax_filter);
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        }
     }
 
     private function ensureTerm(string $taxonomy, string $name, string $slug): int

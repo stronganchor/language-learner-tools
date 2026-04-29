@@ -4491,6 +4491,11 @@ function ll_tools_word_grid_shortcode($atts) {
         'add_translation' => __('Add translation', 'll-tools-text-domain'),
         'note'        => __('Note', 'll-tools-text-domain'),
         'categories'  => __('Categories', 'll-tools-text-domain'),
+        'category_search' => __('Search categories', 'll-tools-text-domain'),
+        'category_sort' => __('Sort categories', 'll-tools-text-domain'),
+        'category_sort_wordset' => __('Wordset order', 'll-tools-text-domain'),
+        'category_sort_alpha' => __('A-Z', 'll-tools-text-domain'),
+        'category_no_matches' => __('No categories match.', 'll-tools-text-domain'),
         'image'       => __('Image', 'll-tools-text-domain'),
         'select_image' => __('Choose image', 'll-tools-text-domain'),
         'existing_image' => __('Existing image', 'll-tools-text-domain'),
@@ -5057,9 +5062,21 @@ function ll_tools_word_grid_shortcode($atts) {
                     echo '<textarea class="ll-word-edit-input ll-word-edit-textarea" id="' . esc_attr($wrong_answer_texts_input_id) . '" data-ll-word-input="specific_wrong_answer_texts" rows="4" dir="auto">' . esc_textarea(implode("\n", array_map('strval', (array) $specific_wrong_answer_texts))) . '</textarea>';
                 }
                 if (!empty($category_editor_rows)) {
+                    $category_search_input_id = 'll-word-edit-category-search-' . $word_id;
+                    $category_sort_input_id = 'll-word-edit-category-sort-' . $word_id;
                     echo '<fieldset class="ll-word-edit-field ll-word-edit-categories" data-ll-word-categories-field>';
                     echo '<legend class="ll-word-edit-label">' . esc_html($edit_labels['categories']) . '</legend>';
-                    echo '<div class="ll-word-edit-category-list">';
+                    echo '<div class="ll-word-edit-category-tools">';
+                    echo '<label class="screen-reader-text" for="' . esc_attr($category_search_input_id) . '">' . esc_html($edit_labels['category_search']) . '</label>';
+                    echo '<input type="search" class="ll-word-edit-input ll-word-edit-category-search" id="' . esc_attr($category_search_input_id) . '" data-ll-word-category-search placeholder="' . esc_attr($edit_labels['category_search']) . '" autocomplete="off" />';
+                    echo '<label class="screen-reader-text" for="' . esc_attr($category_sort_input_id) . '">' . esc_html($edit_labels['category_sort']) . '</label>';
+                    echo '<select class="ll-word-edit-input ll-word-edit-category-sort" id="' . esc_attr($category_sort_input_id) . '" data-ll-word-category-sort aria-label="' . esc_attr($edit_labels['category_sort']) . '">';
+                    echo '<option value="wordset">' . esc_html($edit_labels['category_sort_wordset']) . '</option>';
+                    echo '<option value="alpha">' . esc_html($edit_labels['category_sort_alpha']) . '</option>';
+                    echo '</select>';
+                    echo '</div>';
+                    echo '<div class="ll-word-edit-category-list" data-ll-word-category-list>';
+                    $category_order_index = 0;
                     foreach ($category_editor_rows as $category_row) {
                         $category_option_id = (int) ($category_row['id'] ?? 0);
                         if ($category_option_id <= 0) {
@@ -5071,12 +5088,14 @@ function ll_tools_word_grid_shortcode($atts) {
                         }
                         $category_input_id = 'll-word-edit-category-' . $word_id . '-' . $category_option_id;
                         $is_checked = isset($selected_category_lookup[$category_option_id]);
-                        echo '<label class="ll-word-edit-category-option" for="' . esc_attr($category_input_id) . '">';
+                        echo '<label class="ll-word-edit-category-option" for="' . esc_attr($category_input_id) . '" data-ll-word-category-option data-ll-word-category-label="' . esc_attr($category_option_label) . '" data-ll-word-category-search-text="' . esc_attr($category_option_label) . '" data-ll-wordset-order="' . esc_attr((string) $category_order_index) . '">';
                         echo '<input type="checkbox" id="' . esc_attr($category_input_id) . '" class="ll-word-edit-category-checkbox" data-ll-word-category-input value="' . esc_attr((string) $category_option_id) . '"' . checked($is_checked, true, false) . ' />';
                         echo '<span class="ll-word-edit-category-label">' . esc_html($category_option_label) . '</span>';
                         echo '</label>';
+                        $category_order_index++;
                     }
                     echo '</div>';
+                    echo '<div class="ll-word-edit-category-empty" data-ll-word-category-empty hidden>' . esc_html($edit_labels['category_no_matches']) . '</div>';
                     echo '</fieldset>';
                 }
                 $image_input_id = 'll-word-edit-image-' . $word_id;
