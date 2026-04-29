@@ -562,6 +562,60 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $this->assertFalse((bool) term_exists((int) $created_category->term_id, 'word-category'));
     }
 
+    public function test_categories_settings_action_deletes_empty_category_and_linked_vocab_lesson_for_manager(): void
+    {
+        $this->ensureWordsetManagerRole();
+        $fixture = $this->createWordsetFixtureWithCategory();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $wordset_slug = (string) $fixture['wordset_slug'];
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $empty_category = wp_insert_term('Linked Lesson Empty Category ' . wp_generate_password(4, false), 'word-category');
+        $this->assertIsArray($empty_category);
+        $empty_category_id = (int) $empty_category['term_id'];
+        ll_tools_set_category_wordset_owner($empty_category_id, $wordset_id, $empty_category_id);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Linked Lesson Empty Category Lesson ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $empty_category_id);
+
+        $manager_id = self::factory()->user->create(['role' => 'wordset_manager']);
+        update_term_meta($wordset_id, 'manager_user_id', $manager_id);
+        wp_set_current_user($manager_id);
+
+        $_GET = [];
+        $_POST = [
+            'll_wordset_manager_settings_action' => 'save',
+            'll_wordset_manager_settings_wordset_id' => (string) $wordset_id,
+            'll_wordset_manager_settings_nonce' => wp_create_nonce('ll_wordset_manager_settings_' . $wordset_id),
+            'll_wordset_page' => $wordset_slug,
+            'll_wordset_view' => 'settings',
+            'll_wordset_tool' => 'categories',
+            'll_wordset_categories_action' => 'delete',
+            'll_wordset_category_id' => (string) $empty_category_id,
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_settings_tool_url($wordset_term, 'categories'));
+        set_query_var('ll_wordset_page', $wordset_slug);
+        set_query_var('ll_wordset_view', 'settings');
+
+        $delete_redirect = $this->captureRedirect(static function (): void {
+            ll_tools_wordset_page_handle_manager_settings_action();
+        });
+
+        $delete_query = $this->parseRedirectQuery($delete_redirect);
+        $this->assertSame('categories', (string) ($delete_query['ll_wordset_tool'] ?? ''));
+        $this->assertSame('ok', (string) ($delete_query['ll_wordset_manager_settings'] ?? ''));
+        $this->assertSame('Category deleted.', (string) ($delete_query['ll_wordset_manager_settings_message'] ?? ''));
+        $this->assertFalse((bool) term_exists($empty_category_id, 'word-category'));
+        $this->assertNull(get_post($lesson_id));
+    }
+
     public function test_advanced_settings_action_updates_wordset_meta_and_category_ordering(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

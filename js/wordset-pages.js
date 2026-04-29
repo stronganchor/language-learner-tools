@@ -6800,7 +6800,7 @@
             !!cat.can_delete,
             'delete',
             String(cat.delete_reason || ''),
-            i18n.inactiveDeleteConfirm || 'Delete this category? This cannot be undone.'
+            i18n.inactiveDeleteConfirm || 'Delete this category and any linked vocab lesson? This cannot be undone.'
         );
         html += '  </div>';
 

@@ -58,7 +58,7 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_wordset_inactive_category_action" value="hide"', $image_card);
         $this->assertStringContainsString('ll-wordset-card__inactive-action--delete', $image_card);
         $this->assertStringContainsString('ll-wordset-trash-icon', $image_card);
-        $this->assertStringContainsString('disabled', $image_card);
+        $this->assertStringNotContainsString('ll-wordset-card__inactive-action--delete" disabled', $image_card);
     }
 
     public function test_preview_prepares_draft_words_from_word_images(): void
@@ -190,6 +190,8 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
         wp_set_current_user($admin_id);
 
+        $lesson_id = $this->createVocabLesson('Empty Owned Staff Lesson', $category_id, $wordset_id);
+
         $result = ll_tools_wordset_page_process_inactive_category_action(
             'delete',
             $wordset_id,
@@ -200,8 +202,43 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
 
         $this->assertIsArray($result);
         $this->assertSame('deleted', $result['result']);
+        $this->assertSame(1, (int) ($result['deleted_lesson_count'] ?? 0));
         $deleted_term = get_term($category_id, 'word-category');
         $this->assertTrue($deleted_term === null || is_wp_error($deleted_term));
+        $this->assertNull(get_post($lesson_id));
+    }
+
+    public function test_inactive_category_action_process_deletes_image_only_category_and_lesson_without_deleting_image(): void
+    {
+        $fixture = $this->createWordsetFixture();
+        $wordset_id = (int) $fixture['wordset_id'];
+        $category_id = (int) $fixture['image_only_category_id'];
+        $image_id = (int) $fixture['image_id'];
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $lesson_id = $this->createVocabLesson('Image Only Staff Lesson', $category_id, $wordset_id);
+
+        $result = ll_tools_wordset_page_process_inactive_category_action(
+            'delete',
+            $wordset_id,
+            $wordset_id,
+            $category_id,
+            wp_create_nonce('ll_wordset_inactive_category_' . $wordset_id . '_' . $category_id)
+        );
+
+        $this->assertIsArray($result);
+        $this->assertSame('deleted', $result['result']);
+        $this->assertSame(1, (int) ($result['deleted_lesson_count'] ?? 0));
+        $deleted_term = get_term($category_id, 'word-category');
+        $this->assertTrue($deleted_term === null || is_wp_error($deleted_term));
+        $this->assertNull(get_post($lesson_id));
+        $this->assertSame('publish', get_post_status($image_id));
+
+        $remaining_image_categories = wp_get_object_terms($image_id, 'word-category', ['fields' => 'ids']);
+        $this->assertIsArray($remaining_image_categories);
+        $this->assertNotContains($category_id, array_map('intval', $remaining_image_categories));
     }
 
     /**
@@ -299,6 +336,19 @@ final class WordsetPageInactiveCategoryCardsTest extends LL_Tools_TestCase
         update_post_meta($word_id, 'word_translation', $translation);
 
         return (int) $word_id;
+    }
+
+    private function createVocabLesson(string $title, int $category_id, int $wordset_id): int
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => $title . ' ' . wp_generate_password(4, false),
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, (string) $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, (string) $category_id);
+
+        return (int) $lesson_id;
     }
 
     private function createImageAttachment(): int

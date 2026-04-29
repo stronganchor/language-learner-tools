@@ -1064,10 +1064,6 @@ function ll_tools_wordset_page_category_delete_blocker(WP_Term $category, int $w
         return __('Delete child categories first.', 'll-tools-text-domain');
     }
 
-    if (function_exists('ll_tools_wordset_page_category_has_vocab_lessons') && ll_tools_wordset_page_category_has_vocab_lessons($category_id, $wordset_id)) {
-        return __('Delete vocab lessons for this category first.', 'll-tools-text-domain');
-    }
-
     if (empty($summary)) {
         $summary = ll_tools_wordset_page_get_category_content_summary($category_id, $wordset_id);
     }
@@ -1076,12 +1072,6 @@ function ll_tools_wordset_page_category_delete_blocker(WP_Term $category, int $w
     }
     if (max(0, (int) ($summary['prompt_card_count'] ?? 0)) > 0) {
         return __('Remove prompt cards in this category first.', 'll-tools-text-domain');
-    }
-    if (max(0, (int) ($summary['word_image_count'] ?? 0)) > 0) {
-        return __('Remove word images in this category first.', 'll-tools-text-domain');
-    }
-    if (max(0, (int) ($category->count ?? 0)) > 0) {
-        return __('Remove related content in this category first.', 'll-tools-text-domain');
     }
 
     return '';
@@ -1292,6 +1282,11 @@ function ll_tools_wordset_page_process_inactive_category_action(string $action, 
             return new WP_Error('delete_blocked', $delete_reason);
         }
 
+        $lesson_delete_result = ll_tools_wordset_page_delete_vocab_lessons_for_category($category_id, $wordset_id);
+        if (is_wp_error($lesson_delete_result)) {
+            return $lesson_delete_result;
+        }
+
         $deleted = wp_delete_term($category_id, 'word-category');
         if (is_wp_error($deleted) || empty($deleted)) {
             return new WP_Error('delete_failed', __('Unable to delete this category right now.', 'll-tools-text-domain'));
@@ -1304,6 +1299,7 @@ function ll_tools_wordset_page_process_inactive_category_action(string $action, 
             'result' => 'deleted',
             'wordset_id' => $wordset_id,
             'category_id' => $category_id,
+            'deleted_lesson_count' => (int) $lesson_delete_result,
         ];
     }
 
@@ -3242,7 +3238,7 @@ function ll_tools_wordset_page_render_category_card(array $cat, array $context =
                         !empty($cat['can_delete']),
                         'delete',
                         (string) ($cat['delete_reason'] ?? ''),
-                        __('Delete this category? This cannot be undone.', 'll-tools-text-domain')
+                        __('Delete this category and any linked vocab lesson? This cannot be undone.', 'll-tools-text-domain')
                     ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?>
                 </div>
@@ -9607,8 +9603,6 @@ function ll_tools_wordset_page_get_managed_category_rows(int $wordset_id, array 
         $delete_reason = '';
         if ($child_count > 0) {
             $delete_reason = __('Delete child categories first.', 'll-tools-text-domain');
-        } elseif ((int) ($row['lesson_count'] ?? 0) > 0) {
-            $delete_reason = __('Delete vocab lessons for this category first.', 'll-tools-text-domain');
         } elseif ((int) ($row['word_count'] ?? 0) > 0) {
             $delete_reason = __('Remove or move the words in this category first.', 'll-tools-text-domain');
         }
@@ -9720,10 +9714,14 @@ function ll_tools_wordset_page_get_owned_category_term(int $category_id, int $wo
 }
 
 function ll_tools_wordset_page_category_has_vocab_lessons(int $category_id, int $wordset_id): bool {
+    return !empty(ll_tools_wordset_page_get_vocab_lesson_ids_for_category($category_id, $wordset_id));
+}
+
+function ll_tools_wordset_page_get_vocab_lesson_ids_for_category(int $category_id, int $wordset_id): array {
     $category_id = (int) $category_id;
     $wordset_id = (int) $wordset_id;
     if ($category_id <= 0 || $wordset_id <= 0) {
-        return false;
+        return [];
     }
 
     $category_candidates = function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')
@@ -9736,7 +9734,7 @@ function ll_tools_wordset_page_category_has_vocab_lessons(int $category_id, int 
     $lesson_ids = get_posts([
         'post_type'              => 'll_vocab_lesson',
         'post_status'            => ['publish', 'future', 'draft', 'pending', 'private'],
-        'posts_per_page'         => 1,
+        'posts_per_page'         => -1,
         'fields'                 => 'ids',
         'no_found_rows'          => true,
         'cache_results'          => false,
@@ -9755,7 +9753,36 @@ function ll_tools_wordset_page_category_has_vocab_lessons(int $category_id, int 
         ],
     ]);
 
-    return !empty($lesson_ids);
+    return array_values(array_unique(array_filter(array_map('intval', (array) $lesson_ids), static function (int $lesson_id): bool {
+        return $lesson_id > 0;
+    })));
+}
+
+/**
+ * @return int|WP_Error
+ */
+function ll_tools_wordset_page_delete_vocab_lessons_for_category(int $category_id, int $wordset_id) {
+    $lesson_ids = ll_tools_wordset_page_get_vocab_lesson_ids_for_category($category_id, $wordset_id);
+    if (empty($lesson_ids)) {
+        return 0;
+    }
+
+    $deleted = 0;
+    foreach ($lesson_ids as $lesson_id) {
+        $result = wp_delete_post((int) $lesson_id, true);
+        if (!($result instanceof WP_Post)) {
+            return new WP_Error('delete_lesson_failed', __('Unable to delete the linked vocab lesson right now.', 'll-tools-text-domain'));
+        }
+        $deleted++;
+    }
+
+    if (function_exists('ll_tools_invalidate_wordset_page_lesson_cache')) {
+        ll_tools_invalidate_wordset_page_lesson_cache();
+    } elseif (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+        ll_tools_bump_wordset_cache_epoch();
+    }
+
+    return $deleted;
 }
 
 /**
@@ -9871,11 +9898,14 @@ function ll_tools_wordset_page_save_categories_settings(int $wordset_id) {
         if (!is_wp_error($child_terms) && !empty($child_terms)) {
             return new WP_Error('category_delete', __('Delete child categories first.', 'll-tools-text-domain'));
         }
-        if (max(0, (int) $category->count) > 0) {
-            return new WP_Error('category_delete', __('Remove or move the words in this category first.', 'll-tools-text-domain'));
+        $delete_reason = ll_tools_wordset_page_category_delete_blocker($category, $wordset_id);
+        if ($delete_reason !== '') {
+            return new WP_Error('category_delete', $delete_reason);
         }
-        if (ll_tools_wordset_page_category_has_vocab_lessons($category_id, $wordset_id)) {
-            return new WP_Error('category_delete', __('Delete vocab lessons for this category first.', 'll-tools-text-domain'));
+
+        $lesson_delete_result = ll_tools_wordset_page_delete_vocab_lessons_for_category($category_id, $wordset_id);
+        if (is_wp_error($lesson_delete_result)) {
+            return $lesson_delete_result;
         }
 
         $deleted = wp_delete_term($category_id, 'word-category');
@@ -10044,7 +10074,7 @@ function ll_tools_wordset_page_render_settings_categories_tool(WP_Term $wordset_
                             $translation_value = (string) ($category_row['translation'] ?? '');
                             $presentation_label = (string) ($category_row['presentation_label'] ?? '');
                             $delete_reason = (string) ($category_row['delete_reason'] ?? '');
-                            $delete_confirm = esc_js(__('Delete this empty category?', 'll-tools-text-domain'));
+                            $delete_confirm = esc_js(__('Delete this category and any linked vocab lesson?', 'll-tools-text-domain'));
                             ?>
                             <form method="post" action="<?php echo esc_url($action_url); ?>" class="ll-wordset-settings-category-row">
                                 <input type="hidden" name="ll_wordset_manager_settings_action" value="save" />
@@ -13090,7 +13120,7 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'categoryNotPublicDefaultNote' => __('Not public yet.', 'll-tools-text-domain'),
             'inactiveHideLabel' => __('Hide', 'll-tools-text-domain'),
             'inactiveDeleteLabel' => __('Delete', 'll-tools-text-domain'),
-            'inactiveDeleteConfirm' => __('Delete this category? This cannot be undone.', 'll-tools-text-domain'),
+            'inactiveDeleteConfirm' => __('Delete this category and any linked vocab lesson? This cannot be undone.', 'll-tools-text-domain'),
             'categoryManagementAria' => __('Category management for %s', 'll-tools-text-domain'),
             'starredWordsLabel' => __('Starred words', 'll-tools-text-domain'),
             'repeatLabel' => __('Repeat', 'll-tools-text-domain'),
