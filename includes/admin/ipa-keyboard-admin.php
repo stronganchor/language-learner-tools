@@ -4342,17 +4342,17 @@ function ll_tools_get_ipa_keyboard_data_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -4378,17 +4378,17 @@ function ll_tools_get_ipa_keyboard_letter_map_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -4408,17 +4408,17 @@ function ll_tools_get_ipa_keyboard_symbols_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -4438,16 +4438,16 @@ function ll_tools_get_ipa_keyboard_orthography_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -4459,22 +4459,22 @@ function ll_tools_update_ipa_keyboard_orthography_rule_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $segment = ll_tools_ipa_orthography_normalize_segment_key((string) ($_POST['segment'] ?? ''), 'ipa');
     $context = ll_tools_ipa_orthography_normalize_context((string) ($_POST['context'] ?? 'any'));
     if ($segment === '') {
-        wp_send_json_error('Invalid segment', 400);
+        wp_send_json_error(__('Invalid segment', 'll-tools-text-domain'), 400);
     }
 
     $manual_rules = ll_tools_ipa_orthography_get_manual_rules($wordset_id);
@@ -4514,16 +4514,16 @@ function ll_tools_block_ipa_keyboard_orthography_rule_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $segment = ll_tools_ipa_orthography_normalize_segment_key((string) ($_POST['segment'] ?? ''), 'ipa');
@@ -4533,7 +4533,7 @@ function ll_tools_block_ipa_keyboard_orthography_rule_handler() {
         ll_tools_ipa_orthography_get_wordset_language($wordset_id)
     );
     if ($segment === '' || $output === '') {
-        wp_send_json_error('Invalid rule', 400);
+        wp_send_json_error(__('Invalid rule', 'll-tools-text-domain'), 400);
     }
 
     $blocklist = ll_tools_ipa_orthography_get_blocklist($wordset_id);
@@ -4563,16 +4563,16 @@ function ll_tools_unblock_ipa_keyboard_orthography_rule_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $segment = ll_tools_ipa_orthography_normalize_segment_key((string) ($_POST['segment'] ?? ''), 'ipa');
@@ -4582,7 +4582,7 @@ function ll_tools_unblock_ipa_keyboard_orthography_rule_handler() {
         ll_tools_ipa_orthography_get_wordset_language($wordset_id)
     );
     if ($segment === '' || $output === '') {
-        wp_send_json_error('Invalid rule', 400);
+        wp_send_json_error(__('Invalid rule', 'll-tools-text-domain'), 400);
     }
 
     $blocklist = ll_tools_ipa_orthography_get_blocklist($wordset_id);
@@ -4617,19 +4617,19 @@ function ll_tools_toggle_ipa_keyboard_orthography_exception_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     $word_id = (int) ($_POST['word_id'] ?? 0);
     $enabled = !empty($_POST['enabled']);
     if ($wordset_id <= 0 || $word_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Missing data', 400);
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
     }
 
     $word = get_post($word_id);
     if (!($word instanceof WP_Post) || $word->post_type !== 'words' || !has_term($wordset_id, 'wordset', $word_id)) {
-        wp_send_json_error('Invalid word', 400);
+        wp_send_json_error(__('Invalid word', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_orthography_update_exception_word_id($wordset_id, $word_id, $enabled);
@@ -4642,16 +4642,16 @@ function ll_tools_convert_ipa_keyboard_orthography_words_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $raw_word_ids = isset($_POST['word_ids']) ? wp_unslash($_POST['word_ids']) : [];
@@ -4662,7 +4662,7 @@ function ll_tools_convert_ipa_keyboard_orthography_words_handler() {
         return $word_id > 0;
     })));
     if (empty($word_ids)) {
-        wp_send_json_error('No words selected', 400);
+        wp_send_json_error(__('No words selected', 'll-tools-text-domain'), 400);
     }
 
     $training_rows = ll_tools_ipa_orthography_collect_training_rows($wordset_id);
@@ -4699,25 +4699,25 @@ function ll_tools_update_recording_ipa_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $recording_id = (int) ($_POST['recording_id'] ?? 0);
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($recording_id <= 0 || $wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Missing data', 400);
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
         'recording_ipa' => (string) ($_POST['recording_ipa'] ?? ''),
     ]);
     if (empty($payload)) {
-        wp_send_json_error('Invalid recording', 400);
+        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -4729,17 +4729,17 @@ function ll_tools_search_ipa_keyboard_recordings_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_view_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $query = ll_tools_ipa_keyboard_sanitize_search_query($_POST['query'] ?? '');
@@ -4782,13 +4782,13 @@ function ll_tools_update_ipa_keyboard_recording_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $recording_id = (int) ($_POST['recording_id'] ?? 0);
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($recording_id <= 0 || $wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Missing data', 400);
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
     }
 
     $payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, [
@@ -4796,7 +4796,7 @@ function ll_tools_update_ipa_keyboard_recording_handler() {
         'recording_ipa' => (string) ($_POST['recording_ipa'] ?? ''),
     ]);
     if (empty($payload)) {
-        wp_send_json_error('Invalid recording', 400);
+        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_remember_wordset($wordset_id);
@@ -4808,17 +4808,17 @@ function ll_tools_save_ipa_keyboard_validation_config_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $transcription = ll_tools_ipa_keyboard_get_transcription_config($wordset_id);
     if ((string) ($transcription['mode'] ?? 'ipa') !== 'ipa') {
-        wp_send_json_error('Rules unavailable', 400);
+        wp_send_json_error(__('Rules unavailable', 'll-tools-text-domain'), 400);
     }
 
     $disabled_builtin_rules = isset($_POST['disabled_builtin_rules']) && is_array($_POST['disabled_builtin_rules'])
@@ -4845,7 +4845,7 @@ function ll_tools_toggle_ipa_keyboard_validation_exception_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $recording_id = (int) ($_POST['recording_id'] ?? 0);
@@ -4853,12 +4853,12 @@ function ll_tools_toggle_ipa_keyboard_validation_exception_handler() {
     $rule_key = sanitize_text_field((string) ($_POST['rule_key'] ?? ''));
     $enabled = !empty($_POST['enabled']);
     if ($recording_id <= 0 || $wordset_id <= 0 || $rule_key === '' || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Missing data', 400);
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
     }
 
     $payload = ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, []);
     if (empty($payload)) {
-        wp_send_json_error('Invalid recording', 400);
+        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_update_recording_validation_exception($recording_id, $wordset_id, $rule_key, $enabled);
@@ -4878,29 +4878,29 @@ function ll_tools_set_ipa_keyboard_transcription_review_state_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $recording_id = (int) ($_POST['recording_id'] ?? 0);
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     $needs_review = !empty($_POST['needs_review']);
     if ($recording_id <= 0 || $wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Missing data', 400);
+        wp_send_json_error(__('Missing data', 'll-tools-text-domain'), 400);
     }
 
     $recording = get_post($recording_id);
     if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio') {
-        wp_send_json_error('Invalid recording', 400);
+        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
 
     $word_id = (int) $recording->post_parent;
     if ($word_id <= 0) {
-        wp_send_json_error('Invalid recording', 400);
+        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
 
     $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
     if (is_wp_error($wordset_ids) || !in_array($wordset_id, array_map('intval', (array) $wordset_ids), true)) {
-        wp_send_json_error('Invalid recording', 400);
+        wp_send_json_error(__('Invalid recording', 'll-tools-text-domain'), 400);
     }
 
     ll_tools_ipa_keyboard_set_recording_review_state($recording_id, $needs_review);
@@ -4922,22 +4922,22 @@ function ll_tools_add_wordset_ipa_symbols_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     if (!ll_tools_ipa_keyboard_get_wordset_term($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
     $symbols = ll_tools_ipa_keyboard_prepare_add_symbols((string) ($_POST['symbols'] ?? ''), $transcription_mode);
     if (empty($symbols)) {
-        wp_send_json_error('No symbols found', 400);
+        wp_send_json_error(__('No symbols found', 'll-tools-text-domain'), 400);
     }
 
     $existing = function_exists('ll_tools_word_grid_get_wordset_ipa_manual_symbols')
@@ -4961,17 +4961,17 @@ function ll_tools_update_wordset_ipa_letter_map_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
@@ -4981,7 +4981,7 @@ function ll_tools_update_wordset_ipa_letter_map_handler() {
     $letter_raw = (string) ($_POST['letter'] ?? '');
     $letter = ll_tools_ipa_keyboard_normalize_letter_key($letter_raw, $wordset_language);
     if ($letter === '') {
-        wp_send_json_error('Invalid letter', 400);
+        wp_send_json_error(__('Invalid letter', 'll-tools-text-domain'), 400);
     }
 
     $manual_map = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_manual_map')
@@ -5040,17 +5040,17 @@ function ll_tools_block_wordset_ipa_letter_mapping_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
@@ -5063,7 +5063,7 @@ function ll_tools_block_wordset_ipa_letter_mapping_handler() {
     $symbol = ll_tools_ipa_keyboard_normalize_ipa_token($symbol_raw, $transcription_mode);
 
     if ($letter === '' || $symbol === '') {
-        wp_send_json_error('Invalid mapping', 400);
+        wp_send_json_error(__('Invalid mapping', 'll-tools-text-domain'), 400);
     }
 
     $blocklist = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_blocklist')
@@ -5102,17 +5102,17 @@ function ll_tools_unblock_wordset_ipa_letter_mapping_handler() {
     check_ajax_referer('ll_ipa_keyboard_admin', 'nonce');
 
     if (!current_user_can('view_ll_tools')) {
-        wp_send_json_error('Forbidden', 403);
+        wp_send_json_error(__('Forbidden', 'll-tools-text-domain'), 403);
     }
 
     $wordset_id = (int) ($_POST['wordset_id'] ?? 0);
     if ($wordset_id <= 0 || !ll_tools_ipa_keyboard_current_user_can_edit_wordset($wordset_id)) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $wordset = ll_tools_ipa_keyboard_get_wordset_term($wordset_id);
     if (!$wordset) {
-        wp_send_json_error('Invalid word set', 400);
+        wp_send_json_error(__('Invalid word set', 'll-tools-text-domain'), 400);
     }
 
     $transcription_mode = (string) (ll_tools_ipa_keyboard_get_transcription_config($wordset_id)['mode'] ?? 'ipa');
@@ -5125,7 +5125,7 @@ function ll_tools_unblock_wordset_ipa_letter_mapping_handler() {
     $symbol = ll_tools_ipa_keyboard_normalize_ipa_token($symbol_raw, $transcription_mode);
 
     if ($letter === '' || $symbol === '') {
-        wp_send_json_error('Invalid mapping', 400);
+        wp_send_json_error(__('Invalid mapping', 'll-tools-text-domain'), 400);
     }
 
     $blocklist = function_exists('ll_tools_word_grid_get_wordset_ipa_letter_blocklist')
