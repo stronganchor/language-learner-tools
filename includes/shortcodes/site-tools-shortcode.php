@@ -17,6 +17,18 @@ function ll_tools_site_tools_current_user_can_manage_settings(): bool {
     return current_user_can(ll_tools_get_site_tools_settings_capability());
 }
 
+function ll_tools_site_tools_current_user_can_manage_api_settings(): bool {
+    $capability = function_exists('ll_tools_api_settings_capability')
+        ? ll_tools_api_settings_capability()
+        : 'manage_options';
+
+    return current_user_can($capability);
+}
+
+function ll_tools_site_tools_current_user_can_manage_recording_types(): bool {
+    return current_user_can('manage_options');
+}
+
 function ll_tools_site_tools_current_user_can_run_maintenance(): bool {
     if (function_exists('ll_tools_current_user_can_settings_maintenance')) {
         return ll_tools_current_user_can_settings_maintenance();
@@ -41,6 +53,22 @@ function ll_tools_site_tools_normalize_max_options_override($value): int {
 function ll_tools_site_tools_normalize_flashcard_image_size($value): string {
     $value = sanitize_key((string) $value);
     return in_array($value, ['small', 'medium', 'large'], true) ? $value : 'small';
+}
+
+function ll_tools_site_tools_secret_is_configured(string $option_name): bool {
+    return trim((string) get_option($option_name, '')) !== '';
+}
+
+function ll_tools_site_tools_sanitize_api_key($value): string {
+    return trim(sanitize_text_field(wp_unslash((string) $value)));
+}
+
+function ll_tools_site_tools_current_user_can_save_section(string $section): bool {
+    if ($section === 'api-providers') {
+        return ll_tools_site_tools_current_user_can_manage_api_settings();
+    }
+
+    return ll_tools_site_tools_current_user_can_manage_settings();
 }
 
 function ll_tools_site_tools_sync_wordpress_registration_setting(int $enabled): void {
@@ -140,6 +168,87 @@ function ll_tools_site_tools_get_page_manager_rows(): array {
     return $rows;
 }
 
+function ll_tools_site_tools_get_recording_type_terms(): array {
+    $terms = get_terms([
+        'taxonomy' => 'recording_type',
+        'hide_empty' => false,
+        'orderby' => 'name',
+        'order' => 'ASC',
+    ]);
+
+    if (is_wp_error($terms) || !is_array($terms)) {
+        return [];
+    }
+
+    return array_values(array_filter($terms, static function ($term): bool {
+        return $term instanceof WP_Term;
+    }));
+}
+
+function ll_tools_site_tools_get_recording_type_rows(): array {
+    $rows = [];
+
+    foreach (ll_tools_site_tools_get_recording_type_terms() as $term) {
+        $rows[] = [
+            'id' => (int) $term->term_id,
+            'name' => (string) $term->name,
+            'slug' => (string) $term->slug,
+            'count' => (int) $term->count,
+        ];
+    }
+
+    return $rows;
+}
+
+function ll_tools_site_tools_sanitize_recording_type_slugs($raw_slugs, array $available_slugs): array {
+    $submitted = is_array($raw_slugs) ? $raw_slugs : [];
+    $available_map = array_fill_keys(array_values(array_filter(array_map('sanitize_key', $available_slugs))), true);
+    $slugs = [];
+
+    foreach ($submitted as $raw_slug) {
+        $slug = sanitize_key(wp_unslash((string) $raw_slug));
+        if ($slug === '' || !isset($available_map[$slug])) {
+            continue;
+        }
+        $slugs[$slug] = $slug;
+    }
+
+    return array_values($slugs);
+}
+
+function ll_tools_site_tools_refresh_language_list(): array {
+    $languages = get_terms([
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+        'fields' => 'ids',
+    ]);
+
+    $deleted = 0;
+    if (!is_wp_error($languages)) {
+        foreach ((array) $languages as $language_id) {
+            $result = wp_delete_term((int) $language_id, 'language');
+            if (!is_wp_error($result) && $result !== false) {
+                $deleted++;
+            }
+        }
+    }
+
+    update_option('ll_languages_populated', false);
+    if (function_exists('ll_tools_ensure_language_taxonomy_terms')) {
+        ll_tools_ensure_language_taxonomy_terms();
+    }
+
+    $count = wp_count_terms([
+        'taxonomy' => 'language',
+        'hide_empty' => false,
+    ]);
+
+    return [
+        'deleted' => $deleted,
+        'count' => is_wp_error($count) ? 0 : (int) $count,
+    ];
+}
+
 function ll_tools_site_tools_get_page_management_label(string $page_key): string {
     $configs = ll_tools_site_tools_get_managed_page_configs();
     $config = $configs[$page_key] ?? null;
@@ -184,6 +293,8 @@ function ll_tools_site_tools_build_notice(): ?array {
             $message = __('Privacy retention settings saved.', 'll-tools-text-domain');
         } elseif ($section === 'plugin-updates') {
             $message = __('Plugin update settings saved.', 'll-tools-text-domain');
+        } elseif ($section === 'api-providers') {
+            $message = __('API provider keys saved.', 'll-tools-text-domain');
         }
 
         return [
@@ -245,11 +356,57 @@ function ll_tools_site_tools_build_notice(): ?array {
         ];
     }
 
+    if ($notice === 'recording_type_added') {
+        return [
+            'type' => 'success',
+            'message' => __('Recording type added.', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($notice === 'recording_type_deleted') {
+        return [
+            'type' => 'success',
+            'message' => __('Recording type deleted.', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($notice === 'recording_type_defaults_saved') {
+        return [
+            'type' => 'success',
+            'message' => __('Uncategorized recording defaults saved.', 'll-tools-text-domain'),
+        ];
+    }
+
+    if ($notice === 'languages_refreshed') {
+        $deleted = isset($_GET['ll_site_tools_deleted'])
+            ? max(0, (int) wp_unslash((string) $_GET['ll_site_tools_deleted']))
+            : 0;
+        $count = isset($_GET['ll_site_tools_count'])
+            ? max(0, (int) wp_unslash((string) $_GET['ll_site_tools_count']))
+            : 0;
+
+        return [
+            'type' => 'success',
+            'message' => sprintf(
+                /* translators: 1: deleted language terms, 2: current language terms */
+                __('Refreshed language list. Removed %1$d old language terms and loaded %2$d current terms.', 'll-tools-text-domain'),
+                $deleted,
+                $count
+            ),
+        ];
+    }
+
     if ($notice === 'error') {
         if ($error === 'permission') {
             return [
                 'type' => 'error',
                 'message' => __('You do not have permission to change site tools settings.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($error === 'api_permission') {
+            return [
+                'type' => 'error',
+                'message' => __('You do not have permission to manage API provider keys.', 'll-tools-text-domain'),
             ];
         }
         if ($error === 'maintenance_permission') {
@@ -292,6 +449,24 @@ function ll_tools_site_tools_build_notice(): ?array {
             return [
                 'type' => 'error',
                 'message' => __('That maintenance action is not available.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($error === 'recording_type_action') {
+            return [
+                'type' => 'error',
+                'message' => __('That recording type action is not available.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($error === 'recording_type_name') {
+            return [
+                'type' => 'error',
+                'message' => __('Enter a recording type name.', 'll-tools-text-domain'),
+            ];
+        }
+        if ($error === 'recording_type_save') {
+            return [
+                'type' => 'error',
+                'message' => __('Unable to save that recording type right now.', 'll-tools-text-domain'),
             ];
         }
         if ($error === 'plugin_update_permission') {
@@ -350,8 +525,8 @@ function ll_tools_handle_save_site_tools_action(): void {
         $redirect_error('section');
     }
 
-    if (!ll_tools_site_tools_current_user_can_manage_settings()) {
-        $redirect_error('permission');
+    if (!ll_tools_site_tools_current_user_can_save_section($section)) {
+        $redirect_error($section === 'api-providers' ? 'api_permission' : 'permission');
     }
 
     if (!wp_verify_nonce($nonce, 'll_tools_site_tools_' . $section)) {
@@ -420,6 +595,32 @@ function ll_tools_handle_save_site_tools_action(): void {
             'll_update_branch',
             ll_tools_site_tools_normalize_update_branch($_POST['ll_update_branch'] ?? 'main')
         );
+    } elseif ($section === 'api-providers') {
+        if (!ll_tools_site_tools_current_user_can_manage_api_settings()) {
+            $redirect_error('api_permission');
+        }
+
+        if (isset($_POST['ll_deepl_api_key_clear'])) {
+            delete_option('ll_deepl_api_key');
+            delete_transient('deepl_language_json_source');
+            delete_transient('deepl_language_json_target');
+        } else {
+            $deepl_api_key = ll_tools_site_tools_sanitize_api_key($_POST['ll_deepl_api_key'] ?? '');
+            if ($deepl_api_key !== '') {
+                update_option('ll_deepl_api_key', $deepl_api_key);
+                delete_transient('deepl_language_json_source');
+                delete_transient('deepl_language_json_target');
+            }
+        }
+
+        if (isset($_POST['ll_assemblyai_api_key_clear'])) {
+            delete_option('ll_assemblyai_api_key');
+        } else {
+            $assemblyai_api_key = ll_tools_site_tools_sanitize_api_key($_POST['ll_assemblyai_api_key'] ?? '');
+            if ($assemblyai_api_key !== '') {
+                update_option('ll_assemblyai_api_key', $assemblyai_api_key);
+            }
+        }
     } else {
         $redirect_error('section');
     }
@@ -497,6 +698,105 @@ function ll_tools_handle_site_tools_page_management_action(): void {
 }
 add_action('admin_post_ll_tools_manage_site_tools_page', 'll_tools_handle_site_tools_page_management_action');
 
+function ll_tools_handle_site_tools_recording_type_action(): void {
+    if (!is_user_logged_in()) {
+        auth_redirect();
+    }
+
+    $redirect_url = ll_tools_site_tools_resolve_redirect_url();
+    $recording_type_action = isset($_POST['ll_site_tools_recording_type_action'])
+        ? sanitize_key(wp_unslash((string) $_POST['ll_site_tools_recording_type_action']))
+        : '';
+    $nonce = isset($_POST['ll_site_tools_recording_type_nonce'])
+        ? wp_unslash((string) $_POST['ll_site_tools_recording_type_nonce'])
+        : '';
+
+    $redirect_error = static function (string $error) use ($redirect_url): void {
+        wp_safe_redirect(add_query_arg([
+            'll_site_tools_notice' => 'error',
+            'll_site_tools_error' => $error,
+            'll_site_tools_section' => 'recording-types',
+        ], $redirect_url));
+        exit;
+    };
+
+    if ($recording_type_action === '') {
+        $redirect_error('recording_type_action');
+    }
+
+    if (!ll_tools_site_tools_current_user_can_manage_recording_types()) {
+        $redirect_error('permission');
+    }
+
+    if (!wp_verify_nonce($nonce, 'll_tools_site_tools_recording_type_' . $recording_type_action)) {
+        $redirect_error('nonce');
+    }
+
+    if ($recording_type_action === 'add') {
+        $name = trim(sanitize_text_field(wp_unslash((string) ($_POST['term_name'] ?? ''))));
+        if ($name === '') {
+            $redirect_error('recording_type_name');
+        }
+
+        $slug = sanitize_title(wp_unslash((string) ($_POST['term_slug'] ?? '')));
+        $result = wp_insert_term($name, 'recording_type', [
+            'slug' => $slug !== '' ? $slug : sanitize_title($name),
+        ]);
+        if (is_wp_error($result)) {
+            $redirect_error('recording_type_save');
+        }
+
+        wp_safe_redirect(add_query_arg([
+            'll_site_tools_notice' => 'recording_type_added',
+            'll_site_tools_section' => 'recording-types',
+        ], $redirect_url));
+        exit;
+    }
+
+    if ($recording_type_action === 'delete') {
+        $term_id = isset($_POST['term_id']) ? max(0, (int) wp_unslash((string) $_POST['term_id'])) : 0;
+        if ($term_id <= 0) {
+            $redirect_error('recording_type_action');
+        }
+
+        $result = wp_delete_term($term_id, 'recording_type');
+        if (is_wp_error($result) || $result === false) {
+            $redirect_error('recording_type_save');
+        }
+
+        wp_safe_redirect(add_query_arg([
+            'll_site_tools_notice' => 'recording_type_deleted',
+            'll_site_tools_section' => 'recording-types',
+        ], $redirect_url));
+        exit;
+    }
+
+    if ($recording_type_action === 'defaults') {
+        $available_slugs = array_map(static function (array $row): string {
+            return (string) ($row['slug'] ?? '');
+        }, ll_tools_site_tools_get_recording_type_rows());
+        $selected_slugs = ll_tools_site_tools_sanitize_recording_type_slugs(
+            $_POST['ll_uncategorized_desired_recording_types'] ?? [],
+            $available_slugs
+        );
+
+        if (empty($selected_slugs)) {
+            delete_option('ll_uncategorized_desired_recording_types');
+        } else {
+            update_option('ll_uncategorized_desired_recording_types', $selected_slugs);
+        }
+
+        wp_safe_redirect(add_query_arg([
+            'll_site_tools_notice' => 'recording_type_defaults_saved',
+            'll_site_tools_section' => 'recording-types',
+        ], $redirect_url));
+        exit;
+    }
+
+    $redirect_error('recording_type_action');
+}
+add_action('admin_post_ll_tools_site_tools_recording_type', 'll_tools_handle_site_tools_recording_type_action');
+
 function ll_tools_handle_site_tools_maintenance_action(): void {
     if (!is_user_logged_in()) {
         auth_redirect();
@@ -556,6 +856,18 @@ function ll_tools_handle_site_tools_maintenance_action(): void {
             'll_site_tools_section' => $maintenance_action,
             'll_site_tools_count' => max(0, (int) ($result['count'] ?? 0)),
             'll_site_tools_deleted' => max(0, (int) ($result['deleted'] ?? 0)),
+        ], $redirect_url));
+        exit;
+    }
+
+    if ($maintenance_action === 'refresh-languages') {
+        $result = ll_tools_site_tools_refresh_language_list();
+
+        wp_safe_redirect(add_query_arg([
+            'll_site_tools_notice' => 'languages_refreshed',
+            'll_site_tools_section' => $maintenance_action,
+            'll_site_tools_deleted' => max(0, (int) ($result['deleted'] ?? 0)),
+            'll_site_tools_count' => max(0, (int) ($result['count'] ?? 0)),
         ], $redirect_url));
         exit;
     }
@@ -645,9 +957,12 @@ function ll_site_tools_shortcode($atts): string {
 
     $can_manage_settings = ll_tools_site_tools_current_user_can_manage_settings();
     $can_run_maintenance = ll_tools_site_tools_current_user_can_run_maintenance();
+    $can_manage_api_settings = ll_tools_site_tools_current_user_can_manage_api_settings();
+    $can_manage_recording_types = ll_tools_site_tools_current_user_can_manage_recording_types();
     $can_manage_plugin_updates = function_exists('ll_tools_user_can_manage_plugin_updates') && ll_tools_user_can_manage_plugin_updates();
     $workspace_links = ll_tools_site_tools_get_workspace_links();
     $page_manager_rows = ll_tools_site_tools_get_page_manager_rows();
+    $recording_type_rows = ll_tools_site_tools_get_recording_type_rows();
     $notice_html = ll_tools_site_tools_render_notice();
 
     $browser_autoswitch = function_exists('ll_tools_normalize_browser_language_autoswitch_setting_value')
@@ -697,6 +1012,12 @@ function ll_site_tools_shortcode($atts): string {
     $plugin_update_check_url = ($can_manage_plugin_updates && function_exists('ll_tools_get_plugin_update_check_action_url'))
         ? (string) ll_tools_get_plugin_update_check_action_url($current_url)
         : '';
+    $deepl_configured = ll_tools_site_tools_secret_is_configured('ll_deepl_api_key');
+    $assemblyai_configured = ll_tools_site_tools_secret_is_configured('ll_assemblyai_api_key');
+    $current_uncategorized_recording_types = function_exists('ll_tools_get_uncategorized_desired_recording_types')
+        ? ll_tools_get_uncategorized_desired_recording_types()
+        : [];
+    $current_uncategorized_recording_types = array_values(array_unique(array_filter(array_map('sanitize_key', (array) $current_uncategorized_recording_types))));
 
     ob_start();
     ?>
@@ -861,6 +1182,114 @@ function ll_site_tools_shortcode($atts): string {
                 <?php endif; ?>
             </section>
 
+            <section class="ll-site-tools-card ll-site-tools-card--recording-types">
+                <div class="ll-site-tools-card__head">
+                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Recording Types', 'll-tools-text-domain'); ?></h2>
+                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Manage recording type labels and the fallback prompts used when a word has no category without opening wp-admin.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <div class="ll-site-tools-card__meta">
+                    <span class="ll-site-tools-pill">
+                        <?php
+                        echo esc_html(
+                            sprintf(
+                                /* translators: %d: number of recording types */
+                                _n('%d recording type', '%d recording types', count($recording_type_rows), 'll-tools-text-domain'),
+                                count($recording_type_rows)
+                            )
+                        );
+                        ?>
+                    </span>
+                    <span class="ll-site-tools-pill">
+                        <?php echo esc_html(!empty($current_uncategorized_recording_types) ? implode(', ', $current_uncategorized_recording_types) : __('Default fallback', 'll-tools-text-domain')); ?>
+                    </span>
+                </div>
+
+                <?php if ($can_manage_recording_types) : ?>
+                    <div class="ll-site-tools-recording-layout">
+                        <form class="ll-site-tools-form ll-site-tools-recording-add" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="ll_tools_site_tools_recording_type" />
+                            <input type="hidden" name="ll_site_tools_recording_type_action" value="add" />
+                            <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                            <?php wp_nonce_field('ll_tools_site_tools_recording_type_add', 'll_site_tools_recording_type_nonce'); ?>
+
+                            <div class="ll-site-tools-field-grid">
+                                <label class="ll-site-tools-field">
+                                    <span><?php echo esc_html__('Name', 'll-tools-text-domain'); ?></span>
+                                    <input type="text" name="term_name" required />
+                                </label>
+
+                                <label class="ll-site-tools-field">
+                                    <span><?php echo esc_html__('Slug', 'll-tools-text-domain'); ?></span>
+                                    <input type="text" name="term_slug" />
+                                </label>
+                            </div>
+
+                            <button type="submit" class="ll-site-tools-button"><?php echo esc_html__('Add Recording Type', 'll-tools-text-domain'); ?></button>
+                        </form>
+
+                        <div class="ll-site-tools-recording-list" aria-label="<?php echo esc_attr__('Existing recording types', 'll-tools-text-domain'); ?>">
+                            <?php if (empty($recording_type_rows)) : ?>
+                                <p class="ll-site-tools-card__empty"><?php echo esc_html__('No recording types have been created yet.', 'll-tools-text-domain'); ?></p>
+                            <?php else : ?>
+                                <?php foreach ($recording_type_rows as $recording_type_row) : ?>
+                                    <div class="ll-site-tools-recording-item">
+                                        <div class="ll-site-tools-recording-item__copy">
+                                            <h3><?php echo esc_html((string) ($recording_type_row['name'] ?? '')); ?></h3>
+                                            <p>
+                                                <code><?php echo esc_html((string) ($recording_type_row['slug'] ?? '')); ?></code>
+                                                <?php
+                                                echo esc_html(
+                                                    sprintf(
+                                                        /* translators: %d: recording count */
+                                                        _n('%d recording', '%d recordings', (int) ($recording_type_row['count'] ?? 0), 'll-tools-text-domain'),
+                                                        (int) ($recording_type_row['count'] ?? 0)
+                                                    )
+                                                );
+                                                ?>
+                                            </p>
+                                        </div>
+                                        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                            <input type="hidden" name="action" value="ll_tools_site_tools_recording_type" />
+                                            <input type="hidden" name="ll_site_tools_recording_type_action" value="delete" />
+                                            <input type="hidden" name="term_id" value="<?php echo esc_attr((string) ($recording_type_row['id'] ?? 0)); ?>" />
+                                            <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                                            <?php wp_nonce_field('ll_tools_site_tools_recording_type_delete', 'll_site_tools_recording_type_nonce'); ?>
+                                            <button type="submit" class="ll-site-tools-button ll-site-tools-button--ghost"><?php echo esc_html__('Delete', 'll-tools-text-domain'); ?></button>
+                                        </form>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+
+                        <form class="ll-site-tools-form ll-site-tools-recording-defaults" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="ll_tools_site_tools_recording_type" />
+                            <input type="hidden" name="ll_site_tools_recording_type_action" value="defaults" />
+                            <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                            <?php wp_nonce_field('ll_tools_site_tools_recording_type_defaults', 'll_site_tools_recording_type_nonce'); ?>
+
+                            <h3><?php echo esc_html__('Uncategorized Defaults', 'll-tools-text-domain'); ?></h3>
+                            <p class="ll-site-tools-note"><?php echo esc_html__('Choose recording types to prompt for when a word has no category. Leave all unchecked to return to the plugin fallback.', 'll-tools-text-domain'); ?></p>
+                            <div class="ll-site-tools-checkbox-list">
+                                <?php if (empty($recording_type_rows)) : ?>
+                                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('Create a recording type before selecting fallback prompts.', 'll-tools-text-domain'); ?></p>
+                                <?php else : ?>
+                                    <?php foreach ($recording_type_rows as $recording_type_row) : ?>
+                                        <?php $slug = (string) ($recording_type_row['slug'] ?? ''); ?>
+                                        <label class="ll-site-tools-checkbox">
+                                            <input type="checkbox" name="ll_uncategorized_desired_recording_types[]" value="<?php echo esc_attr($slug); ?>" <?php checked(in_array($slug, $current_uncategorized_recording_types, true)); ?> />
+                                            <span><?php echo esc_html((string) ($recording_type_row['name'] ?? '')); ?></span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </div>
+                            <button type="submit" class="ll-site-tools-button ll-site-tools-button--secondary"><?php echo esc_html__('Save Uncategorized Defaults', 'll-tools-text-domain'); ?></button>
+                        </form>
+                    </div>
+                <?php else : ?>
+                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('Administrator access is required to manage recording types.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </section>
+
             <section class="ll-site-tools-card">
                 <div class="ll-site-tools-card__head">
                     <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Privacy & Retention', 'll-tools-text-domain'); ?></h2>
@@ -953,6 +1382,52 @@ function ll_site_tools_shortcode($atts): string {
                 <?php endif; ?>
             </section>
 
+            <section class="ll-site-tools-card">
+                <div class="ll-site-tools-card__head">
+                    <h2 class="ll-site-tools-card__title"><?php echo esc_html__('API Providers', 'll-tools-text-domain'); ?></h2>
+                    <p class="ll-site-tools-card__description"><?php echo esc_html__('Move the dashboard-only DeepL and AssemblyAI key screens into the custom admin workspace.', 'll-tools-text-domain'); ?></p>
+                </div>
+                <div class="ll-site-tools-card__meta">
+                    <span class="ll-site-tools-pill"><?php echo $deepl_configured ? esc_html__('DeepL configured', 'll-tools-text-domain') : esc_html__('DeepL missing', 'll-tools-text-domain'); ?></span>
+                    <span class="ll-site-tools-pill"><?php echo $assemblyai_configured ? esc_html__('AssemblyAI configured', 'll-tools-text-domain') : esc_html__('AssemblyAI missing', 'll-tools-text-domain'); ?></span>
+                </div>
+
+                <?php if ($can_manage_api_settings) : ?>
+                    <form class="ll-site-tools-form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                        <input type="hidden" name="action" value="ll_tools_save_site_tools" />
+                        <input type="hidden" name="ll_site_tools_section" value="api-providers" />
+                        <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                        <?php wp_nonce_field('ll_tools_site_tools_api-providers', 'll_site_tools_nonce'); ?>
+
+                        <label class="ll-site-tools-field">
+                            <span><?php echo esc_html__('New DeepL API key', 'll-tools-text-domain'); ?></span>
+                            <input type="password" name="ll_deepl_api_key" autocomplete="off" placeholder="<?php echo esc_attr($deepl_configured ? __('Leave blank to keep current key', 'll-tools-text-domain') : __('Paste API key', 'll-tools-text-domain')); ?>" />
+                        </label>
+                        <?php if ($deepl_configured) : ?>
+                            <label class="ll-site-tools-checkbox">
+                                <input type="checkbox" name="ll_deepl_api_key_clear" value="1" />
+                                <span><?php echo esc_html__('Clear saved DeepL key', 'll-tools-text-domain'); ?></span>
+                            </label>
+                        <?php endif; ?>
+
+                        <label class="ll-site-tools-field">
+                            <span><?php echo esc_html__('New AssemblyAI API key', 'll-tools-text-domain'); ?></span>
+                            <input type="password" name="ll_assemblyai_api_key" autocomplete="off" placeholder="<?php echo esc_attr($assemblyai_configured ? __('Leave blank to keep current key', 'll-tools-text-domain') : __('Paste API key', 'll-tools-text-domain')); ?>" />
+                        </label>
+                        <?php if ($assemblyai_configured) : ?>
+                            <label class="ll-site-tools-checkbox">
+                                <input type="checkbox" name="ll_assemblyai_api_key_clear" value="1" />
+                                <span><?php echo esc_html__('Clear saved AssemblyAI key', 'll-tools-text-domain'); ?></span>
+                            </label>
+                        <?php endif; ?>
+
+                        <button type="submit" class="ll-site-tools-button"><?php echo esc_html__('Save API Keys', 'll-tools-text-domain'); ?></button>
+                    </form>
+                <?php else : ?>
+                    <p class="ll-site-tools-card__empty"><?php echo esc_html__('The current account cannot manage API provider keys.', 'll-tools-text-domain'); ?></p>
+                <?php endif; ?>
+            </section>
+
             <section class="ll-site-tools-card ll-site-tools-card--maintenance">
                 <div class="ll-site-tools-card__head">
                     <h2 class="ll-site-tools-card__title"><?php echo esc_html__('Maintenance', 'll-tools-text-domain'); ?></h2>
@@ -981,6 +1456,18 @@ function ll_site_tools_shortcode($atts): string {
                             <div class="ll-site-tools-maintenance-item__copy">
                                 <h3><?php echo esc_html__('Purge legacy word audio meta', 'll-tools-text-domain'); ?></h3>
                                 <p><?php echo esc_html__('Remove old word_audio_file meta from words posts now that audio lives in child recordings.', 'll-tools-text-domain'); ?></p>
+                            </div>
+                            <button type="submit" class="ll-site-tools-button ll-site-tools-button--secondary"><?php echo esc_html__('Run', 'll-tools-text-domain'); ?></button>
+                        </form>
+
+                        <form class="ll-site-tools-maintenance-item" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <input type="hidden" name="action" value="ll_tools_run_site_tools_maintenance" />
+                            <input type="hidden" name="ll_site_tools_maintenance_action" value="refresh-languages" />
+                            <input type="hidden" name="redirect_to" value="<?php echo esc_attr($current_url); ?>" />
+                            <?php wp_nonce_field('ll_tools_site_tools_maintenance_refresh-languages', 'll_site_tools_maintenance_nonce'); ?>
+                            <div class="ll-site-tools-maintenance-item__copy">
+                                <h3><?php echo esc_html__('Refresh language list', 'll-tools-text-domain'); ?></h3>
+                                <p><?php echo esc_html__('Rebuild the bundled language taxonomy list used by wordset and language settings.', 'll-tools-text-domain'); ?></p>
                             </div>
                             <button type="submit" class="ll-site-tools-button ll-site-tools-button--secondary"><?php echo esc_html__('Run', 'll-tools-text-domain'); ?></button>
                         </form>

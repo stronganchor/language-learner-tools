@@ -86,11 +86,15 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Study Defaults', $html);
         $this->assertStringContainsString('Learner Accounts', $html);
         $this->assertStringContainsString('Recording Defaults', $html);
+        $this->assertStringContainsString('Recording Types', $html);
         $this->assertStringContainsString('Managed Pages', $html);
         $this->assertStringContainsString('Privacy &amp; Retention', $html);
         $this->assertStringContainsString('Plugin Updates', $html);
+        $this->assertStringContainsString('API Providers', $html);
         $this->assertStringContainsString('Maintenance', $html);
+        $this->assertStringContainsString('Refresh language list', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_save_site_tools"', $html);
+        $this->assertStringContainsString('name="action" value="ll_tools_site_tools_recording_type"', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_manage_site_tools_page"', $html);
         $this->assertStringContainsString('name="action" value="ll_tools_run_site_tools_maintenance"', $html);
     }
@@ -242,6 +246,79 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
         $this->assertSame('dev', (string) get_option('ll_update_branch', 'main'));
     }
 
+    public function test_save_handler_updates_api_provider_keys(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $page_id = $this->createSiteToolsPage();
+        $page_url = (string) get_permalink($page_id);
+
+        update_option('ll_deepl_api_key', 'old-deepl-key');
+        update_option('ll_assemblyai_api_key', 'old-assembly-key');
+
+        $_POST = [
+            'll_site_tools_section' => 'api-providers',
+            'll_site_tools_nonce' => wp_create_nonce('ll_tools_site_tools_api-providers'),
+            'redirect_to' => $page_url,
+            'll_deepl_api_key' => 'new-deepl-key',
+            'll_assemblyai_api_key_clear' => '1',
+        ];
+        $_REQUEST = $_POST;
+
+        $redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_save_site_tools_action();
+        });
+
+        $query = $this->parseRedirectQuery($redirect_url);
+        $this->assertSame('settings_saved', (string) ($query['ll_site_tools_notice'] ?? ''));
+        $this->assertSame('api-providers', (string) ($query['ll_site_tools_section'] ?? ''));
+        $this->assertSame('new-deepl-key', (string) get_option('ll_deepl_api_key', ''));
+        $this->assertSame('', (string) get_option('ll_assemblyai_api_key', ''));
+    }
+
+    public function test_recording_type_handler_adds_type_and_saves_uncategorized_defaults(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $page_id = $this->createSiteToolsPage();
+        $page_url = (string) get_permalink($page_id);
+
+        $_POST = [
+            'll_site_tools_recording_type_action' => 'add',
+            'll_site_tools_recording_type_nonce' => wp_create_nonce('ll_tools_site_tools_recording_type_add'),
+            'redirect_to' => $page_url,
+            'term_name' => 'Narration',
+            'term_slug' => 'narration',
+        ];
+        $_REQUEST = $_POST;
+
+        $add_redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_site_tools_recording_type_action();
+        });
+
+        $add_query = $this->parseRedirectQuery($add_redirect_url);
+        $this->assertSame('recording_type_added', (string) ($add_query['ll_site_tools_notice'] ?? ''));
+        $this->assertInstanceOf(WP_Term::class, get_term_by('slug', 'narration', 'recording_type'));
+
+        $_POST = [
+            'll_site_tools_recording_type_action' => 'defaults',
+            'll_site_tools_recording_type_nonce' => wp_create_nonce('ll_tools_site_tools_recording_type_defaults'),
+            'redirect_to' => $page_url,
+            'll_uncategorized_desired_recording_types' => ['narration'],
+        ];
+        $_REQUEST = $_POST;
+
+        $defaults_redirect_url = $this->captureRedirect(static function (): void {
+            ll_tools_handle_site_tools_recording_type_action();
+        });
+
+        $defaults_query = $this->parseRedirectQuery($defaults_redirect_url);
+        $this->assertSame('recording_type_defaults_saved', (string) ($defaults_query['ll_site_tools_notice'] ?? ''));
+        $this->assertSame(['narration'], get_option('ll_uncategorized_desired_recording_types', []));
+    }
+
     public function test_page_management_handler_recreates_recording_page_and_redirects_back(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);
@@ -324,9 +401,13 @@ final class SiteToolsCustomUiTest extends LL_Tools_TestCase
             'll_allow_learner_self_registration',
             'll_show_generated_registration_password',
             'll_tools_send_registration_admin_email',
+            'll_deepl_api_key',
+            'll_assemblyai_api_key',
             'll_hide_recording_titles',
             'll_tools_recording_notification_email',
             'll_tools_recording_notification_delay_minutes',
+            'll_uncategorized_desired_recording_types',
+            'll_languages_populated',
             LL_TOOLS_USER_PROGRESS_RETENTION_OPTION,
             'll_update_branch',
             'll_default_recording_page_id',
