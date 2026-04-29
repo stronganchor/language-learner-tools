@@ -84,17 +84,37 @@ language-learner-tools.php    # Bootstrap, constants, updates, /embed rewrite
 includes/
   assets.php                  # Versioned enqueue helper + public assets
   bootstrap.php               # Central includes
+  offline-app-sync.php        # REST/manifest sync support for offline exports
   privacy.php                 # Progress privacy controls, exporter/eraser hooks, policy text, retention cleanup
   template-loader.php         # Theme override resolver
+  teacher-classes.php         # Teacher class helpers, frontend actions, class membership
+  login-window.php            # Frontend login/signup window support
+  user-progress.php           # Learner progress writes/lookups
+  user-progress-report-data.php # Shared progress report queries
+  wordset-isolation.php       # Wordset-owned category isolation/remapping
+  wordset-templates.php       # Reusable wordset template bundles
   lib/
+    php-compat.php            # Compatibility helpers for older PHP runtimes
     sort.php                  # Shared sorting helpers
     text-display.php          # Display text normalization/helpers
+    wordset-language-settings.php # Per-wordset target/title/translation language settings
+    audio-originals.php       # Optional preserved-original audio helpers
+    custom-stt-endpoint.php   # Wordset-scoped custom STT endpoint validation/storage
+    internal-review-notes.php # Staff-only notes for words and prompt cards
+    dictionary-sources.php    # Dictionary source metadata/import attribution
+    dictionary-static-cache.php # Public dictionary cache helpers
+    public-static-cache.php   # Anonymous public-page cache helpers
+    dictionary-search-index.php # Dictionary normalized search index helpers
     dictionary-browser.php    # Dictionary import/search helpers
+    dictionary-snapshot.php   # Dictionary export/snapshot helpers
     ll-matching.php           # Audio <-> image matching heuristics
     media-proxy.php           # Signed image proxy for quizzes
     image-aspect.php          # Image aspect utilities for normalizer/admin tools
+    image-animation.php       # Animated-image detection/helpers
     word-option-rules.php     # Word option group/conflict rules storage/helpers
     image-hash.php            # Perceptual image hashing/similarity helpers
+  api/
+    automation-rest.php       # JSON-first automation endpoints with server-side guardrails
   pages/
     quiz-pages.php            # Auto /quiz pages + sync + assets
     embed-page.php            # /embed/<category> template
@@ -146,8 +166,12 @@ includes/
     recording-types-admin.php
     bulk-translation-admin.php
     bulk-word-import-admin.php
+    prompt-audio-import-admin.php
     dictionary-import-admin.php
+    dictionary-sources-admin.php
     export-import.php
+    offline-app-export.php
+    teacher-classes-page.php
     example-sentence-migration.php
     ipa-keyboard-admin.php
     word-option-rules-admin.php
@@ -155,6 +179,7 @@ includes/
     duplicate-category-words-admin.php
     image-aspect-normalizer-admin.php
     image-webp-optimizer-admin.php
+    orphan-media-admin.php
     word-images-fixer.php
     metabox-word-audio-parent.php
     uploads/
@@ -175,9 +200,22 @@ js/
   audio-image-matcher.js
   audio-recorder.js
   quiz-pages.js
+  quiz-pages-shortcodes.js
+  wordset-pages.js
+  wordset-games.js
+  wordset-settings-media.js
+  vocab-lesson-page.js
+  content-lesson-player.js
+  content-lesson-admin.js
   word-audio.js
   manage-wordsets.js
   bulk-category-edit.js
+  dictionary-shortcode.js
+  editor-hub.js
+  export-import-admin.js
+  login-window.js
+  frontend-utility-menu.js
+  public-viewport-guard.js
 css/
   language-learner-tools.css
   quiz-pages.css
@@ -407,6 +445,7 @@ Core settings live in `includes/admin/settings.php`:
 - Use `ll_enqueue_asset_by_timestamp()` and `LL_TOOLS_BASE_*` constants for paths/URLs.
 - Template overrides must follow the resolver order in `includes/template-loader.php`.
 - Wordset scope is strict: learn/practice/listening flows must never mix words or audio across wordsets; ignore stale AJAX responses from prior wordset/session contexts.
+- Wordset isolation is canonical: when code crosses from wordsets to categories, resolve through the effective wordset/category helpers instead of assuming legacy global category ids still apply.
 - Wordset-page activity launches and recommendations must enforce a hard minimum pool of 5 available words (after applying session/category filters); do not launch or suggest an activity below that threshold.
 - Wordset-page chunking must preserve full coverage of the filtered word pool and distribute words across chunks without dropping leftovers (use balanced chunk sizes instead of creating tiny tail chunks that strand words).
 - Flashcard options in practice/learning must never include a conflicting pair (same `option_blocked_ids` pair, same image identity, or linked `similar_word_id`).
@@ -415,6 +454,12 @@ Core settings live in `includes/admin/settings.php`:
 - Learning mode options are built from all introduced categories, so conflict filtering must be evaluated against all currently chosen options (not just the target).
 - If conflict filtering leaves fewer cards than the desired option count, keep conflicts blocked (do not force-add conflicting cards).
 - All admin and public UI strings should remain i18n-detectable (Loco Translate compatible): wrap PHP/template strings in WordPress i18n helpers using `ll-tools-text-domain`, and pass JS UI copy through localized data/messages instead of hardcoded literals.
+- Public static caches must exclude logged-in users, wp-admin, admin-ajax, REST/API, POST requests, preview/customizer requests, and error/redirect responses; anonymous cache keys should normalize noisy args such as `ll_locale_nonce` and `ll_tools_auth`.
+- Public dictionary requests should canonicalize noisy browse state early: `ll_dictionary_entry` wins over letter/browse state, `letter` collapses to `ll_dictionary_letter`, and private wordsets/entries must not leak through AJAX or direct-detail fallbacks.
+- Custom STT endpoints must stay wordset-scoped and validate both saved and request-time URLs against private/reserved hosts or resolved private IP ranges before proxying.
+- Automation REST write endpoints must keep server-side throttles/caps and durable result payloads; callers should not be trusted to self-limit bulk mutations on a live site.
+- Offline export/sync payloads must preserve wordset scoping, quiz configuration, media proxy expectations, and prompt-card metadata needed by the shared flashcard runtime.
+- Frontend teacher-class `admin-post.php` actions must account for limited-role redirect handling so teachers are not bounced to the site home after valid class actions.
 
 # UI color standards (canonical)
 Use one shared status palette across user-facing plugin UI so progress states always mean the same thing.

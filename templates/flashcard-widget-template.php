@@ -37,21 +37,21 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
      data-wordset-fallback="<?php echo $tmpl_wordset_fallback ? '1' : '0'; ?>"
      data-ll-config="<?php echo esc_attr($tmpl_ll_config_json); ?>">
   <?php if (!$embed): ?>
-    <button id="ll-tools-start-flashcard"><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
+    <button id="ll-tools-start-flashcard" type="button"><?php echo esc_html__('Start', 'll-tools-text-domain'); ?></button>
   <?php endif; ?>
 
   <div id="ll-tools-flashcard-popup" style="display:none;">
     <div id="ll-tools-category-selection-popup" style="display:none;">
       <h3 class="ll-tools-category-selection-title"><?php echo esc_html__('Select Categories', 'll-tools-text-domain'); ?></h3>
       <div class="ll-tools-category-selection-buttons">
-        <button id="ll-tools-uncheck-all"><?php echo esc_html__('Uncheck All', 'll-tools-text-domain'); ?></button>
-        <button id="ll-tools-check-all"><?php echo esc_html__('Check All', 'll-tools-text-domain'); ?></button>
+        <button id="ll-tools-uncheck-all" type="button"><?php echo esc_html__('Uncheck All', 'll-tools-text-domain'); ?></button>
+        <button id="ll-tools-check-all" type="button"><?php echo esc_html__('Check All', 'll-tools-text-domain'); ?></button>
       </div>
       <div id="ll-tools-category-checkboxes-container">
         <div id="ll-tools-category-checkboxes"></div>
       </div>
-      <button id="ll-tools-start-selected-quiz"><?php echo esc_html__('Start Quiz', 'll-tools-text-domain'); ?></button>
-      <button id="ll-tools-close-category-selection" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
+      <button id="ll-tools-start-selected-quiz" type="button"><?php echo esc_html__('Start Quiz', 'll-tools-text-domain'); ?></button>
+      <button id="ll-tools-close-category-selection" type="button" aria-label="<?php echo esc_attr__('Close', 'll-tools-text-domain'); ?>">&times;</button>
     </div>
 
     <div id="ll-tools-flashcard-quiz-popup" style="display:none;">
@@ -65,7 +65,7 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
             <?php echo ll_tools_esc_html_display($category_label_text); ?>
           </span>
           <?php endif; ?>
-          <button id="ll-tools-repeat-flashcard" class="play-mode" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
+          <button id="ll-tools-repeat-flashcard" class="play-mode" type="button" aria-label="<?php echo esc_attr__('Play', 'll-tools-text-domain'); ?>">
           </button>
         </div>
 
@@ -93,23 +93,23 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
       <div id="ll-tools-mode-switcher-wrap" class="ll-tools-mode-switcher-wrap" style="display:none;" aria-expanded="false">
         <div id="ll-tools-mode-menu" class="ll-tools-mode-menu" role="menu" aria-hidden="true">
           <!-- Fixed order: learning, practice, self-check, gender, listening -->
-          <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning">
+          <button class="ll-tools-mode-option learning" role="menuitemradio" aria-label="<?php echo esc_attr($learning_label); ?>" data-mode="learning" type="button">
             <?php $render_mode_icon($learning_mode_ui, '🎓', 'mode-icon'); ?>
           </button>
-          <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice">
+          <button class="ll-tools-mode-option practice" role="menuitemradio" aria-label="<?php echo esc_attr($practice_label); ?>" data-mode="practice" type="button">
             <?php $render_mode_icon($practice_mode_ui, '❓', 'mode-icon'); ?>
           </button>
-          <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check">
+          <button class="ll-tools-mode-option self-check" role="menuitemradio" aria-label="<?php echo esc_attr($self_check_label); ?>" data-mode="self-check" type="button">
             <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'mode-icon'); ?>
           </button>
-          <button class="ll-tools-mode-option gender<?php echo $tmpl_gender_mode_visible ? '' : ' hidden'; ?>" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender"<?php echo $tmpl_gender_mode_visible ? '' : ' aria-hidden="true"'; ?>>
+          <button class="ll-tools-mode-option gender<?php echo $tmpl_gender_mode_visible ? '' : ' hidden'; ?>" role="menuitemradio" aria-label="<?php echo esc_attr($gender_label); ?>" data-mode="gender" type="button"<?php echo $tmpl_gender_mode_visible ? '' : ' aria-hidden="true"'; ?>>
             <?php $render_mode_icon($gender_mode_ui, '⚥', 'mode-icon'); ?>
           </button>
-          <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening">
+          <button class="ll-tools-mode-option listening" role="menuitemradio" aria-label="<?php echo esc_attr($listening_label); ?>" data-mode="listening" type="button">
             <?php $render_mode_icon($listening_mode_ui, '🎧', 'mode-icon'); ?>
           </button>
         </div>
-        <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
+        <button id="ll-tools-mode-switcher" class="ll-tools-mode-switcher" type="button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Switch Mode', 'll-tools-text-domain'); ?>">
           <span class="mode-icon" aria-hidden="true">⇄</span>
         </button>
       </div>
@@ -131,48 +131,48 @@ $tmpl_gender_mode_visible = !empty($tmpl_ll_config['genderEnabled']) && count($t
             $listening_label = $listening_mode_ui['resultsButtonText'] ?? __('Replay Listening', 'll-tools-text-domain');
             $gender_results_label = $gender_mode_ui['resultsButtonText'] ?? __('Gender Mode', 'll-tools-text-domain');
           ?>
-          <button id="restart-practice-mode" class="quiz-button quiz-mode-button">
+          <button id="restart-practice-mode" class="quiz-button quiz-mode-button" type="button">
             <?php $render_mode_icon($practice_mode_ui, '❓', 'button-icon'); ?>
             <?php echo esc_html($practice_label); ?>
           </button>
-          <button id="restart-learning-mode" class="quiz-button quiz-mode-button">
+          <button id="restart-learning-mode" class="quiz-button quiz-mode-button" type="button">
             <?php $render_mode_icon($learning_mode_ui, '🎓', 'button-icon'); ?>
             <span class="ll-learning-results-label"><?php echo esc_html($learning_label); ?></span>
           </button>
-          <button id="restart-self-check-mode" class="quiz-button quiz-mode-button">
+          <button id="restart-self-check-mode" class="quiz-button quiz-mode-button" type="button">
             <?php $render_mode_icon($self_check_mode_ui, '✔✖', 'button-icon'); ?>
             <?php echo esc_html($self_check_results_label); ?>
           </button>
-          <button id="restart-gender-mode" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="restart-gender-mode" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php $render_mode_icon($gender_mode_ui, '⚥', 'button-icon'); ?>
             <span class="ll-gender-results-label"><?php echo esc_html($gender_results_label); ?></span>
           </button>
-          <button id="restart-listening-mode" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="restart-listening-mode" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php $render_mode_icon($listening_mode_ui, '🎧', 'button-icon'); ?>
             <?php echo esc_html($listening_label); ?>
           </button>
         </div>
         <div id="ll-gender-results-actions" style="display:none; margin-top: 12px;">
-          <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="ll-gender-next-activity" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php echo esc_html__('Next Gender Activity', 'll-tools-text-domain'); ?>
           </button>
-          <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="ll-gender-next-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php echo esc_html__('Next Set', 'll-tools-text-domain'); ?>
           </button>
         </div>
         <div id="ll-study-results-actions" style="display:none; margin-top: 12px;">
           <p id="ll-study-results-suggestion" style="display:none; margin: 0 0 8px 0;"></p>
-          <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="ll-study-results-same-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php echo esc_html__('Repeat', 'll-tools-text-domain'); ?>
           </button>
-          <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="ll-study-results-different-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php echo esc_html__('Categories', 'll-tools-text-domain'); ?>
           </button>
-          <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" style="display:none;">
+          <button id="ll-study-results-next-chunk" class="quiz-button quiz-mode-button" type="button" style="display:none;">
             <?php echo esc_html__('Recommended', 'll-tools-text-domain'); ?>
           </button>
         </div>
-        <button id="restart-quiz" class="quiz-button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
+        <button id="restart-quiz" class="quiz-button" type="button" style="display:none;"><?php echo esc_html__('Restart Quiz', 'll-tools-text-domain'); ?></button>
       </div>
     </div>
   </div>

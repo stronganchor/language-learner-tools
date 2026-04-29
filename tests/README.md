@@ -243,9 +243,10 @@ Representative E2E coverage areas:
   - Verifies deferred lesson shells hydrate the word-grid markup and keep hidden feedback hidden under theme overrides.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
-- Content lessons and mixed lesson-grid behavior.
-- Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
-- Teacher class management and progress views.
+- Known E2E coverage gaps still worth adding:
+  - Content lessons and mixed lesson-grid behavior.
+  - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
+  - Teacher class management and progress views.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`
