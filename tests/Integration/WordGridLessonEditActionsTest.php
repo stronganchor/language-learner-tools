@@ -52,6 +52,8 @@ final class WordGridLessonEditActionsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-recording-move-toggle', $output);
         $this->assertStringContainsString('data-ll-recording-move-search', $output);
         $this->assertStringContainsString('data-ll-recording-move-confirm', $output);
+        $this->assertStringContainsString('data-ll-word-image-copyright', $output);
+        $this->assertStringContainsString('Copyright Info', $output);
         $this->assertStringContainsString('data-recording-id="' . (int) $fixture['recording_id'] . '"', $output);
     }
 

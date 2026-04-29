@@ -73,6 +73,7 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         ]);
         wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
         set_post_thumbnail($word_image_id, $old_attachment_id);
+        update_post_meta($word_image_id, 'copyright_info', 'Original image source');
 
         $word_id = self::factory()->post->create([
             'post_type' => 'words',
@@ -114,6 +115,7 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
             'word_id' => $word_id,
             'word_text' => 'Image Edit Word',
             'word_translation' => 'Edited Image',
+            'image_copyright' => "Updated image source\nhttps://example.com/image-edit",
             'wordset_id' => $wordset_id,
         ];
         $_REQUEST = $_POST;
@@ -146,10 +148,12 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
             $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($related_word_id));
         }
         $this->assertSame($effective_word_image_id, (int) get_post_meta($word_id, '_ll_autopicked_image_id', true));
+        $this->assertSame("Updated image source\nhttps://example.com/image-edit", (string) get_post_meta($effective_word_image_id, 'copyright_info', true));
 
         $image_payload = (array) (($response['data'] ?? [])['image'] ?? []);
         $this->assertSame($new_attachment_id, (int) ($image_payload['id'] ?? 0));
         $this->assertNotSame('', (string) ($image_payload['url'] ?? ''));
+        $this->assertSame("Updated image source\nhttps://example.com/image-edit", (string) ($image_payload['copyright_info'] ?? ''));
 
         $recorder_items = ll_get_images_needing_audio('image-edit-category', [$wordset_id], '', '');
         foreach ((array) $recorder_items as $item) {
@@ -187,6 +191,7 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         ]);
         wp_set_post_terms($new_word_image_id, [$category_id], 'word-category', false);
         set_post_thumbnail($new_word_image_id, $new_attachment_id);
+        update_post_meta($new_word_image_id, 'copyright_info', 'Original existing image source');
 
         if (function_exists('ll_tools_set_word_image_wordset_owner')) {
             ll_tools_set_word_image_wordset_owner($old_word_image_id, $wordset_id, $old_word_image_id);
@@ -219,6 +224,7 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
             'word_translation' => 'Existing Image Translation',
             'wordset_id' => $wordset_id,
             'existing_word_image_id' => $new_word_image_id,
+            'image_copyright' => "Updated existing source\nhttps://example.com/existing-image",
         ];
         $_REQUEST = $_POST;
         $_FILES = [];
@@ -232,11 +238,74 @@ final class WordGridImageEditTest extends LL_Tools_TestCase
         $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($word_id));
         $this->assertSame($old_attachment_id, (int) get_post_thumbnail_id($old_word_image_id));
         $this->assertSame($new_attachment_id, (int) get_post_thumbnail_id($new_word_image_id));
+        $this->assertSame("Updated existing source\nhttps://example.com/existing-image", (string) get_post_meta($new_word_image_id, 'copyright_info', true));
 
         $image_payload = (array) (($response['data'] ?? [])['image'] ?? []);
         $this->assertSame($new_word_image_id, (int) ($image_payload['word_image_id'] ?? 0));
         $this->assertSame($new_attachment_id, (int) ($image_payload['id'] ?? 0));
         $this->assertNotSame('', (string) ($image_payload['url'] ?? ''));
+        $this->assertSame("Updated existing source\nhttps://example.com/existing-image", (string) ($image_payload['copyright_info'] ?? ''));
+    }
+
+    public function test_ajax_word_update_can_update_linked_word_image_copyright_without_changing_image(): void
+    {
+        $editor_id = self::factory()->user->create(['role' => 'administrator']);
+        $editor = get_user_by('id', $editor_id);
+        $this->assertInstanceOf(WP_User::class, $editor);
+        $editor->add_cap('view_ll_tools');
+        clean_user_cache($editor_id);
+        wp_set_current_user($editor_id);
+
+        $wordset_id = $this->ensureTerm('wordset', 'Image Copyright Wordset', 'image-copyright-wordset');
+        $category_id = $this->ensureTerm('word-category', 'Image Copyright Category', 'image-copyright-category');
+        $attachment_id = $this->createImageAttachment('word-grid-copyright.png');
+
+        $word_image_id = self::factory()->post->create([
+            'post_type' => 'word_images',
+            'post_status' => 'publish',
+            'post_title' => 'Copyright Image',
+        ]);
+        wp_set_post_terms($word_image_id, [$category_id], 'word-category', false);
+        set_post_thumbnail($word_image_id, $attachment_id);
+        update_post_meta($word_image_id, 'copyright_info', 'Original copyright');
+        if (function_exists('ll_tools_set_word_image_wordset_owner')) {
+            ll_tools_set_word_image_wordset_owner($word_image_id, $wordset_id, $word_image_id);
+        }
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Copyright Word',
+            'post_author' => $editor_id,
+        ]);
+        wp_set_post_terms($word_id, [$category_id], 'word-category', false);
+        wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
+        set_post_thumbnail($word_id, $attachment_id);
+        update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+        update_post_meta($word_id, 'word_translation', 'Copyright Translation');
+        update_post_meta($word_id, 'word_english_meaning', 'Copyright Translation');
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_word_grid_edit'),
+            'word_id' => $word_id,
+            'word_text' => 'Copyright Word',
+            'word_translation' => 'Copyright Translation',
+            'wordset_id' => $wordset_id,
+            'image_copyright' => "Updated copyright\nhttps://example.com/copyright",
+        ];
+        $_REQUEST = $_POST;
+        $_FILES = [];
+
+        $response = $this->runJsonEndpoint(static function (): void {
+            ll_tools_word_grid_update_word_handler();
+        });
+
+        $this->assertTrue((bool) ($response['success'] ?? false));
+        $this->assertSame("Updated copyright\nhttps://example.com/copyright", (string) get_post_meta($word_image_id, 'copyright_info', true));
+
+        $image_payload = (array) (($response['data'] ?? [])['image'] ?? []);
+        $this->assertSame($word_image_id, (int) ($image_payload['word_image_id'] ?? 0));
+        $this->assertSame("Updated copyright\nhttps://example.com/copyright", (string) ($image_payload['copyright_info'] ?? ''));
     }
 
     public function test_words_post_type_does_not_advertise_featured_image_support(): void

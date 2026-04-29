@@ -3469,6 +3469,10 @@ function ll_tools_word_grid_get_image_data_for_word(int $word_id): array {
 
     $fallback['id'] = (int) ($fallback['attachment_id'] ?? 0);
     $fallback['alt'] = $alt;
+    $word_image_id = (int) ($fallback['word_image_id'] ?? 0);
+    $fallback['copyright_info'] = $word_image_id > 0
+        ? (string) get_post_meta($word_image_id, 'copyright_info', true)
+        : '';
 
     return $fallback;
 }
@@ -3485,6 +3489,7 @@ function ll_tools_word_grid_get_image_data_for_word_image(int $word_image_id, $s
         'height'        => 0,
         'label'         => '',
         'source'        => 'word_image',
+        'copyright_info' => '',
     ];
 
     if ($word_image_id <= 0 || get_post_type($word_image_id) !== 'word_images') {
@@ -3497,6 +3502,7 @@ function ll_tools_word_grid_get_image_data_for_word_image(int $word_image_id, $s
         $label = sprintf(__('Word image #%d', 'll-tools-text-domain'), $word_image_id);
     }
     $fallback['label'] = $label;
+    $fallback['copyright_info'] = (string) get_post_meta($word_image_id, 'copyright_info', true);
 
     if ($attachment_id <= 0) {
         return $fallback;
@@ -3536,6 +3542,7 @@ function ll_tools_word_grid_get_image_data_for_word_image(int $word_image_id, $s
         'height'        => $height,
         'label'         => $label,
         'source'        => 'word_image',
+        'copyright_info' => (string) get_post_meta($word_image_id, 'copyright_info', true),
     ];
 }
 
@@ -4502,6 +4509,8 @@ function ll_tools_word_grid_shortcode($atts) {
         'existing_image_placeholder' => __('Search word set images', 'll-tools-text-domain'),
         'image_hint'  => __('Upload a new image or select an existing word image.', 'll-tools-text-domain'),
         'no_image'    => __('No image', 'll-tools-text-domain'),
+        'image_copyright' => __('Copyright Info', 'll-tools-text-domain'),
+        'image_copyright_hint' => __('Edit or add any copyright or source info for this image.', 'll-tools-text-domain'),
         'wrong_answer_options' => __('Wrong answer options (one per line)', 'll-tools-text-domain'),
         'recordings'  => __('Recordings', 'll-tools-text-domain'),
         'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
@@ -5100,6 +5109,8 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
                 $image_input_id = 'll-word-edit-image-' . $word_id;
                 $existing_image_input_id = 'll-word-edit-existing-image-' . $word_id;
+                $image_copyright_input_id = 'll-word-edit-image-copyright-' . $word_id;
+                $image_copyright_info = (string) ($image_data['copyright_info'] ?? '');
                 echo '<div class="ll-word-edit-image" data-ll-word-image-panel>';
                 echo '<div class="ll-word-edit-image-head">';
                 echo '<span class="ll-word-edit-label">' . esc_html($edit_labels['image']) . '</span>';
@@ -5121,6 +5132,11 @@ function ll_tools_word_grid_shortcode($atts) {
                 }
                 echo '</div>';
                 echo '<div class="ll-word-edit-image-selected" data-ll-word-image-selected aria-live="polite"></div>';
+                echo '<div class="ll-word-edit-field ll-word-edit-image-copyright">';
+                echo '<label class="ll-word-edit-label" for="' . esc_attr($image_copyright_input_id) . '">' . esc_html($edit_labels['image_copyright']) . '</label>';
+                echo '<textarea class="ll-word-edit-input ll-word-edit-textarea" id="' . esc_attr($image_copyright_input_id) . '" data-ll-word-input="image_copyright" data-ll-word-image-copyright rows="3">' . esc_textarea($image_copyright_info) . '</textarea>';
+                echo '<p class="ll-word-edit-image-hint">' . esc_html($edit_labels['image_copyright_hint']) . '</p>';
+                echo '</div>';
                 echo '<p class="ll-word-edit-image-hint">' . esc_html($edit_labels['image_hint']) . '</p>';
                 echo '</div>';
                 echo '</div>';
@@ -6562,6 +6578,12 @@ function ll_tools_word_grid_update_word_handler() {
     $translation_text = sanitize_text_field($_POST['word_translation'] ?? '');
     $translation_text = trim($translation_text);
     $pending_image_attachment_id = 0;
+    $image_copyright_submitted = array_key_exists('image_copyright', $_POST);
+    $image_copyright_info = '';
+    if ($image_copyright_submitted) {
+        $image_copyright_raw = isset($_POST['image_copyright']) ? wp_unslash($_POST['image_copyright']) : '';
+        $image_copyright_info = sanitize_textarea_field((string) $image_copyright_raw);
+    }
     $selected_word_image_id = isset($_POST['existing_word_image_id'])
         ? absint($_POST['existing_word_image_id'])
         : absint($_POST['word_image_id'] ?? 0);
@@ -6965,6 +6987,7 @@ function ll_tools_word_grid_update_word_handler() {
     }
 
     $affected_word_ids = [$word_id];
+    $image_copyright_target_id = 0;
     if ($pending_image_attachment_id > 0) {
         if (!function_exists('ll_tools_ensure_word_image_post_for_word')) {
             wp_send_json_error([
@@ -7003,6 +7026,7 @@ function ll_tools_word_grid_update_word_handler() {
         } elseif ((int) get_post_thumbnail_id($word_id) !== $pending_image_attachment_id) {
             set_post_thumbnail($word_id, $pending_image_attachment_id);
         }
+        $image_copyright_target_id = $word_image_id;
     } elseif ($selected_word_image_id > 0) {
         $selected_attachment_id = (int) get_post_thumbnail_id($selected_word_image_id);
         if ($selected_attachment_id <= 0) {
@@ -7015,6 +7039,14 @@ function ll_tools_word_grid_update_word_handler() {
         if ((int) get_post_thumbnail_id($word_id) !== $selected_attachment_id) {
             set_post_thumbnail($word_id, $selected_attachment_id);
         }
+        $image_copyright_target_id = $selected_word_image_id;
+    } elseif ($image_copyright_submitted) {
+        $current_image_data = ll_tools_word_grid_get_image_data_for_word($word_id);
+        $image_copyright_target_id = (int) ($current_image_data['word_image_id'] ?? 0);
+    }
+
+    if ($image_copyright_submitted && $image_copyright_target_id > 0 && get_post_type($image_copyright_target_id) === 'word_images') {
+        update_post_meta($image_copyright_target_id, 'copyright_info', $image_copyright_info);
     }
 
     ll_tools_word_grid_schedule_wordset_ipa_rebuild($word_id);

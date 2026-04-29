@@ -2199,7 +2199,8 @@
                             url: (item.url || '').toString(),
                             alt: (item.alt || label).toString(),
                             width: parseInt(item.width, 10) || 0,
-                            height: parseInt(item.height, 10) || 0
+                            height: parseInt(item.height, 10) || 0,
+                            copyright_info: (item.copyright_info || '').toString()
                         };
                     }));
                 });
@@ -2231,8 +2232,10 @@
                     url: (ui.item && ui.item.url) ? ui.item.url.toString() : '',
                     alt: (ui.item && ui.item.alt) ? ui.item.alt.toString() : selectedLabel,
                     width: parseInt(ui.item && ui.item.width, 10) || 0,
-                    height: parseInt(ui.item && ui.item.height, 10) || 0
+                    height: parseInt(ui.item && ui.item.height, 10) || 0,
+                    copyright_info: (ui.item && ui.item.copyright_info) ? ui.item.copyright_info.toString() : ''
                 });
+                $item.find('[data-ll-word-image-copyright]').first().val((ui.item && ui.item.copyright_info) ? ui.item.copyright_info.toString() : '');
                 $item.find('[data-ll-word-image-selected]').first().text(selectedLabel);
             },
             change: function (_event, ui) {
@@ -2594,7 +2597,8 @@
             width: parseInt(data.width, 10) || 0,
             height: parseInt(data.height, 10) || 0,
             word_image_id: parseInt(data.word_image_id, 10) || 0,
-            label: (data.label || '').toString()
+            label: (data.label || '').toString(),
+            copyright_info: (data.copyright_info || '').toString()
         };
     }
 
@@ -3441,6 +3445,7 @@
         const altText = data.alt || wordText;
 
         setWordEditImagePreview($item, Object.assign({}, data, { alt: altText }));
+        $item.find('[data-ll-word-image-copyright]').first().val(data.copyright_info || '');
 
         if (isTextGrid) {
             return;
@@ -8227,6 +8232,8 @@
             const dictionaryEntryId = parseInt($item.find('[data-ll-word-input="dictionary_entry_id"]').val(), 10) || 0;
             const dictionaryEntryTitle = ($item.find('[data-ll-word-input="dictionary_entry_lookup"]').val() || '').toString();
             const $wrongAnswerTextsInput = $item.find('[data-ll-word-input="specific_wrong_answer_texts"]').first();
+            const $imageCopyrightInput = $item.find('[data-ll-word-image-copyright]').first();
+            const imageCopyright = $imageCopyrightInput.length ? ($imageCopyrightInput.val() || '').toString() : '';
             const $grid = $item.closest('[data-ll-word-grid]');
             const wordsetId = parseInt($grid.attr('data-ll-wordset-id'), 10) || 0;
             const lessonCategoryId = parseInt($grid.attr('data-ll-category-id'), 10) || 0;
@@ -8305,6 +8312,9 @@
             requestData.append('verb_mood', verbMood);
             requestData.append('dictionary_entry_id', String(dictionaryEntryId));
             requestData.append('dictionary_entry_title', dictionaryEntryTitle);
+            if ($imageCopyrightInput.length) {
+                requestData.append('image_copyright', imageCopyright);
+            }
             requestData.append('wordset_id', String(wordsetId));
             requestData.append('lesson_category_id', String(lessonCategoryId));
             requestData.append('recordings', JSON.stringify(recordings));
