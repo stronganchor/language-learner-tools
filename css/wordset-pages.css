@@ -3749,6 +3749,29 @@ body.ll-tools-wordset-page-context .site-content .sidebar-main {
     font: inherit;
 }
 
+.ll-wordset-editor-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #475569;
+    font-size: 0.8rem;
+    font-weight: 700;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.ll-wordset-editor-toggle input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    flex: 0 0 auto;
+}
+
+.ll-wordset-editor-toggle span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .ll-wordset-editor-multiselect {
     position: relative;
     min-width: 0;

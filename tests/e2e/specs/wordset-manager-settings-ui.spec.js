@@ -367,10 +367,14 @@ function buildEditorToolMarkup() {
 
         <form class="ll-wordset-settings-card ll-wordset-editor-filters">
           <div class="ll-wordset-editor-filters__grid">
-            <label class="ll-wordset-editor-field ll-wordset-editor-field--search">
-              <span class="ll-wordset-editor-field__label">Word or translation</span>
-              <input type="search" value="long translation" />
-            </label>
+            <div class="ll-wordset-editor-field ll-wordset-editor-field--search">
+              <label class="ll-wordset-editor-field__label" for="ll-editor-fixture-search">Word or translation</label>
+              <input id="ll-editor-fixture-search" type="search" value="long translation" />
+              <label class="ll-wordset-editor-toggle ll-wordset-editor-toggle--exact">
+                <input type="checkbox" />
+                <span>Exact letters + diacritics</span>
+              </label>
+            </div>
             <label class="ll-wordset-editor-field">
               <span class="ll-wordset-editor-field__label">Category</span>
               <select><option>Long category name used by editors</option></select>

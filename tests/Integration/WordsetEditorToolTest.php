@@ -78,6 +78,8 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('data-ll-wordset-editor', $html);
         $this->assertStringContainsString('name="ll_editor_q"', $html);
+        $this->assertStringContainsString('name="ll_editor_exact"', $html);
+        $this->assertStringContainsString('Exact letters + diacritics', $html);
         $this->assertStringContainsString('name="ll_editor_category[]"', $html);
         $this->assertStringContainsString('data-ll-wordset-editor-category-filter', $html);
         $this->assertStringContainsString('name="ll_editor_status"', $html);
@@ -141,6 +143,48 @@ final class WordsetEditorToolTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Action history', $html);
         $this->assertStringContainsString('ll_editor_history_type', $html);
         $this->assertStringContainsString('Recent actions', $html);
+    }
+
+    public function test_wordset_editor_search_folds_diacritics_by_default_and_allows_exact_match(): void
+    {
+        $this->loginEditor();
+        $fixture = $this->createFixture('wordset-editor-diacritic-search');
+        $wordset_id = (int) $fixture['wordset_id'];
+        wp_update_post([
+            'ID' => (int) $fixture['alpha_word_id'],
+            'post_title' => "\u{00C7}arna",
+        ]);
+
+        $category_rows = function_exists('ll_tools_word_grid_get_category_editor_rows')
+            ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
+            : [];
+        $base_filters = [
+            'q'         => 'Carna',
+            'category'  => 0,
+            'status'    => '',
+            'image'     => '',
+            'recording' => '',
+            'sort'      => 'word',
+            'dir'       => 'asc',
+            'paged'     => 1,
+        ];
+
+        $folded_result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, $base_filters);
+        $folded_ids = array_map('intval', wp_list_pluck((array) ($folded_result['rows'] ?? []), 'id'));
+        $this->assertContains((int) $fixture['alpha_word_id'], $folded_ids);
+
+        $exact_result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, array_merge($base_filters, [
+            'exact' => true,
+        ]));
+        $exact_ids = array_map('intval', wp_list_pluck((array) ($exact_result['rows'] ?? []), 'id'));
+        $this->assertNotContains((int) $fixture['alpha_word_id'], $exact_ids);
+
+        $exact_diacritic_result = ll_tools_wordset_editor_build_rows($wordset_id, $category_rows, array_merge($base_filters, [
+            'q'     => "\u{00C7}arna",
+            'exact' => true,
+        ]));
+        $exact_diacritic_ids = array_map('intval', wp_list_pluck((array) ($exact_diacritic_result['rows'] ?? []), 'id'));
+        $this->assertContains((int) $fixture['alpha_word_id'], $exact_diacritic_ids);
     }
 
     public function test_missing_audio_filter_includes_words_with_no_published_audio_even_when_audio_is_not_required(): void
