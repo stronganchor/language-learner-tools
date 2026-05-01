@@ -243,10 +243,16 @@ Representative E2E coverage areas:
   - Verifies deferred lesson shells hydrate the word-grid markup and keep hidden feedback hidden under theme overrides.
 - `tests/e2e/specs/vocab-lesson-prereq-editor.spec.js`
   - Verifies lesson-page prerequisite editing supports search, multi-select, deselect, and stable saved-state feedback on desktop and mobile layouts.
+- `tests/e2e/specs/maintenance-doc-contracts.spec.js`
+  - Verifies source/docs contracts that are cheap to check in the Playwright runner, starting with registered public shortcodes being documented in `README.md`.
 - Known E2E coverage gaps still worth adding:
   - Content lessons and mixed lesson-grid behavior.
   - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
   - Teacher class management and progress views.
+  - Offline app shell launch/sync behavior.
+  - Site Tools frontend maintenance actions.
+  - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
+  - A lightweight i18n static scan for new hardcoded user-facing PHP or JS strings.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`
   - Verifies wordset page launch actions can open Listening mode with the expected category/wordset context.
 - `tests/e2e/specs/wordset-games-space-shooter.spec.js`

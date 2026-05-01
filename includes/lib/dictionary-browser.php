@@ -2842,6 +2842,9 @@ function ll_tools_dictionary_get_published_entry_ids_for_scope(int $wordset_id =
 /**
  * Build the cached front-end filter index for one dictionary scope.
  *
+ * This remains an internal/cache-validation helper until the dictionary
+ * toolbar renders filter options from the precomputed index directly.
+ *
  * @return array{letters:string[],pos_options:array<int,array{slug:string,label:string}>,source_options:array<int,array{id:string,label:string}>,dialect_options:string[]}
  */
 function ll_tools_dictionary_get_scope_filter_index(int $wordset_id = 0): array {
