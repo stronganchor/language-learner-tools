@@ -550,6 +550,67 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertNotSame('', $this->getQueryArgFromUrl($redirect_url, LL_TOOLS_TEACHER_CLASS_NOTICE_QUERY_ARG));
     }
 
+    public function test_admin_manual_assignment_action_adds_learner_and_redirects_to_frontend_classes(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $wordset_id = $this->createWordset('Teacher Manual Assign Action Wordset');
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $admin_user = self::factory()->user->create_and_get([
+            'role' => 'administrator',
+            'user_email' => 'teacher-manual-action-admin@example.org',
+        ]);
+        $this->assertInstanceOf(WP_User::class, $admin_user);
+        $admin_user->add_cap('view_ll_tools');
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-manual-action@example.org',
+        ]);
+        $learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'learner-manual-action@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Manual Assignment Class', $wordset_id);
+        $this->assertIsInt($class_id);
+
+        wp_set_current_user((int) $admin_user->ID);
+        $redirect_base = add_query_arg(
+            'class_id',
+            (int) $class_id,
+            ll_tools_get_wordset_page_view_url($wordset_term, 'classes')
+        );
+        $previous_post = $_POST;
+        $previous_request = $_REQUEST;
+
+        $_POST = [
+            'action' => 'll_tools_teacher_assign_class_student',
+            '_wpnonce' => wp_create_nonce('ll_tools_teacher_assign_class_student_' . (int) $class_id),
+            'class_id' => (string) $class_id,
+            'll_tools_teacher_assign_user_id' => (string) $learner_id,
+            'll_tools_teacher_redirect_to' => $redirect_base,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_handle_teacher_class_manual_assign_action();
+            });
+        } finally {
+            $_POST = $previous_post;
+            $_REQUEST = $previous_request;
+        }
+
+        $this->assertTrue(ll_tools_teacher_class_user_is_student((int) $class_id, $learner_id));
+        $this->assertSame([(int) $class_id], ll_tools_teacher_class_get_ids_for_student($learner_id));
+        $this->assertStringStartsWith(ll_tools_get_wordset_page_view_url($wordset_term, 'classes'), $redirect_url);
+        $this->assertSame((string) $class_id, $this->getQueryArgFromUrl($redirect_url, 'class_id'));
+        $this->assertNotSame('', $this->getQueryArgFromUrl($redirect_url, LL_TOOLS_TEACHER_CLASS_NOTICE_QUERY_ARG));
+    }
+
     public function test_admin_classes_page_renders_manual_assignment_controls(): void
     {
         ll_tools_register_or_refresh_teacher_role();

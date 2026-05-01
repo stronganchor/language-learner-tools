@@ -275,6 +275,65 @@ final class WordsetGamesTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Student progress', $classesHtml);
         $this->assertStringContainsString('learner-frontend@example.org', $classesHtml);
         $this->assertStringContainsString('data-ll-teacher-classes-sort="learner"', $classesHtml);
+        $this->assertStringNotContainsString('ll_tools_teacher_assign_class_student', $classesHtml);
+    }
+
+    public function test_teacher_classes_view_renders_direct_assignment_controls_for_admins(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+        ll_tools_register_or_refresh_learner_role();
+
+        $term = wp_insert_term('Rendered Classes Admin Assignment ' . wp_generate_password(6, false), 'wordset');
+        $this->assertFalse(is_wp_error($term));
+        $this->assertIsArray($term);
+
+        $wordset = get_term((int) $term['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset);
+        $this->setValidWordsetRewriteRules((string) $wordset->slug);
+
+        $admin_user = self::factory()->user->create_and_get([
+            'role' => 'administrator',
+            'user_email' => 'frontend-assignment-admin@example.org',
+        ]);
+        $this->assertInstanceOf(WP_User::class, $admin_user);
+        $admin_user->add_cap('view_ll_tools');
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'frontend-assignment-teacher@example.org',
+        ]);
+        $assigned_learner_id = self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'assigned-frontend-assignment@example.org',
+        ]);
+        self::factory()->user->create([
+            'role' => 'll_tools_learner',
+            'user_email' => 'available-frontend-assignment@example.org',
+        ]);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Admin Assignment Class', (int) $wordset->term_id);
+        $this->assertIsInt($class_id);
+        $this->assertTrue(ll_tools_teacher_class_add_student((int) $class_id, $assigned_learner_id));
+
+        wp_set_current_user((int) $admin_user->ID);
+        $_GET['class_id'] = (string) $class_id;
+        $_SERVER['REQUEST_URI'] = $this->requestUriFromUrl(ll_tools_get_wordset_page_view_url($wordset, 'classes'));
+        set_query_var('ll_wordset_page', (string) $wordset->slug);
+        set_query_var('ll_wordset_view', 'classes');
+
+        $classesHtml = ll_tools_render_wordset_page_content((int) $term['term_id']);
+
+        $this->assertStringContainsString('Add existing learner', $classesHtml);
+        $this->assertStringContainsString('ll_tools_teacher_assign_class_student', $classesHtml);
+        $this->assertStringContainsString('ll_tools_teacher_assign_user_id', $classesHtml);
+        $this->assertStringContainsString('Select a learner account', $classesHtml);
+        $this->assertMatchesRegularExpression(
+            '/<select[^>]+name="ll_tools_teacher_assign_user_id"[^>]*>(.*?)<\/select>/s',
+            $classesHtml
+        );
+        preg_match('/<select[^>]+name="ll_tools_teacher_assign_user_id"[^>]*>(.*?)<\/select>/s', $classesHtml, $assign_select_matches);
+        $assign_select_html = isset($assign_select_matches[1]) ? (string) $assign_select_matches[1] : '';
+        $this->assertStringContainsString('available-frontend-assignment@example.org', $assign_select_html);
+        $this->assertStringNotContainsString('assigned-frontend-assignment@example.org', $assign_select_html);
     }
 
     public function test_teacher_classes_view_renders_frontend_student_progress_stats(): void

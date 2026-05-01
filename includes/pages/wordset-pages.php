@@ -7132,6 +7132,10 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
     $assignable_teachers = $is_admin_user && function_exists('ll_tools_teacher_class_get_assignable_teachers')
         ? ll_tools_teacher_class_get_assignable_teachers()
         : [];
+    $can_directly_assign_students = $is_admin_user;
+    $assignable_students = ($selected_class instanceof WP_Post && $can_directly_assign_students && function_exists('ll_tools_teacher_class_get_assignable_students'))
+        ? ll_tools_teacher_class_get_assignable_students((int) $selected_class->ID)
+        : [];
     $signup_input_id = 'll-teacher-class-signup-link-' . (int) (($selected_class instanceof WP_Post) ? $selected_class->ID : 0);
     $redirect_to = function_exists('ll_tools_get_current_request_url')
         ? ll_tools_get_current_request_url()
@@ -7327,6 +7331,41 @@ function ll_tools_wordset_page_render_teacher_classes_view(WP_Term $wordset_term
                     </section>
 
                     <div class="ll-teacher-classes__action-grid">
+                        <?php if ($can_directly_assign_students) : ?>
+                            <section class="ll-teacher-classes__panel">
+                                <div class="ll-teacher-classes__panel-head">
+                                    <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Add existing learner', 'll-tools-text-domain'); ?></h3>
+                                </div>
+                                <?php if (empty($assignable_students)) : ?>
+                                    <div class="ll-teacher-classes__empty">
+                                        <?php echo esc_html__('No eligible learner accounts are currently available to assign.', 'll-tools-text-domain'); ?>
+                                    </div>
+                                <?php else : ?>
+                                    <form class="ll-teacher-classes__form" method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                                        <input type="hidden" name="action" value="ll_tools_teacher_assign_class_student" />
+                                        <input type="hidden" name="class_id" value="<?php echo esc_attr((string) $selected_class->ID); ?>" />
+                                        <input type="hidden" name="ll_tools_teacher_redirect_to" value="<?php echo esc_attr($selected_classes_url); ?>" />
+                                        <?php wp_nonce_field('ll_tools_teacher_assign_class_student_' . (int) $selected_class->ID); ?>
+                                        <label class="ll-teacher-classes__field">
+                                            <span class="ll-teacher-classes__field-label"><?php echo esc_html__('Learner account', 'll-tools-text-domain'); ?></span>
+                                            <select class="ll-teacher-classes__input" name="ll_tools_teacher_assign_user_id" required>
+                                                <option value=""><?php echo esc_html__('Select a learner account', 'll-tools-text-domain'); ?></option>
+                                                <?php foreach ($assignable_students as $assignable_student) : ?>
+                                                    <?php if (!($assignable_student instanceof WP_User)) { continue; } ?>
+                                                    <option value="<?php echo esc_attr((string) $assignable_student->ID); ?>">
+                                                        <?php echo esc_html(ll_tools_teacher_class_user_option_label($assignable_student)); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </label>
+                                        <button type="submit" class="ll-study-btn ll-vocab-lesson-mode-button ll-teacher-classes__button">
+                                            <?php echo esc_html__('Add learner', 'll-tools-text-domain'); ?>
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </section>
+                        <?php endif; ?>
+
                         <section class="ll-teacher-classes__panel">
                             <div class="ll-teacher-classes__panel-head">
                                 <h3 class="ll-teacher-classes__panel-title"><?php echo esc_html__('Invite learner', 'll-tools-text-domain'); ?></h3>
