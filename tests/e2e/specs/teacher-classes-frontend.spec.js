@@ -1,0 +1,178 @@
+const { test, expect } = require('@playwright/test');
+const { ensureLoggedIntoAdmin, hasAdminCredentials } = require('../helpers/admin');
+
+test.describe.configure({ timeout: 240000 });
+
+function uniqueSuffix() {
+  return `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+}
+
+async function adminRest(page, path, { method = 'GET', body = null } = {}) {
+  const result = await page.evaluate(async ({ requestPath, requestMethod, requestBody }) => {
+    const nonce = window.wpApiSettings && window.wpApiSettings.nonce;
+    if (!nonce) {
+      return { error: 'missing-rest-nonce' };
+    }
+
+    const response = await fetch(requestPath, {
+      method: requestMethod,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': nonce
+      },
+      body: requestBody ? JSON.stringify(requestBody) : undefined
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = null;
+    }
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data
+    };
+  }, { requestPath: path, requestMethod: method, requestBody: body });
+
+  if (!result || result.error) {
+    throw new Error(`REST ${method} ${path} failed: ${result && result.error ? result.error : 'unknown error'}`);
+  }
+  if (!result.ok) {
+    throw new Error(`REST ${method} ${path} failed: HTTP ${result.status} ${JSON.stringify(result.data)}`);
+  }
+
+  return result.data;
+}
+
+async function createTeacherFixtures(page) {
+  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+
+  const suffix = uniqueSuffix();
+  const wordsetSlug = `e2e-teacher-classes-${suffix}`;
+  const wordset = await adminRest(page, '/wp-json/wp/v2/wordsets', {
+    method: 'POST',
+    body: {
+      name: `E2E Teacher Classes ${suffix}`,
+      slug: wordsetSlug
+    }
+  });
+
+  const username = `e2e_teacher_${suffix.replace(/-/g, '_')}`;
+  const password = `TeacherPass!${suffix}`;
+  const user = await adminRest(page, '/wp-json/wp/v2/users', {
+    method: 'POST',
+    body: {
+      username,
+      email: `${username}@example.test`,
+      password,
+      roles: ['ll_tools_teacher']
+    }
+  });
+
+  if (!wordset || !wordset.id || !user || !user.id) {
+    throw new Error('Failed to create teacher-class fixtures.');
+  }
+
+  return {
+    password,
+    userId: user.id,
+    username,
+    wordsetId: wordset.id,
+    wordsetSlug
+  };
+}
+
+async function deleteTeacherFixtures(page, fixtures) {
+  if (!fixtures) {
+    return;
+  }
+
+  await page.context().clearCookies().catch(() => {});
+  await ensureLoggedIntoAdmin(page, '/wp-admin/post-new.php?post_type=page');
+
+  if (fixtures.userId) {
+    await adminRest(page, `/wp-json/wp/v2/users/${fixtures.userId}?force=true&reassign=1`, {
+      method: 'DELETE'
+    }).catch(() => {});
+  }
+
+  if (fixtures.wordsetId) {
+    await adminRest(page, `/wp-json/wp/v2/wordsets/${fixtures.wordsetId}?force=true`, {
+      method: 'DELETE'
+    }).catch(() => {});
+  }
+}
+
+async function loginAsUser(page, username, password, targetPath) {
+  await page.context().clearCookies();
+  await page.goto(`/wp-login.php?redirect_to=${encodeURIComponent(targetPath)}`, {
+    waitUntil: 'domcontentloaded'
+  });
+
+  await expect(page.locator('#loginform')).toBeVisible({ timeout: 30000 });
+  await page.fill('#user_login', username);
+  await page.fill('#user_pass', password);
+  await page.click('#wp-submit');
+  await page.waitForURL((url) => !/wp-login\.php/.test(url.toString()), {
+    timeout: 60000
+  }).catch(() => {});
+
+  if (!page.url().includes('ll_wordset_view=classes')) {
+    await page.goto(targetPath, { waitUntil: 'domcontentloaded' });
+  }
+}
+
+async function deleteSelectedClass(page, className) {
+  const selectedClass = page.locator('.ll-teacher-classes__list-card.is-selected').filter({
+    has: page.getByRole('heading', { name: className, exact: true })
+  });
+  await expect(selectedClass).toBeVisible();
+  const deleteForm = selectedClass.locator('form:has(input[name="action"][value="ll_tools_teacher_delete_class"])');
+  await expect(deleteForm).toHaveCount(1);
+  await Promise.all([
+    page.waitForURL((url) => !url.searchParams.has('class_id'), { timeout: 60000 }),
+    deleteForm.evaluate((form) => HTMLFormElement.prototype.submit.call(form))
+  ]);
+}
+
+test('teacher can create a frontend class and stays on the new class', async ({ page }) => {
+  test.skip(!hasAdminCredentials(), 'LL_E2E_ADMIN_USER and LL_E2E_ADMIN_PASS are required for teacher class E2E tests.');
+
+  let fixtures = null;
+  const className = `E2E Teacher Frontend Class ${uniqueSuffix()}`;
+
+  try {
+    fixtures = await createTeacherFixtures(page);
+    const classesPath = `/?ll_wordset_page=${encodeURIComponent(fixtures.wordsetSlug)}&ll_wordset_view=classes`;
+
+    await loginAsUser(page, fixtures.username, fixtures.password, classesPath);
+
+    const root = page.locator('[data-ll-teacher-classes]');
+    await expect(root).toBeVisible({ timeout: 60000 });
+    await expect(root.getByRole('heading', { name: 'New class', exact: true })).toBeVisible();
+    await expect(root.getByText('Create a class to start inviting learners.')).toBeVisible();
+
+    const createForm = root.locator('form:has(input[name="action"][value="ll_tools_teacher_create_class"])');
+    await expect(createForm).toHaveCount(1);
+    await expect(createForm.locator('input[name="ll_tools_teacher_class_wordset_id"]')).toHaveValue(String(fixtures.wordsetId));
+    await createForm.locator('input[name="ll_tools_teacher_class_name"]').fill(className);
+
+    await Promise.all([
+      page.waitForURL((url) => url.searchParams.has('class_id'), { timeout: 60000 }),
+      createForm.getByRole('button', { name: 'Create class' }).click()
+    ]);
+
+    await expect(page.locator('.ll-wordset-progress-reset-notice--success')).toContainText(`Created class: ${className}`);
+    await expect(root.locator('.ll-teacher-classes__list-card.is-selected').getByRole('heading', { name: className, exact: true })).toBeVisible();
+    await expect(root.locator('.ll-teacher-classes__detail').getByRole('heading', { name: className, exact: true })).toBeVisible();
+    await expect(root.locator('.ll-teacher-classes__detail')).toContainText('No learners have joined this class yet.');
+
+    await deleteSelectedClass(page, className);
+    await expect(root.getByText('Create a class to start inviting learners.')).toBeVisible({ timeout: 60000 });
+  } finally {
+    await deleteTeacherFixtures(page, fixtures);
+  }
+});

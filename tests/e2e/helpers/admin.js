@@ -48,7 +48,7 @@ async function ensureLoggedIntoAdmin(page, targetPath = '/wp-admin/') {
   await page.goto(targetPath, { waitUntil: 'domcontentloaded' });
 
   const loginForm = page.locator('#loginform');
-  if ((await loginForm.count()) > 0) {
+  if (/\/wp-login\.php/.test(page.url()) || (await loginForm.count()) > 0) {
     await expect(page.locator('#user_login')).toBeVisible({ timeout: 30000 });
     await page.fill('#user_login', ADMIN_USER);
     await page.fill('#user_pass', ADMIN_PASS);

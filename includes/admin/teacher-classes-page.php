@@ -105,32 +105,11 @@ if (!function_exists('ll_tools_teacher_classes_requested_redirect_url')) {
 
 if (!function_exists('ll_tools_teacher_classes_redirect_with_notice')) {
     function ll_tools_teacher_classes_redirect_with_notice(string $fallback_url, string $type, string $message): void {
-        $redirect_url = ll_tools_teacher_classes_requested_redirect_url($fallback_url);
-
-        $fallback_query = (string) wp_parse_url($fallback_url, PHP_URL_QUERY);
-        if ($fallback_query !== '') {
-            $fallback_query_args = [];
-            parse_str($fallback_query, $fallback_query_args);
-            $redirect_query_args = [];
-            $redirect_query = (string) wp_parse_url($redirect_url, PHP_URL_QUERY);
-            if ($redirect_query !== '') {
-                parse_str($redirect_query, $redirect_query_args);
-            }
-
-            $fallback_class_id = isset($fallback_query_args['class_id'])
-                ? max(0, (int) $fallback_query_args['class_id'])
-                : 0;
-            if (
-                $fallback_class_id > 0
-                && !isset($redirect_query_args['class_id'])
-            ) {
-                $redirect_url = add_query_arg(
-                    'class_id',
-                    $fallback_class_id,
-                    $redirect_url
-                );
-            }
+        $redirect_url = trim($fallback_url);
+        if ($redirect_url === '') {
+            $redirect_url = ll_tools_get_teacher_classes_page_url();
         }
+        $redirect_url = (string) wp_validate_redirect($redirect_url, ll_tools_get_teacher_classes_page_url());
 
         $redirect_url = remove_query_arg([
             'll_tools_teacher_notice_type',

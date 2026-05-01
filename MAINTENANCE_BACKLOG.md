@@ -15,7 +15,10 @@ decisions, and documentation upkeep.
 1. Add browser/source-contract coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid, including prerequisite ordering.
    - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
-   - Teacher class creation, assignment, progress views, and limited-role `admin-post.php` redirects.
+   - Teacher class assignment, invite, and progress-table flows. Teacher class
+     creation now has frontend Playwright coverage for a teacher-role user,
+     including the limited-role `admin-post.php` path and selected-class
+     redirect.
    - Offline app shell launch/sync behavior.
    - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
    - The Site Tools frontend now has Playwright coverage for admin form wiring,

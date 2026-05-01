@@ -235,6 +235,8 @@ Representative E2E coverage areas:
   - Verifies Self-check groups words that share one image into a single review card while preserving per-word answer audio.
 - `tests/e2e/specs/site-tools-frontend.spec.js`
   - Verifies the frontend `[ll_site_tools]` workspace exposes admin setting forms, recording-type controls, managed-page controls, and maintenance actions, including a safe cache-flush submit path and mobile overflow check.
+- `tests/e2e/specs/teacher-classes-frontend.spec.js`
+  - Verifies a teacher-role user can create a class from the frontend wordset classes page, return to the newly selected class, see the success notice, and delete the class again.
 - `tests/e2e/specs/transcription-manager-review-filter-regression.spec.js`
   - Verifies marking a transcription as reviewed updates the row in place and does not auto-refresh the filtered result list out from under the current admin session.
 - `tests/e2e/specs/vocab-lesson-bulk-editor-mobile.spec.js`
@@ -250,7 +252,7 @@ Representative E2E coverage areas:
 - Known E2E coverage gaps still worth adding:
   - Content lessons and mixed lesson-grid behavior.
   - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
-  - Teacher class management and progress views.
+  - Teacher class assignment/invite/progress-table flows beyond the covered frontend create/delete path.
   - Offline app shell launch/sync behavior.
   - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
 - `tests/e2e/specs/wordset-pages-listening-launch.spec.js`

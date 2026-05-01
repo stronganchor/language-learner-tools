@@ -502,6 +502,54 @@ final class TeacherClassesTest extends LL_Tools_TestCase
         $this->assertNotSame('', $this->getQueryArgFromUrl($redirect_url, LL_TOOLS_TEACHER_CLASS_NOTICE_QUERY_ARG));
     }
 
+    public function test_teacher_delete_class_action_removes_deleted_class_from_frontend_redirect(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $wordset_id = $this->createWordset('Teacher Delete Action Wordset');
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-delete-action@example.org',
+        ]);
+        wp_set_current_user($teacher_id);
+
+        $class_id = ll_tools_teacher_class_create($teacher_id, 'Frontend Teacher Deleted Class', $wordset_id);
+        $this->assertIsInt($class_id);
+
+        $redirect_with_selected_class = add_query_arg(
+            'class_id',
+            (int) $class_id,
+            ll_tools_get_wordset_page_view_url($wordset_term, 'classes')
+        );
+        $previous_post = $_POST;
+        $previous_request = $_REQUEST;
+
+        $_POST = [
+            'action' => 'll_tools_teacher_delete_class',
+            '_wpnonce' => wp_create_nonce('ll_tools_teacher_delete_class_' . (int) $class_id),
+            'class_id' => (string) $class_id,
+            'll_tools_teacher_redirect_to' => $redirect_with_selected_class,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_handle_teacher_class_delete_action();
+            });
+        } finally {
+            $_POST = $previous_post;
+            $_REQUEST = $previous_request;
+        }
+
+        $this->assertFalse(ll_tools_teacher_class_exists((int) $class_id));
+        $this->assertStringStartsWith(ll_tools_get_wordset_page_view_url($wordset_term, 'classes'), $redirect_url);
+        $this->assertSame('', $this->getQueryArgFromUrl($redirect_url, 'class_id'));
+        $this->assertNotSame('', $this->getQueryArgFromUrl($redirect_url, LL_TOOLS_TEACHER_CLASS_NOTICE_QUERY_ARG));
+    }
+
     public function test_admin_classes_page_renders_manual_assignment_controls(): void
     {
         ll_tools_register_or_refresh_teacher_role();
