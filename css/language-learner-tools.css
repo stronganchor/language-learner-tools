@@ -338,42 +338,6 @@ p:has(.ll-word-audio) {
     display: block;
 }
 
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recordings--with-interlinear {
-    width: 100% !important;
-}
-
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear {
-    display: grid !important;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: flex-start !important;
-    gap: 8px 10px !important;
-    width: 100%;
-}
-
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear > .ll-word-recording-text {
-    align-self: center !important;
-}
-
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear > .ll-word-recording-interlinear {
-    grid-column: 1 / -1;
-}
-
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.ll-word-recording-row--editable {
-    padding-right: 0;
-}
-
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear .ll-word-recording-edit-trigger {
-    position: static;
-    align-self: start;
-    transform: scale(0.92);
-}
-
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear:hover .ll-word-recording-edit-trigger,
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear:focus-within .ll-word-recording-edit-trigger,
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.is-edit-trigger-visible .ll-word-recording-edit-trigger {
-    transform: scale(1);
-}
-
 @media (max-width: 820px) {
     .ll-interlinear__summary {
         align-items: flex-start;
@@ -2684,6 +2648,14 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     margin-right: auto !important;
 }
 
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recordings--with-interlinear {
+    align-items: stretch !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
 .word-grid.ll-word-grid .ll-word-recording-row {
     display: flex !important;
     align-items: center !important;
@@ -2698,8 +2670,39 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     margin-right: 0 !important;
 }
 
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: flex-start !important;
+    gap: 8px 10px !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear > .ll-word-recording-text {
+    align-self: center !important;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear > .ll-word-recording-interlinear {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-interlinear .ll-interlinear-grid {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
 .word-grid.ll-word-grid .ll-word-recording-row--editable {
     padding-right: 36px;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.ll-word-recording-row--editable {
+    padding-right: 0;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-text {
@@ -2816,6 +2819,18 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     width: 14px;
     height: 14px;
     display: block;
+}
+
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear .ll-word-recording-edit-trigger {
+    position: static;
+    align-self: start;
+    transform: scale(0.92);
+}
+
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear:hover .ll-word-recording-edit-trigger,
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear:focus-within .ll-word-recording-edit-trigger,
+.word-grid.ll-word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.is-edit-trigger-visible .ll-word-recording-edit-trigger {
+    transform: scale(1);
 }
 
 .word-grid.ll-word-grid .ll-word-recording-row--launch {

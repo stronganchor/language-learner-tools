@@ -513,6 +513,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('Dara tenya.', $staff_output);
         $this->assertStringContainsString('class="ll-interlinear-table"', $staff_output);
         $this->assertStringContainsString('low-certainty', $staff_output);
+        $this->assertStringNotContainsString('ll-interlinear-line__text', $staff_output);
         $this->assertStringNotContainsString('Confidence', $staff_output);
 
         $first_row_position = strpos($staff_output, 'll-word-recording-row--has-interlinear" data-recording-id="' . (int) $recording_id . '"');

@@ -650,18 +650,19 @@ function ll_tools_interlinear_render_phrase_row(array $line, array $tokens): str
     return '<tr class="phrase-row"><th scope="row">' . esc_html__('PHRASE', 'll-tools-text-domain') . '</th>' . $cells . '</tr>';
 }
 
-function ll_tools_render_interlinear_line(array $line): string {
+function ll_tools_render_interlinear_line(array $line, bool $show_line_text = true): string {
     $line_text = ll_tools_interlinear_scalar($line, ['text', 'text_projected', 'sentence']);
+    $display_line_text = $show_line_text ? $line_text : '';
     $tokens = isset($line['tokens']) && is_array($line['tokens']) ? array_values(array_filter($line['tokens'], 'is_array')) : [];
-    if ($line_text === '' && empty($tokens)) {
+    if ($display_line_text === '' && empty($tokens)) {
         return '';
     }
 
     ob_start();
     ?>
     <article class="ll-interlinear-line">
-        <?php if ($line_text !== '') : ?>
-            <div class="ll-interlinear-line__text" dir="auto"><?php echo esc_html($line_text); ?></div>
+        <?php if ($display_line_text !== '') : ?>
+            <div class="ll-interlinear-line__text" dir="auto"><?php echo esc_html($display_line_text); ?></div>
         <?php endif; ?>
         <?php if (!empty($tokens)) : ?>
             <div class="ll-interlinear-grid">
@@ -683,13 +684,13 @@ function ll_tools_render_interlinear_line(array $line): string {
     return trim((string) ob_get_clean());
 }
 
-function ll_tools_render_interlinear_lines(array $lines): string {
+function ll_tools_render_interlinear_lines(array $lines, bool $show_line_text = true): string {
     $html = '';
     foreach ($lines as $line) {
         if (!is_array($line)) {
             continue;
         }
-        $html .= ll_tools_render_interlinear_line($line);
+        $html .= ll_tools_render_interlinear_line($line, $show_line_text);
     }
 
     if ($html === '') {
@@ -859,7 +860,7 @@ function ll_tools_render_recording_interlinear_block(int $lesson_id, array $reco
     }
 
     $lines = ll_tools_interlinear_lines_for_recording($lesson_id, $recording_row, $word_text);
-    $lines_html = ll_tools_render_interlinear_lines($lines);
+    $lines_html = ll_tools_render_interlinear_lines($lines, false);
     if ($lines_html === '') {
         return '';
     }
