@@ -17,8 +17,10 @@ decisions, and documentation upkeep.
    - Prompt-card quiz payloads, prompt-card lesson grids, and recorder queue flows.
    - Teacher class creation, assignment, progress views, and limited-role `admin-post.php` redirects.
    - Offline app shell launch/sync behavior.
-   - Site Tools frontend maintenance actions.
    - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
+   - The Site Tools frontend now has Playwright coverage for admin form wiring,
+     recording-type controls, managed-page controls, maintenance action wiring,
+     a safe cache-flush submit path, and mobile overflow.
    - A lightweight Playwright source-contract spec now checks that registered
      public shortcodes stay listed in `README.md` and that high-confidence
      user-facing PHP/JS string contexts use translation-ready wrappers. Keep
