@@ -162,6 +162,150 @@ final class AdminImportAjaxJobFlowTest extends LL_Tools_TestCase
         }
     }
 
+    public function test_ajax_chunked_preview_upload_start_rejects_zip_over_staging_limit(): void
+    {
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $max_size_filter = static function (): int {
+            return 100;
+        };
+        $startResponse = [];
+        add_filter('ll_tools_import_chunk_upload_max_total_bytes', $max_size_filter);
+
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_FILES = [];
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                'action' => 'll_tools_import_preview_upload_start',
+                'filename' => 'oversize-import.zip',
+                'total_size' => '101',
+                'total_chunks' => '1',
+            ];
+            $_REQUEST = $_POST;
+
+            $startResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_preview_upload_start();
+            });
+        } finally {
+            remove_filter('ll_tools_import_chunk_upload_max_total_bytes', $max_size_filter);
+        }
+
+        $this->assertFalse($startResponse['success']);
+        $this->assertStringContainsString('upload staging limit', (string) ($startResponse['data']['message'] ?? ''));
+    }
+
+    public function test_ajax_chunked_preview_upload_start_rejects_too_many_chunks(): void
+    {
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $max_chunks_filter = static function (): int {
+            return 2;
+        };
+        $startResponse = [];
+        add_filter('ll_tools_import_chunk_upload_max_chunks', $max_chunks_filter);
+
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_FILES = [];
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                'action' => 'll_tools_import_preview_upload_start',
+                'filename' => 'too-many-chunks.zip',
+                'total_size' => '12',
+                'total_chunks' => '3',
+            ];
+            $_REQUEST = $_POST;
+
+            $startResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_preview_upload_start();
+            });
+        } finally {
+            remove_filter('ll_tools_import_chunk_upload_max_chunks', $max_chunks_filter);
+        }
+
+        $this->assertFalse($startResponse['success']);
+        $this->assertStringContainsString('too many upload chunks', (string) ($startResponse['data']['message'] ?? ''));
+    }
+
+    public function test_ajax_chunked_preview_upload_chunk_rejects_chunk_over_staging_limit(): void
+    {
+        $adminId = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($adminId);
+
+        $uploadId = '';
+        $chunkTmpPath = '';
+        $chunkResponse = [];
+        $max_chunk_filter = static function (): int {
+            return 4;
+        };
+
+        try {
+            $_SERVER['REQUEST_METHOD'] = 'POST';
+            $_FILES = [];
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                'action' => 'll_tools_import_preview_upload_start',
+                'filename' => 'chunk-limit-import.zip',
+                'total_size' => '16',
+                'total_chunks' => '2',
+            ];
+            $_REQUEST = $_POST;
+
+            $startResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_preview_upload_start();
+            });
+
+            $this->assertTrue($startResponse['success']);
+            $uploadId = (string) ($startResponse['data']['uploadId'] ?? '');
+            $this->assertNotSame('', $uploadId);
+
+            $chunkTmpPath = wp_tempnam('ll-tools-import-upload-chunk-too-large.part');
+            $this->assertIsString($chunkTmpPath);
+            file_put_contents($chunkTmpPath, '12345');
+
+            add_filter('ll_tools_import_chunk_upload_max_chunk_bytes', $max_chunk_filter);
+            $_FILES = [
+                'll_import_chunk' => [
+                    'name' => 'chunk-0.part',
+                    'type' => 'application/octet-stream',
+                    'tmp_name' => $chunkTmpPath,
+                    'error' => UPLOAD_ERR_OK,
+                    'size' => 5,
+                ],
+            ];
+            $_POST = [
+                'nonce' => wp_create_nonce('ll_tools_import_chunk_upload_ajax'),
+                'action' => 'll_tools_import_preview_upload_chunk',
+                'upload_id' => $uploadId,
+                'chunk_index' => '0',
+            ];
+            $_REQUEST = $_POST;
+
+            $chunkResponse = $this->run_json_endpoint(static function (): void {
+                ll_tools_ajax_import_preview_upload_chunk();
+            });
+        } finally {
+            remove_filter('ll_tools_import_chunk_upload_max_chunk_bytes', $max_chunk_filter);
+            if ($uploadId !== '') {
+                $chunkPath = ll_tools_import_chunk_upload_chunk_path($uploadId, 0);
+                $this->assertFalse(file_exists($chunkPath));
+                if (file_exists(ll_tools_import_chunk_upload_session_dir($uploadId))) {
+                    ll_tools_import_job_delete_path(ll_tools_import_chunk_upload_session_dir($uploadId));
+                }
+            }
+            if ($chunkTmpPath !== '' && file_exists($chunkTmpPath)) {
+                @unlink($chunkTmpPath);
+            }
+            $_FILES = [];
+        }
+
+        $this->assertFalse($chunkResponse['success']);
+        $this->assertStringContainsString('one upload chunk', (string) ($chunkResponse['data']['message'] ?? ''));
+    }
+
     public function test_ajax_import_start_accepts_preview_token_from_url_style_field(): void
     {
         if (!class_exists('ZipArchive')) {

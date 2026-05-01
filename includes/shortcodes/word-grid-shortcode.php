@@ -3850,7 +3850,8 @@ function ll_tools_word_grid_store_uploaded_image_attachment(array $file, string 
         $file_error,
         $allowed_image_types,
         $allowed_image_extensions,
-        $require_uploaded_file
+        $require_uploaded_file,
+        isset($file['size']) ? (int) $file['size'] : null
     );
     if (empty($validation['valid'])) {
         $message = isset($validation['error']) ? (string) $validation['error'] : '';

@@ -121,6 +121,8 @@ Routes:
 - `GET /wordsets/{wordset}/report-summary`
 - `GET /wordsets/{wordset}/review-notes`
 - `POST /wordsets/{wordset}/review-notes`
+- `GET /wordsets/{wordset}/interlinear`
+- `POST /wordsets/{wordset}/interlinear`
 - `POST /imports/preview`
 - `POST /imports/start`
 - `GET /imports/{job_id}`
@@ -131,6 +133,15 @@ Routes:
 Word-option-rule updates should use `POST
 /wordsets/{wordset}/word-option-rules` instead of wp-admin form replay around
 `ll_tools_save_word_option_rules_async`.
+
+Interlinear automation should use `GET /wordsets/{wordset}/interlinear` to list
+content/vocab lessons and current payload status. Add `lesson=<post ID, slug, or
+interlinear lesson ID>`, `post_type=ll_content_lesson|ll_vocab_lesson`,
+`include_empty=0`, or `include_payload=0` to narrow the response. Use `POST
+/wordsets/{wordset}/interlinear` with either one payload object or an `items`
+array. Each item can identify the target lesson by post ID, slug, lesson value,
+interlinear lesson ID, or vocab category. Send `dry_run=true` first, and send
+`delete=true` or `clear=true` to remove an existing payload.
 
 `{wordset}` can be a stable wordset slug such as `spanish` or `genc-palu`.
 

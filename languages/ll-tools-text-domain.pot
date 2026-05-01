@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-05-01T08:50:50+00:00\n"
+"POT-Creation-Date: 2026-05-01T09:38:17+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -233,7 +233,7 @@ msgstr ""
 #: includes/admin/admin-dashboard-menu.php:741
 #: includes/admin/admin-dashboard-menu.php:742
 #: includes/admin/uploads/audio-upload-form.php:415
-#: includes/admin/uploads/image-upload-form.php:571
+#: includes/admin/uploads/image-upload-form.php:592
 #: includes/taxonomies/wordset-taxonomy.php:975
 #: includes/taxonomies/wordset-taxonomy.php:992
 #: includes/taxonomies/wordset-taxonomy.php:999
@@ -556,7 +556,7 @@ msgstr ""
 #: includes/admin/api/assemblyai-api.php:284
 #: includes/shortcodes/audio-recording-shortcode.php:3310
 #: includes/shortcodes/audio-recording-shortcode.php:3369
-#: includes/shortcodes/word-grid-shortcode.php:9336
+#: includes/shortcodes/word-grid-shortcode.php:9337
 msgid "AssemblyAI transcription failed."
 msgstr ""
 
@@ -642,8 +642,8 @@ msgstr ""
 #: includes/admin/audio-image-matcher.php:93
 #: includes/admin/uploads/audio-upload-form.php:405
 #: includes/admin/uploads/audio-upload-form.php:458
-#: includes/admin/uploads/image-upload-form.php:561
-#: includes/admin/uploads/image-upload-form.php:614
+#: includes/admin/uploads/image-upload-form.php:582
+#: includes/admin/uploads/image-upload-form.php:635
 #: templates/audio-image-matcher-template.php:33
 msgid "— Select —"
 msgstr ""
@@ -677,23 +677,23 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:5043
 #: includes/admin/ipa-keyboard-admin.php:5105
 #: includes/shortcodes/editor-hub-shortcode.php:975
-#: includes/shortcodes/word-grid-shortcode.php:6416
-#: includes/shortcodes/word-grid-shortcode.php:6557
-#: includes/shortcodes/word-grid-shortcode.php:6678
-#: includes/shortcodes/word-grid-shortcode.php:7305
-#: includes/shortcodes/word-grid-shortcode.php:7312
-#: includes/shortcodes/word-grid-shortcode.php:7385
-#: includes/shortcodes/word-grid-shortcode.php:7476
-#: includes/shortcodes/word-grid-shortcode.php:7553
-#: includes/shortcodes/word-grid-shortcode.php:7626
-#: includes/shortcodes/word-grid-shortcode.php:7629
-#: includes/shortcodes/word-grid-shortcode.php:7651
-#: includes/shortcodes/word-grid-shortcode.php:7680
-#: includes/shortcodes/word-grid-shortcode.php:7683
-#: includes/shortcodes/word-grid-shortcode.php:8219
-#: includes/shortcodes/word-grid-shortcode.php:8833
-#: includes/shortcodes/word-grid-shortcode.php:8926
-#: includes/shortcodes/word-grid-shortcode.php:9154
+#: includes/shortcodes/word-grid-shortcode.php:6417
+#: includes/shortcodes/word-grid-shortcode.php:6558
+#: includes/shortcodes/word-grid-shortcode.php:6679
+#: includes/shortcodes/word-grid-shortcode.php:7306
+#: includes/shortcodes/word-grid-shortcode.php:7313
+#: includes/shortcodes/word-grid-shortcode.php:7386
+#: includes/shortcodes/word-grid-shortcode.php:7477
+#: includes/shortcodes/word-grid-shortcode.php:7554
+#: includes/shortcodes/word-grid-shortcode.php:7627
+#: includes/shortcodes/word-grid-shortcode.php:7630
+#: includes/shortcodes/word-grid-shortcode.php:7652
+#: includes/shortcodes/word-grid-shortcode.php:7681
+#: includes/shortcodes/word-grid-shortcode.php:7684
+#: includes/shortcodes/word-grid-shortcode.php:8220
+#: includes/shortcodes/word-grid-shortcode.php:8834
+#: includes/shortcodes/word-grid-shortcode.php:8927
+#: includes/shortcodes/word-grid-shortcode.php:9155
 msgid "Forbidden"
 msgstr ""
 
@@ -786,7 +786,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:155
 #: includes/admin/audio-processor-admin.php:654
 #: includes/pages/wordset-editor.php:2653
-#: includes/shortcodes/word-grid-shortcode.php:4613
+#: includes/shortcodes/word-grid-shortcode.php:4614
 msgid "Edit word"
 msgstr ""
 
@@ -800,7 +800,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:929
 #: includes/admin/offline-app-export.php:1596
 #: includes/admin/split-word-admin.php:177
-#: includes/shortcodes/word-grid-shortcode.php:4664
+#: includes/shortcodes/word-grid-shortcode.php:4665
 #: templates/offline-app-shell-template.php:701
 #: templates/vocab-lesson-template.php:471
 msgid "Cancel"
@@ -830,7 +830,7 @@ msgstr ""
 #: includes/privacy.php:556
 #: includes/shortcodes/editor-hub-shortcode.php:510
 #: includes/shortcodes/editor-hub-shortcode.php:1052
-#: includes/shortcodes/word-grid-shortcode.php:4616
+#: includes/shortcodes/word-grid-shortcode.php:4617
 msgid "Word"
 msgstr ""
 
@@ -841,8 +841,8 @@ msgstr ""
 
 #: includes/admin/audio-processor-admin.php:160
 #: includes/admin/audio-processor-admin.php:685
-#: includes/admin/export-import.php:11082
-#: includes/admin/export-import.php:11117
+#: includes/admin/export-import.php:11154
+#: includes/admin/export-import.php:11189
 #: includes/admin/user-progress-report.php:991
 #: includes/pages/wordset-editor.php:462
 #: includes/pages/wordset-editor.php:2603
@@ -855,7 +855,7 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:668
 #: includes/shortcodes/editor-hub-shortcode.php:1053
 #: includes/shortcodes/editor-hub-shortcode.php:1080
-#: includes/shortcodes/word-grid-shortcode.php:4617
+#: includes/shortcodes/word-grid-shortcode.php:4618
 msgid "Translation"
 msgstr ""
 
@@ -1200,7 +1200,7 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:432
 #: includes/shortcodes/audio-recording-shortcode.php:3274
 #: includes/shortcodes/audio-recording-shortcode.php:6086
-#: includes/shortcodes/word-grid-shortcode.php:6429
+#: includes/shortcodes/word-grid-shortcode.php:6430
 msgid "Invalid audio upload."
 msgstr ""
 
@@ -1213,7 +1213,7 @@ msgstr ""
 #: includes/admin/audio-processor-admin.php:1110
 #: includes/shortcodes/audio-recording-shortcode.php:5276
 #: includes/shortcodes/audio-recording-shortcode.php:6296
-#: includes/shortcodes/word-grid-shortcode.php:6488
+#: includes/shortcodes/word-grid-shortcode.php:6489
 #, php-format
 msgid "Failed to save file: %s"
 msgstr ""
@@ -1434,7 +1434,7 @@ msgid "ID"
 msgstr ""
 
 #: includes/admin/bulk-translation-admin.php:152
-#: includes/admin/export-import.php:11079
+#: includes/admin/export-import.php:11151
 msgid "Title"
 msgstr ""
 
@@ -1485,7 +1485,7 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:1627
 #: includes/pages/wordset-editor.php:2469
 #: includes/shortcodes/editor-hub-shortcode.php:1083
-#: includes/shortcodes/word-grid-shortcode.php:4627
+#: includes/shortcodes/word-grid-shortcode.php:4628
 msgid "Image"
 msgstr ""
 
@@ -1499,7 +1499,7 @@ msgstr ""
 #: includes/admin/recording-types-admin.php:207
 #: includes/shortcodes/word-grid-shortcode.php:2043
 #: includes/shortcodes/word-grid-shortcode.php:2044
-#: includes/shortcodes/word-grid-shortcode.php:4663
+#: includes/shortcodes/word-grid-shortcode.php:4664
 #: templates/vocab-lesson-template.php:1037
 msgid "Save"
 msgstr ""
@@ -2161,8 +2161,8 @@ msgid "You do not have permission to process dictionary imports."
 msgstr ""
 
 #: includes/admin/dictionary-import-admin.php:1663
-#: includes/admin/export-import.php:10012
-#: includes/admin/export-import.php:10052
+#: includes/admin/export-import.php:10084
+#: includes/admin/export-import.php:10124
 #: includes/api/automation-rest.php:2430
 msgid "The requested import job could not be found."
 msgstr ""
@@ -2215,7 +2215,7 @@ msgstr ""
 #: includes/admin/teacher-classes-page.php:632
 #: includes/admin/teacher-classes-page.php:690
 #: includes/admin/uploads/audio-upload-form.php:403
-#: includes/admin/uploads/image-upload-form.php:559
+#: includes/admin/uploads/image-upload-form.php:580
 #: includes/pages/wordset-pages.php:8439
 #: includes/pages/wordset-pages.php:8916
 #: includes/pages/wordset-pages.php:12082
@@ -2548,7 +2548,7 @@ msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:765
 #: includes/admin/uploads/audio-upload-form.php:443
-#: includes/admin/uploads/image-upload-form.php:599
+#: includes/admin/uploads/image-upload-form.php:620
 msgid "Use existing category"
 msgstr ""
 
@@ -2609,7 +2609,7 @@ msgstr ""
 
 #: includes/admin/duplicate-category-words-admin.php:873
 #: includes/cli/cli-support.php:755
-#: includes/shortcodes/word-grid-shortcode.php:8689
+#: includes/shortcodes/word-grid-shortcode.php:8690
 msgid "Plurality is not enabled for this word set."
 msgstr ""
 
@@ -2848,8 +2848,8 @@ msgstr ""
 #: includes/admin/export-import.php:608
 #: includes/shortcodes/audio-recording-shortcode.php:30
 #: includes/shortcodes/editor-hub-shortcode.php:301
-#: includes/shortcodes/word-grid-shortcode.php:4577
-#: includes/shortcodes/word-grid-shortcode.php:6146
+#: includes/shortcodes/word-grid-shortcode.php:4578
+#: includes/shortcodes/word-grid-shortcode.php:6147
 #: includes/taxonomies/recording-type-taxonomy.php:42
 msgid "Question"
 msgstr ""
@@ -2859,8 +2859,8 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:29
 #: includes/shortcodes/editor-hub-shortcode.php:302
 #: includes/shortcodes/flashcard-widget.php:420
-#: includes/shortcodes/word-grid-shortcode.php:4578
-#: includes/shortcodes/word-grid-shortcode.php:6147
+#: includes/shortcodes/word-grid-shortcode.php:4579
+#: includes/shortcodes/word-grid-shortcode.php:6148
 #: includes/taxonomies/recording-type-taxonomy.php:41
 msgid "Isolation"
 msgstr ""
@@ -2869,8 +2869,8 @@ msgstr ""
 #: includes/shortcodes/audio-recording-shortcode.php:31
 #: includes/shortcodes/editor-hub-shortcode.php:303
 #: includes/shortcodes/flashcard-widget.php:421
-#: includes/shortcodes/word-grid-shortcode.php:4579
-#: includes/shortcodes/word-grid-shortcode.php:6148
+#: includes/shortcodes/word-grid-shortcode.php:4580
+#: includes/shortcodes/word-grid-shortcode.php:6149
 #: includes/taxonomies/recording-type-taxonomy.php:43
 msgid "Introduction"
 msgstr ""
@@ -2884,7 +2884,7 @@ msgstr ""
 #: includes/admin/orphan-media-admin.php:1778
 #: includes/admin/orphan-media-admin.php:1848
 #: includes/admin/uploads/audio-upload-form.php:523
-#: includes/admin/uploads/image-upload-form.php:680
+#: includes/admin/uploads/image-upload-form.php:701
 #: includes/admin/word-option-rules-admin.php:1628
 #: includes/admin/word-option-rules-admin.php:1671
 #: includes/pages/wordset-pages.php:8472
@@ -2957,7 +2957,7 @@ msgid "Import job data could not be encoded."
 msgstr ""
 
 #: includes/admin/export-import.php:1316
-#: includes/admin/export-import.php:9463
+#: includes/admin/export-import.php:9535
 msgid "Could not create the import job directory."
 msgstr ""
 
@@ -2978,37 +2978,37 @@ msgid "The import job data file is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1404
-#: includes/admin/export-import.php:14471
+#: includes/admin/export-import.php:14543
 msgid "Import failed: zip file is empty."
 msgstr ""
 
 #: includes/admin/export-import.php:1407
-#: includes/admin/export-import.php:14474
+#: includes/admin/export-import.php:14546
 msgid "Import failed: zip contains too many files."
 msgstr ""
 
 #: includes/admin/export-import.php:1418
-#: includes/admin/export-import.php:14484
+#: includes/admin/export-import.php:14556
 msgid "Import failed: zip metadata is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1426
-#: includes/admin/export-import.php:14492
+#: includes/admin/export-import.php:14564
 msgid "Import failed: zip contains an invalid file path."
 msgstr ""
 
 #: includes/admin/export-import.php:1431
-#: includes/admin/export-import.php:14509
+#: includes/admin/export-import.php:14581
 msgid "Import failed: zip entry size is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:1437
-#: includes/admin/export-import.php:14513
+#: includes/admin/export-import.php:14585
 msgid "Import failed: uncompressed zip size is too large."
 msgstr ""
 
 #: includes/admin/export-import.php:1468
-#: includes/admin/export-import.php:9498
+#: includes/admin/export-import.php:9570
 msgid "The import extraction directory is missing."
 msgstr ""
 
@@ -3018,30 +3018,30 @@ msgstr ""
 
 #: includes/admin/export-import.php:1485
 #: includes/admin/export-import.php:6705
-#: includes/admin/export-import.php:9882
-#: includes/admin/export-import.php:12163
+#: includes/admin/export-import.php:9954
+#: includes/admin/export-import.php:12235
 msgid "Import failed: could not open zip file."
 msgstr ""
 
 #: includes/admin/export-import.php:1495
-#: includes/admin/export-import.php:14497
+#: includes/admin/export-import.php:14569
 msgid "Import failed: zip contains an unsafe file path."
 msgstr ""
 
 #: includes/admin/export-import.php:1500
 #: includes/admin/export-import.php:1507
-#: includes/admin/export-import.php:14502
-#: includes/admin/export-import.php:14518
+#: includes/admin/export-import.php:14574
+#: includes/admin/export-import.php:14590
 msgid "Import failed: could not create extraction folders."
 msgstr ""
 
 #: includes/admin/export-import.php:1513
-#: includes/admin/export-import.php:14523
+#: includes/admin/export-import.php:14595
 msgid "Import failed: could not read a file from the zip."
 msgstr ""
 
 #: includes/admin/export-import.php:1519
-#: includes/admin/export-import.php:14529
+#: includes/admin/export-import.php:14601
 msgid "Import failed: could not write extracted files."
 msgstr ""
 
@@ -3169,10 +3169,10 @@ msgstr ""
 #: includes/admin/export-import.php:4385
 #: includes/admin/export-import.php:4571
 #: includes/admin/export-import.php:6789
-#: includes/admin/export-import.php:6975
-#: includes/admin/export-import.php:7040
-#: includes/admin/export-import.php:9861
-#: includes/admin/export-import.php:11931
+#: includes/admin/export-import.php:7033
+#: includes/admin/export-import.php:7098
+#: includes/admin/export-import.php:9933
+#: includes/admin/export-import.php:12003
 #: includes/admin/offline-app-export.php:1278
 #: includes/admin/orphan-media-admin.php:1476
 #: includes/api/automation-rest.php:2369
@@ -3306,8 +3306,8 @@ msgid "Word example sentence translation"
 msgstr ""
 
 #: includes/admin/export-import.php:2762
-#: includes/admin/export-import.php:11571
-#: includes/admin/export-import.php:11603
+#: includes/admin/export-import.php:11643
+#: includes/admin/export-import.php:11675
 #: includes/lib/wordset-language-settings.php:1099
 #: includes/pages/wordset-pages.php:10272
 #: includes/pages/wordset-pages.php:12646
@@ -3315,7 +3315,7 @@ msgid "Recording text"
 msgstr ""
 
 #: includes/admin/export-import.php:2770
-#: includes/admin/export-import.php:11577
+#: includes/admin/export-import.php:11649
 msgid "Recording translation"
 msgstr ""
 
@@ -3920,7 +3920,7 @@ msgstr ""
 #: includes/admin/word-option-rules-admin.php:1672
 #: includes/pages/wordset-editor.php:2170
 #: includes/shortcodes/flashcard-widget.php:419
-#: includes/shortcodes/word-grid-shortcode.php:4611
+#: includes/shortcodes/word-grid-shortcode.php:4612
 #, php-format
 msgid "Play %s recording"
 msgstr ""
@@ -4109,24 +4109,24 @@ msgid "Confirm Metadata Updates"
 msgstr ""
 
 #: includes/admin/export-import.php:4234
-#: includes/admin/export-import.php:10190
+#: includes/admin/export-import.php:10262
 msgid "Select a word set when exporting a template bundle."
 msgstr ""
 
 #: includes/admin/export-import.php:4239
-#: includes/admin/export-import.php:10195
+#: includes/admin/export-import.php:10267
 msgid "The selected word set for template export is invalid."
 msgstr ""
 
 #: includes/admin/export-import.php:4243
-#: includes/admin/export-import.php:10357
-#: includes/admin/export-import.php:10626
+#: includes/admin/export-import.php:10429
+#: includes/admin/export-import.php:10698
 msgid "Select a word set when exporting a full category bundle."
 msgstr ""
 
 #: includes/admin/export-import.php:4248
-#: includes/admin/export-import.php:10361
-#: includes/admin/export-import.php:10631
+#: includes/admin/export-import.php:10433
+#: includes/admin/export-import.php:10703
 msgid "The selected word set for full export is invalid."
 msgstr ""
 
@@ -4229,7 +4229,7 @@ msgid "Detected %1$s of media files (warning threshold: %2$s). Large imports can
 msgstr ""
 
 #: includes/admin/export-import.php:4897
-#: includes/admin/export-import.php:12496
+#: includes/admin/export-import.php:12568
 #, php-format
 msgid "CSV parsing skipped %d file before import. Review the warnings below for details."
 msgid_plural "CSV parsing skipped %d files before import. Review the warnings below for details."
@@ -4237,13 +4237,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: includes/admin/export-import.php:4913
-#: includes/admin/export-import.php:12512
+#: includes/admin/export-import.php:12584
 #, php-format
 msgid "CSV parsing used %1$d of %2$d non-empty rows before import (%3$d skipped)."
 msgstr ""
 
 #: includes/admin/export-import.php:4920
-#: includes/admin/export-import.php:12519
+#: includes/admin/export-import.php:12591
 #, php-format
 msgid "CSV parsing skipped %d row before import."
 msgid_plural "CSV parsing skipped %d rows before import."
@@ -4346,27 +4346,27 @@ msgid "Import failed: data.json is not valid JSON."
 msgstr ""
 
 #: includes/admin/export-import.php:6684
-#: includes/admin/export-import.php:12774
+#: includes/admin/export-import.php:12846
 msgid "Import failed: payload missing categories or word images."
 msgstr ""
 
 #: includes/admin/export-import.php:6700
 #: includes/admin/export-import.php:6738
-#: includes/admin/export-import.php:12157
+#: includes/admin/export-import.php:12229
 msgid "Import failed: uploaded file is missing."
 msgstr ""
 
 #: includes/admin/export-import.php:6712
-#: includes/admin/export-import.php:12171
+#: includes/admin/export-import.php:12243
 msgid "Import failed: could not create temporary extraction directory."
 msgstr ""
 
 #: includes/admin/export-import.php:6784
 #: includes/admin/export-import.php:6822
-#: includes/admin/export-import.php:6894
-#: includes/admin/export-import.php:6967
-#: includes/admin/export-import.php:7035
-#: includes/admin/export-import.php:9956
+#: includes/admin/export-import.php:6911
+#: includes/admin/export-import.php:7025
+#: includes/admin/export-import.php:7093
+#: includes/admin/export-import.php:10028
 msgid "You do not have permission to import LL Tools data."
 msgstr ""
 
@@ -4383,750 +4383,769 @@ msgstr ""
 msgid "Import failed: the selected zip file is empty or invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:6848
+#: includes/admin/export-import.php:6850
+#: includes/admin/export-import.php:6981
+#, php-format
+msgid "Import failed: the selected zip file is larger than the upload staging limit of %s."
+msgstr ""
+
+#: includes/admin/export-import.php:6859
+msgid "Import failed: the selected zip file has too many upload chunks."
+msgstr ""
+
+#: includes/admin/export-import.php:6865
 msgid "Import failed: upload staging folders are not available."
 msgstr ""
 
-#: includes/admin/export-import.php:6862
+#: includes/admin/export-import.php:6879
 msgid "Import failed: could not create the upload session folder."
 msgstr ""
 
-#: includes/admin/export-import.php:6914
+#: includes/admin/export-import.php:6931
 msgid "Import failed: the upload chunk number is invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:6922
+#: includes/admin/export-import.php:6939
 msgid "Import failed: one of the upload chunks was missing."
 msgstr ""
 
-#: includes/admin/export-import.php:6929
+#: includes/admin/export-import.php:6952
+#, php-format
+msgid "Import failed: one upload chunk is larger than the staging limit of %s."
+msgstr ""
+
+#: includes/admin/export-import.php:6973
+msgid "Import failed: upload chunks are larger than the selected zip file."
+msgstr ""
+
+#: includes/admin/export-import.php:6990
 msgid "Import failed: could not store one of the upload chunks."
 msgstr ""
 
-#: includes/admin/export-import.php:6997
+#: includes/admin/export-import.php:7055
 msgid "Import failed: the upload did not finish all chunks."
 msgstr ""
 
-#: includes/admin/export-import.php:7064
+#: includes/admin/export-import.php:7122
 msgid "Import failed: preview is missing or expired. Please preview the bundle again."
 msgstr ""
 
-#: includes/admin/export-import.php:7077
+#: includes/admin/export-import.php:7135
 msgid "Import failed: could not resolve zip file."
 msgstr ""
 
-#: includes/admin/export-import.php:7088
-#: includes/admin/export-import.php:9442
+#: includes/admin/export-import.php:7146
+#: includes/admin/export-import.php:9514
 msgid "Import failed: selected zip file is missing."
 msgstr ""
 
-#: includes/admin/export-import.php:7115
+#: includes/admin/export-import.php:7173
 msgid "Metadata update import failed: choose a CSV, JSON, or JSONL file."
 msgstr ""
 
-#: includes/admin/export-import.php:7121
+#: includes/admin/export-import.php:7179
 msgid "Metadata update import failed: the file must end in .csv, .json, .jsonl, or .ndjson."
 msgstr ""
 
-#: includes/admin/export-import.php:7134
+#: includes/admin/export-import.php:7192
 msgid "Metadata update import failed: the uploaded file could not be read."
 msgstr ""
 
-#: includes/admin/export-import.php:7355
+#: includes/admin/export-import.php:7413
 msgid "Metadata update import failed: the source file is missing."
 msgstr ""
 
-#: includes/admin/export-import.php:7366
+#: includes/admin/export-import.php:7424
 msgid "Metadata update import failed: the CSV file could not be read."
 msgstr ""
 
-#: includes/admin/export-import.php:7372
+#: includes/admin/export-import.php:7430
 msgid "Metadata update import failed: the CSV file could not be parsed."
 msgstr ""
 
-#: includes/admin/export-import.php:7390
+#: includes/admin/export-import.php:7448
 msgid "Metadata update import failed: the CSV header row could not be read."
 msgstr ""
 
-#: includes/admin/export-import.php:7427
+#: includes/admin/export-import.php:7485
 msgid "Metadata update import failed: the JSON file could not be read."
 msgstr ""
 
 #. translators: %d JSONL line number
-#: includes/admin/export-import.php:7451
+#: includes/admin/export-import.php:7509
 #, php-format
 msgid "Metadata update import failed: JSONL line %d is not valid JSON."
 msgstr ""
 
-#: includes/admin/export-import.php:7461
+#: includes/admin/export-import.php:7519
 msgid "Metadata update import failed: the JSON file is not valid JSON."
 msgstr ""
 
 #. translators: 1 row number, 2 word ID
-#: includes/admin/export-import.php:7516
+#: includes/admin/export-import.php:7574
 #, php-format
 msgid "Row %1$d: word_id %2$d was not found."
 msgstr ""
 
 #. translators: 1 row number, 2 word slug
-#: includes/admin/export-import.php:7532
+#: includes/admin/export-import.php:7590
 #, php-format
 msgid "Row %1$d: word_slug \"%2$s\" was not found."
 msgstr ""
 
 #. translators: %d row number
-#: includes/admin/export-import.php:7546
+#: includes/admin/export-import.php:7604
 #, php-format
 msgid "Row %d: word_id and word_slug point to different words."
 msgstr ""
 
-#: includes/admin/export-import.php:7584
+#: includes/admin/export-import.php:7642
 msgid "Recording slug is ambiguous without a parent word identifier."
 msgstr ""
 
 #. translators: 1 row word ID, 2 recording type
-#: includes/admin/export-import.php:7616
+#: includes/admin/export-import.php:7674
 #, php-format
 msgid "Word %1$d has multiple recordings of type \"%2$s\". Use recording_id or recording_slug instead."
 msgstr ""
 
 #. translators: 1 row number, 2 recording ID
-#: includes/admin/export-import.php:7637
+#: includes/admin/export-import.php:7695
 #, php-format
 msgid "Row %1$d: recording_id %2$d was not found."
 msgstr ""
 
 #. translators: 1 row number, 2 reason
-#: includes/admin/export-import.php:7651
-#: includes/admin/export-import.php:7664
+#: includes/admin/export-import.php:7709
+#: includes/admin/export-import.php:7722
 #, php-format
 msgid "Row %1$d: %2$s"
 msgstr ""
 
 #. translators: %d row number
-#: includes/admin/export-import.php:7687
+#: includes/admin/export-import.php:7745
 #, php-format
 msgid "Row %d: the recording does not belong to the specified word."
 msgstr ""
 
 #. translators: %d row number
-#: includes/admin/export-import.php:7790
+#: includes/admin/export-import.php:7848
 #, php-format
 msgid "Row %d: recording fields were provided but no recording could be identified."
 msgstr ""
 
 #. translators: %d row number
-#: includes/admin/export-import.php:7817
+#: includes/admin/export-import.php:7875
 #, php-format
 msgid "Row %d: word fields were provided but no word could be identified."
 msgstr ""
 
 #. translators: %s word title
-#: includes/admin/export-import.php:7841
+#: includes/admin/export-import.php:7899
 #: includes/pages/wordset-editor.php:163
 #, php-format
 msgid "Word: %s"
 msgstr ""
 
 #. translators: %d word post ID
-#: includes/admin/export-import.php:7848
+#: includes/admin/export-import.php:7906
 #: includes/post-types/words-post-type.php:684
-#: includes/shortcodes/word-grid-shortcode.php:5963
+#: includes/shortcodes/word-grid-shortcode.php:5964
 #, php-format
 msgid "Word #%d"
 msgstr ""
 
 #. translators: 1 recording title, 2 parent word title
-#: includes/admin/export-import.php:7857
+#: includes/admin/export-import.php:7915
 #, php-format
 msgid "Recording: %1$s (%2$s)"
 msgstr ""
 
 #. translators: %s recording title
-#: includes/admin/export-import.php:7865
+#: includes/admin/export-import.php:7923
 #, php-format
 msgid "Recording: %s"
 msgstr ""
 
 #. translators: %d recording post ID
-#: includes/admin/export-import.php:7872
+#: includes/admin/export-import.php:7930
 #, php-format
 msgid "Recording #%d"
 msgstr ""
 
-#: includes/admin/export-import.php:7901
-#: includes/admin/export-import.php:8175
+#: includes/admin/export-import.php:7959
+#: includes/admin/export-import.php:8233
 msgid "Metadata update import found no non-empty update rows."
 msgstr ""
 
 #. translators: 1 row number, 2 field key
-#: includes/admin/export-import.php:7985
-#: includes/admin/export-import.php:8262
+#: includes/admin/export-import.php:8043
+#: includes/admin/export-import.php:8320
 #, php-format
 msgid "Row %1$d: %2$s cannot be cleared and was ignored."
 msgstr ""
 
-#: includes/admin/export-import.php:8108
-#: includes/admin/export-import.php:8494
+#: includes/admin/export-import.php:8166
+#: includes/admin/export-import.php:8552
 #, php-format
 msgid "%d additional metadata warning was not shown."
 msgid_plural "%d additional metadata warnings were not shown."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/export-import.php:8119
-#: includes/admin/export-import.php:8505
+#: includes/admin/export-import.php:8177
+#: includes/admin/export-import.php:8563
 #, php-format
 msgid "%d additional metadata error was not shown."
 msgid_plural "%d additional metadata errors were not shown."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/export-import.php:8138
+#: includes/admin/export-import.php:8196
 msgid "Metadata update preview found no changes."
 msgstr ""
 
-#: includes/admin/export-import.php:8140
+#: includes/admin/export-import.php:8198
 msgid "Metadata update preview found some errors."
 msgstr ""
 
-#: includes/admin/export-import.php:8142
+#: includes/admin/export-import.php:8200
 msgid "Metadata update preview is ready with warnings."
 msgstr ""
 
-#: includes/admin/export-import.php:8144
+#: includes/admin/export-import.php:8202
 msgid "Metadata update preview is ready."
 msgstr ""
 
 #. translators: 1 row number, 2 error message
-#: includes/admin/export-import.php:8351
+#: includes/admin/export-import.php:8409
 #, php-format
 msgid "Row %1$d: failed to update the word post: %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:8541
+#: includes/admin/export-import.php:8599
 msgid "Metadata update import completed, but no changes were needed."
 msgstr ""
 
-#: includes/admin/export-import.php:8543
+#: includes/admin/export-import.php:8601
 msgid "Metadata updates finished with some errors."
 msgstr ""
 
-#: includes/admin/export-import.php:8545
+#: includes/admin/export-import.php:8603
 msgid "Metadata updates complete with warnings."
 msgstr ""
 
-#: includes/admin/export-import.php:8547
+#: includes/admin/export-import.php:8605
 msgid "Metadata updates complete."
 msgstr ""
 
-#: includes/admin/export-import.php:8560
-#: includes/admin/export-import.php:8609
+#: includes/admin/export-import.php:8618
+#: includes/admin/export-import.php:8667
 msgid "You do not have permission to import LL Tools metadata updates."
 msgstr ""
 
-#: includes/admin/export-import.php:8570
-#: includes/admin/export-import.php:8587
+#: includes/admin/export-import.php:8628
+#: includes/admin/export-import.php:8645
 msgid "Metadata update preview failed."
 msgstr ""
 
-#: includes/admin/export-import.php:8632
+#: includes/admin/export-import.php:8690
 msgid "Metadata update import failed: preview is missing or expired. Generate a new preview and try again."
 msgstr ""
 
-#: includes/admin/export-import.php:8643
+#: includes/admin/export-import.php:8701
 msgid "Metadata update import failed."
 msgstr ""
 
-#: includes/admin/export-import.php:8717
+#: includes/admin/export-import.php:8775
 #, php-format
 msgid "Skipped restoring updated post %d during undo because it no longer exists."
 msgstr ""
 
-#: includes/admin/export-import.php:8721
+#: includes/admin/export-import.php:8779
 #, php-format
 msgid "Skipped restoring post %d during undo because it is not %s."
 msgstr ""
 
-#: includes/admin/export-import.php:8749
+#: includes/admin/export-import.php:8807
 #, php-format
 msgid "Failed to restore updated post %1$d during undo: %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:8827
+#: includes/admin/export-import.php:8885
 msgid "Undo complete."
 msgstr ""
 
-#: includes/admin/export-import.php:8876
+#: includes/admin/export-import.php:8934
 #, php-format
 msgid "Skipped post %d during undo because it is not word_audio."
 msgstr ""
 
-#: includes/admin/export-import.php:8881
+#: includes/admin/export-import.php:8939
 #, php-format
 msgid "Failed to delete word_audio post %d during undo."
 msgstr ""
 
-#: includes/admin/export-import.php:8893
+#: includes/admin/export-import.php:8951
 #, php-format
 msgid "Skipped post %d during undo because it is not a word."
 msgstr ""
 
-#: includes/admin/export-import.php:8898
+#: includes/admin/export-import.php:8956
 #, php-format
 msgid "Failed to delete word post %d during undo."
 msgstr ""
 
-#: includes/admin/export-import.php:8910
+#: includes/admin/export-import.php:8968
 #, php-format
 msgid "Skipped post %d during undo because it is not a word image."
 msgstr ""
 
-#: includes/admin/export-import.php:8915
+#: includes/admin/export-import.php:8973
 #, php-format
 msgid "Failed to delete word image post %d during undo."
 msgstr ""
 
-#: includes/admin/export-import.php:8927
+#: includes/admin/export-import.php:8985
 #, php-format
 msgid "Skipped post %d during undo because it is not an attachment."
 msgstr ""
 
-#: includes/admin/export-import.php:8932
+#: includes/admin/export-import.php:8990
 #, php-format
 msgid "Failed to delete attachment %d during undo."
 msgstr ""
 
-#: includes/admin/export-import.php:8940
+#: includes/admin/export-import.php:8998
 #, php-format
 msgid "Skipped deleting audio file \"%s\" during undo because the path was outside uploads or invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:8953
+#: includes/admin/export-import.php:9011
 #, php-format
 msgid "Failed to delete category term %d during undo."
 msgstr ""
 
-#: includes/admin/export-import.php:8966
+#: includes/admin/export-import.php:9024
 #, php-format
 msgid "Failed to delete word set term %d during undo."
 msgstr ""
 
-#: includes/admin/export-import.php:8994
+#: includes/admin/export-import.php:9052
 msgid "Undo finished with some errors."
 msgstr ""
 
-#: includes/admin/export-import.php:9007
+#: includes/admin/export-import.php:9065
 msgid "You do not have permission to undo LL Tools imports."
 msgstr ""
 
-#: includes/admin/export-import.php:9027
+#: includes/admin/export-import.php:9085
 msgid "Undo failed: import record not found."
 msgstr ""
 
-#: includes/admin/export-import.php:9039
+#: includes/admin/export-import.php:9097
 msgid "Undo skipped: this import was already undone."
 msgstr ""
 
-#: includes/admin/export-import.php:9047
+#: includes/admin/export-import.php:9105
 msgid "Undo is unavailable for this import record."
 msgstr ""
 
-#: includes/admin/export-import.php:9142
-#: includes/admin/export-import.php:9236
+#: includes/admin/export-import.php:9214
+#: includes/admin/export-import.php:9308
 msgid "The upload session could not be found."
 msgstr ""
 
-#: includes/admin/export-import.php:9153
+#: includes/admin/export-import.php:9225
 msgid "That upload session belongs to another user."
 msgstr ""
 
-#: includes/admin/export-import.php:9242
+#: includes/admin/export-import.php:9314
 msgid "Could not create the staged zip file."
 msgstr ""
 
 #. translators: %d chunk number
-#: includes/admin/export-import.php:9254
+#: includes/admin/export-import.php:9326
 #, php-format
 msgid "Upload chunk %d is missing."
 msgstr ""
 
-#: includes/admin/export-import.php:9262
+#: includes/admin/export-import.php:9334
 msgid "One of the uploaded chunks could not be read."
 msgstr ""
 
-#: includes/admin/export-import.php:9268
+#: includes/admin/export-import.php:9340
 msgid "Could not assemble the uploaded zip file."
 msgstr ""
 
-#: includes/admin/export-import.php:9282
+#: includes/admin/export-import.php:9354
 msgid "The assembled zip size did not match the original upload."
 msgstr ""
 
-#: includes/admin/export-import.php:9338
+#: includes/admin/export-import.php:9410
 msgid "Import failed: no server zip selected."
 msgstr ""
 
-#: includes/admin/export-import.php:9341
+#: includes/admin/export-import.php:9413
 msgid "Import failed: invalid server zip name."
 msgstr ""
 
-#: includes/admin/export-import.php:9344
+#: includes/admin/export-import.php:9416
 msgid "Import failed: selected file is not a zip."
 msgstr ""
 
-#: includes/admin/export-import.php:9349
+#: includes/admin/export-import.php:9421
 msgid "Import failed: selected server zip was not found."
 msgstr ""
 
-#: includes/admin/export-import.php:9358
+#: includes/admin/export-import.php:9430
 msgid "Import failed: selected zip is outside the import directory."
 msgstr ""
 
-#: includes/admin/export-import.php:9419
+#: includes/admin/export-import.php:9491
 msgid "Unknown zip"
 msgstr ""
 
-#: includes/admin/export-import.php:9432
-#: includes/admin/export-import.php:9437
+#: includes/admin/export-import.php:9504
+#: includes/admin/export-import.php:9509
 msgid "Import failed: preview is missing or expired. Preview the bundle again before importing."
 msgstr ""
 
-#: includes/admin/export-import.php:9856
+#: includes/admin/export-import.php:9928
 msgid "The import job entered an unknown phase."
 msgstr ""
 
-#: includes/admin/export-import.php:9876
+#: includes/admin/export-import.php:9948
 msgid "Could not create the import extraction directory."
 msgstr ""
 
-#: includes/admin/export-import.php:9966
+#: includes/admin/export-import.php:10038
 #: includes/api/automation-rest.php:2447
 msgid "Another import job is already active. Resume or finish it before starting a new one."
 msgstr ""
 
-#: includes/admin/export-import.php:9986
+#: includes/admin/export-import.php:10058
 msgid "You do not have permission to view LL Tools imports."
 msgstr ""
 
-#: includes/admin/export-import.php:10004
+#: includes/admin/export-import.php:10076
 msgid "You do not have permission to process LL Tools imports."
 msgstr ""
 
-#: includes/admin/export-import.php:10044
+#: includes/admin/export-import.php:10116
 msgid "You do not have permission to discard LL Tools imports."
 msgstr ""
 
-#: includes/admin/export-import.php:10198
+#: includes/admin/export-import.php:10270
 msgid "Word set template export is not available right now."
 msgstr ""
 
-#: includes/admin/export-import.php:10203
+#: includes/admin/export-import.php:10275
 msgid "The selected word set does not have any template categories to export."
 msgstr ""
 
-#: includes/admin/export-import.php:10214
+#: includes/admin/export-import.php:10286
 msgid "The selected word set does not have any valid template categories to export."
 msgstr ""
 
 #. translators: %d category term ID
-#: includes/admin/export-import.php:10968
+#: includes/admin/export-import.php:11040
 #, php-format
 msgid "The selected category (ID %d) is invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:10990
+#: includes/admin/export-import.php:11062
 #: includes/admin/offline-app-export.php:1211
 #: includes/admin/offline-app-export.php:1221
 msgid "Select at least one category to export."
 msgstr ""
 
-#: includes/admin/export-import.php:11060
+#: includes/admin/export-import.php:11132
 msgid "Recording transcription"
 msgstr ""
 
 #. translators: %s transcription mode label, for example IPA
-#: includes/admin/export-import.php:11067
+#: includes/admin/export-import.php:11139
 #, php-format
 msgid "Recording transcription (%s)"
 msgstr ""
 
-#: includes/admin/export-import.php:11085
+#: includes/admin/export-import.php:11157
 msgid "Example sentence"
 msgstr ""
 
-#: includes/admin/export-import.php:11088
+#: includes/admin/export-import.php:11160
 msgid "Example sentence translation"
 msgstr ""
 
-#: includes/admin/export-import.php:11114
+#: includes/admin/export-import.php:11186
 #: includes/admin/ipa-keyboard-admin.php:275
 #: includes/pages/wordset-editor.php:2748
 #: includes/shortcodes/editor-hub-shortcode.php:660
 #: includes/shortcodes/editor-hub-shortcode.php:1079
-#: includes/shortcodes/word-grid-shortcode.php:4637
+#: includes/shortcodes/word-grid-shortcode.php:4638
 #: templates/vocab-lesson-print-template.php:122
 #: templates/vocab-lesson-template.php:1080
 msgid "Text"
 msgstr ""
 
-#: includes/admin/export-import.php:11580
+#: includes/admin/export-import.php:11652
 msgid "Parent word title"
 msgstr ""
 
-#: includes/admin/export-import.php:11583
+#: includes/admin/export-import.php:11655
 msgid "Parent word translation"
 msgstr ""
 
-#: includes/admin/export-import.php:11935
-#: includes/admin/export-import.php:12089
+#: includes/admin/export-import.php:12007
+#: includes/admin/export-import.php:12161
 msgid "No STT training samples were available to export."
 msgstr ""
 
-#: includes/admin/export-import.php:11976
+#: includes/admin/export-import.php:12048
 msgid "Could not create STT export zip."
 msgstr ""
 
-#: includes/admin/export-import.php:11989
-#: includes/admin/export-import.php:11995
+#: includes/admin/export-import.php:12061
+#: includes/admin/export-import.php:12067
 msgid "Could not add one or more audio files to the STT export zip."
 msgstr ""
 
-#: includes/admin/export-import.php:12081
+#: includes/admin/export-import.php:12153
 msgid "Could not encode STT export metadata."
 msgstr ""
 
-#: includes/admin/export-import.php:12096
+#: includes/admin/export-import.php:12168
 msgid "Could not add STT export metadata.csv to the zip file."
 msgstr ""
 
-#: includes/admin/export-import.php:12103
+#: includes/admin/export-import.php:12175
 msgid "Could not add STT export metadata.jsonl to the zip file."
 msgstr ""
 
-#: includes/admin/export-import.php:12108
+#: includes/admin/export-import.php:12180
 msgid "Could not finalize STT export zip."
 msgstr ""
 
-#: includes/admin/export-import.php:12217
+#: includes/admin/export-import.php:12289
 #, php-format
 msgid "Only %1$d of %2$d categories from the import bundle were created or updated."
 msgstr ""
 
-#: includes/admin/export-import.php:12227
+#: includes/admin/export-import.php:12299
 #, php-format
 msgid "Only %1$d of %2$d words from the import bundle were created or updated."
 msgstr ""
 
-#: includes/admin/export-import.php:12238
+#: includes/admin/export-import.php:12310
 msgid "Import finished with some errors."
 msgstr ""
 
-#: includes/admin/export-import.php:12240
+#: includes/admin/export-import.php:12312
 msgid "Import complete with warnings."
 msgstr ""
 
-#: includes/admin/export-import.php:12242
+#: includes/admin/export-import.php:12314
 msgid "Import complete."
 msgstr ""
 
-#: includes/admin/export-import.php:12316
+#: includes/admin/export-import.php:12388
 msgid "Imported Template"
 msgstr ""
 
-#: includes/admin/export-import.php:12337
+#: includes/admin/export-import.php:12409
 #, php-format
 msgid "Failed to create template word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:12343
+#: includes/admin/export-import.php:12415
 msgid "Template import failed: the destination word set could not be created."
 msgstr ""
 
-#: includes/admin/export-import.php:12393
+#: includes/admin/export-import.php:12465
 msgid "Word set category creation is not available right now."
 msgstr ""
 
-#: includes/admin/export-import.php:12395
-#: includes/admin/export-import.php:12452
-#: includes/admin/export-import.php:12593
+#: includes/admin/export-import.php:12467
+#: includes/admin/export-import.php:12524
+#: includes/admin/export-import.php:12665
 msgid "Unknown error"
 msgstr ""
 
-#: includes/admin/export-import.php:12396
+#: includes/admin/export-import.php:12468
 #, php-format
 msgid "Failed to create template category \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:12453
+#: includes/admin/export-import.php:12525
 #, php-format
 msgid "Failed to create template word image \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:12453
+#: includes/admin/export-import.php:12525
 msgid "(no slug)"
 msgstr ""
 
-#: includes/admin/export-import.php:12594
-#: includes/admin/export-import.php:12622
+#: includes/admin/export-import.php:12666
+#: includes/admin/export-import.php:12694
 #, php-format
 msgid "Category \"%s\" could not be created: %s"
 msgstr ""
 
-#: includes/admin/export-import.php:12706
+#: includes/admin/export-import.php:12778
 #, php-format
 msgid "Failed to update word image \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:12715
+#: includes/admin/export-import.php:12787
 #, php-format
 msgid "Failed to create word image \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:12796
+#: includes/admin/export-import.php:12868
 msgid "Import failed: select a valid existing word set for assignment."
 msgstr ""
 
-#: includes/admin/export-import.php:13054
+#: includes/admin/export-import.php:13126
 #, php-format
 msgid "Skipped thumbnail for \"%s\" because the file path was invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:13058
+#: includes/admin/export-import.php:13130
 #, php-format
 msgid "Image file for \"%s\" is missing from the zip."
 msgstr ""
 
-#: includes/admin/export-import.php:13072
+#: includes/admin/export-import.php:13144
 msgid "word"
 msgstr ""
 
-#: includes/admin/export-import.php:13072
+#: includes/admin/export-import.php:13144
 msgid "word image"
 msgstr ""
 
-#: includes/admin/export-import.php:13073
+#: includes/admin/export-import.php:13145
 #, php-format
 msgid "Failed to import image for %1$s \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:13183
+#: includes/admin/export-import.php:13255
 #, php-format
 msgid "Failed to update word \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:13192
+#: includes/admin/export-import.php:13264
 #, php-format
 msgid "Failed to create word \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:13331
+#: includes/admin/export-import.php:13403
 #, php-format
 msgid "Could not link word \"%1$s\" to source word image \"%2$s\"."
 msgstr ""
 
-#: includes/admin/export-import.php:13358
+#: includes/admin/export-import.php:13430
 #, php-format
 msgid "Failed to update audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:13367
+#: includes/admin/export-import.php:13439
 #, php-format
 msgid "Failed to create audio \"%1$s\" for word \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:13737
+#: includes/admin/export-import.php:13809
 msgid "Imported wrong-image preferences were skipped because word option rules are unavailable."
 msgstr ""
 
-#: includes/admin/export-import.php:13837
+#: includes/admin/export-import.php:13909
 #, php-format
 msgid "Imported wrong-image preference \"%1$s\" for word \"%2$s\" could not be matched to another imported word in the same category/word set."
 msgstr ""
 
-#: includes/admin/export-import.php:13860
+#: includes/admin/export-import.php:13932
 #, php-format
 msgid "%d additional wrong-image preference warning was not shown."
 msgid_plural "%d additional wrong-image preference warnings were not shown."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/admin/export-import.php:13958
+#: includes/admin/export-import.php:14030
 #, php-format
 msgid "Failed to update word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:13969
+#: includes/admin/export-import.php:14041
 #, php-format
 msgid "Failed to create word set \"%s\": %s"
 msgstr ""
 
-#: includes/admin/export-import.php:14027
+#: includes/admin/export-import.php:14099
 #, php-format
 msgid "Could not create %1$s term \"%2$s\": %3$s"
 msgstr ""
 
-#: includes/admin/export-import.php:14082
+#: includes/admin/export-import.php:14154
 #, php-format
 msgid "Skipped audio import for \"%s\" because the file path was invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:14086
+#: includes/admin/export-import.php:14158
 #, php-format
 msgid "Audio file for \"%s\" is missing from the zip."
 msgstr ""
 
-#: includes/admin/export-import.php:14092
+#: includes/admin/export-import.php:14164
 #, php-format
 msgid "Failed to import audio for \"%1$s\": %2$s"
 msgstr ""
 
-#: includes/admin/export-import.php:14117
-#: includes/admin/export-import.php:14364
+#: includes/admin/export-import.php:14189
+#: includes/admin/export-import.php:14436
 msgid "Could not create uploads directory."
 msgstr ""
 
-#: includes/admin/export-import.php:14133
+#: includes/admin/export-import.php:14205
 msgid "Could not copy audio into uploads."
 msgstr ""
 
-#: includes/admin/export-import.php:14155
+#: includes/admin/export-import.php:14227
 msgid "Imported audio file is missing or unreadable."
 msgstr ""
 
-#: includes/admin/export-import.php:14180
+#: includes/admin/export-import.php:14252
 msgid "Imported file is not a supported audio type."
 msgstr ""
 
-#: includes/admin/export-import.php:14184
+#: includes/admin/export-import.php:14256
 msgid "Imported file is not an audio recording."
 msgstr ""
 
-#: includes/admin/export-import.php:14281
+#: includes/admin/export-import.php:14353
 msgid "The external image URL is invalid."
 msgstr ""
 
-#: includes/admin/export-import.php:14300
+#: includes/admin/export-import.php:14372
 msgid "The external image URL is not a supported image type."
 msgstr ""
 
-#: includes/admin/export-import.php:14307
+#: includes/admin/export-import.php:14379
 msgid "Imported remote image"
 msgstr ""
 
-#: includes/admin/export-import.php:14381
+#: includes/admin/export-import.php:14453
 msgid "Could not copy image into uploads."
 msgstr ""
 
-#: includes/admin/export-import.php:14605
+#: includes/admin/export-import.php:14677
 msgid "Imported image file is missing or unreadable."
 msgstr ""
 
-#: includes/admin/export-import.php:14610
+#: includes/admin/export-import.php:14682
 msgid "Imported file is not a valid image."
 msgstr ""
 
-#: includes/admin/export-import.php:14615
+#: includes/admin/export-import.php:14687
 msgid "Imported image type is not allowed on this site."
 msgstr ""
 
@@ -5864,7 +5883,7 @@ msgstr ""
 #: includes/post-types/words-post-type.php:998
 #: includes/post-types/words-post-type.php:1001
 #: includes/shortcodes/editor-hub-shortcode.php:653
-#: includes/shortcodes/word-grid-shortcode.php:6137
+#: includes/shortcodes/word-grid-shortcode.php:6138
 #: templates/vocab-lesson-template.php:972
 msgid "Recording"
 msgstr ""
@@ -6056,7 +6075,7 @@ msgstr ""
 #: includes/post-types/words-post-type.php:940
 #: includes/shortcodes/flashcard-widget.php:385
 #: includes/shortcodes/quiz-pages-shortcodes.php:800
-#: includes/shortcodes/word-grid-shortcode.php:4621
+#: includes/shortcodes/word-grid-shortcode.php:4622
 #: templates/flashcard-widget-template.php:169
 #: templates/offline-app-shell-template.php:970
 msgid "Categories"
@@ -6068,7 +6087,7 @@ msgstr ""
 
 #: includes/admin/ipa-keyboard-admin.php:319
 #: includes/admin/word-option-rules-admin.php:1654
-#: includes/shortcodes/word-grid-shortcode.php:4632
+#: includes/shortcodes/word-grid-shortcode.php:4633
 msgid "No image"
 msgstr ""
 
@@ -6552,8 +6571,8 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:645
 #: includes/shortcodes/editor-hub-shortcode.php:1039
 #: includes/shortcodes/editor-hub-shortcode.php:1040
-#: includes/shortcodes/word-grid-shortcode.php:4598
-#: includes/shortcodes/word-grid-shortcode.php:4606
+#: includes/shortcodes/word-grid-shortcode.php:4599
+#: includes/shortcodes/word-grid-shortcode.php:4607
 msgid "IPA"
 msgstr ""
 
@@ -6604,8 +6623,8 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:585
 #: includes/lib/wordset-language-settings.php:1163
 #: includes/lib/wordset-language-settings.php:1167
-#: includes/shortcodes/word-grid-shortcode.php:4603
-#: includes/shortcodes/word-grid-shortcode.php:5533
+#: includes/shortcodes/word-grid-shortcode.php:4604
+#: includes/shortcodes/word-grid-shortcode.php:5534
 msgid "IPA symbols"
 msgstr ""
 
@@ -6773,7 +6792,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:4856
 #: includes/admin/ipa-keyboard-admin.php:4888
 #: includes/shortcodes/audio-recording-shortcode.php:6078
-#: includes/shortcodes/word-grid-shortcode.php:9141
+#: includes/shortcodes/word-grid-shortcode.php:9142
 msgid "Missing data"
 msgstr ""
 
@@ -6787,7 +6806,7 @@ msgstr ""
 #: includes/admin/ipa-keyboard-admin.php:4893
 #: includes/admin/ipa-keyboard-admin.php:4898
 #: includes/admin/ipa-keyboard-admin.php:4903
-#: includes/shortcodes/word-grid-shortcode.php:9166
+#: includes/shortcodes/word-grid-shortcode.php:9167
 msgid "Invalid recording"
 msgstr ""
 
@@ -6814,14 +6833,14 @@ msgstr ""
 
 #: includes/admin/metabox-word-audio-parent.php:35
 #: includes/admin/uploads/audio-upload-form.php:482
-#: includes/admin/uploads/image-upload-form.php:639
+#: includes/admin/uploads/image-upload-form.php:660
 #: includes/post-types/dictionary-entry-post-type.php:1321
 #: includes/shortcodes/editor-hub-shortcode.php:1065
-#: includes/shortcodes/word-grid-shortcode.php:5284
-#: includes/shortcodes/word-grid-shortcode.php:5304
-#: includes/shortcodes/word-grid-shortcode.php:5337
-#: includes/shortcodes/word-grid-shortcode.php:5364
-#: includes/shortcodes/word-grid-shortcode.php:5391
+#: includes/shortcodes/word-grid-shortcode.php:5285
+#: includes/shortcodes/word-grid-shortcode.php:5305
+#: includes/shortcodes/word-grid-shortcode.php:5338
+#: includes/shortcodes/word-grid-shortcode.php:5365
+#: includes/shortcodes/word-grid-shortcode.php:5392
 msgid "None"
 msgstr ""
 
@@ -7797,7 +7816,7 @@ msgstr ""
 
 #: includes/admin/orphan-media-admin.php:1777
 #: includes/admin/uploads/audio-upload-form.php:519
-#: includes/admin/uploads/image-upload-form.php:676
+#: includes/admin/uploads/image-upload-form.php:697
 #: includes/pages/wordset-pages.php:8469
 #: includes/taxonomies/word-category-taxonomy.php:1144
 #: includes/taxonomies/word-category-taxonomy.php:1856
@@ -8862,8 +8881,8 @@ msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:222
 #: includes/admin/uploads/audio-upload-form.php:589
-#: includes/admin/uploads/image-upload-form.php:429
-#: includes/admin/uploads/image-upload-form.php:749
+#: includes/admin/uploads/image-upload-form.php:450
+#: includes/admin/uploads/image-upload-form.php:770
 msgid "You do not have permission to upload files."
 msgstr ""
 
@@ -8896,17 +8915,17 @@ msgid "Match images based on translation instead of original word"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:372
-#: includes/admin/uploads/image-upload-form.php:528
+#: includes/admin/uploads/image-upload-form.php:549
 msgid "Target Scope"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:382
-#: includes/admin/uploads/image-upload-form.php:538
+#: includes/admin/uploads/image-upload-form.php:559
 msgid "Locked to this word set"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:383
-#: includes/admin/uploads/image-upload-form.php:539
+#: includes/admin/uploads/image-upload-form.php:560
 msgid "Only accessible word set"
 msgstr ""
 
@@ -8915,17 +8934,17 @@ msgid "Audio uploads will use this word set automatically."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:393
-#: includes/admin/uploads/image-upload-form.php:549
+#: includes/admin/uploads/image-upload-form.php:570
 msgid "One word set"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:397
-#: includes/admin/uploads/image-upload-form.php:553
+#: includes/admin/uploads/image-upload-form.php:574
 msgid "Multiple word sets"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:400
-#: includes/admin/uploads/image-upload-form.php:556
+#: includes/admin/uploads/image-upload-form.php:577
 msgid "Choose where this upload should land before selecting a category."
 msgstr ""
 
@@ -8938,64 +8957,64 @@ msgid "No word sets are available for audio upload right now."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:439
-#: includes/admin/uploads/image-upload-form.php:595
+#: includes/admin/uploads/image-upload-form.php:616
 msgid "Category Source"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:447
-#: includes/admin/uploads/image-upload-form.php:603
+#: includes/admin/uploads/image-upload-form.php:624
 msgid "Create new category"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:456
-#: includes/admin/uploads/image-upload-form.php:612
+#: includes/admin/uploads/image-upload-form.php:633
 msgid "Choose Category"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:469
-#: includes/admin/uploads/image-upload-form.php:626
+#: includes/admin/uploads/image-upload-form.php:647
 msgid "The selected logical category will be resolved into the chosen word set scope automatically."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:474
-#: includes/admin/uploads/image-upload-form.php:631
+#: includes/admin/uploads/image-upload-form.php:652
 #: includes/shortcodes/audio-recording-shortcode.php:1419
 msgid "New Category Name"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:476
-#: includes/admin/uploads/image-upload-form.php:633
+#: includes/admin/uploads/image-upload-form.php:654
 msgid "The new category will be created inside the selected word set scope."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:480
-#: includes/admin/uploads/image-upload-form.php:637
+#: includes/admin/uploads/image-upload-form.php:658
 msgid "Parent Category"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:496
-#: includes/admin/uploads/image-upload-form.php:653
+#: includes/admin/uploads/image-upload-form.php:674
 #: includes/taxonomies/word-category-taxonomy.php:781
 #: includes/taxonomies/word-category-taxonomy.php:806
 msgid "Translated Name"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:502
-#: includes/admin/uploads/image-upload-form.php:659
+#: includes/admin/uploads/image-upload-form.php:680
 #: includes/taxonomies/word-category-taxonomy.php:1839
 #: includes/taxonomies/word-category-taxonomy.php:1939
 msgid "Quiz Prompt Type"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:504
-#: includes/admin/uploads/image-upload-form.php:661
+#: includes/admin/uploads/image-upload-form.php:682
 #: includes/taxonomies/word-category-taxonomy.php:1841
 #: includes/taxonomies/word-category-taxonomy.php:1943
 msgid "Play audio (default)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:505
-#: includes/admin/uploads/image-upload-form.php:662
+#: includes/admin/uploads/image-upload-form.php:683
 #: includes/taxonomies/word-category-taxonomy.php:1109
 #: includes/taxonomies/word-category-taxonomy.php:1842
 #: includes/taxonomies/word-category-taxonomy.php:1944
@@ -9003,7 +9022,7 @@ msgid "Play audio + show text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:506
-#: includes/admin/uploads/image-upload-form.php:663
+#: includes/admin/uploads/image-upload-form.php:684
 #: includes/taxonomies/word-category-taxonomy.php:1111
 #: includes/taxonomies/word-category-taxonomy.php:1843
 #: includes/taxonomies/word-category-taxonomy.php:1945
@@ -9011,7 +9030,7 @@ msgid "Play audio + show text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:507
-#: includes/admin/uploads/image-upload-form.php:664
+#: includes/admin/uploads/image-upload-form.php:685
 #: includes/taxonomies/word-category-taxonomy.php:1113
 #: includes/taxonomies/word-category-taxonomy.php:1844
 #: includes/taxonomies/word-category-taxonomy.php:1946
@@ -9019,7 +9038,7 @@ msgid "Show image"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:508
-#: includes/admin/uploads/image-upload-form.php:665
+#: includes/admin/uploads/image-upload-form.php:686
 #: includes/taxonomies/word-category-taxonomy.php:1115
 #: includes/taxonomies/word-category-taxonomy.php:1845
 #: includes/taxonomies/word-category-taxonomy.php:1947
@@ -9027,7 +9046,7 @@ msgid "Show image + play audio"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:509
-#: includes/admin/uploads/image-upload-form.php:666
+#: includes/admin/uploads/image-upload-form.php:687
 #: includes/taxonomies/word-category-taxonomy.php:1117
 #: includes/taxonomies/word-category-taxonomy.php:1846
 #: includes/taxonomies/word-category-taxonomy.php:1948
@@ -9035,7 +9054,7 @@ msgid "Show image + text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:510
-#: includes/admin/uploads/image-upload-form.php:667
+#: includes/admin/uploads/image-upload-form.php:688
 #: includes/taxonomies/word-category-taxonomy.php:1119
 #: includes/taxonomies/word-category-taxonomy.php:1847
 #: includes/taxonomies/word-category-taxonomy.php:1949
@@ -9043,7 +9062,7 @@ msgid "Show image + text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:511
-#: includes/admin/uploads/image-upload-form.php:668
+#: includes/admin/uploads/image-upload-form.php:689
 #: includes/taxonomies/word-category-taxonomy.php:1121
 #: includes/taxonomies/word-category-taxonomy.php:1848
 #: includes/taxonomies/word-category-taxonomy.php:1950
@@ -9051,7 +9070,7 @@ msgid "Show text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:512
-#: includes/admin/uploads/image-upload-form.php:669
+#: includes/admin/uploads/image-upload-form.php:690
 #: includes/taxonomies/word-category-taxonomy.php:1123
 #: includes/taxonomies/word-category-taxonomy.php:1849
 #: includes/taxonomies/word-category-taxonomy.php:1951
@@ -9059,21 +9078,21 @@ msgid "Show text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:517
-#: includes/admin/uploads/image-upload-form.php:674
+#: includes/admin/uploads/image-upload-form.php:695
 #: includes/taxonomies/word-category-taxonomy.php:1854
 #: includes/taxonomies/word-category-taxonomy.php:1958
 msgid "Answer Options"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:520
-#: includes/admin/uploads/image-upload-form.php:677
+#: includes/admin/uploads/image-upload-form.php:698
 #: includes/taxonomies/word-category-taxonomy.php:1858
 #: includes/taxonomies/word-category-taxonomy.php:1964
 msgid "Text (opposite prompt)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:521
-#: includes/admin/uploads/image-upload-form.php:678
+#: includes/admin/uploads/image-upload-form.php:699
 #: includes/taxonomies/word-category-taxonomy.php:1135
 #: includes/taxonomies/word-category-taxonomy.php:1859
 #: includes/taxonomies/word-category-taxonomy.php:1965
@@ -9081,7 +9100,7 @@ msgid "Text (translation)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:522
-#: includes/admin/uploads/image-upload-form.php:679
+#: includes/admin/uploads/image-upload-form.php:700
 #: includes/taxonomies/word-category-taxonomy.php:1137
 #: includes/taxonomies/word-category-taxonomy.php:1860
 #: includes/taxonomies/word-category-taxonomy.php:1966
@@ -9089,7 +9108,7 @@ msgid "Text (title)"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:524
-#: includes/admin/uploads/image-upload-form.php:681
+#: includes/admin/uploads/image-upload-form.php:702
 #: includes/pages/wordset-pages.php:11864
 #: includes/taxonomies/word-category-taxonomy.php:1141
 #: includes/taxonomies/word-category-taxonomy.php:1862
@@ -9098,7 +9117,7 @@ msgid "Text + audio pairs"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:530
-#: includes/admin/uploads/image-upload-form.php:687
+#: includes/admin/uploads/image-upload-form.php:708
 #: includes/shortcodes/audio-recording-shortcode.php:1423
 #: includes/taxonomies/word-category-taxonomy.php:2269
 #: includes/taxonomies/word-category-taxonomy.php:2304
@@ -9106,12 +9125,12 @@ msgid "Desired Recording Types"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:540
-#: includes/admin/uploads/image-upload-form.php:697
+#: includes/admin/uploads/image-upload-form.php:718
 msgid "Leave all unchecked to disable recording for this category."
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:550
-#: includes/admin/uploads/image-upload-form.php:707
+#: includes/admin/uploads/image-upload-form.php:728
 msgid "Upload Target"
 msgstr ""
 
@@ -9124,7 +9143,7 @@ msgid "Bulk Audio Upload for Words"
 msgstr ""
 
 #: includes/admin/uploads/audio-upload-form.php:598
-#: includes/admin/uploads/image-upload-form.php:795
+#: includes/admin/uploads/image-upload-form.php:816
 msgid "Please choose at least one word set for this upload."
 msgstr ""
 
@@ -9219,72 +9238,77 @@ msgstr ""
 msgid "Failed Creations:"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:42
-#: includes/admin/uploads/image-upload-form.php:46
+#: includes/admin/uploads/image-upload-form.php:51
+#: includes/admin/uploads/image-upload-form.php:55
 msgid "File upload error"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:57
+#: includes/admin/uploads/image-upload-form.php:64
+#, php-format
+msgid "Image file is larger than the allowed limit of %s."
+msgstr ""
+
+#: includes/admin/uploads/image-upload-form.php:78
 msgid "Invalid image type"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:63
+#: includes/admin/uploads/image-upload-form.php:84
 msgid "Invalid image data"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:99
+#: includes/admin/uploads/image-upload-form.php:120
 #, php-format
 msgid "Some selected images are larger than %s. They may fail to upload or load slowly in quizzes."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:102
+#: includes/admin/uploads/image-upload-form.php:123
 msgid "Large files:"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:460
+#: includes/admin/uploads/image-upload-form.php:481
 msgid "That word set is not available for image upload."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:544
+#: includes/admin/uploads/image-upload-form.php:565
 msgid "Images and any generated words will use this word set automatically."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:586
+#: includes/admin/uploads/image-upload-form.php:607
 msgid "Each uploaded image will be assigned to the same logical category in every selected word set."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:589
+#: includes/admin/uploads/image-upload-form.php:610
 msgid "No word sets are available for image upload right now."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:714
+#: includes/admin/uploads/image-upload-form.php:735
 msgid "Generated word posts will follow this same word set scope automatically when the selected category supports image-based word creation without audio."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:721
+#: includes/admin/uploads/image-upload-form.php:742
 msgid "Bulk Add Images"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:737
+#: includes/admin/uploads/image-upload-form.php:758
 msgid "Bulk Image Upload for Word Images"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1005
+#: includes/admin/uploads/image-upload-form.php:1030
 msgid "You do not have permission to create categories."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1012
+#: includes/admin/uploads/image-upload-form.php:1037
 msgid "Please enter a title for the new category."
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1044
-#: includes/admin/uploads/image-upload-form.php:1064
+#: includes/admin/uploads/image-upload-form.php:1069
+#: includes/admin/uploads/image-upload-form.php:1089
 #, php-format
 msgid "Category \"%1$s\" could not be created: %2$s"
 msgstr ""
 
-#: includes/admin/uploads/image-upload-form.php:1073
-#: includes/admin/uploads/image-upload-form.php:1082
+#: includes/admin/uploads/image-upload-form.php:1098
+#: includes/admin/uploads/image-upload-form.php:1107
 msgid "Category could not be created."
 msgstr ""
 
@@ -10221,7 +10245,7 @@ msgid "Invalid plurality value. Allowed values: %s"
 msgstr ""
 
 #: includes/cli/cli-support.php:790
-#: includes/shortcodes/word-grid-shortcode.php:8724
+#: includes/shortcodes/word-grid-shortcode.php:8725
 msgid "Verb tense is not enabled for this word set."
 msgstr ""
 
@@ -10236,7 +10260,7 @@ msgid "Invalid verb tense value. Allowed values: %s"
 msgstr ""
 
 #: includes/cli/cli-support.php:825
-#: includes/shortcodes/word-grid-shortcode.php:8759
+#: includes/shortcodes/word-grid-shortcode.php:8760
 msgid "Verb mood is not enabled for this word set."
 msgstr ""
 
@@ -10973,8 +10997,8 @@ msgid "Secondary transcription field (%s)"
 msgstr ""
 
 #: includes/lib/wordset-language-settings.php:1162
-#: includes/shortcodes/word-grid-shortcode.php:4602
-#: includes/shortcodes/word-grid-shortcode.php:5529
+#: includes/shortcodes/word-grid-shortcode.php:4603
+#: includes/shortcodes/word-grid-shortcode.php:5530
 msgid "IPA suggestions"
 msgstr ""
 
@@ -11786,8 +11810,8 @@ msgid "Lesson metadata is missing."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:3630
-#: includes/shortcodes/word-grid-shortcode.php:6564
-#: includes/shortcodes/word-grid-shortcode.php:6576
+#: includes/shortcodes/word-grid-shortcode.php:6565
+#: includes/shortcodes/word-grid-shortcode.php:6577
 msgid "Lesson terms are missing."
 msgstr ""
 
@@ -11962,7 +11986,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:487
 #: includes/shortcodes/editor-hub-shortcode.php:512
 #: includes/shortcodes/editor-hub-shortcode.php:1054
-#: includes/shortcodes/word-grid-shortcode.php:4620
+#: includes/shortcodes/word-grid-shortcode.php:4621
 msgid "Note"
 msgstr ""
 
@@ -11973,7 +11997,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:504
 #: includes/shortcodes/editor-hub-shortcode.php:513
 #: includes/shortcodes/editor-hub-shortcode.php:1056
-#: includes/shortcodes/word-grid-shortcode.php:5276
+#: includes/shortcodes/word-grid-shortcode.php:5277
 msgid "Dictionary entry"
 msgstr ""
 
@@ -12002,7 +12026,7 @@ msgstr ""
 #: includes/shortcodes/flashcard-widget.php:477
 #: includes/shortcodes/flashcard-widget.php:566
 #: includes/shortcodes/quiz-pages-shortcodes.php:763
-#: includes/shortcodes/word-grid-shortcode.php:5302
+#: includes/shortcodes/word-grid-shortcode.php:5303
 #: templates/offline-app-shell-template.php:836
 #: templates/offline-app-shell-template.php:932
 #: templates/vocab-lesson-template.php:166
@@ -12014,7 +12038,7 @@ msgstr ""
 #: includes/pages/wordset-editor.php:572
 #: includes/shortcodes/editor-hub-shortcode.php:516
 #: includes/shortcodes/editor-hub-shortcode.php:1060
-#: includes/shortcodes/word-grid-shortcode.php:5335
+#: includes/shortcodes/word-grid-shortcode.php:5336
 #: includes/taxonomies/wordset-taxonomy.php:2948
 #: templates/vocab-lesson-template.php:627
 #: templates/vocab-lesson-template.php:646
@@ -12055,13 +12079,13 @@ msgid "Quick edited \"%s\"."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:1774
-#: includes/shortcodes/word-grid-shortcode.php:7419
+#: includes/shortcodes/word-grid-shortcode.php:7420
 #, php-format
 msgid "Moved a recording from \"%s\" to Trash."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:1807
-#: includes/shortcodes/word-grid-shortcode.php:7510
+#: includes/shortcodes/word-grid-shortcode.php:7511
 #, php-format
 msgid "Moved a recording from \"%1$s\" to \"%2$s\"."
 msgstr ""
@@ -12151,13 +12175,13 @@ msgstr[1] ""
 
 #: includes/pages/wordset-editor.php:2073
 #: includes/shortcodes/word-grid-shortcode.php:3301
-#: includes/shortcodes/word-grid-shortcode.php:7430
+#: includes/shortcodes/word-grid-shortcode.php:7431
 msgid "Recording moved to Trash."
 msgstr ""
 
 #: includes/pages/wordset-editor.php:2075
 #: includes/shortcodes/word-grid-shortcode.php:3304
-#: includes/shortcodes/word-grid-shortcode.php:7524
+#: includes/shortcodes/word-grid-shortcode.php:7525
 msgid "Recording moved."
 msgstr ""
 
@@ -12192,7 +12216,7 @@ msgstr ""
 
 #: includes/pages/wordset-editor.php:2099
 #: includes/pages/wordset-editor.php:2463
-#: includes/shortcodes/word-grid-shortcode.php:5146
+#: includes/shortcodes/word-grid-shortcode.php:5147
 msgid "Draft"
 msgstr ""
 
@@ -12438,9 +12462,9 @@ msgstr ""
 #: includes/shortcodes/editor-hub-shortcode.php:1063
 #: includes/shortcodes/flashcard-widget.php:422
 #: includes/shortcodes/word-grid-shortcode.php:3292
-#: includes/shortcodes/word-grid-shortcode.php:4636
-#: includes/shortcodes/word-grid-shortcode.php:5582
-#: includes/shortcodes/word-grid-shortcode.php:5628
+#: includes/shortcodes/word-grid-shortcode.php:4637
+#: includes/shortcodes/word-grid-shortcode.php:5583
+#: includes/shortcodes/word-grid-shortcode.php:5629
 msgid "Recordings"
 msgstr ""
 
@@ -12454,7 +12478,7 @@ msgid "Move this recording to Trash?"
 msgstr ""
 
 #: includes/pages/wordset-editor.php:2766
-#: includes/shortcodes/word-grid-shortcode.php:4659
+#: includes/shortcodes/word-grid-shortcode.php:4660
 msgid "Move recording to Trash"
 msgstr ""
 
@@ -14353,7 +14377,7 @@ msgid "No image selected yet."
 msgstr ""
 
 #: includes/pages/wordset-pages.php:9163
-#: includes/shortcodes/word-grid-shortcode.php:4628
+#: includes/shortcodes/word-grid-shortcode.php:4629
 msgid "Choose image"
 msgstr ""
 
@@ -14889,7 +14913,7 @@ msgstr ""
 #: includes/pages/wordset-pages.php:10502
 #: includes/pages/wordset-pages.php:11196
 #: includes/shortcodes/audio-recording-shortcode.php:1332
-#: includes/shortcodes/word-grid-shortcode.php:5146
+#: includes/shortcodes/word-grid-shortcode.php:5147
 msgid "Hidden"
 msgstr ""
 
@@ -15592,7 +15616,7 @@ msgstr ""
 #: includes/post-types/dictionary-entry-post-type.php:1319
 #: includes/shortcodes/editor-hub-shortcode.php:514
 #: includes/shortcodes/editor-hub-shortcode.php:1058
-#: includes/shortcodes/word-grid-shortcode.php:5282
+#: includes/shortcodes/word-grid-shortcode.php:5283
 #: templates/vocab-lesson-template.php:557
 msgid "Part of speech"
 msgstr ""
@@ -15648,13 +15672,13 @@ msgstr ""
 #: includes/pages/wordset-pages.php:13204
 #: includes/shortcodes/flashcard-widget.php:403
 #: includes/shortcodes/word-grid-shortcode.php:3269
-#: includes/shortcodes/word-grid-shortcode.php:5084
+#: includes/shortcodes/word-grid-shortcode.php:5085
 msgid "Star word"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:13205
 #: includes/shortcodes/word-grid-shortcode.php:3270
-#: includes/shortcodes/word-grid-shortcode.php:5083
+#: includes/shortcodes/word-grid-shortcode.php:5084
 msgid "Unstar word"
 msgstr ""
 
@@ -15856,12 +15880,12 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:13425
 #: includes/pages/wordset-pages.php:13431
-#: includes/shortcodes/word-grid-shortcode.php:4622
+#: includes/shortcodes/word-grid-shortcode.php:4623
 msgid "Search categories"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:13479
-#: includes/shortcodes/word-grid-shortcode.php:4656
+#: includes/shortcodes/word-grid-shortcode.php:4657
 msgid "Search words"
 msgstr ""
 
@@ -15999,7 +16023,7 @@ msgstr ""
 
 #: includes/pages/wordset-pages.php:14097
 #: includes/pages/wordset-pages.php:14098
-#: includes/shortcodes/word-grid-shortcode.php:4623
+#: includes/shortcodes/word-grid-shortcode.php:4624
 #: templates/offline-app-shell-template.php:772
 #: templates/offline-app-shell-template.php:773
 msgid "Sort categories"
@@ -16011,7 +16035,7 @@ msgid "Default"
 msgstr ""
 
 #: includes/pages/wordset-pages.php:14112
-#: includes/shortcodes/word-grid-shortcode.php:4625
+#: includes/shortcodes/word-grid-shortcode.php:4626
 #: templates/offline-app-shell-template.php:792
 msgid "A-Z"
 msgstr ""
@@ -16807,7 +16831,7 @@ msgstr ""
 
 #: includes/post-types/word-image-post-type.php:639
 #: includes/post-types/word-image-post-type.php:658
-#: includes/shortcodes/word-grid-shortcode.php:7301
+#: includes/shortcodes/word-grid-shortcode.php:7302
 msgid "Invalid word."
 msgstr ""
 
@@ -16828,7 +16852,7 @@ msgid "Copyright Info:"
 msgstr ""
 
 #: includes/post-types/word-image-post-type.php:815
-#: includes/shortcodes/word-grid-shortcode.php:4634
+#: includes/shortcodes/word-grid-shortcode.php:4635
 msgid "Edit or add any copyright or source info for this image."
 msgstr ""
 
@@ -16837,7 +16861,7 @@ msgid "Replacing this featured image also updates connected word posts automatic
 msgstr ""
 
 #: includes/post-types/word-image-post-type.php:951
-#: includes/shortcodes/word-grid-shortcode.php:4633
+#: includes/shortcodes/word-grid-shortcode.php:4634
 msgid "Copyright Info"
 msgstr ""
 
@@ -17501,7 +17525,7 @@ msgid "Missing word data"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:1218
-#: includes/shortcodes/word-grid-shortcode.php:6582
+#: includes/shortcodes/word-grid-shortcode.php:6583
 msgid "New word"
 msgstr ""
 
@@ -17890,7 +17914,7 @@ msgid "Forbidden."
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:3014
-#: includes/shortcodes/word-grid-shortcode.php:7296
+#: includes/shortcodes/word-grid-shortcode.php:7297
 msgid "Missing word ID."
 msgstr ""
 
@@ -18146,7 +18170,7 @@ msgid "Invalid image ID"
 msgstr ""
 
 #: includes/shortcodes/audio-recording-shortcode.php:6146
-#: includes/shortcodes/word-grid-shortcode.php:6673
+#: includes/shortcodes/word-grid-shortcode.php:6674
 msgid "Invalid word ID"
 msgstr ""
 
@@ -18413,7 +18437,7 @@ msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:517
 #: includes/shortcodes/editor-hub-shortcode.php:1061
-#: includes/shortcodes/word-grid-shortcode.php:5362
+#: includes/shortcodes/word-grid-shortcode.php:5363
 #: includes/taxonomies/wordset-taxonomy.php:2965
 #: templates/vocab-lesson-template.php:671
 #: templates/vocab-lesson-template.php:688
@@ -18423,7 +18447,7 @@ msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:518
 #: includes/shortcodes/editor-hub-shortcode.php:1062
-#: includes/shortcodes/word-grid-shortcode.php:5389
+#: includes/shortcodes/word-grid-shortcode.php:5390
 #: includes/taxonomies/wordset-taxonomy.php:2982
 #: templates/vocab-lesson-template.php:715
 #: templates/vocab-lesson-template.php:732
@@ -18460,12 +18484,12 @@ msgid "No word set is available for Editor Hub."
 msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:1055
-#: includes/shortcodes/word-grid-shortcode.php:4635
+#: includes/shortcodes/word-grid-shortcode.php:4636
 msgid "Wrong answer options (one per line)"
 msgstr ""
 
 #: includes/shortcodes/editor-hub-shortcode.php:1057
-#: includes/shortcodes/word-grid-shortcode.php:5277
+#: includes/shortcodes/word-grid-shortcode.php:5278
 msgid "Type to select or create dictionary entry"
 msgstr ""
 
@@ -19536,7 +19560,7 @@ msgid "Missing word set category scope."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:2856
-#: includes/shortcodes/word-grid-shortcode.php:6712
+#: includes/shortcodes/word-grid-shortcode.php:6713
 msgid "Select categories from this word set."
 msgstr ""
 
@@ -19590,17 +19614,17 @@ msgid "Saving in background..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3280
-#: includes/shortcodes/word-grid-shortcode.php:6526
+#: includes/shortcodes/word-grid-shortcode.php:6527
 msgid "Audio processed."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3281
-#: includes/shortcodes/word-grid-shortcode.php:4641
+#: includes/shortcodes/word-grid-shortcode.php:4642
 msgid "Process audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3282
-#: includes/shortcodes/word-grid-shortcode.php:4642
+#: includes/shortcodes/word-grid-shortcode.php:4643
 msgid "Reprocess audio"
 msgstr ""
 
@@ -19617,17 +19641,17 @@ msgid "This browser cannot process audio here."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3286
-#: includes/shortcodes/word-grid-shortcode.php:4652
+#: includes/shortcodes/word-grid-shortcode.php:4653
 msgid "Using saved original audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3287
-#: includes/shortcodes/word-grid-shortcode.php:4653
+#: includes/shortcodes/word-grid-shortcode.php:4654
 msgid "Using current audio"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3288
-#: includes/shortcodes/word-grid-shortcode.php:4646
+#: includes/shortcodes/word-grid-shortcode.php:4647
 msgid "Play clip"
 msgstr ""
 
@@ -19636,12 +19660,12 @@ msgid "Pause clip"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3290
-#: includes/shortcodes/word-grid-shortcode.php:4648
+#: includes/shortcodes/word-grid-shortcode.php:4649
 msgid "Loading waveform..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3291
-#: includes/shortcodes/word-grid-shortcode.php:4649
+#: includes/shortcodes/word-grid-shortcode.php:4650
 msgid "Waveform unavailable."
 msgstr ""
 
@@ -19650,12 +19674,12 @@ msgid "Deleting word..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3294
-#: includes/shortcodes/word-grid-shortcode.php:7348
+#: includes/shortcodes/word-grid-shortcode.php:7349
 msgid "Word moved to Trash."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3295
-#: includes/shortcodes/word-grid-shortcode.php:7317
+#: includes/shortcodes/word-grid-shortcode.php:7318
 msgid "Unable to delete word."
 msgstr ""
 
@@ -19680,7 +19704,7 @@ msgid "Deleting recording..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3302
-#: includes/shortcodes/word-grid-shortcode.php:7393
+#: includes/shortcodes/word-grid-shortcode.php:7394
 msgid "Unable to delete recording."
 msgstr ""
 
@@ -19689,7 +19713,7 @@ msgid "Moving recording..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3305
-#: includes/shortcodes/word-grid-shortcode.php:7491
+#: includes/shortcodes/word-grid-shortcode.php:7492
 msgid "Unable to move recording."
 msgstr ""
 
@@ -19723,7 +19747,7 @@ msgid "Undo last bulk change"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3322
-#: includes/shortcodes/word-grid-shortcode.php:8804
+#: includes/shortcodes/word-grid-shortcode.php:8805
 msgid "Bulk changes undone."
 msgstr ""
 
@@ -19777,7 +19801,7 @@ msgid "Saving prerequisites..."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3338
-#: includes/shortcodes/word-grid-shortcode.php:7865
+#: includes/shortcodes/word-grid-shortcode.php:7866
 msgid "Prerequisites saved."
 msgstr ""
 
@@ -19881,437 +19905,437 @@ msgid "Please choose an image to upload."
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:3841
-#: includes/shortcodes/word-grid-shortcode.php:3868
+#: includes/shortcodes/word-grid-shortcode.php:3869
 msgid "Image uploads are not available right now."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:3858
-#: includes/shortcodes/word-grid-shortcode.php:3891
+#: includes/shortcodes/word-grid-shortcode.php:3859
+#: includes/shortcodes/word-grid-shortcode.php:3892
 msgid "Image upload failed. Please try again."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:3860
+#: includes/shortcodes/word-grid-shortcode.php:3861
 msgid "Please upload a valid JPG, PNG, GIF, or WebP image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:3900
+#: includes/shortcodes/word-grid-shortcode.php:3901
 msgid "Lesson image"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:3914
+#: includes/shortcodes/word-grid-shortcode.php:3915
 msgid "Could not save the uploaded image."
-msgstr ""
-
-#: includes/shortcodes/word-grid-shortcode.php:4614
-#, php-format
-msgid "Edit %s"
 msgstr ""
 
 #: includes/shortcodes/word-grid-shortcode.php:4615
 #, php-format
+msgid "Edit %s"
+msgstr ""
+
+#: includes/shortcodes/word-grid-shortcode.php:4616
+#, php-format
 msgid "Edit %s recording"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4618
+#: includes/shortcodes/word-grid-shortcode.php:4619
 #: templates/vocab-lesson-template.php:1350
 msgid "Add word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4619
+#: includes/shortcodes/word-grid-shortcode.php:4620
 msgid "Add translation"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4624
+#: includes/shortcodes/word-grid-shortcode.php:4625
 msgid "Wordset order"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4626
+#: includes/shortcodes/word-grid-shortcode.php:4627
 msgid "No categories match."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4629
+#: includes/shortcodes/word-grid-shortcode.php:4630
 msgid "Existing image"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4630
+#: includes/shortcodes/word-grid-shortcode.php:4631
 msgid "Search word set images"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4631
+#: includes/shortcodes/word-grid-shortcode.php:4632
 msgid "Upload a new image or select an existing word image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4639
+#: includes/shortcodes/word-grid-shortcode.php:4640
 msgid "Superscript selection"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4640
+#: includes/shortcodes/word-grid-shortcode.php:4641
 msgid "Audio processing"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4643
+#: includes/shortcodes/word-grid-shortcode.php:4644
 msgid "Auto trim"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4644
+#: includes/shortcodes/word-grid-shortcode.php:4645
 msgid "Noise reduction"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4645
+#: includes/shortcodes/word-grid-shortcode.php:4646
 msgid "Normalize volume"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4647
+#: includes/shortcodes/word-grid-shortcode.php:4648
 msgid "Audio clip boundaries"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4650
+#: includes/shortcodes/word-grid-shortcode.php:4651
 msgid "Start boundary"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4651
+#: includes/shortcodes/word-grid-shortcode.php:4652
 msgid "End boundary"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4654
+#: includes/shortcodes/word-grid-shortcode.php:4655
 msgid "Move recording"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4655
+#: includes/shortcodes/word-grid-shortcode.php:4656
 msgid "Move to word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4657
+#: includes/shortcodes/word-grid-shortcode.php:4658
 msgid "Delete recording"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4658
+#: includes/shortcodes/word-grid-shortcode.php:4659
 msgid "Delete this recording?"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4660
+#: includes/shortcodes/word-grid-shortcode.php:4661
 msgid "Delete word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4661
+#: includes/shortcodes/word-grid-shortcode.php:4662
 msgid "Delete this word?"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:4662
+#: includes/shortcodes/word-grid-shortcode.php:4663
 msgid "Move word to Trash"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5073
+#: includes/shortcodes/word-grid-shortcode.php:5074
 msgid "Drag to reorder word"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5521
+#: includes/shortcodes/word-grid-shortcode.php:5522
 msgid "Transcription guide"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5522
+#: includes/shortcodes/word-grid-shortcode.php:5523
 msgid "Previous letter"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5524
+#: includes/shortcodes/word-grid-shortcode.php:5525
 msgid "Next letter"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:5647
+#: includes/shortcodes/word-grid-shortcode.php:5648
 msgid "No words found in this category."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6395
-#: includes/shortcodes/word-grid-shortcode.php:6543
-#: includes/shortcodes/word-grid-shortcode.php:6663
-#: includes/shortcodes/word-grid-shortcode.php:7290
-#: includes/shortcodes/word-grid-shortcode.php:7360
-#: includes/shortcodes/word-grid-shortcode.php:7443
-#: includes/shortcodes/word-grid-shortcode.php:7539
-#: includes/shortcodes/word-grid-shortcode.php:7605
-#: includes/shortcodes/word-grid-shortcode.php:7646
-#: includes/shortcodes/word-grid-shortcode.php:7668
-#: includes/shortcodes/word-grid-shortcode.php:8210
-#: includes/shortcodes/word-grid-shortcode.php:8816
-#: includes/shortcodes/word-grid-shortcode.php:8912
-#: includes/shortcodes/word-grid-shortcode.php:9132
+#: includes/shortcodes/word-grid-shortcode.php:6396
+#: includes/shortcodes/word-grid-shortcode.php:6544
+#: includes/shortcodes/word-grid-shortcode.php:6664
+#: includes/shortcodes/word-grid-shortcode.php:7291
+#: includes/shortcodes/word-grid-shortcode.php:7361
+#: includes/shortcodes/word-grid-shortcode.php:7444
+#: includes/shortcodes/word-grid-shortcode.php:7540
+#: includes/shortcodes/word-grid-shortcode.php:7606
+#: includes/shortcodes/word-grid-shortcode.php:7647
+#: includes/shortcodes/word-grid-shortcode.php:7669
+#: includes/shortcodes/word-grid-shortcode.php:8211
+#: includes/shortcodes/word-grid-shortcode.php:8817
+#: includes/shortcodes/word-grid-shortcode.php:8913
+#: includes/shortcodes/word-grid-shortcode.php:9133
 msgid "You must be logged in"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6400
+#: includes/shortcodes/word-grid-shortcode.php:6401
 msgid "Missing required audio data."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6405
-#: includes/shortcodes/word-grid-shortcode.php:7371
-#: includes/shortcodes/word-grid-shortcode.php:7455
+#: includes/shortcodes/word-grid-shortcode.php:6406
+#: includes/shortcodes/word-grid-shortcode.php:7372
+#: includes/shortcodes/word-grid-shortcode.php:7456
 msgid "Invalid recording."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6411
+#: includes/shortcodes/word-grid-shortcode.php:6412
 msgid "Invalid parent word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6420
+#: includes/shortcodes/word-grid-shortcode.php:6421
 msgid "Audio upload validation is unavailable."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6438
+#: includes/shortcodes/word-grid-shortcode.php:6439
 msgid "Upload directory is unavailable."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6447
+#: includes/shortcodes/word-grid-shortcode.php:6448
 msgid "Invalid recording type."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6491
+#: includes/shortcodes/word-grid-shortcode.php:6492
 msgid "Failed to save file."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6549
-#: includes/shortcodes/word-grid-shortcode.php:7545
-#: includes/shortcodes/word-grid-shortcode.php:8825
-#: includes/shortcodes/word-grid-shortcode.php:8918
-#: includes/shortcodes/word-grid-shortcode.php:9146
+#: includes/shortcodes/word-grid-shortcode.php:6550
+#: includes/shortcodes/word-grid-shortcode.php:7546
+#: includes/shortcodes/word-grid-shortcode.php:8826
+#: includes/shortcodes/word-grid-shortcode.php:8919
+#: includes/shortcodes/word-grid-shortcode.php:9147
 msgid "Invalid lesson"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6554
-#: includes/shortcodes/word-grid-shortcode.php:7550
-#: includes/shortcodes/word-grid-shortcode.php:8830
-#: includes/shortcodes/word-grid-shortcode.php:8923
-#: includes/shortcodes/word-grid-shortcode.php:9151
+#: includes/shortcodes/word-grid-shortcode.php:6555
+#: includes/shortcodes/word-grid-shortcode.php:7551
+#: includes/shortcodes/word-grid-shortcode.php:8831
+#: includes/shortcodes/word-grid-shortcode.php:8924
+#: includes/shortcodes/word-grid-shortcode.php:9152
 msgid "Missing lesson metadata"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6579
+#: includes/shortcodes/word-grid-shortcode.php:6580
 msgid "This category is outside the lesson word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6592
+#: includes/shortcodes/word-grid-shortcode.php:6593
 msgid "Unable to create the word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6637
+#: includes/shortcodes/word-grid-shortcode.php:6638
 #, php-format
 msgid "Created a new word in \"%s\"."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6647
+#: includes/shortcodes/word-grid-shortcode.php:6648
 msgid "Word created."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6668
+#: includes/shortcodes/word-grid-shortcode.php:6669
 msgid "Missing word ID"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6739
+#: includes/shortcodes/word-grid-shortcode.php:6740
 msgid "You do not have permission to upload images."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6752
+#: includes/shortcodes/word-grid-shortcode.php:6753
 msgid "Unable to upload the image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:6765
+#: includes/shortcodes/word-grid-shortcode.php:6766
 msgid "Select an image from this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7137
+#: includes/shortcodes/word-grid-shortcode.php:7138
 msgid "Image syncing is not available right now."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7145
+#: includes/shortcodes/word-grid-shortcode.php:7146
 msgid "Could not update the linked word image."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7177
+#: includes/shortcodes/word-grid-shortcode.php:7178
 msgid "The selected word image does not have an image file."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7338
+#: includes/shortcodes/word-grid-shortcode.php:7339
 #, php-format
 msgid "Moved \"%s\" to Trash."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7366
+#: includes/shortcodes/word-grid-shortcode.php:7367
 msgid "Missing recording ID."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7376
+#: includes/shortcodes/word-grid-shortcode.php:7377
 msgid "Invalid recording parent."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7382
+#: includes/shortcodes/word-grid-shortcode.php:7383
 msgid "Recording is outside this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7450
+#: includes/shortcodes/word-grid-shortcode.php:7451
 msgid "Choose a recording and target word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7460
+#: includes/shortcodes/word-grid-shortcode.php:7461
 msgid "Choose a different target word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7466
+#: includes/shortcodes/word-grid-shortcode.php:7467
 msgid "Invalid target word."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7473
+#: includes/shortcodes/word-grid-shortcode.php:7474
 msgid "Move recordings within the same word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7703
+#: includes/shortcodes/word-grid-shortcode.php:7704
 msgid "You must be logged in to edit prerequisites."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7711
-#: includes/shortcodes/word-grid-shortcode.php:8521
+#: includes/shortcodes/word-grid-shortcode.php:7712
+#: includes/shortcodes/word-grid-shortcode.php:8522
 msgid "Missing word set or category."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7716
+#: includes/shortcodes/word-grid-shortcode.php:7717
 msgid "You do not have permission to edit prerequisites for this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7724
+#: includes/shortcodes/word-grid-shortcode.php:7725
 msgid "This word set is not using prerequisite ordering."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7736
+#: includes/shortcodes/word-grid-shortcode.php:7737
 msgid "Prerequisite editing is unavailable right now."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7744
+#: includes/shortcodes/word-grid-shortcode.php:7745
 msgid "This lesson category is not available for prerequisite ordering."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7835
+#: includes/shortcodes/word-grid-shortcode.php:7836
 #, php-format
 msgid "Prerequisites were not saved because they create a loop: %s"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:7847
+#: includes/shortcodes/word-grid-shortcode.php:7848
 msgid "Prerequisites were not saved because they create a loop."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8216
+#: includes/shortcodes/word-grid-shortcode.php:8217
 msgid "Missing wordset or category"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8224
+#: includes/shortcodes/word-grid-shortcode.php:8225
 msgid "Invalid mode"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8239
+#: includes/shortcodes/word-grid-shortcode.php:8240
 msgid "Missing part of speech"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8243
+#: includes/shortcodes/word-grid-shortcode.php:8244
 msgid "Invalid part of speech"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8288
+#: includes/shortcodes/word-grid-shortcode.php:8289
 msgid "Gender not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8294
+#: includes/shortcodes/word-grid-shortcode.php:8295
 msgid "Missing gender"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8301
+#: includes/shortcodes/word-grid-shortcode.php:8302
 msgid "Invalid gender"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8352
+#: includes/shortcodes/word-grid-shortcode.php:8353
 msgid "Plurality not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8358
+#: includes/shortcodes/word-grid-shortcode.php:8359
 msgid "Missing plurality"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8365
+#: includes/shortcodes/word-grid-shortcode.php:8366
 msgid "Invalid plurality"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8404
+#: includes/shortcodes/word-grid-shortcode.php:8405
 msgid "Verb tense not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8410
+#: includes/shortcodes/word-grid-shortcode.php:8411
 msgid "Missing verb tense"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8417
+#: includes/shortcodes/word-grid-shortcode.php:8418
 msgid "Invalid verb tense"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8456
+#: includes/shortcodes/word-grid-shortcode.php:8457
 msgid "Verb mood not enabled"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8462
+#: includes/shortcodes/word-grid-shortcode.php:8463
 msgid "Missing verb mood"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8469
+#: includes/shortcodes/word-grid-shortcode.php:8470
 msgid "Invalid verb mood"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8513
+#: includes/shortcodes/word-grid-shortcode.php:8514
 msgid "You must be logged in to undo bulk changes."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8526
+#: includes/shortcodes/word-grid-shortcode.php:8527
 msgid "You do not have permission to undo bulk changes for this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8533
+#: includes/shortcodes/word-grid-shortcode.php:8534
 msgid "Invalid bulk edit mode."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8541
+#: includes/shortcodes/word-grid-shortcode.php:8542
 msgid "Nothing was available to undo."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8654
+#: includes/shortcodes/word-grid-shortcode.php:8655
 msgid "Gender is not enabled for this word set."
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8844
-#: includes/shortcodes/word-grid-shortcode.php:9157
+#: includes/shortcodes/word-grid-shortcode.php:8845
+#: includes/shortcodes/word-grid-shortcode.php:9158
 msgid "Transcription service not configured"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:8996
-#: includes/shortcodes/word-grid-shortcode.php:9099
+#: includes/shortcodes/word-grid-shortcode.php:8997
+#: includes/shortcodes/word-grid-shortcode.php:9100
 msgid "Empty transcript"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9161
+#: includes/shortcodes/word-grid-shortcode.php:9162
 msgid "Recording not in lesson"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9191
+#: includes/shortcodes/word-grid-shortcode.php:9192
 msgid "Local transcript missing"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9214
-#: includes/shortcodes/word-grid-shortcode.php:9297
+#: includes/shortcodes/word-grid-shortcode.php:9215
+#: includes/shortcodes/word-grid-shortcode.php:9298
 msgid "Audio file missing"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9255
+#: includes/shortcodes/word-grid-shortcode.php:9256
 msgid "AssemblyAI integration not available"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9266
+#: includes/shortcodes/word-grid-shortcode.php:9267
 msgid "Transcription session expired"
 msgstr ""
 
-#: includes/shortcodes/word-grid-shortcode.php:9269
+#: includes/shortcodes/word-grid-shortcode.php:9270
 msgid "Transcription session mismatch"
 msgstr ""
 

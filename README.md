@@ -207,19 +207,38 @@ For this Local/WSL checkout, use `bash bin/ll-rest-local.sh ...` when Linux
 ### `[wordset_page]` / `[ll_wordset_page]`
 - Front-end wordset hub that renders the current wordset context, including study/progress/settings views.
 
+### `[wordset_buttons]` / `[ll_wordset_buttons]`
+- Front-end list of word set launch buttons.
+- **Attributes**: `hide_empty` (`1|0` to hide word sets without learner-ready categories), `class`.
+
 ### `[ll_language_switcher]`
 - **Attributes**:
   - `show_flags`: `1|0` to show or hide locale flags.
   - `style`: `native`, `english`, or `code`.
   - `class`: extra CSS class for wrapper styling.
 
+### `[ll_dictionary]` / `[dictionary_search]` / `[dictionary_browser]`
+- Front-end dictionary browser/search surface.
+- **Attributes**: `wordset`, `show_title`, `per_page`, `sense_limit`, `linked_word_limit`, `title`, `gloss_lang`.
+
 ### `[quiz_pages_grid]` / `[quiz_pages_dropdown]`
 - **Attributes (grid)**: `show_counts`, `exclude`, `parent`, `order`, `orderby`, `wordset`, `popup` (`yes` to open flashcard overlay inline), `mode` (`practice`, `learning`, or `self-check`).
 - **Attributes (dropdown)**: `wordset`, `placeholder`, `button` (`yes` to show a Go button).
 
+### `[audio_upload_form]` / `[image_upload_form]`
+- Manager/admin upload forms for bulk audio and image uploads.
+- **Attributes**: `wordset_id`, `lock_wordset`, `return_url`.
+
 ### `[audio_recording_interface]`
 - Provides a browser-based interface for recording audio.
 - Best used with the Audio Recorder role for contributors.
+
+### `[audio_credit_grid]`
+- Public credit grid for recordings with attribution metadata.
+- **Attributes**: `posts_per_page`.
+
+### `[ll_site_tools]`
+- Front-end tools hub for users with LL Tools permissions.
 
 ---
 

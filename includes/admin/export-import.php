@@ -6843,6 +6843,23 @@ function ll_tools_ajax_import_preview_upload_start(): void {
         ], 400);
     }
 
+    $max_total_size = ll_tools_import_get_chunk_upload_max_total_bytes();
+    if ($max_total_size > 0 && $total_size > $max_total_size) {
+        wp_send_json_error([
+            'message' => sprintf(
+                __('Import failed: the selected zip file is larger than the upload staging limit of %s.', 'll-tools-text-domain'),
+                size_format($max_total_size)
+            ),
+        ], 400);
+    }
+
+    $max_total_chunks = ll_tools_import_get_chunk_upload_max_chunks();
+    if ($max_total_chunks > 0 && $total_chunks > $max_total_chunks) {
+        wp_send_json_error([
+            'message' => __('Import failed: the selected zip file has too many upload chunks.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
     if (!ll_tools_ensure_import_chunk_upload_dirs()) {
         wp_send_json_error([
             'message' => __('Import failed: upload staging folders are not available.', 'll-tools-text-domain'),
@@ -6923,6 +6940,50 @@ function ll_tools_ajax_import_preview_upload_chunk(): void {
         ], 400);
     }
 
+    $declared_chunk_size = isset($_FILES['ll_import_chunk']['size'])
+        ? max(0, (int) $_FILES['ll_import_chunk']['size'])
+        : 0;
+    $actual_chunk_size = max(0, (int) @filesize($tmp_name));
+    $chunk_size = max($declared_chunk_size, $actual_chunk_size);
+    $max_chunk_size = ll_tools_import_get_chunk_upload_max_chunk_bytes();
+    if ($max_chunk_size > 0 && $chunk_size > $max_chunk_size) {
+        wp_send_json_error([
+            'message' => sprintf(
+                __('Import failed: one upload chunk is larger than the staging limit of %s.', 'll-tools-text-domain'),
+                size_format($max_chunk_size)
+            ),
+        ], 400);
+    }
+
+    $received_chunks = isset($session['received_chunks']) && is_array($session['received_chunks'])
+        ? $session['received_chunks']
+        : [];
+    $received_bytes_before = 0;
+    foreach ($received_chunks as $received_index => $received_chunk) {
+        if ((string) $received_index === (string) $chunk_index) {
+            continue;
+        }
+        $received_bytes_before += max(0, (int) ($received_chunk['size'] ?? 0));
+    }
+
+    $total_size = max(0, (int) ($session['total_size'] ?? 0));
+    $received_bytes_after = $received_bytes_before + $chunk_size;
+    if ($total_size > 0 && $received_bytes_after > $total_size) {
+        wp_send_json_error([
+            'message' => __('Import failed: upload chunks are larger than the selected zip file.', 'll-tools-text-domain'),
+        ], 400);
+    }
+
+    $max_total_size = ll_tools_import_get_chunk_upload_max_total_bytes();
+    if ($max_total_size > 0 && $received_bytes_after > $max_total_size) {
+        wp_send_json_error([
+            'message' => sprintf(
+                __('Import failed: the selected zip file is larger than the upload staging limit of %s.', 'll-tools-text-domain'),
+                size_format($max_total_size)
+            ),
+        ], 400);
+    }
+
     $chunk_path = ll_tools_import_chunk_upload_chunk_path($upload_id, $chunk_index);
     if (!ll_tools_import_chunk_upload_move_uploaded_file($tmp_name, $chunk_path)) {
         wp_send_json_error([
@@ -6930,9 +6991,6 @@ function ll_tools_ajax_import_preview_upload_chunk(): void {
         ], 500);
     }
 
-    $received_chunks = isset($session['received_chunks']) && is_array($session['received_chunks'])
-        ? $session['received_chunks']
-        : [];
     $received_chunks[(string) $chunk_index] = [
         'size' => max(0, (int) @filesize($chunk_path)),
         'received_at' => time(),
@@ -9100,6 +9158,20 @@ function ll_tools_import_get_chunk_upload_size_bytes(): int {
     }
 
     return max($minimum_size, $chunk_size);
+}
+
+function ll_tools_import_get_chunk_upload_max_total_bytes(): int {
+    return max(0, (int) apply_filters('ll_tools_import_chunk_upload_max_total_bytes', 512 * MB_IN_BYTES));
+}
+
+function ll_tools_import_get_chunk_upload_max_chunks(): int {
+    return max(0, (int) apply_filters('ll_tools_import_chunk_upload_max_chunks', 2048));
+}
+
+function ll_tools_import_get_chunk_upload_max_chunk_bytes(): int {
+    $default_size = max(8 * MB_IN_BYTES, ll_tools_import_get_chunk_upload_size_bytes() * 2);
+
+    return max(0, (int) apply_filters('ll_tools_import_chunk_upload_max_chunk_bytes', $default_size));
 }
 
 function ll_tools_get_import_dir() {

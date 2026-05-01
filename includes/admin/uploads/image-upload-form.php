@@ -11,6 +11,13 @@ function ll_image_upload_user_can_access_admin_tool() {
     return ll_image_upload_user_can_access() && current_user_can('view_ll_tools');
 }
 
+function ll_image_upload_get_max_upload_bytes(): int {
+    $default_max = function_exists('wp_max_upload_size') ? (int) wp_max_upload_size() : 0;
+    $max_bytes = (int) apply_filters('ll_image_upload_max_upload_bytes', $default_max);
+
+    return max(0, $max_bytes);
+}
+
 /**
  * Validate an uploaded image using server-side checks.
  *
@@ -20,6 +27,7 @@ function ll_image_upload_user_can_access_admin_tool() {
  * @param array  $allowed_image_types Allowed image mime types.
  * @param array  $allowed_image_extensions Allowed image extensions.
  * @param bool   $require_uploaded_file When true, require is_uploaded_file() to pass.
+ * @param int|null $file_size Uploaded file size in bytes, when known.
  * @return array{valid:bool,error:string,mime:string,ext:string,safe_name:string}
  */
 function ll_image_upload_validate_uploaded_image(
@@ -28,7 +36,8 @@ function ll_image_upload_validate_uploaded_image(
     $file_error,
     array $allowed_image_types,
     array $allowed_image_extensions,
-    $require_uploaded_file = true
+    $require_uploaded_file = true,
+    $file_size = null
 ) {
     $result = [
         'valid' => false,
@@ -45,6 +54,18 @@ function ll_image_upload_validate_uploaded_image(
     if ($require_uploaded_file && !is_uploaded_file((string) $tmp_name)) {
         $result['error'] = __('File upload error', 'll-tools-text-domain');
         return $result;
+    }
+
+    $max_upload_bytes = ll_image_upload_get_max_upload_bytes();
+    if ($max_upload_bytes > 0) {
+        $actual_size = $file_size !== null ? (int) $file_size : (int) @filesize((string) $tmp_name);
+        if ($actual_size > $max_upload_bytes) {
+            $result['error'] = sprintf(
+                __('Image file is larger than the allowed limit of %s.', 'll-tools-text-domain'),
+                size_format($max_upload_bytes)
+            );
+            return $result;
+        }
     }
 
     $ft = wp_check_filetype_and_ext((string) $tmp_name, (string) $original_name);
@@ -844,7 +865,11 @@ function ll_handle_image_file_uploads() {
             (string) $original_name,
             (int) $file_error,
             $allowed_image_types,
-            $allowed_image_extensions
+            $allowed_image_extensions,
+            true,
+            isset($_FILES['ll_image_files']['size'][$key])
+                ? (int) $_FILES['ll_image_files']['size'][$key]
+                : null
         );
         if (empty($validation['valid'])) {
             $message = isset($validation['error']) ? (string) $validation['error'] : 'Invalid image file';

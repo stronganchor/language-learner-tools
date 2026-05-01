@@ -464,6 +464,40 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertNotSame('', (string) ($result['error'] ?? ''));
     }
 
+    public function test_image_upload_validation_rejects_file_over_max_size(): void
+    {
+        $tmp = $this->create_temp_file_with_suffix('.png');
+        $png = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQf4xX0AAAAASUVORK5CYII=',
+            true
+        );
+        $this->assertIsString($png);
+        file_put_contents($tmp, $png);
+
+        $max_size_filter = static function (): int {
+            return 8;
+        };
+        add_filter('ll_image_upload_max_upload_bytes', $max_size_filter);
+
+        try {
+            $result = ll_image_upload_validate_uploaded_image(
+                $tmp,
+                'too-large.png',
+                UPLOAD_ERR_OK,
+                ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+                ['jpg', 'jpeg', 'jpe', 'png', 'gif', 'webp'],
+                false,
+                filesize($tmp)
+            );
+        } finally {
+            remove_filter('ll_image_upload_max_upload_bytes', $max_size_filter);
+            @unlink($tmp);
+        }
+
+        $this->assertFalse((bool) ($result['valid'] ?? true));
+        $this->assertStringContainsString('allowed limit', (string) ($result['error'] ?? ''));
+    }
+
     public function test_recording_upload_validation_rejects_empty_file(): void
     {
         $tmp = $this->create_temp_file_with_suffix('.wav');
