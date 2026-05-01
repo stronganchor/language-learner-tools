@@ -867,6 +867,7 @@
     const $starModeButtons = $('.ll-vocab-lesson-star-mode');
     const $lessonSettings = $('.ll-vocab-lesson-settings');
     const $bulkEditors = $('[data-ll-word-grid-bulk]');
+    const $prereqEditors = $('[data-ll-prereq-editor]');
     let initRenderedGridItems = null;
 
     function getStudySettings() {
@@ -1124,9 +1125,19 @@
     }
 
     function repositionOpenSettingsPanels() {
-        $('.ll-vocab-lesson-settings-panel[aria-hidden="false"], .ll-vocab-lesson-bulk-panel[aria-hidden="false"]').each(function () {
+        $('.ll-vocab-lesson-settings-panel[aria-hidden="false"]').each(function () {
             clampSettingsPanelToViewport($(this));
         });
+    }
+
+    function closeCategorySettingsPanels() {
+        $('.ll-vocab-lesson-category-settings').each(function () {
+            const $wrap = $(this);
+            $wrap.removeClass('is-open');
+            $wrap.find('.ll-vocab-lesson-category-settings-panel').first().attr('aria-hidden', 'true');
+            $wrap.find('.ll-vocab-lesson-category-settings-trigger').first().attr('aria-expanded', 'false');
+        });
+        $('body').removeClass('ll-vocab-lesson-category-settings-open');
     }
 
     function setLessonSettingsOpen($wrap, shouldOpen) {
@@ -1164,8 +1175,10 @@
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         $button.attr('aria-expanded', open ? 'true' : 'false');
         $wrap.toggleClass('is-open', open);
+        $('body').toggleClass('ll-vocab-lesson-bulk-open', $('.ll-vocab-lesson-bulk-panel[aria-hidden="false"]').length > 0);
         if (open) {
-            queueSettingsPanelViewportClamp($panel);
+            closeLessonSettings();
+            closeCategorySettingsPanels();
         } else {
             resetSettingsPanelPosition($panel);
         }
@@ -1333,6 +1346,19 @@
 
         $bulkEditors.on('click', '.ll-vocab-lesson-bulk-panel', function (e) {
             e.stopPropagation();
+        });
+
+        $bulkEditors.on('click', '[data-ll-bulk-modal-close]', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeBulkEditors();
+        });
+
+        $bulkEditors.on('pointerdown', function (e) {
+            if (e.target === this && $(this).hasClass('is-open')) {
+                e.preventDefault();
+                closeBulkEditors();
+            }
         });
 
         $(document).on('pointerdown.llLessonBulk', function (e) {
@@ -6694,8 +6720,7 @@
                 return;
             }
 
-            const $wrap = $editor.closest('[data-ll-word-grid-bulk]');
-            const context = getBulkContext($wrap);
+            const context = getBulkContext($editor);
             if (!context) {
                 setPrereqEditorStatus($editor, 'error', prereqMessages.error);
                 return;
@@ -7323,22 +7348,27 @@
             });
         }
 
-        if ($bulkEditors.length) {
-            $bulkEditors.find('[data-ll-prereq-editor]').each(function () {
+        if ($prereqEditors.length) {
+            $prereqEditors.each(function () {
                 initPrereqEditor($(this));
             });
+        }
+
+        if ($bulkEditors.length) {
             $bulkEditors.each(function () {
                 syncBulkControlSelectDefaults($(this), null, { preserveExistingOnEmpty: true });
             });
+        }
 
-            $bulkEditors.on('input', '[data-ll-prereq-input]', function () {
+        if ($prereqEditors.length) {
+            $prereqEditors.on('input', '[data-ll-prereq-input]', function () {
                 const $editor = $(this).closest('[data-ll-prereq-editor]');
                 if (!$editor.length) { return; }
                 renderPrereqEditorOptions($editor);
                 setPrereqEditorStatus($editor, 'idle', '');
             });
 
-            $bulkEditors.on('keydown', '[data-ll-prereq-input]', function (e) {
+            $prereqEditors.on('keydown', '[data-ll-prereq-input]', function (e) {
                 const $input = $(this);
                 const $editor = $input.closest('[data-ll-prereq-editor]');
                 if (!$editor.length) { return; }
@@ -7367,7 +7397,7 @@
                 }
             });
 
-            $bulkEditors.on('click', '[data-ll-prereq-search-clear]', function (e) {
+            $prereqEditors.on('click', '[data-ll-prereq-search-clear]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 const $btn = $(this);
@@ -7381,7 +7411,7 @@
                 $input.trigger('focus');
             });
 
-            $bulkEditors.on('click', '[data-ll-prereq-option]', function (e) {
+            $prereqEditors.on('click', '[data-ll-prereq-option]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 const $btn = $(this);
@@ -7394,7 +7424,7 @@
                 }
             });
 
-            $bulkEditors.on('click', '[data-ll-prereq-remove]', function (e) {
+            $prereqEditors.on('click', '[data-ll-prereq-remove]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
                 const $btn = $(this);
@@ -7408,7 +7438,9 @@
                     schedulePrereqEditorSave($editor, prereqSaveDelayMs);
                 }
             });
+        }
 
+        if ($bulkEditors.length) {
             $bulkEditors.on('click', '[data-ll-bulk-control-undo]', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -8526,6 +8558,26 @@
             return state;
         }
 
+        function setTranscribeMenuOpen($wrap, shouldOpen) {
+            if (!$wrap || !$wrap.length) { return; }
+            const $menu = $wrap.find('[data-ll-transcribe-menu]').first();
+            const $trigger = $wrap.find('[data-ll-transcribe-menu-trigger]').first();
+            if (!$menu.length || !$trigger.length) { return; }
+
+            const open = !!shouldOpen;
+            $menu.attr('aria-hidden', open ? 'false' : 'true');
+            $trigger.attr('aria-expanded', open ? 'true' : 'false');
+            $wrap.toggleClass('is-open', open);
+        }
+
+        function closeTranscribeMenus(except) {
+            $('[data-ll-transcribe-wrapper]').each(function () {
+                const $wrap = $(this);
+                if (except && $wrap.is(except)) { return; }
+                setTranscribeMenuOpen($wrap, false);
+            });
+        }
+
         function setTranscribeControls($wrap, isActive) {
             $wrap.find('[data-ll-transcribe-recordings]').prop('disabled', isActive);
             $wrap.find('[data-ll-transcribe-replace]').prop('disabled', isActive);
@@ -8973,12 +9025,38 @@
             }
         }
 
+        $('[data-ll-transcribe-menu-trigger]').on('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const $wrap = $(this).closest('[data-ll-transcribe-wrapper]');
+            const $menu = $wrap.find('[data-ll-transcribe-menu]').first();
+            const isOpen = $menu.attr('aria-hidden') === 'false';
+            closeTranscribeMenus($wrap);
+            setTranscribeMenuOpen($wrap, !isOpen);
+        });
+
+        $('[data-ll-transcribe-menu]').on('click', function (e) {
+            e.stopPropagation();
+        });
+
+        $(document).on('pointerdown.llLessonTranscribeMenu', function (e) {
+            if ($(e.target).closest('[data-ll-transcribe-wrapper]').length) { return; }
+            closeTranscribeMenus();
+        });
+
+        $(document).on('keydown.llLessonTranscribeMenu', function (e) {
+            if (e.key === 'Escape') {
+                closeTranscribeMenus();
+            }
+        });
+
         $('[data-ll-transcribe-recordings]').on('click', function (e) {
             e.preventDefault();
             const $btn = $(this);
             const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
             const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
             if (!lessonId) { return; }
+            setTranscribeMenuOpen($wrap, false);
             runLessonTranscription($wrap, lessonId, {
                 mode: 'missing',
                 force: false,
@@ -8992,6 +9070,7 @@
             const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
             const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
             if (!lessonId) { return; }
+            setTranscribeMenuOpen($wrap, false);
             runLessonTranscription($wrap, lessonId, {
                 mode: 'all',
                 force: true,
@@ -9005,6 +9084,7 @@
             const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
             const lessonId = parseInt($btn.attr('data-lesson-id'), 10) || 0;
             if (!lessonId) { return; }
+            setTranscribeMenuOpen($wrap, false);
             runClearCaptions($wrap, lessonId);
         });
 
@@ -9013,6 +9093,7 @@
             const $btn = $(this);
             const $wrap = $btn.closest('[data-ll-transcribe-wrapper]');
             if (!$wrap.length) { return; }
+            setTranscribeMenuOpen($wrap, false);
             cancelLessonTranscription($wrap);
         });
     }

@@ -7,6 +7,10 @@ const wordGridScriptSource = fs.readFileSync(
   path.resolve(__dirname, '../../../js/word-grid.js'),
   'utf8'
 );
+const vocabLessonJsSource = fs.readFileSync(
+  path.resolve(__dirname, '../../../js/vocab-lesson-page.js'),
+  'utf8'
+);
 const flashcardBaseCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/flashcard/base.css'),
   'utf8'
@@ -15,10 +19,10 @@ const vocabLessonCssSource = fs.readFileSync(
   path.resolve(__dirname, '../../../css/vocab-lesson-pages.css'),
   'utf8'
 );
-const hostileBulkThemeCss = `
-  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel button,
-  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel input,
-  .ll-vocab-lesson-page .ll-vocab-lesson-bulk-panel select {
+const hostileCategoryThemeCss = `
+  .ll-vocab-lesson-page .ll-vocab-lesson-category-settings-panel button,
+  .ll-vocab-lesson-page .ll-vocab-lesson-category-settings-panel input,
+  .ll-vocab-lesson-page .ll-vocab-lesson-category-settings-panel select {
     min-width: 96px !important;
     min-height: 46px !important;
     padding: 12px 18px !important;
@@ -51,67 +55,73 @@ function buildPrereqEditorMarkup({
 } = {}) {
   return `
     <div class="ll-vocab-lesson-page" data-ll-vocab-lesson style="padding: 10px; box-sizing: border-box;">
-      <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="7" data-ll-category-id="11">
-        <div class="ll-vocab-lesson-bulk ll-tools-settings-control" data-ll-word-grid-bulk>
-          <button
-            type="button"
-            class="ll-vocab-lesson-bulk-button ll-tools-settings-button"
-            aria-haspopup="true"
-            aria-expanded="false"
-          >
-            <span class="mode-icon" aria-hidden="true">E</span>
-            <span class="ll-vocab-lesson-bulk-label">Bulk edit</span>
-          </button>
-          <div
-            class="ll-vocab-lesson-bulk-panel ll-tools-settings-panel"
-            role="dialog"
-            aria-hidden="true"
-          >
-            <div
-              class="ll-vocab-lesson-bulk-section ll-vocab-lesson-bulk-section--prereq"
-              data-ll-prereq-editor
-              data-ll-prereq-options='${JSON.stringify(options)}'
-              data-ll-prereq-selected='${JSON.stringify(selected)}'
-              data-ll-prereq-blocked='${JSON.stringify(blocked)}'
-              data-ll-prereq-current-level="${currentLevel}"
-              data-ll-prereq-has-cycle="${hasCycle ? '1' : '0'}"
-            >
-              <div class="ll-vocab-lesson-bulk-heading">Prerequisites</div>
-              <div class="ll-vocab-lesson-prereq-toolbar">
-                <div class="ll-vocab-lesson-prereq-meta" aria-label="Prerequisite level">
-                  <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">L</span>
-                  <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>L${currentLevel}</span>
-                </div>
-                <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
-                  <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
-                  <span class="ll-vocab-lesson-prereq-status-message" data-ll-prereq-status-message hidden></span>
-                </span>
-              </div>
-              <label class="screen-reader-text" for="ll-test-prereq-input">Search prerequisite categories</label>
-              <div class="ll-vocab-lesson-prereq-controls">
-                <div class="ll-vocab-lesson-prereq-search">
-                  <span class="ll-vocab-lesson-prereq-search-icon" aria-hidden="true">S</span>
-                  <input
-                    type="text"
-                    id="ll-test-prereq-input"
-                    class="ll-vocab-lesson-prereq-input"
-                    data-ll-prereq-input
-                    autocomplete="off"
-                    placeholder="Find categories"
-                  />
-                  <button type="button" class="ll-vocab-lesson-prereq-search-clear" data-ll-prereq-search-clear aria-label="Clear search" hidden>
-                    <span aria-hidden="true">x</span>
-                  </button>
-                </div>
-              </div>
-              <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
-              <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
-              <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning ${hasCycle ? '' : 'hidden'}>
-                Loop warning
-              </p>
-            </div>
+      <div class="ll-vocab-lesson-category-settings ll-tools-settings-control" data-ll-vocab-lesson-category-settings>
+        <button
+          type="button"
+          class="ll-vocab-lesson-category-settings-trigger ll-tools-settings-button"
+          aria-haspopup="true"
+          aria-expanded="false"
+        >
+          <span class="ll-vocab-lesson-category-settings-trigger-label">Category</span>
+        </button>
+        <form
+          class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel ll-vocab-lesson-tool-modal"
+          role="dialog"
+          aria-label="Category settings"
+          aria-hidden="true"
+        >
+          <div class="ll-vocab-lesson-category-settings-panel__title-row">
+            <div class="ll-vocab-lesson-category-settings-panel__title">Category settings</div>
+            <button type="button" class="ll-vocab-lesson-tool-modal__close" data-ll-category-settings-close aria-label="Close category settings">
+              <span aria-hidden="true">x</span>
+            </button>
           </div>
-        </div>
+          <div
+            class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-bulk-section--prereq ll-vocab-lesson-prereq-editor"
+            data-ll-prereq-editor
+            data-ll-prereq-options='${JSON.stringify(options)}'
+            data-ll-prereq-selected='${JSON.stringify(selected)}'
+            data-ll-prereq-blocked='${JSON.stringify(blocked)}'
+            data-ll-prereq-current-level="${currentLevel}"
+            data-ll-prereq-has-cycle="${hasCycle ? '1' : '0'}"
+          >
+            <div class="ll-vocab-lesson-category-settings-section__heading">Prerequisites</div>
+            <div class="ll-vocab-lesson-prereq-toolbar">
+              <div class="ll-vocab-lesson-prereq-meta" aria-label="Prerequisite level">
+                <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">L</span>
+                <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level>L${currentLevel}</span>
+              </div>
+              <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
+                <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
+                <span class="ll-vocab-lesson-prereq-status-message" data-ll-prereq-status-message hidden></span>
+              </span>
+            </div>
+            <label class="screen-reader-text" for="ll-test-prereq-input">Search prerequisite categories</label>
+            <div class="ll-vocab-lesson-prereq-controls">
+              <div class="ll-vocab-lesson-prereq-search">
+                <span class="ll-vocab-lesson-prereq-search-icon" aria-hidden="true">S</span>
+                <input
+                  type="text"
+                  id="ll-test-prereq-input"
+                  class="ll-vocab-lesson-prereq-input"
+                  data-ll-prereq-input
+                  autocomplete="off"
+                  placeholder="Find categories"
+                />
+                <button type="button" class="ll-vocab-lesson-prereq-search-clear" data-ll-prereq-search-clear aria-label="Clear search" hidden>
+                  <span aria-hidden="true">x</span>
+                </button>
+              </div>
+            </div>
+            <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
+            <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
+            <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning ${hasCycle ? '' : 'hidden'}>
+              Loop warning
+            </p>
+          </div>
+        </form>
+      </div>
+      <div class="word-grid ll-word-grid" data-ll-word-grid data-ll-wordset-id="7" data-ll-category-id="11">
       </div>
     </div>
   `;
@@ -172,6 +182,13 @@ async function mountPrereqEditor(page, viewport, {
   await page.addScriptTag({ content: jquerySource });
   await page.evaluate((cfg) => {
     window.llToolsWordGridData = cfg;
+    window.llToolsVocabLessonData = {
+      ajaxUrl: '/wp-admin/admin-ajax.php',
+      grid: {
+        action: 'll_tools_get_vocab_lesson_grid',
+        i18n: {}
+      }
+    };
   }, buildWordGridConfig());
   await page.evaluate((mockConfig) => {
     const optionRows = {};
@@ -225,11 +242,12 @@ async function mountPrereqEditor(page, viewport, {
     currentLevel
   });
   await page.addScriptTag({ content: wordGridScriptSource });
+  await page.addScriptTag({ content: vocabLessonJsSource });
 }
 
 async function exercisePrereqEditor(page) {
-  await page.locator('.ll-vocab-lesson-bulk-button').click();
-  await expect(page.locator('.ll-vocab-lesson-bulk-panel')).toHaveAttribute('aria-hidden', 'false');
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
+  await expect(page.locator('.ll-vocab-lesson-category-settings-panel')).toHaveAttribute('aria-hidden', 'false');
 
   const basicsOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Basics' }).first();
   const foodOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Food' }).first();
@@ -305,7 +323,7 @@ test('prerequisites editor reverts looped saves and only shows blocked options w
     }
   });
 
-  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
 
   const loopsOption = page.locator('[data-ll-prereq-option]').filter({ hasText: 'Loops' }).first();
   await expect(loopsOption).toHaveCount(1);
@@ -331,9 +349,9 @@ test('prerequisites editor reverts looped saves and only shows blocked options w
 
 test('prerequisites editor keeps compact control chrome under hostile theme form styles', async ({ page }) => {
   await mountPrereqEditor(page, { width: 1280, height: 900 });
-  await page.addStyleTag({ content: hostileBulkThemeCss });
+  await page.addStyleTag({ content: hostileCategoryThemeCss });
 
-  await page.locator('.ll-vocab-lesson-bulk-button').click();
+  await page.locator('.ll-vocab-lesson-category-settings-trigger').click();
 
   const searchInput = page.locator('[data-ll-prereq-input]');
   await searchInput.fill('ba');

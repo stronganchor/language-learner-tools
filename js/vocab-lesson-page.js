@@ -262,6 +262,16 @@
         });
     }
 
+    function closeBulkEditors() {
+        $('[data-ll-word-grid-bulk]').each(function () {
+            const $wrap = $(this);
+            $wrap.removeClass('is-open');
+            $wrap.find('.ll-vocab-lesson-bulk-panel').first().attr('aria-hidden', 'true');
+            $wrap.find('.ll-vocab-lesson-bulk-button').first().attr('aria-expanded', 'false');
+        });
+        $('body').removeClass('ll-vocab-lesson-bulk-open');
+    }
+
     function setCategorySettingsOpen($wrap, shouldOpen) {
         if (!$wrap || !$wrap.length) {
             return;
@@ -277,9 +287,11 @@
         $panel.attr('aria-hidden', open ? 'false' : 'true');
         $button.attr('aria-expanded', open ? 'true' : 'false');
         $wrap.toggleClass('is-open', open);
+        $('body').toggleClass('ll-vocab-lesson-category-settings-open', $('.ll-vocab-lesson-category-settings-panel[aria-hidden="false"]').length > 0);
 
         if (open) {
-            queuePanelViewportClamp($panel);
+            closePrintSettings();
+            closeBulkEditors();
         } else {
             resetPanelPosition($panel);
         }
@@ -585,13 +597,25 @@
                 const $panel = $wrap.find('.ll-vocab-lesson-category-settings-panel').first();
                 const isOpen = $panel.attr('aria-hidden') === 'false';
 
-                closePrintSettings();
                 closeCategorySettings($wrap);
                 setCategorySettingsOpen($wrap, !isOpen);
             });
 
             $categorySettings.on('click', '.ll-vocab-lesson-category-settings-panel', function (event) {
                 event.stopPropagation();
+            });
+
+            $categorySettings.on('click', '[data-ll-category-settings-close]', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeCategorySettings();
+            });
+
+            $categorySettings.on('pointerdown', function (event) {
+                if (event.target === this && $(this).hasClass('is-open')) {
+                    event.preventDefault();
+                    closeCategorySettings();
+                }
             });
 
             $(document).on('pointerdown.llVocabLessonCategorySettings', function (event) {
@@ -605,12 +629,6 @@
                 if (event.key === 'Escape') {
                     closeCategorySettings();
                 }
-            });
-
-            $(window).on('resize.llVocabLessonCategorySettings orientationchange.llVocabLessonCategorySettings', function () {
-                $('.ll-vocab-lesson-category-settings-panel[aria-hidden="false"]').each(function () {
-                    clampPanelToViewport($(this));
-                });
             });
 
             $categorySettings.each(function () {

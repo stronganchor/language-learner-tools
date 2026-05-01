@@ -182,6 +182,105 @@ if (have_posts()) {
     }
     $lesson_uses_prompt_cards = !empty($lesson_prompt_card_posts);
     $can_add_lesson_word = $can_edit_words && $wordset_id > 0 && $category_id > 0 && !$lesson_uses_prompt_cards;
+    $lesson_prereq_editor = [
+        'show' => false,
+        'options_json' => '[]',
+        'selected_json' => '[]',
+        'blocked_json' => '[]',
+        'current_level' => null,
+        'has_cycle' => false,
+    ];
+    if ($can_manage_category_settings
+        && function_exists('ll_tools_wordset_get_category_ordering_mode')
+        && function_exists('ll_tools_wordset_get_admin_category_ordering_rows')
+        && ll_tools_wordset_get_category_ordering_mode($wordset_id) === 'prerequisite'
+    ) {
+        $ordering_rows = ll_tools_wordset_get_admin_category_ordering_rows($wordset_id);
+        $ordering_ids = function_exists('ll_tools_wordset_normalize_category_id_list')
+            ? ll_tools_wordset_normalize_category_id_list(wp_list_pluck((array) $ordering_rows, 'id'))
+            : [];
+
+        if (!empty($ordering_ids) && in_array($category_id, $ordering_ids, true)) {
+            $ordering_label_map = [];
+            foreach ((array) $ordering_rows as $ordering_row) {
+                if (!is_array($ordering_row)) {
+                    continue;
+                }
+                $row_id = (int) ($ordering_row['id'] ?? 0);
+                if ($row_id <= 0) {
+                    continue;
+                }
+                $ordering_label_map[$row_id] = (string) ($ordering_row['name'] ?? (string) $row_id);
+            }
+
+            $prereq_map = function_exists('ll_tools_wordset_get_category_prereq_map')
+                ? ll_tools_wordset_get_category_prereq_map($wordset_id, $ordering_ids)
+                : [];
+            $prereq_levels = function_exists('ll_tools_wordset_calculate_prereq_levels')
+                ? ll_tools_wordset_calculate_prereq_levels($ordering_ids, $prereq_map)
+                : [
+                    'has_cycle' => false,
+                    'levels' => [],
+                ];
+
+            $selected_prereq_ids = array_map('intval', (array) ($prereq_map[$category_id] ?? []));
+            $selected_prereq_lookup = [];
+            foreach ($selected_prereq_ids as $selected_prereq_id) {
+                if ($selected_prereq_id > 0) {
+                    $selected_prereq_lookup[$selected_prereq_id] = true;
+                }
+            }
+            $blocked_prereq_ids = function_exists('ll_tools_wordset_get_blocked_prereq_ids_for_category') && empty($prereq_levels['has_cycle'])
+                ? ll_tools_wordset_get_blocked_prereq_ids_for_category($category_id, $ordering_ids, $prereq_map)
+                : [];
+
+            $prereq_option_rows = [];
+            $prereq_selected_rows = [];
+            foreach ($ordering_ids as $ordering_category_id) {
+                $ordering_category_id = (int) $ordering_category_id;
+                if ($ordering_category_id <= 0 || $ordering_category_id === $category_id) {
+                    continue;
+                }
+                $option_row = [
+                    'id' => $ordering_category_id,
+                    'label' => (string) ($ordering_label_map[$ordering_category_id] ?? (string) $ordering_category_id),
+                ];
+                if (isset($prereq_levels['levels'][$ordering_category_id]) && empty($prereq_levels['has_cycle'])) {
+                    $option_row['level'] = (int) $prereq_levels['levels'][$ordering_category_id];
+                }
+                $prereq_option_rows[] = $option_row;
+                if (isset($selected_prereq_lookup[$ordering_category_id])) {
+                    $prereq_selected_rows[] = $option_row;
+                }
+            }
+
+            $lesson_prereq_editor['show'] = true;
+            $lesson_prereq_editor['has_cycle'] = !empty($prereq_levels['has_cycle']);
+            $lesson_prereq_editor['current_level'] = isset($prereq_levels['levels'][$category_id]) && empty($prereq_levels['has_cycle'])
+                ? (int) $prereq_levels['levels'][$category_id]
+                : null;
+            $lesson_prereq_editor['options_json'] = wp_json_encode($prereq_option_rows);
+            $lesson_prereq_editor['selected_json'] = wp_json_encode($prereq_selected_rows);
+            $lesson_prereq_editor['blocked_json'] = wp_json_encode(array_values(array_map('intval', $blocked_prereq_ids)));
+            if (!is_string($lesson_prereq_editor['options_json']) || $lesson_prereq_editor['options_json'] === '') {
+                $lesson_prereq_editor['options_json'] = '[]';
+            }
+            if (!is_string($lesson_prereq_editor['selected_json']) || $lesson_prereq_editor['selected_json'] === '') {
+                $lesson_prereq_editor['selected_json'] = '[]';
+            }
+            if (!is_string($lesson_prereq_editor['blocked_json']) || $lesson_prereq_editor['blocked_json'] === '') {
+                $lesson_prereq_editor['blocked_json'] = '[]';
+            }
+        }
+    }
+    $lesson_prereq_input_id = 'll-vocab-lesson-prereq-input-' . $post_id . '-' . $category_id;
+    $lesson_prereq_level_display = ($lesson_prereq_editor['current_level'] === null)
+        ? esc_html__('—', 'll-tools-text-domain')
+        : sprintf(
+            /* translators: %d is the prerequisite level number for the current lesson category. */
+            esc_html__('L%d', 'll-tools-text-domain'),
+            (int) $lesson_prereq_editor['current_level']
+        );
     $render_mode_icon = function (string $mode, string $fallback) use ($mode_ui): void {
         $cfg = (isset($mode_ui[$mode]) && is_array($mode_ui[$mode])) ? $mode_ui[$mode] : [];
         if (!empty($cfg['svg'])) {
@@ -298,8 +397,36 @@ if (have_posts()) {
                         </button>
                         <?php if ($can_transcribe) : ?>
                             <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>
-                                <div class="ll-vocab-lesson-transcribe-actions" role="group" aria-label="<?php echo esc_attr__('Captions', 'll-tools-text-domain'); ?>">
-                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--auto" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings for this lesson', 'll-tools-text-domain'); ?>">
+                                <button
+                                    type="button"
+                                    class="ll-vocab-lesson-transcribe-menu-trigger ll-tools-settings-button"
+                                    data-ll-transcribe-menu-trigger
+                                    aria-haspopup="true"
+                                    aria-expanded="false"
+                                    aria-controls="<?php echo esc_attr('ll-vocab-lesson-transcribe-menu-' . $post_id); ?>"
+                                    aria-label="<?php echo esc_attr__('Transcription actions', 'll-tools-text-domain'); ?>">
+                                    <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
+                                        <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
+                                            <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
+                                                <path d="M11.5 2.5 4 11h4l-1 6.5L15.5 9h-4l0-6.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                                            </svg>
+                                        </span>
+                                    </span>
+                                    <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('STT', 'll-tools-text-domain'); ?></span>
+                                    <span class="ll-vocab-lesson-transcribe-menu-caret" aria-hidden="true">
+                                        <svg viewBox="0 0 12 12" focusable="false" aria-hidden="true">
+                                            <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                    </span>
+                                </button>
+                                <div
+                                    id="<?php echo esc_attr('ll-vocab-lesson-transcribe-menu-' . $post_id); ?>"
+                                    class="ll-vocab-lesson-transcribe-menu"
+                                    data-ll-transcribe-menu
+                                    role="menu"
+                                    aria-label="<?php echo esc_attr__('Transcription actions', 'll-tools-text-domain'); ?>"
+                                    aria-hidden="true">
+                                    <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--auto" data-ll-transcribe-recordings data-lesson-id="<?php echo esc_attr($post_id); ?>" role="menuitem" aria-label="<?php echo esc_attr__('Auto-transcribe missing recordings for this lesson', 'll-tools-text-domain'); ?>">
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--bolt">
                                                 <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -309,7 +436,7 @@ if (have_posts()) {
                                         </span>
                                         <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Auto transcription', 'll-tools-text-domain'); ?></span>
                                     </button>
-                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--replace" data-ll-transcribe-replace data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Replace transcription for this lesson', 'll-tools-text-domain'); ?>">
+                                    <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--replace" data-ll-transcribe-replace data-lesson-id="<?php echo esc_attr($post_id); ?>" role="menuitem" aria-label="<?php echo esc_attr__('Replace transcription for this lesson', 'll-tools-text-domain'); ?>">
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--refresh">
                                                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -320,7 +447,7 @@ if (have_posts()) {
                                         </span>
                                         <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Replace', 'll-tools-text-domain'); ?></span>
                                     </button>
-                                    <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--clear" data-ll-transcribe-clear data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Clear transcription for this lesson', 'll-tools-text-domain'); ?>">
+                                    <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--clear" data-ll-transcribe-clear data-lesson-id="<?php echo esc_attr($post_id); ?>" role="menuitem" aria-label="<?php echo esc_attr__('Clear transcription for this lesson', 'll-tools-text-domain'); ?>">
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--clear">
                                                 <svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">
@@ -333,7 +460,7 @@ if (have_posts()) {
                                         </span>
                                         <span class="ll-vocab-lesson-transcribe-label"><?php echo esc_html__('Clear', 'll-tools-text-domain'); ?></span>
                                     </button>
-                                    <button type="button" class="ll-study-btn tiny ghost ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--cancel" data-ll-transcribe-cancel data-lesson-id="<?php echo esc_attr($post_id); ?>" aria-label="<?php echo esc_attr__('Cancel transcription', 'll-tools-text-domain'); ?>" disabled>
+                                    <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn ll-vocab-lesson-transcribe-btn--cancel" data-ll-transcribe-cancel data-lesson-id="<?php echo esc_attr($post_id); ?>" role="menuitem" aria-label="<?php echo esc_attr__('Cancel transcription', 'll-tools-text-domain'); ?>" disabled>
                                         <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">
                                             <span class="ll-vocab-lesson-transcribe-icon ll-vocab-lesson-transcribe-icon--cancel">
                                                 <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
@@ -389,103 +516,7 @@ if (have_posts()) {
                             $bulk_verb_mood_default = '';
                             $bulk_undo_aria = esc_attr__('Undo last bulk change', 'll-tools-text-domain');
                             $bulk_undo_text = esc_html__('Undo', 'll-tools-text-domain');
-                            $lesson_prereq_editor = [
-                                'show' => false,
-                                'options_json' => '[]',
-                                'selected_json' => '[]',
-                                'current_level' => null,
-                                'has_cycle' => false,
-                            ];
-                            if (function_exists('ll_tools_wordset_get_category_ordering_mode')
-                                && function_exists('ll_tools_wordset_get_admin_category_ordering_rows')
-                                && ll_tools_wordset_get_category_ordering_mode($wordset_id) === 'prerequisite'
-                            ) {
-                                $ordering_rows = ll_tools_wordset_get_admin_category_ordering_rows($wordset_id);
-                                $ordering_ids = function_exists('ll_tools_wordset_normalize_category_id_list')
-                                    ? ll_tools_wordset_normalize_category_id_list(wp_list_pluck((array) $ordering_rows, 'id'))
-                                    : [];
-
-                                if (!empty($ordering_ids) && in_array($category_id, $ordering_ids, true)) {
-                                    $ordering_label_map = [];
-                                    foreach ((array) $ordering_rows as $ordering_row) {
-                                        if (!is_array($ordering_row)) {
-                                            continue;
-                                        }
-                                        $row_id = (int) ($ordering_row['id'] ?? 0);
-                                        if ($row_id <= 0) {
-                                            continue;
-                                        }
-                                        $ordering_label_map[$row_id] = (string) ($ordering_row['name'] ?? (string) $row_id);
-                                    }
-
-                                    $prereq_map = function_exists('ll_tools_wordset_get_category_prereq_map')
-                                        ? ll_tools_wordset_get_category_prereq_map($wordset_id, $ordering_ids)
-                                        : [];
-                                    $prereq_levels = function_exists('ll_tools_wordset_calculate_prereq_levels')
-                                        ? ll_tools_wordset_calculate_prereq_levels($ordering_ids, $prereq_map)
-                                        : [
-                                            'has_cycle' => false,
-                                            'levels' => [],
-                                        ];
-
-                                    $selected_prereq_ids = array_map('intval', (array) ($prereq_map[$category_id] ?? []));
-                                    $selected_prereq_lookup = [];
-                                    foreach ($selected_prereq_ids as $selected_prereq_id) {
-                                        if ($selected_prereq_id > 0) {
-                                            $selected_prereq_lookup[$selected_prereq_id] = true;
-                                        }
-                                    }
-                                    $blocked_prereq_ids = function_exists('ll_tools_wordset_get_blocked_prereq_ids_for_category') && empty($prereq_levels['has_cycle'])
-                                        ? ll_tools_wordset_get_blocked_prereq_ids_for_category($category_id, $ordering_ids, $prereq_map)
-                                        : [];
-
-                                    $prereq_option_rows = [];
-                                    $prereq_selected_rows = [];
-                                    foreach ($ordering_ids as $ordering_category_id) {
-                                        $ordering_category_id = (int) $ordering_category_id;
-                                        if ($ordering_category_id <= 0 || $ordering_category_id === $category_id) {
-                                            continue;
-                                        }
-                                        $option_row = [
-                                            'id' => $ordering_category_id,
-                                            'label' => (string) ($ordering_label_map[$ordering_category_id] ?? (string) $ordering_category_id),
-                                        ];
-                                        if (isset($prereq_levels['levels'][$ordering_category_id]) && empty($prereq_levels['has_cycle'])) {
-                                            $option_row['level'] = (int) $prereq_levels['levels'][$ordering_category_id];
-                                        }
-                                        $prereq_option_rows[] = $option_row;
-                                        if (isset($selected_prereq_lookup[$ordering_category_id])) {
-                                            $prereq_selected_rows[] = $option_row;
-                                        }
-                                    }
-
-                                    $lesson_prereq_editor['show'] = true;
-                                    $lesson_prereq_editor['has_cycle'] = !empty($prereq_levels['has_cycle']);
-                                    $lesson_prereq_editor['current_level'] = isset($prereq_levels['levels'][$category_id]) && empty($prereq_levels['has_cycle'])
-                                        ? (int) $prereq_levels['levels'][$category_id]
-                                        : null;
-                                    $lesson_prereq_editor['options_json'] = wp_json_encode($prereq_option_rows);
-                                    $lesson_prereq_editor['selected_json'] = wp_json_encode($prereq_selected_rows);
-                                    $lesson_prereq_editor['blocked_json'] = wp_json_encode(array_values(array_map('intval', $blocked_prereq_ids)));
-                                    if (!is_string($lesson_prereq_editor['options_json']) || $lesson_prereq_editor['options_json'] === '') {
-                                        $lesson_prereq_editor['options_json'] = '[]';
-                                    }
-                                    if (!is_string($lesson_prereq_editor['selected_json']) || $lesson_prereq_editor['selected_json'] === '') {
-                                        $lesson_prereq_editor['selected_json'] = '[]';
-                                    }
-                                    if (!is_string($lesson_prereq_editor['blocked_json']) || $lesson_prereq_editor['blocked_json'] === '') {
-                                        $lesson_prereq_editor['blocked_json'] = '[]';
-                                    }
-                                }
-                            }
-                            $lesson_prereq_input_id = 'll-vocab-lesson-prereq-input-' . $post_id . '-' . $category_id;
-                            $lesson_prereq_level_display = ($lesson_prereq_editor['current_level'] === null)
-                                ? esc_html__('—', 'll-tools-text-domain')
-                                : sprintf(
-                                    /* translators: %d is the prerequisite level number for the current lesson category. */
-                                    esc_html__('L%d', 'll-tools-text-domain'),
-                                    (int) $lesson_prereq_editor['current_level']
-                                );
+                            $bulk_panel_title_id = 'll-vocab-lesson-bulk-title-' . $post_id . '-' . $category_id;
                             ?>
                             <div class="ll-vocab-lesson-bulk ll-tools-settings-control" data-ll-word-grid-bulk>
                                 <button type="button" class="ll-vocab-lesson-bulk-button ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Bulk edit', 'll-tools-text-domain'); ?>">
@@ -497,66 +528,13 @@ if (have_posts()) {
                                     </span>
                                     <span class="ll-vocab-lesson-bulk-label"><?php echo esc_html__('Bulk edit', 'll-tools-text-domain'); ?></span>
                                 </button>
-                                <div class="ll-vocab-lesson-bulk-panel ll-tools-settings-panel" role="dialog" aria-label="<?php echo esc_attr__('Word details', 'll-tools-text-domain'); ?>" aria-hidden="true">
-                                    <?php if (!empty($lesson_prereq_editor['show'])) : ?>
-                                        <div
-                                            class="ll-vocab-lesson-bulk-section ll-vocab-lesson-bulk-section--prereq"
-                                            data-ll-prereq-editor
-                                            data-ll-prereq-options="<?php echo esc_attr($lesson_prereq_editor['options_json']); ?>"
-                                            data-ll-prereq-selected="<?php echo esc_attr($lesson_prereq_editor['selected_json']); ?>"
-                                            data-ll-prereq-blocked="<?php echo esc_attr($lesson_prereq_editor['blocked_json']); ?>"
-                                            data-ll-prereq-current-level="<?php echo esc_attr($lesson_prereq_editor['current_level'] === null ? '' : (string) ((int) $lesson_prereq_editor['current_level'])); ?>"
-                                            data-ll-prereq-has-cycle="<?php echo !empty($lesson_prereq_editor['has_cycle']) ? '1' : '0'; ?>"
-                                        >
-                                            <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Prerequisites', 'll-tools-text-domain'); ?></div>
-                                            <div class="ll-vocab-lesson-prereq-toolbar">
-                                                <div class="ll-vocab-lesson-prereq-meta" aria-label="<?php echo esc_attr__('Prerequisite level', 'll-tools-text-domain'); ?>">
-                                                    <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">
-                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                                                            <path d="M2 11.5h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                                            <path d="M3.5 8.5h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                                            <path d="M5 5.5h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                                        </svg>
-                                                    </span>
-                                                    <span class="screen-reader-text"><?php echo esc_html__('Level', 'll-tools-text-domain'); ?></span>
-                                                    <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level><?php echo esc_html($lesson_prereq_level_display); ?></span>
-                                                </div>
-                                                <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
-                                                    <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
-                                                    <span class="ll-vocab-lesson-prereq-status-message" data-ll-prereq-status-message hidden></span>
-                                                </span>
-                                            </div>
-                                            <label class="screen-reader-text" for="<?php echo esc_attr($lesson_prereq_input_id); ?>">
-                                                <?php echo esc_html__('Search prerequisite categories', 'll-tools-text-domain'); ?>
-                                            </label>
-                                            <div class="ll-vocab-lesson-prereq-controls">
-                                                <div class="ll-vocab-lesson-prereq-search">
-                                                    <span class="ll-vocab-lesson-prereq-search-icon" aria-hidden="true">
-                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                                                            <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/>
-                                                            <path d="M9.5 9.5l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                                                        </svg>
-                                                    </span>
-                                                    <input
-                                                        type="text"
-                                                        id="<?php echo esc_attr($lesson_prereq_input_id); ?>"
-                                                        class="ll-vocab-lesson-prereq-input"
-                                                        data-ll-prereq-input
-                                                        autocomplete="off"
-                                                        placeholder="<?php echo esc_attr__('Find categories', 'll-tools-text-domain'); ?>"
-                                                    />
-                                                    <button type="button" class="ll-vocab-lesson-prereq-search-clear" data-ll-prereq-search-clear aria-label="<?php echo esc_attr__('Clear search', 'll-tools-text-domain'); ?>" hidden>
-                                                        <span aria-hidden="true">x</span>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
-                                            <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
-                                            <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning <?php if (empty($lesson_prereq_editor['has_cycle'])) : ?>hidden<?php endif; ?>>
-                                                <?php echo esc_html__('A prerequisite loop exists in this word set. Remove the loop to restore prerequisite ordering.', 'll-tools-text-domain'); ?>
-                                            </p>
-                                        </div>
-                                    <?php endif; ?>
+                                <div class="ll-vocab-lesson-bulk-panel ll-vocab-lesson-tool-modal ll-tools-settings-panel" role="dialog" aria-modal="true" aria-labelledby="<?php echo esc_attr($bulk_panel_title_id); ?>" aria-hidden="true">
+                                    <div class="ll-vocab-lesson-tool-modal__header">
+                                        <div class="ll-vocab-lesson-tool-modal__title" id="<?php echo esc_attr($bulk_panel_title_id); ?>"><?php echo esc_html__('Bulk edit', 'll-tools-text-domain'); ?></div>
+                                        <button type="button" class="ll-vocab-lesson-tool-modal__close" data-ll-bulk-modal-close aria-label="<?php echo esc_attr__('Close bulk edit', 'll-tools-text-domain'); ?>">
+                                            <span aria-hidden="true">x</span>
+                                        </button>
+                                    </div>
                                     <div class="ll-vocab-lesson-bulk-section">
                                         <div class="ll-vocab-lesson-bulk-heading-row">
                                             <div class="ll-vocab-lesson-bulk-heading"><?php echo esc_html__('Part of Speech', 'll-tools-text-domain'); ?></div>
@@ -838,6 +816,7 @@ if (have_posts()) {
                                 ? $category_settings_panel['lineup_items']
                                 : [];
                             $category_panel_lineup_input_id = 'll-vocab-lesson-category-lineup-input-' . $post_id . '-' . $category_id;
+                            $category_settings_title_id = 'll-vocab-lesson-category-settings-title-' . $post_id . '-' . $category_id;
                             ?>
                             <div class="ll-vocab-lesson-category-settings ll-tools-settings-control" data-ll-vocab-lesson-category-settings>
                                 <button type="button" class="ll-vocab-lesson-category-settings-trigger ll-tools-settings-button" aria-haspopup="true" aria-expanded="false" aria-label="<?php echo esc_attr__('Category settings', 'll-tools-text-domain'); ?>">
@@ -850,11 +829,12 @@ if (have_posts()) {
                                     <span class="ll-vocab-lesson-category-settings-trigger-label"><?php echo esc_html__('Category', 'll-tools-text-domain'); ?></span>
                                 </button>
                                 <form
-                                    class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel"
+                                    class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel ll-vocab-lesson-tool-modal"
                                     method="post"
                                     action="<?php echo esc_url(get_permalink($post_id)); ?>"
                                     role="dialog"
-                                    aria-label="<?php echo esc_attr__('Category settings', 'll-tools-text-domain'); ?>"
+                                    aria-modal="true"
+                                    aria-labelledby="<?php echo esc_attr($category_settings_title_id); ?>"
                                     aria-hidden="true">
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_action" value="save" />
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_lesson_id" value="<?php echo esc_attr((string) $post_id); ?>" />
@@ -862,7 +842,10 @@ if (have_posts()) {
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_category_id" value="<?php echo esc_attr((string) $category_id); ?>" />
                                     <input type="hidden" name="ll_vocab_lesson_category_settings_nonce" value="<?php echo esc_attr($category_settings_nonce); ?>" />
                                     <div class="ll-vocab-lesson-category-settings-panel__title-row">
-                                        <div class="ll-vocab-lesson-category-settings-panel__title"><?php echo esc_html__('Category settings', 'll-tools-text-domain'); ?></div>
+                                        <div class="ll-vocab-lesson-category-settings-panel__title" id="<?php echo esc_attr($category_settings_title_id); ?>"><?php echo esc_html__('Category settings', 'll-tools-text-domain'); ?></div>
+                                        <button type="button" class="ll-vocab-lesson-tool-modal__close" data-ll-category-settings-close aria-label="<?php echo esc_attr__('Close category settings', 'll-tools-text-domain'); ?>">
+                                            <span aria-hidden="true">x</span>
+                                        </button>
                                         <div class="ll-vocab-lesson-category-settings-summary">
                                             <?php if ($category_panel_presentation_label !== '') : ?>
                                                 <span class="ll-vocab-lesson-category-settings-summary-pill"><?php echo esc_html($category_panel_presentation_label); ?></span>
@@ -871,6 +854,66 @@ if (have_posts()) {
                                             <span class="ll-vocab-lesson-category-settings-summary-pill"><?php echo esc_html($category_panel_recording_summary); ?></span>
                                         </div>
                                     </div>
+
+                                    <?php if (!empty($lesson_prereq_editor['show'])) : ?>
+                                        <div
+                                            class="ll-vocab-lesson-category-settings-section ll-vocab-lesson-bulk-section--prereq ll-vocab-lesson-prereq-editor"
+                                            data-ll-prereq-editor
+                                            data-ll-prereq-options="<?php echo esc_attr($lesson_prereq_editor['options_json']); ?>"
+                                            data-ll-prereq-selected="<?php echo esc_attr($lesson_prereq_editor['selected_json']); ?>"
+                                            data-ll-prereq-blocked="<?php echo esc_attr($lesson_prereq_editor['blocked_json']); ?>"
+                                            data-ll-prereq-current-level="<?php echo esc_attr($lesson_prereq_editor['current_level'] === null ? '' : (string) ((int) $lesson_prereq_editor['current_level'])); ?>"
+                                            data-ll-prereq-has-cycle="<?php echo !empty($lesson_prereq_editor['has_cycle']) ? '1' : '0'; ?>"
+                                        >
+                                            <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Prerequisites', 'll-tools-text-domain'); ?></div>
+                                            <div class="ll-vocab-lesson-prereq-toolbar">
+                                                <div class="ll-vocab-lesson-prereq-meta" aria-label="<?php echo esc_attr__('Prerequisite level', 'll-tools-text-domain'); ?>">
+                                                    <span class="ll-vocab-lesson-prereq-meta-icon" aria-hidden="true">
+                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                                            <path d="M2 11.5h10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                            <path d="M3.5 8.5h7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                            <path d="M5 5.5h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                        </svg>
+                                                    </span>
+                                                    <span class="screen-reader-text"><?php echo esc_html__('Level', 'll-tools-text-domain'); ?></span>
+                                                    <span class="ll-vocab-lesson-prereq-level-value" data-ll-prereq-level><?php echo esc_html($lesson_prereq_level_display); ?></span>
+                                                </div>
+                                                <span class="ll-vocab-lesson-prereq-status" data-ll-prereq-status data-state="idle" role="status" aria-live="polite" hidden>
+                                                    <span class="ll-vocab-lesson-prereq-status-icon" aria-hidden="true"></span>
+                                                    <span class="ll-vocab-lesson-prereq-status-message" data-ll-prereq-status-message hidden></span>
+                                                </span>
+                                            </div>
+                                            <label class="screen-reader-text" for="<?php echo esc_attr($lesson_prereq_input_id); ?>">
+                                                <?php echo esc_html__('Search prerequisite categories', 'll-tools-text-domain'); ?>
+                                            </label>
+                                            <div class="ll-vocab-lesson-prereq-controls">
+                                                <div class="ll-vocab-lesson-prereq-search">
+                                                    <span class="ll-vocab-lesson-prereq-search-icon" aria-hidden="true">
+                                                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                                                            <circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/>
+                                                            <path d="M9.5 9.5l2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                                        </svg>
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        id="<?php echo esc_attr($lesson_prereq_input_id); ?>"
+                                                        class="ll-vocab-lesson-prereq-input"
+                                                        data-ll-prereq-input
+                                                        autocomplete="off"
+                                                        placeholder="<?php echo esc_attr__('Find categories', 'll-tools-text-domain'); ?>"
+                                                    />
+                                                    <button type="button" class="ll-vocab-lesson-prereq-search-clear" data-ll-prereq-search-clear aria-label="<?php echo esc_attr__('Clear search', 'll-tools-text-domain'); ?>" hidden>
+                                                        <span aria-hidden="true">x</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="ll-vocab-lesson-prereq-chips" data-ll-prereq-chips aria-live="polite" hidden></div>
+                                            <div class="ll-vocab-lesson-prereq-options" data-ll-prereq-options-list></div>
+                                            <p class="ll-vocab-lesson-prereq-warning" data-ll-prereq-cycle-warning <?php if (empty($lesson_prereq_editor['has_cycle'])) : ?>hidden<?php endif; ?>>
+                                                <?php echo esc_html__('A prerequisite loop exists in this word set. Remove the loop to restore prerequisite ordering.', 'll-tools-text-domain'); ?>
+                                            </p>
+                                        </div>
+                                    <?php endif; ?>
 
                                     <div class="ll-vocab-lesson-category-settings-section">
                                         <div class="ll-vocab-lesson-category-settings-section__heading"><?php echo esc_html__('Quiz', 'll-tools-text-domain'); ?></div>

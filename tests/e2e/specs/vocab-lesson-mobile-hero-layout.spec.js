@@ -19,12 +19,17 @@ function buildLessonHeroMarkup() {
             <button type="button" class="ll-vocab-lesson-star-toggle ll-study-btn tiny ghost ll-group-star">
               <span>Star all</span>
             </button>
-            <div class="ll-vocab-lesson-transcribe">
-              <div class="ll-vocab-lesson-transcribe-actions">
-                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn">Auto captions</button>
-                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn">Replace</button>
-                <button type="button" class="ll-study-btn tiny ll-vocab-lesson-transcribe-btn">Clear</button>
-                <button type="button" class="ll-study-btn tiny ghost ll-vocab-lesson-transcribe-btn">Cancel</button>
+            <div class="ll-vocab-lesson-transcribe" data-ll-transcribe-wrapper>
+              <button type="button" class="ll-vocab-lesson-transcribe-menu-trigger ll-tools-settings-button" data-ll-transcribe-menu-trigger aria-haspopup="true" aria-expanded="false" aria-controls="ll-test-transcribe-menu">
+                <span class="ll-vocab-lesson-transcribe-icons" aria-hidden="true">A</span>
+                <span class="ll-vocab-lesson-transcribe-label">STT</span>
+                <span class="ll-vocab-lesson-transcribe-menu-caret" aria-hidden="true">v</span>
+              </button>
+              <div id="ll-test-transcribe-menu" class="ll-vocab-lesson-transcribe-menu" data-ll-transcribe-menu role="menu" aria-hidden="true">
+                <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn" role="menuitem">Auto captions</button>
+                <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn" role="menuitem">Replace</button>
+                <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn" role="menuitem">Clear</button>
+                <button type="button" class="ll-vocab-lesson-transcribe-menu-item ll-vocab-lesson-transcribe-btn" role="menuitem">Cancel</button>
               </div>
             </div>
             <a class="ll-study-btn tiny ll-vocab-lesson-print-button" href="#">Print images</a>

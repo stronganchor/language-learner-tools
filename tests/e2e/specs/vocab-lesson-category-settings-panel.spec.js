@@ -76,9 +76,12 @@ function buildCategorySettingsMarkup(options = {}) {
                 </span>
                 <span class="ll-vocab-lesson-category-settings-trigger-label">Category</span>
               </button>
-              <form class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel" role="dialog" aria-label="Category settings" aria-hidden="true">
+              <form class="ll-tools-settings-panel ll-vocab-lesson-category-settings-panel ll-vocab-lesson-tool-modal" role="dialog" aria-modal="true" aria-labelledby="ll-test-category-settings-title" aria-hidden="true">
                 <div class="ll-vocab-lesson-category-settings-panel__title-row">
-                  <div class="ll-vocab-lesson-category-settings-panel__title">Category settings</div>
+                  <div class="ll-vocab-lesson-category-settings-panel__title" id="ll-test-category-settings-title">Category settings</div>
+                  <button type="button" class="ll-vocab-lesson-tool-modal__close" data-ll-category-settings-close aria-label="Close category settings">
+                    <span aria-hidden="true">x</span>
+                  </button>
                   <div class="ll-vocab-lesson-category-settings-summary">
                     <span class="ll-vocab-lesson-category-settings-summary-pill">Text to text</span>
                     <span class="ll-vocab-lesson-category-settings-summary-pill">Text visible</span>
@@ -257,6 +260,11 @@ test('lesson category settings panel opens, reorders Line-Up, and closes cleanly
   await expect(orderInput).toHaveValue('42,43,41');
 
   await page.keyboard.press('Escape');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await expect(panel).toHaveAttribute('aria-hidden', 'true');
+
+  await trigger.click();
+  await page.locator('[data-ll-category-settings-close]').click();
   await expect(trigger).toHaveAttribute('aria-expanded', 'false');
   await expect(panel).toHaveAttribute('aria-hidden', 'true');
 });

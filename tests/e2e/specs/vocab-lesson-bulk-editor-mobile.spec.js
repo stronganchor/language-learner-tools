@@ -53,10 +53,18 @@ function buildMinimalWordGridMarkup(options = {}) {
               <span class="ll-vocab-lesson-bulk-label">Bulk edit</span>
             </button>
             <div
-              class="ll-vocab-lesson-bulk-panel ll-tools-settings-panel"
+              class="ll-vocab-lesson-bulk-panel ll-vocab-lesson-tool-modal ll-tools-settings-panel"
               role="dialog"
+              aria-modal="true"
+              aria-labelledby="ll-test-bulk-title"
               aria-hidden="true"
             >
+              <div class="ll-vocab-lesson-tool-modal__header">
+                <div class="ll-vocab-lesson-tool-modal__title" id="ll-test-bulk-title">Bulk edit</div>
+                <button type="button" class="ll-vocab-lesson-tool-modal__close" data-ll-bulk-modal-close aria-label="Close bulk edit">
+                  <span aria-hidden="true">x</span>
+                </button>
+              </div>
               <div class="ll-vocab-lesson-bulk-section">
                 <div class="ll-vocab-lesson-bulk-heading-row">
                   <div class="ll-vocab-lesson-bulk-heading">Part of Speech</div>
