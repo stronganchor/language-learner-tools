@@ -401,9 +401,23 @@ final class TeacherClassesTest extends LL_Tools_TestCase
             $GLOBALS['pagenow'] = 'admin-post.php';
             $_SERVER['PHP_SELF'] = '/wp-admin/admin-post.php';
             $_SERVER['SCRIPT_NAME'] = '/wp-admin/admin-post.php';
-            $_REQUEST['action'] = 'll_tools_teacher_create_class';
+            $allowed_actions = [
+                'll_tools_teacher_create_class',
+                'll_tools_teacher_assign_class_teacher',
+                'll_tools_teacher_send_class_invite',
+                'll_tools_teacher_assign_class_student',
+                'll_tools_teacher_remove_class_student',
+                'll_tools_teacher_delete_class',
+            ];
 
-            $this->assertSame('', ll_tools_get_limited_role_admin_redirect_target($user, true, false));
+            foreach ($allowed_actions as $allowed_action) {
+                $_REQUEST['action'] = $allowed_action;
+                $this->assertSame(
+                    '',
+                    ll_tools_get_limited_role_admin_redirect_target($user, true, false),
+                    sprintf('%s should pass through admin-post.php for teacher class handlers.', $allowed_action)
+                );
+            }
 
             $_REQUEST['action'] = 'unrelated_frontend_action';
             $this->assertSame(
@@ -431,6 +445,61 @@ final class TeacherClassesTest extends LL_Tools_TestCase
 
             $_REQUEST = $original_request;
         }
+    }
+
+    public function test_teacher_create_class_action_creates_class_and_redirects_to_frontend_classes(): void
+    {
+        ll_tools_register_or_refresh_teacher_role();
+
+        $wordset_id = $this->createWordset('Teacher Create Action Wordset');
+        $wordset_term = get_term($wordset_id, 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $teacher_id = self::factory()->user->create([
+            'role' => 'll_tools_teacher',
+            'user_email' => 'teacher-create-action@example.org',
+        ]);
+        wp_set_current_user($teacher_id);
+
+        $class_name = 'Frontend Teacher Created Class';
+        $redirect_base = ll_tools_get_wordset_page_view_url($wordset_term, 'classes');
+        $previous_post = $_POST;
+        $previous_request = $_REQUEST;
+
+        $_POST = [
+            'action' => 'll_tools_teacher_create_class',
+            '_wpnonce' => wp_create_nonce('ll_tools_teacher_create_class'),
+            'll_tools_teacher_class_name' => $class_name,
+            'll_tools_teacher_class_wordset_id' => (string) $wordset_id,
+            'll_tools_teacher_redirect_to' => $redirect_base,
+        ];
+        $_REQUEST = $_POST;
+
+        try {
+            $redirect_url = $this->captureRedirect(static function (): void {
+                ll_tools_handle_teacher_class_create_action();
+            });
+        } finally {
+            $_POST = $previous_post;
+            $_REQUEST = $previous_request;
+        }
+
+        $created_classes = get_posts([
+            'post_type' => LL_TOOLS_TEACHER_CLASS_POST_TYPE,
+            'post_status' => 'publish',
+            'post_author' => $teacher_id,
+            'title' => $class_name,
+            'numberposts' => 1,
+            'fields' => 'ids',
+        ]);
+
+        $this->assertCount(1, $created_classes);
+        $created_class_id = (int) $created_classes[0];
+        $this->assertSame($wordset_id, ll_tools_teacher_class_get_wordset_id($created_class_id));
+        $this->assertSame($teacher_id, ll_tools_teacher_class_get_owner_id($created_class_id));
+        $this->assertStringStartsWith($redirect_base, $redirect_url);
+        $this->assertSame((string) $created_class_id, $this->getQueryArgFromUrl($redirect_url, 'class_id'));
+        $this->assertNotSame('', $this->getQueryArgFromUrl($redirect_url, LL_TOOLS_TEACHER_CLASS_NOTICE_QUERY_ARG));
     }
 
     public function test_admin_classes_page_renders_manual_assignment_controls(): void
@@ -535,6 +604,42 @@ final class TeacherClassesTest extends LL_Tools_TestCase
 
         $this->assertStringContainsString('Select a word set', $html);
         $this->assertStringContainsString('ll_tools_teacher_class_wordset_id', $html);
+    }
+
+    private function captureRedirect(callable $callback): string
+    {
+        $redirect_url = '';
+        $redirect_filter = static function ($location) use (&$redirect_url) {
+            $redirect_url = (string) $location;
+            throw new RuntimeException('redirect_intercepted');
+        };
+
+        add_filter('wp_redirect', $redirect_filter, 10, 1);
+
+        try {
+            $callback();
+            $this->fail('Expected redirect.');
+        } catch (RuntimeException $e) {
+            $this->assertSame('redirect_intercepted', $e->getMessage());
+        } finally {
+            remove_filter('wp_redirect', $redirect_filter, 10);
+        }
+
+        $this->assertNotSame('', $redirect_url);
+        return $redirect_url;
+    }
+
+    private function getQueryArgFromUrl(string $url, string $key): string
+    {
+        $query = (string) wp_parse_url($url, PHP_URL_QUERY);
+        if ($query === '') {
+            return '';
+        }
+
+        $parsed = [];
+        parse_str($query, $parsed);
+
+        return isset($parsed[$key]) ? (string) $parsed[$key] : '';
     }
 
     private function createWordset(string $label): int
