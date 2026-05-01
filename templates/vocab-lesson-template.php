@@ -999,6 +999,11 @@ if (have_posts()) {
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
+                <?php
+                if (function_exists('ll_tools_render_interlinear_block')) {
+                    echo ll_tools_render_interlinear_block($post_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+                }
+                ?>
                 <?php if ($has_print_settings) : ?>
                     <div class="ll-vocab-lesson-settings ll-vocab-lesson-print-settings">
                         <button
@@ -1181,12 +1186,6 @@ if (have_posts()) {
                 <?php echo esc_html((string) $category_settings_notice['message']); ?>
             </div>
         <?php endif; ?>
-
-        <?php
-        if (function_exists('ll_tools_render_interlinear_block')) {
-            echo ll_tools_render_interlinear_block($post_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-        }
-        ?>
 
         <div class="ll-vocab-lesson-content">
             <?php

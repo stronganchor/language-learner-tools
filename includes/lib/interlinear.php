@@ -891,20 +891,28 @@ function ll_tools_render_interlinear_block(int $lesson_id): string {
         $classes .= ' ll-interlinear--word-grid-toggle';
     }
     $summary_attrs = $is_vocab_lesson ? '' : ' aria-controls="' . esc_attr($panel_id) . '"';
+    $show_label = $is_vocab_lesson
+        ? __('Interlinear', 'll-tools-text-domain')
+        : __('Show interlinear', 'll-tools-text-domain');
+    $hide_label = $is_vocab_lesson
+        ? __('Interlinear', 'll-tools-text-domain')
+        : __('Hide interlinear', 'll-tools-text-domain');
 
     ob_start();
     ?>
     <details class="<?php echo esc_attr($classes); ?>" data-ll-interlinear>
         <summary class="ll-interlinear__summary"<?php echo $summary_attrs; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>>
-            <span class="ll-interlinear__summary-icon" aria-hidden="true">
+            <span class="ll-interlinear__summary-icon ll-interlinear__summary-icon--table" aria-hidden="true">
                 <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                    <path d="M5.2 4.4H15M5.2 10H12M5.2 15.6H15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-                    <path d="M3.6 7.2 1.8 10l1.8 2.8M16.4 7.2l1.8 2.8-1.8 2.8" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/>
+                    <rect x="3" y="3.5" width="14" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M3 7.8h14M3 12.1h14M7.7 3.5v13M12.3 3.5v13" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
                 </svg>
             </span>
-            <span class="ll-interlinear__summary-label ll-interlinear__summary-label--show"><?php echo esc_html__('Show interlinear', 'll-tools-text-domain'); ?></span>
-            <span class="ll-interlinear__summary-label ll-interlinear__summary-label--hide"><?php echo esc_html__('Hide interlinear', 'll-tools-text-domain'); ?></span>
-            <span class="ll-interlinear__staff-label"><?php echo esc_html__('Staff', 'll-tools-text-domain'); ?></span>
+            <span class="ll-interlinear__summary-label ll-interlinear__summary-label--show"><?php echo esc_html($show_label); ?></span>
+            <span class="ll-interlinear__summary-label ll-interlinear__summary-label--hide"><?php echo esc_html($hide_label); ?></span>
+            <?php if (!$is_vocab_lesson) : ?>
+                <span class="ll-interlinear__staff-label"><?php echo esc_html__('Staff', 'll-tools-text-domain'); ?></span>
+            <?php endif; ?>
         </summary>
         <?php if (!$is_vocab_lesson) : ?>
             <div class="ll-interlinear__panel" id="<?php echo esc_attr($panel_id); ?>">

@@ -185,7 +185,59 @@ p:has(.ll-word-audio) {
 }
 
 .ll-interlinear--word-grid-toggle {
-    margin-bottom: 16px;
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    width: auto !important;
+    max-width: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.ll-interlinear--word-grid-toggle .ll-interlinear__summary {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 0;
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 999px;
+    background: #f2f4f7;
+    color: #475467;
+    box-shadow: 0 6px 14px rgba(71, 84, 103, 0.12);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.ll-interlinear--word-grid-toggle .ll-interlinear__summary:hover,
+.ll-interlinear--word-grid-toggle .ll-interlinear__summary:focus-visible,
+.ll-interlinear--word-grid-toggle[open] .ll-interlinear__summary {
+    border-color: #98a2b3;
+    background: #eaecf0;
+    color: #344054;
+    box-shadow: 0 10px 20px rgba(71, 84, 103, 0.16);
+}
+
+.ll-interlinear--word-grid-toggle .ll-interlinear__summary-icon {
+    width: 18px;
+    height: 18px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: inherit;
+}
+
+.ll-interlinear--word-grid-toggle .ll-interlinear__summary-icon svg {
+    width: 18px;
+    height: 18px;
 }
 
 .ll-interlinear__lines {
@@ -324,17 +376,17 @@ p:has(.ll-word-audio) {
     width: 100%;
 }
 
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear {
+.ll-vocab-lesson-page:has(.ll-interlinear--word-grid-toggle[open]) .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear {
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 12px !important;
 }
 
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear > .word-item {
+.ll-vocab-lesson-page:has(.ll-interlinear--word-grid-toggle[open]) .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear > .word-item {
     border-bottom: 1px solid rgba(216, 208, 195, 0.8);
     text-align: left !important;
 }
 
-.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-interlinear {
+.ll-vocab-lesson-page:has(.ll-interlinear--word-grid-toggle[open]) .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-interlinear {
     display: block;
 }
 

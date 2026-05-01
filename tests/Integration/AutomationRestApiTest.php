@@ -427,6 +427,7 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $content_html = ll_tools_render_interlinear_block($content_lesson_id);
         $this->assertStringContainsString('class="ll-interlinear"', $content_html);
+        $this->assertStringContainsString('ll-interlinear__summary-icon--table', $content_html);
         $this->assertStringContainsString('Show interlinear', $content_html);
         $this->assertStringContainsString('Dara', $content_html);
         $this->assertStringContainsString('class="ll-interlinear-table"', $content_html);
@@ -441,7 +442,10 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
 
         $vocab_html = ll_tools_render_interlinear_block($vocab_lesson_id);
         $this->assertStringContainsString('class="ll-interlinear ll-interlinear--word-grid-toggle"', $vocab_html);
-        $this->assertStringContainsString('Staff', $vocab_html);
+        $this->assertStringContainsString('ll-interlinear__summary-icon--table', $vocab_html);
+        $this->assertStringContainsString('Interlinear', $vocab_html);
+        $this->assertStringNotContainsString('Show interlinear', $vocab_html);
+        $this->assertStringNotContainsString('Staff', $vocab_html);
         $this->assertStringNotContainsString('class="ll-interlinear-table"', $vocab_html);
         $this->assertStringNotContainsString('Dara', $vocab_html);
     }
