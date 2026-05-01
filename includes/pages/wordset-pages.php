@@ -5056,6 +5056,10 @@ function ll_tools_wordset_page_handle_manager_settings_action(): void {
         $redirect_args['ll_wordset_manager_settings_message'] = $success_message;
     }
 
+    if (function_exists('ll_tools_bump_wordset_cache_epoch')) {
+        ll_tools_bump_wordset_cache_epoch();
+    }
+
     wp_safe_redirect(add_query_arg($redirect_args, $base_redirect));
     exit;
 }
@@ -13195,6 +13199,8 @@ function ll_tools_render_wordset_page_content($wordset, array $args = []): strin
             'analyticsWordStatusMastered' => __('Learned', 'll-tools-text-domain'),
             'analyticsWordStatusStudied' => __('In progress', 'll-tools-text-domain'),
             'analyticsWordStatusNew' => __('New', 'll-tools-text-domain'),
+            'analyticsPlayAudioFor' => __('Play audio for %s', 'll-tools-text-domain'),
+            'analyticsPlayAudio' => __('Play audio', 'll-tools-text-domain'),
             'analyticsStarWord' => __('Star word', 'll-tools-text-domain'),
             'analyticsUnstarWord' => __('Unstar word', 'll-tools-text-domain'),
             'analyticsFilterAny' => __('Any', 'll-tools-text-domain'),

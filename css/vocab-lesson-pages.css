@@ -572,10 +572,10 @@
     border-radius: 8px !important;
     padding: 6px 10px !important;
     gap: 8px;
-    background: #ffffff !important;
-    background-color: #ffffff !important;
-    color: #0f172a !important;
-    border: 1px solid #cbd5e1 !important;
+    background: #eef4ff !important;
+    background-color: #eef4ff !important;
+    color: #1d4d99 !important;
+    border: 1px solid #c7d7ef !important;
     font-size: 13px !important;
     font-weight: 600 !important;
     letter-spacing: 0 !important;
@@ -587,10 +587,10 @@
 
 .ll-vocab-lesson-print-trigger.ll-tools-settings-button:hover,
 .ll-vocab-lesson-print-trigger.ll-tools-settings-button:focus-visible {
-    background: #f8fafc !important;
-    background-color: #f8fafc !important;
-    border-color: #94a3b8 !important;
-    color: #0f172a !important;
+    background: #dbeafe !important;
+    background-color: #dbeafe !important;
+    border-color: #8fb3e8 !important;
+    color: #143c7d !important;
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1) !important;
 }
 

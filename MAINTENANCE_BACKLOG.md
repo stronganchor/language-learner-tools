@@ -1,15 +1,31 @@
 # Maintenance Backlog
 
-Updated April 29, 2026 after the security, i18n, and UI maintenance passes.
+Updated May 1, 2026 after the security, i18n, UI, and routing-maintenance
+audit.
 
 This file is for worthwhile work that should be planned deliberately instead of
 being folded into a small opportunistic fix.
 
 ## Highest Impact
 
-1. Investigate the remaining full Playwright failures.
-   - `tests/e2e/specs/admin-import-preview-undo.spec.js` timed out after the undo flow while the page showed an `Undo complete` state in the last full-suite run. Re-run in isolation first, then decide whether the bug is the importer state transition or a too-broad assertion.
-   - `tests/e2e/specs/page-speed-throttled-load.spec.js` timed out on the warm `/learn/` GET in the last full-suite run. Treat this as a performance investigation, not just a timeout bump.
+1. Plan scalable wordset and vocab-lesson routing as its own migration project.
+   - Current root-level pretty routes are registered per enabled wordset in
+     `includes/pages/wordset-pages.php` and
+     `includes/pages/vocab-lesson-pages.php`.
+   - This is acceptable at the current scale, but it should be replaced or
+     supplemented before a large live site has many dozens of wordsets.
+   - Treat this as a deliberate compatibility migration, not an opportunistic
+     cleanup. Existing saved URLs and bookmarks must keep working or redirect
+     cleanly.
+   - The embed route is a hard compatibility constraint:
+     `/embed/<category>?wordset=<slug>&mode=practice|learning|listening|gender|self-check`
+     must keep working for Word Boat embedded quizzes.
+   - Add regression tests for root wordset URLs, vocab lesson URLs, canonical
+     query URLs, and embedded Biblical Hebrew quiz URLs before changing the
+     route shape.
+   - A likely target shape is a small fixed set of prefixed routes such as
+     `/learn/<wordset>/...`, with old root pretty URLs preserved through narrow
+     redirects.
 
 2. Add browser coverage for major feature areas that still have mostly PHP or manual coverage.
    - Content lessons in the mixed lesson grid, including prerequisite ordering.
@@ -31,11 +47,7 @@ being folded into a small opportunistic fix.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
    - Prefer a shared PHP renderer or small partials before adding more shell controls.
 
-5. Rework wordset and vocab-lesson rewrite registration for scale.
-   - `includes/pages/wordset-pages.php` and `includes/pages/vocab-lesson-pages.php` register per-wordset rewrite rules on `init`.
-   - This is easy to reason about on small local data, but it should be replaced or cached before large live wordset counts make every request pay for route setup.
-
-6. Audit production-unused or test-only helpers before deleting them.
+5. Audit production-unused or test-only helpers before deleting them.
    - `ll_tools_dictionary_get_scope_filter_index()` currently appears to be exercised by tests and may only be needed as a cache-validation helper.
    - The global `get_deepl_language_codes()` helper in `includes/admin/api/deepl-api.php` appears unused by production code, while `ll_tools_get_deepl_language_codes()` is the active wordset-aware helper.
    - Confirm no external integrations call either before removal or deprecation.

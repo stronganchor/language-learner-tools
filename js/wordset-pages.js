@@ -222,10 +222,12 @@
 
     function buildProgressWordAudioLabel(row) {
         const wordLabel = String(row && (row.title || row.translation) || '').trim();
+        const playAudioFor = String(i18n.analyticsPlayAudioFor || '').trim();
+        const playAudio = String(i18n.analyticsPlayAudio || '').trim();
         if (wordLabel) {
-            return formatTemplate(i18n.analyticsPlayAudioFor || 'Play audio for %s', [wordLabel]);
+            return playAudioFor ? formatTemplate(playAudioFor, [wordLabel]) : wordLabel;
         }
-        return i18n.analyticsPlayAudio || 'Play audio';
+        return playAudio;
     }
 
     function buildProgressWordAudioButton(row) {

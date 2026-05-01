@@ -35,6 +35,12 @@
         return 0;
     }
 
+    function getListeningControlLabel(key) {
+        return Util && typeof Util.getMessage === 'function'
+            ? Util.getMessage(key, '')
+            : '';
+    }
+
     function normalizeStarMode(mode) {
         const val = (mode || '').toString();
         return (val === 'only' || val === 'normal' || val === 'weighted') ? val : 'normal';
@@ -1119,10 +1125,10 @@
             const fwdSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 32 32" fill="${color}"><path d="M14 8v16l10-8-10-8z"/><rect x="8" y="6" width="2" height="20"/></svg>`;
             const loopSVG = `<svg width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
 
-            const $pause = makeBtn('ll-listen-toggle', 'Pause / Play', pauseSVG).attr('data-state', 'playing');
-            const $back = makeBtn('ll-listen-back', 'Back', backSVG);
-            const $fwd = makeBtn('ll-listen-forward', 'Forward', fwdSVG);
-            const $loop = makeBtn('ll-listen-loop', 'Loop', loopSVG);
+            const $pause = makeBtn('ll-listen-toggle', getListeningControlLabel('listeningToggleAria'), pauseSVG).attr('data-state', 'playing');
+            const $back = makeBtn('ll-listen-back', getListeningControlLabel('listeningBackAria'), backSVG);
+            const $fwd = makeBtn('ll-listen-forward', getListeningControlLabel('listeningForwardAria'), fwdSVG);
+            const $loop = makeBtn('ll-listen-loop', getListeningControlLabel('listeningLoopAria'), loopSVG);
 
             if (State.listeningLoop) $loop.addClass('active');
 

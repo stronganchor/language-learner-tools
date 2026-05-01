@@ -298,6 +298,12 @@ vendor/
 - `_ll_needs_audio_processing` for unprocessed audio queue.
 
 # Deferred maintenance notes
+## Routing scalability migration
+- Wordset/vocab-lesson routing scalability should be planned as a standalone
+  compatibility migration. Do not replace the current root pretty routes without
+  tests for existing bookmarks, canonical query URLs, reserved subpage slugs,
+  vocab lesson URLs, and `/embed/<category>?wordset=<slug>&mode=...`.
+
 ## Word image migration follow-up
 - Current direction: keep `word_images` as the canonical image object and treat the `words` post thumbnail as legacy compatibility state until all remaining consumers are migrated.
 - Short-term follow-up:
@@ -355,6 +361,11 @@ Core settings live in `includes/admin/settings.php`:
   - Views: main, `progress`, `hidden-categories`, `settings`, `games`, and `classes`.
   - The settings view can launch the Wordset Editor tool (`ll_wordset_tool=editor`, implemented in `includes/pages/wordset-editor.php`) for searchable word tables, media-status filters, bulk category/status/review actions, recording moves, saved views, and recent-action undo.
 - `/<wordset>/<category>` vocab lesson pages (handled by `includes/pages/vocab-lesson-pages.php`).
+- Routing maintenance note: wordset and vocab-lesson pretty routes are currently
+  registered per enabled wordset. A future scalability migration should add a
+  small fixed route shape, preserve or narrowly redirect existing root pretty
+  URLs, and keep `/embed/<category>?wordset=<slug>&mode=...` untouched for
+  embedded quiz compatibility.
 - `/lesson/<slug>` content lesson pages (handled by `includes/pages/content-lesson-pages.php`).
 - `/wp-json/ll-tools/v1/...` REST automation routes (handled by `includes/api/automation-rest.php`).
   - Includes status, wordset creation/reports/missing-meta/bulk-update/word-option-rules/review-notes, and import preview/start/process/discard/result routes.

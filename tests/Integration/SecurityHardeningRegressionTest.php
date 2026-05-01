@@ -568,6 +568,55 @@ final class SecurityHardeningRegressionTest extends LL_Tools_TestCase
         $this->assertSame('audio/mp4', ll_tools_normalize_recording_upload_mime('audio/x-m4a'));
     }
 
+    public function test_transcribe_recording_handler_rejects_invalid_uploaded_file_before_stt(): void
+    {
+        $user_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($user_id);
+        update_option('ll_assemblyai_api_key', 'assembly-test-key');
+
+        $tmp = $this->create_temp_file_with_suffix('.wav');
+        file_put_contents($tmp, $this->build_silent_wav_bytes());
+
+        $http_requests = 0;
+        $http_filter = static function ($pre) use (&$http_requests) {
+            $http_requests++;
+            return new WP_Error('unexpected_http', 'Transcription validation should run before STT HTTP requests.');
+        };
+        add_filter('pre_http_request', $http_filter, 10, 1);
+
+        $_POST = [
+            'nonce' => wp_create_nonce('ll_upload_recording'),
+            'wordset_ids' => wp_json_encode([]),
+        ];
+        $_REQUEST = $_POST;
+        $_FILES = [
+            'audio' => [
+                'name' => 'recording.wav',
+                'tmp_name' => $tmp,
+                'type' => 'audio/wav',
+                'error' => UPLOAD_ERR_OK,
+                'size' => (int) filesize($tmp),
+            ],
+        ];
+
+        try {
+            $response = $this->run_json_endpoint(static function (): void {
+                ll_transcribe_recording_handler();
+            });
+        } finally {
+            remove_filter('pre_http_request', $http_filter, 10);
+            $_POST = [];
+            $_REQUEST = [];
+            $_FILES = [];
+            delete_option('ll_assemblyai_api_key');
+            @unlink($tmp);
+        }
+
+        $this->assertFalse((bool) ($response['success'] ?? true));
+        $this->assertSame('Upload source is invalid.', (string) ($response['data'] ?? ''));
+        $this->assertSame(0, $http_requests, 'Invalid transcription uploads must not reach external STT.');
+    }
+
     public function test_skip_recording_type_handler_returns_success_payload(): void
     {
         ll_tools_register_or_refresh_audio_recorder_role();

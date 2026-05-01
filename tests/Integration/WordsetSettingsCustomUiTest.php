@@ -281,6 +281,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $wordset_slug = (string) $fixture['wordset_slug'];
         $wordset_term = get_term($wordset_id, 'wordset');
         $this->assertInstanceOf(WP_Term::class, $wordset_term);
+        update_option('ll_tools_wordset_cache_epoch', 7, false);
 
         $_GET = [];
         $_POST = [
@@ -304,6 +305,7 @@ final class WordsetSettingsCustomUiTest extends LL_Tools_TestCase
         $query = $this->parseRedirectQuery($redirect_url);
         $this->assertSame('study', (string) ($query['ll_wordset_tool'] ?? ''));
         $this->assertSame('1', (string) get_term_meta($wordset_id, 'll_wordset_hide_lesson_text_for_non_text_quiz', true));
+        $this->assertSame(8, (int) get_option('ll_tools_wordset_cache_epoch', 0));
     }
 
     public function test_transcription_settings_action_updates_speaking_game_access(): void

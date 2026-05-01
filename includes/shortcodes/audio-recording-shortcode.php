@@ -3266,6 +3266,16 @@ function ll_transcribe_recording_handler() {
         wp_send_json_error(__('Missing audio file.', 'll-tools-text-domain'));
     }
 
+    $upload_validation = ll_tools_validate_recording_upload_file((array) $_FILES['audio']);
+    if (empty($upload_validation['valid'])) {
+        $status = max(400, (int) ($upload_validation['status'] ?? 400));
+        $message = (string) ($upload_validation['error'] ?? '');
+        if ($message === '') {
+            $message = __('Invalid audio upload.', 'll-tools-text-domain');
+        }
+        wp_send_json_error($message, $status);
+    }
+
     $posted_ids = ll_tools_get_recording_wordset_ids_from_request();
     $language_code = ll_tools_get_assemblyai_language_code($posted_ids);
 

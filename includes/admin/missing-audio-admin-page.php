@@ -440,7 +440,7 @@ function ll_render_missing_audio_admin_page() {
                         </div>
                     <?php endforeach; ?>
                     <p>
-                        <input type="submit" name="apply_regex_insertions" class="button button-secondary" value="Insert Shortcodes Now (respect exclusions)">
+                        <input type="submit" name="apply_regex_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes Now (respect exclusions)', 'll-tools-text-domain'); ?>">
                     </p>
                 </form>
             <?php else : ?>
@@ -579,7 +579,7 @@ function ll_render_missing_audio_admin_page() {
                         </div>
                     <?php endforeach; ?>
                     <p>
-                        <input type="submit" name="apply_table_insertions" class="button button-secondary" value="Insert Shortcodes in Column Now (respect exclusions)">
+                        <input type="submit" name="apply_table_insertions" class="button button-secondary" value="<?php echo esc_attr__('Insert Shortcodes in Column Now (respect exclusions)', 'll-tools-text-domain'); ?>">
                     </p>
                 </form>
             <?php else : ?>
