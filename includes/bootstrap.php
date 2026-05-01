@@ -10,6 +10,7 @@ require_once __DIR__ . '/lib/wordset-language-settings.php';
 require_once __DIR__ . '/lib/audio-originals.php';
 require_once __DIR__ . '/lib/custom-stt-endpoint.php';
 require_once __DIR__ . '/lib/internal-review-notes.php';
+require_once __DIR__ . '/lib/interlinear.php';
 
 // Include template loader
 require_once __DIR__ . '/template-loader.php';

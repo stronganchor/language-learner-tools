@@ -1182,6 +1182,12 @@ if (have_posts()) {
             </div>
         <?php endif; ?>
 
+        <?php
+        if (function_exists('ll_tools_render_interlinear_block')) {
+            echo ll_tools_render_interlinear_block($post_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        }
+        ?>
+
         <div class="ll-vocab-lesson-content">
             <?php
             if (!empty($related_content_lessons) && function_exists('ll_tools_render_content_lesson_cards')) {

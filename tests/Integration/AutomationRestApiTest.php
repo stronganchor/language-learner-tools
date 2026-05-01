@@ -392,6 +392,127 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame('Assigned manager can save this.', ll_tools_get_internal_review_note($word_id));
     }
 
+    public function test_interlinear_render_block_is_staff_only_for_content_and_vocab_lessons(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'REST Interlinear Render Wordset', 'rest-interlinear-render-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Interlinear Render Category', 'rest-interlinear-render-category');
+        $content_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Interlinear Render Content',
+        ]);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+        $vocab_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Interlinear Render Vocab',
+        ]);
+        update_post_meta($vocab_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($vocab_lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $payload = $this->sample_interlinear_payload('rest-render-lesson');
+        $this->assertNotWPError(ll_tools_interlinear_set_payload($content_lesson_id, $payload, 'phpunit'));
+        $this->assertNotWPError(ll_tools_interlinear_set_payload($vocab_lesson_id, $payload, 'phpunit'));
+
+        wp_set_current_user(0);
+        $this->assertSame('', ll_tools_render_interlinear_block($content_lesson_id));
+        $this->assertSame('', ll_tools_render_interlinear_block($vocab_lesson_id));
+
+        $viewer_id = self::factory()->user->create(['role' => 'subscriber']);
+        $viewer = get_user_by('id', $viewer_id);
+        $this->assertInstanceOf(WP_User::class, $viewer);
+        $viewer->add_cap('view_ll_tools');
+        clean_user_cache($viewer_id);
+        wp_set_current_user($viewer_id);
+
+        $content_html = ll_tools_render_interlinear_block($content_lesson_id);
+        $this->assertStringContainsString('class="ll-interlinear"', $content_html);
+        $this->assertStringContainsString('Show interlinear', $content_html);
+        $this->assertStringContainsString('Dara', $content_html);
+        $this->assertStringNotContainsString('<details class="ll-interlinear" data-ll-interlinear open', $content_html);
+
+        $vocab_html = ll_tools_render_interlinear_block($vocab_lesson_id);
+        $this->assertStringContainsString('class="ll-interlinear"', $vocab_html);
+        $this->assertStringContainsString('Staff', $vocab_html);
+    }
+
+    public function test_interlinear_rest_route_exports_updates_dry_runs_and_clears_lessons(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Interlinear Wordset', 'rest-interlinear-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Interlinear Category', 'rest-interlinear-category');
+
+        $content_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Interlinear Content Lesson',
+            'post_name' => 'rest-interlinear-content-lesson',
+        ]);
+        update_post_meta($content_lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, $wordset_id);
+
+        $vocab_lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Interlinear Vocab Lesson',
+            'post_name' => 'rest-interlinear-vocab-lesson',
+        ]);
+        update_post_meta($vocab_lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($vocab_lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        wp_set_current_user($admin_id);
+
+        $dry_run = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear', [
+            'lesson' => 'rest-interlinear-content-lesson',
+            'payload' => $this->sample_interlinear_payload('dry-run-content'),
+            'source' => 'dry-run',
+            'dry_run' => true,
+        ]);
+        $this->assertSame(200, $dry_run->get_status());
+        $dry_run_data = $dry_run->get_data();
+        $this->assertIsArray($dry_run_data);
+        $this->assertTrue((bool) ($dry_run_data['dry_run'] ?? false));
+        $this->assertSame([], ll_tools_interlinear_get_payload($content_lesson_id));
+
+        $update = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear', [
+            'items' => [
+                [
+                    'lesson' => (string) $content_lesson_id,
+                    'payload' => $this->sample_interlinear_payload('content-live'),
+                    'source' => 'content-source',
+                ],
+                [
+                    'category_slug' => 'rest-interlinear-category',
+                    'payload' => $this->sample_interlinear_payload('vocab-live'),
+                    'source' => 'vocab-source',
+                ],
+            ],
+        ]);
+        $this->assertSame(200, $update->get_status());
+        $update_data = $update->get_data();
+        $this->assertIsArray($update_data);
+        $this->assertSame([], (array) ($update_data['errors'] ?? []));
+        $this->assertSame(2, (int) ($update_data['updated_count'] ?? 0));
+        $this->assertSame('content-live', (string) (ll_tools_interlinear_get_payload($content_lesson_id)['lesson_id'] ?? ''));
+        $this->assertSame('vocab-live', (string) (ll_tools_interlinear_get_payload($vocab_lesson_id)['lesson_id'] ?? ''));
+
+        $export = $this->dispatch_ll_tools_rest_request('GET', '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear');
+        $this->assertSame(200, $export->get_status());
+        $export_data = $export->get_data();
+        $this->assertIsArray($export_data);
+        $this->assertSame(2, (int) ($export_data['count'] ?? 0));
+        $this->assertSame('zazaki_interlinear.v1', (string) (($export_data['items'][0]['payload']['schema'] ?? '')));
+
+        $clear = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-interlinear-wordset/interlinear', [
+            'lesson' => (string) $content_lesson_id,
+            'delete' => true,
+        ]);
+        $this->assertSame(200, $clear->get_status());
+        $clear_data = $clear->get_data();
+        $this->assertIsArray($clear_data);
+        $this->assertSame(1, (int) ($clear_data['cleared_count'] ?? 0));
+        $this->assertSame([], ll_tools_interlinear_get_payload($content_lesson_id));
+    }
+
     public function test_import_rest_routes_preview_start_process_and_expose_result_with_basic_auth(): void
     {
         if (!class_exists('ZipArchive')) {
@@ -616,6 +737,54 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         wp_set_post_terms($word_id, [$wordset_id], 'wordset', false);
 
         return (int) $word_id;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function sample_interlinear_payload(string $lesson_id): array
+    {
+        return [
+            'schema' => 'zazaki_interlinear.v1',
+            'lesson_id' => $lesson_id,
+            'title' => 'Sample Interlinear',
+            'metadata' => [
+                'category_slug' => 'rest-interlinear-category',
+            ],
+            'summary' => [
+                'lines' => 1,
+                'tokens' => 2,
+                'matched_tokens' => 2,
+                'matched_pct' => '100%',
+                'high_confidence_tokens' => 2,
+                'high_confidence_pct' => '100%',
+                'mean_confidence' => 0.95,
+            ],
+            'lines' => [
+                [
+                    'id' => 'line-1',
+                    'text' => 'Dara pil a.',
+                    'tokens' => [
+                        [
+                            'form' => 'Dara',
+                            'lemma' => 'dar',
+                            'display_gloss' => 'tree',
+                            'pos' => 'N',
+                            'confidence' => 0.95,
+                            'morphemes' => [],
+                        ],
+                        [
+                            'form' => 'pil',
+                            'lemma' => 'pil',
+                            'display_gloss' => 'big',
+                            'pos' => 'ADJ',
+                            'confidence' => 0.95,
+                            'morphemes' => [],
+                        ],
+                    ],
+                ],
+            ],
+        ];
     }
 
     /**

@@ -297,6 +297,41 @@ function ll_tools_rest_automation_require_review_notes_access(WP_REST_Request $r
     return true;
 }
 
+function ll_tools_rest_automation_require_interlinear_access(WP_REST_Request $request) {
+    $view_check = ll_tools_rest_automation_require_view_access();
+    if (is_wp_error($view_check)) {
+        return $view_check;
+    }
+
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    if ($request->get_method() !== 'POST') {
+        if (!function_exists('ll_tools_user_can_view_wordset') || ll_tools_user_can_view_wordset($wordset_id, (int) get_current_user_id())) {
+            return true;
+        }
+
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_interlinear_forbidden',
+            __('You cannot view interlinear data for this word set.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    if (!function_exists('ll_tools_user_can_manage_wordset_content') || !ll_tools_user_can_manage_wordset_content($wordset_id, (int) get_current_user_id())) {
+        return ll_tools_rest_automation_error(
+            'll_tools_rest_interlinear_forbidden',
+            __('You cannot manage interlinear data for this word set.', 'll-tools-text-domain'),
+            403
+        );
+    }
+
+    return true;
+}
+
 function ll_tools_rest_automation_require_wordset_create_access() {
     $view_check = ll_tools_rest_automation_require_view_access();
     if (is_wp_error($view_check)) {
@@ -538,7 +573,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-option-rules|review-notes)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-option-rules|review-notes|interlinear)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
     }
@@ -767,6 +802,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
             'review_notes' => '/ll-tools/v1/wordsets/{wordset}/review-notes',
+            'interlinear' => '/ll-tools/v1/wordsets/{wordset}/interlinear',
             'import_preview' => '/ll-tools/v1/imports/preview',
             'import_start' => '/ll-tools/v1/imports/start',
             'import_status' => '/ll-tools/v1/imports/{job_id}',
@@ -1790,6 +1826,439 @@ function ll_tools_rest_automation_review_notes(WP_REST_Request $request) {
     ]);
 }
 
+function ll_tools_rest_automation_interlinear_allowed_post_type(string $post_type): string {
+    $post_type = sanitize_key($post_type);
+    return in_array($post_type, ll_tools_interlinear_supported_post_types(), true) ? $post_type : '';
+}
+
+function ll_tools_rest_automation_interlinear_lesson_posts(int $wordset_id, bool $include_empty = true, string $post_type = ''): array {
+    $wordset_id = (int) $wordset_id;
+    if ($wordset_id <= 0) {
+        return [];
+    }
+
+    $post_types = $post_type !== ''
+        ? [$post_type]
+        : ll_tools_interlinear_supported_post_types();
+    $posts = [];
+    $meta_keys = [
+        'll_content_lesson' => ll_tools_interlinear_content_wordset_meta_key(),
+        'll_vocab_lesson' => ll_tools_interlinear_vocab_wordset_meta_key(),
+    ];
+
+    foreach ($post_types as $current_type) {
+        $current_type = ll_tools_rest_automation_interlinear_allowed_post_type((string) $current_type);
+        if ($current_type === '' || empty($meta_keys[$current_type])) {
+            continue;
+        }
+
+        $query_posts = get_posts([
+            'post_type' => $current_type,
+            'post_status' => ['publish', 'draft', 'pending', 'private'],
+            'posts_per_page' => -1,
+            'orderby' => 'menu_order title',
+            'order' => 'ASC',
+            'no_found_rows' => true,
+            'meta_query' => [
+                [
+                    'key' => $meta_keys[$current_type],
+                    'value' => (string) $wordset_id,
+                ],
+            ],
+        ]);
+
+        foreach ((array) $query_posts as $post) {
+            if (!($post instanceof WP_Post)) {
+                continue;
+            }
+            if (!$include_empty && !ll_tools_interlinear_has_payload((int) $post->ID)) {
+                continue;
+            }
+            $posts[] = $post;
+        }
+    }
+
+    return $posts;
+}
+
+function ll_tools_rest_automation_interlinear_request_item_string(array $item, string $key): string {
+    if (!array_key_exists($key, $item) || !is_scalar($item[$key])) {
+        return '';
+    }
+
+    return trim((string) $item[$key]);
+}
+
+function ll_tools_rest_automation_interlinear_item_category_spec(array $item): string {
+    foreach (['category', 'category_slug'] as $key) {
+        $value = ll_tools_rest_automation_interlinear_request_item_string($item, $key);
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    $payload = isset($item['payload']) && is_array($item['payload']) ? $item['payload'] : $item;
+    $metadata = isset($payload['metadata']) && is_array($payload['metadata']) ? $payload['metadata'] : [];
+    foreach (['category_slug', 'category_name'] as $key) {
+        if (isset($metadata[$key]) && is_scalar($metadata[$key]) && trim((string) $metadata[$key]) !== '') {
+            return trim((string) $metadata[$key]);
+        }
+    }
+
+    return '';
+}
+
+function ll_tools_rest_automation_resolve_interlinear_category_id(string $category_spec, int $wordset_id): int {
+    $category_spec = trim($category_spec);
+    if ($category_spec === '') {
+        return 0;
+    }
+
+    if (function_exists('ll_tools_resolve_word_category_term_for_wordsets')) {
+        $term = ll_tools_resolve_word_category_term_for_wordsets($category_spec, [$wordset_id]);
+        if ($term instanceof WP_Term && !is_wp_error($term)) {
+            return (int) $term->term_id;
+        }
+    }
+
+    $term = is_numeric($category_spec)
+        ? get_term((int) $category_spec, 'word-category')
+        : get_term_by('slug', sanitize_title($category_spec), 'word-category');
+    if ($term instanceof WP_Term && !is_wp_error($term)) {
+        return (int) $term->term_id;
+    }
+
+    return 0;
+}
+
+function ll_tools_rest_automation_resolve_interlinear_vocab_lesson_by_category(int $wordset_id, int $category_id) {
+    if ($wordset_id <= 0 || $category_id <= 0) {
+        return null;
+    }
+
+    $category_ids = [$category_id];
+    if (function_exists('ll_tools_get_vocab_lesson_category_meta_candidates')) {
+        $category_ids = array_merge($category_ids, ll_tools_get_vocab_lesson_category_meta_candidates($category_id, $wordset_id));
+    }
+    $category_ids = array_values(array_unique(array_filter(array_map('intval', $category_ids), static function (int $term_id): bool {
+        return $term_id > 0;
+    })));
+
+    $posts = get_posts([
+        'post_type' => 'll_vocab_lesson',
+        'post_status' => ['publish', 'draft', 'pending', 'private'],
+        'posts_per_page' => 1,
+        'no_found_rows' => true,
+        'meta_query' => [
+            'relation' => 'AND',
+            [
+                'key' => ll_tools_interlinear_vocab_wordset_meta_key(),
+                'value' => (string) $wordset_id,
+            ],
+            [
+                'key' => defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META') ? LL_TOOLS_VOCAB_LESSON_CATEGORY_META : '_ll_tools_vocab_category_id',
+                'value' => array_map('strval', $category_ids),
+                'compare' => 'IN',
+            ],
+        ],
+    ]);
+
+    if (!empty($posts[0]) && $posts[0] instanceof WP_Post) {
+        return $posts[0];
+    }
+
+    foreach (ll_tools_rest_automation_interlinear_lesson_posts($wordset_id, true, 'll_vocab_lesson') as $post) {
+        $lesson_category_id = (int) get_post_meta((int) $post->ID, defined('LL_TOOLS_VOCAB_LESSON_CATEGORY_META') ? LL_TOOLS_VOCAB_LESSON_CATEGORY_META : '_ll_tools_vocab_category_id', true);
+        if (in_array($lesson_category_id, $category_ids, true)) {
+            return $post;
+        }
+    }
+
+    return null;
+}
+
+function ll_tools_rest_automation_resolve_interlinear_lesson(int $wordset_id, array $item) {
+    $post_type = ll_tools_rest_automation_interlinear_allowed_post_type(
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'post_type')
+    );
+
+    $id_specs = [
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'post_id'),
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'lesson'),
+    ];
+    foreach ($id_specs as $id_spec) {
+        if ($id_spec === '' || !is_numeric($id_spec)) {
+            continue;
+        }
+        $post = get_post((int) $id_spec);
+        if (
+            $post instanceof WP_Post
+            && ll_tools_interlinear_post_type_supported($post)
+            && ($post_type === '' || $post->post_type === $post_type)
+            && ll_tools_interlinear_get_wordset_id_for_lesson((int) $post->ID) === $wordset_id
+        ) {
+            return $post;
+        }
+    }
+
+    $category_spec = ll_tools_rest_automation_interlinear_item_category_spec($item);
+    $category_id = ll_tools_rest_automation_resolve_interlinear_category_id($category_spec, $wordset_id);
+    if ($category_id > 0 && ($post_type === '' || $post_type === 'll_vocab_lesson')) {
+        $post = ll_tools_rest_automation_resolve_interlinear_vocab_lesson_by_category($wordset_id, $category_id);
+        if ($post instanceof WP_Post) {
+            return $post;
+        }
+    }
+
+    $payload = isset($item['payload']) && is_array($item['payload']) ? $item['payload'] : $item;
+    $string_specs = [
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'lesson'),
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'post_slug'),
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'slug'),
+        ll_tools_rest_automation_interlinear_request_item_string($item, 'interlinear_lesson_id'),
+    ];
+    if (isset($payload['lesson_id']) && is_scalar($payload['lesson_id'])) {
+        $string_specs[] = trim((string) $payload['lesson_id']);
+    }
+    $string_specs = array_values(array_unique(array_filter(array_map('trim', $string_specs))));
+
+    if (empty($string_specs)) {
+        return null;
+    }
+
+    $posts = ll_tools_rest_automation_interlinear_lesson_posts($wordset_id, true, $post_type);
+    foreach ($posts as $post) {
+        $title = trim((string) get_the_title($post));
+        $title_slug = sanitize_title($title);
+        $interlinear_lesson_id = (string) get_post_meta((int) $post->ID, LL_TOOLS_INTERLINEAR_LESSON_ID_META, true);
+        foreach ($string_specs as $spec) {
+            $spec_slug = sanitize_title($spec);
+            if (
+                (string) $post->post_name === $spec
+                || (string) $post->post_name === $spec_slug
+                || $title === $spec
+                || ($title_slug !== '' && $title_slug === $spec_slug)
+                || ($interlinear_lesson_id !== '' && $interlinear_lesson_id === $spec)
+            ) {
+                return $post;
+            }
+        }
+    }
+
+    return null;
+}
+
+function ll_tools_rest_automation_interlinear_payload_from_item(array $item) {
+    if (array_key_exists('payload', $item)) {
+        return $item['payload'];
+    }
+
+    if (isset($item['schema']) || isset($item['lines'])) {
+        return $item;
+    }
+
+    return null;
+}
+
+function ll_tools_rest_automation_process_interlinear_item(int $wordset_id, array $item, int $index, bool $dry_run) {
+    $post = ll_tools_rest_automation_resolve_interlinear_lesson($wordset_id, $item);
+    if (!($post instanceof WP_Post)) {
+        return new WP_Error(
+            'll_tools_rest_interlinear_lesson_not_found',
+            __('Could not find a matching content or vocab lesson in this word set.', 'll-tools-text-domain'),
+            ['status' => 404, 'index' => $index]
+        );
+    }
+
+    $lesson_id = (int) $post->ID;
+    $delete = (bool) rest_sanitize_boolean($item['delete'] ?? ($item['clear'] ?? false));
+    $before = ll_tools_interlinear_payload_for_rest($lesson_id, false);
+
+    if ($delete) {
+        if (!$dry_run) {
+            ll_tools_interlinear_clear_payload($lesson_id);
+        }
+        $after = $dry_run ? $before : ll_tools_interlinear_payload_for_rest($lesson_id, false);
+        return [
+            'index' => $index,
+            'action' => 'clear',
+            'dry_run' => $dry_run,
+            'changed' => !empty($before['has_payload']),
+            'lesson' => $after,
+        ];
+    }
+
+    $payload = ll_tools_rest_automation_interlinear_payload_from_item($item);
+    if ($payload === null) {
+        return new WP_Error(
+            'll_tools_rest_interlinear_missing_payload',
+            __('Provide an interlinear payload object, or send delete=true to clear one.', 'll-tools-text-domain'),
+            ['status' => 400, 'index' => $index]
+        );
+    }
+
+    $normalized = ll_tools_interlinear_normalize_payload($payload);
+    if (is_wp_error($normalized)) {
+        $normalized->add_data(['status' => 400, 'index' => $index]);
+        return $normalized;
+    }
+
+    $source = ll_tools_rest_automation_interlinear_request_item_string($item, 'source');
+    if ($source === '' && isset($normalized['source']) && is_scalar($normalized['source'])) {
+        $source = (string) $normalized['source'];
+    }
+
+    $before_payload = ll_tools_interlinear_get_payload($lesson_id);
+    if (!$dry_run) {
+        $updated = ll_tools_interlinear_set_payload($lesson_id, $normalized, $source);
+        if (is_wp_error($updated)) {
+            $updated->add_data(['status' => 400, 'index' => $index]);
+            return $updated;
+        }
+    }
+
+    $after = $dry_run
+        ? array_merge($before, [
+            'has_payload' => true,
+            'summary' => ll_tools_interlinear_summary($normalized),
+        ])
+        : ll_tools_interlinear_payload_for_rest($lesson_id, false);
+
+    return [
+        'index' => $index,
+        'action' => 'update',
+        'dry_run' => $dry_run,
+        'changed' => wp_json_encode($before_payload) !== wp_json_encode($normalized),
+        'lesson' => $after,
+    ];
+}
+
+function ll_tools_rest_automation_interlinear(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $wordset = [
+        'id' => $wordset_id,
+        'slug' => (string) $wordset_term->slug,
+        'name' => (string) $wordset_term->name,
+    ];
+
+    if ($request->get_method() !== 'POST') {
+        $include_empty = (bool) rest_sanitize_boolean($request->get_param('include_empty'));
+        $include_payload = $request->has_param('include_payload')
+            ? (bool) rest_sanitize_boolean($request->get_param('include_payload'))
+            : true;
+        $post_type = ll_tools_rest_automation_interlinear_allowed_post_type(ll_tools_rest_automation_request_string($request, 'post_type'));
+        $lesson_spec = ll_tools_rest_automation_request_string($request, 'lesson');
+
+        if ($lesson_spec !== '') {
+            $post = ll_tools_rest_automation_resolve_interlinear_lesson($wordset_id, [
+                'lesson' => $lesson_spec,
+                'post_type' => $post_type,
+            ]);
+            if (!($post instanceof WP_Post)) {
+                return ll_tools_rest_automation_error(
+                    'll_tools_rest_interlinear_lesson_not_found',
+                    __('Could not find a matching content or vocab lesson in this word set.', 'll-tools-text-domain'),
+                    404
+                );
+            }
+
+            $items = [ll_tools_interlinear_payload_for_rest((int) $post->ID, $include_payload)];
+        } else {
+            $posts = ll_tools_rest_automation_interlinear_lesson_posts($wordset_id, true, $post_type);
+            $items = [];
+            foreach ($posts as $post) {
+                $has_payload = ll_tools_interlinear_has_payload((int) $post->ID);
+                if (!$include_empty && !$has_payload) {
+                    continue;
+                }
+                $items[] = ll_tools_interlinear_payload_for_rest((int) $post->ID, $include_payload);
+            }
+        }
+
+        return rest_ensure_response([
+            'generated_at_gmt' => gmdate('c'),
+            'wordset' => $wordset,
+            'filters' => [
+                'lesson' => $lesson_spec,
+                'post_type' => $post_type,
+                'include_empty' => $include_empty,
+                'include_payload' => $include_payload,
+            ],
+            'count' => count($items),
+            'items' => $items,
+        ]);
+    }
+
+    $raw_items = $request->get_param('items');
+    $is_batch = is_array($raw_items);
+    $items = $is_batch ? array_values($raw_items) : [$request->get_params()];
+    $dry_run = (bool) rest_sanitize_boolean($request->get_param('dry_run'));
+    $results = [];
+    $errors = [];
+    $updated_count = 0;
+    $cleared_count = 0;
+
+    foreach ($items as $index => $item) {
+        if (!is_array($item)) {
+            $errors[] = [
+                'index' => $index,
+                'code' => 'll_tools_rest_interlinear_invalid_item',
+                'message' => __('Each interlinear import item must be an object.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        if ($dry_run && !array_key_exists('dry_run', $item)) {
+            $item['dry_run'] = true;
+        }
+
+        $result = ll_tools_rest_automation_process_interlinear_item($wordset_id, $item, $index, $dry_run);
+        if (is_wp_error($result)) {
+            $data = $result->get_error_data();
+            $errors[] = [
+                'index' => is_array($data) && isset($data['index']) ? (int) $data['index'] : $index,
+                'code' => $result->get_error_code(),
+                'message' => $result->get_error_message(),
+                'status' => is_array($data) && isset($data['status']) ? (int) $data['status'] : 400,
+            ];
+            continue;
+        }
+
+        $results[] = $result;
+        if (!empty($result['changed']) && !$dry_run) {
+            if (($result['action'] ?? '') === 'clear') {
+                $cleared_count++;
+            } else {
+                $updated_count++;
+            }
+        }
+    }
+
+    if (!$is_batch && empty($results) && !empty($errors[0])) {
+        return ll_tools_rest_automation_error(
+            (string) $errors[0]['code'],
+            (string) $errors[0]['message'],
+            (int) ($errors[0]['status'] ?? 400)
+        );
+    }
+
+    return rest_ensure_response([
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => $wordset,
+        'count' => count($results),
+        'updated_count' => $updated_count,
+        'cleared_count' => $cleared_count,
+        'results' => $results,
+        'errors' => $errors,
+    ]);
+}
+
 function ll_tools_rest_automation_resolve_import_zip(WP_REST_Request $request) {
     ll_tools_rest_automation_load_import_helpers();
 
@@ -2164,6 +2633,34 @@ function ll_tools_rest_register_automation_routes(): void {
             'note' => [
                 'required' => false,
                 'type' => 'string',
+            ],
+        ],
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/interlinear', [
+        'methods' => [WP_REST_Server::READABLE, WP_REST_Server::CREATABLE],
+        'callback' => 'll_tools_rest_automation_interlinear',
+        'permission_callback' => 'll_tools_rest_automation_require_interlinear_access',
+        'args' => [
+            'lesson' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'post_type' => [
+                'required' => false,
+                'type' => 'string',
+            ],
+            'include_empty' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'include_payload' => [
+                'required' => false,
+                'type' => 'boolean',
+            ],
+            'dry_run' => [
+                'required' => false,
+                'type' => 'boolean',
             ],
         ],
     ]);

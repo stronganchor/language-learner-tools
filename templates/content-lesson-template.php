@@ -104,6 +104,12 @@ $format_ms = static function (int $ms): string {
         </div>
     </header>
 
+    <?php
+    if (function_exists('ll_tools_render_interlinear_block')) {
+        echo ll_tools_render_interlinear_block($lesson_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    }
+    ?>
+
     <section class="ll-content-lesson-stage" data-ll-content-lesson-player>
         <div class="ll-content-lesson-stage__media">
             <?php if ($media_url !== '') : ?>
