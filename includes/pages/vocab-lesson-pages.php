@@ -1497,10 +1497,10 @@ function ll_tools_get_or_create_vocab_lesson_page(int $category_id, int $wordset
     $wordset  = get_term($wordset_id, 'wordset');
 
     if (!($category instanceof WP_Term) || is_wp_error($category)) {
-        return new WP_Error('invalid_category', 'Invalid word-category term.');
+        return new WP_Error('invalid_category', __('Invalid word-category term.', 'll-tools-text-domain'));
     }
     if (!($wordset instanceof WP_Term) || is_wp_error($wordset)) {
-        return new WP_Error('invalid_wordset', 'Invalid wordset term.');
+        return new WP_Error('invalid_wordset', __('Invalid wordset term.', 'll-tools-text-domain'));
     }
 
     $slug    = ll_tools_vocab_lesson_build_slug($wordset->slug, $category->slug);

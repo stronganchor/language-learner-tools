@@ -49,7 +49,7 @@ function ll_find_words_missing_word_images(): array {
 
 function ll_create_word_image_from_word($word_id, $attachment_id) {
     if (!function_exists('ll_tools_ensure_word_image_post_for_word')) {
-        return new WP_Error('missing_helper', 'Word image helper is not available');
+        return new WP_Error('missing_helper', __('Word image helper is not available', 'll-tools-text-domain'));
     }
 
     return ll_tools_ensure_word_image_post_for_word((int) $word_id);

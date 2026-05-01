@@ -1388,7 +1388,9 @@ function ll_maybe_create_word_from_image_upload($title, $attachment_id, $categor
     ]);
 
     if (is_wp_error($word_id) || !$word_id) {
-        return is_wp_error($word_id) ? $word_id : new WP_Error('ll_image_word_create_failed', 'Failed to create word post.');
+        return is_wp_error($word_id)
+            ? $word_id
+            : new WP_Error('ll_image_word_create_failed', __('Failed to create word post.', 'll-tools-text-domain'));
     }
 
     if (!empty($category_ids)) {

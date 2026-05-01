@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-05-01T09:38:17+00:00\n"
+"POT-Creation-Date: 2026-05-01T10:17:45+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: ll-tools-text-domain\n"
@@ -568,20 +568,20 @@ msgstr ""
 msgid "Enter Your DeepL API Key"
 msgstr ""
 
-#: includes/admin/api/deepl-api.php:223
+#: includes/admin/api/deepl-api.php:228
 msgid "Failed to retrieve language names."
 msgstr ""
 
-#: includes/admin/api/deepl-api.php:226
+#: includes/admin/api/deepl-api.php:231
 #, php-format
 msgid "Available languages: %s"
 msgstr ""
 
-#: includes/admin/api/deepl-api.php:233
+#: includes/admin/api/deepl-api.php:238
 msgid "Translation failed. Please check your API key."
 msgstr ""
 
-#: includes/admin/api/deepl-api.php:236
+#: includes/admin/api/deepl-api.php:241
 #, php-format
 msgid "Translated text from Turkish: %s"
 msgstr ""
@@ -1051,7 +1051,7 @@ msgstr ""
 #: includes/admin/bulk-translation-admin.php:177
 #: includes/admin/dictionary-import-admin.php:1338
 #: includes/admin/split-word-admin.php:396
-#: includes/lib/dictionary-browser.php:3776
+#: includes/lib/dictionary-browser.php:3779
 #: includes/post-types/dictionary-entry-post-type.php:1779
 #: includes/post-types/word-audio-post-type.php:116
 msgid "Type"
@@ -9312,6 +9312,10 @@ msgstr ""
 msgid "Category could not be created."
 msgstr ""
 
+#: includes/admin/uploads/image-upload-form.php:1393
+msgid "Failed to create word post."
+msgstr ""
+
 #: includes/admin/user-progress-report.php:147
 msgid "Learner account deleted."
 msgstr ""
@@ -9563,6 +9567,10 @@ msgstr ""
 
 #: includes/admin/word-images-fixer.php:9
 msgid "LL Fix Word Images"
+msgstr ""
+
+#: includes/admin/word-images-fixer.php:52
+msgid "Word image helper is not available"
 msgstr ""
 
 #: includes/admin/word-images-fixer.php:69
@@ -10376,29 +10384,29 @@ msgstr ""
 msgid "(no title)"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:3746
+#: includes/lib/dictionary-browser.php:3749
 msgid "Imported Senses"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:3768
+#: includes/lib/dictionary-browser.php:3771
 msgid "No structured senses have been imported for this entry yet."
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:3775
+#: includes/lib/dictionary-browser.php:3778
 msgid "Glosses"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:3777
+#: includes/lib/dictionary-browser.php:3780
 #: includes/post-types/dictionary-entry-post-type.php:1781
 msgid "Gender/Number"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:3778
+#: includes/lib/dictionary-browser.php:3781
 #: includes/post-types/dictionary-entry-post-type.php:1782
 msgid "Parent"
 msgstr ""
 
-#: includes/lib/dictionary-browser.php:3779
+#: includes/lib/dictionary-browser.php:3782
 #: includes/post-types/dictionary-entry-post-type.php:1780
 #: includes/shortcodes/site-tools-shortcode.php:266
 msgid "Page"
@@ -11500,6 +11508,12 @@ msgstr ""
 msgid "%1$s | %2$s"
 msgstr ""
 
+#: includes/pages/quiz-pages.php:392
+#: includes/pages/vocab-lesson-pages.php:1500
+#: includes/pages/vocab-lesson-pages.php:1651
+msgid "Invalid word-category term."
+msgstr ""
+
 #: includes/pages/quiz-pages.php:761
 #: templates/vocab-lesson-template.php:919
 msgid "Quiz"
@@ -11657,8 +11671,8 @@ msgstr ""
 msgid "Wrong answer"
 msgstr ""
 
-#: includes/pages/vocab-lesson-pages.php:1651
-msgid "Invalid word-category term."
+#: includes/pages/vocab-lesson-pages.php:1503
+msgid "Invalid wordset term."
 msgstr ""
 
 #: includes/pages/vocab-lesson-pages.php:1654

@@ -389,7 +389,7 @@ function ll_tools_build_quiz_page_content(WP_Term $term) : string {
 function ll_tools_get_or_create_quiz_page_for_category($term_id) {
     $term = get_term($term_id, 'word-category');
     if (!$term || is_wp_error($term)) {
-        return new WP_Error('invalid_term', 'Invalid word-category term.');
+        return new WP_Error('invalid_term', __('Invalid word-category term.', 'll-tools-text-domain'));
     }
 
     $parent_id  = ll_tools_get_or_create_quiz_parent_page();

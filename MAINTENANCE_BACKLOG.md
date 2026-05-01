@@ -20,11 +20,10 @@ decisions, and documentation upkeep.
    - Site Tools frontend maintenance actions.
    - Less-covered games: Line Up, Unscramble, Speaking Practice, and Speaking Stack.
    - A lightweight Playwright source-contract spec now checks that registered
-     public shortcodes stay listed in `README.md`; keep extending this kind of
-     static coverage where it catches real maintenance drift with low flake
-     risk.
-   - Still worth adding: a lightweight i18n static scan that fails on new
-     hardcoded user-facing PHP or JS strings.
+     public shortcodes stay listed in `README.md` and that high-confidence
+     user-facing PHP/JS string contexts use translation-ready wrappers. Keep
+     extending this kind of static coverage where it catches real maintenance
+     drift with low flake risk.
 
 2. Reduce duplicated flashcard shell markup and startup behavior.
    - The public flashcard template, offline app shell, and quiz-page shell share many IDs and controls but still duplicate markup and repeat-button initialization.
