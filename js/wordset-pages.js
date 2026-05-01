@@ -304,16 +304,7 @@
         });
     }
 
-    function copyTextToClipboard(text) {
-        const value = String(text || '');
-        if (!value) {
-            return Promise.reject(new Error('empty_copy_value'));
-        }
-
-        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
-            return navigator.clipboard.writeText(value);
-        }
-
+    function copyTextWithSelectionFallback(value) {
         return new Promise(function (resolve, reject) {
             const probe = document.createElement('textarea');
             probe.value = value;
@@ -339,6 +330,21 @@
         });
     }
 
+    function copyTextToClipboard(text) {
+        const value = String(text || '');
+        if (!value) {
+            return Promise.reject(new Error('empty_copy_value'));
+        }
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            return navigator.clipboard.writeText(value).catch(function () {
+                return copyTextWithSelectionFallback(value);
+            });
+        }
+
+        return copyTextWithSelectionFallback(value);
+    }
+
     function setCopyButtonFeedback(button, text) {
         if (!button) { return; }
         const resetLabel = String(button.getAttribute('data-ll-copy-label') || button.textContent || '').trim();
@@ -353,6 +359,29 @@
             button.textContent = resetLabel;
             button._llCopyFeedbackTimer = 0;
         }, 1600);
+    }
+
+    function bindCopyTargetInteractions() {
+        $root
+            .off('click.llWordsetCopyTarget', '[data-ll-copy-target]')
+            .on('click.llWordsetCopyTarget', '[data-ll-copy-target]', function (evt) {
+                evt.preventDefault();
+                const button = this;
+                const targetId = String(button.getAttribute('data-ll-copy-target') || '').trim();
+                if (!targetId) { return; }
+                const target = document.getElementById(targetId);
+                if (!target) { return; }
+
+                const value = ('value' in target)
+                    ? String(target.value || '')
+                    : String(target.textContent || '');
+
+                copyTextToClipboard(value).then(function () {
+                    setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-success'));
+                }).catch(function () {
+                    setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-failure'));
+                });
+            });
     }
 
     function bindTeacherClassesInteractions() {
@@ -14117,25 +14146,6 @@
             handleProgressWordAudioClick(this);
         });
 
-        $root.on('click', '[data-ll-copy-target]', function (evt) {
-            evt.preventDefault();
-            const button = this;
-            const targetId = String(button.getAttribute('data-ll-copy-target') || '').trim();
-            if (!targetId) { return; }
-            const target = document.getElementById(targetId);
-            if (!target) { return; }
-
-            const value = ('value' in target)
-                ? String(target.value || '')
-                : String(target.textContent || '');
-
-            copyTextToClipboard(value).then(function () {
-                setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-success'));
-            }).catch(function () {
-                setCopyButtonFeedback(button, button.getAttribute('data-ll-copy-failure'));
-            });
-        });
-
         $(document).on('lltools:progress-updated.llWordsetProgress', function () {
             if (isFlashcardOpen) {
                 deferProgressAnalyticsRefreshUntilClose({ silent: true });
@@ -14166,6 +14176,8 @@
             })
             .catch(function () { /* no-op */ });
     }
+
+    bindCopyTargetInteractions();
 
     if (view === 'main') {
         setWordsetCardProgressLoadingState(cardProgressInitialLoading);
