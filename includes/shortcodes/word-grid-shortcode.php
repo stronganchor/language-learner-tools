@@ -4672,7 +4672,7 @@ function ll_tools_word_grid_shortcode($atts) {
     $show_word_interlinears = $lesson_id > 0
         && function_exists('ll_tools_current_user_can_view_interlinear')
         && function_exists('ll_tools_interlinear_has_payload')
-        && function_exists('ll_tools_render_word_interlinear_block')
+        && function_exists('ll_tools_render_recording_interlinear_block')
         && ll_tools_current_user_can_view_interlinear($lesson_id)
         && ll_tools_interlinear_has_payload($lesson_id);
     $category_editor_rows = $show_word_category_editor
@@ -5570,18 +5570,28 @@ function ll_tools_word_grid_shortcode($atts) {
 
             // Audio buttons
             if ($has_recordings || $recording_launch_html !== '') {
-                $use_recording_rows = ($has_recording_caption && !$hide_text_for_word) || $show_lesson_recording_edit_triggers;
+                $use_recording_rows = ($has_recording_caption && !$hide_text_for_word) || $show_lesson_recording_edit_triggers || $show_word_interlinears;
                 if ($use_recording_rows) {
                     $recordings_wrap_classes = 'll-word-recordings';
                     if ($has_recording_caption && !$hide_text_for_word) {
                         $recordings_wrap_classes .= ' ll-word-recordings--with-text';
                     }
+                    if ($show_word_interlinears) {
+                        $recordings_wrap_classes .= ' ll-word-recordings--with-interlinear';
+                    }
                     $recordings_html .= '<div class="' . esc_attr($recordings_wrap_classes) . '" aria-label="' . esc_attr__('Recordings', 'll-tools-text-domain') . '">';
+                    $recording_interlinear_word_fallback = count($recording_rows) === 1 ? (string) $word_text : '';
                     foreach ($recording_rows as $row) {
+                        $recording_interlinear_html = $show_word_interlinears
+                            ? ll_tools_render_recording_interlinear_block((int) $lesson_id, $row, $recording_interlinear_word_fallback)
+                            : '';
                         $row_id_attr = !empty($row['id']) ? ' data-recording-id="' . esc_attr((int) $row['id']) . '"' : '';
                         $row_classes = 'll-word-recording-row';
                         if ($show_lesson_recording_edit_triggers && !empty($row['id']) && !empty($row['edit_label'])) {
                             $row_classes .= ' ll-word-recording-row--editable';
+                        }
+                        if ($recording_interlinear_html !== '') {
+                            $row_classes .= ' ll-word-recording-row--has-interlinear';
                         }
                         $recordings_html .= '<div class="' . esc_attr($row_classes) . '"' . $row_id_attr . '>';
                         $recordings_html .= $row['button'];
@@ -5603,6 +5613,9 @@ function ll_tools_word_grid_shortcode($atts) {
                             $recordings_html .= '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 20.5h4l10-10-4-4-10 10v4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
                             $recordings_html .= '</button>';
                         }
+                        if ($recording_interlinear_html !== '') {
+                            $recordings_html .= $recording_interlinear_html;
+                        }
                         $recordings_html .= '</div>';
                     }
                     if ($recording_launch_html !== '') {
@@ -5622,9 +5635,6 @@ function ll_tools_word_grid_shortcode($atts) {
                     $recordings_html .= '</div>';
                 }
                 echo $recordings_html;
-            }
-            if ($show_word_interlinears) {
-                echo ll_tools_render_word_interlinear_block((int) $lesson_id, (int) $word_id, (string) $word_text, $recording_rows); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
             if ($can_manage_internal_notes) {
                 echo ll_tools_render_internal_review_note_field((int) $word_id, 'word', (int) $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

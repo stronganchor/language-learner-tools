@@ -794,6 +794,51 @@ function ll_tools_interlinear_lines_for_word(int $lesson_id, int $word_id, strin
     return $matches;
 }
 
+function ll_tools_interlinear_lines_for_recording(int $lesson_id, array $recording_row, string $word_text = ''): array {
+    if ($lesson_id <= 0 || !ll_tools_interlinear_has_payload($lesson_id)) {
+        return [];
+    }
+
+    $payload = ll_tools_interlinear_get_payload($lesson_id);
+    $lines = isset($payload['lines']) && is_array($payload['lines']) ? $payload['lines'] : [];
+    if (empty($lines)) {
+        return [];
+    }
+
+    $candidate_texts = [];
+    foreach (['text', 'ipa'] as $field) {
+        $key = isset($recording_row[$field]) && is_scalar($recording_row[$field])
+            ? ll_tools_interlinear_match_key((string) $recording_row[$field])
+            : '';
+        if ($key !== '') {
+            $candidate_texts[$key] = true;
+        }
+    }
+    if (empty($candidate_texts)) {
+        $word_key = ll_tools_interlinear_match_key($word_text);
+        if ($word_key !== '') {
+            $candidate_texts[$word_key] = true;
+        }
+    }
+
+    $candidate_recording_ids = [];
+    if (!empty($recording_row['id'])) {
+        $candidate_recording_ids[] = (string) ((int) $recording_row['id']);
+    }
+
+    $matches = [];
+    foreach ($lines as $line) {
+        if (!is_array($line)) {
+            continue;
+        }
+        if (ll_tools_interlinear_line_matches_word($line, 0, $candidate_texts, $candidate_recording_ids)) {
+            $matches[] = $line;
+        }
+    }
+
+    return $matches;
+}
+
 function ll_tools_render_word_interlinear_block(int $lesson_id, int $word_id, string $word_text, array $recording_rows = []): string {
     if (!ll_tools_current_user_can_view_interlinear($lesson_id) || !ll_tools_interlinear_has_payload($lesson_id)) {
         return '';
@@ -806,6 +851,24 @@ function ll_tools_render_word_interlinear_block(int $lesson_id, int $word_id, st
     }
 
     return '<div class="ll-word-interlinear" data-ll-word-interlinear aria-label="' . esc_attr__('Interlinear analysis', 'll-tools-text-domain') . '">' . $lines_html . '</div>';
+}
+
+function ll_tools_render_recording_interlinear_block(int $lesson_id, array $recording_row, string $word_text = ''): string {
+    if (!ll_tools_current_user_can_view_interlinear($lesson_id) || !ll_tools_interlinear_has_payload($lesson_id)) {
+        return '';
+    }
+
+    $lines = ll_tools_interlinear_lines_for_recording($lesson_id, $recording_row, $word_text);
+    $lines_html = ll_tools_render_interlinear_lines($lines);
+    if ($lines_html === '') {
+        return '';
+    }
+
+    $recording_id_attr = !empty($recording_row['id'])
+        ? ' data-recording-id="' . esc_attr((int) $recording_row['id']) . '"'
+        : '';
+
+    return '<div class="ll-word-interlinear ll-word-recording-interlinear" data-ll-recording-interlinear' . $recording_id_attr . ' aria-label="' . esc_attr__('Interlinear analysis', 'll-tools-text-domain') . '">' . $lines_html . '</div>';
 }
 
 function ll_tools_render_interlinear_block(int $lesson_id): string {

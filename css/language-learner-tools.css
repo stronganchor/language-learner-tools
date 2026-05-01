@@ -320,6 +320,10 @@ p:has(.ll-word-audio) {
     font-size: 15px;
 }
 
+.word-grid.ll-word-grid .ll-word-recording-interlinear {
+    width: 100%;
+}
+
 .ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear {
     grid-template-columns: minmax(0, 1fr) !important;
     gap: 12px !important;
@@ -332,6 +336,42 @@ p:has(.ll-word-audio) {
 
 .ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-interlinear {
     display: block;
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recordings--with-interlinear {
+    width: 100% !important;
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: flex-start !important;
+    gap: 8px 10px !important;
+    width: 100%;
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear > .ll-word-recording-text {
+    align-self: center !important;
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear > .ll-word-recording-interlinear {
+    grid-column: 1 / -1;
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.ll-word-recording-row--editable {
+    padding-right: 0;
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear .ll-word-recording-edit-trigger {
+    position: static;
+    align-self: start;
+    transform: scale(0.92);
+}
+
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear:hover .ll-word-recording-edit-trigger,
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear:focus-within .ll-word-recording-edit-trigger,
+.ll-interlinear[open] ~ .ll-vocab-lesson-content .word-grid.ll-word-grid--has-interlinear .ll-word-recording-row--has-interlinear.is-edit-trigger-visible .ll-word-recording-edit-trigger {
+    transform: scale(1);
 }
 
 @media (max-width: 820px) {
