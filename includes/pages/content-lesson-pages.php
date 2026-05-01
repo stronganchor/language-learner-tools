@@ -316,11 +316,8 @@ function ll_tools_content_lesson_enforce_frontend_access(): void {
     $wordset_id = function_exists('ll_tools_get_content_lesson_wordset_id')
         ? ll_tools_get_content_lesson_wordset_id($lesson_id)
         : 0;
-    if ($wordset_id <= 0) {
-        return;
-    }
 
-    if (!function_exists('ll_tools_user_can_view_wordset') || ll_tools_user_can_view_wordset($wordset_id)) {
+    if ($wordset_id > 0 && (!function_exists('ll_tools_user_can_view_wordset') || ll_tools_user_can_view_wordset($wordset_id))) {
         return;
     }
 

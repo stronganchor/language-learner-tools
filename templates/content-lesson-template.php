@@ -3,13 +3,13 @@
 if (!defined('WPINC')) { die; }
 
 $ll_content_lesson_access_denied = false;
-if (is_singular('ll_content_lesson') && function_exists('ll_tools_user_can_view_wordset')) {
+if (is_singular('ll_content_lesson') && function_exists('ll_tools_get_content_lesson_wordset_id')) {
     $preflight_post_id = (int) get_queried_object_id();
     if ($preflight_post_id > 0) {
-        $preflight_wordset_id = function_exists('ll_tools_get_content_lesson_wordset_id')
-            ? ll_tools_get_content_lesson_wordset_id($preflight_post_id)
-            : 0;
-        if ($preflight_wordset_id > 0 && !ll_tools_user_can_view_wordset($preflight_wordset_id)) {
+        $preflight_wordset_id = ll_tools_get_content_lesson_wordset_id($preflight_post_id);
+        $can_view_wordset = $preflight_wordset_id > 0
+            && (!function_exists('ll_tools_user_can_view_wordset') || ll_tools_user_can_view_wordset($preflight_wordset_id));
+        if (!$can_view_wordset) {
             $ll_content_lesson_access_denied = true;
             $wp_query = $GLOBALS['wp_query'] ?? null;
             if ($wp_query instanceof WP_Query) {
@@ -49,7 +49,9 @@ $wordset = function_exists('ll_tools_get_content_lesson_wordset_term')
     : null;
 $wordset_id = ($wordset instanceof WP_Term) ? (int) $wordset->term_id : 0;
 $wordset_name = ($wordset instanceof WP_Term) ? (string) $wordset->name : '';
-$wordset_url = ($wordset instanceof WP_Term) ? trailingslashit(home_url($wordset->slug)) : '';
+$wordset_url = ($wordset instanceof WP_Term && function_exists('ll_tools_get_wordset_page_view_url'))
+    ? (string) ll_tools_get_wordset_page_view_url($wordset)
+    : (($wordset instanceof WP_Term && $wordset->slug !== '') ? trailingslashit(home_url($wordset->slug)) : '');
 $media_type = function_exists('ll_tools_get_content_lesson_media_type')
     ? ll_tools_get_content_lesson_media_type($lesson_id)
     : 'audio';

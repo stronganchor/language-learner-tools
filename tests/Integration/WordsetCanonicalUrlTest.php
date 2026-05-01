@@ -91,6 +91,28 @@ final class WordsetCanonicalUrlTest extends LL_Tools_TestCase
         $this->assertStringNotContainsString('href="' . esc_url($legacy_back) . '"', $html);
     }
 
+    public function test_content_lesson_back_link_uses_canonical_wordset_page_url_when_page_slug_conflicts(): void
+    {
+        update_option('permalink_structure', '/%postname%/');
+
+        $fixture = $this->createContentLessonFixture('Content Back Link Wordset');
+        $wordset = $fixture['wordset'];
+        $this->createLegacyWordsetPage((string) $wordset->slug, '[wordset_page]');
+
+        $this->go_to('/?post_type=ll_content_lesson&p=' . (int) $fixture['lesson_id']);
+        $this->assertTrue(is_singular('ll_content_lesson'));
+
+        ob_start();
+        include LL_TOOLS_BASE_PATH . '/templates/content-lesson-template.php';
+        $html = (string) ob_get_clean();
+
+        $expected_back = ll_tools_get_wordset_page_view_url($wordset);
+        $legacy_back = trailingslashit(home_url((string) $wordset->slug));
+
+        $this->assertStringContainsString('href="' . esc_url($expected_back) . '"', $html);
+        $this->assertStringNotContainsString('href="' . esc_url($legacy_back) . '"', $html);
+    }
+
     /**
      * @return array{wordset:WP_Term,category:WP_Term,lesson_id:int}
      */
@@ -125,6 +147,34 @@ final class WordsetCanonicalUrlTest extends LL_Tools_TestCase
         return [
             'wordset' => $wordset_term,
             'category' => $category_term,
+            'lesson_id' => $lesson_id,
+        ];
+    }
+
+    /**
+     * @return array{wordset:WP_Term,lesson_id:int}
+     */
+    private function createContentLessonFixture(string $label): array
+    {
+        $suffix = strtolower(wp_generate_password(4, false));
+        $wordset_slug = sanitize_title($label . '-' . $suffix);
+
+        $wordset = wp_insert_term($label . ' ' . $suffix, 'wordset', ['slug' => $wordset_slug]);
+        $this->assertIsArray($wordset);
+        $wordset_term = get_term((int) $wordset['term_id'], 'wordset');
+        $this->assertInstanceOf(WP_Term::class, $wordset_term);
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => $label . ' Lesson ' . $suffix,
+            'post_excerpt' => 'Canonical content lesson back link fixture.',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_WORDSET_META, (int) $wordset_term->term_id);
+        update_post_meta($lesson_id, LL_TOOLS_CONTENT_LESSON_MEDIA_TYPE_META, 'audio');
+
+        return [
+            'wordset' => $wordset_term,
             'lesson_id' => $lesson_id,
         ];
     }

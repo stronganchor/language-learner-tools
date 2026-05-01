@@ -114,6 +114,36 @@ TSV;
         $this->assertNotSame('', (string) $related_vocab_items[0]['url']);
     }
 
+    public function test_orphan_published_content_lesson_is_404_on_frontend(): void
+    {
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_content_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'Orphan Content Lesson',
+        ]);
+
+        $this->go_to('/?post_type=ll_content_lesson&p=' . (int) $lesson_id);
+        $this->assertTrue(is_singular('ll_content_lesson'));
+
+        $status = 0;
+        $status_header_filter = static function ($status_header, $code) use (&$status) {
+            $status = (int) $code;
+            return $status_header;
+        };
+
+        add_filter('status_header', $status_header_filter, 10, 2);
+        try {
+            ll_tools_content_lesson_enforce_frontend_access();
+        } finally {
+            remove_filter('status_header', $status_header_filter, 10);
+        }
+
+        global $wp_query;
+        $this->assertInstanceOf(WP_Query::class, $wp_query);
+        $this->assertTrue((bool) $wp_query->is_404);
+        $this->assertSame(404, $status);
+    }
+
     public function test_content_lesson_category_rows_scope_to_selected_wordset(): void
     {
         $fixture = $this->createScopedCategoryFixture();
