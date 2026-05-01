@@ -4669,6 +4669,12 @@ function ll_tools_word_grid_shortcode($atts) {
     $can_manage_internal_notes = !empty($context['can_manage_internal_notes'])
         && function_exists('ll_tools_render_internal_review_note_field');
     $show_word_category_editor = $can_edit_words && $wordset_id > 0 && ll_tools_word_grid_is_lesson_context($context);
+    $show_word_interlinears = $lesson_id > 0
+        && function_exists('ll_tools_current_user_can_view_interlinear')
+        && function_exists('ll_tools_interlinear_has_payload')
+        && function_exists('ll_tools_render_word_interlinear_block')
+        && ll_tools_current_user_can_view_interlinear($lesson_id)
+        && ll_tools_interlinear_has_payload($lesson_id);
     $category_editor_rows = $show_word_category_editor
         ? ll_tools_word_grid_get_category_editor_rows($wordset_id)
         : [];
@@ -4688,6 +4694,9 @@ function ll_tools_word_grid_shortcode($atts) {
         }
         if ($can_edit_words && $lesson_id > 0) {
             $grid_classes .= ' ll-word-grid--reorderable';
+        }
+        if ($show_word_interlinears) {
+            $grid_classes .= ' ll-word-grid--has-interlinear';
         }
         $grid_attrs = 'data-ll-word-grid';
         $grid_attrs .= ' data-ll-secondary-text-mode="' . esc_attr($transcription_mode) . '"';
@@ -5613,6 +5622,9 @@ function ll_tools_word_grid_shortcode($atts) {
                     $recordings_html .= '</div>';
                 }
                 echo $recordings_html;
+            }
+            if ($show_word_interlinears) {
+                echo ll_tools_render_word_interlinear_block((int) $lesson_id, (int) $word_id, (string) $word_text, $recording_rows); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             }
             if ($can_manage_internal_notes) {
                 echo ll_tools_render_internal_review_note_field((int) $word_id, 'word', (int) $wordset_id); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped

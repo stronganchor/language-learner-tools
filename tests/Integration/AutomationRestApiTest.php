@@ -429,11 +429,72 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertStringContainsString('class="ll-interlinear"', $content_html);
         $this->assertStringContainsString('Show interlinear', $content_html);
         $this->assertStringContainsString('Dara', $content_html);
+        $this->assertStringContainsString('class="ll-interlinear-table"', $content_html);
+        $this->assertStringContainsString('>WORD<', $content_html);
+        $this->assertStringContainsString('>MORPH<', $content_html);
+        $this->assertStringContainsString('>LEMMA<', $content_html);
+        $this->assertStringContainsString('>GLOSS<', $content_html);
+        $this->assertStringContainsString('>POS<', $content_html);
+        $this->assertStringNotContainsString('Confidence', $content_html);
+        $this->assertStringNotContainsString('Line 1', $content_html);
         $this->assertStringNotContainsString('<details class="ll-interlinear" data-ll-interlinear open', $content_html);
 
         $vocab_html = ll_tools_render_interlinear_block($vocab_lesson_id);
-        $this->assertStringContainsString('class="ll-interlinear"', $vocab_html);
+        $this->assertStringContainsString('class="ll-interlinear ll-interlinear--word-grid-toggle"', $vocab_html);
         $this->assertStringContainsString('Staff', $vocab_html);
+        $this->assertStringNotContainsString('class="ll-interlinear-table"', $vocab_html);
+        $this->assertStringNotContainsString('Dara', $vocab_html);
+    }
+
+    public function test_vocab_word_grid_renders_staff_interlinear_under_matching_words(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'REST Interlinear Grid Wordset', 'rest-interlinear-grid-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Interlinear Grid Category', 'rest-interlinear-grid-category');
+        $recording_type_id = $this->ensure_term('recording_type', 'Question', 'question');
+        update_term_meta($category_id, 'll_quiz_prompt_type', 'audio');
+        update_term_meta($category_id, 'll_quiz_option_type', 'text_translation');
+
+        $lesson_id = self::factory()->post->create([
+            'post_type' => 'll_vocab_lesson',
+            'post_status' => 'publish',
+            'post_title' => 'REST Interlinear Grid Vocab',
+        ]);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_WORDSET_META, $wordset_id);
+        update_post_meta($lesson_id, LL_TOOLS_VOCAB_LESSON_CATEGORY_META, $category_id);
+
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Dara', 'Tree');
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_title' => 'Dara pil a.',
+            'post_parent' => $word_id,
+        ]);
+        update_post_meta($recording_id, 'audio_file_path', '/wp-content/uploads/test/dara.mp3');
+        update_post_meta($recording_id, 'recording_text', 'Dara pil a.');
+        wp_set_post_terms($recording_id, [$recording_type_id], 'recording_type', false);
+
+        $payload = $this->sample_interlinear_payload('grid-live');
+        $payload['lines'][0]['id'] = (string) $recording_id;
+        $payload['lines'][0]['text'] = 'Dara pil a.';
+        $payload['lines'][0]['tokens'][1]['confidence'] = 0.72;
+        $payload['lines'][0]['tokens'][1]['match_type'] = 'dictionary_folded';
+        $this->assertNotWPError(ll_tools_interlinear_set_payload($lesson_id, $payload, 'phpunit'));
+
+        wp_set_current_user(0);
+        $public_output = do_shortcode('[word_grid category="rest-interlinear-grid-category" wordset="rest-interlinear-grid-wordset" lesson_id="' . (int) $lesson_id . '"]');
+        $this->assertStringNotContainsString('data-ll-word-interlinear', $public_output);
+        $this->assertStringNotContainsString('ll-word-grid--has-interlinear', $public_output);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $staff_output = do_shortcode('[word_grid category="rest-interlinear-grid-category" wordset="rest-interlinear-grid-wordset" lesson_id="' . (int) $lesson_id . '"]');
+        $this->assertStringContainsString('ll-word-grid--has-interlinear', $staff_output);
+        $this->assertStringContainsString('data-ll-word-interlinear', $staff_output);
+        $this->assertStringContainsString('Dara pil a.', $staff_output);
+        $this->assertStringContainsString('class="ll-interlinear-table"', $staff_output);
+        $this->assertStringContainsString('low-certainty', $staff_output);
+        $this->assertStringNotContainsString('Confidence', $staff_output);
     }
 
     public function test_interlinear_rest_route_exports_updates_dry_runs_and_clears_lessons(): void
