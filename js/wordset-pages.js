@@ -7212,9 +7212,11 @@
 
         repairInactiveCategoryActionControls($inserted);
         syncLazyCardsCheckboxState($inserted);
-        $inserted.filter('.ll-wordset-card[data-cat-id]').each(function () {
+        const $insertedCards = $inserted.filter('.ll-wordset-card[data-cat-id]');
+        $insertedCards.each(function () {
             syncWordsetCardProgressSegmentVisualState($(this));
         });
+        syncInsertedWordsetCardProgressState($insertedCards);
         scheduleWordsetTextPreviewRefit(0, $grid[0]);
         observeCategoryCardsForProgressVisibility();
         schedulePendingCategoryProgressVisibilityCheck();
@@ -7225,6 +7227,34 @@
             syncSelectAllButton();
             scheduleSelectAllAlignment();
         }
+    }
+
+    function syncInsertedWordsetCardProgressState($cards) {
+        const $targetCards = ($cards && $cards.length) ? $cards : $();
+        if (!$targetCards.length || summaryMetricsLoading || cardProgressInitialLoading) {
+            return;
+        }
+
+        const progressLookup = buildCategoryProgressLookupForMainGrid();
+        $targetCards.each(function () {
+            const $card = $(this);
+            const categoryId = parseInt($card.attr('data-cat-id'), 10) || 0;
+            if (!categoryId) { return; }
+
+            const progressValues = progressLookup[categoryId];
+            const isPending = isWordsetCardProgressPendingResolution($card);
+            if (progressValues && typeof progressValues === 'object') {
+                if (isPending || mainCategoryMetricsReady) {
+                    setWordsetCardProgressPercents($card, progressValues, { animate: false });
+                    setWordsetCardProgressResolvedState($card, true);
+                }
+                return;
+            }
+
+            if (isPending) {
+                setWordsetCardProgressResolvedState($card, true);
+            }
+        });
     }
 
     function removeTemporarySearchResultCards(visibleLookup) {

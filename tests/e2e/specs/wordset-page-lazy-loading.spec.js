@@ -98,6 +98,9 @@ function buildCardMarkup(category, options = {}) {
   const cat = category || {};
   const extraStyle = String(options.extraStyle || '').trim();
   const styleAttr = extraStyle ? ` style="${extraStyle}"` : '';
+  const trackClass = options.trackLoading
+    ? 'll-wordset-card__progress-track is-loading'
+    : 'll-wordset-card__progress-track';
 
   return `
     <article class="ll-wordset-card" role="listitem" data-cat-id="${cat.id}" data-word-count="${cat.count}"${styleAttr}>
@@ -112,7 +115,9 @@ function buildCardMarkup(category, options = {}) {
         <span class="ll-wordset-card__hide-spacer" aria-hidden="true"></span>
       </div>
       <div class="ll-wordset-card__progress" aria-hidden="true">
-        <span class="ll-wordset-card__progress-track">
+        <span class="${trackClass}">
+          <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered" style="width: 0%;"></span>
+          <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied" style="width: 0%;"></span>
           <span class="ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new" style="width: 100%;"></span>
         </span>
       </div>
@@ -243,7 +248,7 @@ function buildConfig(options = {}) {
   return {
     view: 'main',
     ajaxUrl: '/fake-admin-ajax.php',
-    nonce: '',
+    nonce: String(options.nonce || ''),
     isLoggedIn: !!options.isLoggedIn,
     wordsetId: 77,
     wordsetSlug: 'lazy-wordset',
@@ -295,7 +300,7 @@ function buildConfig(options = {}) {
       starred: 0,
       hard: 0
     },
-    summaryCountsDeferred: false,
+    summaryCountsDeferred: options.summaryCountsDeferred === true,
     lazyCards,
     i18n
   };
@@ -304,13 +309,21 @@ function buildConfig(options = {}) {
 async function mountWordsetPage(page, options = {}) {
   const config = buildConfig(options);
   const remainingCards = Array.isArray(options.remainingCards) ? options.remainingCards : allCategories;
+  const analyticsResponse = options.analyticsResponse || {
+    scope: {},
+    summary: {},
+    daily_activity: { days: [], max_events: 0, window_days: 14 },
+    categories: [],
+    words: []
+  };
+  const lazyProgressTrackLoading = !!options.lazyProgressTrackLoading;
 
   await page.goto('about:blank');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.setContent(buildMarkup(options));
   await page.addScriptTag({ content: jquerySource });
 
-  await page.evaluate(({ config, remainingCards }) => {
+  await page.evaluate(({ config, remainingCards, analyticsResponse, lazyProgressTrackLoading }) => {
     window.llWordsetPageData = config;
     window.alert = function () {};
     window.confirm = function () { return true; };
@@ -340,18 +353,24 @@ async function mountWordsetPage(page, options = {}) {
       return (raw && typeof raw === 'object') ? raw : {};
     };
 
-    $.post = function () {
+    $.post = function (_url, request) {
       const deferred = $.Deferred();
+      const action = request && request.action ? String(request.action) : '';
+      if (action === 'll_user_study_recommendation') {
+        deferred.resolve({
+          success: true,
+          data: {
+            next_activity: null,
+            recommendation_queue: []
+          }
+        });
+        return deferred.promise();
+      }
+
       deferred.resolve({
         success: true,
         data: {
-          analytics: {
-            scope: {},
-            summary: {},
-            daily_activity: { days: [], max_events: 0, window_days: 14 },
-            categories: [],
-            words: []
-          },
+          analytics: analyticsResponse,
           next_activity: null,
           recommendation_queue: []
         }
@@ -383,6 +402,9 @@ async function mountWordsetPage(page, options = {}) {
       const startIndex = Math.max(0, offset);
       const nextCards = remainingCards.slice(startIndex, startIndex + count);
       const html = nextCards.map((card) => {
+        const trackClass = lazyProgressTrackLoading
+          ? 'll-wordset-card__progress-track is-loading'
+          : 'll-wordset-card__progress-track';
         return [
           '<article class=\"ll-wordset-card\" role=\"listitem\" data-cat-id=\"' + card.id + '\" data-word-count=\"' + card.count + '\">',
           '  <div class=\"ll-wordset-card__top\">',
@@ -396,7 +418,9 @@ async function mountWordsetPage(page, options = {}) {
           '    <span class=\"ll-wordset-card__hide-spacer\" aria-hidden=\"true\"></span>',
           '  </div>',
           '  <div class=\"ll-wordset-card__progress\" aria-hidden=\"true\">',
-          '    <span class=\"ll-wordset-card__progress-track\">',
+          '    <span class=\"' + trackClass + '\">',
+          '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--mastered\" style=\"width: 0%;\"></span>',
+          '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--studied\" style=\"width: 0%;\"></span>',
           '      <span class=\"ll-wordset-card__progress-segment ll-wordset-card__progress-segment--new\" style=\"width: 100%;\"></span>',
           '    </span>',
           '  </div>',
@@ -420,7 +444,9 @@ async function mountWordsetPage(page, options = {}) {
     };
   }, {
     config,
-    remainingCards
+    remainingCards,
+    analyticsResponse,
+    lazyProgressTrackLoading
   });
 
   await page.addScriptTag({ content: wordsetScriptSource });
@@ -441,6 +467,92 @@ test('lazy cards auto-load on scroll without rendering a load button', async ({ 
 
   await expect(page.locator('.ll-wordset-card--lazy-placeholder')).toHaveCount(0);
   await expect(page.locator('[data-ll-wordset-lazy-root]')).toBeHidden();
+});
+
+test('lazy-loaded cards resolve stale deferred progress loading state', async ({ page }) => {
+  await mountWordsetPage(page, {
+    isLoggedIn: true,
+    nonce: 'study-nonce',
+    summaryCountsDeferred: true,
+    lazyProgressTrackLoading: true,
+    initialCardsMarkup: buildCardMarkup(allCategories[0], {
+      extraStyle: 'margin-top: 1600px;',
+      trackLoading: true
+    }),
+    analyticsResponse: {
+      scope: {},
+      summary: {
+        total_words: 9,
+        mastered_words: 3,
+        studied_words: 6,
+        new_words: 3,
+        hard_words: 0,
+        starred_words: 0
+      },
+      daily_activity: { days: [], max_events: 0, window_days: 14 },
+      categories: [
+        {
+          id: 11,
+          label: 'Fruit',
+          word_count: 3,
+          mastered_words: 1,
+          studied_words: 2,
+          new_words: 1,
+          last_seen_at: ''
+        },
+        {
+          id: 22,
+          label: 'Animals',
+          word_count: 3,
+          mastered_words: 2,
+          studied_words: 3,
+          new_words: 0,
+          last_seen_at: ''
+        },
+        {
+          id: 33,
+          label: 'Travel',
+          word_count: 3,
+          mastered_words: 0,
+          studied_words: 1,
+          new_words: 2,
+          last_seen_at: ''
+        }
+      ],
+      words: []
+    }
+  });
+
+  await expect(page.locator('.ll-wordset-card[data-cat-id="11"] .ll-wordset-card__progress-track')).not.toHaveClass(/is-loading/);
+
+  await page.mouse.wheel(0, 2000);
+
+  await expect.poll(async () => {
+    return page.evaluate(() => document.querySelectorAll('.ll-wordset-card[data-cat-id]').length);
+  }).toBe(3);
+
+  const animalsTrack = page.locator('.ll-wordset-card[data-cat-id="22"] .ll-wordset-card__progress-track');
+  await expect(animalsTrack).not.toHaveClass(/is-loading/);
+
+  const animalsWidths = await page.evaluate(() => {
+    const track = document.querySelector('.ll-wordset-card[data-cat-id="22"] .ll-wordset-card__progress-track');
+    const readWidth = (selector) => {
+      const segment = track ? track.querySelector(selector) : null;
+      return segment ? String(segment.style.width || '') : '';
+    };
+
+    return {
+      mastered: readWidth('.ll-wordset-card__progress-segment--mastered'),
+      studied: readWidth('.ll-wordset-card__progress-segment--studied'),
+      fresh: readWidth('.ll-wordset-card__progress-segment--new')
+    };
+  });
+
+  expect(animalsWidths).toEqual({
+    mastered: '66.67%',
+    studied: '33.33%',
+    fresh: '0%'
+  });
 });
 
 test('wordset search renders matching unloaded categories without forcing lazy-load requests', async ({ page }) => {
