@@ -204,7 +204,7 @@ Representative E2E coverage areas:
 - `tests/e2e/specs/flashcard-loader-wordset-isolation.spec.js`
   - Verifies stale category AJAX responses cannot overwrite current wordset data in the flashcard loader.
 - `tests/e2e/specs/flashcard-image-translation-option-render.spec.js`
-  - Verifies image answer options with translation captions reserve caption space and hide empty captions cleanly.
+  - Verifies image answer options with translation captions keep full image tile sizing, adapt caption rows, and hide empty captions cleanly.
 - `tests/e2e/specs/flashcard-study-prefs-save.spec.js`
   - Verifies rapid practice-mode preference saves keep the latest queued study state.
 - `tests/e2e/specs/flashcard-widget-start-flow.spec.js`

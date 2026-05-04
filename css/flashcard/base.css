@@ -1186,44 +1186,69 @@ body.ll-qpg-popup-active #ll-tools-flashcard-content {
 }
 
 .flashcard-container.ll-answer-option-image-caption-card {
+    --ll-answer-option-image-size: 150px;
     flex-direction: column;
     justify-content: flex-start;
     align-items: stretch;
-    padding: 10px 10px 8px;
-    gap: 6px;
+    width: var(--ll-answer-option-image-size);
+    max-width: var(--ll-answer-option-image-size);
+    height: auto;
+    max-height: none;
+    padding: 0;
+    gap: 0;
     box-sizing: border-box;
 }
 
+.flashcard-container.flashcard-size-medium.ll-answer-option-image-caption-card {
+    --ll-answer-option-image-size: 200px;
+}
+
+.flashcard-container.flashcard-size-large.ll-answer-option-image-caption-card {
+    --ll-answer-option-image-size: 250px;
+}
+
 .flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption-media {
-    flex: 1 1 auto;
-    min-height: 0;
+    flex: 0 0 var(--ll-answer-option-image-size);
+    width: var(--ll-answer-option-image-size);
+    height: var(--ll-answer-option-image-size);
+    min-height: var(--ll-answer-option-image-size);
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 }
 
 .flashcard-container.ll-answer-option-image-caption-card .quiz-image {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
+    border-radius: 10px 10px 0 0;
 }
 
 .flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption {
     flex: 0 0 auto;
-    min-height: 2.6em;
-    padding: 0 4px;
+    width: 100%;
+    min-height: 0;
+    padding: 5px 6px 6px;
     margin: 0;
+    box-sizing: border-box;
     color: #1f2937;
-    font-size: clamp(13px, calc(var(--ll-answer-option-font-size-px, 48px) * 0.24), 18px);
-    line-height: 1.25;
+    font-family: var(--ll-answer-option-font-family, inherit);
+    font-size: clamp(12px, calc(var(--ll-answer-option-font-size-px, 48px) * 0.23), 15px);
+    font-weight: var(--ll-answer-option-font-weight, 700);
+    line-height: var(--ll-answer-option-line-height-ratio, var(--ll-answer-option-text-line-height, 1.22));
+    letter-spacing: 0;
+    text-transform: none;
+    overflow-wrap: anywhere;
+    word-break: normal;
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
 .flashcard-container.ll-answer-option-image-caption-card .ll-answer-option-image-caption[aria-hidden="true"] {
-    visibility: hidden;
+    display: none;
 }
 
 /* Modifier Classes for Flashcard Orientation */

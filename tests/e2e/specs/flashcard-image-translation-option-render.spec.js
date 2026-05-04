@@ -16,9 +16,18 @@ const baseCssSource = fs.readFileSync(
   'utf8'
 );
 
-test('image + translation answer options render a smaller image area with an optional caption', async ({ page }) => {
+test('image + translation answer options keep image-sized tiles with adaptive captions', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('about:blank');
-  await page.setContent('<div id="ll-tools-flashcard"></div>');
+  await page.setContent(`
+    <style>
+      body { margin: 0; }
+      #ll-tools-flashcard-content { width: 390px; }
+    </style>
+    <div id="ll-tools-flashcard-content">
+      <div id="ll-tools-flashcard"></div>
+    </div>
+  `);
   await page.addScriptTag({ content: jquerySource });
   await page.addStyleTag({ content: baseCssSource });
 
@@ -45,22 +54,36 @@ test('image + translation answer options render a smaller image area with an opt
   await page.addScriptTag({ content: cardsSource });
 
   const rendered = await page.evaluate(() => {
+    const image = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300"%3E%3Crect width="300" height="300" fill="%23dbeafe"/%3E%3Ccircle cx="150" cy="150" r="92" fill="%231d4d99"/%3E%3C/svg%3E';
     const words = [
+      {
+        id: 10,
+        title: 'Image only',
+        translation: '',
+        image
+      },
       {
         id: 11,
         title: 'Masa',
         translation: 'Table',
-        image: 'https://example.com/table.jpg'
+        image
       },
       {
         id: 12,
+        title: 'Uzun ifade',
+        translation: 'This answer caption needs enough words to wrap across several compact rows without taking over the screen',
+        image
+      },
+      {
+        id: 13,
         title: 'Kalem',
         translation: '',
-        image: 'https://example.com/pencil.jpg'
+        image
       }
     ];
 
-    words.forEach((word) => {
+    window.LLFlashcards.Cards.appendWordToContainer(words[0], 'image', 'audio', true);
+    words.slice(1).forEach((word) => {
       window.LLFlashcards.Cards.appendWordToContainer(word, 'image_text_translation', 'audio', true);
     });
 
@@ -74,21 +97,47 @@ test('image + translation answer options render a smaller image area with an opt
       const caption = card.querySelector('.ll-answer-option-image-caption');
       const cardRect = card.getBoundingClientRect();
       const mediaRect = media ? media.getBoundingClientRect() : null;
+      const captionRect = caption ? caption.getBoundingClientRect() : null;
+      const captionStyle = caption ? window.getComputedStyle(caption) : null;
+      const lineHeight = captionStyle ? parseFloat(captionStyle.lineHeight || '0') : 0;
+      const paddingTop = captionStyle ? parseFloat(captionStyle.paddingTop || '0') : 0;
+      const paddingBottom = captionStyle ? parseFloat(captionStyle.paddingBottom || '0') : 0;
+      const captionContentHeight = captionRect ? Math.max(0, captionRect.height - paddingTop - paddingBottom) : 0;
       return {
         classes: card.className,
         captionText: caption ? String(caption.textContent || '').trim() : '',
         captionHidden: caption ? caption.getAttribute('aria-hidden') === 'true' : false,
+        captionDisplay: captionStyle ? captionStyle.display : '',
+        captionRows: lineHeight > 0 ? captionContentHeight / lineHeight : 0,
+        width: cardRect.width,
         cardHeight: cardRect.height,
+        mediaWidth: mediaRect ? mediaRect.width : 0,
         mediaHeight: mediaRect ? mediaRect.height : 0
       };
     });
   });
 
-  expect(rendered).toHaveLength(2);
-  expect(rendered[0].classes).toContain('ll-answer-option-image-caption-card');
-  expect(rendered[0].captionText).toBe('Table');
-  expect(rendered[0].captionHidden).toBe(false);
-  expect(rendered[0].cardHeight).toBeGreaterThan(rendered[0].mediaHeight);
-  expect(rendered[1].captionText).toBe('');
-  expect(rendered[1].captionHidden).toBe(true);
+  expect(rendered).toHaveLength(4);
+
+  const imageOnly = rendered[0];
+  const oneLine = rendered[1];
+  const wrapped = rendered[2];
+  const empty = rendered[3];
+
+  expect(oneLine.classes).toContain('ll-answer-option-image-caption-card');
+  expect(oneLine.captionText).toBe('Table');
+  expect(oneLine.captionHidden).toBe(false);
+  expect(oneLine.mediaWidth).toBeCloseTo(imageOnly.width, 0);
+  expect(oneLine.mediaHeight).toBeCloseTo(imageOnly.cardHeight, 0);
+  expect(oneLine.cardHeight).toBeGreaterThan(imageOnly.cardHeight);
+  expect(Math.round(oneLine.captionRows)).toBe(1);
+
+  expect(wrapped.captionRows).toBeGreaterThan(1);
+  expect(wrapped.captionRows).toBeLessThanOrEqual(4.2);
+  expect(wrapped.cardHeight).toBeGreaterThan(oneLine.cardHeight);
+
+  expect(empty.captionText).toBe('');
+  expect(empty.captionHidden).toBe(true);
+  expect(empty.captionDisplay).toBe('none');
+  expect(empty.cardHeight).toBeCloseTo(imageOnly.cardHeight, 0);
 });

@@ -229,6 +229,63 @@
             }
         }
 
+        function getOptionCardHeightFallback(cardWidth, mode, $cards) {
+            const normalizedMode = String(mode || '').trim().toLowerCase();
+            const hasImageCaptionCard = !!($cards && $cards.filter('.ll-answer-option-image-caption-card').length);
+
+            if (normalizedMode === 'image_text_translation' || hasImageCaptionCard) {
+                return cardWidth + 68;
+            }
+
+            return cardWidth;
+        }
+
+        function measureCardOuterHeight($card, fallbackHeight) {
+            if (!$card || !$card.length || !$card[0]) {
+                return fallbackHeight;
+            }
+
+            const visibleHeight = Math.ceil($card.outerHeight(true) || 0);
+            if (visibleHeight > 0) {
+                return visibleHeight;
+            }
+
+            const card = $card[0];
+            const previous = {
+                position: card.style.position,
+                visibility: card.style.visibility,
+                display: card.style.display,
+                left: card.style.left,
+                top: card.style.top
+            };
+
+            $card.css({
+                position: 'absolute',
+                visibility: 'hidden',
+                display: 'flex',
+                left: '-9999px',
+                top: '-9999px'
+            });
+
+            const measuredHeight = Math.ceil($card.outerHeight(true) || 0);
+
+            card.style.position = previous.position;
+            card.style.visibility = previous.visibility;
+            card.style.display = previous.display;
+            card.style.left = previous.left;
+            card.style.top = previous.top;
+
+            return measuredHeight > 0 ? measuredHeight : fallbackHeight;
+        }
+
+        function getMaxRenderedCardHeight($cards, fallbackHeight) {
+            let maxHeight = 0;
+            $cards.each(function () {
+                maxHeight = Math.max(maxHeight, measureCardOuterHeight($(this), fallbackHeight));
+            });
+            return maxHeight > 0 ? maxHeight : fallbackHeight;
+        }
+
         function getCategoryOptionPool(categoryName) {
             const optionPoolMap = (window.optionWordsByCategory && typeof window.optionWordsByCategory === 'object')
                 ? window.optionWordsByCategory
@@ -373,9 +430,9 @@
             const $contentArea = $('#ll-tools-flashcard-content');
             const $heightScope = $contentArea.length ? $contentArea : $container;
 
-            // Estimate card height: use an existing card if present; else fall back to cardWidth (conservative)
-            const sampleCard = $cards[0];
-            const cardHeight = sampleCard ? $(sampleCard).outerHeight(true) : cardWidth;
+            // Estimate by the tallest current card so image + text options reduce rows on short screens.
+            const fallbackCardHeight = getOptionCardHeightFallback(cardWidth, mode, $cards);
+            const cardHeight = getMaxRenderedCardHeight($cards, fallbackCardHeight);
 
             // How many rows actually fit vertically in the available space?
             const availableHeight = Math.max(1, $heightScope.innerHeight());
