@@ -1,4 +1,4 @@
-# Turkish Translation Review Guide
+﻿# Turkish Translation Review Guide
 
 ## Scope
 
