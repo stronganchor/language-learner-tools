@@ -51,7 +51,7 @@ function buildWordRows(labels, rowCount) {
   }).join('');
 }
 
-function buildIframeDoc({ rowCount = 2 } = {}) {
+function buildIframeDoc({ rowCount = 2, includeNotices = false } = {}) {
   const groupLabels = [
     '01 Core travel words',
     '02 Airport help',
@@ -61,6 +61,17 @@ function buildIframeDoc({ rowCount = 2 } = {}) {
     '06 Problems',
     '07 Questions'
   ];
+
+  const notices = includeNotices
+    ? `
+      <div class="notice notice-error ll-external-plugin-notice">
+        <p>Your Astra Pro license isn't active</p>
+      </div>
+      <div class="notice notice-success ll-tools-word-options-notice">
+        <p>Word option rules saved.</p>
+      </div>
+    `
+    : '';
 
   return `<!doctype html>
 <html lang="en">
@@ -86,6 +97,7 @@ function buildIframeDoc({ rowCount = 2 } = {}) {
       <div id="wpcontent">
         <div id="wpbody">
           <div id="wpbody-content">
+            ${notices}
             <div class="wrap ll-tools-word-options ll-tools-word-options--iframe">
               <div class="ll-tools-word-options-hero">
                 <div class="ll-tools-word-options-hero__eyebrow">Lesson word options</div>
@@ -328,6 +340,34 @@ test('word options popup keeps portrait mobile controls inside the viewport', as
   expect(frameMetrics.firstGroupCellLabelDisplay).not.toBe('none');
   expect(frameMetrics.firstGroupCellLabelText).toBe('01 Core travel words');
   expect(frameMetrics.maxOffscreenRight).toBeLessThanOrEqual(1);
+});
+
+test('word options iframe hides external dashboard notices', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.setContent(`
+    <!doctype html>
+    <html lang="en">
+      <body style="margin:0">
+        <iframe id="ll-word-options-notice-frame" style="width:1280px;height:900px;border:0"></iframe>
+      </body>
+    </html>
+  `);
+
+  const iframe = page.locator('#ll-word-options-notice-frame');
+  await iframe.evaluate((node, srcdoc) => {
+    node.setAttribute('srcdoc', srcdoc);
+  }, buildIframeDoc({ rowCount: 2, includeNotices: true }));
+
+  await page.waitForFunction(() => {
+    const frame = document.querySelector('#ll-word-options-notice-frame');
+    return !!(frame && frame.contentDocument && frame.contentDocument.querySelector('.ll-external-plugin-notice'));
+  });
+
+  const iframeHandle = await iframe.elementHandle();
+  const frame = await iframeHandle.contentFrame();
+
+  await expect(frame.locator('.ll-external-plugin-notice')).toBeHidden();
+  await expect(frame.locator('.ll-tools-word-options-notice')).toBeVisible();
 });
 
 test('word options popup autosaves group changes without a manual save button', async ({ page }) => {

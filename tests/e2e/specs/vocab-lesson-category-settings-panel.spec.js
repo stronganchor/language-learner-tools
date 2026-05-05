@@ -161,15 +161,11 @@ function buildCategorySettingsMarkup(options = {}) {
                   <p class="ll-vocab-lesson-category-settings-help">Move words up or down to set the Line-Up teaching order for this category.</p>
                 </div>
 
-                <div class="ll-vocab-lesson-category-settings-actions">
-                  <button type="submit" class="ll-study-btn tiny ll-vocab-lesson-category-settings-save">
-                    <span class="ll-vocab-lesson-category-settings-save-icon" aria-hidden="true">
-                      <svg viewBox="0 0 20 20" focusable="false" aria-hidden="true">
-                        <path d="m5.5 10.2 3 3.1 6-6.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path>
-                      </svg>
-                    </span>
-                    <span>Save Category Settings</span>
-                  </button>
+                <div class="ll-vocab-lesson-category-settings-actions" data-ll-category-settings-actions hidden>
+                  <span class="ll-vocab-lesson-category-settings-status" data-ll-category-settings-status data-state="idle" role="status" aria-live="polite" hidden>
+                    <span class="ll-vocab-lesson-category-settings-status-icon" aria-hidden="true"></span>
+                    <span class="ll-vocab-lesson-category-settings-status-message" data-ll-category-settings-status-message hidden></span>
+                  </span>
                 </div>
               </form>
             </div>
@@ -225,17 +221,45 @@ async function mountCategorySettingsHarness(page, viewport, options = {}) {
         grid: {
           action: 'll_tools_get_vocab_lesson_grid',
           i18n: {}
+        },
+        categorySettings: {
+          action: 'll_tools_save_vocab_lesson_category_settings',
+          i18n: {
+            saving: 'Saving changes...',
+            saved: 'Changes saved.',
+            error: 'Unable to save category settings right now.'
+          }
         }
       };
 
-      document.addEventListener('submit', function (event) {
-        if (!event.target || !event.target.matches('.ll-vocab-lesson-category-settings-panel')) {
-          return;
-        }
-
-        event.preventDefault();
-        document.body.setAttribute('data-ll-category-settings-submitted', 'yes');
-      }, true);
+      window.__llCategorySettingsSaves = [];
+      jQuery.ajax = function (options) {
+        const entries = options && options.data && typeof options.data.entries === 'function'
+          ? Array.from(options.data.entries()).reduce((acc, item) => {
+              const key = String(item[0]);
+              const value = String(item[1]);
+              if (!acc[key]) {
+                acc[key] = [];
+              }
+              acc[key].push(value);
+              return acc;
+            }, {})
+          : {};
+        window.__llCategorySettingsSaves.push({
+          url: String(options && options.url ? options.url : ''),
+          entries
+        });
+        const deferred = jQuery.Deferred();
+        window.setTimeout(function () {
+          deferred.resolve({
+            success: true,
+            data: {
+              message: 'Changes saved.'
+            }
+          });
+        }, 25);
+        return deferred.promise();
+      };
     `
   });
   await page.addScriptTag({ content: vocabLessonJsSource });
@@ -269,7 +293,7 @@ test('lesson category settings panel opens, reorders Line-Up, and closes cleanly
   await expect(panel).toHaveAttribute('aria-hidden', 'true');
 });
 
-test('lesson category settings panel clamps to the mobile viewport and keeps actions reachable', async ({ page }) => {
+test('lesson category settings panel clamps to the mobile viewport and keeps autosave status reachable', async ({ page }) => {
   await mountCategorySettingsHarness(page, { width: 390, height: 844 });
 
   const trigger = page.locator('.ll-vocab-lesson-category-settings-trigger');
@@ -277,11 +301,12 @@ test('lesson category settings panel clamps to the mobile viewport and keeps act
 
   await trigger.click();
   await expect(panel).toHaveAttribute('aria-hidden', 'false');
-  await expect(page.getByRole('button', { name: 'Save Category Settings' })).toBeVisible();
+  await page.locator('select[name="ll_vocab_lesson_grid_text_visibility"]').selectOption('hide');
+  await expect(page.locator('[data-ll-category-settings-status]')).toHaveAttribute('data-state', 'saved');
 
   const metrics = await page.evaluate(() => {
     const panelEl = document.querySelector('.ll-vocab-lesson-category-settings-panel');
-    const saveButton = document.querySelector('.ll-vocab-lesson-category-settings-save');
+    const statusEl = document.querySelector('[data-ll-category-settings-status]');
     const directionSelect = document.querySelector('[data-ll-category-lineup-direction]');
     const lineupActions = Array.from(document.querySelectorAll('.ll-vocab-lesson-category-lineup-move')).map((button) => {
       const rect = button.getBoundingClientRect();
@@ -292,12 +317,12 @@ test('lesson category settings panel clamps to the mobile viewport and keeps act
       };
     });
 
-    if (!panelEl || !saveButton || !directionSelect) {
+    if (!panelEl || !statusEl || !directionSelect) {
       return null;
     }
 
     const panelRect = panelEl.getBoundingClientRect();
-    const saveRect = saveButton.getBoundingClientRect();
+    const statusRect = statusEl.getBoundingClientRect();
     const selectRect = directionSelect.getBoundingClientRect();
 
     return {
@@ -306,6 +331,7 @@ test('lesson category settings panel clamps to the mobile viewport and keeps act
       panelRight: Math.round(panelRect.right),
       bodyWidth: document.documentElement.scrollWidth,
       selectWidth: Math.round(selectRect.width),
+      statusBottom: Math.round(statusRect.bottom),
       lineupActions
     };
   });
@@ -315,21 +341,20 @@ test('lesson category settings panel clamps to the mobile viewport and keeps act
   expect(metrics.panelLeft).toBeGreaterThanOrEqual(0);
   expect(metrics.panelRight).toBeLessThanOrEqual(metrics.viewportWidth + 1);
   expect(metrics.selectWidth).toBeGreaterThan(180);
+  expect(metrics.statusBottom).toBeLessThanOrEqual(844);
   metrics.lineupActions.forEach((actionMetric) => {
     expect(actionMetric.left).toBeGreaterThanOrEqual(0);
     expect(actionMetric.right).toBeLessThanOrEqual(metrics.viewportWidth + 1);
     expect(actionMetric.width).toBeGreaterThanOrEqual(40);
   });
 
-  const saveButton = page.getByRole('button', { name: 'Save Category Settings' });
-  await saveButton.scrollIntoViewIfNeeded();
-  await expect(saveButton).toBeInViewport();
+  await expect(page.locator('[data-ll-category-settings-status]')).toBeInViewport();
 
   await page.locator('body').click({ position: { x: 8, y: 8 } });
   await expect(panel).toHaveAttribute('aria-hidden', 'true');
 });
 
-test('lesson category settings keeps the save action clickable above overlapping lesson content', async ({ page }) => {
+test('lesson category settings keeps autosave feedback above overlapping lesson content', async ({ page }) => {
   await mountCategorySettingsHarness(page, { width: 1366, height: 900 }, {
     lineupCount: 14,
     includeOverlapShell: true
@@ -337,45 +362,47 @@ test('lesson category settings keeps the save action clickable above overlapping
 
   const trigger = page.locator('.ll-vocab-lesson-category-settings-trigger');
   const panel = page.locator('.ll-vocab-lesson-category-settings-panel');
-  const saveButton = page.getByRole('button', { name: 'Save Category Settings' });
+  const status = page.locator('[data-ll-category-settings-status]');
 
   await trigger.click();
   await expect(panel).toHaveAttribute('aria-hidden', 'false');
-  await expect(saveButton).toBeVisible();
-  await expect(saveButton).toBeInViewport();
+  await page.locator('[data-word-id="42"] [data-ll-category-lineup-move="up"]').click();
+  await expect(status).toHaveAttribute('data-state', 'saved');
+  await expect(status).toBeInViewport();
 
   const metrics = await page.evaluate(() => {
     const panelEl = document.querySelector('.ll-vocab-lesson-category-settings-panel');
-    const saveEl = document.querySelector('.ll-vocab-lesson-category-settings-save');
+    const statusEl = document.querySelector('[data-ll-category-settings-status]');
     const actionEl = document.querySelector('.ll-vocab-lesson-category-settings-actions');
 
-    if (!panelEl || !saveEl || !actionEl) {
+    if (!panelEl || !statusEl || !actionEl) {
       return null;
     }
 
     const panelRect = panelEl.getBoundingClientRect();
-    const saveRect = saveEl.getBoundingClientRect();
+    const statusRect = statusEl.getBoundingClientRect();
     const footerRect = actionEl.getBoundingClientRect();
     const topAtButtonCenter = document.elementFromPoint(
-      saveRect.left + (saveRect.width / 2),
-      saveRect.top + (saveRect.height / 2)
+      statusRect.left + (statusRect.width / 2),
+      statusRect.top + (statusRect.height / 2)
     );
 
     return {
       panelBottom: Math.round(panelRect.bottom),
       footerBottom: Math.round(footerRect.bottom),
-      saveBottom: Math.round(saveRect.bottom),
-      saveTop: Math.round(saveRect.top),
-      hitInsideSaveButton: !!(topAtButtonCenter && topAtButtonCenter.closest('.ll-vocab-lesson-category-settings-save'))
+      statusBottom: Math.round(statusRect.bottom),
+      statusTop: Math.round(statusRect.top),
+      hitInsideStatus: !!(topAtButtonCenter && topAtButtonCenter.closest('[data-ll-category-settings-status]'))
     };
   });
 
   expect(metrics).not.toBeNull();
-  expect(metrics.hitInsideSaveButton).toBe(true);
-  expect(metrics.saveTop).toBeGreaterThan(0);
-  expect(metrics.saveBottom).toBeLessThanOrEqual(900);
+  expect(metrics.hitInsideStatus).toBe(true);
+  expect(metrics.statusTop).toBeGreaterThan(0);
+  expect(metrics.statusBottom).toBeLessThanOrEqual(900);
   expect(Math.abs(metrics.footerBottom - metrics.panelBottom)).toBeLessThanOrEqual(18);
 
-  await saveButton.click();
-  await expect(page.locator('body')).toHaveAttribute('data-ll-category-settings-submitted', 'yes');
+  await expect.poll(async () => (
+    page.evaluate(() => window.__llCategorySettingsSaves.length)
+  )).toBeGreaterThan(0);
 });

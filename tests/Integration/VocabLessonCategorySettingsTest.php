@@ -47,6 +47,8 @@ final class VocabLessonCategorySettingsTest extends LL_Tools_TestCase
         $this->assertStringContainsString('name="ll_vocab_lesson_quiz_prompt_type"', $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_category_enabled_games[]"', $html);
         $this->assertStringContainsString('name="ll_vocab_lesson_category_lineup_word_ids"', $html);
+        $this->assertStringContainsString('data-ll-category-settings-status', $html);
+        $this->assertStringNotContainsString('ll-vocab-lesson-category-settings-save', $html);
     }
 
     public function test_managed_lesson_page_renders_add_word_button_for_editors(): void

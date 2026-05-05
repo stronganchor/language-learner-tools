@@ -321,6 +321,18 @@ function ll_tools_word_option_rules_admin_body_class($classes): string {
 }
 add_filter('admin_body_class', 'll_tools_word_option_rules_admin_body_class');
 
+function ll_tools_word_option_rules_suppress_iframe_admin_notices(): void {
+    if (!ll_tools_word_option_rules_is_iframe_request()) {
+        return;
+    }
+
+    remove_all_actions('admin_notices');
+    remove_all_actions('all_admin_notices');
+    remove_all_actions('network_admin_notices');
+    remove_all_actions('user_admin_notices');
+}
+add_action('admin_head-tools_page_ll-word-option-rules', 'll_tools_word_option_rules_suppress_iframe_admin_notices', 0);
+
 function ll_tools_word_option_rules_get_word_posts(int $wordset_id, int $category_id): array {
     $wordset_id = (int) $wordset_id;
     $category_id = function_exists('ll_tools_resolve_word_option_rules_category_id')
@@ -1312,9 +1324,9 @@ function ll_render_word_option_rules_admin_page() {
     }
 
     if (!empty($_GET['ll_word_options_updated'])) {
-        echo '<div class="notice notice-success"><p>' . esc_html__('Word option rules saved.', 'll-tools-text-domain') . '</p></div>';
+        echo '<div class="notice notice-success ll-tools-word-options-notice"><p>' . esc_html__('Word option rules saved.', 'll-tools-text-domain') . '</p></div>';
     } elseif (!empty($_GET['ll_word_options_error'])) {
-        echo '<div class="notice notice-error"><p>' . esc_html__('Unable to save word option rules. Please check your selections.', 'll-tools-text-domain') . '</p></div>';
+        echo '<div class="notice notice-error ll-tools-word-options-notice"><p>' . esc_html__('Unable to save word option rules. Please check your selections.', 'll-tools-text-domain') . '</p></div>';
     }
 
     if (!$is_iframe) {
@@ -1323,7 +1335,7 @@ function ll_render_word_option_rules_admin_page() {
             delete_transient('ll_word_options_import_result');
             $is_success = !empty($import_result['ok']);
             $notice_class = $is_success ? 'notice-success' : 'notice-error';
-            echo '<div class="notice ' . esc_attr($notice_class) . '"><p>' . esc_html($import_result['message'] ?? '') . '</p></div>';
+            echo '<div class="notice ' . esc_attr($notice_class) . ' ll-tools-word-options-notice"><p>' . esc_html($import_result['message'] ?? '') . '</p></div>';
         }
 
         if (!empty($_GET['ll_word_options_import_error'])) {
@@ -1337,7 +1349,7 @@ function ll_render_word_option_rules_admin_page() {
                 'no_categories' => __('No categories found for the selected word set.', 'll-tools-text-domain'),
             ];
             $msg = $error_messages[$error_code] ?? __('Unable to import word option settings.', 'll-tools-text-domain');
-            echo '<div class="notice notice-error"><p>' . esc_html($msg) . '</p></div>';
+            echo '<div class="notice notice-error ll-tools-word-options-notice"><p>' . esc_html($msg) . '</p></div>';
         }
 
         echo '<form method="get" action="' . esc_url(admin_url('tools.php')) . '" class="ll-tools-word-options-filter">';
@@ -1984,7 +1996,7 @@ function ll_render_word_option_rules_admin_page() {
                 echo '</form>';
                 echo '</div>';
             } else {
-                echo '<div class="notice notice-error"><p>' . esc_html__('Import session expired. Please upload the file again.', 'll-tools-text-domain') . '</p></div>';
+                echo '<div class="notice notice-error ll-tools-word-options-notice"><p>' . esc_html__('Import session expired. Please upload the file again.', 'll-tools-text-domain') . '</p></div>';
             }
         }
     }

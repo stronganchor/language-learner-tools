@@ -10,6 +10,9 @@
         : ((cfg.i18n && typeof cfg.i18n === 'object') ? cfg.i18n : {});
     const titleCfg = (cfg.titleEditor && typeof cfg.titleEditor === 'object') ? cfg.titleEditor : {};
     const titleI18n = (titleCfg.i18n && typeof titleCfg.i18n === 'object') ? titleCfg.i18n : {};
+    const categorySettingsCfg = (cfg.categorySettings && typeof cfg.categorySettings === 'object') ? cfg.categorySettings : {};
+    const categorySettingsAction = (categorySettingsCfg.action || 'll_tools_save_vocab_lesson_category_settings').toString();
+    const categorySettingsI18n = (categorySettingsCfg.i18n && typeof categorySettingsCfg.i18n === 'object') ? categorySettingsCfg.i18n : {};
 
     function getGridMessage(key, fallback) {
         const value = gridI18n[key];
@@ -18,6 +21,11 @@
 
     function getTitleMessage(key, fallback) {
         const value = titleI18n[key];
+        return (typeof value === 'string' && value) ? value : fallback;
+    }
+
+    function getCategorySettingsMessage(key, fallback) {
+        const value = categorySettingsI18n[key];
         return (typeof value === 'string' && value) ? value : fallback;
     }
 
@@ -354,6 +362,203 @@
         syncCategoryLineupInput($item.closest('.ll-vocab-lesson-category-settings-panel'));
     }
 
+    function getCategorySettingsState($panel) {
+        if (!$panel || !$panel.length) { return null; }
+
+        let state = $panel.data('llCategorySettingsState');
+        if (state && typeof state === 'object') {
+            return state;
+        }
+
+        state = {
+            inFlight: false,
+            queued: false,
+            saveTimerId: 0,
+            resetTimerId: 0
+        };
+        $panel.data('llCategorySettingsState', state);
+        return state;
+    }
+
+    function clearCategorySettingsSaveTimer($panel) {
+        const state = getCategorySettingsState($panel);
+        if (!state || !state.saveTimerId) { return; }
+        window.clearTimeout(state.saveTimerId);
+        state.saveTimerId = 0;
+    }
+
+    function clearCategorySettingsResetTimer($panel) {
+        const state = getCategorySettingsState($panel);
+        if (!state || !state.resetTimerId) { return; }
+        window.clearTimeout(state.resetTimerId);
+        state.resetTimerId = 0;
+    }
+
+    function setCategorySettingsStatus($panel, statusState, message) {
+        const $status = $panel.find('[data-ll-category-settings-status]').first();
+        const $actions = $panel.find('[data-ll-category-settings-actions]').first();
+        if (!$status.length) { return; }
+
+        const nextState = ['saving', 'saved', 'error'].indexOf((statusState || '').toString()) !== -1
+            ? statusState.toString()
+            : 'idle';
+        const text = (message || '').toString();
+        const $message = $status.find('[data-ll-category-settings-status-message]').first();
+
+        $status.attr('data-state', nextState);
+        if (text) {
+            $status.attr('aria-label', text).attr('title', text);
+        } else {
+            $status.removeAttr('aria-label').removeAttr('title');
+        }
+
+        if (nextState === 'idle') {
+            $status.attr('hidden', 'hidden');
+            if ($actions.length) {
+                $actions.attr('hidden', 'hidden');
+            }
+        } else {
+            $status.removeAttr('hidden');
+            if ($actions.length) {
+                $actions.removeAttr('hidden');
+            }
+        }
+
+        if ($message.length) {
+            if (text) {
+                $message.text(text).removeAttr('hidden');
+            } else {
+                $message.text('').attr('hidden', 'hidden');
+            }
+        }
+    }
+
+    function scheduleCategorySettingsStatusReset($panel, delayMs) {
+        const state = getCategorySettingsState($panel);
+        if (!state) { return; }
+
+        clearCategorySettingsResetTimer($panel);
+        state.resetTimerId = window.setTimeout(function () {
+            state.resetTimerId = 0;
+            setCategorySettingsStatus($panel, 'idle', '');
+        }, Math.max(0, parseInt(delayMs, 10) || 0));
+    }
+
+    function setCategorySettingsBusy($panel, isBusy) {
+        const busy = !!isBusy;
+        $panel.toggleClass('is-autosaving', busy);
+        $panel.attr('aria-busy', busy ? 'true' : 'false');
+    }
+
+    function performCategorySettingsSave($panel) {
+        const state = getCategorySettingsState($panel);
+        const form = $panel && $panel.length ? $panel.get(0) : null;
+        if (!state || !form) { return; }
+
+        if (state.inFlight) {
+            state.queued = true;
+            return;
+        }
+
+        if (!ajaxUrl || !categorySettingsAction || typeof window.FormData !== 'function') {
+            setCategorySettingsStatus(
+                $panel,
+                'error',
+                getCategorySettingsMessage('error', 'Unable to save category settings right now.')
+            );
+            return;
+        }
+
+        syncCategoryLineupInput($panel);
+        const formData = new window.FormData(form);
+        formData.set('action', categorySettingsAction);
+
+        state.inFlight = true;
+        state.queued = false;
+        clearCategorySettingsResetTimer($panel);
+        setCategorySettingsBusy($panel, true);
+        setCategorySettingsStatus($panel, 'saving', getCategorySettingsMessage('saving', 'Saving changes...'));
+
+        let saveSucceeded = false;
+        $.ajax({
+            url: ajaxUrl,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json'
+        }).done(function (response) {
+            if (!response || response.success !== true) {
+                state.queued = false;
+                setCategorySettingsStatus(
+                    $panel,
+                    'error',
+                    readAjaxMessage(response, getCategorySettingsMessage('error', 'Unable to save category settings right now.'))
+                );
+                return;
+            }
+
+            saveSucceeded = true;
+            setCategorySettingsStatus(
+                $panel,
+                'saved',
+                readAjaxMessage(response, getCategorySettingsMessage('saved', 'Changes saved.'))
+            );
+        }).fail(function (jqXHR) {
+            const response = jqXHR && jqXHR.responseJSON ? jqXHR.responseJSON : null;
+            state.queued = false;
+            setCategorySettingsStatus(
+                $panel,
+                'error',
+                readAjaxMessage(response, getCategorySettingsMessage('error', 'Unable to save category settings right now.'))
+            );
+        }).always(function () {
+            state.inFlight = false;
+            setCategorySettingsBusy($panel, false);
+
+            if (state.queued) {
+                performCategorySettingsSave($panel);
+                return;
+            }
+
+            if (saveSucceeded) {
+                scheduleCategorySettingsStatusReset($panel, 1800);
+            }
+        });
+    }
+
+    function scheduleCategorySettingsSave($panel, delayMs) {
+        const state = getCategorySettingsState($panel);
+        if (!state) { return; }
+
+        clearCategorySettingsSaveTimer($panel);
+        state.saveTimerId = window.setTimeout(function () {
+            state.saveTimerId = 0;
+            performCategorySettingsSave($panel);
+        }, typeof delayMs === 'number' ? delayMs : 500);
+    }
+
+    function saveCategorySettingsNow($panel) {
+        clearCategorySettingsSaveTimer($panel);
+        performCategorySettingsSave($panel);
+    }
+
+    function isCategorySettingsAutosaveField(target) {
+        if (!target || !target.matches || $(target).closest('[data-ll-prereq-editor]').length) {
+            return false;
+        }
+
+        const name = (target.getAttribute('name') || '').toString();
+        return [
+            'll_vocab_lesson_quiz_prompt_type',
+            'll_vocab_lesson_quiz_option_type',
+            'll_vocab_lesson_grid_text_visibility',
+            'll_vocab_lesson_category_enabled_games[]',
+            'll_vocab_lesson_desired_recording_types[]',
+            'll_vocab_lesson_category_lineup_direction'
+        ].indexOf(name) !== -1;
+    }
+
     function setTitleStatus($editor, message, state) {
         const $status = $editor.find('[data-ll-vocab-lesson-title-status]').first();
         if (!$status.length) { return; }
@@ -635,16 +840,28 @@
                 syncCategoryLineupInput($(this));
             });
 
+            $categorySettings.on('change', '.ll-vocab-lesson-category-settings-panel select, .ll-vocab-lesson-category-settings-panel input[type="checkbox"]', function (event) {
+                if (!isCategorySettingsAutosaveField(event.target)) {
+                    return;
+                }
+
+                scheduleCategorySettingsSave($(this).closest('.ll-vocab-lesson-category-settings-panel'));
+            });
+
             $categorySettings.on('click', '[data-ll-category-lineup-move]', function (event) {
                 event.preventDefault();
+                const $panel = $(this).closest('.ll-vocab-lesson-category-settings-panel');
                 moveCategoryLineupItem(
                     $(this).closest('[data-ll-category-lineup-item]'),
                     String($(this).attr('data-ll-category-lineup-move') || '')
                 );
+                scheduleCategorySettingsSave($panel, 350);
             });
 
-            $categorySettings.on('submit', '.ll-vocab-lesson-category-settings-panel', function () {
+            $categorySettings.on('submit', '.ll-vocab-lesson-category-settings-panel', function (event) {
+                event.preventDefault();
                 syncCategoryLineupInput($(this));
+                saveCategorySettingsNow($(this));
             });
         }
 

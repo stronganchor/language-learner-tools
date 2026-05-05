@@ -354,6 +354,15 @@ if (have_posts()) {
                     'error' => __('Unable to save this category title right now.', 'll-tools-text-domain'),
                 ],
             ],
+            'categorySettings' => [
+                'enabled' => $can_manage_category_settings,
+                'action' => 'll_tools_save_vocab_lesson_category_settings',
+                'i18n' => [
+                    'saving' => __('Saving changes...', 'll-tools-text-domain'),
+                    'saved' => __('Changes saved.', 'll-tools-text-domain'),
+                    'error' => __('Unable to save category settings right now.', 'll-tools-text-domain'),
+                ],
+            ],
         ]);
         if ($defer_grid) {
             $grid_shell_spec = ll_tools_word_grid_get_shell_spec($grid_context);
@@ -1027,15 +1036,11 @@ if (have_posts()) {
                                         <?php endif; ?>
                                     </div>
 
-                                    <div class="ll-vocab-lesson-category-settings-actions">
-                                        <button type="submit" class="ll-study-btn tiny ll-vocab-lesson-category-settings-save">
-                                            <span class="ll-vocab-lesson-category-settings-save-icon" aria-hidden="true">
-                                                <svg viewBox="0 0 16 16" focusable="false" aria-hidden="true">
-                                                    <path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                                </svg>
-                                            </span>
-                                            <span><?php echo esc_html__('Save', 'll-tools-text-domain'); ?></span>
-                                        </button>
+                                    <div class="ll-vocab-lesson-category-settings-actions" data-ll-category-settings-actions hidden>
+                                        <span class="ll-vocab-lesson-category-settings-status" data-ll-category-settings-status data-state="idle" role="status" aria-live="polite" hidden>
+                                            <span class="ll-vocab-lesson-category-settings-status-icon" aria-hidden="true"></span>
+                                            <span class="ll-vocab-lesson-category-settings-status-message" data-ll-category-settings-status-message hidden></span>
+                                        </span>
                                     </div>
                                 </form>
                             </div>

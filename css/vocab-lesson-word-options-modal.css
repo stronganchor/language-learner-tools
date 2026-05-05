@@ -43,7 +43,7 @@
 .ll-vocab-lesson-word-options-modal__backdrop {
   -webkit-appearance: none !important;
   appearance: none !important;
-  background: rgba(24, 26, 23, 0.46) !important;
+  background: rgba(15, 23, 42, 0.46) !important;
   background-image: none !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -65,7 +65,7 @@
 .ll-vocab-lesson-word-options-modal__backdrop:hover,
 .ll-vocab-lesson-word-options-modal__backdrop:focus,
 .ll-vocab-lesson-word-options-modal__backdrop:focus-visible {
-  background: rgba(24, 26, 23, 0.46) !important;
+  background: rgba(15, 23, 42, 0.46) !important;
   background-image: none !important;
   border: 0 !important;
   box-shadow: none !important;
@@ -74,22 +74,20 @@
 }
 
 .ll-vocab-lesson-word-options-modal__dialog {
-  background:
-    radial-gradient(circle at top left, rgba(31, 107, 92, 0.14), transparent 34%),
-    linear-gradient(180deg, #f8f5ee 0%, #f3ede1 100%);
-  border: 1px solid rgba(231, 221, 205, 0.96);
-  border-radius: 28px;
-  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.2);
+  background: #ffffff;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.34);
   display: flex;
   flex-direction: column;
   height: min(88vh, 980px);
   left: 50%;
-  max-width: 1240px;
+  max-width: 1320px;
   overflow: hidden;
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(94vw, 1240px);
+  width: min(1320px, calc(100vw - 32px));
 }
 
 .ll-vocab-lesson-word-options-modal__header {
@@ -108,7 +106,7 @@
 .ll-vocab-lesson-word-options-modal__title {
   color: #2e2a24;
   font-size: clamp(24px, 3vw, 34px);
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   line-height: 1;
   margin: 0;
 }
@@ -193,8 +191,8 @@
 }
 
 .ll-vocab-lesson-word-options-modal__frame-shell {
-  background: rgba(255, 255, 255, 0.66);
-  border-top: 1px solid rgba(231, 221, 205, 0.96);
+  background: #ffffff;
+  border-top: 1px solid #edf2f7;
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
@@ -210,7 +208,7 @@
 
 .ll-vocab-lesson-word-options-modal__loading {
   align-items: center;
-  background: linear-gradient(180deg, rgba(248, 245, 238, 0.92) 0%, rgba(248, 245, 238, 0.7) 100%);
+  background: #ffffff;
   color: #5f574c;
   display: inline-flex;
   gap: 10px;
@@ -220,7 +218,7 @@
   top: 18px;
   z-index: 2;
   border-radius: 999px;
-  border: 1px solid rgba(221, 209, 190, 0.88);
+  border: 1px solid #dbe5ef;
   box-shadow: 0 10px 18px rgba(46, 42, 36, 0.1);
 }
 
@@ -266,7 +264,7 @@ body.ll-vocab-lesson-word-options-open {
   }
 
   .ll-vocab-lesson-word-options-modal__dialog {
-    border-radius: 20px;
+    border-radius: 8px;
     bottom: 0;
     height: auto;
     left: 0;
@@ -302,7 +300,7 @@ body.ll-vocab-lesson-word-options-open {
 
 @media (max-width: 560px) {
   .ll-vocab-lesson-word-options-modal__dialog {
-    border-radius: 18px;
+    border-radius: 8px;
   }
 
   .ll-vocab-lesson-word-options-modal__close {

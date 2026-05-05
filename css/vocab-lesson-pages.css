@@ -802,8 +802,8 @@ body.ll-vocab-lesson-category-settings-open {
     left: 50% !important;
     bottom: auto !important;
     right: auto !important;
-    width: min(760px, calc(100vw - 32px)) !important;
-    max-height: min(86vh, 780px);
+    width: min(1320px, calc(100vw - 32px)) !important;
+    max-height: min(88vh, 840px);
     overflow: auto;
     padding: 18px 18px 0 !important;
     display: grid;
@@ -1109,6 +1109,82 @@ body.ll-vocab-lesson-category-settings-open {
     backdrop-filter: blur(8px);
     box-shadow: 0 -10px 18px rgba(15, 23, 42, 0.06);
     z-index: 2;
+}
+
+.ll-vocab-lesson-category-settings-actions[hidden] {
+    display: none !important;
+}
+
+.ll-vocab-lesson-category-settings-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    color: #475569;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.ll-vocab-lesson-category-settings-status[hidden] {
+    display: none !important;
+}
+
+.ll-vocab-lesson-category-settings-status-icon {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="saving"] .ll-vocab-lesson-category-settings-status-icon {
+    border: 2px solid #cbd5e1;
+    border-top-color: var(--ll-vlp-accent);
+    animation: ll-tools-spin 0.8s linear infinite;
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="saved"] {
+    color: #166534;
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="saved"] .ll-vocab-lesson-category-settings-status-icon {
+    background: #1f6b5c;
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="saved"] .ll-vocab-lesson-category-settings-status-icon::before {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 9px;
+    border-right: 2px solid #ffffff;
+    border-bottom: 2px solid #ffffff;
+    top: 44%;
+    left: 50%;
+    transform: translate(-50%, -60%) rotate(45deg);
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="error"] {
+    color: #b91c1c;
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="error"] .ll-vocab-lesson-category-settings-status-icon {
+    background: #b91c1c;
+}
+
+.ll-vocab-lesson-category-settings-status[data-state="error"] .ll-vocab-lesson-category-settings-status-icon::before {
+    content: "!";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .ll-vocab-lesson-category-settings-save {
