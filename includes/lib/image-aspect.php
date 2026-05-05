@@ -241,6 +241,9 @@ function ll_tools_collect_category_attachment_usage($category_id, array $args = 
     }
 
     $cached = wp_cache_get($cache_key, 'll_tools');
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
     if (is_array($cached)) {
         $request_cache[$cache_key] = $cached;
         return $cached;
@@ -334,6 +337,7 @@ function ll_tools_collect_category_attachment_usage($category_id, array $args = 
     }
 
     wp_cache_set($cache_key, $usage, 'll_tools', 10 * MINUTE_IN_SECONDS);
+    set_transient($cache_key, $usage, 10 * MINUTE_IN_SECONDS);
     $request_cache[$cache_key] = $usage;
     return $usage;
 }
@@ -398,6 +402,9 @@ function ll_tools_get_category_image_aspect_stats($category_id, array $args = []
     }
 
     $cached = wp_cache_get($cache_key, 'll_tools');
+    if ($cached === false) {
+        $cached = get_transient($cache_key);
+    }
     if (is_array($cached)) {
         $request_cache[$cache_key] = $cached;
         return $cached;
@@ -560,6 +567,7 @@ function ll_tools_get_category_image_aspect_stats($category_id, array $args = []
     ];
 
     wp_cache_set($cache_key, $result, 'll_tools', 10 * MINUTE_IN_SECONDS);
+    set_transient($cache_key, $result, 10 * MINUTE_IN_SECONDS);
     $request_cache[$cache_key] = $result;
     return $result;
 }
