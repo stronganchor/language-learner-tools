@@ -290,11 +290,15 @@ function ll_tools_site_sync_admin_process_request(array &$connection): array {
         $result['plan'] = $plan;
         $result['pull_result'] = $pull_result;
         $result['notices'][] = sprintf(
-            /* translators: 1: record count, 2: field count */
-            __('Pull finished. Updated %1$d local recordings across %2$d fields.', 'll-tools-text-domain'),
+            /* translators: 1: record count, 2: field count, 3: media reference count */
+            __('Pull finished. Updated %1$d local recordings across %2$d fields and %3$d media references.', 'll-tools-text-domain'),
             (int) ($pull_result['records_updated'] ?? 0),
-            (int) ($pull_result['fields_updated'] ?? 0)
+            (int) ($pull_result['fields_updated'] ?? 0),
+            (int) ($pull_result['media_refs_updated'] ?? 0)
         );
+        foreach ((array) ($pull_result['errors'] ?? []) as $pull_error) {
+            $result['errors'][] = (string) $pull_error;
+        }
         if (!empty($plan['conflicts'])) {
             $result['errors'][] = sprintf(
                 /* translators: %d conflict count */
@@ -420,6 +424,7 @@ function ll_tools_site_sync_render_plan_summary(?array $plan): void {
         <div class="ll-site-sync-stat-row">
             <span><?php echo esc_html(sprintf(__('Records checked: %d', 'll-tools-text-domain'), (int) ($stats['records_checked'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Fields to apply: %d', 'll-tools-text-domain'), (int) ($stats['fields_to_apply'] ?? 0))); ?></span>
+            <span><?php echo esc_html(sprintf(__('Media refs to apply: %d', 'll-tools-text-domain'), (int) ($stats['media_refs_to_apply'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Conflicts: %d', 'll-tools-text-domain'), (int) ($stats['conflicts'] ?? 0))); ?></span>
             <span><?php echo esc_html(sprintf(__('Skipped: %d', 'll-tools-text-domain'), (int) ($stats['skipped'] ?? 0))); ?></span>
         </div>

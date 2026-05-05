@@ -114,6 +114,89 @@ final class SiteSyncTest extends LL_Tools_TestCase
         $this->assertSame('remote-link-word', (string) get_post_meta($word_id, ll_tools_site_sync_uuid_meta_key(), true));
     }
 
+    public function test_pull_uses_remote_media_urls_when_local_media_is_missing(): void
+    {
+        $wordset_id = $this->ensure_term('wordset', 'Media Sync Wordset', 'media-sync-wordset');
+        $category_id = $this->ensure_term('word-category', 'Media Sync Category', 'media-sync-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'Media Sync Word', 'Media Sync Translation');
+        $recording_id = $this->create_recording($word_id, 'Media Sync Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'same.ipa',
+        ]);
+        update_post_meta($recording_id, ll_tools_site_sync_uuid_meta_key(), 'media-shared-recording');
+
+        $local = ll_tools_site_sync_build_snapshot($wordset_id, 'transcriptions', true);
+        $this->assertIsArray($local);
+
+        $audio_url = 'https://zazacaogren.com/wp-content/uploads/2026/05/media-sync.mp3';
+        $image_url = 'https://zazacaogren.com/wp-content/uploads/2026/05/media-sync.webp';
+        $remote_record = $this->record('media-shared-recording', 999, 'Media Sync Word', 'Media Sync Recording', [
+            'recording_text' => 'same text',
+            'recording_ipa' => 'same.ipa',
+        ], [
+            'audio' => [
+                'url' => $audio_url,
+                'mime_type' => 'audio/mpeg',
+                'has_local_file' => true,
+            ],
+            'word_image' => [
+                'sync_id' => 'remote-media-word-image',
+                'slug' => 'media-sync-word-image',
+                'title' => 'Media Sync Image',
+                'status' => 'publish',
+                'attachment' => [
+                    'url' => $image_url,
+                    'source_url' => $image_url,
+                    'mime_type' => 'image/webp',
+                    'title' => 'Media Sync Image',
+                    'alt' => 'Media alt',
+                    'width' => 640,
+                    'height' => 480,
+                    'has_local_file' => true,
+                ],
+            ],
+        ]);
+        $remote_record['natural_key'] = (string) (($local['records'][0] ?? [])['natural_key'] ?? '');
+        $remote_record['word']['sync_id'] = (string) (($local['records'][0]['word'] ?? [])['sync_id'] ?? '');
+        $remote = $this->snapshot([$remote_record]);
+
+        $plan = ll_tools_site_sync_build_pull_plan($local, $remote, []);
+        $this->assertSame(2, (int) ($plan['stats']['media_refs_to_apply'] ?? 0));
+        $this->assertContains('audio_file_path', (array) ($plan['actions'][0]['fields'] ?? []));
+        $this->assertContains('word_image', (array) ($plan['actions'][0]['fields'] ?? []));
+
+        $summary = ll_tools_site_sync_apply_pull_plan($plan, $wordset_id);
+
+        $this->assertSame(0, (int) $summary['records_updated']);
+        $this->assertSame(2, (int) $summary['media_refs_updated']);
+        $this->assertSame($audio_url, (string) get_post_meta($recording_id, 'audio_file_path', true));
+        $this->assertSame($audio_url, ll_tools_resolve_audio_file_url($audio_url));
+        $uploads = wp_get_upload_dir();
+        $uploads_path = (string) wp_parse_url((string) ($uploads['baseurl'] ?? ''), PHP_URL_PATH);
+        if ($uploads_path !== '') {
+            $legacy_local_url = 'http://old-site.local' . $uploads_path . '/legacy-sync.mp3';
+            $this->assertSame(trailingslashit((string) $uploads['baseurl']) . 'legacy-sync.mp3', ll_tools_resolve_audio_file_url($legacy_local_url));
+        }
+
+        $word_image_id = (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+        $this->assertGreaterThan(0, $word_image_id);
+        $this->assertSame('word_images', get_post_type($word_image_id));
+        $this->assertSame('remote-media-word-image', (string) get_post_meta($word_image_id, ll_tools_site_sync_uuid_meta_key(), true));
+
+        $attachment_id = (int) get_post_thumbnail_id($word_image_id);
+        $this->assertGreaterThan(0, $attachment_id);
+        $this->assertSame($attachment_id, (int) get_post_thumbnail_id($word_id));
+        $this->assertSame($image_url, (string) wp_get_attachment_url($attachment_id));
+        $this->assertSame($image_url, (string) get_post_meta($attachment_id, '_ll_tools_external_source_url', true));
+        $this->assertSame('Media alt', (string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true));
+        $this->assertFalse(ll_tools_site_sync_attachment_has_local_file($attachment_id));
+
+        $metadata = wp_get_attachment_metadata($attachment_id);
+        $this->assertIsArray($metadata);
+        $this->assertSame(640, (int) ($metadata['width'] ?? 0));
+        $this->assertSame(480, (int) ($metadata['height'] ?? 0));
+    }
+
     public function test_pull_replaces_existing_review_note_with_empty_remote_note(): void
     {
         $wordset_id = $this->ensure_term('wordset', 'Review Sync Wordset', 'review-sync-wordset');
@@ -229,7 +312,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
      * @param array<string,mixed> $values
      * @return array<string,mixed>
      */
-    private function record(string $sync_id, int $recording_id, string $word_title, string $recording_title, array $values): array
+    private function record(string $sync_id, int $recording_id, string $word_title, string $recording_title, array $values, array $media = []): array
     {
         $values = array_merge([
             'recording_text' => '',
@@ -257,6 +340,7 @@ final class SiteSyncTest extends LL_Tools_TestCase
             ],
             'values' => ll_tools_site_sync_normalize_record_values($values),
             'value_hash' => ll_tools_site_sync_value_hash($values),
+            'media' => ll_tools_site_sync_normalize_record_media($media),
         ];
     }
 

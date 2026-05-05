@@ -240,6 +240,229 @@ function ll_tools_site_sync_value_hash(array $values): string {
     return hash('sha256', wp_json_encode($values));
 }
 
+function ll_tools_site_sync_normalize_remote_url($url): string {
+    $url = trim((string) $url);
+    if ($url === '') {
+        return '';
+    }
+
+    if (strpos($url, '//') === 0) {
+        $url = (is_ssl() ? 'https:' : 'http:') . $url;
+    }
+
+    $url = esc_url_raw($url);
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        return '';
+    }
+
+    $validated = wp_http_validate_url($url);
+    return is_string($validated) ? $validated : '';
+}
+
+function ll_tools_site_sync_urls_equal($a, $b): bool {
+    return rtrim(trim((string) $a), '/') === rtrim(trim((string) $b), '/');
+}
+
+function ll_tools_site_sync_resolve_local_file_path(string $path_or_url): string {
+    $path_or_url = trim($path_or_url);
+    if ($path_or_url === '') {
+        return '';
+    }
+
+    $candidate = wp_normalize_path($path_or_url);
+    if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+        return $candidate;
+    }
+
+    $path = $path_or_url;
+    if (preg_match('#^https?://#i', $path_or_url)) {
+        $upload_dir = wp_upload_dir();
+        $base_url = isset($upload_dir['baseurl']) ? (string) $upload_dir['baseurl'] : '';
+        $base_dir = isset($upload_dir['basedir']) ? (string) $upload_dir['basedir'] : '';
+        if ($base_url !== '' && $base_dir !== '' && strpos($path_or_url, $base_url) === 0) {
+            $relative = ltrim(substr($path_or_url, strlen($base_url)), '/');
+            $candidate = wp_normalize_path(trailingslashit($base_dir) . $relative);
+            if ($candidate !== '' && is_file($candidate) && is_readable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        $url_path = wp_parse_url($path_or_url, PHP_URL_PATH);
+        if (!is_string($url_path) || $url_path === '') {
+            return '';
+        }
+        $path = $url_path;
+    }
+
+    $path = wp_normalize_path($path);
+    if ($path === '') {
+        return '';
+    }
+
+    if (is_file($path) && is_readable($path)) {
+        return $path;
+    }
+
+    $candidate = $path[0] === '/'
+        ? wp_normalize_path(untrailingslashit(ABSPATH) . $path)
+        : wp_normalize_path(untrailingslashit(ABSPATH) . '/' . ltrim($path, '/'));
+
+    return ($candidate !== '' && is_file($candidate) && is_readable($candidate)) ? $candidate : '';
+}
+
+function ll_tools_site_sync_audio_media(int $recording_id): array {
+    $stored_path = trim((string) get_post_meta($recording_id, 'audio_file_path', true));
+    $local_path = ll_tools_site_sync_resolve_local_file_path($stored_path);
+    $url = '';
+    if ($stored_path !== '') {
+        $url = function_exists('ll_tools_resolve_audio_file_url')
+            ? (string) ll_tools_resolve_audio_file_url($stored_path)
+            : (preg_match('#^https?://#i', $stored_path) ? $stored_path : site_url($stored_path));
+    }
+
+    $mime_type = '';
+    $mime_source = $local_path !== '' ? $local_path : (string) wp_parse_url($url, PHP_URL_PATH);
+    if ($mime_source !== '') {
+        $filetype = wp_check_filetype(basename($mime_source), null);
+        $mime_type = isset($filetype['type']) ? (string) $filetype['type'] : '';
+    }
+
+    return [
+        'path' => $stored_path,
+        'url' => ll_tools_site_sync_normalize_remote_url($url),
+        'mime_type' => $mime_type,
+        'has_local_file' => $local_path !== '',
+    ];
+}
+
+function ll_tools_site_sync_attachment_has_local_file(int $attachment_id): bool {
+    if ($attachment_id <= 0) {
+        return false;
+    }
+
+    $file = (string) get_attached_file($attachment_id, true);
+    return $file !== '' && is_file($file) && is_readable($file);
+}
+
+function ll_tools_site_sync_attachment_media(int $attachment_id): array {
+    $fallback = [
+        'id' => 0,
+        'url' => '',
+        'source_url' => '',
+        'mime_type' => '',
+        'title' => '',
+        'alt' => '',
+        'width' => 0,
+        'height' => 0,
+        'has_local_file' => false,
+    ];
+
+    $attachment_id = (int) $attachment_id;
+    if ($attachment_id <= 0) {
+        return $fallback;
+    }
+
+    $attachment = get_post($attachment_id);
+    if (!($attachment instanceof WP_Post) || $attachment->post_type !== 'attachment') {
+        return $fallback;
+    }
+
+    $url = (string) wp_get_attachment_url($attachment_id);
+    $external_url = function_exists('ll_tools_get_external_attachment_source_url')
+        ? (string) ll_tools_get_external_attachment_source_url($attachment_id)
+        : trim((string) get_post_meta($attachment_id, '_ll_tools_external_source_url', true));
+    $metadata = wp_get_attachment_metadata($attachment_id);
+    $width = is_array($metadata) ? (int) ($metadata['width'] ?? 0) : 0;
+    $height = is_array($metadata) ? (int) ($metadata['height'] ?? 0) : 0;
+
+    return [
+        'id' => $attachment_id,
+        'url' => ll_tools_site_sync_normalize_remote_url($url),
+        'source_url' => ll_tools_site_sync_normalize_remote_url($external_url !== '' ? $external_url : $url),
+        'mime_type' => (string) $attachment->post_mime_type,
+        'title' => (string) get_the_title($attachment_id),
+        'alt' => trim((string) get_post_meta($attachment_id, '_wp_attachment_image_alt', true)),
+        'width' => max(0, $width),
+        'height' => max(0, $height),
+        'has_local_file' => ll_tools_site_sync_attachment_has_local_file($attachment_id),
+    ];
+}
+
+function ll_tools_site_sync_word_image_media(int $word_id, bool $ensure_sync_ids = true): array {
+    $word_image_id = function_exists('ll_tools_get_canonical_word_image_post_id_for_word')
+        ? (int) ll_tools_get_canonical_word_image_post_id_for_word($word_id, true)
+        : (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+    $attachment_id = 0;
+    $source = 'none';
+
+    if ($word_image_id > 0) {
+        $attachment_id = (int) get_post_thumbnail_id($word_image_id);
+        if ($attachment_id > 0) {
+            $source = 'word_image';
+        }
+    }
+
+    if ($attachment_id <= 0) {
+        $attachment_id = (int) get_post_thumbnail_id($word_id);
+        if ($attachment_id > 0) {
+            $source = 'word';
+        }
+    }
+
+    $word_image_post = $word_image_id > 0 ? get_post($word_image_id) : null;
+
+    return [
+        'id' => $word_image_id,
+        'sync_id' => $word_image_id > 0 ? ll_tools_site_sync_get_or_create_post_uuid($word_image_id, $ensure_sync_ids) : '',
+        'slug' => $word_image_post instanceof WP_Post ? (string) $word_image_post->post_name : '',
+        'title' => $word_image_post instanceof WP_Post ? (string) get_the_title($word_image_id) : '',
+        'status' => $word_image_post instanceof WP_Post ? (string) $word_image_post->post_status : '',
+        'source' => $source,
+        'attachment' => ll_tools_site_sync_attachment_media($attachment_id),
+    ];
+}
+
+function ll_tools_site_sync_record_media(int $recording_id, int $word_id, bool $ensure_sync_ids = true): array {
+    return [
+        'audio' => ll_tools_site_sync_audio_media($recording_id),
+        'word_image' => ll_tools_site_sync_word_image_media($word_id, $ensure_sync_ids),
+    ];
+}
+
+function ll_tools_site_sync_normalize_record_media(array $media): array {
+    $audio = (array) ($media['audio'] ?? []);
+    $word_image = (array) ($media['word_image'] ?? []);
+    $attachment = (array) ($word_image['attachment'] ?? []);
+
+    return [
+        'audio' => [
+            'path' => (string) ($audio['path'] ?? ''),
+            'url' => ll_tools_site_sync_normalize_remote_url($audio['url'] ?? ''),
+            'mime_type' => sanitize_mime_type((string) ($audio['mime_type'] ?? '')),
+            'has_local_file' => !empty($audio['has_local_file']),
+        ],
+        'word_image' => [
+            'id' => (int) ($word_image['id'] ?? 0),
+            'sync_id' => trim((string) ($word_image['sync_id'] ?? '')),
+            'slug' => sanitize_title((string) ($word_image['slug'] ?? '')),
+            'title' => (string) ($word_image['title'] ?? ''),
+            'status' => sanitize_key((string) ($word_image['status'] ?? '')),
+            'source' => sanitize_key((string) ($word_image['source'] ?? '')),
+            'attachment' => [
+                'id' => (int) ($attachment['id'] ?? 0),
+                'url' => ll_tools_site_sync_normalize_remote_url($attachment['url'] ?? ''),
+                'source_url' => ll_tools_site_sync_normalize_remote_url(($attachment['source_url'] ?? '') ?: ($attachment['url'] ?? '')),
+                'mime_type' => sanitize_mime_type((string) ($attachment['mime_type'] ?? '')),
+                'title' => (string) ($attachment['title'] ?? ''),
+                'alt' => (string) ($attachment['alt'] ?? ''),
+                'width' => max(0, (int) ($attachment['width'] ?? 0)),
+                'height' => max(0, (int) ($attachment['height'] ?? 0)),
+                'has_local_file' => !empty($attachment['has_local_file']),
+            ],
+        ],
+    ];
+}
+
 function ll_tools_site_sync_record_natural_key(string $word_slug, string $recording_slug, array $recording_types): string {
     $recording_types = array_values(array_unique(array_filter(array_map('sanitize_title', $recording_types))));
     sort($recording_types);
@@ -325,6 +548,7 @@ function ll_tools_site_sync_collect_transcription_records(int $wordset_id, bool 
             ],
             'values' => $values,
             'value_hash' => ll_tools_site_sync_value_hash($values),
+            'media' => ll_tools_site_sync_record_media((int) $audio_post->ID, $word_id, $ensure_sync_ids),
         ];
     }
 
@@ -395,6 +619,7 @@ function ll_tools_site_sync_index_snapshot(array $snapshot): array {
         }
 
         $record['values'] = ll_tools_site_sync_normalize_record_values((array) ($record['values'] ?? []));
+        $record['media'] = ll_tools_site_sync_normalize_record_media((array) ($record['media'] ?? []));
         $lookup_key = ll_tools_site_sync_record_lookup_key($record);
         if ($lookup_key !== '') {
             $index['records'][$lookup_key] = $record;
@@ -493,6 +718,7 @@ function ll_tools_site_sync_plan_empty(string $direction, array $local_snapshot,
             'records_checked' => 0,
             'fields_checked' => 0,
             'fields_to_apply' => 0,
+            'media_refs_to_apply' => 0,
             'conflicts' => 0,
             'skipped' => 0,
         ],
@@ -634,6 +860,372 @@ function ll_tools_site_sync_build_push_plan(array $local_snapshot, array $remote
     return $plan;
 }
 
+function ll_tools_site_sync_build_media_pull_fields(array $local_record, array $remote_record): array {
+    $local_media = ll_tools_site_sync_normalize_record_media((array) ($local_record['media'] ?? []));
+    $remote_media = ll_tools_site_sync_normalize_record_media((array) ($remote_record['media'] ?? []));
+    $fields = [];
+
+    $remote_audio_url = (string) ($remote_media['audio']['url'] ?? '');
+    if ($remote_audio_url !== '' && empty($local_media['audio']['has_local_file'])) {
+        $local_audio_url = (string) (($local_media['audio']['url'] ?? '') ?: ($local_media['audio']['path'] ?? ''));
+        if ($local_audio_url === '' || !ll_tools_site_sync_urls_equal($local_audio_url, $remote_audio_url)) {
+            $fields[] = 'audio_file_path';
+        }
+    }
+
+    $remote_attachment = (array) ($remote_media['word_image']['attachment'] ?? []);
+    $remote_image_url = (string) (($remote_attachment['source_url'] ?? '') ?: ($remote_attachment['url'] ?? ''));
+    if ($remote_image_url !== '' && empty($local_media['word_image']['attachment']['has_local_file'])) {
+        $local_attachment = (array) ($local_media['word_image']['attachment'] ?? []);
+        $local_image_url = (string) (($local_attachment['source_url'] ?? '') ?: ($local_attachment['url'] ?? ''));
+        $local_word_image_id = (int) ($local_media['word_image']['id'] ?? 0);
+        if ($local_word_image_id <= 0 || $local_image_url === '' || !ll_tools_site_sync_urls_equal($local_image_url, $remote_image_url)) {
+            $fields[] = 'word_image';
+        }
+    }
+
+    return array_values(array_unique($fields));
+}
+
+function ll_tools_site_sync_find_external_attachment_id(string $source_url): int {
+    $source_url = ll_tools_site_sync_normalize_remote_url($source_url);
+    if ($source_url === '') {
+        return 0;
+    }
+
+    $matches = get_posts([
+        'post_type' => 'attachment',
+        'post_status' => 'inherit',
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'meta_query' => [
+            [
+                'key' => '_ll_tools_external_source_url',
+                'value' => $source_url,
+            ],
+        ],
+    ]);
+
+    return !empty($matches) ? (int) $matches[0] : 0;
+}
+
+function ll_tools_site_sync_ensure_external_image_attachment(string $source_url, array $remote_attachment, int $parent_post_id = 0) {
+    $source_url = ll_tools_site_sync_normalize_remote_url($source_url);
+    if ($source_url === '') {
+        return new WP_Error('ll_tools_site_sync_invalid_remote_image_url', __('The remote image URL is invalid.', 'll-tools-text-domain'));
+    }
+
+    $existing_id = ll_tools_site_sync_find_external_attachment_id($source_url);
+    if ($existing_id > 0) {
+        ll_tools_site_sync_update_external_attachment_metadata($existing_id, $source_url, $remote_attachment);
+        return $existing_id;
+    }
+
+    $path = (string) wp_parse_url($source_url, PHP_URL_PATH);
+    $basename = $path !== '' ? sanitize_file_name(basename(rawurldecode($path))) : '';
+    if ($basename === '' || $basename === '.' || $basename === '..') {
+        $basename = 'site-sync-remote-image';
+    }
+
+    $filetype = wp_check_filetype($basename, null);
+    $mime_type = sanitize_mime_type((string) ($remote_attachment['mime_type'] ?? ''));
+    if ($mime_type === '' && !empty($filetype['type'])) {
+        $mime_type = (string) $filetype['type'];
+    }
+    if ($mime_type === '' || strpos($mime_type, 'image/') !== 0) {
+        return new WP_Error('ll_tools_site_sync_invalid_remote_image_mime', __('The remote image is not a supported image type.', 'll-tools-text-domain'));
+    }
+
+    $title = trim((string) ($remote_attachment['title'] ?? ''));
+    if ($title === '') {
+        $title = (string) preg_replace('/\.[^.]+$/', '', $basename);
+    }
+    if ($title === '') {
+        $title = __('Synced remote image', 'll-tools-text-domain');
+    }
+
+    $attachment_id = wp_insert_attachment([
+        'guid' => $source_url,
+        'post_mime_type' => $mime_type,
+        'post_title' => sanitize_text_field($title),
+        'post_content' => '',
+        'post_status' => 'inherit',
+    ], false, $parent_post_id);
+
+    if (is_wp_error($attachment_id)) {
+        return $attachment_id;
+    }
+    if (!$attachment_id) {
+        return new WP_Error('ll_tools_site_sync_remote_attachment_failed', __('Could not create the remote image placeholder attachment.', 'll-tools-text-domain'));
+    }
+
+    ll_tools_site_sync_update_external_attachment_metadata((int) $attachment_id, $source_url, $remote_attachment);
+    return (int) $attachment_id;
+}
+
+function ll_tools_site_sync_update_external_attachment_metadata(int $attachment_id, string $source_url, array $remote_attachment): void {
+    if ($attachment_id <= 0) {
+        return;
+    }
+
+    update_post_meta($attachment_id, '_ll_tools_external_source_url', ll_tools_site_sync_normalize_remote_url($source_url));
+
+    $alt = trim((string) ($remote_attachment['alt'] ?? ''));
+    if ($alt !== '') {
+        update_post_meta($attachment_id, '_wp_attachment_image_alt', sanitize_text_field($alt));
+    }
+
+    $width = max(0, (int) ($remote_attachment['width'] ?? 0));
+    $height = max(0, (int) ($remote_attachment['height'] ?? 0));
+    if ($width > 0 || $height > 0) {
+        $metadata = wp_get_attachment_metadata($attachment_id);
+        $metadata = is_array($metadata) ? $metadata : [];
+        if ($width > 0) {
+            $metadata['width'] = $width;
+        }
+        if ($height > 0) {
+            $metadata['height'] = $height;
+        }
+        $path = (string) wp_parse_url($source_url, PHP_URL_PATH);
+        if (!isset($metadata['file']) && $path !== '') {
+            $metadata['file'] = sanitize_file_name(basename(rawurldecode($path)));
+        }
+        wp_update_attachment_metadata($attachment_id, $metadata);
+    }
+}
+
+function ll_tools_site_sync_find_word_image_by_sync_id(string $sync_id): int {
+    $sync_id = trim($sync_id);
+    if ($sync_id === '') {
+        return 0;
+    }
+
+    $matches = get_posts([
+        'post_type' => 'word_images',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'posts_per_page' => 1,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+        'meta_query' => [
+            [
+                'key' => ll_tools_site_sync_uuid_meta_key(),
+                'value' => $sync_id,
+            ],
+        ],
+    ]);
+
+    return !empty($matches) ? (int) $matches[0] : 0;
+}
+
+function ll_tools_site_sync_find_word_image_by_slug(string $slug, int $wordset_id): int {
+    $slug = sanitize_title($slug);
+    if ($slug === '') {
+        return 0;
+    }
+
+    $matches = get_posts([
+        'post_type' => 'word_images',
+        'post_status' => ['publish', 'draft', 'pending', 'private', 'future'],
+        'name' => $slug,
+        'posts_per_page' => 5,
+        'fields' => 'ids',
+        'no_found_rows' => true,
+        'suppress_filters' => true,
+    ]);
+
+    foreach ((array) $matches as $candidate_id) {
+        $candidate_id = (int) $candidate_id;
+        if ($candidate_id <= 0) {
+            continue;
+        }
+
+        $owner_id = function_exists('ll_tools_get_word_image_wordset_owner_id')
+            ? (int) ll_tools_get_word_image_wordset_owner_id($candidate_id)
+            : 0;
+        if ($owner_id <= 0 || $owner_id === $wordset_id) {
+            return $candidate_id;
+        }
+    }
+
+    return 0;
+}
+
+function ll_tools_site_sync_get_or_create_word_image_for_remote(int $word_id, int $wordset_id, array $remote_word_image) {
+    $remote_word_image = ll_tools_site_sync_normalize_record_media(['word_image' => $remote_word_image])['word_image'];
+    $remote_sync_id = trim((string) ($remote_word_image['sync_id'] ?? ''));
+    $word_image_id = $remote_sync_id !== '' ? ll_tools_site_sync_find_word_image_by_sync_id($remote_sync_id) : 0;
+
+    if ($word_image_id <= 0 && function_exists('ll_tools_get_canonical_word_image_post_id_for_word')) {
+        $word_image_id = (int) ll_tools_get_canonical_word_image_post_id_for_word($word_id, true);
+    }
+
+    if ($word_image_id <= 0) {
+        $word_image_id = ll_tools_site_sync_find_word_image_by_slug((string) ($remote_word_image['slug'] ?? ''), $wordset_id);
+    }
+
+    if ($word_image_id <= 0) {
+        $title = trim((string) ($remote_word_image['title'] ?? ''));
+        if ($title === '') {
+            $title = trim((string) get_the_title($word_id));
+        }
+        if ($title === '') {
+            $title = __('Synced word image', 'll-tools-text-domain');
+        }
+
+        $status = sanitize_key((string) ($remote_word_image['status'] ?? 'publish'));
+        if (!in_array($status, ['publish', 'draft', 'pending', 'private', 'future'], true)) {
+            $status = 'publish';
+        }
+
+        $insert_args = [
+            'post_type' => 'word_images',
+            'post_status' => $status,
+            'post_title' => sanitize_text_field($title),
+        ];
+        $slug = sanitize_title((string) ($remote_word_image['slug'] ?? ''));
+        if ($slug !== '') {
+            $insert_args['post_name'] = $slug;
+        }
+
+        $created_id = wp_insert_post($insert_args, true);
+        if (is_wp_error($created_id)) {
+            return $created_id;
+        }
+        $word_image_id = (int) $created_id;
+    }
+
+    if ($word_image_id <= 0) {
+        return new WP_Error('ll_tools_site_sync_word_image_missing', __('Could not create the synced word image.', 'll-tools-text-domain'));
+    }
+
+    if ($remote_sync_id !== '') {
+        update_post_meta($word_image_id, ll_tools_site_sync_uuid_meta_key(), $remote_sync_id);
+    }
+
+    $category_ids = wp_get_post_terms($word_id, 'word-category', ['fields' => 'ids']);
+    if (!is_wp_error($category_ids) && !empty($category_ids)) {
+        wp_set_post_terms($word_image_id, array_map('intval', (array) $category_ids), 'word-category', false);
+    }
+
+    if ($wordset_id > 0 && function_exists('ll_tools_set_word_image_wordset_owner')) {
+        ll_tools_set_word_image_wordset_owner($word_image_id, $wordset_id, $word_image_id);
+    }
+
+    update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+    return $word_image_id;
+}
+
+function ll_tools_site_sync_apply_remote_audio_media(int $recording_id, array $remote_record): bool {
+    $remote_media = ll_tools_site_sync_normalize_record_media((array) ($remote_record['media'] ?? []));
+    $remote_url = (string) ($remote_media['audio']['url'] ?? '');
+    if ($remote_url === '') {
+        return false;
+    }
+
+    $current_path = trim((string) get_post_meta($recording_id, 'audio_file_path', true));
+    if (ll_tools_site_sync_resolve_local_file_path($current_path) !== '') {
+        return false;
+    }
+
+    $current_url = '';
+    if ($current_path !== '') {
+        $current_url = function_exists('ll_tools_resolve_audio_file_url')
+            ? (string) ll_tools_resolve_audio_file_url($current_path)
+            : $current_path;
+    }
+
+    if ($current_url !== '' && ll_tools_site_sync_urls_equal($current_url, $remote_url)) {
+        return false;
+    }
+
+    update_post_meta($recording_id, 'audio_file_path', $remote_url);
+    return true;
+}
+
+function ll_tools_site_sync_apply_remote_word_image_media(int $word_id, int $wordset_id, array $remote_record) {
+    $remote_media = ll_tools_site_sync_normalize_record_media((array) ($remote_record['media'] ?? []));
+    $remote_word_image = (array) ($remote_media['word_image'] ?? []);
+    $remote_attachment = (array) ($remote_word_image['attachment'] ?? []);
+    $remote_url = (string) (($remote_attachment['source_url'] ?? '') ?: ($remote_attachment['url'] ?? ''));
+    if ($remote_url === '') {
+        return false;
+    }
+
+    $current_word_image_id = function_exists('ll_tools_get_canonical_word_image_post_id_for_word')
+        ? (int) ll_tools_get_canonical_word_image_post_id_for_word($word_id, true)
+        : (int) get_post_meta($word_id, '_ll_autopicked_image_id', true);
+    $current_attachment_id = function_exists('ll_tools_get_effective_word_image_attachment_id_for_word')
+        ? (int) ll_tools_get_effective_word_image_attachment_id_for_word($word_id, true)
+        : (int) get_post_thumbnail_id($word_id);
+
+    if ($current_attachment_id > 0 && ll_tools_site_sync_attachment_has_local_file($current_attachment_id)) {
+        return false;
+    }
+
+    $current_attachment = ll_tools_site_sync_attachment_media($current_attachment_id);
+    $current_url = (string) (($current_attachment['source_url'] ?? '') ?: ($current_attachment['url'] ?? ''));
+    if ($current_word_image_id > 0 && $current_url !== '' && ll_tools_site_sync_urls_equal($current_url, $remote_url)) {
+        return false;
+    }
+
+    $word_image_id = ll_tools_site_sync_get_or_create_word_image_for_remote($word_id, $wordset_id, $remote_word_image);
+    if (is_wp_error($word_image_id)) {
+        return $word_image_id;
+    }
+    $word_image_id = (int) $word_image_id;
+
+    if ($current_attachment_id > 0 && $current_url !== '' && ll_tools_site_sync_urls_equal($current_url, $remote_url)) {
+        $attachment_id = $current_attachment_id;
+    } else {
+        $attachment_id = ll_tools_site_sync_ensure_external_image_attachment($remote_url, $remote_attachment, $word_image_id);
+        if (is_wp_error($attachment_id)) {
+            return $attachment_id;
+        }
+        $attachment_id = (int) $attachment_id;
+    }
+
+    $changed = false;
+    if ((int) get_post_thumbnail_id($word_image_id) !== $attachment_id) {
+        set_post_thumbnail($word_image_id, $attachment_id);
+        $changed = true;
+    }
+    if ((int) get_post_thumbnail_id($word_id) !== $attachment_id) {
+        set_post_thumbnail($word_id, $attachment_id);
+        $changed = true;
+    }
+    if ((int) get_post_meta($word_id, '_ll_autopicked_image_id', true) !== $word_image_id) {
+        update_post_meta($word_id, '_ll_autopicked_image_id', $word_image_id);
+        $changed = true;
+    }
+
+    return $changed;
+}
+
+function ll_tools_site_sync_apply_record_media_refs(int $recording_id, int $word_id, int $wordset_id, array $remote_record): array {
+    $summary = [
+        'updated' => 0,
+        'errors' => [],
+    ];
+
+    if (ll_tools_site_sync_apply_remote_audio_media($recording_id, $remote_record)) {
+        $summary['updated']++;
+    }
+
+    if ($word_id > 0) {
+        $image_result = ll_tools_site_sync_apply_remote_word_image_media($word_id, $wordset_id, $remote_record);
+        if (is_wp_error($image_result)) {
+            $summary['errors'][] = $image_result->get_error_message();
+        } elseif ($image_result) {
+            $summary['updated']++;
+        }
+    }
+
+    return $summary;
+}
+
 function ll_tools_site_sync_build_pull_plan(array $local_snapshot, array $remote_snapshot, array $base_snapshot = []): array {
     $plan = ll_tools_site_sync_plan_empty('pull', $local_snapshot, $remote_snapshot, $base_snapshot);
     $local_index = ll_tools_site_sync_index_snapshot($local_snapshot);
@@ -707,15 +1299,20 @@ function ll_tools_site_sync_build_pull_plan(array $local_snapshot, array $remote
             $needs_sync_link = true;
         }
 
-        if (!empty($pull_fields) || $needs_sync_link) {
+        $media_fields = ll_tools_site_sync_build_media_pull_fields($local_record, $remote_record);
+
+        if (!empty($pull_fields) || $needs_sync_link || !empty($media_fields)) {
             $plan['actions'][] = [
-                'type' => !empty($pull_fields) ? 'pull' : 'link_sync_id',
-                'fields' => array_keys($pull_fields),
+                'type' => (!empty($pull_fields) || !empty($media_fields)) ? 'pull' : 'link_sync_id',
+                'fields' => array_merge(array_keys($pull_fields), $media_fields),
+                'value_fields' => array_keys($pull_fields),
+                'media_fields' => $media_fields,
                 'local_record' => $local_record,
                 'remote_record' => $remote_record,
                 'values' => $pull_fields,
             ];
             $plan['stats']['fields_to_apply'] += count($pull_fields);
+            $plan['stats']['media_refs_to_apply'] += count($media_fields);
         }
     }
 
@@ -820,6 +1417,7 @@ function ll_tools_site_sync_apply_pull_plan(array $plan, int $local_wordset_id):
     $summary = [
         'records_updated' => 0,
         'fields_updated' => 0,
+        'media_refs_updated' => 0,
         'sync_ids_linked' => 0,
         'errors' => [],
     ];
@@ -857,7 +1455,15 @@ function ll_tools_site_sync_apply_pull_plan(array $plan, int $local_wordset_id):
             $after = ll_tools_site_sync_apply_record_values($recording_id, $local_wordset_id, $values);
             if ($after !== $before) {
                 $summary['records_updated']++;
-                $summary['fields_updated'] += count((array) ($action['fields'] ?? []));
+                $summary['fields_updated'] += count((array) ($action['value_fields'] ?? array_keys((array) ($action['values'] ?? []))));
+            }
+
+            if (!empty($action['media_fields'])) {
+                $media_result = ll_tools_site_sync_apply_record_media_refs($recording_id, $local_word_id, $local_wordset_id, $remote_record);
+                $summary['media_refs_updated'] += (int) ($media_result['updated'] ?? 0);
+                foreach ((array) ($media_result['errors'] ?? []) as $error) {
+                    $summary['errors'][] = (string) $error;
+                }
             }
         }
     }

@@ -3557,9 +3557,14 @@ function ll_tools_resolve_audio_file_url($audio_path): string {
         return $resolved_cache[$audio_path];
     }
 
-    // Fallback: if the URL path is under uploads, prefer current uploads origin.
+    $is_legacy_local_host = in_array($url_host, ['localhost', '127.0.0.1', '::1'], true)
+        || substr($url_host, -6) === '.local'
+        || substr($url_host, -5) === '.test'
+        || substr($url_host, -10) === '.localhost';
+
+    // Fallback: rewrite old local-dev uploads URLs, but leave live/CDN media origins alone.
     $uploads = wp_get_upload_dir();
-    if (empty($uploads['error']) && !empty($uploads['baseurl'])) {
+    if ($is_legacy_local_host && empty($uploads['error']) && !empty($uploads['baseurl'])) {
         $uploads_base_path = (string) wp_parse_url($uploads['baseurl'], PHP_URL_PATH);
         if ($uploads_base_path !== '' && strpos($path, $uploads_base_path) === 0) {
             $relative = ltrim(substr($path, strlen($uploads_base_path)), '/');
