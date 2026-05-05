@@ -1820,6 +1820,80 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
     flex: 0 0 auto;
 }
 
+.word-grid.ll-word-grid .ll-word-edit-review-note {
+    margin: 0 0 8px 0 !important;
+    padding: 7px 9px !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    background: #f8fafc !important;
+    color: #475569 !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-field-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-field {
+    display: grid !important;
+    gap: 5px !important;
+    padding: 6px !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-field.is-needs-review {
+    border-color: #cbd5e1 !important;
+    background: #f8fafc !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-field.is-needs-review .ll-word-edit-input {
+    color: #64748b !important;
+    background: #f8fafc !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-label-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-toggle {
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    border-radius: 8px !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+    background-image: none !important;
+    color: #64748b !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-toggle[aria-pressed="true"] {
+    border-color: #94a3b8 !important;
+    background: #e2e8f0 !important;
+    color: #334155 !important;
+}
+
+.word-grid.ll-word-grid .ll-word-edit-review-toggle svg {
+    width: 16px !important;
+    height: 16px !important;
+    display: block !important;
+}
+
 .word-grid.ll-word-grid .ll-word-edit-recording-tool,
 .word-grid.ll-word-grid .ll-word-edit-confirm-action,
 .word-grid.ll-word-grid .ll-word-edit-danger-toggle {
@@ -2786,6 +2860,12 @@ body.ll-word-edit-modal-open .word-grid.ll-word-grid .word-item {
 
 .word-grid.ll-word-grid .ll-word-recording-text-translation {
     color: #666666 !important;
+}
+
+.word-grid.ll-word-grid .ll-word-recording-text-main--needs-review,
+.word-grid.ll-word-grid .ll-word-recording-ipa--needs-review {
+    color: #94a3b8 !important;
+    opacity: 0.85;
 }
 
 .word-grid.ll-word-grid .ll-word-recording-text-translation::before {

@@ -2588,6 +2588,10 @@
                 $input.data('original', $input.val() || '');
             }
         });
+        $item.find('[data-ll-recording-review-toggle]').each(function () {
+            const $btn = $(this);
+            $btn.data('originalPressed', ($btn.attr('aria-pressed') || 'false') === 'true' ? '1' : '0');
+        });
         cacheOriginalImageState($item);
         syncDictionaryEntrySelectionState($item);
     }
@@ -2606,6 +2610,17 @@
             if (typeof original === 'string') {
                 $input.val(original);
             }
+        });
+        $item.find('.ll-word-edit-recording[data-recording-id]').each(function () {
+            const $recording = $(this);
+            $recording.find('[data-ll-recording-review-toggle]').each(function () {
+                const $btn = $(this);
+                const field = ($btn.attr('data-review-field') || '').toString();
+                const originalPressed = $btn.data('originalPressed');
+                if ((field === 'recording_text' || field === 'recording_ipa') && typeof originalPressed === 'string') {
+                    setRecordingReviewToggle($recording, field, originalPressed === '1');
+                }
+            });
         });
         restoreOriginalImageState($item);
         setMetaFieldState($item);
@@ -3452,6 +3467,10 @@
                 $input.data('original', $input.val() || '');
             }
         });
+        $item.find('[data-ll-recording-review-toggle]').each(function () {
+            const $btn = $(this);
+            $btn.data('originalPressed', ($btn.attr('aria-pressed') || 'false') === 'true' ? '1' : '0');
+        });
         const $fileInput = $item.find('[data-ll-word-image-input]').first();
         if ($fileInput.length) {
             $fileInput.val('');
@@ -3548,7 +3567,8 @@
                 id: recId,
                 recording_text: text,
                 recording_translation: translation,
-                recording_ipa: ipa
+                recording_ipa: ipa,
+                review_fields: getRecordingReviewFields($rec)
             });
         });
         return recordings;
@@ -3870,7 +3890,78 @@
         return (template || '').replace('%1$d', String(current)).replace('%2$d', String(total));
     }
 
-    function getRecordingCaptionParts(text, translation, ipa) {
+    function normalizeRecordingReviewFields(value) {
+        const fields = {
+            recording_text: false,
+            recording_ipa: false
+        };
+        if (!value) { return fields; }
+        if (Array.isArray(value)) {
+            value.forEach(function (field) {
+                if (field === 'recording_text' || field === 'text' || field === 'orthography') {
+                    fields.recording_text = true;
+                } else if (field === 'recording_ipa' || field === 'ipa' || field === 'transcription') {
+                    fields.recording_ipa = true;
+                }
+            });
+            return fields;
+        }
+        if (typeof value === 'object') {
+            fields.recording_text = !!(value.recording_text || value.text || value.orthography);
+            fields.recording_ipa = !!(value.recording_ipa || value.ipa || value.transcription);
+        }
+        return fields;
+    }
+
+    function getRecordingReviewFields($recording) {
+        const fields = {};
+        $recording.find('[data-ll-recording-review-toggle]').each(function () {
+            const $btn = $(this);
+            const field = ($btn.attr('data-review-field') || '').toString();
+            if ((field === 'recording_text' || field === 'recording_ipa') && ($btn.attr('aria-pressed') || 'false') === 'true') {
+                fields[field] = true;
+            }
+        });
+        return fields;
+    }
+
+    function setRecordingReviewToggle($recording, field, active) {
+        const $wrap = $recording.find('[data-ll-recording-review-field="' + field + '"]').first();
+        const $btn = $recording.find('[data-ll-recording-review-toggle][data-review-field="' + field + '"]').first();
+        $wrap.toggleClass('is-needs-review', !!active);
+        if ($btn.length) {
+            const label = active
+                ? ($btn.attr('data-review-on-label') || $btn.attr('aria-label') || '')
+                : ($btn.attr('data-review-off-label') || $btn.attr('aria-label') || '');
+            $btn.attr({
+                'aria-pressed': active ? 'true' : 'false',
+                'aria-label': label,
+                title: label
+            });
+        }
+    }
+
+    function applyRecordingReviewFields($recording, reviewFields, reviewNote) {
+        const fields = normalizeRecordingReviewFields(reviewFields);
+        setRecordingReviewToggle($recording, 'recording_text', fields.recording_text);
+        setRecordingReviewToggle($recording, 'recording_ipa', fields.recording_ipa);
+        const $note = $recording.find('[data-ll-recording-review-note]').first();
+        if (!fields.recording_text && !fields.recording_ipa) {
+            $note.remove();
+        } else if (typeof reviewNote === 'string' && reviewNote.trim() !== '') {
+            if ($note.length) {
+                $note.text(reviewNote);
+            } else {
+                $('<div>', {
+                    class: 'll-word-edit-review-note',
+                    'data-ll-recording-review-note': '1',
+                    text: reviewNote
+                }).insertAfter($recording.find('.ll-word-edit-recording-header').first());
+            }
+        }
+    }
+
+    function getRecordingCaptionParts(text, translation, ipa, reviewFields) {
         const cleanText = (text || '').toString().trim();
         const cleanTranslation = (translation || '').toString().trim();
         const cleanIpa = normalizeIpaOutput(ipa);
@@ -3878,6 +3969,7 @@
             text: cleanText,
             translation: cleanTranslation,
             ipa: cleanIpa,
+            reviewFields: normalizeRecordingReviewFields(reviewFields),
             hasCaption: !!(cleanText || cleanTranslation || cleanIpa)
         };
     }
@@ -3920,6 +4012,7 @@
                 $main = $('<span>', { class: 'll-word-recording-text-main', dir: 'auto' }).appendTo($textWrap);
             }
             $main.attr('dir', 'auto');
+            $main.toggleClass('ll-word-recording-text-main--needs-review', !!(parts.reviewFields && parts.reviewFields.recording_text));
             $main.text(protectMaqafNoBreak(parts.text));
         } else {
             $main.remove();
@@ -3942,6 +4035,7 @@
                 $ipa = $('<span>', { class: 'll-word-recording-ipa' }).appendTo($textWrap);
             }
             $ipa.toggleClass('ll-ipa', secondaryTextUsesIpaFont);
+            $ipa.toggleClass('ll-word-recording-ipa--needs-review', !!(parts.reviewFields && parts.reviewFields.recording_ipa));
             $ipa.text(normalizeIpaOutput(parts.ipa));
         } else {
             $ipa.remove();
@@ -5586,7 +5680,7 @@
         recordings.forEach(function (rec) {
             const recId = parseInt(rec.id, 10) || 0;
             if (!recId) { return; }
-            const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation, rec.recording_ipa);
+            const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation, rec.recording_ipa, rec.review_fields);
             captionMap[recId] = caption;
             if (caption.hasCaption) {
                 hasCaption = true;
@@ -8143,6 +8237,21 @@
             }
         });
 
+        $grids.on('click', '[data-ll-recording-review-toggle]', function () {
+            const $btn = $(this);
+            const field = ($btn.attr('data-review-field') || '').toString();
+            const $recording = $btn.closest('.ll-word-edit-recording');
+            if (!$recording.length || (field !== 'recording_text' && field !== 'recording_ipa')) {
+                return;
+            }
+            const nextActive = ($btn.attr('aria-pressed') || 'false') !== 'true';
+            setRecordingReviewToggle($recording, field, nextActive);
+            const fields = getRecordingReviewFields($recording);
+            if (!fields.recording_text && !fields.recording_ipa) {
+                $recording.find('[data-ll-recording-review-note]').remove();
+            }
+        });
+
         document.addEventListener('selectionchange', function () {
             if (!activeIpaInput) { return; }
             if (document.activeElement !== activeIpaInput) { return; }
@@ -8285,7 +8394,7 @@
                 const text = ($rec.find('[data-ll-recording-input="text"]').val() || '').toString();
                 const translation = ($rec.find('[data-ll-recording-input="translation"]').val() || '').toString();
                 const ipa = normalizeIpaForStorage(($rec.find('[data-ll-recording-input="ipa"]').val() || '').toString());
-                recordings.push({ id: recId, text: text, translation: translation, ipa: ipa });
+                recordings.push({ id: recId, text: text, translation: translation, ipa: ipa, review_fields: getRecordingReviewFields($rec) });
             });
 
             const $saveBtn = $(this);
@@ -8319,7 +8428,8 @@
                         id: entry.id,
                         recording_text: entry.text,
                         recording_translation: entry.translation,
-                        recording_ipa: normalizeIpaOutput(entry.ipa)
+                        recording_ipa: normalizeIpaOutput(entry.ipa),
+                        review_fields: entry.review_fields
                     };
                 }));
             }
@@ -8422,6 +8532,9 @@
                         if (typeof rec.recording_ipa === 'string') {
                             $rec.find('[data-ll-recording-input="ipa"]').val(rec.recording_ipa);
                         }
+                        if (rec.review_fields) {
+                            applyRecordingReviewFields($rec, rec.review_fields, rec.review_note || '');
+                        }
                     });
                     applyRecordingCaptions($item, data.recordings);
                 }
@@ -8499,13 +8612,16 @@
                 if (typeof rec.recording_ipa === 'string') {
                     $rec.find('[data-ll-recording-input="ipa"]').val(rec.recording_ipa);
                 }
+                if (rec.review_fields) {
+                    applyRecordingReviewFields($rec, rec.review_fields, rec.review_note || '');
+                }
                 const recordings = collectRecordingInputs($item);
                 applyRecordingCaptions($item, recordings);
                 updateOriginalInputs($item);
             } else {
                 const $row = $item.find('.ll-word-recording-row[data-recording-id="' + recId + '"]');
                 if ($row.length) {
-                    const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation, rec.recording_ipa);
+                    const caption = getRecordingCaptionParts(rec.recording_text, rec.recording_translation, rec.recording_ipa, rec.review_fields);
                     renderRecordingCaption($row, caption);
                 }
             }
@@ -8631,12 +8747,17 @@
                 const text = $row.find('.ll-word-recording-text-main').text() || '';
                 const translation = $row.find('.ll-word-recording-text-translation').text() || '';
                 const ipa = $row.find('.ll-word-recording-ipa').text() || '';
+                const reviewFields = {
+                    recording_text: $row.find('.ll-word-recording-text-main--needs-review').length > 0,
+                    recording_ipa: $row.find('.ll-word-recording-ipa--needs-review').length > 0
+                };
                 renderRecordingCaption(
                     $row,
                     getRecordingCaptionParts(
                         transcribeTargetField === 'recording_text' ? '' : text,
                         transcribeTargetField === 'recording_text' ? '' : translation,
-                        transcribeTargetField === 'recording_ipa' ? '' : ipa
+                        transcribeTargetField === 'recording_ipa' ? '' : ipa,
+                        reviewFields
                     )
                 );
                 updateRecordingRowWidths();

@@ -2989,7 +2989,9 @@ function ll_tools_import_history_created_summary(array $stats): string {
             'word_images_updated' => __('Word images updated: %d', 'll-tools-text-domain'),
             'words_updated' => __('Words updated: %d', 'll-tools-text-domain'),
             'word_audio_updated' => __('Audio entries updated: %d', 'll-tools-text-domain'),
+            'metadata_transcription_reviews_flagged' => __('Transcription reviews flagged: %d', 'll-tools-text-domain'),
             'metadata_ipa_reviews_flagged' => __('IPA reviews flagged: %d', 'll-tools-text-domain'),
+            'metadata_review_notes_updated' => __('Review notes updated: %d', 'll-tools-text-domain'),
         ];
         foreach ($updated_map as $key => $label) {
             $value = isset($stats[$key]) ? (int) $stats[$key] : 0;
@@ -3337,7 +3339,9 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     'metadata_rows_skipped',
                     'metadata_fields_updated',
                     'metadata_fields_cleared',
+                    'metadata_transcription_reviews_flagged',
                     'metadata_ipa_reviews_flagged',
+                    'metadata_review_notes_updated',
                 ] as $key) {
                     if (!empty($stats[$key])) {
                         $stat_bits[] = esc_html($stats[$key] . ' ' . str_replace('_', ' ', $key));
@@ -4080,7 +4084,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                 <label for="ll_import_metadata_mark_ipa_review">
                     <input type="hidden" name="ll_import_metadata_mark_ipa_review" value="0">
                     <input type="checkbox" name="ll_import_metadata_mark_ipa_review" id="ll_import_metadata_mark_ipa_review" value="1" checked="checked">
-                    <?php esc_html_e('Mark imported IPA transcription changes as needing review', 'll-tools-text-domain'); ?>
+                    <?php esc_html_e('Mark imported transcription changes as needing review', 'll-tools-text-domain'); ?>
                 </label>
             </p>
             <p class="description"><?php esc_html_e('Enabled by default so Transcription Manager shows the review notification and opens the filtered review list for these updated recordings.', 'll-tools-text-domain'); ?></p>
@@ -4145,8 +4149,13 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                     <li><?php echo esc_html(sprintf(__('Audio entries to update: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['word_audio_updated'] ?? 0))); ?></li>
                     <li><?php echo esc_html(sprintf(__('Fields to update: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_fields_updated'] ?? 0))); ?></li>
                     <li><?php echo esc_html(sprintf(__('Fields to clear: %d', 'll-tools-text-domain'), (int) ($metadata_preview_stats['metadata_fields_cleared'] ?? 0))); ?></li>
-                    <?php if (!empty($metadata_preview_stats['metadata_ipa_reviews_flagged'])) : ?>
+                    <?php if (!empty($metadata_preview_stats['metadata_transcription_reviews_flagged'])) : ?>
+                        <li><?php echo esc_html(sprintf(__('Transcription review flags to set: %d', 'll-tools-text-domain'), (int) $metadata_preview_stats['metadata_transcription_reviews_flagged'])); ?></li>
+                    <?php elseif (!empty($metadata_preview_stats['metadata_ipa_reviews_flagged'])) : ?>
                         <li><?php echo esc_html(sprintf(__('IPA review flags to set: %d', 'll-tools-text-domain'), (int) $metadata_preview_stats['metadata_ipa_reviews_flagged'])); ?></li>
+                    <?php endif; ?>
+                    <?php if (!empty($metadata_preview_stats['metadata_review_notes_updated'])) : ?>
+                        <li><?php echo esc_html(sprintf(__('Review notes to update: %d', 'll-tools-text-domain'), (int) $metadata_preview_stats['metadata_review_notes_updated'])); ?></li>
                     <?php endif; ?>
                 </ul>
 
@@ -4189,7 +4198,7 @@ function ll_tools_render_export_import_page(string $mode = 'both') {
                         <label for="ll_import_metadata_mark_ipa_review_confirm">
                             <input type="hidden" name="ll_import_metadata_mark_ipa_review" value="0">
                             <input type="checkbox" name="ll_import_metadata_mark_ipa_review" id="ll_import_metadata_mark_ipa_review_confirm" value="1" <?php checked($metadata_preview_mark_review); ?>>
-                            <?php esc_html_e('Mark imported IPA transcription changes as needing review', 'll-tools-text-domain'); ?>
+                            <?php esc_html_e('Mark imported transcription changes as needing review', 'll-tools-text-domain'); ?>
                         </label>
                     </p>
                     <p class="description"><?php esc_html_e('Enabled by default so Transcription Manager shows the review notification and opens the filtered review list for these updated recordings.', 'll-tools-text-domain'); ?></p>
@@ -7211,6 +7220,8 @@ function ll_tools_get_metadata_update_column_aliases(): array {
         'text' => ['text'],
         'text_field' => ['text field'],
         'clear_fields' => ['clear fields', 'clear', 'unset fields'],
+        'review_fields' => ['review fields', 'needs review fields', 'transcription review fields'],
+        'review_note' => ['review note', 'transcription review note', 'temporary review note'],
         'word_title' => ['word title', 'title', 'post title'],
         'word_translation' => ['word translation', 'translation', 'gloss'],
         'word_example_sentence' => ['word example sentence', 'example sentence'],
@@ -7281,6 +7292,46 @@ function ll_tools_metadata_update_parse_clear_fields($value): array {
     return array_values(array_keys($resolved));
 }
 
+function ll_tools_metadata_update_parse_review_fields($value): array {
+    if (is_array($value)) {
+        $parts = $value;
+    } else {
+        $raw = ll_tools_metadata_update_extract_scalar_value($value);
+        $parts = $raw === '' ? [] : preg_split('/[,;|]/', $raw);
+    }
+
+    if (function_exists('ll_tools_ipa_keyboard_normalize_review_fields')) {
+        return ll_tools_ipa_keyboard_normalize_review_fields($parts);
+    }
+
+    $resolved = [];
+    foreach ((array) $parts as $part_raw) {
+        $field = sanitize_key((string) $part_raw);
+        if (in_array($field, ['recording_text', 'recordingtext', 'text', 'orthography', 'ortho'], true)) {
+            $resolved['recording_text'] = true;
+        } elseif (in_array($field, ['recording_ipa', 'recordingipa', 'ipa', 'transcription', 'pronunciation', 'phonetic'], true)) {
+            $resolved['recording_ipa'] = true;
+        }
+    }
+
+    return array_values(array_keys($resolved));
+}
+
+function ll_tools_metadata_update_review_meta_keys(): array {
+    $keys = [];
+    foreach ([
+        'll_tools_ipa_keyboard_auto_review_meta_key',
+        'll_tools_ipa_keyboard_review_fields_meta_key',
+        'll_tools_ipa_keyboard_review_note_meta_key',
+    ] as $function_name) {
+        if (function_exists($function_name)) {
+            $keys[] = (string) $function_name();
+        }
+    }
+
+    return array_values(array_unique(array_filter($keys)));
+}
+
 function ll_tools_metadata_update_pick_recording_type($value): string {
     if (is_array($value)) {
         $parts = $value;
@@ -7335,6 +7386,8 @@ function ll_tools_metadata_update_normalize_input_row(array $row, int $row_numbe
         'text' => '',
         'text_field' => '',
         'clear_fields' => [],
+        'review_fields' => [],
+        'review_note' => '',
         'updates' => [],
     ];
 
@@ -7374,6 +7427,10 @@ function ll_tools_metadata_update_normalize_input_row(array $row, int $row_numbe
     $allowed_text_fields = ['recording_text', 'recording_ipa', 'recording_translation', 'word_title', 'word_translation'];
     $normalized['text_field'] = in_array($text_field_candidate, $allowed_text_fields, true) ? $text_field_candidate : '';
     $normalized['clear_fields'] = ll_tools_metadata_update_parse_clear_fields($flat['clear_fields'] ?? []);
+    $normalized['review_fields'] = ll_tools_metadata_update_parse_review_fields($flat['review_fields'] ?? []);
+    $normalized['review_note'] = isset($flat['review_note'])
+        ? sanitize_textarea_field(ll_tools_metadata_update_extract_scalar_value($flat['review_note']))
+        : '';
 
     if ($normalized['recording_id'] <= 0 && $normalized['audio'] !== '') {
         $normalized['recording_id'] = ll_tools_metadata_update_extract_recording_id_from_audio_reference($normalized['audio']);
@@ -7405,7 +7462,9 @@ function ll_tools_metadata_update_row_is_blank(array $row): bool {
         && empty($row['recording_type'])
         && empty($row['audio'])
         && empty($row['updates'])
-        && empty($row['clear_fields']);
+        && empty($row['clear_fields'])
+        && empty($row['review_fields'])
+        && empty($row['review_note']);
 }
 
 function ll_tools_parse_metadata_updates_file(string $file_path, string $source_name = '') {
@@ -8001,10 +8060,15 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
         $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
         $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
         $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
+        $explicit_review_fields = isset($row['review_fields']) && is_array($row['review_fields']) ? $row['review_fields'] : [];
+        $review_note = isset($row['review_note']) ? sanitize_textarea_field((string) $row['review_note']) : '';
 
         $target_requirements = ll_tools_metadata_update_get_row_target_requirements($updates, $clear_fields, $supported_fields);
         $needs_word = !empty($target_requirements['needs_word']);
         $needs_recording = !empty($target_requirements['needs_recording']);
+        if (!empty($explicit_review_fields) || $review_note !== '') {
+            $needs_recording = true;
+        }
 
         if (!$needs_word && !$needs_recording) {
             $preview['stats']['metadata_rows_skipped']++;
@@ -8023,7 +8087,7 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
         $row_changed = false;
         $word_changed_this_row = false;
         $recording_changed_this_row = false;
-        $recording_ipa_updated_this_row = false;
+        $recording_review_fields_updated_this_row = [];
 
         if ($needs_word && $resolved_word_id > 0) {
             foreach ($supported_fields as $field_key => $field_config) {
@@ -8107,8 +8171,8 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
                 $recording_changed_this_row = true;
                 $row_changed = true;
 
-                if ($field_key === 'recording_ipa' && !$clear_requested) {
-                    $recording_ipa_updated_this_row = true;
+                if (in_array($field_key, ['recording_text', 'recording_ipa'], true) && !$clear_requested) {
+                    $recording_review_fields_updated_this_row[$field_key] = true;
                 }
 
                 if ($clear_requested) {
@@ -8126,21 +8190,54 @@ function ll_tools_build_metadata_update_preview_data(string $file_path, string $
                 ]);
             }
 
-            if (
-                $mark_imported_ipa_review
-                && $recording_ipa_updated_this_row
-                && function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
-            ) {
-                $review_meta_key = ll_tools_ipa_keyboard_auto_review_meta_key();
-                $review_state_key = ll_tools_metadata_update_preview_value_state_key('recording', $resolved_recording_id, '__auto_review__');
+            $review_fields_to_mark = [];
+            if ($mark_imported_ipa_review) {
+                foreach (array_keys($recording_review_fields_updated_this_row) as $field_key) {
+                    $review_fields_to_mark[$field_key] = true;
+                }
+            }
+            foreach ($explicit_review_fields as $field_key) {
+                $review_fields_to_mark[$field_key] = true;
+            }
+            foreach (array_keys($review_fields_to_mark) as $field_key) {
+                $review_state_key = ll_tools_metadata_update_preview_value_state_key('recording', $resolved_recording_id, '__auto_review_' . $field_key . '__');
                 $review_current_value = array_key_exists($review_state_key, $planned_values)
                     ? (string) $planned_values[$review_state_key]
-                    : (string) get_post_meta($resolved_recording_id, $review_meta_key, true);
+                    : (function_exists('ll_tools_ipa_keyboard_recording_field_needs_review') && ll_tools_ipa_keyboard_recording_field_needs_review($resolved_recording_id, $field_key) ? '1' : '');
                 if ($review_current_value !== '1') {
                     $planned_values[$review_state_key] = '1';
                     $recording_changed_this_row = true;
                     $row_changed = true;
-                    $preview['stats']['metadata_ipa_reviews_flagged']++;
+                    $preview['stats']['metadata_transcription_reviews_flagged']++;
+                    if ($field_key === 'recording_ipa') {
+                        $preview['stats']['metadata_ipa_reviews_flagged']++;
+                    }
+                }
+            }
+            if ($review_note !== '' && !empty($review_fields_to_mark)) {
+                $review_note_key = ll_tools_metadata_update_preview_value_state_key('recording', $resolved_recording_id, '__auto_review_note__');
+                $current_note = array_key_exists($review_note_key, $planned_values)
+                    ? (string) $planned_values[$review_note_key]
+                    : (function_exists('ll_tools_ipa_keyboard_get_recording_review_note') ? ll_tools_ipa_keyboard_get_recording_review_note($resolved_recording_id) : '');
+                if ($current_note !== $review_note) {
+                    $planned_values[$review_note_key] = $review_note;
+                    $recording_changed_this_row = true;
+                    $row_changed = true;
+                    $preview['stats']['metadata_review_notes_updated']++;
+                }
+            }
+            if ($review_note !== '' && empty($review_fields_to_mark)) {
+                $has_existing_review = function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')
+                    && ll_tools_ipa_keyboard_recording_needs_auto_review($resolved_recording_id);
+                $review_note_key = ll_tools_metadata_update_preview_value_state_key('recording', $resolved_recording_id, '__auto_review_note__');
+                $current_note = array_key_exists($review_note_key, $planned_values)
+                    ? (string) $planned_values[$review_note_key]
+                    : (function_exists('ll_tools_ipa_keyboard_get_recording_review_note') ? ll_tools_ipa_keyboard_get_recording_review_note($resolved_recording_id) : '');
+                if ($has_existing_review && $current_note !== $review_note) {
+                    $planned_values[$review_note_key] = $review_note;
+                    $recording_changed_this_row = true;
+                    $row_changed = true;
+                    $preview['stats']['metadata_review_notes_updated']++;
                 }
             }
         }
@@ -8276,10 +8373,15 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                 $row_number = isset($row['row_number']) ? (int) $row['row_number'] : 0;
                 $updates = isset($row['updates']) && is_array($row['updates']) ? $row['updates'] : [];
                 $clear_fields = isset($row['clear_fields']) && is_array($row['clear_fields']) ? $row['clear_fields'] : [];
+                $explicit_review_fields = isset($row['review_fields']) && is_array($row['review_fields']) ? $row['review_fields'] : [];
+                $review_note = isset($row['review_note']) ? sanitize_textarea_field((string) $row['review_note']) : '';
 
             $target_requirements = ll_tools_metadata_update_get_row_target_requirements($updates, $clear_fields, $supported_fields);
             $needs_word = !empty($target_requirements['needs_word']);
             $needs_recording = !empty($target_requirements['needs_recording']);
+            if (!empty($explicit_review_fields) || $review_note !== '') {
+                $needs_recording = true;
+            }
 
             if (!$needs_word && !$needs_recording) {
                 $result['stats']['metadata_rows_skipped']++;
@@ -8431,7 +8533,7 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
 
             if ($needs_recording && $resolved_recording_id > 0) {
                 $recording_changed_this_row = false;
-                $recording_ipa_updated_this_row = false;
+                $recording_review_fields_updated_this_row = [];
 
                 foreach ($supported_fields as $field_key => $field_config) {
                     if (($field_config['target'] ?? '') !== 'recording') {
@@ -8495,31 +8597,83 @@ function ll_tools_process_metadata_updates_file(string $file_path, string $sourc
                     foreach ($meta_keys as $meta_key) {
                         update_post_meta($resolved_recording_id, $meta_key, $sanitized);
                     }
-                    if ($field_key === 'recording_ipa') {
-                        $recording_ipa_updated_this_row = true;
+                    if (in_array($field_key, ['recording_text', 'recording_ipa'], true)) {
+                        $recording_review_fields_updated_this_row[$field_key] = true;
                     }
                     $recording_changed_this_row = true;
                     $result['stats']['metadata_fields_updated']++;
                 }
 
-                if (
-                    $mark_imported_ipa_review
-                    && $recording_ipa_updated_this_row
-                    && function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')
-                    && function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
-                ) {
-                    $review_meta_key = ll_tools_ipa_keyboard_auto_review_meta_key();
-                    if ((string) get_post_meta($resolved_recording_id, $review_meta_key, true) !== '1') {
-                        ll_tools_import_track_post_undo_snapshot(
-                            $result,
-                            $resolved_recording_id,
-                            'word_audio',
-                            [],
-                            [$review_meta_key]
-                        );
-                        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($resolved_recording_id);
-                        $recording_changed_this_row = true;
-                        $result['stats']['metadata_ipa_reviews_flagged']++;
+                $review_fields_to_mark = [];
+                if ($mark_imported_ipa_review) {
+                    foreach (array_keys($recording_review_fields_updated_this_row) as $field_key) {
+                        $review_fields_to_mark[$field_key] = true;
+                    }
+                }
+                foreach ($explicit_review_fields as $field_key) {
+                    $review_fields_to_mark[$field_key] = true;
+                }
+
+                if (function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')) {
+                    $review_meta_keys = ll_tools_metadata_update_review_meta_keys();
+                    $review_snapshot_taken = false;
+                    $review_note_applied = false;
+                    foreach (array_keys($review_fields_to_mark) as $field_key) {
+                        $field_already_needs_review = function_exists('ll_tools_ipa_keyboard_recording_field_needs_review')
+                            && ll_tools_ipa_keyboard_recording_field_needs_review($resolved_recording_id, $field_key);
+                        $current_review_note = function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
+                            ? ll_tools_ipa_keyboard_get_recording_review_note($resolved_recording_id)
+                            : '';
+                        $review_note_will_change = $review_note !== '' && $current_review_note !== $review_note;
+                        if (!$field_already_needs_review || $review_note_will_change) {
+                            if (!$review_snapshot_taken && !empty($review_meta_keys)) {
+                                ll_tools_import_track_post_undo_snapshot(
+                                    $result,
+                                    $resolved_recording_id,
+                                    'word_audio',
+                                    [],
+                                    $review_meta_keys
+                                );
+                                $review_snapshot_taken = true;
+                            }
+                            ll_tools_ipa_keyboard_mark_recording_needs_auto_review($resolved_recording_id, $field_key, $review_note);
+                            $recording_changed_this_row = true;
+                            if (!$field_already_needs_review) {
+                                $result['stats']['metadata_transcription_reviews_flagged']++;
+                                if ($field_key === 'recording_ipa') {
+                                    $result['stats']['metadata_ipa_reviews_flagged']++;
+                                }
+                            }
+                            if ($review_note_will_change && !$review_note_applied) {
+                                $result['stats']['metadata_review_notes_updated']++;
+                                $review_note_applied = true;
+                            }
+                        }
+                    }
+
+                    if ($review_note !== '' && empty($review_fields_to_mark) && function_exists('ll_tools_ipa_keyboard_set_recording_review_note')) {
+                        $has_existing_review = function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')
+                            && ll_tools_ipa_keyboard_recording_needs_auto_review($resolved_recording_id);
+                        $current_review_note = function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
+                            ? ll_tools_ipa_keyboard_get_recording_review_note($resolved_recording_id)
+                            : '';
+                        if ($has_existing_review && $current_review_note !== $review_note) {
+                            if (!$review_snapshot_taken && !empty($review_meta_keys)) {
+                                ll_tools_import_track_post_undo_snapshot(
+                                    $result,
+                                    $resolved_recording_id,
+                                    'word_audio',
+                                    [],
+                                    $review_meta_keys
+                                );
+                                $review_snapshot_taken = true;
+                            }
+                            ll_tools_ipa_keyboard_set_recording_review_note($resolved_recording_id, $review_note);
+                            $recording_changed_this_row = true;
+                            if (!$review_note_applied) {
+                                $result['stats']['metadata_review_notes_updated']++;
+                            }
+                        }
                     }
                 }
 
@@ -11320,7 +11474,7 @@ function ll_tools_export_collect_audio_entries(array $word_ids): array {
         $stored_audio_path = (string) get_post_meta($audio_post->ID, 'audio_file_path', true);
         $speaker_user_id = (int) get_post_meta($audio_post->ID, 'speaker_user_id', true);
         $audio_attribution = ll_tools_export_collect_audio_attribution_fields((int) $audio_post->ID, $speaker_user_id);
-        $needs_review = ll_tools_export_recording_ipa_needs_review((int) $audio_post->ID);
+        $needs_review = ll_tools_export_recording_needs_review((int) $audio_post->ID);
 
         $entry = array_merge([
             'recording_id'          => (int) $audio_post->ID,
@@ -11805,6 +11959,10 @@ function ll_tools_export_get_stt_review_status(bool $needs_review): string {
 }
 
 function ll_tools_export_recording_ipa_needs_review(int $recording_id): bool {
+    return ll_tools_export_recording_field_needs_review($recording_id, 'recording_ipa');
+}
+
+function ll_tools_export_recording_needs_review(int $recording_id): bool {
     if ($recording_id <= 0) {
         return false;
     }
@@ -11820,7 +11978,34 @@ function ll_tools_export_recording_ipa_needs_review(int $recording_id): bool {
     return ((string) get_post_meta($recording_id, $review_meta_key, true) === '1');
 }
 
-function ll_tools_export_should_include_stt_recording(int $recording_id, bool $reviewed_only = true): bool {
+function ll_tools_export_recording_field_needs_review(int $recording_id, string $text_field = 'recording_ipa'): bool {
+    if ($recording_id <= 0) {
+        return false;
+    }
+
+    $review_field = '';
+    if ($text_field === 'recording_text') {
+        $review_field = 'recording_text';
+    } elseif ($text_field === 'recording_ipa') {
+        $review_field = 'recording_ipa';
+    }
+    if ($review_field === '') {
+        return false;
+    }
+
+    if (function_exists('ll_tools_ipa_keyboard_recording_field_needs_review')) {
+        return ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, $review_field);
+    }
+
+    $review_meta_key = function_exists('ll_tools_ipa_keyboard_auto_review_meta_key')
+        ? ll_tools_ipa_keyboard_auto_review_meta_key()
+        : 'll_auto_transcription_needs_review';
+
+    return $review_field === 'recording_ipa'
+        && ((string) get_post_meta($recording_id, $review_meta_key, true) === '1');
+}
+
+function ll_tools_export_should_include_stt_recording(int $recording_id, bool $reviewed_only = true, string $text_field = 'recording_ipa'): bool {
     if ($recording_id <= 0) {
         return false;
     }
@@ -11829,7 +12014,7 @@ function ll_tools_export_should_include_stt_recording(int $recording_id, bool $r
         return true;
     }
 
-    return !ll_tools_export_recording_ipa_needs_review($recording_id);
+    return !ll_tools_export_recording_field_needs_review($recording_id, $text_field);
 }
 
 function ll_tools_export_build_stt_training_entries(int $wordset_id, string $text_field, bool $reviewed_only = true): array {
@@ -11884,7 +12069,7 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
         $category_fields = ll_tools_export_collect_word_category_manifest_fields($word_id);
 
         foreach ($audio_by_word[$word_id] as $audio_post) {
-            if (!ll_tools_export_should_include_stt_recording((int) $audio_post->ID, $reviewed_only)) {
+            if (!ll_tools_export_should_include_stt_recording((int) $audio_post->ID, $reviewed_only, $text_field)) {
                 continue;
             }
 
@@ -11920,7 +12105,7 @@ function ll_tools_export_build_stt_training_entries(int $wordset_id, string $tex
             $filetype = wp_check_filetype($audio_basename, null);
             $mime_type = isset($filetype['type']) ? (string) $filetype['type'] : '';
             $recording_types = ll_tools_export_collect_post_term_slugs($audio_post->ID, 'recording_type');
-            $needs_review = ll_tools_export_recording_ipa_needs_review((int) $audio_post->ID);
+            $needs_review = ll_tools_export_recording_field_needs_review((int) $audio_post->ID, $text_field);
             $duration_seconds = ll_tools_export_get_stt_recording_duration_seconds((int) $audio_post->ID, $stored_audio_path);
 
             $entries[] = [
@@ -12203,7 +12388,9 @@ function ll_tools_import_default_stats(): array {
         'metadata_rows_skipped' => 0,
         'metadata_fields_updated' => 0,
         'metadata_fields_cleared' => 0,
+        'metadata_transcription_reviews_flagged' => 0,
         'metadata_ipa_reviews_flagged' => 0,
+        'metadata_review_notes_updated' => 0,
     ];
 }
 

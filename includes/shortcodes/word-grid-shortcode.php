@@ -18,6 +18,7 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
     if (empty($word_ids)) {
         return [];
     }
+    $can_view_review_transcriptions = current_user_can('view_ll_tools');
 
     $audio_posts = get_posts([
         'post_type'      => 'word_audio',
@@ -94,10 +95,34 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
         $recording_text = '';
         $recording_translation = '';
         $recording_ipa = '';
+        $recording_review_fields = [
+            'recording_text' => false,
+            'recording_ipa' => false,
+        ];
+        $recording_review_note = '';
         if ($include_meta) {
             $recording_text = get_post_meta($audio_post->ID, 'recording_text', true);
             $recording_translation = get_post_meta($audio_post->ID, 'recording_translation', true);
             $recording_ipa = get_post_meta($audio_post->ID, 'recording_ipa', true);
+            if (function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')) {
+                $recording_review_fields = ll_tools_ipa_keyboard_get_recording_review_fields((int) $audio_post->ID);
+            } elseif (function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review') && ll_tools_ipa_keyboard_recording_needs_auto_review((int) $audio_post->ID)) {
+                $recording_review_fields['recording_ipa'] = true;
+            }
+            if (!$can_view_review_transcriptions) {
+                if (!empty($recording_review_fields['recording_text'])) {
+                    $recording_text = '';
+                }
+                if (!empty($recording_review_fields['recording_ipa'])) {
+                    $recording_ipa = '';
+                }
+                $recording_review_fields = [
+                    'recording_text' => false,
+                    'recording_ipa' => false,
+                ];
+            } elseif (function_exists('ll_tools_ipa_keyboard_get_recording_review_note')) {
+                $recording_review_note = ll_tools_ipa_keyboard_get_recording_review_note((int) $audio_post->ID);
+            }
         }
 
         foreach ($recording_types as $type) {
@@ -124,6 +149,9 @@ function ll_tools_word_grid_collect_audio_files(array $word_ids, bool $include_m
                 $entry['recording_text'] = $recording_text;
                 $entry['recording_translation'] = $recording_translation;
                 $entry['recording_ipa'] = $recording_ipa;
+                $entry['review_fields'] = $recording_review_fields;
+                $entry['needs_review'] = !empty(array_filter($recording_review_fields));
+                $entry['review_note'] = $recording_review_note;
             }
             $audio_by_word[$parent_id][] = $entry;
         }
@@ -4637,6 +4665,11 @@ function ll_tools_word_grid_shortcode($atts) {
         'recordings'  => __('Recordings', 'll-tools-text-domain'),
         'text'        => ll_tools_word_grid_label_with_code(__('Text', 'll-tools-text-domain'), $target_lang_code),
         'ipa'         => ll_tools_word_grid_label_with_code($secondary_text_label, $target_lang_code),
+        'mark_text_review' => __('Mark text for review', 'll-tools-text-domain'),
+        'clear_text_review' => __('Clear text review flag', 'll-tools-text-domain'),
+        'mark_ipa_review' => __('Mark pronunciation for review', 'll-tools-text-domain'),
+        'clear_ipa_review' => __('Clear pronunciation review flag', 'll-tools-text-domain'),
+        'review_note' => __('Review note', 'll-tools-text-domain'),
         'ipa_superscript' => __('Superscript selection', 'll-tools-text-domain'),
         'processing'  => __('Audio processing', 'll-tools-text-domain'),
         'process_audio' => __('Process audio', 'll-tools-text-domain'),
@@ -4952,6 +4985,9 @@ function ll_tools_word_grid_shortcode($atts) {
                 $recording_text = trim((string) ($entry['recording_text'] ?? ''));
                 $recording_translation = trim((string) ($entry['recording_translation'] ?? ''));
                 $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''), $transcription_mode);
+                $recording_review_fields = isset($entry['review_fields']) && is_array($entry['review_fields'])
+                    ? (array) $entry['review_fields']
+                    : ['recording_text' => false, 'recording_ipa' => false];
                 if ($recording_text !== '' || $recording_translation !== '' || $recording_ipa !== '') {
                     $has_recording_caption = true;
                 }
@@ -4979,6 +5015,7 @@ function ll_tools_word_grid_shortcode($atts) {
                     'text' => $recording_text,
                     'translation' => $recording_translation,
                     'ipa' => $recording_ipa,
+                    'review_fields' => $recording_review_fields,
                     'id' => !empty($entry['id']) ? (int) $entry['id'] : 0,
                     'edit_label' => $recording_edit_label,
                 ];
@@ -4995,6 +5032,8 @@ function ll_tools_word_grid_shortcode($atts) {
                         'processing_source_audio_url' => (string) ($entry['processing_source_url'] ?? $audio_url),
                         'uses_original_audio' => !empty($entry['uses_original_audio']),
                         'has_original_audio' => !empty($entry['has_original_audio']),
+                        'review_fields' => $recording_review_fields,
+                        'review_note' => (string) ($entry['review_note'] ?? ''),
                     ];
                 }
             }
@@ -5019,6 +5058,9 @@ function ll_tools_word_grid_shortcode($atts) {
                     $recording_text = trim((string) ($entry['recording_text'] ?? ''));
                     $recording_translation = trim((string) ($entry['recording_translation'] ?? ''));
                     $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($entry['recording_ipa'] ?? ''), $transcription_mode);
+                    $recording_review_fields = isset($entry['review_fields']) && is_array($entry['review_fields'])
+                        ? (array) $entry['review_fields']
+                        : ['recording_text' => false, 'recording_ipa' => false];
                     if ($recording_text !== '' || $recording_translation !== '' || $recording_ipa !== '') {
                         $has_recording_caption = true;
                     }
@@ -5046,6 +5088,7 @@ function ll_tools_word_grid_shortcode($atts) {
                         'text' => $recording_text,
                         'translation' => $recording_translation,
                         'ipa' => $recording_ipa,
+                        'review_fields' => $recording_review_fields,
                         'id' => !empty($entry['id']) ? (int) $entry['id'] : 0,
                         'edit_label' => $recording_edit_label,
                     ];
@@ -5062,6 +5105,8 @@ function ll_tools_word_grid_shortcode($atts) {
                             'processing_source_audio_url' => (string) ($entry['processing_source_url'] ?? $audio_url),
                             'uses_original_audio' => !empty($entry['uses_original_audio']),
                             'has_original_audio' => !empty($entry['has_original_audio']),
+                            'review_fields' => $recording_review_fields,
+                            'review_note' => (string) ($entry['review_note'] ?? ''),
                         ];
                     }
                 }
@@ -5427,6 +5472,14 @@ function ll_tools_word_grid_shortcode($atts) {
                         $recording_text = (string) ($recording['text'] ?? '');
                         $recording_translation = (string) ($recording['translation'] ?? '');
                         $recording_ipa = ll_tools_word_grid_normalize_ipa_output((string) ($recording['ipa'] ?? ''), $transcription_mode);
+                        $recording_review_fields = isset($recording['review_fields']) && is_array($recording['review_fields'])
+                            ? (array) $recording['review_fields']
+                            : ['recording_text' => false, 'recording_ipa' => false];
+                        $recording_text_needs_review = !empty($recording_review_fields['recording_text']);
+                        $recording_ipa_needs_review = !empty($recording_review_fields['recording_ipa']);
+                        $recording_review_note = (string) ($recording['review_note'] ?? '');
+                        $recording_text_review_label = $recording_text_needs_review ? $edit_labels['clear_text_review'] : $edit_labels['mark_text_review'];
+                        $recording_ipa_review_label = $recording_ipa_needs_review ? $edit_labels['clear_ipa_review'] : $edit_labels['mark_ipa_review'];
                         $recording_audio_url = (string) ($recording['audio_url'] ?? '');
                         $processing_source_audio_url = (string) ($recording['processing_source_audio_url'] ?? $recording_audio_url);
                         if ($processing_source_audio_url === '') {
@@ -5469,6 +5522,9 @@ function ll_tools_word_grid_shortcode($atts) {
                         echo '</button>';
                         echo '</div>';
                         echo '</div>';
+                        if ($recording_review_note !== '' && ($recording_text_needs_review || $recording_ipa_needs_review)) {
+                            echo '<div class="ll-word-edit-review-note" data-ll-recording-review-note>' . esc_html($recording_review_note) . '</div>';
+                        }
                         echo '<div class="ll-word-edit-recording-confirm ll-word-edit-recording-confirm--delete" data-ll-recording-delete-confirm hidden>';
                         echo '<span class="ll-word-edit-confirm-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
                         echo '<span class="ll-word-edit-confirm-text">' . esc_html($edit_labels['delete_recording_prompt']) . '</span>';
@@ -5486,11 +5542,20 @@ function ll_tools_word_grid_shortcode($atts) {
                         echo '<div class="ll-word-edit-recording-move-status" data-ll-recording-move-status aria-live="polite"></div>';
                         echo '</div>';
                         echo '<div class="ll-word-edit-recording-fields">';
+                        echo '<div class="ll-word-edit-review-field' . ($recording_text_needs_review ? ' is-needs-review' : '') . '" data-ll-recording-review-field="recording_text">';
+                        echo '<div class="ll-word-edit-field-row">';
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_text_id) . '">' . esc_html($edit_labels['text']) . '</label>';
+                        echo '<button type="button" class="ll-word-edit-review-toggle" data-ll-recording-review-toggle data-review-field="recording_text" data-review-on-label="' . esc_attr($edit_labels['clear_text_review']) . '" data-review-off-label="' . esc_attr($edit_labels['mark_text_review']) . '" aria-pressed="' . ($recording_text_needs_review ? 'true' : 'false') . '" aria-label="' . esc_attr($recording_text_review_label) . '" title="' . esc_attr($recording_text_review_label) . '"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M12 8v5M12 17h.01M10.3 4.8 3.3 17a2 2 0 0 0 1.7 3h14a2 2 0 0 0 1.7-3l-7-12.2a2 2 0 0 0-3.4 0Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+                        echo '</div>';
                         echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($recording_text_id) . '" data-ll-recording-input="text" value="' . esc_attr($recording_text) . '" />';
+                        echo '</div>';
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_translation_id) . '">' . esc_html($edit_labels['translation']) . '</label>';
                         echo '<input type="text" class="ll-word-edit-input" id="' . esc_attr($recording_translation_id) . '" data-ll-recording-input="translation" value="' . esc_attr($recording_translation) . '" />';
+                        echo '<div class="ll-word-edit-review-field' . ($recording_ipa_needs_review ? ' is-needs-review' : '') . '" data-ll-recording-review-field="recording_ipa">';
+                        echo '<div class="ll-word-edit-field-row">';
                         echo '<label class="ll-word-edit-label" for="' . esc_attr($recording_ipa_id) . '">' . esc_html($edit_labels['ipa']) . '</label>';
+                        echo '<button type="button" class="ll-word-edit-review-toggle" data-ll-recording-review-toggle data-review-field="recording_ipa" data-review-on-label="' . esc_attr($edit_labels['clear_ipa_review']) . '" data-review-off-label="' . esc_attr($edit_labels['mark_ipa_review']) . '" aria-pressed="' . ($recording_ipa_needs_review ? 'true' : 'false') . '" aria-label="' . esc_attr($recording_ipa_review_label) . '" title="' . esc_attr($recording_ipa_review_label) . '"><svg viewBox="0 0 24 24" focusable="false" aria-hidden="true"><path d="M12 8v5M12 17h.01M10.3 4.8 3.3 17a2 2 0 0 0 1.7 3h14a2 2 0 0 0 1.7-3l-7-12.2a2 2 0 0 0-3.4 0Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+                        echo '</div>';
                         if ($recording_audio_url !== '') {
                             echo '<div class="ll-word-edit-ipa-audio" data-ll-ipa-audio aria-hidden="true">';
                             echo '<div class="ll-word-edit-ipa-waveform" data-ll-ipa-waveform aria-hidden="true">';
@@ -5532,6 +5597,7 @@ function ll_tools_word_grid_shortcode($atts) {
                             echo '<button type="button" class="ll-word-edit-ipa-superscript" data-ll-ipa-superscript aria-hidden="true" aria-label="' . esc_attr($edit_labels['ipa_superscript']) . '" title="' . esc_attr($edit_labels['ipa_superscript']) . '"><span aria-hidden="true">x&sup2;</span></button>';
                         }
                         echo '<div class="ll-word-edit-ipa-keyboard" data-ll-ipa-keyboard aria-hidden="true" aria-label="' . esc_attr((string) ($transcription_config['keyboard_aria_label'] ?? __('IPA symbols', 'll-tools-text-domain'))) . '"></div>';
+                        echo '</div>';
                         echo '</div>';
                         echo '</div>';
                     }
@@ -5597,15 +5663,26 @@ function ll_tools_word_grid_shortcode($atts) {
                         $recordings_html .= '<div class="' . esc_attr($row_classes) . '"' . $row_id_attr . '>';
                         $recordings_html .= $row['button'];
                         if (!empty($row['text']) || !empty($row['translation']) || !empty($row['ipa'])) {
+                            $row_review_fields = isset($row['review_fields']) && is_array($row['review_fields'])
+                                ? (array) $row['review_fields']
+                                : [];
                             $recordings_html .= '<span class="ll-word-recording-text">';
                             if (!empty($row['text'])) {
-                                $recordings_html .= '<span class="ll-word-recording-text-main" dir="auto">' . ll_tools_esc_html_display($row['text']) . '</span>';
+                                $text_class = 'll-word-recording-text-main';
+                                if (!empty($row_review_fields['recording_text'])) {
+                                    $text_class .= ' ll-word-recording-text-main--needs-review';
+                                }
+                                $recordings_html .= '<span class="' . esc_attr($text_class) . '" dir="auto">' . ll_tools_esc_html_display($row['text']) . '</span>';
                             }
                             if (!empty($row['translation'])) {
                                 $recordings_html .= '<span class="ll-word-recording-text-translation" dir="auto">' . ll_tools_esc_html_display($row['translation']) . '</span>';
                             }
                             if (!empty($row['ipa'])) {
-                                $recordings_html .= '<span class="ll-word-recording-ipa' . ($secondary_text_uses_ipa_font ? ' ll-ipa' : '') . '">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa'], $transcription_mode) . '</span>';
+                                $ipa_class = 'll-word-recording-ipa' . ($secondary_text_uses_ipa_font ? ' ll-ipa' : '');
+                                if (!empty($row_review_fields['recording_ipa'])) {
+                                    $ipa_class .= ' ll-word-recording-ipa--needs-review';
+                                }
+                                $recordings_html .= '<span class="' . esc_attr($ipa_class) . '">' . ll_tools_word_grid_format_ipa_display_html((string) $row['ipa'], $transcription_mode) . '</span>';
                             }
                             $recordings_html .= '</span>';
                         }
@@ -5681,11 +5758,32 @@ function ll_tools_word_grid_parse_recordings_payload($raw, string $transcription
         if ($recording_id <= 0) {
             continue;
         }
+        $text_value = array_key_exists('text', $entry) ? $entry['text'] : ($entry['recording_text'] ?? '');
+        $translation_value = array_key_exists('translation', $entry) ? $entry['translation'] : ($entry['recording_translation'] ?? '');
+        $ipa_value = array_key_exists('ipa', $entry) ? $entry['ipa'] : ($entry['recording_ipa'] ?? '');
+        $review_fields = [];
+        $review_fields_submitted = array_key_exists('review_fields', $entry);
+        if ($review_fields_submitted) {
+            if (function_exists('ll_tools_ipa_keyboard_normalize_review_fields')) {
+                $review_fields = ll_tools_ipa_keyboard_normalize_review_fields($entry['review_fields']);
+            } else {
+                foreach ((array) $entry['review_fields'] as $field => $enabled) {
+                    if (!$enabled) {
+                        continue;
+                    }
+                    if (is_string($field) && in_array($field, ['recording_text', 'recording_ipa'], true)) {
+                        $review_fields[] = $field;
+                    }
+                }
+            }
+        }
         $parsed[] = [
             'id' => $recording_id,
-            'text' => sanitize_text_field($entry['text'] ?? ''),
-            'translation' => sanitize_text_field($entry['translation'] ?? ''),
-            'ipa' => ll_tools_word_grid_sanitize_ipa((string) ($entry['ipa'] ?? ''), $transcription_mode),
+            'text' => sanitize_text_field((string) $text_value),
+            'translation' => sanitize_text_field((string) $translation_value),
+            'ipa' => ll_tools_word_grid_sanitize_ipa((string) $ipa_value, $transcription_mode),
+            'review_fields' => array_values(array_unique($review_fields)),
+            'review_fields_submitted' => $review_fields_submitted,
         ];
     }
 
@@ -7101,7 +7199,7 @@ function ll_tools_word_grid_update_word_handler() {
         $recording_text = (string) ($recording['text'] ?? '');
         $recording_translation = (string) ($recording['translation'] ?? '');
         $recording_ipa = (string) ($recording['ipa'] ?? '');
-        $previous_recording_ipa = (string) get_post_meta($recording_id, 'recording_ipa', true);
+        $review_fields = isset($recording['review_fields']) && is_array($recording['review_fields']) ? (array) $recording['review_fields'] : [];
 
         if ($recording_text !== '') {
             update_post_meta($recording_id, 'recording_text', $recording_text);
@@ -7118,15 +7216,26 @@ function ll_tools_word_grid_update_word_handler() {
         } else {
             delete_post_meta($recording_id, 'recording_ipa');
         }
-        if ($recording_ipa !== $previous_recording_ipa && function_exists('ll_tools_ipa_keyboard_clear_recording_auto_review')) {
-            ll_tools_ipa_keyboard_clear_recording_auto_review($recording_id);
+        if (!empty($recording['review_fields_submitted']) && function_exists('ll_tools_ipa_keyboard_set_recording_review_state')) {
+            $review_map = array_fill_keys($review_fields, true);
+            foreach (['recording_text', 'recording_ipa'] as $field_key) {
+                ll_tools_ipa_keyboard_set_recording_review_state($recording_id, !empty($review_map[$field_key]), $field_key);
+            }
         }
 
+        $recording_review_fields = function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')
+            ? ll_tools_ipa_keyboard_get_recording_review_fields($recording_id)
+            : ['recording_text' => false, 'recording_ipa' => false];
         $recordings_out[] = [
             'id' => $recording_id,
             'recording_text' => $recording_text,
             'recording_translation' => $recording_translation,
             'recording_ipa' => ll_tools_word_grid_normalize_ipa_output($recording_ipa, $transcription_mode),
+            'review_fields' => $recording_review_fields,
+            'needs_review' => !empty(array_filter($recording_review_fields)),
+            'review_note' => function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
+                ? ll_tools_ipa_keyboard_get_recording_review_note($recording_id)
+                : '',
         ];
     }
 
@@ -9078,6 +9187,12 @@ function ll_tools_word_grid_finalize_transcription($recording_id, $recording, $w
             'recording_text' => $recording_text,
             'recording_translation' => $recording_translation,
             'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode),
+            'review_fields' => function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')
+                ? ll_tools_ipa_keyboard_get_recording_review_fields($recording_id)
+                : ['recording_text' => false, 'recording_ipa' => false],
+            'review_note' => function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
+                ? ll_tools_ipa_keyboard_get_recording_review_note($recording_id)
+                : '',
         ],
     ];
     if ($word_payload) {
@@ -9102,7 +9217,7 @@ function ll_tools_word_grid_finalize_secondary_transcription($recording_id, $rec
 
     update_post_meta($recording_id, 'recording_ipa', $clean);
     if (function_exists('ll_tools_ipa_keyboard_mark_recording_needs_auto_review')) {
-        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($recording_id);
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($recording_id, 'recording_ipa');
     }
 
     if ($wordset_id > 0) {
@@ -9121,6 +9236,12 @@ function ll_tools_word_grid_finalize_secondary_transcription($recording_id, $rec
             'recording_text' => trim((string) get_post_meta($recording_id, 'recording_text', true)),
             'recording_translation' => trim((string) get_post_meta($recording_id, 'recording_translation', true)),
             'recording_ipa' => ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode),
+            'review_fields' => function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')
+                ? ll_tools_ipa_keyboard_get_recording_review_fields($recording_id)
+                : ['recording_text' => false, 'recording_ipa' => false],
+            'review_note' => function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
+                ? ll_tools_ipa_keyboard_get_recording_review_note($recording_id)
+                : '',
         ],
     ];
 }

@@ -75,6 +75,44 @@ final class WordGridRecordingProcessingTest extends LL_Tools_TestCase
         $this->assertStringContainsString('data-ll-uses-original-audio="1"', $output);
     }
 
+    public function test_review_flagged_transcriptions_hide_for_nonstaff_and_render_editable_for_staff(): void
+    {
+        $fixture = $this->createWordWithRecording('lesson-popup-review-flags');
+        update_post_meta($fixture['recording_id'], 'recording_ipa', 'old.ipa');
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($fixture['recording_id'], 'recording_text', 'Check the first sound.');
+        ll_tools_ipa_keyboard_mark_recording_needs_auto_review($fixture['recording_id'], 'recording_ipa', 'Check the first sound.');
+
+        wp_set_current_user(0);
+        $public_output = do_shortcode('[word_grid category="lesson-popup-review-flags-category" wordset="lesson-popup-review-flags-wordset"]');
+
+        $this->assertStringNotContainsString('Recording text', $public_output);
+        $this->assertStringNotContainsString('old.ipa', $public_output);
+
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $ajax_filter = static function (): bool {
+            return true;
+        };
+        add_filter('wp_doing_ajax', $ajax_filter);
+        $GLOBALS['ll_tools_word_grid_force_lesson_context'] = true;
+
+        try {
+            $staff_output = do_shortcode('[word_grid category="lesson-popup-review-flags-category" wordset="lesson-popup-review-flags-wordset"]');
+        } finally {
+            remove_filter('wp_doing_ajax', $ajax_filter);
+            unset($GLOBALS['ll_tools_word_grid_force_lesson_context']);
+        }
+
+        $this->assertStringContainsString('Recording text', $staff_output);
+        $this->assertStringContainsString('old.ipa', $staff_output);
+        $this->assertStringContainsString('ll-word-recording-text-main--needs-review', $staff_output);
+        $this->assertStringContainsString('ll-word-recording-ipa--needs-review', $staff_output);
+        $this->assertStringContainsString('data-ll-recording-review-toggle data-review-field="recording_text"', $staff_output);
+        $this->assertStringContainsString('data-ll-recording-review-toggle data-review-field="recording_ipa"', $staff_output);
+        $this->assertStringContainsString('Check the first sound.', $staff_output);
+    }
+
     public function test_lesson_edit_audio_processing_handler_saves_processed_audio_and_keeps_future_original_source(): void
     {
         $fixture = $this->createWordWithRecording('lesson-popup-processing-save');

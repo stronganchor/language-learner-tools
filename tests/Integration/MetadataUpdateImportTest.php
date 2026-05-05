@@ -16,7 +16,7 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
         $this->assertStringContainsString('ll_tools_preview_metadata_updates', $output);
         $this->assertStringContainsString('metadata.csv or metadata.jsonl', $output);
         $this->assertStringContainsString('ll_import_metadata_mark_ipa_review', $output);
-        $this->assertStringContainsString('Mark imported IPA transcription changes as needing review', $output);
+        $this->assertStringContainsString('Mark imported transcription changes as needing review', $output);
         $this->assertStringContainsString('Preview Metadata Updates', $output);
         $this->assertStringContainsString('ll-tools-copy-reference-button', $output);
         $this->assertStringContainsString('ll-tools-metadata-update-agent-instructions', $output);
@@ -143,6 +143,7 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
                 'word_audio_updated',
                 'metadata_fields_updated',
                 'metadata_fields_cleared',
+                'metadata_transcription_reviews_flagged',
                 'metadata_ipa_reviews_flagged',
             ];
 
@@ -157,6 +158,7 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
             $this->assertSame(3, (int) (($result['stats'] ?? [])['metadata_rows_applied'] ?? 0));
             $this->assertSame(4, (int) (($result['stats'] ?? [])['metadata_fields_updated'] ?? 0));
             $this->assertSame(2, (int) (($result['stats'] ?? [])['metadata_fields_cleared'] ?? 0));
+            $this->assertSame(2, (int) (($result['stats'] ?? [])['metadata_transcription_reviews_flagged'] ?? 0));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_ipa_reviews_flagged'] ?? 0));
             $this->assertSame('New Mixed Word', (string) get_the_title($word_id));
             $this->assertSame('New Translation', (string) get_post_meta($word_id, 'word_translation', true));
@@ -263,6 +265,7 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
             $this->assertTrue(ll_tools_import_has_undo_targets((array) ($result['undo'] ?? [])));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['words_updated'] ?? 0));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['word_audio_updated'] ?? 0));
+            $this->assertSame(2, (int) (($result['stats'] ?? [])['metadata_transcription_reviews_flagged'] ?? 0));
             $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_ipa_reviews_flagged'] ?? 0));
             $this->assertSame('New Word', (string) get_the_title($word_id));
             $this->assertSame('New Translation', (string) get_post_meta($word_id, 'word_translation', true));
@@ -271,6 +274,48 @@ final class MetadataUpdateImportTest extends LL_Tools_TestCase
             $this->assertSame('new.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
             $this->assertSame('Speaker New', (string) get_post_meta($recording_id, 'speaker_name', true));
             $this->assertTrue(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
+            $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_text'));
+            $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_ipa'));
+        } finally {
+            @unlink($file_path);
+        }
+    }
+
+    public function test_process_metadata_update_can_flag_text_review_with_review_note(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin_id);
+
+        $word_id = self::factory()->post->create([
+            'post_type' => 'words',
+            'post_status' => 'publish',
+            'post_title' => 'Review Note Word',
+        ]);
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'Review Note Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'old text');
+
+        $csv = implode("\n", [
+            'word_id,recording_id,recording_text,review_fields,review_note',
+            $word_id . ',' . $recording_id . ',new text,recording_text,Unsure whether the first sound is x or y.',
+        ]) . "\n";
+
+        $file_path = wp_normalize_path(trailingslashit(sys_get_temp_dir()) . 'll-tools-metadata-review-note-' . wp_generate_password(8, false, false) . '.csv');
+        file_put_contents($file_path, $csv);
+
+        try {
+            $result = ll_tools_process_metadata_updates_file($file_path, 'updates-review-note.csv');
+
+            $this->assertTrue((bool) ($result['ok'] ?? false), implode(' | ', (array) ($result['errors'] ?? [])));
+            $this->assertSame('new text', (string) get_post_meta($recording_id, 'recording_text', true));
+            $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_text'));
+            $this->assertFalse(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_ipa'));
+            $this->assertSame('Unsure whether the first sound is x or y.', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+            $this->assertSame(1, (int) (($result['stats'] ?? [])['metadata_transcription_reviews_flagged'] ?? 0));
         } finally {
             @unlink($file_path);
         }

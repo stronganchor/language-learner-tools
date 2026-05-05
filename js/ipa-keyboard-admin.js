@@ -1413,8 +1413,38 @@
         return $item;
     }
 
-    function buildSearchReviewItem(needsReview) {
-        if (!needsReview) {
+    function normalizeReviewFields(value) {
+        const fields = {
+            recording_text: false,
+            recording_ipa: false
+        };
+        if (!value) { return fields; }
+        if (Array.isArray(value)) {
+            value.forEach(function (field) {
+                if (field === 'recording_text' || field === 'text' || field === 'orthography') {
+                    fields.recording_text = true;
+                } else if (field === 'recording_ipa' || field === 'ipa' || field === 'transcription') {
+                    fields.recording_ipa = true;
+                }
+            });
+            return fields;
+        }
+        if (typeof value === 'object') {
+            fields.recording_text = !!(value.recording_text || value.text || value.orthography);
+            fields.recording_ipa = !!(value.recording_ipa || value.ipa || value.transcription);
+        }
+        return fields;
+    }
+
+    function getReviewFieldLabel(field) {
+        return field === 'recording_text'
+            ? t('searchReviewTextLabel', 'Text')
+            : t('searchReviewIpaLabel', 'Pronunciation');
+    }
+
+    function buildSearchReviewItem(reviewFields, reviewNote) {
+        const fields = normalizeReviewFields(reviewFields);
+        if (!fields.recording_text && !fields.recording_ipa) {
             return null;
         }
 
@@ -1424,41 +1454,68 @@
             class: 'll-ipa-search-review-title',
             text: t('searchReviewPendingTitle', 'Needs review')
         }));
-        const $toggle = buildReviewToggleButton(true, 'll-ipa-search-review-toggle');
-        if ($toggle) {
-            $header.append($toggle);
-        }
         $item.append($header);
-        $item.append($('<div>', {
+        const activeFields = [];
+        if (fields.recording_text) { activeFields.push('recording_text'); }
+        if (fields.recording_ipa) { activeFields.push('recording_ipa'); }
+        activeFields.forEach(function (field) {
+            const $row = $('<div>', { class: 'll-ipa-search-review-field' });
+            $row.append($('<span>', {
+                class: 'll-ipa-search-review-field-label',
+                text: getReviewFieldLabel(field)
+            }));
+            const $toggle = buildReviewToggleButton(true, 'll-ipa-search-review-toggle', field);
+            if ($toggle) {
+                $row.append($toggle);
+            }
+            $item.append($row);
+        });
+        if (reviewNote) {
+            $item.append($('<div>', {
+                class: 'll-ipa-search-review-note',
+                text: reviewNote
+            }));
+        } else {
+            $item.append($('<div>', {
             class: 'll-ipa-search-review-message',
             text: t('searchReviewPendingMessage', 'This transcription is marked for follow-up review.')
-        }));
+            }));
+        }
         return $item;
     }
 
-    function buildReviewToggleButton(needsReview, extraClass) {
+    function buildReviewToggleButton(needsReview, extraClass, reviewField) {
         if (!currentCanEdit) {
             return null;
         }
 
+        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
         const classes = ['button-link', 'll-ipa-review-toggle'];
         if (extraClass) {
             classes.push(extraClass);
         }
+        const flagLabel = field === 'recording_text'
+            ? t('searchReviewFlagText', 'Mark text for review')
+            : t('searchReviewFlagIpa', 'Mark pronunciation for review');
+        const confirmLabel = field === 'recording_text'
+            ? t('searchReviewConfirmText', 'Mark text reviewed')
+            : t('searchReviewConfirmIpa', 'Mark pronunciation reviewed');
 
         return $('<button>', {
             type: 'button',
             class: classes.join(' '),
-            text: needsReview ? t('searchReviewConfirm', 'Mark reviewed') : t('searchReviewFlag', 'Mark for review'),
+            text: needsReview ? confirmLabel : flagLabel,
             'data-next-review-state': needsReview ? '0' : '1',
+            'data-review-field': field,
             'aria-pressed': needsReview ? 'true' : 'false'
         });
     }
 
-    function buildIssuesCellData(activeIssues, ignoredIssues, needsReview) {
+    function buildIssuesCellData(activeIssues, ignoredIssues, reviewFields, reviewNote) {
         const active = Array.isArray(activeIssues) ? activeIssues : [];
         const ignored = Array.isArray(ignoredIssues) ? ignoredIssues : [];
-        const reviewPending = !!needsReview;
+        const fields = normalizeReviewFields(reviewFields);
+        const reviewPending = !!(fields.recording_text || fields.recording_ipa);
         return {
             html: function () {
                 const $wrap = $('<div>', { class: 'll-ipa-search-issues-wrap' });
@@ -1467,7 +1524,7 @@
                     return $wrap;
                 }
                 if (reviewPending) {
-                    $wrap.append(buildSearchReviewItem(true));
+                    $wrap.append(buildSearchReviewItem(fields, reviewNote));
                 }
                 active.forEach(function (issue) {
                     $wrap.append(buildSearchIssueItem(issue, false));
@@ -1524,7 +1581,9 @@
         const categories = rec && rec.categories ? rec.categories : [];
         const issues = rec && rec.issues ? rec.issues : [];
         const ignoredIssues = rec && rec.ignored_issues ? rec.ignored_issues : [];
-        const needsReview = !!(rec && rec.needs_review);
+        const reviewFields = normalizeReviewFields(rec && rec.review_fields ? rec.review_fields : (rec && rec.needs_review ? { recording_ipa: true } : null));
+        const needsReview = !!(reviewFields.recording_text || reviewFields.recording_ipa);
+        const reviewNote = rec && rec.review_note ? rec.review_note : '';
         const transcription = getTranscription();
         const textValue = rec && rec.recording_text ? rec.recording_text : '';
         const ipaValue = rec && rec.recording_ipa ? rec.recording_ipa : '';
@@ -1593,19 +1652,30 @@
             .append($('<span>', { class: 'll-ipa-search-save-label' }));
         const $actionCell = $('<td>', { class: 'll-ipa-search-action-cell' });
         const $actionWrap = $('<div>', { class: 'll-ipa-search-actions' }).append($saveState);
-        const $reviewToggle = !needsReview ? buildReviewToggleButton(false, 'll-ipa-search-action-toggle') : null;
-        if ($reviewToggle) {
-            $actionWrap.append($reviewToggle);
+        ['recording_text', 'recording_ipa'].forEach(function (field) {
+            if (reviewFields[field]) { return; }
+            const $reviewToggle = buildReviewToggleButton(false, 'll-ipa-search-action-toggle', field);
+            if ($reviewToggle) {
+                $actionWrap.append($reviewToggle);
+            }
+        });
+        if (reviewNote) {
+            $actionWrap.append($('<span>', {
+                class: 'll-ipa-search-review-note-compact',
+                text: reviewNote
+            }));
         }
         $actionCell.append($actionWrap);
 
         const $issueCell = $('<td>', { class: 'll-ipa-search-issues-cell' }).append(
-            buildIssuesCellData(issues, ignoredIssues, needsReview).html()
+            buildIssuesCellData(issues, ignoredIssues, reviewFields, reviewNote).html()
         );
 
         return $('<tr>', {
             'data-recording-id': recordingId,
-            'data-needs-review': needsReview ? '1' : '0'
+            'data-needs-review': needsReview ? '1' : '0',
+            'data-review-text': reviewFields.recording_text ? '1' : '0',
+            'data-review-ipa': reviewFields.recording_ipa ? '1' : '0'
         })
             .append($metaCell)
             .append($('<td>', { class: 'll-ipa-search-text-cell' }).append($textInput))
@@ -2421,10 +2491,13 @@
     function updateSearchRowValidation($row, validation) {
         const active = validation && Array.isArray(validation.active) ? validation.active : [];
         const ignored = validation && Array.isArray(validation.ignored) ? validation.ignored : [];
-        const needsReview = ($row.attr('data-needs-review') || '0') === '1';
+        const reviewFields = {
+            recording_text: ($row.attr('data-review-text') || '0') === '1',
+            recording_ipa: ($row.attr('data-review-ipa') || '0') === '1'
+        };
         const $cell = $row.find('.ll-ipa-search-issues-cell').first();
         if ($cell.length) {
-            $cell.empty().append(buildIssuesCellData(active, ignored, needsReview).html());
+            $cell.empty().append(buildIssuesCellData(active, ignored, reviewFields, '').html());
         }
     }
 
@@ -2486,12 +2559,15 @@
         $state.find('.ll-ipa-search-save-label').text(label || '');
     }
 
-    function queuePendingSearchReviewState(recordingId, needsReview) {
+    function queuePendingSearchReviewState(recordingId, needsReview, reviewField) {
         if (!recordingId) {
             return;
         }
 
-        pendingSearchReviewState[String(recordingId)] = !!needsReview;
+        pendingSearchReviewState[String(recordingId)] = {
+            needsReview: !!needsReview,
+            reviewField: reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa'
+        };
     }
 
     function clearPendingSearchReviewState(recordingId) {
@@ -2508,15 +2584,16 @@
             return;
         }
 
-        const needsReview = !!pendingSearchReviewState[key];
+        const state = pendingSearchReviewState[key] || {};
         delete pendingSearchReviewState[key];
-        submitSearchReviewState(recordingId, needsReview);
+        submitSearchReviewState(recordingId, !!state.needsReview, state.reviewField || 'recording_ipa');
     }
 
-    function submitSearchReviewState(recordingId, needsReview) {
+    function submitSearchReviewState(recordingId, needsReview, reviewField) {
         if (!recordingId || !currentWordsetId || !currentCanEdit) {
             return $.Deferred().reject().promise();
         }
+        const field = reviewField === 'recording_text' ? 'recording_text' : 'recording_ipa';
 
         setStatus(t('saving', 'Saving...'), false);
         return $.post(ajaxUrl, {
@@ -2524,6 +2601,7 @@
             nonce: nonce,
             wordset_id: currentWordsetId,
             recording_id: recordingId,
+            review_field: field,
             needs_review: needsReview ? 1 : 0
         }).done(function (response) {
             if (!response || response.success !== true) {
@@ -3092,24 +3170,27 @@
         const $row = $btn.closest('tr');
         const recordingId = parseInt($row.attr('data-recording-id'), 10) || 0;
         const nextNeedsReview = ($btn.attr('data-next-review-state') || '0') === '1';
+        const reviewField = ($btn.attr('data-review-field') || 'recording_ipa').toString() === 'recording_text'
+            ? 'recording_text'
+            : 'recording_ipa';
 
         if (!recordingId || !currentWordsetId) {
             return;
         }
 
         if ($row.data('llSearchRowSaving')) {
-            queuePendingSearchReviewState(recordingId, nextNeedsReview);
+            queuePendingSearchReviewState(recordingId, nextNeedsReview, reviewField);
             return;
         }
 
         if (searchRowHasUnsavedChanges($row)) {
-            queuePendingSearchReviewState(recordingId, nextNeedsReview);
+            queuePendingSearchReviewState(recordingId, nextNeedsReview, reviewField);
             autosaveSearchRow($row);
             return;
         }
 
         $btn.prop('disabled', true);
-        submitSearchReviewState(recordingId, nextNeedsReview).always(function () {
+        submitSearchReviewState(recordingId, nextNeedsReview, reviewField).always(function () {
             $btn.prop('disabled', false);
         });
     });

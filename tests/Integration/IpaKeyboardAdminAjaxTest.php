@@ -86,11 +86,12 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
         $this->assertSame('ship', (string) ($recording['recording_text'] ?? ''));
         $this->assertSame('gem', (string) ($recording['recording_translation'] ?? ''));
         $this->assertSame('ʒ', (string) ($recording['recording_ipa'] ?? ''));
-        $this->assertFalse((bool) ($recording['needs_review'] ?? true));
+        $this->assertTrue((bool) ($recording['needs_review'] ?? false));
+        $this->assertTrue((bool) (($recording['review_fields'] ?? [])['recording_ipa'] ?? false));
         $this->assertSame(site_url('wp-content/uploads/test-audio/ship.mp3'), (string) ($recording['audio_url'] ?? ''));
         $this->assertSame('Play Isolation recording', (string) ($recording['audio_label'] ?? ''));
         $this->assertNotSame('', (string) ($recording['word_edit_link'] ?? ''));
-        $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
 
         $this->assertSame(['ʒ'], ll_tools_word_grid_get_wordset_ipa_special_chars($wordset_id));
 
@@ -217,6 +218,8 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
             'nonce' => wp_create_nonce('ll_ipa_keyboard_admin'),
             'wordset_id' => $wordset_id,
             'recording_id' => $recording_id,
+            'review_field' => 'recording_text',
+            'review_note' => 'Unsure whether this is a short or long vowel.',
             'needs_review' => 1,
         ];
         $_REQUEST = $_POST;
@@ -227,10 +230,15 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($markResponse['success'] ?? false));
         $this->assertTrue(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_text'));
+        $this->assertSame('Unsure whether this is a short or long vowel.', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
         $markedRecording = (array) (($markResponse['data'] ?? [])['recording'] ?? []);
         $this->assertTrue((bool) ($markedRecording['needs_review'] ?? false));
+        $this->assertTrue((bool) (($markedRecording['review_fields'] ?? [])['recording_text'] ?? false));
+        $this->assertSame('Unsure whether this is a short or long vowel.', (string) ($markedRecording['review_note'] ?? ''));
 
         $_POST['needs_review'] = 0;
+        $_POST['review_note'] = '';
         $_REQUEST = $_POST;
 
         $clearResponse = $this->runJsonEndpoint(static function (): void {
@@ -239,6 +247,7 @@ final class IpaKeyboardAdminAjaxTest extends LL_Tools_TestCase
 
         $this->assertTrue((bool) ($clearResponse['success'] ?? false));
         $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
+        $this->assertSame('', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
         $clearedRecording = (array) (($clearResponse['data'] ?? [])['recording'] ?? []);
         $this->assertFalse((bool) ($clearedRecording['needs_review'] ?? true));
     }

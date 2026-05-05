@@ -161,6 +161,56 @@ final class AutomationRestApiTest extends LL_Tools_TestCase
         $this->assertSame(0, (int) ($resume_data['matched_count'] ?? 0));
     }
 
+    public function test_transcriptions_route_updates_fields_review_flags_and_review_note(): void
+    {
+        $admin_id = self::factory()->user->create(['role' => 'administrator']);
+        $wordset_id = $this->ensure_term('wordset', 'REST Transcription Wordset', 'rest-transcription-wordset');
+        $category_id = $this->ensure_term('word-category', 'REST Transcription Category', 'rest-transcription-category');
+        $word_id = $this->create_word($wordset_id, [$category_id], 'REST Transcription Word', 'Translation');
+        $recording_id = self::factory()->post->create([
+            'post_type' => 'word_audio',
+            'post_status' => 'publish',
+            'post_parent' => $word_id,
+            'post_title' => 'REST Transcription Recording',
+        ]);
+        update_post_meta($recording_id, 'recording_text', 'old text');
+        update_post_meta($recording_id, 'recording_ipa', 'old.ipa');
+
+        wp_set_current_user($admin_id);
+
+        $response = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-transcription-wordset/transcriptions', [
+            'updates' => [
+                [
+                    'recording_id' => $recording_id,
+                    'recording_text' => 'new text',
+                    'recording_ipa' => 'new.ipa',
+                    'review_fields' => ['recording_text', 'recording_ipa'],
+                    'review_note' => 'Unsure if this sound is x or y, otherwise high confidence.',
+                ],
+            ],
+        ]);
+
+        $this->assertSame(200, $response->get_status());
+        $data = $response->get_data();
+        $this->assertIsArray($data);
+        $this->assertSame(1, (int) ($data['updated_count'] ?? 0));
+        $this->assertSame('new text', (string) get_post_meta($recording_id, 'recording_text', true));
+        $this->assertSame('new.ipa', (string) get_post_meta($recording_id, 'recording_ipa', true));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_text'));
+        $this->assertTrue(ll_tools_ipa_keyboard_recording_field_needs_review($recording_id, 'recording_ipa'));
+        $this->assertSame('Unsure if this sound is x or y, otherwise high confidence.', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+
+        $clear = $this->dispatch_ll_tools_rest_request('POST', '/ll-tools/v1/wordsets/rest-transcription-wordset/transcriptions', [
+            'recording_id' => $recording_id,
+            'needs_review' => false,
+            'review_fields' => ['recording_text', 'recording_ipa'],
+        ]);
+
+        $this->assertSame(200, $clear->get_status());
+        $this->assertFalse(ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id));
+        $this->assertSame('', ll_tools_ipa_keyboard_get_recording_review_note($recording_id));
+    }
+
     public function test_bulk_update_route_caps_write_batches_by_default(): void
     {
         $admin_id = self::factory()->user->create(['role' => 'administrator']);

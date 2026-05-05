@@ -573,7 +573,7 @@ function ll_tools_rest_resource_guard_policy(WP_REST_Request $request): array {
     } elseif ($route === '/ll-tools/v1/wordsets') {
         $resource = 'll_tools_wordset_create';
         $delay_seconds = 2.0;
-    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|word-option-rules|review-notes|interlinear)$#', $route, $matches)) {
+    } elseif (preg_match('#^/ll-tools/v1/wordsets/[^/]+/(bulk-update|transcriptions|word-option-rules|review-notes|interlinear)$#', $route, $matches)) {
         $resource = 'll_tools_' . sanitize_key((string) $matches[1]);
         $delay_seconds = 1.25;
     }
@@ -798,6 +798,7 @@ function ll_tools_rest_automation_status(WP_REST_Request $request): WP_REST_Resp
             'create_wordset' => '/ll-tools/v1/wordsets',
             'missing_meta' => '/ll-tools/v1/wordsets/{wordset}/missing-meta',
             'bulk_update' => '/ll-tools/v1/wordsets/{wordset}/bulk-update',
+            'transcriptions' => '/ll-tools/v1/wordsets/{wordset}/transcriptions',
             'word_option_rules' => '/ll-tools/v1/wordsets/{wordset}/word-option-rules',
             'report' => '/ll-tools/v1/wordsets/{wordset}/report',
             'report_summary' => '/ll-tools/v1/wordsets/{wordset}/report-summary',
@@ -1099,6 +1100,185 @@ function ll_tools_rest_automation_word_bulk_update(WP_REST_Request $request) {
     }
 
     $summary['resume_state'] = $resume_state;
+
+    return rest_ensure_response($summary);
+}
+
+function ll_tools_rest_automation_recording_belongs_to_wordset(int $recording_id, int $wordset_id): bool {
+    if ($recording_id <= 0 || $wordset_id <= 0) {
+        return false;
+    }
+
+    $recording = get_post($recording_id);
+    if (!($recording instanceof WP_Post) || $recording->post_type !== 'word_audio') {
+        return false;
+    }
+
+    $word_id = (int) $recording->post_parent;
+    if ($word_id <= 0) {
+        return false;
+    }
+
+    $wordset_ids = wp_get_post_terms($word_id, 'wordset', ['fields' => 'ids']);
+    return !is_wp_error($wordset_ids) && in_array($wordset_id, array_map('intval', (array) $wordset_ids), true);
+}
+
+function ll_tools_rest_automation_transcription_payload(int $recording_id, int $wordset_id): array {
+    $recording = get_post($recording_id);
+    $word_id = ($recording instanceof WP_Post) ? (int) $recording->post_parent : 0;
+    $transcription_mode = function_exists('ll_tools_get_wordset_recording_transcription_mode')
+        ? ll_tools_get_wordset_recording_transcription_mode([$wordset_id], true)
+        : 'ipa';
+
+    return [
+        'recording_id' => $recording_id,
+        'word_audio_id' => $recording_id,
+        'word_id' => $word_id,
+        'recording_text' => (string) get_post_meta($recording_id, 'recording_text', true),
+        'recording_translation' => (string) get_post_meta($recording_id, 'recording_translation', true),
+        'recording_ipa' => function_exists('ll_tools_word_grid_normalize_ipa_output')
+            ? ll_tools_word_grid_normalize_ipa_output((string) get_post_meta($recording_id, 'recording_ipa', true), $transcription_mode)
+            : (string) get_post_meta($recording_id, 'recording_ipa', true),
+        'review_fields' => function_exists('ll_tools_ipa_keyboard_get_recording_review_fields')
+            ? ll_tools_ipa_keyboard_get_recording_review_fields($recording_id)
+            : ['recording_text' => false, 'recording_ipa' => false],
+        'needs_review' => function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')
+            ? ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id)
+            : false,
+        'review_note' => function_exists('ll_tools_ipa_keyboard_get_recording_review_note')
+            ? ll_tools_ipa_keyboard_get_recording_review_note($recording_id)
+            : '',
+    ];
+}
+
+function ll_tools_rest_automation_update_transcriptions(WP_REST_Request $request) {
+    $wordset_term = ll_tools_rest_automation_resolve_wordset_term($request);
+    if (is_wp_error($wordset_term)) {
+        return $wordset_term;
+    }
+
+    $wordset_id = (int) $wordset_term->term_id;
+    $dry_run = rest_sanitize_boolean($request->get_param('dry_run'));
+    $raw_updates = $request->get_param('updates');
+    if (!is_array($raw_updates)) {
+        $raw_updates = [$request->get_json_params()];
+    }
+    if (count($raw_updates) === 1 && empty($raw_updates[0])) {
+        $raw_updates = [$request->get_params()];
+    }
+
+    $summary = [
+        'generated_at_gmt' => gmdate('c'),
+        'dry_run' => $dry_run,
+        'wordset' => [
+            'id' => $wordset_id,
+            'slug' => (string) $wordset_term->slug,
+            'name' => (string) $wordset_term->name,
+        ],
+        'matched_count' => 0,
+        'updated_count' => 0,
+        'updated' => [],
+        'errors' => [],
+    ];
+
+    foreach ((array) $raw_updates as $index => $update) {
+        if (!is_array($update)) {
+            continue;
+        }
+
+        $recording_id = (int) ($update['recording_id'] ?? ($update['word_audio_id'] ?? 0));
+        if ($recording_id <= 0 || !ll_tools_rest_automation_recording_belongs_to_wordset($recording_id, $wordset_id)) {
+            $summary['errors'][] = [
+                'index' => (int) $index,
+                'recording_id' => $recording_id,
+                'message' => __('Recording not found in this word set.', 'll-tools-text-domain'),
+            ];
+            continue;
+        }
+
+        $summary['matched_count']++;
+        $before = ll_tools_rest_automation_transcription_payload($recording_id, $wordset_id);
+        $fields = [];
+        if (array_key_exists('recording_text', $update) || array_key_exists('text', $update)) {
+            $fields['recording_text'] = (string) ($update['recording_text'] ?? $update['text']);
+        }
+        if (array_key_exists('recording_ipa', $update) || array_key_exists('ipa', $update)) {
+            $fields['recording_ipa'] = (string) ($update['recording_ipa'] ?? $update['ipa']);
+        }
+
+        $review_note = isset($update['review_note']) ? sanitize_textarea_field((string) $update['review_note']) : '';
+        $review_fields = [];
+        $has_explicit_review_fields = false;
+        if (array_key_exists('review_fields', $update)) {
+            $has_explicit_review_fields = true;
+            $review_fields = function_exists('ll_tools_ipa_keyboard_normalize_review_fields')
+                ? ll_tools_ipa_keyboard_normalize_review_fields($update['review_fields'])
+                : array_values(array_intersect((array) $update['review_fields'], ['recording_text', 'recording_ipa']));
+        } elseif (array_key_exists('review_field', $update)) {
+            $has_explicit_review_fields = true;
+            $field = function_exists('ll_tools_ipa_keyboard_normalize_review_field')
+                ? ll_tools_ipa_keyboard_normalize_review_field((string) $update['review_field'])
+                : sanitize_key((string) $update['review_field']);
+            if (in_array($field, ['recording_text', 'recording_ipa'], true)) {
+                $review_fields[] = $field;
+            }
+        }
+        $needs_review = array_key_exists('needs_review', $update)
+            ? rest_sanitize_boolean($update['needs_review'])
+            : !empty($review_fields);
+        if (empty($review_fields) && array_key_exists('needs_review', $update) && $needs_review) {
+            $review_fields = array_values(array_intersect(array_keys($fields), ['recording_text', 'recording_ipa']));
+            if (empty($review_fields)) {
+                $review_fields = ['recording_ipa'];
+            }
+        }
+        $has_review_state = array_key_exists('needs_review', $update) || $has_explicit_review_fields;
+
+        if (!$dry_run) {
+            if (!empty($fields)) {
+                if (function_exists('ll_tools_ipa_keyboard_update_recording_fields')) {
+                    ll_tools_ipa_keyboard_update_recording_fields($recording_id, $wordset_id, $fields);
+                } else {
+                    foreach ($fields as $meta_key => $value) {
+                        $value = sanitize_text_field($value);
+                        if ($value === '') {
+                            delete_post_meta($recording_id, $meta_key);
+                        } else {
+                            update_post_meta($recording_id, $meta_key, $value);
+                        }
+                    }
+                }
+            }
+            if ($has_review_state && function_exists('ll_tools_ipa_keyboard_set_recording_review_state')) {
+                if (!$needs_review && empty($review_fields) && function_exists('ll_tools_ipa_keyboard_clear_recording_auto_review')) {
+                    ll_tools_ipa_keyboard_clear_recording_auto_review($recording_id);
+                } else {
+                    foreach ($review_fields as $field_key) {
+                        ll_tools_ipa_keyboard_set_recording_review_state($recording_id, $needs_review, $field_key, $review_note);
+                    }
+                }
+            } elseif (
+                $review_note !== ''
+                && function_exists('ll_tools_ipa_keyboard_set_recording_review_note')
+                && function_exists('ll_tools_ipa_keyboard_recording_needs_auto_review')
+                && ll_tools_ipa_keyboard_recording_needs_auto_review($recording_id)
+            ) {
+                ll_tools_ipa_keyboard_set_recording_review_note($recording_id, $review_note);
+            }
+        }
+
+        $after = $dry_run ? $before : ll_tools_rest_automation_transcription_payload($recording_id, $wordset_id);
+        $changed = !$dry_run && $after !== $before;
+        if ($changed) {
+            $summary['updated_count']++;
+        }
+        $summary['updated'][] = [
+            'recording_id' => $recording_id,
+            'changed' => $changed,
+            'before' => $before,
+            'after' => $after,
+        ];
+    }
 
     return rest_ensure_response($summary);
 }
@@ -2588,6 +2768,12 @@ function ll_tools_rest_register_automation_routes(): void {
     register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/bulk-update', [
         'methods' => WP_REST_Server::CREATABLE,
         'callback' => 'll_tools_rest_automation_word_bulk_update',
+        'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
+    ]);
+
+    register_rest_route('ll-tools/v1', '/wordsets/(?P<wordset>[^/]+)/transcriptions', [
+        'methods' => WP_REST_Server::CREATABLE,
+        'callback' => 'll_tools_rest_automation_update_transcriptions',
         'permission_callback' => 'll_tools_rest_automation_require_wordset_access',
     ]);
 
